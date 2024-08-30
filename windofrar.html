@@ -39,7 +39,7 @@
 
     document.getElementById('clickable-image').addEventListener('click', () => {
       if (++imageClickCount >= 3) {
-        window.location.href = 'xneon.html';
+        window.location.href = 'index.html';
         resetCounters();  // Сброс счётчиков после перехода
       } else {
         setCounter('imageClickCount', imageClickCount);
@@ -49,7 +49,7 @@
     document.addEventListener('keydown', event => {
       if (event.key === 'Delete') {
         if (++deletePressCount >= 3) {
-          window.location.href = 'xneon.html';
+          window.location.href = 'index.html';
           resetCounters();  // Сброс счётчиков после перехода
         } else {
           setCounter('deletePressCount', deletePressCount);
