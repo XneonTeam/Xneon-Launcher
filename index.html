@@ -38,7 +38,7 @@
 
     document.getElementById('clickable-image').addEventListener('click', () => {
       if (++imageClickCount >= 3) {
-        window.location.href = 'windofrar.html';
+        window.location.href = 'Among_Us.html';
         resetCounters();  // Сброс счётчиков после перехода
       } else {
         setCounter('imageClickCount', imageClickCount);
@@ -48,7 +48,7 @@
     document.addEventListener('keydown', event => {
       if (event.key === 'Delete') {
         if (++deletePressCount >= 3) {
-          window.location.href = 'windofrar.html';
+          window.location.href = 'Among_Us.html';
           resetCounters();  // Сброс счётчиков после перехода
         } else {
           setCounter('deletePressCount', deletePressCount);
