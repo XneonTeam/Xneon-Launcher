@@ -3,7 +3,7 @@ import sys
 import requests
 from uuid import uuid1
 from subprocess import call, CREATE_NO_WINDOW
-from PyQt5.QtCore import QThread, pyqtSignal, QSize, Qt
+from PyQt5.QtCore import QThread, pyqtSignal, QSize, Qt, QTimer
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QLineEdit, QComboBox,
     QProgressBar, QPushButton, QApplication, QMainWindow, QDialog, QTextEdit, QCheckBox
@@ -13,6 +13,7 @@ from minecraft_launcher_lib.utils import get_minecraft_directory, get_version_li
 from minecraft_launcher_lib.install import install_minecraft_version
 from minecraft_launcher_lib.command import get_minecraft_command
 from minecraft_launcher_lib.fabric import install_fabric
+from minecraft_launcher_lib.forge import install_forge_version
 from random_username.generate import generate_username
 from pypresence import Presence
 
@@ -32,10 +33,26 @@ def is_internet_connected():
 
 minecraft_directory = get_minecraft_directory().replace('minecraft', 'xneonlauncher')
 
+def get_forge_id(version):
+    url = "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json"
+    try:
+        response = requests.get(url)
+        promotions = response.json().get('promos', {})
+        recommended_key = f"{version}-recommended"
+        latest_key = f"{version}-latest"
+
+        forge_id = promotions.get(recommended_key) or promotions.get(latest_key)
+        if forge_id:
+            return f"{version}-{forge_id}"
+    except requests.RequestException as e:
+        print(f"Ошибка при получении Forge ID: {e}")
+    return None
+
 class LaunchThread(QThread):
     launch_setup_signal = pyqtSignal(str, str, bool)
     progress_update_signal = pyqtSignal(int, int, str)
     state_update_signal = pyqtSignal(bool)
+    finished_signal = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -69,6 +86,7 @@ class LaunchThread(QThread):
         creationflags = 0 if self.show_console else CREATE_NO_WINDOW
         call(get_minecraft_command(version=self.version_id, minecraft_directory=minecraft_directory, options=options), creationflags=creationflags)
         self.state_update_signal.emit(False)
+        self.finished_signal.emit()
 
 class FabricInstallThread(QThread):
     install_complete_signal = pyqtSignal(bool, str)
@@ -97,6 +115,46 @@ class FabricInstallThread(QThread):
             self.install_complete_signal.emit(True, fabric_version_id)
         except Exception as e:
             print(f"Ошибка при установке Fabric: {e}")
+            self.install_complete_signal.emit(False, "")
+
+class ForgeInstallThread(QThread):
+    install_complete_signal = pyqtSignal(bool, str)
+    progress_update_signal = pyqtSignal(int, int, str)
+
+    def __init__(self, version_id, minecraft_directory):
+        super().__init__()
+        self.version_id = version_id
+        self.minecraft_directory = minecraft_directory
+
+    def update_progress(self, value, maximum, label):
+        self.progress_update_signal.emit(value, maximum, label)
+
+    def run(self):
+        forge_id = get_forge_id(self.version_id)
+        if forge_id is None:
+            print("Не удалось получить Forge ID, установка отменена.")
+            self.install_complete_signal.emit(False, "")
+            return
+
+        forge_version_path = os.path.join(self.minecraft_directory, "versions", forge_id)
+        if os.path.exists(forge_version_path):
+            print(f"Forge {forge_id} уже установлен.")
+            self.install_complete_signal.emit(True, forge_id)
+            return
+
+        try:
+            install_forge_version(
+                forge_id,
+                self.minecraft_directory,
+                callback={
+                    'setStatus': lambda v: self.update_progress(0, 0, v),
+                    'setProgress': lambda v: self.update_progress(v, 0, ''),
+                    'setMax': lambda v: self.update_progress(0, v, '')
+                }
+            )
+            self.install_complete_signal.emit(True, forge_id)
+        except Exception as e:
+            print(f"Ошибка при установке Forge: {e}")
             self.install_complete_signal.emit(False, "")
 
 class NewsDialog(QDialog):
@@ -152,6 +210,7 @@ class MainWindow(QMainWindow):
         self.launch_thread = LaunchThread()
         self.launch_thread.state_update_signal.connect(self.state_update)
         self.launch_thread.progress_update_signal.connect(self.update_progress)
+        self.launch_thread.finished_signal.connect(self.on_game_finished)
         self.version_list = get_version_list()
         self.update_version_list()
         self.ensure_minecraft_folder_exists()
@@ -169,7 +228,7 @@ class MainWindow(QMainWindow):
 
         self.version_select = QComboBox(self.centralwidget)
         self.mod_loader_select = QComboBox(self.centralwidget)
-        self.mod_loader_select.addItems(['Vanilla', 'Fabric'])
+        self.mod_loader_select.addItems(['Vanilla', 'Fabric', 'Forge'])
         self.mod_loader_select.currentIndexChanged.connect(self.update_version_list)
 
         self.start_progress_label = QLabel(self.centralwidget)
@@ -228,14 +287,29 @@ class MainWindow(QMainWindow):
         selected_loader = self.mod_loader_select.currentText()
         self.version_select.clear()
         fabric_supported_versions = [f'1.{i}' for i in range(14, 22)]
-        
+
         versions = [
             f"{v['id']} (snapshot)" if v['type'] == 'snapshot' else v['id']
             for v in self.version_list if v['type'] in ['release', 'snapshot', 'old_alpha', 'old_beta']
-            and (selected_loader == 'Vanilla' or (selected_loader == 'Fabric' and any(v['id'].startswith(ver) for ver in fabric_supported_versions)))
+            and (
+                selected_loader == 'Vanilla' or
+                (selected_loader == 'Fabric' and any(v['id'].startswith(ver) for ver in fabric_supported_versions)) or
+                (selected_loader == 'Forge' and v['type'] == 'release' and self.is_forge_version_supported(v['id']))
+            )
         ]
-        
+
         self.version_select.addItems(versions or ["Нет доступных версий"])
+
+    def is_forge_version_supported(self, version_id):
+        major_minor_patch = version_id.split('.')
+        if len(major_minor_patch) >= 2:
+            major, minor = map(int, major_minor_patch[:2])
+            patch = int(major_minor_patch[2]) if len(major_minor_patch) > 2 else 0
+            # Убираем поддержку Forge для версий 1.13 и 1.13.1
+            if major == 1 and minor == 13 and patch in (0, 1):
+                return False
+            return major > 1 or (major == 1 and (minor > 12 or (minor == 12 and patch >= 2)))
+        return False
 
     def state_update(self, value):
         self.start_button.setDisabled(value)
@@ -256,6 +330,7 @@ class MainWindow(QMainWindow):
 
     def launch_game(self):
         version_id = self.version_select.currentText().split(' ')[0]
+        self.current_version_playing = version_id  # Track the version being launched
         username = self.username.text()
         show_console = self.console_checkbox.isChecked()
         mod_loader = self.mod_loader_select.currentText()
@@ -266,6 +341,12 @@ class MainWindow(QMainWindow):
             self.fabric_install_thread.progress_update_signal.connect(self.update_progress)
             self.state_update(True)
             self.fabric_install_thread.start()
+        elif mod_loader == 'Forge':
+            self.forge_install_thread = ForgeInstallThread(version_id, minecraft_directory)
+            self.forge_install_thread.install_complete_signal.connect(self.on_forge_install_complete)
+            self.forge_install_thread.progress_update_signal.connect(self.update_progress)
+            self.state_update(True)
+            self.forge_install_thread.start()
         else:
             self.launch_thread.launch_setup(version_id, username, show_console)
             self.launch_thread.start()
@@ -275,8 +356,23 @@ class MainWindow(QMainWindow):
             self.launch_thread.launch_setup(fabric_version_id, self.username.text(), self.console_checkbox.isChecked())
             self.launch_thread.start()
         else:
-            print("Не удалось установить модлоадер, запуск отменён.")
+            print("Не удалось установить Fabric, запуск отменён.")
         self.state_update(False)
+
+    def on_forge_install_complete(self, success, forge_version_id):
+        if success:
+            minecraft_version = self.version_select.currentText().split(' ')[0]
+            forge_version = forge_version_id.split('-')[-1]
+            minecraft_forge_version_id = f"{minecraft_version}-forge-{forge_version}"
+            self.launch_thread.launch_setup(minecraft_forge_version_id, self.username.text(), self.console_checkbox.isChecked())
+            self.launch_thread.start()
+        else:
+            print("Не удалось установить Forge, запуск отменён.")
+        self.state_update(False)
+
+    def on_game_finished(self):
+        self.current_version_playing = None
+        self.update_discord_rpc()
 
     def show_news(self):
         self.news_dialog = NewsDialog(self)
@@ -338,6 +434,9 @@ class MainWindow(QMainWindow):
         try:
             self.discord_rpc = Presence(CLIENT_ID)
             self.discord_rpc.connect()
+            self.rpc_timer = QTimer(self)
+            self.rpc_timer.timeout.connect(self.update_discord_rpc)
+            self.rpc_timer.start(30000)  # Update every 30 seconds
             self.update_discord_rpc()
         except Exception as e:
             print(f"Ошибка при настройке Discord RPC: {e}")
@@ -345,15 +444,48 @@ class MainWindow(QMainWindow):
     def update_discord_rpc(self):
         if hasattr(self, 'discord_rpc') and self.discord_rpc:
             try:
-                current_version = self.version_select.currentText()
-                self.discord_rpc.update(
-                    state=f"Играет в Minecraft {current_version}",
-                    details="Запущен Xneon Launcher",
-                    large_image="https://i.imgur.com/1u1oHSS.png",
-                    buttons=[{"label": "Сайт лаунчера", "url": "https://activator.xneon.fun"}]
-                )
+                if hasattr(self, 'current_version_playing') and self.current_version_playing:
+                    current_version = self.current_version_playing
+                    mod_loader = self.mod_loader_select.currentText()
+
+                    if mod_loader != 'Vanilla':
+                        state_text = f"Играет в Minecraft {current_version} с {mod_loader}"
+                        small_image_key = {
+                            'Fabric': 'fabric_icon',
+                            'Forge': 'forge_icon'
+                        }.get(mod_loader)
+
+                        mod_count = self.get_mod_count()
+                        small_text = f"Установлено {mod_count} модов"
+                    else:
+                        state_text = f"Играет в Minecraft {current_version}"
+                        small_image_key = None
+                        small_text = None
+
+                    self.discord_rpc.update(
+                        state=state_text,
+                        details="Запущен Xneon Launcher",
+                        large_image="https://i.imgur.com/1u1oHSS.png",
+                        small_image=small_image_key,
+                        small_text=small_text,
+                        buttons=[{"label": "Сайт лаунчера", "url": "https://activator.xneon.fun"}]
+                    )
+                else:
+                    self.discord_rpc.update(
+                        state="Ожидание запуска Minecraft",
+                        details="Запущен Xneon Launcher",
+                        large_image="https://i.imgur.com/1u1oHSS.png",
+                        buttons=[{"label": "Сайт лаунчера", "url": "https://activator.xneon.fun"}]
+                    )
             except Exception as e:
                 print(f"Ошибка при обновлении Discord RPC: {e}")
+
+    def get_mod_count(self):
+        mods_directory = os.path.join(minecraft_directory, 'mods')
+        if not os.path.exists(mods_directory):
+            return 0
+        mod_files = [f for f in os.listdir(mods_directory) if f.endswith('.jar')]
+        return len(mod_files)
 
     def closeEvent(self, event):
         if hasattr(self, 'discord_rpc') and self.discord_rpc:
