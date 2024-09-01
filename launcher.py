@@ -1,33 +1,31 @@
-import requests
 import os
-from PyQt5.QtCore import QThread, pyqtSignal, QSize, Qt, QTimer
-from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QLabel, QLineEdit, QComboBox, 
-                             QSpacerItem, QSizePolicy, QProgressBar, QPushButton, QApplication, 
-                             QMainWindow, QDialog, QTextEdit, QMessageBox, QCheckBox)
+import sys
+import requests
+from uuid import uuid1
+from subprocess import call, CREATE_NO_WINDOW
+from PyQt5.QtCore import QThread, pyqtSignal, QSize, Qt
+from PyQt5.QtWidgets import (
+    QWidget, QHBoxLayout, QVBoxLayout, QLabel, QLineEdit, QComboBox,
+    QProgressBar, QPushButton, QApplication, QMainWindow, QDialog, QTextEdit, QCheckBox
+)
 from PyQt5.QtGui import QPixmap
 from minecraft_launcher_lib.utils import get_minecraft_directory, get_version_list
 from minecraft_launcher_lib.install import install_minecraft_version
 from minecraft_launcher_lib.command import get_minecraft_command
+from minecraft_launcher_lib.fabric import install_fabric
 from random_username.generate import generate_username
-from uuid import uuid1
-from subprocess import call, CREATE_NO_WINDOW
-from sys import argv, exit
-import sys
 from pypresence import Presence
 
 def resource_path(relative_path):
-    """ Получить абсолютный путь к ресурсу, работает как в режиме разработки, так и в PyInstaller """
     try:
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
-
     return os.path.join(base_path, relative_path)
 
 def is_internet_connected():
-    """ Проверить наличие подключения к интернету """
     try:
-        response = requests.get('http://www.google.com', timeout=5)
+        requests.get('http://www.google.com', timeout=5)
         return True
     except requests.ConnectionError:
         return False
@@ -39,56 +37,67 @@ class LaunchThread(QThread):
     progress_update_signal = pyqtSignal(int, int, str)
     state_update_signal = pyqtSignal(bool)
 
-    version_id = ''
-    username = ''
-    show_console = True
-
-    progress = 0
-    progress_max = 0
-    progress_label = ''
-
     def __init__(self):
         super().__init__()
         self.launch_setup_signal.connect(self.launch_setup)
+        self.version_id = ''
+        self.username = ''
+        self.show_console = True
 
     def launch_setup(self, version_id, username, show_console):
         self.version_id = version_id
         self.username = username
         self.show_console = show_console
-    
-    def update_progress_label(self, value):
-        self.progress_label = value
-        self.progress_update_signal.emit(self.progress, self.progress_max, self.progress_label)
-    
-    def update_progress(self, value):
-        self.progress = value
-        self.progress_update_signal.emit(self.progress, self.progress_max, self.progress_label)
-    
-    def update_progress_max(self, value):
-        self.progress_max = value
-        self.progress_update_signal.emit(self.progress, self.progress_max, self.progress_label)
+
+    def update_progress(self, value, maximum, label):
+        self.progress_update_signal.emit(value, maximum, label)
 
     def run(self):
         self.state_update_signal.emit(True)
-
-        install_minecraft_version(versionid=self.version_id, minecraft_directory=minecraft_directory, callback={
-            'setStatus': self.update_progress_label,
-            'setProgress': self.update_progress,
-            'setMax': self.update_progress_max
-        })
-
-        if self.username == '':
+        install_minecraft_version(
+            versionid=self.version_id,
+            minecraft_directory=minecraft_directory,
+            callback={
+                'setStatus': lambda v: self.update_progress(0, 0, v),
+                'setProgress': lambda v: self.update_progress(v, 0, ''),
+                'setMax': lambda v: self.update_progress(0, v, '')
+            }
+        )
+        if not self.username:
             self.username = generate_username()[0]
-        
-        options = {
-            'username': self.username,
-            'uuid': str(uuid1()),
-            'token': ''
-        }
-
+        options = {'username': self.username, 'uuid': str(uuid1()), 'token': ''}
         creationflags = 0 if self.show_console else CREATE_NO_WINDOW
         call(get_minecraft_command(version=self.version_id, minecraft_directory=minecraft_directory, options=options), creationflags=creationflags)
         self.state_update_signal.emit(False)
+
+class FabricInstallThread(QThread):
+    install_complete_signal = pyqtSignal(bool, str)
+    progress_update_signal = pyqtSignal(int, int, str)
+
+    def __init__(self, version_id, minecraft_directory):
+        super().__init__()
+        self.version_id = version_id
+        self.minecraft_directory = minecraft_directory
+
+    def update_progress(self, value, maximum, label):
+        self.progress_update_signal.emit(value, maximum, label)
+
+    def run(self):
+        fabric_version_id = f"fabric-loader-0.16.3-{self.version_id}"
+        version_path = os.path.join(self.minecraft_directory, "versions", fabric_version_id)
+        if os.path.exists(version_path):
+            self.install_complete_signal.emit(True, fabric_version_id)
+            return
+        try:
+            install_fabric(self.version_id, self.minecraft_directory, callback={
+                'setStatus': lambda v: self.update_progress(0, 0, v),
+                'setProgress': lambda v: self.update_progress(v, 0, ''),
+                'setMax': lambda v: self.update_progress(0, v, '')
+            })
+            self.install_complete_signal.emit(True, fabric_version_id)
+        except Exception as e:
+            print(f"Ошибка при установке Fabric: {e}")
+            self.install_complete_signal.emit(False, "")
 
 class NewsDialog(QDialog):
     def __init__(self, parent=None):
@@ -97,11 +106,9 @@ class NewsDialog(QDialog):
         self.setFixedSize(400, 300)
 
         layout = QVBoxLayout()
-        self.text_edit = QTextEdit()
-        self.text_edit.setReadOnly(True)
+        self.text_edit = QTextEdit(readOnly=True)
         layout.addWidget(self.text_edit)
         self.setLayout(layout)
-
         self.load_readme_content()
 
     def load_readme_content(self):
@@ -122,87 +129,82 @@ class NoInternetDialog(QDialog):
         self.setFixedSize(300, 50)
 
         layout = QVBoxLayout()
-        self.label = QLabel(
-            "<b>Включите интернет и перезапустите лаунчер.</b>"
-        )
+        self.label = QLabel("<b>Включите интернет и перезапустите лаунчер.</b>")
         layout.addWidget(self.label)
-
         self.setLayout(layout)
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
             self.accept()
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-
         if not is_internet_connected():
             self.no_internet_dialog = NoInternetDialog(self)
             self.no_internet_dialog.exec_()
             exit()
-        
-        self.setFixedSize(300, 169)
-        
-        self.setWindowTitle("Xneon Launcher 1.0")
-        
+
+        self.setFixedSize(286, 180)
+        self.setWindowTitle("Xneon Launcher 1.2")
         self.centralwidget = QWidget(self)
-        
-        self.logo = QLabel(self.centralwidget)
-        self.logo.setMaximumSize(QSize(256, 37))
-        self.logo.setText('')
-        self.logo.setPixmap(QPixmap(resource_path('assets\\title.png')))
-        self.logo.setScaledContents(True)
-        
-        self.titlespacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
-        
-        self.username = QLineEdit(self.centralwidget)
-        self.username.setPlaceholderText('Имя пользователя')
-        
-        self.version_select = QComboBox(self.centralwidget)
-        for version in get_version_list():
-            self.version_select.addItem(version['id'])
-        
-        self.progress_spacer = QSpacerItem(20, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-        
-        self.start_progress_label = QLabel(self.centralwidget)
-        self.start_progress_label.setText('')
-        self.start_progress_label.setVisible(False)
-
-        self.start_progress = QProgressBar(self.centralwidget)
-        self.start_progress.setProperty('value', 24)
-        self.start_progress.setVisible(False)
-        
-        self.start_button = QPushButton(self.centralwidget)
-        self.start_button.setText('Играть')
-        self.start_button.clicked.connect(self.launch_game)
-
-        self.open_folder_button = QPushButton(self.centralwidget)
-        self.open_folder_button.setText('Открыть папку лаунчера')
-        self.open_folder_button.clicked.connect(self.open_minecraft_folder)
-        
-        self.vertical_layout = QVBoxLayout(self.centralwidget)
-        self.vertical_layout.setContentsMargins(15, 15, 15, 15)
-        self.vertical_layout.addWidget(self.logo, 0, Qt.AlignmentFlag.AlignHCenter)
-        self.vertical_layout.addItem(self.titlespacer)
-        self.vertical_layout.addWidget(self.username)
-        self.vertical_layout.addWidget(self.version_select)
-        self.vertical_layout.addItem(self.progress_spacer)
-        self.vertical_layout.addWidget(self.start_progress_label)
-        self.vertical_layout.addWidget(self.start_progress)
-        
-        self.horizontal_layout = QHBoxLayout()
-        self.horizontal_layout.addWidget(self.start_button)
-        self.horizontal_layout.addWidget(self.open_folder_button)
-        
-        self.vertical_layout.addLayout(self.horizontal_layout)
-
+        self.setup_ui()
         self.launch_thread = LaunchThread()
         self.launch_thread.state_update_signal.connect(self.state_update)
         self.launch_thread.progress_update_signal.connect(self.update_progress)
+        self.version_list = get_version_list()
+        self.update_version_list()
+        self.ensure_minecraft_folder_exists()
+        self.load_settings()
+        self.setup_discord_rpc()
 
+    def setup_ui(self):
+        self.logo = QLabel(self.centralwidget)
+        self.logo.setMaximumSize(QSize(256, 37))
+        self.logo.setPixmap(QPixmap(resource_path('assets\\title.png')))
+        self.logo.setScaledContents(True)
+
+        self.username = QLineEdit(self.centralwidget)
+        self.username.setPlaceholderText('Имя пользователя')
+
+        self.version_select = QComboBox(self.centralwidget)
+        self.mod_loader_select = QComboBox(self.centralwidget)
+        self.mod_loader_select.addItems(['Vanilla', 'Fabric'])
+        self.mod_loader_select.currentIndexChanged.connect(self.update_version_list)
+
+        self.start_progress_label = QLabel(self.centralwidget)
+        self.start_progress_label.setVisible(False)
+        self.start_progress = QProgressBar(self.centralwidget)
+        self.start_progress.setVisible(False)
+
+        self.start_button = QPushButton('Играть', self.centralwidget)
+        self.start_button.clicked.connect(self.launch_game)
+
+        self.open_folder_button = QPushButton('Открыть папку лаунчера', self.centralwidget)
+        self.open_folder_button.clicked.connect(self.open_minecraft_folder)
+
+        self.layout_ui()
+
+    def layout_ui(self):
+        vertical_layout = QVBoxLayout(self.centralwidget)
+        vertical_layout.setContentsMargins(15, 15, 15, 15)
+        vertical_layout.addWidget(self.logo, 0, Qt.AlignmentFlag.AlignHCenter)
+        vertical_layout.addWidget(self.username)
+        vertical_layout.addWidget(self.version_select)
+        vertical_layout.addWidget(self.mod_loader_select)
+        vertical_layout.addWidget(self.start_progress_label)
+        vertical_layout.addWidget(self.start_progress)
+
+        horizontal_layout = QHBoxLayout()
+        horizontal_layout.addWidget(self.start_button)
+        horizontal_layout.addWidget(self.open_folder_button)
+
+        vertical_layout.addLayout(horizontal_layout)
         self.setCentralWidget(self.centralwidget)
 
+        self.setup_title_bar()
+
+    def setup_title_bar(self):
         self.title_bar_widget = QWidget(self)
         self.title_bar_layout = QHBoxLayout(self.title_bar_widget)
         self.title_bar_widget.setFixedHeight(30)
@@ -216,103 +218,127 @@ class MainWindow(QMainWindow):
 
         self.console_checkbox = QCheckBox("", self.title_bar_widget)
         self.console_checkbox.setToolTip("Показывать консоль при запуске Minecraft")
-        
+
         self.title_bar_layout.addWidget(self.console_checkbox)
         self.title_bar_layout.addStretch()
         self.title_bar_layout.addWidget(self.news_button)
-
         self.title_bar_widget.raise_()
 
-        self.ensure_minecraft_folder_exists()
+    def update_version_list(self):
+        selected_loader = self.mod_loader_select.currentText()
+        self.version_select.clear()
+        fabric_supported_versions = [f'1.{i}' for i in range(14, 22)]
+        
+        versions = [
+            f"{v['id']} (snapshot)" if v['type'] == 'snapshot' else v['id']
+            for v in self.version_list if v['type'] in ['release', 'snapshot', 'old_alpha', 'old_beta']
+            and (selected_loader == 'Vanilla' or (selected_loader == 'Fabric' and any(v['id'].startswith(ver) for ver in fabric_supported_versions)))
+        ]
+        
+        self.version_select.addItems(versions or ["Нет доступных версий"])
 
-        self.load_username()
-
-        self.load_last_version()
-
-        self.load_console_checkbox_state()
-
-        self.setup_discord_rpc()
-
-        # Подключаем обновление Discord RPC при изменении выбранной версии
-        self.version_select.currentIndexChanged.connect(self.update_discord_rpc)
-    
     def state_update(self, value):
         self.start_button.setDisabled(value)
         self.start_progress_label.setVisible(value)
         self.start_progress.setVisible(value)
-    
+        self.setFixedSize(300, 230 if value else 180)
+
     def update_progress(self, value, maximum, label):
         self.start_progress.setMaximum(maximum)
         self.start_progress.setValue(value)
         self.start_progress_label.setText(label)
-    
+
     def ensure_minecraft_folder_exists(self):
-        if not os.path.exists(minecraft_directory):
-            os.makedirs(minecraft_directory)
+        os.makedirs(minecraft_directory, exist_ok=True)
 
     def open_minecraft_folder(self):
         os.startfile(minecraft_directory)
-    
+
     def launch_game(self):
-        version_id = self.version_select.currentText()
+        version_id = self.version_select.currentText().split(' ')[0]
         username = self.username.text()
         show_console = self.console_checkbox.isChecked()
-        self.launch_thread.launch_setup(version_id, username, show_console)
-        self.launch_thread.start()
-    
+        mod_loader = self.mod_loader_select.currentText()
+
+        if mod_loader == 'Fabric':
+            self.fabric_install_thread = FabricInstallThread(version_id, minecraft_directory)
+            self.fabric_install_thread.install_complete_signal.connect(self.on_fabric_install_complete)
+            self.fabric_install_thread.progress_update_signal.connect(self.update_progress)
+            self.state_update(True)
+            self.fabric_install_thread.start()
+        else:
+            self.launch_thread.launch_setup(version_id, username, show_console)
+            self.launch_thread.start()
+
+    def on_fabric_install_complete(self, success, fabric_version_id):
+        if success:
+            self.launch_thread.launch_setup(fabric_version_id, self.username.text(), self.console_checkbox.isChecked())
+            self.launch_thread.start()
+        else:
+            print("Не удалось установить модлоадер, запуск отменён.")
+        self.state_update(False)
+
     def show_news(self):
         self.news_dialog = NewsDialog(self)
         self.news_dialog.exec_()
 
-    def load_username(self):
-        if os.path.exists('username.txt'):
-            with open('username.txt', 'r') as file:
-                self.username.setText(file.read().strip())
+    def load_settings(self):
+        settings = {
+            '.mod_loader.txt': self.mod_loader_select,
+            '.username.txt': self.username,
+            '.last_version.txt': self.version_select
+        }
+        for filename, widget in settings.items():
+            self.load_setting(filename, widget)
+        self.load_console_checkbox_state()
 
-    def save_username(self):
-        with open('username.txt', 'w') as file:
-            file.write(self.username.text().strip())
-    
-    def load_last_version(self):
-        if os.path.exists('last_version.txt'):
-            with open('last_version.txt', 'r') as file:
-                version = file.read().strip()
-                index = self.version_select.findText(version)
-                if index >= 0:
-                    self.version_select.setCurrentIndex(index)
-    
-    def save_last_version(self):
-        with open('last_version.txt', 'w') as file:
-            file.write(self.version_select.currentText().strip())
-    
+    def save_settings(self):
+        settings = {
+            '.mod_loader.txt': self.mod_loader_select.currentText().strip(),
+            '.username.txt': self.username.text().strip(),
+            '.last_version.txt': self.version_select.currentText().strip()
+        }
+        for filename, value in settings.items():
+            self.save_setting(filename, value)
+        self.save_console_checkbox_state()
+
     def load_console_checkbox_state(self):
-        if os.path.exists('console_checkbox_state.txt'):
-            with open('console_checkbox_state.txt', 'r') as file:
-                state = file.read().strip()
-                self.console_checkbox.setChecked(state.lower() == 'true')
-        else:
-            self.console_checkbox.setChecked(True)    
+        state = self.load_setting('.console_checkbox_state.txt')
+        self.console_checkbox.setChecked(state.lower() == 'true' if state else True)
+
     def save_console_checkbox_state(self):
-        with open('console_checkbox_state.txt', 'w') as file:
-            file.write('true' if self.console_checkbox.isChecked() else 'false')
+        self.save_setting('.console_checkbox_state.txt', 'true' if self.console_checkbox.isChecked() else 'false')
+
+    def load_setting(self, filename, widget=None):
+        if os.path.exists(filename):
+            with open(filename, 'r') as file:
+                value = file.read().strip()
+                if widget:
+                    if isinstance(widget, QComboBox):
+                        index = widget.findText(value)
+                        if index >= 0:
+                            widget.setCurrentIndex(index)
+                    elif isinstance(widget, QLineEdit):
+                        widget.setText(value)
+                return value
+
+    def save_setting(self, filename, value):
+        with open(filename, 'w') as file:
+            file.write(value)
+        self.set_hidden_attribute(filename)
+
+    def set_hidden_attribute(self, filename):
+        if sys.platform == 'win32':
+            import ctypes
+            FILE_ATTRIBUTE_HIDDEN = 0x02
+            ctypes.windll.kernel32.SetFileAttributesW(filename, FILE_ATTRIBUTE_HIDDEN)
 
     def setup_discord_rpc(self):
-        CLIENT_ID = '1279183673660538972'  # Вставьте ваш client_id здесь
-        icon_url = "https://i.imgur.com/1u1oHSS.png"  # URL вашей иконки
-        launcher_website = "https://activator.xneon.fun"  # URL вашего сайта лаунчера
+        CLIENT_ID = '1279183673660538972'
         try:
             self.discord_rpc = Presence(CLIENT_ID)
             self.discord_rpc.connect()
-
-            # Получаем текущую выбранную версию Minecraft
-            current_version = self.version_select.currentText()
-
-            self.discord_rpc.update(
-                state=f"Играет в Minecraft {current_version}",
-                details="Запущен Xneon Launcher",
-                large_image=icon_url,
-                buttons=[{"label": "Сайт лаунчера", "url": launcher_website}]
-            )
+            self.update_discord_rpc()
         except Exception as e:
             print(f"Ошибка при настройке Discord RPC: {e}")
 
@@ -330,15 +356,13 @@ class MainWindow(QMainWindow):
                 print(f"Ошибка при обновлении Discord RPC: {e}")
 
     def closeEvent(self, event):
-        if self.discord_rpc:
+        if hasattr(self, 'discord_rpc') and self.discord_rpc:
             self.discord_rpc.close()
-        self.save_username()
-        self.save_last_version()
-        self.save_console_checkbox_state()
+        self.save_settings()
         event.accept()
 
 if __name__ == '__main__':
-    app = QApplication(argv)
+    app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
-    exit(app.exec_())
+    sys.exit(app.exec_())
