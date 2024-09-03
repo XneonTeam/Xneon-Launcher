@@ -6,14 +6,14 @@ from subprocess import call, CREATE_NO_WINDOW
 from PyQt5.QtCore import QThread, pyqtSignal, QSize, Qt, QTimer
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QLineEdit, QComboBox,
-    QProgressBar, QPushButton, QApplication, QMainWindow, QDialog, QTextEdit, QCheckBox
+    QProgressBar, QPushButton, QApplication, QMainWindow, QDialog, QTextEdit, QCheckBox, QSlider
 )
 from PyQt5.QtGui import QPixmap
 from minecraft_launcher_lib.utils import get_minecraft_directory, get_version_list
 from minecraft_launcher_lib.install import install_minecraft_version
 from minecraft_launcher_lib.command import get_minecraft_command
 from minecraft_launcher_lib.fabric import install_fabric
-from minecraft_launcher_lib.forge import install_forge_version
+from minecraft_launcher_lib.quilt import install_quilt
 from random_username.generate import generate_username
 from pypresence import Presence
 
@@ -33,23 +33,27 @@ def is_internet_connected():
 
 minecraft_directory = get_minecraft_directory().replace('minecraft', 'xneonlauncher')
 
-def get_forge_id(version):
-    url = "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json"
+def get_settings_directory():
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    else:
+        return os.path.dirname(os.path.abspath(__file__))
+
+def fetch_quilt_versions():
+    url = "https://meta.quiltmc.org/v3/versions/game"
     try:
         response = requests.get(url)
-        promotions = response.json().get('promos', {})
-        recommended_key = f"{version}-recommended"
-        latest_key = f"{version}-latest"
-
-        forge_id = promotions.get(recommended_key) or promotions.get(latest_key)
-        if forge_id:
-            return f"{version}-{forge_id}"
+        if response.status_code == 200:
+            return [version['version'] for version in response.json()]
+        else:
+            print("Failed to fetch Quilt versions")
+            return []
     except requests.RequestException as e:
-        print(f"Ошибка при получении Forge ID: {e}")
-    return None
+        print(f"Error fetching Quilt versions: {e}")
+        return []
 
 class LaunchThread(QThread):
-    launch_setup_signal = pyqtSignal(str, str, bool)
+    launch_setup_signal = pyqtSignal(str, str, bool, int)
     progress_update_signal = pyqtSignal(int, int, str)
     state_update_signal = pyqtSignal(bool)
     finished_signal = pyqtSignal()
@@ -60,11 +64,13 @@ class LaunchThread(QThread):
         self.version_id = ''
         self.username = ''
         self.show_console = True
+        self.memory = 2
 
-    def launch_setup(self, version_id, username, show_console):
+    def launch_setup(self, version_id, username, show_console, memory):
         self.version_id = version_id
         self.username = username
         self.show_console = show_console
+        self.memory = memory
 
     def update_progress(self, value, maximum, label):
         self.progress_update_signal.emit(value, maximum, label)
@@ -82,7 +88,12 @@ class LaunchThread(QThread):
         )
         if not self.username:
             self.username = generate_username()[0]
-        options = {'username': self.username, 'uuid': str(uuid1()), 'token': ''}
+        options = {
+            'username': self.username, 
+            'uuid': str(uuid1()), 
+            'token': '',
+            'jvmArguments': [f"-Xmx{self.memory}G", f"-Xms{self.memory}G"]
+        }
         creationflags = 0 if self.show_console else CREATE_NO_WINDOW
         call(get_minecraft_command(version=self.version_id, minecraft_directory=minecraft_directory, options=options), creationflags=creationflags)
         self.state_update_signal.emit(False)
@@ -101,7 +112,7 @@ class FabricInstallThread(QThread):
         self.progress_update_signal.emit(value, maximum, label)
 
     def run(self):
-        fabric_version_id = f"fabric-loader-0.16.3-{self.version_id}"
+        fabric_version_id = f"fabric-loader-0.16.4-{self.version_id}"
         version_path = os.path.join(self.minecraft_directory, "versions", fabric_version_id)
         if os.path.exists(version_path):
             self.install_complete_signal.emit(True, fabric_version_id)
@@ -113,11 +124,10 @@ class FabricInstallThread(QThread):
                 'setMax': lambda v: self.update_progress(0, v, '')
             })
             self.install_complete_signal.emit(True, fabric_version_id)
-        except Exception as e:
-            print(f"Ошибка при установке Fabric: {e}")
+        except Exception:
             self.install_complete_signal.emit(False, "")
 
-class ForgeInstallThread(QThread):
+class QuiltInstallThread(QThread):
     install_complete_signal = pyqtSignal(bool, str)
     progress_update_signal = pyqtSignal(int, int, str)
 
@@ -130,31 +140,19 @@ class ForgeInstallThread(QThread):
         self.progress_update_signal.emit(value, maximum, label)
 
     def run(self):
-        forge_id = get_forge_id(self.version_id)
-        if forge_id is None:
-            print("Не удалось получить Forge ID, установка отменена.")
-            self.install_complete_signal.emit(False, "")
+        quilt_version_id = f"quilt-loader-0.26.4-beta.5-{self.version_id}"
+        version_path = os.path.join(self.minecraft_directory, "versions", quilt_version_id)
+        if os.path.exists(version_path):
+            self.install_complete_signal.emit(True, quilt_version_id)
             return
-
-        forge_version_path = os.path.join(self.minecraft_directory, "versions", forge_id)
-        if os.path.exists(forge_version_path):
-            print(f"Forge {forge_id} уже установлен.")
-            self.install_complete_signal.emit(True, forge_id)
-            return
-
         try:
-            install_forge_version(
-                forge_id,
-                self.minecraft_directory,
-                callback={
-                    'setStatus': lambda v: self.update_progress(0, 0, v),
-                    'setProgress': lambda v: self.update_progress(v, 0, ''),
-                    'setMax': lambda v: self.update_progress(0, v, '')
-                }
-            )
-            self.install_complete_signal.emit(True, forge_id)
-        except Exception as e:
-            print(f"Ошибка при установке Forge: {e}")
+            install_quilt(self.version_id, self.minecraft_directory, callback={
+                'setStatus': lambda v: self.update_progress(0, 0, v),
+                'setProgress': lambda v: self.update_progress(v, 0, ''),
+                'setMax': lambda v: self.update_progress(0, v, '')
+            })
+            self.install_complete_signal.emit(True, quilt_version_id)
+        except Exception:
             self.install_complete_signal.emit(False, "")
 
 class NewsDialog(QDialog):
@@ -162,7 +160,6 @@ class NewsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Новости")
         self.setFixedSize(400, 300)
-
         layout = QVBoxLayout()
         self.text_edit = QTextEdit(readOnly=True)
         layout.addWidget(self.text_edit)
@@ -177,15 +174,14 @@ class NewsDialog(QDialog):
                 self.text_edit.setMarkdown(response.text)
             else:
                 self.text_edit.setText("Не удалось загрузить новостное содержание.")
-        except requests.RequestException as e:
-            self.text_edit.setText(f"Ошибка при загрузке новостей: {e}")
+        except requests.RequestException:
+            self.text_edit.setText("Ошибка при загрузке новостей.")
 
 class NoInternetDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Нет подключения к интернету")
         self.setFixedSize(300, 50)
-
         layout = QVBoxLayout()
         self.label = QLabel("<b>Включите интернет и перезапустите лаунчер.</b>")
         layout.addWidget(self.label)
@@ -195,6 +191,116 @@ class NoInternetDialog(QDialog):
         if event.key() in (Qt.Key_Return, Qt.Key_Enter):
             self.accept()
 
+class SettingsDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(parent.translations.get('settings', 'Settings'))
+        self.setFixedSize(300, 250)
+        layout = QVBoxLayout()
+
+        self.language_select = QComboBox(self)
+        self.language_select.addItems(['English', 'Русский'])
+        self.language_select.currentIndexChanged.connect(self.change_language)
+
+        layout.addWidget(QLabel(parent.translations.get('language_label', 'Язык / Language:'), self))
+        layout.addWidget(self.language_select)
+
+        self.open_folder_button = QPushButton(parent.translations.get('open_folder', 'Open Launcher Folder'), self)
+        self.open_folder_button.clicked.connect(self.open_minecraft_folder)
+
+        self.console_checkbox = QCheckBox(parent.translations.get('show_console', 'Show console when launching Minecraft'), self)
+        self.slider_label = QLabel("", self)
+        self.slider = QSlider(Qt.Horizontal, self)
+        self.slider.setRange(2, 16)
+        self.slider.setTickInterval(2)
+        self.slider.setTickPosition(QSlider.TicksAbove)
+        self.slider.setSingleStep(2)
+        self.slider.valueChanged.connect(self.update_slider_label)
+
+        layout.addWidget(self.open_folder_button)
+        layout.addWidget(self.console_checkbox)
+        layout.addWidget(self.slider_label)
+        layout.addWidget(self.slider)
+        self.setLayout(layout)
+
+        self.load_console_checkbox_state()
+        self.load_slider_value()
+        self.load_language_setting()
+        self.update_translations()
+
+    def update_translations(self):
+        translations = self.parent().translations
+        self.setWindowTitle(translations.get('settings', 'Settings'))
+        self.open_folder_button.setText(translations.get('open_folder', 'Open Launcher Folder'))
+        self.console_checkbox.setText(translations.get('show_console', 'Show console when launching Minecraft'))
+        self.update_slider_label(self.slider.value())
+
+    def change_language(self):
+        language = 'ru' if self.language_select.currentIndex() == 1 else 'en'
+        self.parent().set_language(language)
+        self.update_translations()
+
+    def open_minecraft_folder(self):
+        os.startfile(minecraft_directory)
+
+    def load_console_checkbox_state(self):
+        state = self.load_setting('show_console')
+        self.console_checkbox.setChecked(state.lower() == 'true' if state else True)
+
+    def save_console_checkbox_state(self):
+        self.save_setting('show_console', 'true' if self.console_checkbox.isChecked() else 'false')
+
+    def load_slider_value(self):
+        value = self.load_setting('memory')
+        if value.isdigit():
+            self.slider.setValue(int(value))
+        else:
+            self.slider.setValue(2)
+
+    def save_slider_value(self):
+        self.save_setting('memory', str(self.slider.value()))
+
+    def update_slider_label(self, value):
+        translations = self.parent().translations
+        label_text = translations.get('ram_allocated', 'RAM allocated: {} GB').format(value)
+        self.slider_label.setText(label_text)
+
+    def load_language_setting(self):
+        language = self.load_setting('language')
+        if language == 'ru':
+            self.language_select.setCurrentIndex(1)
+        else:
+            self.language_select.setCurrentIndex(0)
+
+    def save_language_setting(self):
+        language = 'ru' if self.language_select.currentIndex() == 1 else 'en'
+        self.save_setting('language', language)
+
+    def accept(self):
+        self.save_language_setting()
+        self.save_console_checkbox_state()
+        self.save_slider_value()
+        super().accept()
+
+    def load_setting(self, key):
+        settings_path = os.path.join(get_settings_directory(), 'settings.txt')
+        if os.path.exists(settings_path):
+            with open(settings_path, 'r') as file:
+                settings = dict(line.strip().split('=') for line in file if '=' in line)
+                return settings.get(key, '')
+        return ''
+
+    def save_setting(self, key, value):
+        settings_path = os.path.join(get_settings_directory(), 'settings.txt')
+        settings = {}
+        if os.path.exists(settings_path):
+            with open(settings_path, 'r') as file:
+                settings = dict(line.strip().split('=') for line in file if '=' in line)
+        settings[key] = value
+        with open(settings_path, 'w') as file:
+            for k, v in settings.items():
+                file.write(f"{k}={v}\n")
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -203,8 +309,11 @@ class MainWindow(QMainWindow):
             self.no_internet_dialog.exec_()
             exit()
 
+        self.language = 'en'
+        self.translations = self.load_translations(self.language)
+
         self.setFixedSize(286, 180)
-        self.setWindowTitle("Xneon Launcher 1.2")
+        self.setWindowTitle("Xneon Launcher 1.4")
         self.centralwidget = QWidget(self)
         self.setup_ui()
         self.launch_thread = LaunchThread()
@@ -214,8 +323,47 @@ class MainWindow(QMainWindow):
         self.version_list = get_version_list()
         self.update_version_list()
         self.ensure_minecraft_folder_exists()
-        self.load_settings()
         self.setup_discord_rpc()
+
+        self.settings_dialog = SettingsDialog(self)
+
+        self.load_settings()
+
+    def load_translations(self, language_code):
+        translations = {
+            'en': {
+                'settings': 'Settings',
+                'language_label': 'Language:',
+                'open_folder': 'Open Launcher Folder',
+                'show_console': 'Show console when launching Minecraft',
+                'ram_allocated': 'RAM allocated: {} GB',
+                'username_placeholder': 'Enter username',
+                'play': 'Play',
+                'news_button_tooltip': 'Show News',
+                'waiting': 'Waiting to play...',
+                'site_button': 'Visit our site'
+            },
+            'ru': {
+                'settings': 'Настройки',
+                'language_label': 'Язык:',
+                'open_folder': 'Открыть папку лаунчера',
+                'show_console': 'Показывать консоль при запуске Minecraft',
+                'ram_allocated': 'Выделено RAM: {} ГБ',
+                'username_placeholder': 'Введите имя пользователя',
+                'play': 'Играть',
+                'news_button_tooltip': 'Показать новости',
+                'waiting': 'Ожидание запуска...',
+                'site_button': 'Посетите наш сайт'
+            }
+        }
+        return translations.get(language_code, translations['en'])
+
+    def set_language(self, language):
+        self.language = language
+        self.translations = self.load_translations(self.language)
+        self.update_translations()
+        if hasattr(self, 'settings_dialog'):
+            self.settings_dialog.update_translations()
 
     def setup_ui(self):
         self.logo = QLabel(self.centralwidget)
@@ -224,11 +372,11 @@ class MainWindow(QMainWindow):
         self.logo.setScaledContents(True)
 
         self.username = QLineEdit(self.centralwidget)
-        self.username.setPlaceholderText('Имя пользователя')
+        self.username.setPlaceholderText(self.translations.get('username_placeholder', ''))
 
         self.version_select = QComboBox(self.centralwidget)
         self.mod_loader_select = QComboBox(self.centralwidget)
-        self.mod_loader_select.addItems(['Vanilla', 'Fabric', 'Forge'])
+        self.mod_loader_select.addItems(['Vanilla', 'Fabric', 'Quilt'])
         self.mod_loader_select.currentIndexChanged.connect(self.update_version_list)
 
         self.start_progress_label = QLabel(self.centralwidget)
@@ -236,11 +384,11 @@ class MainWindow(QMainWindow):
         self.start_progress = QProgressBar(self.centralwidget)
         self.start_progress.setVisible(False)
 
-        self.start_button = QPushButton('Играть', self.centralwidget)
+        self.start_button = QPushButton(self.translations.get('play', ''), self.centralwidget)
         self.start_button.clicked.connect(self.launch_game)
 
-        self.open_folder_button = QPushButton('Открыть папку лаунчера', self.centralwidget)
-        self.open_folder_button.clicked.connect(self.open_minecraft_folder)
+        self.settings_button = QPushButton(self.translations.get('settings', ''), self.centralwidget)
+        self.settings_button.clicked.connect(self.open_settings_dialog)
 
         self.layout_ui()
 
@@ -256,7 +404,7 @@ class MainWindow(QMainWindow):
 
         horizontal_layout = QHBoxLayout()
         horizontal_layout.addWidget(self.start_button)
-        horizontal_layout.addWidget(self.open_folder_button)
+        horizontal_layout.addWidget(self.settings_button)
 
         vertical_layout.addLayout(horizontal_layout)
         self.setCentralWidget(self.centralwidget)
@@ -272,21 +420,25 @@ class MainWindow(QMainWindow):
 
         self.news_button = QPushButton("?", self.title_bar_widget)
         self.news_button.setFixedSize(30, 22)
-        self.news_button.setToolTip("Новости")
+        self.news_button.setToolTip(self.translations.get('news_button_tooltip', ''))
         self.news_button.clicked.connect(self.show_news)
 
-        self.console_checkbox = QCheckBox("", self.title_bar_widget)
-        self.console_checkbox.setToolTip("Показывать консоль при запуске Minecraft")
-
-        self.title_bar_layout.addWidget(self.console_checkbox)
         self.title_bar_layout.addStretch()
         self.title_bar_layout.addWidget(self.news_button)
         self.title_bar_widget.raise_()
 
+    def update_translations(self):
+        self.username.setPlaceholderText(self.translations.get('username_placeholder', ''))
+        self.start_button.setText(self.translations.get('play', ''))
+        self.settings_button.setText(self.translations.get('settings', ''))
+        self.news_button.setToolTip(self.translations.get('news_button_tooltip', ''))
+
     def update_version_list(self):
         selected_loader = self.mod_loader_select.currentText()
         self.version_select.clear()
+
         fabric_supported_versions = [f'1.{i}' for i in range(14, 22)]
+        quilt_supported_versions = fetch_quilt_versions()
 
         versions = [
             f"{v['id']} (snapshot)" if v['type'] == 'snapshot' else v['id']
@@ -294,22 +446,16 @@ class MainWindow(QMainWindow):
             and (
                 selected_loader == 'Vanilla' or
                 (selected_loader == 'Fabric' and any(v['id'].startswith(ver) for ver in fabric_supported_versions)) or
-                (selected_loader == 'Forge' and v['type'] == 'release' and self.is_forge_version_supported(v['id']))
+                (selected_loader == 'Quilt' and v['id'] in quilt_supported_versions)
             )
         ]
 
-        self.version_select.addItems(versions or ["Нет доступных версий"])
-
-    def is_forge_version_supported(self, version_id):
-        major_minor_patch = version_id.split('.')
-        if len(major_minor_patch) >= 2:
-            major, minor = map(int, major_minor_patch[:2])
-            patch = int(major_minor_patch[2]) if len(major_minor_patch) > 2 else 0
-            # Убираем поддержку Forge для версий 1.13 и 1.13.1
-            if major == 1 and minor == 13 and patch in (0, 1):
-                return False
-            return major > 1 or (major == 1 and (minor > 12 or (minor == 12 and patch >= 2)))
-        return False
+        self.version_select.addItems(versions or [self.translations.get('no_versions', '')])
+        saved_version = self.load_setting('version')
+        if saved_version:
+            version_index = self.version_select.findText(saved_version)
+            if version_index != -1:
+                self.version_select.setCurrentIndex(version_index)
 
     def state_update(self, value):
         self.start_button.setDisabled(value)
@@ -325,15 +471,18 @@ class MainWindow(QMainWindow):
     def ensure_minecraft_folder_exists(self):
         os.makedirs(minecraft_directory, exist_ok=True)
 
-    def open_minecraft_folder(self):
-        os.startfile(minecraft_directory)
+    def open_settings_dialog(self):
+        if self.settings_dialog.exec_() == QDialog.Accepted:
+            self.settings_dialog.save_console_checkbox_state()
+            self.settings_dialog.save_slider_value()
 
     def launch_game(self):
         version_id = self.version_select.currentText().split(' ')[0]
-        self.current_version_playing = version_id  # Track the version being launched
+        self.current_version_playing = version_id
         username = self.username.text()
-        show_console = self.console_checkbox.isChecked()
+        show_console = self.settings_dialog.console_checkbox.isChecked()
         mod_loader = self.mod_loader_select.currentText()
+        memory = self.settings_dialog.slider.value()
 
         if mod_loader == 'Fabric':
             self.fabric_install_thread = FabricInstallThread(version_id, minecraft_directory)
@@ -341,33 +490,26 @@ class MainWindow(QMainWindow):
             self.fabric_install_thread.progress_update_signal.connect(self.update_progress)
             self.state_update(True)
             self.fabric_install_thread.start()
-        elif mod_loader == 'Forge':
-            self.forge_install_thread = ForgeInstallThread(version_id, minecraft_directory)
-            self.forge_install_thread.install_complete_signal.connect(self.on_forge_install_complete)
-            self.forge_install_thread.progress_update_signal.connect(self.update_progress)
+        elif mod_loader == 'Quilt':
+            self.quilt_install_thread = QuiltInstallThread(version_id, minecraft_directory)
+            self.quilt_install_thread.install_complete_signal.connect(self.on_quilt_install_complete)
+            self.quilt_install_thread.progress_update_signal.connect(self.update_progress)
             self.state_update(True)
-            self.forge_install_thread.start()
+            self.quilt_install_thread.start()
         else:
-            self.launch_thread.launch_setup(version_id, username, show_console)
+            self.launch_thread.launch_setup(version_id, username, show_console, memory)
             self.launch_thread.start()
 
     def on_fabric_install_complete(self, success, fabric_version_id):
         if success:
-            self.launch_thread.launch_setup(fabric_version_id, self.username.text(), self.console_checkbox.isChecked())
+            self.launch_thread.launch_setup(fabric_version_id, self.username.text(), self.settings_dialog.console_checkbox.isChecked(), self.settings_dialog.slider.value())
             self.launch_thread.start()
-        else:
-            print("Не удалось установить Fabric, запуск отменён.")
         self.state_update(False)
 
-    def on_forge_install_complete(self, success, forge_version_id):
+    def on_quilt_install_complete(self, success, quilt_version_id):
         if success:
-            minecraft_version = self.version_select.currentText().split(' ')[0]
-            forge_version = forge_version_id.split('-')[-1]
-            minecraft_forge_version_id = f"{minecraft_version}-forge-{forge_version}"
-            self.launch_thread.launch_setup(minecraft_forge_version_id, self.username.text(), self.console_checkbox.isChecked())
+            self.launch_thread.launch_setup(quilt_version_id, self.username.text(), self.settings_dialog.console_checkbox.isChecked(), self.settings_dialog.slider.value())
             self.launch_thread.start()
-        else:
-            print("Не удалось установить Forge, запуск отменён.")
         self.state_update(False)
 
     def on_game_finished(self):
@@ -378,57 +520,6 @@ class MainWindow(QMainWindow):
         self.news_dialog = NewsDialog(self)
         self.news_dialog.exec_()
 
-    def load_settings(self):
-        settings = {
-            '.mod_loader.txt': self.mod_loader_select,
-            '.username.txt': self.username,
-            '.last_version.txt': self.version_select
-        }
-        for filename, widget in settings.items():
-            self.load_setting(filename, widget)
-        self.load_console_checkbox_state()
-
-    def save_settings(self):
-        settings = {
-            '.mod_loader.txt': self.mod_loader_select.currentText().strip(),
-            '.username.txt': self.username.text().strip(),
-            '.last_version.txt': self.version_select.currentText().strip()
-        }
-        for filename, value in settings.items():
-            self.save_setting(filename, value)
-        self.save_console_checkbox_state()
-
-    def load_console_checkbox_state(self):
-        state = self.load_setting('.console_checkbox_state.txt')
-        self.console_checkbox.setChecked(state.lower() == 'true' if state else True)
-
-    def save_console_checkbox_state(self):
-        self.save_setting('.console_checkbox_state.txt', 'true' if self.console_checkbox.isChecked() else 'false')
-
-    def load_setting(self, filename, widget=None):
-        if os.path.exists(filename):
-            with open(filename, 'r') as file:
-                value = file.read().strip()
-                if widget:
-                    if isinstance(widget, QComboBox):
-                        index = widget.findText(value)
-                        if index >= 0:
-                            widget.setCurrentIndex(index)
-                    elif isinstance(widget, QLineEdit):
-                        widget.setText(value)
-                return value
-
-    def save_setting(self, filename, value):
-        with open(filename, 'w') as file:
-            file.write(value)
-        self.set_hidden_attribute(filename)
-
-    def set_hidden_attribute(self, filename):
-        if sys.platform == 'win32':
-            import ctypes
-            FILE_ATTRIBUTE_HIDDEN = 0x02
-            ctypes.windll.kernel32.SetFileAttributesW(filename, FILE_ATTRIBUTE_HIDDEN)
-
     def setup_discord_rpc(self):
         CLIENT_ID = '1279183673660538972'
         try:
@@ -436,10 +527,10 @@ class MainWindow(QMainWindow):
             self.discord_rpc.connect()
             self.rpc_timer = QTimer(self)
             self.rpc_timer.timeout.connect(self.update_discord_rpc)
-            self.rpc_timer.start(30000)  # Update every 30 seconds
+            self.rpc_timer.start(30000)
             self.update_discord_rpc()
-        except Exception as e:
-            print(f"Ошибка при настройке Discord RPC: {e}")
+        except Exception:
+            pass
 
     def update_discord_rpc(self):
         if hasattr(self, 'discord_rpc') and self.discord_rpc:
@@ -449,16 +540,12 @@ class MainWindow(QMainWindow):
                     mod_loader = self.mod_loader_select.currentText()
 
                     if mod_loader != 'Vanilla':
-                        state_text = f"Играет в Minecraft {current_version} с {mod_loader}"
-                        small_image_key = {
-                            'Fabric': 'fabric_icon',
-                            'Forge': 'forge_icon'
-                        }.get(mod_loader)
-
+                        state_text = f"Играет на версии {current_version}"
+                        small_image_key = 'fabric_icon' if mod_loader == 'Fabric' else 'quilt_icon' if mod_loader == 'Quilt' else None
                         mod_count = self.get_mod_count()
                         small_text = f"Установлено {mod_count} модов"
                     else:
-                        state_text = f"Играет в Minecraft {current_version}"
+                        state_text = f"Играет на версии {current_version}"
                         small_image_key = None
                         small_text = None
 
@@ -468,17 +555,17 @@ class MainWindow(QMainWindow):
                         large_image="https://i.imgur.com/1u1oHSS.png",
                         small_image=small_image_key,
                         small_text=small_text,
-                        buttons=[{"label": "Сайт лаунчера", "url": "https://activator.xneon.fun"}]
+                        buttons=[{"label": "Посетите наш сайт", "url": "https://activator.xneon.fun"}]
                     )
                 else:
                     self.discord_rpc.update(
-                        state="Ожидание запуска Minecraft",
+                        state="Ожидание запуска...",
                         details="Запущен Xneon Launcher",
                         large_image="https://i.imgur.com/1u1oHSS.png",
-                        buttons=[{"label": "Сайт лаунчера", "url": "https://activator.xneon.fun"}]
+                        buttons=[{"label": "Посетите наш сайт", "url": "https://activator.xneon.fun"}]
                     )
-            except Exception as e:
-                print(f"Ошибка при обновлении Discord RPC: {e}")
+            except Exception:
+                pass
 
     def get_mod_count(self):
         mods_directory = os.path.join(minecraft_directory, 'mods')
@@ -488,10 +575,59 @@ class MainWindow(QMainWindow):
         return len(mod_files)
 
     def closeEvent(self, event):
+        self.save_settings()
         if hasattr(self, 'discord_rpc') and self.discord_rpc:
             self.discord_rpc.close()
-        self.save_settings()
         event.accept()
+
+    def save_settings(self):
+        try:
+            settings = {
+                'username': self.username.text(),
+                'show_console': self.settings_dialog.console_checkbox.isChecked(),
+                'memory': self.settings_dialog.slider.value(),
+                'mod_loader': self.mod_loader_select.currentText(),
+                'version': self.version_select.currentText().split(' ')[0],
+                'language': self.language
+            }
+            settings_path = os.path.join(get_settings_directory(), 'settings.txt')
+            with open(settings_path, 'w') as file:
+                for key, value in settings.items():
+                    file.write(f"{key}={value}\n")
+        except Exception as e:
+            print(f"Ошибка при сохранении настроек: {e}")
+
+    def load_settings(self):
+        settings_path = os.path.join(get_settings_directory(), 'settings.txt')
+        if os.path.exists(settings_path):
+            try:
+                with open(settings_path, 'r') as file:
+                    settings = dict(line.strip().split('=') for line in file if '=' in line)
+                    self.username.setText(settings.get('username', ''))
+                    self.settings_dialog.console_checkbox.setChecked(settings.get('show_console', 'True') == 'True')
+                    self.settings_dialog.slider.setValue(int(settings.get('memory', '2')))
+                    
+                    mod_loader = settings.get('mod_loader', 'Vanilla')
+                    mod_loader_index = self.mod_loader_select.findText(mod_loader)
+                    if mod_loader_index != -1:
+                        self.mod_loader_select.setCurrentIndex(mod_loader_index)
+                    
+                    saved_version = settings.get('version', '')
+                    version_index = self.version_select.findText(saved_version)
+                    if version_index != -1:
+                        self.version_select.setCurrentIndex(version_index)
+
+                    self.set_language(settings.get('language', 'en'))
+            except Exception as e:
+                print(f"Ошибка при загрузке настроек: {e}")
+
+    def load_setting(self, key):
+        settings_path = os.path.join(get_settings_directory(), 'settings.txt')
+        if os.path.exists(settings_path):
+            with open(settings_path, 'r') as file:
+                settings = dict(line.strip().split('=') for line in file if '=' in line)
+                return settings.get(key, '')
+        return ''
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
