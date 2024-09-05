@@ -14,7 +14,7 @@ def read_current_version():
     if os.path.exists(VERSION_FILE):
         with open(VERSION_FILE, 'r') as file:
             return file.read().strip()
-    return "1.2"
+    return "1.5"
 
 def write_current_version(version):
     with open(VERSION_FILE, 'w') as file:
