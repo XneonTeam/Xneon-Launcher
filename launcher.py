@@ -1,4 +1,5 @@
 import os
+import json
 import sys
 import requests
 from uuid import uuid1
@@ -6,14 +7,15 @@ from subprocess import call, CREATE_NO_WINDOW
 from PyQt5.QtCore import QThread, pyqtSignal, QSize, Qt, QTimer
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QLineEdit, QComboBox,
-    QProgressBar, QPushButton, QApplication, QMainWindow, QDialog, QTextEdit, QCheckBox, QSlider
+    QProgressBar, QPushButton, QApplication, QMainWindow, QDialog,
+    QTextEdit, QCheckBox, QSlider, QSpacerItem, QSizePolicy, QListWidget, QInputDialog, QMessageBox
 )
 from PyQt5.QtGui import QPixmap
 from minecraft_launcher_lib.utils import get_minecraft_directory, get_version_list
 from minecraft_launcher_lib.install import install_minecraft_version
 from minecraft_launcher_lib.command import get_minecraft_command
-from minecraft_launcher_lib.fabric import install_fabric
-from minecraft_launcher_lib.quilt import install_quilt
+from minecraft_launcher_lib.fabric import get_latest_loader_version as get_latest_fabric_version, install_fabric
+from minecraft_launcher_lib.quilt import get_latest_loader_version as get_latest_quilt_version, install_quilt
 from random_username.generate import generate_username
 from pypresence import Presence
 
@@ -26,9 +28,12 @@ def resource_path(relative_path):
 
 def is_internet_connected():
     try:
-        requests.get('http://www.google.com', timeout=5)
+        requests.get('http://www.google.com/', timeout=5, allow_redirects=False)
         return True
     except requests.ConnectionError:
+        return False
+    except requests.exceptions.TooManyRedirects:
+        print("Превышено количество перенаправлений")
         return False
 
 minecraft_directory = get_minecraft_directory().replace('minecraft', 'xneonlauncher')
@@ -112,12 +117,13 @@ class FabricInstallThread(QThread):
         self.progress_update_signal.emit(value, maximum, label)
 
     def run(self):
-        fabric_version_id = f"fabric-loader-0.16.4-{self.version_id}"
-        version_path = os.path.join(self.minecraft_directory, "versions", fabric_version_id)
-        if os.path.exists(version_path):
-            self.install_complete_signal.emit(True, fabric_version_id)
-            return
         try:
+            fabric_loader_version = get_latest_fabric_version()
+            fabric_version_id = f"fabric-loader-{fabric_loader_version}-{self.version_id}"
+            version_path = os.path.join(self.minecraft_directory, "versions", fabric_version_id)
+            if os.path.exists(version_path):
+                self.install_complete_signal.emit(True, fabric_version_id)
+                return
             install_fabric(self.version_id, self.minecraft_directory, callback={
                 'setStatus': lambda v: self.update_progress(0, 0, v),
                 'setProgress': lambda v: self.update_progress(v, 0, ''),
@@ -140,12 +146,13 @@ class QuiltInstallThread(QThread):
         self.progress_update_signal.emit(value, maximum, label)
 
     def run(self):
-        quilt_version_id = f"quilt-loader-0.26.4-beta.5-{self.version_id}"
-        version_path = os.path.join(self.minecraft_directory, "versions", quilt_version_id)
-        if os.path.exists(version_path):
-            self.install_complete_signal.emit(True, quilt_version_id)
-            return
         try:
+            quilt_loader_version = get_latest_quilt_version()
+            quilt_version_id = f"quilt-loader-{quilt_loader_version}-{self.version_id}"
+            version_path = os.path.join(self.minecraft_directory, "versions", quilt_version_id)
+            if os.path.exists(version_path):
+                self.install_complete_signal.emit(True, quilt_version_id)
+                return
             install_quilt(self.version_id, self.minecraft_directory, callback={
                 'setStatus': lambda v: self.update_progress(0, 0, v),
                 'setProgress': lambda v: self.update_progress(v, 0, ''),
@@ -301,6 +308,59 @@ class SettingsDialog(QDialog):
             for k, v in settings.items():
                 file.write(f"{k}={v}\n")
 
+class AccountManagerDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.translations = parent.translations
+        self.setWindowTitle(self.translations.get('manage_accounts', 'Manage Accounts'))
+        self.setFixedSize(300, 300)
+        self.layout = QVBoxLayout(self)
+
+        self.account_list = QListWidget(self)
+        self.account_list.itemDoubleClicked.connect(self.select_account)  # Connect double-click signal
+        self.layout.addWidget(self.account_list)
+
+        self.select_account_button = QPushButton(self.translations.get('select_account', 'Select Account'), self)
+        self.select_account_button.clicked.connect(self.select_account)
+        self.layout.addWidget(self.select_account_button)
+
+        self.add_account_button = QPushButton(self.translations.get('add_account', 'Add Account'), self)
+        self.add_account_button.clicked.connect(self.add_account)
+        self.layout.addWidget(self.add_account_button)
+
+        self.remove_account_button = QPushButton(self.translations.get('remove_account', 'Remove Selected Account'), self)
+        self.remove_account_button.clicked.connect(self.remove_account)
+        self.layout.addWidget(self.remove_account_button)
+
+        self.load_accounts()
+
+    def load_accounts(self):
+        accounts = self.parent().load_accounts()
+        self.account_list.addItems(accounts)
+
+    def add_account(self):
+        username, ok = QInputDialog.getText(self, self.translations.get('add_account', 'Add Account'), self.translations.get('enter_username', 'Enter username:'))
+        if ok and username:
+            self.account_list.addItem(username)
+            self.parent().save_account(username)
+
+    def remove_account(self):
+        selected_items = self.account_list.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, self.translations.get('no_selection', 'No Selection'), self.translations.get('select_account_to_remove', 'Please select an account to remove.'))
+            return
+        for item in selected_items:
+            self.account_list.takeItem(self.account_list.row(item))
+            self.parent().remove_account(item.text())
+
+    def select_account(self):
+        selected_items = self.account_list.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, self.translations.get('no_selection', 'No Selection'), self.translations.get('select_account_to_use', 'Please select an account to use.'))
+            return
+        self.parent().username.setText(selected_items[0].text())
+        self.accept()
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -312,8 +372,8 @@ class MainWindow(QMainWindow):
         self.language = 'en'
         self.translations = self.load_translations(self.language)
 
-        self.setFixedSize(286, 180)
-        self.setWindowTitle("Xneon Launcher 1.4")
+        self.setFixedSize(300, 230)
+        self.setWindowTitle("Xneon Launcher 1.5")
         self.centralwidget = QWidget(self)
         self.setup_ui()
         self.launch_thread = LaunchThread()
@@ -330,33 +390,13 @@ class MainWindow(QMainWindow):
         self.load_settings()
 
     def load_translations(self, language_code):
-        translations = {
-            'en': {
-                'settings': 'Settings',
-                'language_label': 'Language:',
-                'open_folder': 'Open Launcher Folder',
-                'show_console': 'Show console when launching Minecraft',
-                'ram_allocated': 'RAM allocated: {} GB',
-                'username_placeholder': 'Enter username',
-                'play': 'Play',
-                'news_button_tooltip': 'Show News',
-                'waiting': 'Waiting to play...',
-                'site_button': 'Visit our site'
-            },
-            'ru': {
-                'settings': 'Настройки',
-                'language_label': 'Язык:',
-                'open_folder': 'Открыть папку лаунчера',
-                'show_console': 'Показывать консоль при запуске Minecraft',
-                'ram_allocated': 'Выделено RAM: {} ГБ',
-                'username_placeholder': 'Введите имя пользователя',
-                'play': 'Играть',
-                'news_button_tooltip': 'Показать новости',
-                'waiting': 'Ожидание запуска...',
-                'site_button': 'Посетите наш сайт'
-            }
-        }
-        return translations.get(language_code, translations['en'])
+        translations_path = resource_path(os.path.join('languages', f'{language_code}.json'))
+        try:
+            with open(translations_path, 'r', encoding='utf-8') as file:
+                return json.load(file)
+        except FileNotFoundError:
+            print(f"Translation file for {language_code} not found.")
+            return {}
 
     def set_language(self, language):
         self.language = language
@@ -366,13 +406,22 @@ class MainWindow(QMainWindow):
             self.settings_dialog.update_translations()
 
     def setup_ui(self):
-        self.logo = QLabel(self.centralwidget)
-        self.logo.setMaximumSize(QSize(256, 37))
-        self.logo.setPixmap(QPixmap(resource_path('assets\\title.png')))
-        self.logo.setScaledContents(True)
+        self.image_label = QLabel(self.centralwidget)
+        self.image_label.setPixmap(QPixmap(resource_path('assets/title.png')))
+        self.image_label.setScaledContents(True)
+        self.image_label.setFixedSize(256, 37)  # Adjust size as needed
 
-        self.username = QLineEdit(self.centralwidget)
+        self.username_layout = QHBoxLayout()
+
+        self.username = QLineEdit(self)
         self.username.setPlaceholderText(self.translations.get('username_placeholder', ''))
+
+        self.account_button = QPushButton("▼", self)
+        self.account_button.setFixedWidth(25)
+        self.account_button.clicked.connect(self.open_account_manager)
+
+        self.username_layout.addWidget(self.username)
+        self.username_layout.addWidget(self.account_button)
 
         self.version_select = QComboBox(self.centralwidget)
         self.mod_loader_select = QComboBox(self.centralwidget)
@@ -395,8 +444,8 @@ class MainWindow(QMainWindow):
     def layout_ui(self):
         vertical_layout = QVBoxLayout(self.centralwidget)
         vertical_layout.setContentsMargins(15, 15, 15, 15)
-        vertical_layout.addWidget(self.logo, 0, Qt.AlignmentFlag.AlignHCenter)
-        vertical_layout.addWidget(self.username)
+        vertical_layout.addWidget(self.image_label, 0, Qt.AlignmentFlag.AlignHCenter)
+        vertical_layout.addLayout(self.username_layout)
         vertical_layout.addWidget(self.version_select)
         vertical_layout.addWidget(self.mod_loader_select)
         vertical_layout.addWidget(self.start_progress_label)
@@ -423,7 +472,9 @@ class MainWindow(QMainWindow):
         self.news_button.setToolTip(self.translations.get('news_button_tooltip', ''))
         self.news_button.clicked.connect(self.show_news)
 
-        self.title_bar_layout.addStretch()
+        spacer = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.title_bar_layout.addItem(spacer)
+
         self.title_bar_layout.addWidget(self.news_button)
         self.title_bar_widget.raise_()
 
@@ -461,7 +512,6 @@ class MainWindow(QMainWindow):
         self.start_button.setDisabled(value)
         self.start_progress_label.setVisible(value)
         self.start_progress.setVisible(value)
-        self.setFixedSize(300, 230 if value else 180)
 
     def update_progress(self, value, maximum, label):
         self.start_progress.setMaximum(maximum)
@@ -475,6 +525,10 @@ class MainWindow(QMainWindow):
         if self.settings_dialog.exec_() == QDialog.Accepted:
             self.settings_dialog.save_console_checkbox_state()
             self.settings_dialog.save_slider_value()
+
+    def open_account_manager(self):
+        self.account_manager_dialog = AccountManagerDialog(self)
+        self.account_manager_dialog.exec_()
 
     def launch_game(self):
         version_id = self.version_select.currentText().split(' ')[0]
@@ -628,6 +682,31 @@ class MainWindow(QMainWindow):
                 settings = dict(line.strip().split('=') for line in file if '=' in line)
                 return settings.get(key, '')
         return ''
+
+    def load_accounts(self):
+        accounts_path = os.path.join(get_settings_directory(), 'accounts.txt')
+        if os.path.exists(accounts_path):
+            with open(accounts_path, 'r') as file:
+                return [line.strip() for line in file if line.strip()]
+        return []
+
+    def save_account(self, username):
+        accounts_path = os.path.join(get_settings_directory(), 'accounts.txt')
+        accounts = self.load_accounts()
+        if username not in accounts:
+            accounts.append(username)
+            with open(accounts_path, 'w') as file:
+                for account in accounts:
+                    file.write(f"{account}\n")
+
+    def remove_account(self, username):
+        accounts_path = os.path.join(get_settings_directory(), 'accounts.txt')
+        accounts = self.load_accounts()
+        if username in accounts:
+            accounts.remove(username)
+            with open(accounts_path, 'w') as file:
+                for account in accounts:
+                    file.write(f"{account}\n")
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
