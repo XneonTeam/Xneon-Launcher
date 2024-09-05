@@ -26,9 +26,12 @@ def resource_path(relative_path):
 
 def is_internet_connected():
     try:
-        requests.get('http://www.google.com', timeout=5)
+        requests.get('http://www.google.com/', timeout=5, allow_redirects=False)
         return True
     except requests.ConnectionError:
+        return False
+    except requests.exceptions.TooManyRedirects:
+        print("Превышено количество перенаправлений")
         return False
 
 minecraft_directory = get_minecraft_directory().replace('minecraft', 'xneonlauncher')
