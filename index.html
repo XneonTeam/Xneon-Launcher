@@ -7,8 +7,8 @@
     body { margin: 0; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: Arial, sans-serif; font-size: 18px; }
     h1 { font-size: 36px; margin-bottom: 20px; }
     button { padding: 10px 20px; font-size: 24px; border: none; border-radius: 20px; color: #fff; cursor: pointer; margin: 0 10px; }
-    .download-button { background-color: #45A0E6; } /* Изменение цвета на оранжевый */
-    .download-button:hover { background-color: #2F7AC8; } /* Изменение цвета при наведении на оранжевый */
+    .download-button { background-color: #45A0E6; }
+    .download-button:hover { background-color: #2F7AC8; }
     .code-button { background-color: #FFA500; }
     .code-button:hover { background-color: #FF8C00; }
     .header-image { width: 100%; height: 350px; background: url('xneon.jpg') center/contain no-repeat; cursor: pointer; }
@@ -19,13 +19,28 @@
   <div class="header-image" id="clickable-image"></div>
   <h1>Самый лучший лаунчер Minecraft</h1>
   <div class="button-group">
-    <a href="https://github.com/MAINER4IK/Xneon-Launcher/releases/download/1.4/Xneon.Launcher.exe" download>
+    <a id="downloadLink" href="#" download>
       <button class="download-button">Скачать Xneon Launcher</button>
     </a>
     <button class="code-button" onclick="window.location.href='https://github.com/MAINER4IK/Xneon-Launcher/';">Открытый код</button>
   </div>
   <div style="text-align: center; margin-top: 10px;">Без вирусов и вредоносного кода. Лаунчер выложен на GitHub, где вы можете посмотреть исходный код.</div>
   <script>
+    // Функция для получения последней версии лаунчера с GitHub
+    async function fetchLatestRelease() {
+      try {
+        const response = await fetch('https://api.github.com/repos/MAINER4IK/Xneon-Launcher/releases/latest');
+        const data = await response.json();
+        const downloadUrl = data.assets.find(asset => asset.name.endsWith('.exe')).browser_download_url;
+        document.getElementById('downloadLink').href = downloadUrl;
+      } catch (error) {
+        console.error('Ошибка при получении последнего релиза:', error);
+      }
+    }
+
+    // Вызов функции для получения последней версии
+    fetchLatestRelease();
+
     const getCounter = (key) => parseInt(localStorage.getItem(key)) || 0;
     const setCounter = (key, value) => localStorage.setItem(key, value);
     const resetCounters = () => {
@@ -39,7 +54,7 @@
     document.getElementById('clickable-image').addEventListener('click', () => {
       if (++imageClickCount >= 3) {
         window.location.href = 'Among_Us.html';
-        resetCounters();  // Сброс счётчиков после перехода
+        resetCounters();
       } else {
         setCounter('imageClickCount', imageClickCount);
       }
@@ -49,7 +64,7 @@
       if (event.key === 'Delete') {
         if (++deletePressCount >= 3) {
           window.location.href = 'Among_Us.html';
-          resetCounters();  // Сброс счётчиков после перехода
+          resetCounters();
         } else {
           setCounter('deletePressCount', deletePressCount);
         }
