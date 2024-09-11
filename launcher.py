@@ -8,9 +8,9 @@ from PyQt5.QtCore import QThread, pyqtSignal, QSize, Qt, QTimer
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QLineEdit, QComboBox,
     QProgressBar, QPushButton, QApplication, QMainWindow, QDialog,
-    QTextEdit, QCheckBox, QSlider, QSpacerItem, QSizePolicy, QListWidget, QInputDialog, QMessageBox
+    QTextEdit, QCheckBox, QSlider, QSpacerItem, QSizePolicy, QListWidget, QInputDialog, QMessageBox, QMenu, QSystemTrayIcon, QAction 
 )
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QIcon
 from minecraft_launcher_lib.utils import get_minecraft_directory, get_version_list
 from minecraft_launcher_lib.install import install_minecraft_version
 from minecraft_launcher_lib.command import get_minecraft_command
@@ -199,6 +199,8 @@ class NoInternetDialog(QDialog):
             self.accept()
 
 class SettingsDialog(QDialog):
+    settings_changed_signal = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(parent.translations.get('settings', 'Settings'))
@@ -211,11 +213,19 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(QLabel(parent.translations.get('language_label', 'Язык / Language:'), self))
         layout.addWidget(self.language_select)
-
-        self.open_folder_button = QPushButton(parent.translations.get('open_folder', 'Open Launcher Folder'), self)
-        self.open_folder_button.clicked.connect(self.open_minecraft_folder)
-
+        
         self.console_checkbox = QCheckBox(parent.translations.get('show_console', 'Show console when launching Minecraft'), self)
+        layout.addWidget(self.console_checkbox)
+
+        self.hide_snapshots_checkbox = QCheckBox(parent.translations.get('hide_snapshots', 'Скрыть снапшоты'), self)
+        layout.addWidget(self.hide_snapshots_checkbox)
+
+        self.hide_beta_checkbox = QCheckBox(parent.translations.get('hide_beta', 'Скрыть бета версии'), self)
+        layout.addWidget(self.hide_beta_checkbox)
+
+        self.hide_alpha_checkbox = QCheckBox(parent.translations.get('hide_alpha', 'Скрыть альфа версии'), self)
+        layout.addWidget(self.hide_alpha_checkbox)
+        
         self.slider_label = QLabel("", self)
         self.slider = QSlider(Qt.Horizontal, self)
         self.slider.setRange(2, 16)
@@ -224,31 +234,44 @@ class SettingsDialog(QDialog):
         self.slider.setSingleStep(2)
         self.slider.valueChanged.connect(self.update_slider_label)
 
-        layout.addWidget(self.open_folder_button)
-        layout.addWidget(self.console_checkbox)
         layout.addWidget(self.slider_label)
         layout.addWidget(self.slider)
+
+        self.save_button = QPushButton(parent.translations.get('save_settings', 'Сохранить настройки'), self)
+        self.save_button.clicked.connect(self.save_settings)
+        layout.addWidget(self.save_button)
+
+        self.load_checkbox_states()
+        self.load_slider_value()
+        self.update_slider_label(self.slider.value())
+        self.update_translations()
+
         self.setLayout(layout)
 
-        self.load_console_checkbox_state()
-        self.load_slider_value()
-        self.load_language_setting()
-        self.update_translations()
+    def load_checkbox_states(self):
+        self.hide_snapshots_checkbox.setChecked(self.load_setting('hide_snapshots') == 'true')
+        self.hide_beta_checkbox.setChecked(self.load_setting('hide_beta') == 'true')
+        self.hide_alpha_checkbox.setChecked(self.load_setting('hide_alpha') == 'true')
 
-    def update_translations(self):
+    def save_settings(self):
+        self.save_hidden_version_settings()
+        self.save_console_checkbox_state()
+        self.save_slider_value()
+
+        self.parent().update_version_list()
+        
+        QMessageBox.information(self, "Настройки", "Настройки были успешно сохранены.")
+        self.accept() 
+
+    def save_hidden_version_settings(self):
+        self.save_setting('hide_snapshots', 'true' if self.hide_snapshots_checkbox.isChecked() else 'false')
+        self.save_setting('hide_beta', 'true' if self.hide_beta_checkbox.isChecked() else 'false')
+        self.save_setting('hide_alpha', 'true' if self.hide_alpha_checkbox.isChecked() else 'false')
+
+    def update_slider_label(self, value):
         translations = self.parent().translations
-        self.setWindowTitle(translations.get('settings', 'Settings'))
-        self.open_folder_button.setText(translations.get('open_folder', 'Open Launcher Folder'))
-        self.console_checkbox.setText(translations.get('show_console', 'Show console when launching Minecraft'))
-        self.update_slider_label(self.slider.value())
-
-    def change_language(self):
-        language = 'ru' if self.language_select.currentIndex() == 1 else 'en'
-        self.parent().set_language(language)
-        self.update_translations()
-
-    def open_minecraft_folder(self):
-        os.startfile(minecraft_directory)
+        label_text = translations.get('ram_allocated', 'RAM allocated: {} GB').format(value)
+        self.slider_label.setText(label_text)
 
     def load_console_checkbox_state(self):
         state = self.load_setting('show_console')
@@ -259,35 +282,28 @@ class SettingsDialog(QDialog):
 
     def load_slider_value(self):
         value = self.load_setting('memory')
-        if value.isdigit():
-            self.slider.setValue(int(value))
-        else:
-            self.slider.setValue(2)
+        self.slider.setValue(int(value)) if value.isdigit() else self.slider.setValue(2)
 
     def save_slider_value(self):
         self.save_setting('memory', str(self.slider.value()))
 
-    def update_slider_label(self, value):
-        translations = self.parent().translations
-        label_text = translations.get('ram_allocated', 'RAM allocated: {} GB').format(value)
-        self.slider_label.setText(label_text)
-
-    def load_language_setting(self):
-        language = self.load_setting('language')
-        if language == 'ru':
-            self.language_select.setCurrentIndex(1)
-        else:
-            self.language_select.setCurrentIndex(0)
-
-    def save_language_setting(self):
+    def change_language(self):
         language = 'ru' if self.language_select.currentIndex() == 1 else 'en'
-        self.save_setting('language', language)
+        self.parent().set_language(language)
+        self.update_translations()
+        self.parent().save_settings()
 
-    def accept(self):
-        self.save_language_setting()
-        self.save_console_checkbox_state()
-        self.save_slider_value()
-        super().accept()
+    def update_translations(self):
+        translations = self.parent().translations
+        self.setWindowTitle(translations.get('settings', 'Settings'))
+        self.console_checkbox.setText(translations.get('show_console', 'Show console when launching Minecraft'))
+        self.hide_snapshots_checkbox.setText(translations.get('hide_snapshots', 'Скрыть снапшоты'))
+        self.hide_beta_checkbox.setText(translations.get('hide_beta', 'Скрыть бета версии'))
+        self.hide_alpha_checkbox.setText(translations.get('hide_alpha', 'Скрыть альфа версии'))
+        self.update_slider_label(self.slider.value())
+
+    def close_event(self):
+        self.close()
 
     def load_setting(self, key):
         settings_path = os.path.join(get_settings_directory(), 'settings.txt')
@@ -317,7 +333,7 @@ class AccountManagerDialog(QDialog):
         self.layout = QVBoxLayout(self)
 
         self.account_list = QListWidget(self)
-        self.account_list.itemDoubleClicked.connect(self.select_account)  # Connect double-click signal
+        self.account_list.itemDoubleClicked.connect(self.select_account)
         self.layout.addWidget(self.account_list)
 
         self.select_account_button = QPushButton(self.translations.get('select_account', 'Select Account'), self)
@@ -375,19 +391,23 @@ class MainWindow(QMainWindow):
         self.setFixedSize(300, 230)
         self.setWindowTitle("Xneon Launcher 1.5")
         self.centralwidget = QWidget(self)
+        
+        self.settings_dialog = SettingsDialog(self)
+        self.settings_dialog.settings_changed_signal.connect(self.update_version_list)
+
         self.setup_ui()
         self.launch_thread = LaunchThread()
         self.launch_thread.state_update_signal.connect(self.state_update)
         self.launch_thread.progress_update_signal.connect(self.update_progress)
         self.launch_thread.finished_signal.connect(self.on_game_finished)
+        
         self.version_list = get_version_list()
         self.update_version_list()
         self.ensure_minecraft_folder_exists()
         self.setup_discord_rpc()
 
-        self.settings_dialog = SettingsDialog(self)
-
         self.load_settings()
+        self.setup_system_tray_icon()
 
     def load_translations(self, language_code):
         translations_path = resource_path(os.path.join('languages', f'{language_code}.json'))
@@ -409,14 +429,14 @@ class MainWindow(QMainWindow):
         self.image_label = QLabel(self.centralwidget)
         self.image_label.setPixmap(QPixmap(resource_path('assets/title.png')))
         self.image_label.setScaledContents(True)
-        self.image_label.setFixedSize(256, 37)  # Adjust size as needed
+        self.image_label.setFixedSize(256, 37)
 
         self.username_layout = QHBoxLayout()
 
         self.username = QLineEdit(self)
         self.username.setPlaceholderText(self.translations.get('username_placeholder', ''))
 
-        self.account_button = QPushButton("▼", self)
+        self.account_button = QPushButton("👤", self)
         self.account_button.setFixedWidth(25)
         self.account_button.clicked.connect(self.open_account_manager)
 
@@ -433,7 +453,7 @@ class MainWindow(QMainWindow):
         self.start_progress = QProgressBar(self.centralwidget)
         self.start_progress.setVisible(False)
 
-        self.start_button = QPushButton(self.translations.get('play', ''), self.centralwidget)
+        self.start_button = QPushButton(f"{self.translations.get('play', '')} ▶️", self.centralwidget)
         self.start_button.clicked.connect(self.launch_game)
 
         self.settings_button = QPushButton(self.translations.get('settings', ''), self.centralwidget)
@@ -467,9 +487,9 @@ class MainWindow(QMainWindow):
         self.title_bar_widget.move(0, 0)
         self.title_bar_widget.resize(self.width(), 30)
 
-        self.news_button = QPushButton("?", self.title_bar_widget)
+        self.news_button = QPushButton("📢", self.title_bar_widget)
         self.news_button.setFixedSize(30, 22)
-        self.news_button.setToolTip(self.translations.get('news_button_tooltip', ''))
+        self.news_button.setToolTip(f"{self.translations.get('news_button_tooltip', '')} 📢")
         self.news_button.clicked.connect(self.show_news)
 
         spacer = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
@@ -478,11 +498,51 @@ class MainWindow(QMainWindow):
         self.title_bar_layout.addWidget(self.news_button)
         self.title_bar_widget.raise_()
 
+    def setup_system_tray_icon(self):
+        self.tray_icon = QSystemTrayIcon(self)
+        self.tray_icon.setIcon(QIcon(resource_path('assets/icon.png')))
+        self.tray_icon.setToolTip("Xneon Launcher")  # Устанавливаем текст для наведения
+
+        tray_menu = QMenu()
+
+        restore_action = QAction("Развернуть", self)
+        restore_action.triggered.connect(self.show)
+        tray_menu.addAction(restore_action)
+
+        exit_action = QAction("Выйти", self)
+        exit_action.triggered.connect(self.exit_application)
+        tray_menu.addAction(exit_action)
+
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.activated.connect(self.tray_icon_activated)
+        self.tray_icon.show()
+
+    def exit_application(self):
+        if hasattr(self, 'discord_rpc') and self.discord_rpc:
+            self.discord_rpc.close()
+        QApplication.quit()
+
+    def tray_icon_activated(self, reason):
+        if reason == QSystemTrayIcon.Trigger:
+            self.show()
+            self.raise_()
+            self.activateWindow()
+
+    def closeEvent(self, event):
+        if hasattr(self, 'settings_dialog'):
+            self.settings_dialog.close()
+        if hasattr(self, 'account_manager_dialog'):
+            self.account_manager_dialog.close()
+        self.save_settings()
+
+        event.ignore()
+        self.hide()
+
     def update_translations(self):
         self.username.setPlaceholderText(self.translations.get('username_placeholder', ''))
-        self.start_button.setText(self.translations.get('play', ''))
-        self.settings_button.setText(self.translations.get('settings', ''))
-        self.news_button.setToolTip(self.translations.get('news_button_tooltip', ''))
+        self.start_button.setText(f"{self.translations.get('play', '')} 🎮")
+        self.settings_button.setText(f"{self.translations.get('settings', '')} ⚙️")
+        self.news_button.setToolTip(self.translations.get('news_button_tooltip', '📢'))
 
     def update_version_list(self):
         selected_loader = self.mod_loader_select.currentText()
@@ -491,11 +551,19 @@ class MainWindow(QMainWindow):
         fabric_supported_versions = [f'1.{i}' for i in range(14, 22)]
         quilt_supported_versions = fetch_quilt_versions()
 
+        hide_snapshots = self.settings_dialog.hide_snapshots_checkbox.isChecked()
+        hide_beta = self.settings_dialog.hide_beta_checkbox.isChecked()
+        hide_alpha = self.settings_dialog.hide_alpha_checkbox.isChecked()
+
         versions = [
-            f"{v['id']} (snapshot)" if v['type'] == 'snapshot' else v['id']
-            for v in self.version_list if v['type'] in ['release', 'snapshot', 'old_alpha', 'old_beta']
+            f"{v['id']} (snapshot)" if v['type'] == 'snapshot' and not hide_snapshots else v['id']
+            for v in self.version_list
+            if v['type'] in ['release', 'snapshot', 'old_alpha', 'old_beta']
             and (
-                selected_loader == 'Vanilla' or
+                (not hide_beta and v['type'] == 'old_beta') or
+                (not hide_alpha and v['type'] == 'old_alpha') or
+                (not hide_snapshots and v['type'] == 'snapshot') or
+                (selected_loader == 'Vanilla' and v['type'] == 'release') or
                 (selected_loader == 'Fabric' and any(v['id'].startswith(ver) for ver in fabric_supported_versions)) or
                 (selected_loader == 'Quilt' and v['id'] in quilt_supported_versions)
             )
@@ -522,13 +590,14 @@ class MainWindow(QMainWindow):
         os.makedirs(minecraft_directory, exist_ok=True)
 
     def open_settings_dialog(self):
-        if self.settings_dialog.exec_() == QDialog.Accepted:
-            self.settings_dialog.save_console_checkbox_state()
-            self.settings_dialog.save_slider_value()
+        self.settings_dialog = SettingsDialog(self)
+        self.settings_dialog.settings_changed_signal.connect(self.update_version_list)
+        self.settings_dialog.language_select.setCurrentIndex(0 if self.language == 'en' else 1)
+        self.settings_dialog.show()
 
     def open_account_manager(self):
         self.account_manager_dialog = AccountManagerDialog(self)
-        self.account_manager_dialog.exec_()
+        self.account_manager_dialog.show()
 
     def launch_game(self):
         version_id = self.version_select.currentText().split(' ')[0]
@@ -595,7 +664,7 @@ class MainWindow(QMainWindow):
 
                     if mod_loader != 'Vanilla':
                         state_text = f"Играет на версии {current_version}"
-                        small_image_key = 'fabric_icon' if mod_loader == 'Fabric' else 'quilt_icon' if mod_loader == 'Quilt' else None
+                        small_image_key = 'fabric_icon' if mod_loader == 'Fabric' else 'quilt_icon'
                         mod_count = self.get_mod_count()
                         small_text = f"Установлено {mod_count} модов"
                     else:
@@ -628,12 +697,6 @@ class MainWindow(QMainWindow):
         mod_files = [f for f in os.listdir(mods_directory) if f.endswith('.jar')]
         return len(mod_files)
 
-    def closeEvent(self, event):
-        self.save_settings()
-        if hasattr(self, 'discord_rpc') and self.discord_rpc:
-            self.discord_rpc.close()
-        event.accept()
-
     def save_settings(self):
         try:
             settings = {
@@ -642,7 +705,10 @@ class MainWindow(QMainWindow):
                 'memory': self.settings_dialog.slider.value(),
                 'mod_loader': self.mod_loader_select.currentText(),
                 'version': self.version_select.currentText().split(' ')[0],
-                'language': self.language
+                'language': self.language,
+                'hide_snapshots': 'true' if self.settings_dialog.hide_snapshots_checkbox.isChecked() else 'false',
+                'hide_beta': 'true' if self.settings_dialog.hide_beta_checkbox.isChecked() else 'false',
+                'hide_alpha': 'true' if self.settings_dialog.hide_alpha_checkbox.isChecked() else 'false'
             }
             settings_path = os.path.join(get_settings_directory(), 'settings.txt')
             with open(settings_path, 'w') as file:
@@ -659,17 +725,20 @@ class MainWindow(QMainWindow):
                     settings = dict(line.strip().split('=') for line in file if '=' in line)
                     self.username.setText(settings.get('username', ''))
                     self.settings_dialog.console_checkbox.setChecked(settings.get('show_console', 'True') == 'True')
-                    self.settings_dialog.slider.setValue(int(settings.get('memory', '2')))
-                    
+                    self.settings_dialog.slider.setValue(int(settings.get('memory', '2')))                    
                     mod_loader = settings.get('mod_loader', 'Vanilla')
                     mod_loader_index = self.mod_loader_select.findText(mod_loader)
                     if mod_loader_index != -1:
                         self.mod_loader_select.setCurrentIndex(mod_loader_index)
-                    
+
                     saved_version = settings.get('version', '')
                     version_index = self.version_select.findText(saved_version)
                     if version_index != -1:
                         self.version_select.setCurrentIndex(version_index)
+
+                    self.settings_dialog.hide_snapshots_checkbox.setChecked(settings.get('hide_snapshots', 'false') == 'true')
+                    self.settings_dialog.hide_beta_checkbox.setChecked(settings.get('hide_beta', 'false') == 'true')
+                    self.settings_dialog.hide_alpha_checkbox.setChecked(settings.get('hide_alpha', 'false') == 'true')
 
                     self.set_language(settings.get('language', 'en'))
             except Exception as e:
