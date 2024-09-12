@@ -1,0 +1,22 @@
+{
+    "settings": "Settings",
+    "language_label": "Language:",
+    "open_folder": "Open Launcher Folder",
+    "show_console": "Show console when launching Minecraft",
+    "ram_allocated": "RAM allocated: {} GB",
+    "manage_accounts": "Manage Accounts",
+    "add_account": "Add Account",
+    "remove_account": "Remove Selected Account",
+    "enter_username": "Enter username:",
+    "no_selection": "No Selection",
+    "select_account": "Select Account",
+    "select_account_to_use": "Please select an account to use.",
+    "select_account_to_remove": "Please select an account to remove.",
+    "username_placeholder": "Enter your username",
+    "play": "Play",
+    "news_button_tooltip": "View News",
+    "no_versions": "No versions available",
+    "hide_snapshots": "Hide snapshots",
+    "hide_beta": "Hide beta versions",
+    "hide_alpha": "Hide alpha versions"
+}

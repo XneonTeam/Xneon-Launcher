@@ -1,0 +1,22 @@
+{
+    "settings": "Настройки",
+    "language_label": "Язык:",
+    "open_folder": "Открыть папку лаунчера",
+    "show_console": "Показывать консоль при запуске Minecraft",
+    "ram_allocated": "Выделено ОЗУ: {} ГБ",
+    "manage_accounts": "Управление аккаунтами",
+    "add_account": "Добавить аккаунт",
+    "remove_account": "Удалить выбранный аккаунт",
+    "enter_username": "Введите имя пользователя:",
+    "no_selection": "Нет выбора",
+    "select_account": "Выбрать аккаунт",
+    "select_account_to_use": "Пожалуйста, выберите аккаунт для использования.",
+    "select_account_to_remove": "Пожалуйста, выберите аккаунт для удаления.",
+    "username_placeholder": "Введите ваше имя пользователя",
+    "play": "Играть",
+    "news_button_tooltip": "Просмотр новостей",
+    "no_versions": "Нет доступных версий",
+    "hide_snapshots": "Скрыть снапшоты",
+    "hide_beta": "Скрыть бета версии",
+    "hide_alpha": "Скрыть альфа версии"
+}
