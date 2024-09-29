@@ -16,6 +16,7 @@ from minecraft_launcher_lib.install import install_minecraft_version
 from minecraft_launcher_lib.command import get_minecraft_command
 from minecraft_launcher_lib.fabric import get_latest_loader_version as get_latest_fabric_version, install_fabric
 from minecraft_launcher_lib.quilt import get_latest_loader_version as get_latest_quilt_version, install_quilt
+import minecraft_launcher_lib.forge as forge
 from random_username.generate import generate_username
 from pypresence import Presence
 
@@ -159,6 +160,48 @@ class QuiltInstallThread(QThread):
                 'setMax': lambda v: self.update_progress(0, v, '')
             })
             self.install_complete_signal.emit(True, quilt_version_id)
+        except Exception:
+            self.install_complete_signal.emit(False, "")
+
+class ForgeInstallThread(QThread):
+    install_complete_signal = pyqtSignal(bool, str)
+    progress_update_signal = pyqtSignal(int, int, str)
+
+    def __init__(self, version_id, minecraft_directory):
+        super().__init__()
+        self.version_id = version_id
+        self.minecraft_directory = minecraft_directory
+
+    def update_progress(self, value, maximum, label):
+        self.progress_update_signal.emit(value, maximum, label)
+
+    def run(self):
+        try:
+            # Find the Forge version ID for the given Minecraft version
+            forge_version_id = forge.find_forge_version(self.version_id)
+            if not forge_version_id:
+                self.install_complete_signal.emit(False, "")
+                return
+
+            # Use the format for versions 1.12 and above
+            correct_forge_version_id = f"{self.version_id}-forge-{forge_version_id.split('-')[-1]}"
+
+            version_path = os.path.join(self.minecraft_directory, "versions", correct_forge_version_id)
+            if os.path.exists(version_path):
+                self.install_complete_signal.emit(True, correct_forge_version_id)
+                return
+
+            # Install the Forge version
+            forge.install_forge_version(
+                forge_version_id, 
+                self.minecraft_directory, 
+                callback={
+                    'setStatus': lambda v: self.update_progress(0, 0, v),
+                    'setProgress': lambda v: self.update_progress(v, 0, ''),
+                    'setMax': lambda v: self.update_progress(0, v, '')
+                }
+            )
+            self.install_complete_signal.emit(True, correct_forge_version_id)
         except Exception:
             self.install_complete_signal.emit(False, "")
 
@@ -390,6 +433,7 @@ class MainWindow(QMainWindow):
 
         self.setFixedSize(300, 230)
         self.setWindowTitle("Xneon Launcher 1.5")
+        self.setWindowIcon(QIcon(resource_path('assets/za.ico')))  # Установите иконку окна
         self.centralwidget = QWidget(self)
         
         self.settings_dialog = SettingsDialog(self)
@@ -445,7 +489,7 @@ class MainWindow(QMainWindow):
 
         self.version_select = QComboBox(self.centralwidget)
         self.mod_loader_select = QComboBox(self.centralwidget)
-        self.mod_loader_select.addItems(['Vanilla', 'Fabric', 'Quilt'])
+        self.mod_loader_select.addItems(['Vanilla', 'Fabric', 'Quilt', 'Forge'])
         self.mod_loader_select.currentIndexChanged.connect(self.update_version_list)
 
         self.start_progress_label = QLabel(self.centralwidget)
@@ -501,7 +545,7 @@ class MainWindow(QMainWindow):
     def setup_system_tray_icon(self):
         self.tray_icon = QSystemTrayIcon(self)
         self.tray_icon.setIcon(QIcon(resource_path('assets/icon.png')))
-        self.tray_icon.setToolTip("Xneon Launcher")  # Устанавливаем текст для наведения
+        self.tray_icon.setToolTip("Xneon Launcher")
 
         tray_menu = QMenu()
 
@@ -565,7 +609,8 @@ class MainWindow(QMainWindow):
                 (not hide_snapshots and v['type'] == 'snapshot') or
                 (selected_loader == 'Vanilla' and v['type'] == 'release') or
                 (selected_loader == 'Fabric' and any(v['id'].startswith(ver) for ver in fabric_supported_versions)) or
-                (selected_loader == 'Quilt' and v['id'] in quilt_supported_versions)
+                (selected_loader == 'Quilt' and v['id'] in quilt_supported_versions) or
+                (selected_loader == 'Forge' and v['id'].startswith("1."))  # Basic checking for Forge
             )
         ]
 
@@ -619,6 +664,12 @@ class MainWindow(QMainWindow):
             self.quilt_install_thread.progress_update_signal.connect(self.update_progress)
             self.state_update(True)
             self.quilt_install_thread.start()
+        elif mod_loader == 'Forge':
+            self.forge_install_thread = ForgeInstallThread(version_id, minecraft_directory)
+            self.forge_install_thread.install_complete_signal.connect(self.on_forge_install_complete)
+            self.forge_install_thread.progress_update_signal.connect(self.update_progress)
+            self.state_update(True)
+            self.forge_install_thread.start()
         else:
             self.launch_thread.launch_setup(version_id, username, show_console, memory)
             self.launch_thread.start()
@@ -632,6 +683,12 @@ class MainWindow(QMainWindow):
     def on_quilt_install_complete(self, success, quilt_version_id):
         if success:
             self.launch_thread.launch_setup(quilt_version_id, self.username.text(), self.settings_dialog.console_checkbox.isChecked(), self.settings_dialog.slider.value())
+            self.launch_thread.start()
+        self.state_update(False)
+
+    def on_forge_install_complete(self, success, forge_version_id):
+        if success:
+            self.launch_thread.launch_setup(forge_version_id, self.username.text(), self.settings_dialog.console_checkbox.isChecked(), self.settings_dialog.slider.value())
             self.launch_thread.start()
         self.state_update(False)
 
@@ -664,7 +721,7 @@ class MainWindow(QMainWindow):
 
                     if mod_loader != 'Vanilla':
                         state_text = f"Играет на версии {current_version}"
-                        small_image_key = 'fabric_icon' if mod_loader == 'Fabric' else 'quilt_icon'
+                        small_image_key = 'fabric_icon' if mod_loader == 'Fabric' else 'quilt_icon' if mod_loader == 'Quilt' else 'forge_icon'
                         mod_count = self.get_mod_count()
                         small_text = f"Установлено {mod_count} модов"
                     else:
@@ -782,3 +839,4 @@ if __name__ == '__main__':
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
+    
