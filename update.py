@@ -1,8 +1,7 @@
 import requests
 import os
 import subprocess
-import tkinter as tk
-from tkinter import messagebox
+from CTkMessagebox import CTkMessagebox
 import time
 import urllib3
 
@@ -28,24 +27,30 @@ def check_for_updates():
         release = response.json()
         latest_version = release['tag_name']
         if latest_version != current_version:
-            root = tk.Tk()
-            root.withdraw()
-            result = messagebox.askyesno("Доступно новое обновление!", f"Найдено обновление {latest_version}. Хотите обновить?")
-            if result:
+            # Используем CTkMessagebox вместо tkinter.messagebox
+            msg = CTkMessagebox(
+                title="Доступно новое обновление!",
+                message=f"Найдено обновление {latest_version}. Хотите обновить?",
+                icon="question",
+                option_1="Нет",
+                option_2="Да"
+            )
+            response = msg.get()
+            
+            if response == "Да":
                 update_launcher(release['assets'][0]['browser_download_url'], latest_version)
             else:
                 print("Обновление отменено пользователем.")
-                start_launcher()  # Запуск лаунчера, если обновление отменено
+                start_launcher()
         else:
             print("У вас последняя версия лаунчера.")
-            start_launcher()  # Запуск лаунчера, если обновление не требуется
+            start_launcher()
     else:
         print("Не удалось проверить наличие обновлений.")
-        start_launcher()  # Запуск лаунчера в случае ошибки проверки обновлений
+        start_launcher()
 
 def update_launcher(download_url, new_version):
     try:
-        # Попытка завершить процесс launcher.exe, игнорируя ошибку, если процесс не найден
         subprocess.run(['taskkill', '/F', '/IM', 'launcher.exe'], stderr=subprocess.DEVNULL)
         print("Попытка завершить процесс launcher.exe выполнена.")
 
@@ -79,7 +84,7 @@ def update_launcher(download_url, new_version):
         write_current_version(new_version)
         print(f"Текущая версия обновлена до {new_version}.")
 
-        start_launcher()  # Запуск нового лаунчера после обновления
+        start_launcher()
     except Exception as e:
         print(f"Ошибка при обновлении лаунчера: {e}")
 
