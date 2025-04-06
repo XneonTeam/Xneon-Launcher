@@ -1,40 +1,336 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XneonTeam</title>
-    <link rel="icon" href="icon.ico">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@600&display=swap" rel="stylesheet">
-    <style>
-        body {
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            height: 100vh; background-color: #fffaf4; font-family: 'Open Sans', sans-serif;
-            animation: slideIn 0.5s forwards; transform: translateY(100%);
-        }
-        @keyframes slideIn { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        .button {
-            display: flex; align-items: center; justify-content: center; width: 80%; max-width: 400px;
-            padding: 15px; margin: 10px 0; border-radius: 5px; font-size: 20px; color: white;
-            text-decoration: none; font-weight: bold;
-        }
-        .button img { margin-right: 10px; width: 24px; height: 24px; pointer-events: none; }
-        .orange { background-color: #ff922b; } .blue { background-color: #1c7ed6; }
-        .black { background-color: #333333; } .green { background-color: #5865f2; }
-        .purple { background-color: #f15f2c; }
-        img.logo { border-radius: 50%; width: 100px; height: 100px; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XneonTeam</title>
+  <link rel="icon" href="icon.ico">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    :root {
+      --neon-blue: #00a8ff;
+      --neon-orange: #ff7b00;
+      --neon-cyan: #00f2ff;
+      --dark-bg: #0a192f;
+      --darker-bg: #071022;
+      --card-bg: rgba(10, 25, 47, 0.8);
+      --text-light: #e6f1ff;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: var(--dark-bg);
+      color: var(--text-light);
+      font-family: 'Montserrat', sans-serif;
+      overflow-x: hidden;
+      min-height: 100vh;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: 
+        radial-gradient(circle at 20% 30%, rgba(0, 168, 255, 0.08) 0%, transparent 30%),
+        radial-gradient(circle at 80% 70%, rgba(255, 123, 0, 0.08) 0%, transparent 30%);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    #root {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      position: relative;
+      z-index: 10;
+      animation: slideIn 0.5s forwards;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+
+    .logo {
+      border-radius: 50%;
+      width: 100px;
+      height: 100px;
+      margin-bottom: 2rem;
+      filter: drop-shadow(0 0 20px var(--neon-blue));
+    }
+
+    .button-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem 2.5rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border-radius: 50px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+      font-family: 'Orbitron', sans-serif;
+      letter-spacing: 1px;
+      text-decoration: none;
+      color: var(--darker-bg);
+      width: 100%;
+    }
+
+    .btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+      transform: translateX(-100%);
+      transition: transform 0.6s ease;
+      z-index: -1;
+    }
+
+    .btn:hover::before {
+      transform: translateX(100%);
+    }
+
+    .btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 0 30px rgba(0, 168, 255, 0.8);
+    }
+
+    .btn img {
+      margin-right: 10px;
+      width: 24px;
+      height: 24px;
+      pointer-events: none;
+    }
+
+    .orange {
+      background: linear-gradient(45deg, #ff922b, var(--neon-orange));
+      box-shadow: 0 0 20px rgba(255, 123, 0, 0.5);
+    }
+
+    .purple {
+      background: linear-gradient(45deg, #f15f2c, var(--neon-orange));
+      box-shadow: 0 0 20px rgba(241, 95, 44, 0.5);
+    }
+
+    .black {
+      background: linear-gradient(45deg, #333333, #555555);
+      box-shadow: 0 0 20px rgba(51, 51, 51, 0.5);
+    }
+
+    .green {
+      background: linear-gradient(45deg, #5865f2, var(--neon-cyan));
+      box-shadow: 0 0 20px rgba(88, 101, 242, 0.5);
+    }
+
+    .blue {
+      background: linear-gradient(45deg, #1c7ed6, var(--neon-blue));
+      box-shadow: 0 0 20px rgba(28, 126, 214, 0.5);
+    }
+
+    .particles-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      opacity: 0.7;
+      pointer-events: none;
+      will-change: transform;
+      mix-blend-mode: screen;
+      transition: transform 0.3s ease-out;
+    }
+
+    @media (max-width: 768px) {
+      .btn {
+        font-size: 1rem;
+        padding: 0.8rem 2rem;
+      }
+
+      .logo {
+        width: 80px;
+        height: 80px;
+      }
+    }
+  </style>
 </head>
 <body>
+  <div id="root"></div>
 
-    <img src="logo.png" alt="Логотип" class="logo">
-    <a href="https://launcher.xneon.fun/" class="button orange"><img src="web.png" alt="Иконка сайта">САЙТ ЛАУНЧЕРА</a>
-    <a href="https://boosty.xneon.fun" class="button purple"><img src="boosty.png" alt="Логотип Бусти">НАШ БУСТИ</a>
-    <a href="https://github.xneon.fun" class="button black"><img src="github.png" alt="Логотип GitHub">НАШ GITHUB</a>
-    <a href="https://discord.xneon.fun" class="button green"><img src="discord.png" alt="Логотип Discord">ДИСКОРД СЕРВЕР</a>
-    <a href="mailto:support@xmeon.fun" class="button blue"><img src="email.png" alt="Иконка почты">НАПИСАТЬ НА ПОЧТУ</a>
+<script type="text/babel">
+  const { useEffect, useRef } = React;
 
-    <script>document.addEventListener('contextmenu', function(e) { if (e.target.tagName === 'IMG') e.preventDefault(); });</script>
+  const ParticleSystem = () => {
+    const containerRef = useRef(null);
+    const particlesRef = useRef([]);
+    const mousePos = useRef({ x: 0, y: 0 });
+    const animationFrameId = useRef(null);
+
+    useEffect(() => {
+      const createParticles = () => {
+        if (!containerRef.current) return;
+
+        const particleCount = 30;
+        particlesRef.current = [];
+
+        for (let i = 0; i < particleCount; i++) {
+          const particle = document.createElement('div');
+          particle.className = 'particle';
+
+          const size = Math.random() * 5 + 2;
+          const isBlue = Math.random() > 0.5;
+
+          particle.style.width = `${size}px`;
+          particle.style.height = `${size}px`;
+          particle.style.background = isBlue ? 'var(--neon-blue)' : 'var(--neon-orange)';
+          particle.style.opacity = Math.random() * 0.5 + 0.3;
+
+          const posX = Math.random() * window.innerWidth;
+          const posY = Math.random() * window.innerHeight;
+
+          particle.style.transform = `translate(${posX}px, ${posY}px)`;
+
+          containerRef.current.appendChild(particle);
+          particlesRef.current.push({
+            element: particle,
+            baseX: posX,
+            baseY: posY,
+            size: size,
+            velocityX: (Math.random() - 0.5) * 0.5,
+            velocityY: (Math.random() - 0.5) * 0.5,
+          });
+        }
+      };
+
+      const animateParticles = () => {
+        particlesRef.current.forEach((particle) => {
+          particle.baseX += particle.velocityX;
+          particle.baseY += particle.velocityY;
+
+          if (particle.baseX < 0 || particle.baseX > window.innerWidth) {
+            particle.velocityX *= -1;
+          }
+          if (particle.baseY < 0 || particle.baseY > window.innerHeight) {
+            particle.velocityY *= -1;
+          }
+
+          const dx = mousePos.current.x - particle.baseX;
+          const dy = mousePos.current.y - particle.baseY;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+
+          if (distance < 200) {
+            const force = (200 - distance) / 200;
+            const angle = Math.atan2(dy, dx);
+
+            const moveX = Math.cos(angle) * force * 15;
+            const moveY = Math.sin(angle) * force * 15;
+
+            particle.element.style.transform = `translate(${particle.baseX + moveX}px, ${particle.baseY + moveY}px)`;
+          } else {
+            particle.element.style.transform = `translate(${particle.baseX}px, ${particle.baseY}px)`;
+          }
+        });
+
+        animationFrameId.current = requestAnimationFrame(animateParticles);
+      };
+
+      const handleMouseMove = (e) => {
+        mousePos.current = { x: e.clientX, y: e.clientY };
+      };
+
+      createParticles();
+      window.addEventListener('mousemove', handleMouseMove);
+      animationFrameId.current = requestAnimationFrame(animateParticles);
+
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        cancelAnimationFrame(animationFrameId.current);
+        if (containerRef.current) {
+          containerRef.current.innerHTML = '';
+        }
+      };
+    }, []);
+
+    return <div className="particles-container" ref={containerRef} />;
+  };
+
+  const XneonTeam = () => {
+    const buttons = [
+      { href: "https://launcher.xneon.fun/", className: "orange", icon: "web.png", text: "САЙТ ЛАУНЧЕРА" },
+      { href: "https://boosty.xneon.fun", className: "purple", icon: "boosty.png", text: "НАШ БУСТИ" },
+      { href: "https://github.xneon.fun", className: "black", icon: "github.png", text: "НАШ GITHUB" },
+      { href: "https://discord.xneon.fun", className: "green", icon: "discord.png", text: "ДИСКОРД СЕРВЕР" },
+      { href: "mailto:support@xmeon.fun", className: "blue", icon: "email.png", text: "НАПИСАТЬ НА ПОЧТУ" },
+    ];
+
+    useEffect(() => {
+      document.addEventListener('contextmenu', (e) => {
+        if (e.target.tagName === 'IMG') e.preventDefault();
+      });
+    }, []);
+
+    return (
+      <>
+        <ParticleSystem />
+        <img src="logo.png" alt="Логотип" className="logo" />
+        <div className="button-container">
+          {buttons.map((button, index) => (
+            <a
+              key={index}
+              href={button.href}
+              className={`btn ${button.className}`}
+            >
+              <img src={button.icon} alt={`Иконка ${button.text}`} />
+              {button.text}
+            </a>
+          ))}
+        </div>
+      </>
+    );
+  };
+
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(<XneonTeam />);
+</script>
 </body>
 </html>
