@@ -76,11 +76,11 @@ def show_error_with_link(title, message):
         title=title,
         message=message,
         icon="cancel",
-        option_1="Обратится в поддержку",
+        option_1="Обратиться в поддержку",
         option_2="Закрыть предупреждение"
     )
     response = msg.get()
-    if response == "Обратится в поддержку":
+    if response == "Обратиться в поддержку":
 
         webbrowser.open("https://discord.gg/Qe2ytZpC4K")
 
