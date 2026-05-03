@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-electron/
+
+# Release / packaged apps
+release/
+
+# xnlc packages (installed from GitHub Packages, not source)
+packages/
+xnlc-package/
+
+# IDE
+.vscode/
+.idea/
+.roo/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment & secrets
+.env
+.env*.local
+.env.production
+.env.development
+
+# Cache
+.codex/
+.xneonlauncher/
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# v0 sandbox artifacts
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+.snowflake/
+.v0-trash/
+.vercel/
+next.user-config.*
+
+# Large/legacy files
+all-icons_old_no_delete_noedit.json
+
+# Electron builder output artifacts
+*.blockmap
