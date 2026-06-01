@@ -1,0 +1,55 @@
+{
+  "name": "@xnlc/core",
+  "version": "1.0.3",
+  "description": "XNLC Core - Minecraft launcher library: version resolution, loader installation (Fabric, Quilt, NeoForge, Forge, LiteLoader, OptiFine), asset management, and game launching",
+  "type": "module",
+  "author": "MAINER4IK",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xnlc/xnlc-core.git"
+  },
+  "homepage": "https://github.com/xnlc/xnlc-core#readme",
+  "bugs": {
+    "url": "https://github.com/xnlc/xnlc-core/issues"
+  },
+  "keywords": [
+    "minecraft",
+    "launcher",
+    "fabric",
+    "quilt",
+    "neoforge",
+    "forge",
+    "liteloader",
+    "optifine",
+    "minecraft-launcher",
+    "xnlc",
+    "xneon"
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./microsoft": {
+      "types": "./lib/microsoft.d.ts",
+      "default": "./lib/microsoft.js"
+    }
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.17"
+  },
+  "scripts": {
+    "build": "node ./scripts/clean-legacy-forge-launch.mjs && tsc -p tsconfig.json",
+    "clean": "rm -rf lib",
+    "prepublishOnly": "npm run build"
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}

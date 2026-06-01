@@ -1,0 +1,44 @@
+{
+  "name": "@xnlc/mods",
+  "version": "1.0.3",
+  "description": "XNLC Mods — Modrinth and CurseForge API client for Minecraft mod search and management",
+  "type": "module",
+  "author": "MAINER4IK",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xnlc/xnlc-mods.git"
+  },
+  "homepage": "https://github.com/xnlc/xnlc-mods#readme",
+  "bugs": {
+    "url": "https://github.com/xnlc/xnlc-mods/issues"
+  },
+  "keywords": [
+    "minecraft",
+    "mods",
+    "modrinth",
+    "curseforge",
+    "minecraft-launcher",
+    "xnlc",
+    "xneon"
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf lib",
+    "prepublishOnly": "npm run build"
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}
