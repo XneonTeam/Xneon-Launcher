@@ -1,9 +1,11 @@
 export type ViewMode = "my" | "detail" | "modrinth" | "curseforge"
 export type DetailTab = "general" | "mods" | "resourcepacks" | "shaders"
-export type ModSort = "downloads" | "popular" | "updated" | "published"
+export type ModSort = "relevance" | "downloads" | "popular" | "followers" | "updated" | "published"
 export type Source = "modrinth" | "curseforge"
 export type ContentType = "mod" | "modpack" | "resourcepack" | "shader"
 export type ModalTab = "description" | "gallery" | "changelog" | "versions"
+
+export type MemoryPreset = "light" | "balanced" | "heavy" | "custom"
 
 export type Build = {
   id: string
@@ -11,6 +13,7 @@ export type Build = {
   description: string
   version: string
   modLoader: string
+  loaderVersion?: string
   icon: string
   coverImage?: string
   mods: BuildMod[]
@@ -21,6 +24,9 @@ export type Build = {
   projectSlug?: string
   intentPath?: string
   installedMods?: Record<string, string>
+  memoryMin?: string
+  memoryMax?: string
+  memoryPreset?: MemoryPreset
 }
 
 export type BuildMod = {
@@ -30,9 +36,14 @@ export type BuildMod = {
   description: string
   icon_url?: string
   version: string
+  source?: "local" | Source
+  projectId?: string
+  modId?: number
+  author?: string
+  enabled?: boolean
 }
 
-// ── Unified Mod Types (aligned with xnlc/mods) ────────────
+// -- Unified Mod Types (aligned with xnlc/mods) --
 
 export type ModSearchResult = {
   id: string
@@ -43,6 +54,7 @@ export type ModSearchResult = {
   downloadCount: number
   categories: string[]
   source: Source
+  author?: string
   projectId?: string
   modId?: number
   primaryFileId?: number
@@ -50,6 +62,16 @@ export type ModSearchResult = {
   fileSize?: number
   dateCreated?: string
   dateModified?: string
+}
+
+export type ModDependency = {
+  projectId: string
+  versionId?: string | null
+  fileName?: string | null
+  dependencyType: "required" | "optional" | "incompatible" | "embedded"
+  name?: string
+  slug?: string
+  iconUrl?: string
 }
 
 export type ModVersion = {
@@ -65,6 +87,7 @@ export type ModVersion = {
   changelog?: string
   datePublished?: string
   files?: { url: string; size: number; filename: string }[]
+  dependencies?: ModDependency[]
 }
 
 export type ModDetails = {

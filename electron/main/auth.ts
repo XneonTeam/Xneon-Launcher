@@ -12,9 +12,15 @@ type MicrosoftAccountPayload = {
   refreshToken: string
 }
 
-let microsoftModulePromise: Promise<any> | null = null
+type MicrosoftModule = {
+  getMicrosoftRedirectUri: () => string
+  createMicrosoftAuthUrl: () => string
+  exchangeMicrosoftCode: (code: string) => Promise<MicrosoftAccountPayload>
+}
 
-function loadMicrosoftModule(): Promise<any> {
+let microsoftModulePromise: Promise<MicrosoftModule> | null = null
+
+function loadMicrosoftModule(): Promise<MicrosoftModule> {
   if (!microsoftModulePromise) {
     microsoftModulePromise = import("@xnlc/core/microsoft")
   }
@@ -46,16 +52,30 @@ function pickFirstString(...values: unknown[]): string {
   return ""
 }
 
-const ELY_CLIENT_ID = process.env.ELY_CLIENT_ID ?? "xneon-launcher-client"
-const ELY_CLIENT_SECRET = process.env.ELY_CLIENT_SECRET ?? ""
+import { getElyClientId, getElyClientSecret, getXnClientId, getXnClientSecret } from "./config"
+
 const ELY_REDIRECT_URI = "http://localhost:51234/elyby/callback"
 const ELY_SCOPE = "account_info minecraft_server_session offline_access"
 
-const XN_CLIENT_ID = process.env.XN_CLIENT_ID ?? "NKZayDfZFAXA"
-const XN_CLIENT_SECRET = process.env.XN_CLIENT_SECRET ?? "divzxbeh74Wkkek00aQ4dzwV"
-const XN_REDIRECT_URI = "http://localhost:5123/xneon/callback"
+const XN_REDIRECT_URI = "http://localhost:5123/xneon/callback1"
 const XN_SCOPE = "account_info offline_access"
 const XN_AUTH_SERVER = "https://skins.xneon.org"
+
+async function getElyClientIdResolved(): Promise<string> {
+  return getElyClientId()
+}
+
+async function getElyClientSecretResolved(): Promise<string> {
+  return getElyClientSecret()
+}
+
+async function getXnClientIdResolved(): Promise<string> {
+  return getXnClientId()
+}
+
+async function getXnClientSecretResolved(): Promise<string> {
+  return getXnClientSecret()
+}
 
 function createAuthCallbackHandler(
   authWindow: BrowserWindow,
@@ -67,7 +87,7 @@ function createAuthCallbackHandler(
 ) {
   let isSettled = false
 
-  const cleanup = () => {
+  let cleanup = () => {
     if (isSettled) return
     isSettled = true
     authWindow.removeAllListeners("close")
@@ -136,6 +156,8 @@ function createAuthCallbackHandler(
     }
   }
 
+  const ipcHandler = (_event: Electron.IpcMainEvent, url: string) => handleCallback(url)
+
   authWindow.on("close", handleWindowClose)
   authWindow.webContents.on("will-navigate", (event, url) => {
     if (!url.startsWith(redirectUri)) return
@@ -150,15 +172,26 @@ function createAuthCallbackHandler(
   authWindow.webContents.on("did-navigate", (_event, url) => handleCallback(url))
   authWindow.webContents.on("did-redirect-navigation", (_event, url) => handleCallback(url))
   authWindow.webContents.on("did-navigate-in-page", (_event, url) => handleCallback(url))
+
+  ipcMain.on(`${callbackChannel}`, ipcHandler)
+
+  const origCleanup = cleanup
+  cleanup = () => {
+    origCleanup()
+    ipcMain.removeListener(`${callbackChannel}`, ipcHandler)
+  }
 }
 
-export { XN_AUTH_SERVER, XN_CLIENT_ID, XN_REDIRECT_URI, XN_SCOPE }
+export { XN_AUTH_SERVER, XN_REDIRECT_URI, XN_SCOPE }
 
 function makeOAuthWindow(title: string) {
   ensureRuntimeTempDir()
   const preload = title === "xnskins"
     ? path.join(__dirname, "../auth-xnskins-preload.js")
     : path.join(__dirname, "../auth-preload.js")
+
+  // Уникальная in-memory сессия для каждого запуска авторизации
+  const sessionPartition = `in-memory://xnskins-auth-${Date.now()}`
 
   const authWindow = new BrowserWindow({
     width: 520,
@@ -171,6 +204,7 @@ function makeOAuthWindow(title: string) {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
+      partition: sessionPartition,
       preload,
     },
   })
@@ -179,8 +213,9 @@ function makeOAuthWindow(title: string) {
 }
 
 ipcMain.handle("auth:elyby-login", async (): Promise<ElyByAccountPayload> => {
+  const clientId = await getElyClientIdResolved()
   const authUrl = new URL("https://account.ely.by/oauth2/v1")
-  authUrl.searchParams.set("client_id", ELY_CLIENT_ID)
+  authUrl.searchParams.set("client_id", clientId)
   authUrl.searchParams.set("redirect_uri", ELY_REDIRECT_URI)
   authUrl.searchParams.set("response_type", "code")
   authUrl.searchParams.set("scope", ELY_SCOPE)
@@ -194,14 +229,15 @@ ipcMain.handle("auth:elyby-login", async (): Promise<ElyByAccountPayload> => {
     authWindow.loadURL(authUrl.toString())
   })
 
-  return new Promise((resolve, reject) => exchangeElyByCode(code, resolve, reject))
+  return exchangeElyByCode(code)
 })
 
 ipcMain.handle("auth:xnskins-login", async (): Promise<XnSkinsAccountPayload> => {
   const state = crypto.randomBytes(12).toString("hex")
+  const clientId = await getXnClientIdResolved()
 
   const authorizeUrl = new URL(`${XN_AUTH_SERVER}/oauth2/authorize`)
-  authorizeUrl.searchParams.set("client_id", XN_CLIENT_ID)
+  authorizeUrl.searchParams.set("client_id", clientId)
   authorizeUrl.searchParams.set("redirect_uri", XN_REDIRECT_URI)
   authorizeUrl.searchParams.set("scope", XN_SCOPE)
   authorizeUrl.searchParams.set("response_type", "code")
@@ -245,19 +281,21 @@ ipcMain.handle("auth:microsoft-login", async (): Promise<MicrosoftAccountPayload
   return microsoft.exchangeMicrosoftCode(code)
 })
 
-async function exchangeElyByCode(code: string, resolve: (value: ElyByAccountPayload) => void, reject: (reason: Error) => void) {
-  let controller: AbortController | undefined
+async function exchangeElyByCode(code: string): Promise<ElyByAccountPayload> {
+  const controller = new AbortController()
   const timeout = new Promise<never>((_, reject) => {
     const timer = setTimeout(() => {
-      controller?.abort()
+      controller.abort()
       reject(new Error("Превышено время ожидания ответа от Ely.By"))
     }, 30000)
-    controller = new AbortController()
     controller.signal.addEventListener("abort", () => clearTimeout(timer))
   })
 
   try {
-    controller = new AbortController()
+    const [clientId, clientSecret] = await Promise.all([
+      getElyClientIdResolved(),
+      getElyClientSecretResolved(),
+    ])
 
     const tokenRes = await Promise.race([
       fetch("https://account.ely.by/api/oauth2/v1/token", {
@@ -265,8 +303,8 @@ async function exchangeElyByCode(code: string, resolve: (value: ElyByAccountPayl
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
           grant_type: "authorization_code",
-          client_id: ELY_CLIENT_ID,
-          client_secret: ELY_CLIENT_SECRET,
+          client_id: clientId,
+          client_secret: clientSecret,
           redirect_uri: ELY_REDIRECT_URI,
           code,
         }).toString(),
@@ -319,14 +357,19 @@ async function exchangeXnSkinsCode(code: string): Promise<XnSkinsAccountPayload>
   })
 
   try {
+    const [clientId, clientSecret] = await Promise.all([
+      getXnClientIdResolved(),
+      getXnClientSecretResolved(),
+    ])
+
     const tokenRes = await Promise.race([
       fetch(`${XN_AUTH_SERVER}/oauth2/token`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
           grant_type: "authorization_code",
-          client_id: XN_CLIENT_ID,
-          client_secret: XN_CLIENT_SECRET,
+          client_id: clientId,
+          client_secret: clientSecret,
           redirect_uri: XN_REDIRECT_URI,
           code,
         }).toString(),

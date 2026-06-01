@@ -32,6 +32,16 @@ export interface ModSearchResponse {
   totalCount: number
 }
 
+export interface ModDependency {
+  projectId: string
+  versionId?: string | null
+  fileName?: string | null
+  dependencyType: "required" | "optional" | "incompatible" | "embedded"
+  name?: string
+  slug?: string
+  iconUrl?: string
+}
+
 export interface ModVersion {
   id: string
   name: string
@@ -45,6 +55,7 @@ export interface ModVersion {
   changelog?: string
   datePublished?: string
   files?: { url: string; size: number; filename: string }[]
+  dependencies?: ModDependency[]
 }
 
 export interface ModDetails {

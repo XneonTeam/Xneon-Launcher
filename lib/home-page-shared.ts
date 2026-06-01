@@ -11,6 +11,7 @@ export type LaunchUiState = {
   totalBytes: number | null
   currentFile: number | null
   totalFiles: number | null
+  currentFileName: string | null
 }
 export type NewsEntry = {
   id: string
@@ -25,21 +26,25 @@ export type NewsEntry = {
   newsType?: string[]
 }
 export type MinecraftVersionOption = { version: string; stable: boolean; type: string }
+export type VersionVisibility = { showSnapshot: boolean; showBeta: boolean; showAlpha: boolean }
 
 export const MOD_LOADERS = [
   { id: "vanilla", name: "Vanilla", icon: "V", color: "bg-gray-500" },
-  { id: "forge", name: "Forge", icon: "F", color: "bg-orange-500" },
+  { id: "forge", name: "Forge", icon: "F", color: "bg-red-600" },
   { id: "fabric", name: "Fabric", icon: "Fb", color: "bg-yellow-600" },
-  { id: "neoforge", name: "NeoForge", icon: "N", color: "bg-red-500" },
+  { id: "liteloader", name: "LiteLoader", icon: "L", color: "bg-cyan-500" },
   { id: "quilt", name: "Quilt", icon: "Q", color: "bg-purple-500" },
+  { id: "neoforge", name: "NeoForge", icon: "Nf", color: "bg-orange-500" },
   { id: "optifine", name: "OptiFine", icon: "O", color: "bg-green-500" },
+  { id: "instance", name: "Instance", icon: "I", color: "bg-blue-500" },
 ] as const
 export const NEWS_CARD_STYLE: CSSProperties = { contain: "layout paint" }
 export const NEWS_SCROLL_STYLE: CSSProperties = { contain: "layout paint", overscrollBehavior: "contain" }
 export const NEWS_GRID_GAP = 12
 export const NEWS_CARD_TEXT_HEIGHT = 140
 export const NEWS_GRID_OVERSCAN_ROWS = 3
-export const VERSIONS: string[] = []
+export const FALLBACK_RELEASE_VERSIONS = ["1.21.4", "1.21.1", "1.21", "1.20.4", "1.20.2", "1.19.4", "1.18.2", "1.16.5", "1.12.2"]
+export const VERSIONS: string[] = FALLBACK_RELEASE_VERSIONS
 export const LAUNCH_RE = /launching|starting|started|spawn|запуск/i
 export const RUNNING_RE = /render|game|world|player/i
 export const INITIAL_LAUNCH_UI_STATE: LaunchUiState = {
@@ -51,6 +56,7 @@ export const INITIAL_LAUNCH_UI_STATE: LaunchUiState = {
   totalBytes: null,
   currentFile: null,
   totalFiles: null,
+  currentFileName: null,
 }
 export const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   elyby: "Ely.By",
@@ -64,9 +70,10 @@ type MojangManifestResponse = { versions?: Array<{ id: string; type: string }> }
 const MOJANG_VERSION_MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
 
 export const getAvatarUrl = (account: AccountWithAvatar, username: string) => {
-  const value = account.uuid || username
+  const isElyBy = account.type === "elyby"
+  const value = isElyBy ? username : (account.uuid || username)
   const params = new URLSearchParams()
-  if (account.type === "elyby") params.set("skin_type", "ely")
+  if (isElyBy) params.set("skin_type", "ely")
   else if (account.type === "xnskins") params.set("skin_type", "xneon")
   else if (account.type === "microsoft") params.set("skin_type", "microsoft")
   else if (account.type === "offline") return "https://mcskinapi-three.vercel.app/avatar/Steve?skin_type=microsoft"
@@ -92,6 +99,20 @@ export async function fetchVersionsFromRenderer(): Promise<MinecraftVersionOptio
     stable: version.type === "release",
     type: version.type,
   }))
+}
+
+export function filterMinecraftVersions(
+  versions: MinecraftVersionOption[],
+  { showSnapshot, showBeta, showAlpha }: VersionVisibility
+): string[] {
+  return versions
+    .filter((version) =>
+      version.type === "release" ||
+      (version.type === "snapshot" && showSnapshot) ||
+      (version.type === "old_beta" && showBeta) ||
+      (version.type === "old_alpha" && showAlpha)
+    )
+    .map((version) => version.version)
 }
 
 export function getStageLabel(stage?: string, installationPhase?: string) {

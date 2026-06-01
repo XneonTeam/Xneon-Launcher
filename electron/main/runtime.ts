@@ -16,6 +16,7 @@ if (isProtonWindows) {
 }
 
 export const isDev = !app.isPackaged || process.env.NODE_ENV === "development"
+const isVerboseRuntimeLogging = process.env.XN_VERBOSE_LOGS === "true"
 export { ensureRuntimeDir, ensureRuntimeTempDir }
 
 configureRuntimePaths()
@@ -25,21 +26,62 @@ if (process.platform === "linux" && isDev) {
 }
 
 let mainWindow: BrowserWindow | null = null
+let pendingRuntimeLogs: string[] = []
+let runtimeLogFlushTimer: NodeJS.Timeout | null = null
 
-function appendRuntimeLog(line: string) {
+function flushRuntimeLogs() {
+  runtimeLogFlushTimer = null
+  if (pendingRuntimeLogs.length === 0) return
   try {
     const dir = ensureRuntimeDir()
     fs.mkdirSync(dir, { recursive: true })
-    fs.appendFileSync(path.join(dir, "launcher-main.log"), `[${new Date().toISOString()}] ${line}\n`)
+    const chunk = pendingRuntimeLogs.join("")
+    pendingRuntimeLogs = []
+    fs.appendFile(path.join(dir, "launcher-main.log"), chunk, () => {})
   } catch {
     // ignore logging failures
   }
+}
+
+function appendRuntimeLog(line: string) {
+  pendingRuntimeLogs.push(`[${new Date().toISOString()}] ${line}\n`)
+  if (runtimeLogFlushTimer) return
+  runtimeLogFlushTimer = setTimeout(flushRuntimeLogs, 50)
 }
 
 export function logRuntime(line: string) {
   console.log(line)
   appendRuntimeLog(line)
 }
+
+export function logRuntimeDebug(line: string) {
+  if (!isVerboseRuntimeLogging) {
+    return
+  }
+
+  logRuntime(line)
+}
+
+function formatUnknownError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.stack ?? error.message
+  }
+  return String(error)
+}
+
+process.on("uncaughtException", (error) => {
+  logRuntime(`[Runtime] uncaughtException ${formatUnknownError(error)}`)
+})
+
+process.on("unhandledRejection", (reason) => {
+  logRuntime(`[Runtime] unhandledRejection ${formatUnknownError(reason)}`)
+})
+
+process.on("warning", (warning) => {
+  logRuntime(`[Runtime] warning ${formatUnknownError(warning)}`)
+})
+
+logRuntime(`[Runtime] bootstrap platform=${process.platform} arch=${process.arch} electron=${process.versions.electron ?? "unknown"} node=${process.versions.node} packaged=${String(app.isPackaged)}`)
 
 export function getMainWindow() {
   return mainWindow

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ACCOUNT_TYPE_LABELS, MOD_LOADERS, type LaunchUiState } from "@/lib/home-page-shared"
 import { IconCheck, IconChevronDown, IconFolder, IconLoader2, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react"
+import type { LoaderVersionOption } from "@/src/hooks/use-loader-version-options"
 
 type HomeControlsProps = {
   accounts: Account[]
@@ -19,6 +20,10 @@ type HomeControlsProps = {
   setSelectedVersion: (value: string) => void
   selectedModLoader: string
   setSelectedModLoader: (value: string) => void
+  loaderVersions: LoaderVersionOption[]
+  loaderVersionsLoaded: boolean
+  selectedLoaderVersion: string
+  setSelectedLoaderVersion: (value: string) => void
   activeAvatarUrl: string
   accountAvatarUrls: Record<string, string>
   launchUi: LaunchUiState
@@ -33,9 +38,13 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
   const {
     accounts, account, accountComboOpen, setAccountComboOpen, setActiveAccount,
     versions, versionsLoaded, selectedVersion, setSelectedVersion,
-    selectedModLoader, setSelectedModLoader, activeAvatarUrl, accountAvatarUrls,
+    selectedModLoader, setSelectedModLoader, loaderVersions, loaderVersionsLoaded, selectedLoaderVersion, setSelectedLoaderVersion,
+    activeAvatarUrl, accountAvatarUrls,
     launchUi, launchDetails, isRunning, onPlay,
   } = props
+  const showLoaderVersionSelect = selectedModLoader !== "vanilla" && selectedModLoader !== "instance"
+  const loaderVersionSelectionPending = showLoaderVersionSelect && (!loaderVersionsLoaded || !selectedLoaderVersion)
+  const playDisabled = (launchUi.isLaunching && !isRunning) || loaderVersionSelectionPending
 
   return (
     <div className="w-72 flex-shrink-0 flex flex-col justify-start gap-4 px-1">
@@ -87,7 +96,7 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
             <SelectContent>
               {!versionsLoaded ? <div className="px-3 py-2 text-sm text-muted-foreground">Loading...</div>
                 : versions.length === 0 ? <div className="px-3 py-2 text-sm text-muted-foreground">Failed to load versions</div>
-                : versions.map(v => <SelectItem key={v} value={v}>Minecraft {v}</SelectItem>)}
+                : versions.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -99,9 +108,27 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
             <SelectContent>{MOD_LOADERS.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
+        {showLoaderVersionSelect && (
+          <div className="relative z-10">
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Loader Version</label>
+            <Select value={selectedLoaderVersion} onValueChange={setSelectedLoaderVersion} disabled={!loaderVersionsLoaded || loaderVersions.length === 0}>
+              <SelectTrigger className="w-full h-[42px] rounded-xl bg-muted/50 border border-border text-foreground text-sm"><SelectValue placeholder={loaderVersionsLoaded ? "Loader Version" : "Loading..."} /></SelectTrigger>
+              <SelectContent>
+                {!loaderVersionsLoaded ? <div className="px-3 py-2 text-sm text-muted-foreground">Loading...</div>
+                  : loaderVersions.length === 0 ? <div className="px-3 py-2 text-sm text-muted-foreground">No versions available</div>
+                  : loaderVersions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {loaderVersionSelectionPending && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {!loaderVersionsLoaded ? "Loading available loader versions..." : "Choose a loader version before launch"}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
-      <button type="button" onClick={onPlay} disabled={launchUi.isLaunching && !isRunning} className={cn("relative w-full py-4 rounded-2xl font-bold text-lg text-primary-foreground overflow-hidden", !launchUi.isLaunching && isRunning ? "bg-red-600 hover:bg-red-500" : "bg-primary hover:bg-primary/90", "transition-colors duration-200 group", "active:scale-[0.98]", "disabled:opacity-70 disabled:cursor-not-allowed")}>
+      <button type="button" onClick={onPlay} disabled={playDisabled} className={cn("relative w-full py-4 rounded-2xl font-bold text-lg text-primary-foreground overflow-hidden", !launchUi.isLaunching && isRunning ? "bg-red-600 hover:bg-red-500" : "bg-primary hover:bg-primary/90", "transition-colors duration-200 group", "active:scale-[0.98]", "disabled:opacity-70 disabled:cursor-not-allowed")}>
         <span className="relative z-10 flex items-center justify-center gap-3">
           {launchUi.isLaunching ? <><IconLoader2 className="w-5 h-5 animate-spin" />{launchUi.phase === "installing" && launchUi.progress !== null ? `${t("home.installing")} ${launchUi.progress}%` : t("home.launching")}</>
             : !launchUi.isLaunching && isRunning ? <><IconPlayerStop className="w-5 h-5" strokeWidth={1.75} />{t("home.stop")}</>

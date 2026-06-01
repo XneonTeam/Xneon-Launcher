@@ -6,7 +6,6 @@ import {
   IconLayoutBoard,
   IconFileText,
   IconPuzzle,
-  IconUsers,
   IconServer,
   IconCloud,
   IconUserCircle,
@@ -15,7 +14,7 @@ import {
   IconColorSwatch,
 } from "@tabler/icons-react";
 
-type TabId = "home" | "builds" | "logs" | "mods" | "friends" | "servers" | "cloud" | "accounts" | "settings" | "themes";
+type TabId = "home" | "builds" | "logs" | "mods" | "servers" | "cloud" | "accounts" | "settings" | "themes";
 
 interface SidebarItem {
   id: TabId;
@@ -48,11 +47,6 @@ const sidebarItems: SidebarItem[] = [
     id: "mods",
     labelKey: "sidebar.mods",
     icon: <IconPuzzle className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
-  },
-  {
-    id: "friends",
-    labelKey: "sidebar.friends",
-    icon: <IconUsers className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
   },
   {
     id: "servers",

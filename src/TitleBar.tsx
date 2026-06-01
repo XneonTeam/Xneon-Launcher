@@ -1,11 +1,54 @@
-const dragRegionStyle = { WebkitAppRegion: 'drag' } as React.CSSProperties
+import { useEffect, useRef, type CSSProperties } from "react"
+import { IconBell, IconCheck, IconLoader2, IconPlayerPlay, IconX } from "@tabler/icons-react"
+import { cn } from "@/lib/utils"
+import { useActivityCenter, type ActivityNotification } from "./ActivityCenterContext"
 
-const noDragStyle = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
+const dragRegionStyle = { WebkitAppRegion: "drag" } as CSSProperties
+
+const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties
+
+function formatRelativeTime(timestamp: number): string {
+  const diffMs = Date.now() - timestamp
+  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000))
+  if (diffMinutes < 1) return "только что"
+  if (diffMinutes < 60) return `${diffMinutes} мин назад`
+  const diffHours = Math.floor(diffMinutes / 60)
+  if (diffHours < 24) return `${diffHours} ч назад`
+  return `${Math.floor(diffHours / 24)} д назад`
+}
+
+function NotificationIcon({ notification }: { notification: ActivityNotification }) {
+  if (notification.kind === "success") return <IconCheck className="h-4 w-4" />
+  if (notification.kind === "error") return <IconX className="h-4 w-4" />
+  if (notification.kind === "progress") {
+    return notification.source === "launch"
+      ? <IconPlayerPlay className="h-4 w-4" />
+      : <IconLoader2 className="h-4 w-4 animate-spin" />
+  }
+  return <IconBell className="h-4 w-4" />
+}
 
 export function TitleBar() {
+  const { notifications, unreadCount, isOpen, setIsOpen, toggleOpen, markAllRead } = useActivityCenter()
+  const panelRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    markAllRead()
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!panelRef.current?.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+
+    window.addEventListener("mousedown", handlePointerDown)
+    return () => window.removeEventListener("mousedown", handlePointerDown)
+  }, [isOpen, markAllRead, setIsOpen])
+
   return (
     <header
-      className="flex h-10 items-center justify-between border-b border-sidebar-border bg-sidebar/95 px-3"
+      className="relative z-50 flex h-10 items-center justify-between border-b border-sidebar-border bg-sidebar/95 px-3"
       style={dragRegionStyle}
     >
       <div className="flex items-center gap-2">
@@ -16,6 +59,109 @@ export function TitleBar() {
       </div>
 
       <div className="flex items-center gap-1" style={noDragStyle}>
+        <div className="relative" ref={panelRef}>
+          <button
+            type="button"
+            onClick={toggleOpen}
+            className={cn(
+              "relative flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground",
+              isOpen && "bg-muted/70 text-foreground",
+            )}
+            aria-label="Открыть уведомления"
+            aria-expanded={isOpen}
+          >
+            <IconBell className="h-4 w-4" />
+            {unreadCount > 0 && (
+              <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {isOpen && (
+            <div className="absolute right-0 top-[calc(100%+0.75rem)] w-[360px] overflow-hidden rounded-3xl border border-border/70 bg-popover/95 shadow-2xl backdrop-blur-xl">
+              <div className="border-b border-border/70 bg-gradient-to-r from-primary/12 via-transparent to-transparent px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Уведомления</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Запуски, импорт и другие события лаунчера</p>
+                  </div>
+                  {unreadCount > 0 && (
+                    <span className="rounded-full bg-primary/12 px-2.5 py-1 text-xs font-medium text-primary">
+                      {unreadCount} нов.
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="max-h-[420px] overflow-y-auto p-3">
+                {notifications.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-border/80 bg-muted/30 px-4 py-8 text-center">
+                    <p className="text-sm font-medium text-foreground">Пока уведомлений нет</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Здесь будут появляться импорты и события запуска.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {notifications.map((notification) => (
+                      <div
+                        key={notification.id}
+                        className={cn(
+                          "rounded-2xl border px-3 py-3 transition-colors",
+                          notification.read ? "border-border/70 bg-background/70" : "border-primary/25 bg-primary/6",
+                        )}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={cn(
+                              "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl",
+                              notification.kind === "error" && "bg-destructive/12 text-destructive",
+                              notification.kind === "success" && "bg-emerald-500/12 text-emerald-500",
+                              notification.kind === "progress" && "bg-primary/12 text-primary",
+                              notification.kind === "info" && "bg-muted text-muted-foreground",
+                            )}
+                          >
+                            <NotificationIcon notification={notification} />
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                              <p className="text-sm font-medium text-foreground">{notification.title}</p>
+                              <span className="shrink-0 text-[11px] text-muted-foreground">
+                                {formatRelativeTime(notification.timestamp)}
+                              </span>
+                            </div>
+
+                            <p className="mt-1 text-xs leading-5 text-muted-foreground">{notification.message}</p>
+
+                            {notification.itemName && (
+                              <p className="mt-2 truncate text-[11px] text-muted-foreground/90">{notification.itemName}</p>
+                            )}
+
+                            {typeof notification.progress === "number" && (
+                              <div className="mt-3">
+                                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                                  <div
+                                    className="h-full rounded-full bg-primary transition-[width] duration-300"
+                                    style={{ width: `${notification.progress}%` }}
+                                  />
+                                </div>
+                                <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                                  <span>{notification.source === "launch" ? "Запуск" : "Импорт"}</span>
+                                  <span>{notification.progress}%</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         <button
           type="button"
           onClick={() => window.electronAPI?.minimize()}

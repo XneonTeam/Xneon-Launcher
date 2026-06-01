@@ -11,9 +11,10 @@ import {
   runLaunchWorker,
   stopLaunchWorker,
 } from "./minecraft-core"
+import { logRuntimeDebug } from "./runtime"
 
 type LaunchAccountPayload = {
-  type: "elyby" | "xnskins" | "offline"
+  type: "elyby" | "xnskins" | "microsoft" | "offline"
   username: string
   uuid?: string
   accessToken?: string
@@ -21,6 +22,8 @@ type LaunchAccountPayload = {
 
 type LaunchRequestOptionsWithAccount = LaunchRequestOptions & {
   account?: LaunchAccountPayload
+  buildName?: string
+  gameDir?: string
 }
 
 type LaunchResultPayload = {
@@ -117,28 +120,40 @@ function registerVersionHandlers(): void {
 
   const versionHandlers: WithArgRegistration<string, unknown[]>[] = [
     {
-      channel: "minecraft:get-forge-versions",
-      label: "get Forge versions",
-      fallback: [],
-      action: (handler, mcVersion) => handler.getForgeVersions(mcVersion),
-    },
-    {
-      channel: "minecraft:get-neoforge-versions",
-      label: "get NeoForge versions",
-      fallback: [],
-      action: (handler, mcVersion) => handler.getNeoForgeVersions(mcVersion),
-    },
-    {
       channel: "minecraft:get-fabric-versions",
       label: "get Fabric versions",
       fallback: [],
       action: (handler, mcVersion) => handler.getFabricVersions(mcVersion),
     },
     {
+      channel: "minecraft:get-liteloader-versions",
+      label: "get LiteLoader versions",
+      fallback: [],
+      action: (handler, mcVersion) => handler.getLiteLoaderVersions(mcVersion),
+    },
+    {
       channel: "minecraft:get-quilt-versions",
       label: "get Quilt versions",
       fallback: [],
       action: (handler, mcVersion) => handler.getQuiltVersions(mcVersion),
+    },
+    {
+      channel: "minecraft:get-neoforge-versions",
+      label: "get NeoForge versions",
+      fallback: [],
+      action: async (handler, mcVersion) => {
+        const versions = await handler.getNeoForgeVersions(mcVersion)
+        return versions.map(v => ({ version: v, stable: !v.includes("beta") && !v.includes("alpha") && !v.includes("rc") }))
+      },
+    },
+    {
+      channel: "minecraft:get-forge-versions",
+      label: "get Forge versions",
+      fallback: [],
+      action: async (handler, mcVersion) => {
+        const versions = await handler.getForgeVersions(mcVersion)
+        return versions.map(v => ({ version: v, stable: true }))
+      },
     },
     {
       channel: "minecraft:get-optifine-versions",
@@ -168,6 +183,18 @@ function registerVersionHandlers(): void {
       action: (handler) => handler.getQuiltGameVersions(),
     },
     {
+      channel: "minecraft:get-neoforge-supported",
+      label: "get supported NeoForge versions",
+      fallback: [],
+      action: (handler) => handler.getNeoForgeSupportedVersions(),
+    },
+    {
+      channel: "minecraft:get-forge-supported",
+      label: "get supported Forge versions",
+      fallback: [],
+      action: (handler) => handler.getForgeSupportedVersions(),
+    },
+    {
       channel: "minecraft:get-custom-versions",
       label: "get custom versions",
       fallback: [],
@@ -179,15 +206,9 @@ function registerVersionHandlers(): void {
   versionHandlers.forEach(registerHandlerWithArg)
   simpleHandlers.forEach(registerHandler)
 
-  registerRecommendedHandler("minecraft:get-forge-recommended", "get recommended Forge", (handler, mcVersion) => handler.getForgeRecommended(mcVersion))
+  registerRecommendedHandler("minecraft:get-liteloader-recommended", "get recommended LiteLoader", (handler, mcVersion) => handler.getLiteLoaderRecommended(mcVersion))
   registerRecommendedHandler("minecraft:get-neoforge-recommended", "get recommended NeoForge", (handler, mcVersion) => handler.getNeoForgeRecommended(mcVersion))
-
-  registerHandler<string[]>({
-    channel: "minecraft:get-forge-supported",
-    label: "get supported Forge versions",
-    fallback: [],
-    action: async (handler) => await handler.getForgeSupportedVersions(),
-  })
+  registerRecommendedHandler("minecraft:get-forge-recommended", "get recommended Forge", (handler, mcVersion) => handler.getForgeRecommended(mcVersion))
 
   registerHandler<string[]>({
     channel: "minecraft:get-quilt-supported",
@@ -216,7 +237,7 @@ function registerVersionHandlers(): void {
     },
   })
 
-  registerSupportedVersionsHandler("minecraft:get-neoforge-supported", "NeoForge", (handler) => handler.getNeoForgeSupportedVersions())
+  registerSupportedVersionsHandler("minecraft:get-liteloader-supported", "LiteLoader", (handler) => handler.getLiteLoaderSupportedVersions())
   registerSupportedVersionsHandler("minecraft:get-optifine-supported", "OptiFine", (handler) => handler.getOptifineSupportedVersions())
 }
 
@@ -239,12 +260,19 @@ function registerLaunchHandlers(): void {
         return { success: false, error: "No active account. Please select an account first." }
       }
 
-      console.log("[Minecraft] Using account:", launchAccount.username, "type:", launchAccount.type)
+      logRuntimeDebug(`[Minecraft] Using account ${launchAccount.type}:${launchAccount.username}`)
       if (!launchAccount.isActive) {
         await dbHelpers.saveAccount({ ...launchAccount, isActive: true })
       }
 
-      return await runLaunchWorker(launchAccount, request)
+      // Pass buildName and gameDir from options to runLaunchWorker
+      const extendedRequest = {
+        ...request,
+        buildName: options.buildName,
+        gameDir: options.gameDir,
+      }
+
+      return await runLaunchWorker(launchAccount, extendedRequest)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       console.error("Launch failed:", errorMessage)
@@ -275,5 +303,5 @@ function registerLaunchHandlers(): void {
 export function registerMinecraftHandlers(): void {
   registerVersionHandlers()
   registerLaunchHandlers()
-  console.log("[Minecraft] Handlers registered")
+  logRuntimeDebug("[Minecraft] Handlers registered")
 }

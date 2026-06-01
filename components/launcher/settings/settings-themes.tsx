@@ -4,6 +4,59 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { presetThemes, applyTheme, applyCustomTheme } from "./data"
 import type { Theme } from "./types"
 
+function ThemePreview({ primary, accent, background }: { primary: string; accent: string; background: string }) {
+  return (
+    <svg width="72" height="32" viewBox="0 0 72 32" className="rounded-lg overflow-hidden shadow-inner">
+      <defs>
+        <linearGradient id="bgGrad" x1="0" y1="0" x2="72" y2="32" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor={background} />
+          <stop offset="100%" stopColor={background} />
+        </linearGradient>
+        <linearGradient id="priGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor={primary} />
+          <stop offset="100%" stopColor={accent} />
+        </linearGradient>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="1.5" result="coloredBlur" />
+          <feMerge>
+            <feMergeNode in="coloredBlur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+      <rect width="72" height="32" fill="url(#bgGrad)" />
+      <circle cx="18" cy="16" r="8" fill={primary} opacity="0.85" filter="url(#glow)" />
+      <circle cx="36" cy="16" r="6" fill={accent} opacity="0.7" />
+      <path d="M54 8 L66 16 L54 24 Z" fill={primary} opacity="0.5" />
+      <rect x="58" y="12" width="8" height="8" rx="2" fill={accent} opacity="0.6" />
+    </svg>
+  )
+}
+
+function CustomThemePreview({ primary, accent, background }: { primary: string; accent: string; background: string }) {
+  return (
+    <svg width="200" height="80" viewBox="0 0 200 80" className="rounded-xl overflow-hidden border border-white/10">
+      <defs>
+        <linearGradient id="cBg" x1="0" y1="0" x2="200" y2="80" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor={background} />
+          <stop offset="100%" stopColor={background} />
+        </linearGradient>
+        <linearGradient id="cPri" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor={primary} />
+          <stop offset="100%" stopColor={accent} />
+        </linearGradient>
+      </defs>
+      <rect width="200" height="80" fill="url(#cBg)" />
+      <rect x="20" y="20" width="60" height="40" rx="8" fill={primary} opacity="0.9" />
+      <rect x="90" y="30" width="40" height="20" rx="6" fill={accent} opacity="0.8" />
+      <circle cx="170" cy="40" r="15" fill="url(#cPri)" opacity="0.7" />
+      <text x="100" y="75" textAnchor="middle" fill="#ffffff" opacity="0.3" fontSize="8" fontFamily="monospace">
+        Preview
+      </text>
+    </svg>
+  )
+}
+
 interface SettingsThemesProps {
   selectedTheme: string
   setSelectedTheme: (id: string) => void
@@ -47,9 +100,7 @@ export function SettingsThemes({
               style={{ backgroundColor: theme.background }}
             >
               <div className="flex gap-2 mb-3">
-                <div className="w-8 h-8 rounded-lg shadow-inner" style={{ backgroundColor: theme.primary }} />
-                <div className="w-8 h-8 rounded-lg shadow-inner" style={{ backgroundColor: theme.accent }} />
-                <div className="w-8 h-8 rounded-lg border border-white/20 shadow-inner" style={{ backgroundColor: theme.background }} />
+                <ThemePreview primary={theme.primary} accent={theme.accent} background={theme.background} />
               </div>
               <span className="font-medium text-white">{theme.name}</span>
               {selectedTheme === theme.id && !useCustomTheme && (
@@ -89,12 +140,8 @@ export function SettingsThemes({
           "p-6 rounded-xl border transition-all duration-300",
           useCustomTheme ? "border-accent bg-accent/5 shadow-[0_0_15px_var(--glow-accent)]" : "border-border bg-muted/30"
         )}>
-          <div
-            className="w-full h-24 rounded-xl mb-6 flex items-center justify-center gap-4 border border-white/10"
-            style={{ backgroundColor: customTheme.background }}
-          >
-            <div className="px-4 py-2 rounded-lg font-medium text-white shadow-lg" style={{ backgroundColor: customTheme.primary }}>Кнопка</div>
-            <div className="px-4 py-2 rounded-lg font-medium text-white shadow-lg" style={{ backgroundColor: customTheme.accent }}>Акцент</div>
+          <div className="w-full mb-6 flex items-center justify-center">
+            <CustomThemePreview primary={customTheme.primary} accent={customTheme.accent} background={customTheme.background} />
           </div>
 
           <div className="grid grid-cols-3 gap-4">

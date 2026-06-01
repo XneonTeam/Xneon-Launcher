@@ -1,14 +1,30 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { InstanceDetail } from "./instance-detail"
 import { InstanceList } from "./instance-list"
 import { InstanceModrinth } from "./instance-modrinth"
 import { InstanceCurseForge } from "./instance-curseforge"
 import { InstanceHeader } from "./instance-header"
 import { InstanceImportOverlay } from "./instance-import-overlay"
+import { InstanceModal } from "./instance-modal"
 import { useBuilds } from "./use-builds"
 import { useModSearch } from "./use-mod-search"
 import { useImport } from "./use-import"
-import type { ViewMode, DetailTab, ModSearchResult } from "./types"
+import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
+import type { ViewMode, DetailTab, ModSearchResult, ModVersion, ModSort } from "./types"
+
+const MODRINTH_SORT_OPTIONS: ModSort[] = ["relevance", "downloads", "followers", "published", "updated"]
+const CURSEFORGE_SORT_OPTIONS: ModSort[] = ["downloads", "popular", "published", "updated"]
+
+function mergeCategories(current: string[], nextResults: ModSearchResult[]) {
+  const merged = new Set(current)
+  for (const result of nextResults) {
+    for (const category of result.categories ?? []) {
+      const trimmed = category.trim()
+      if (trimmed) merged.add(trimmed)
+    }
+  }
+  return Array.from(merged).sort((a, b) => a.localeCompare(b))
+}
 
 export function InstancePage() {
   const [view, setView] = useState<ViewMode>("my")
@@ -22,10 +38,23 @@ export function InstancePage() {
   const [cfSearch, setCfSearch] = useState("")
   const [cfResults, setCfResults] = useState<ModSearchResult[]>([])
   const [cfLoading, setCfLoading] = useState(false)
+  const [mrSortBy, setMrSortBy] = useState<ModSort>("downloads")
+  const [cfSortBy, setCfSortBy] = useState<ModSort>("downloads")
+  const { visibleVersions, versionsLoaded } = useMinecraftVersionOptions()
+  const [selectedVersion, setSelectedVersion] = useState("all")
+  const [selectedModLoader, setSelectedModLoader] = useState("all")
+  const [mrSelectedCategory, setMrSelectedCategory] = useState("all")
+  const [cfSelectedCategory, setCfSelectedCategory] = useState("all")
+  const [mrCategoryOptions, setMrCategoryOptions] = useState<string[]>([])
+  const [cfCategoryOptions, setCfCategoryOptions] = useState<string[]>([])
+  const [mrCategoriesLoaded, setMrCategoriesLoaded] = useState(false)
+  const [cfCategoriesLoaded, setCfCategoriesLoaded] = useState(false)
 
   const {
     builds, setBuilds, activeBuildId, setActiveBuildId, activeBuild,
     fileInputRef, createBuild, deleteBuild, updateBuild, addModToBuild, addLocalModToBuild,
+    addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds,
+    toggleItemEnabled, updateItemVersion,
   } = useBuilds()
 
   const {
@@ -39,53 +68,173 @@ export function InstancePage() {
   } = useModSearch(activeBuild, detailTab, view, activeBuildId)
 
   const {
-    importProgress, importError, downloadingSlug, cfDownloadingId,
-    downloadFromModrinth, downloadFromCurseforge, handleImportFile,
+    importProgress, importError, isCancellingImport, downloadingSlug, cfDownloadingId,
+    cancelImport, downloadFromModrinth, downloadVersionFromModrinth, downloadFromCurseforge, downloadVersionFromCurseforge, handleImportFile,
   } = useImport(setBuilds, () => setView("my"))
 
   const fetchMrModpacks = useCallback(async (query: string) => {
-    if (!query.trim()) { setMrResults([]); return }
     setMrLoading(true)
     try {
-      const resp = await window.electronAPI?.modsModrinthSearch(query, "modpack", undefined, "downloads", 0)
-      setMrResults(resp?.results ?? [])
-    } catch { setMrResults([]) }
+      const searchQuery = query.trim()
+      const resp = await window.electronAPI?.modsModrinthSearch(
+        searchQuery,
+        "modpack",
+        selectedVersion === "all" ? undefined : selectedVersion,
+        selectedModLoader === "all" ? undefined : selectedModLoader as "vanilla" | "fabric" | "quilt" | "neoforge",
+        mrSortBy,
+        0,
+        mrSelectedCategory === "all" ? undefined : mrSelectedCategory,
+      )
+      const nextResults = resp?.results ?? []
+      setMrResults(nextResults)
+      setMrCategoryOptions((current) => mergeCategories(current, nextResults))
+    } catch {
+      setMrResults([])
+    }
     finally { setMrLoading(false) }
-  }, [])
+  }, [mrSelectedCategory, mrSortBy, selectedModLoader, selectedVersion])
 
   const fetchCfModpacks = useCallback(async (query: string) => {
     setCfLoading(true)
     try {
-      const resp = await window.electronAPI?.modsCurseforgeSearch(query, "modpack", undefined, undefined, "downloads", 0)
-      setCfResults(resp?.results ?? [])
-    } catch { setCfResults([]) }
+      const searchQuery = query.trim()
+      const resp = await window.electronAPI?.modsCurseforgeSearch(
+        searchQuery,
+        "modpack",
+        selectedVersion === "all" ? undefined : selectedVersion,
+        selectedModLoader === "all" ? undefined : selectedModLoader,
+        cfSortBy,
+        0,
+        cfSelectedCategory === "all" ? undefined : cfSelectedCategory,
+      )
+      const nextResults = resp?.results ?? []
+      setCfResults(nextResults)
+      setCfCategoryOptions((current) => mergeCategories(current, nextResults))
+    } catch {
+      setCfResults([])
+    }
     finally { setCfLoading(false) }
-  }, [])
+  }, [cfSelectedCategory, cfSortBy, selectedModLoader, selectedVersion])
+
+  useEffect(() => {
+    if (view !== "modrinth" || mrCategoriesLoaded) return
+
+    let cancelled = false
+
+    const loadCategories = async () => {
+      try {
+        const categories = await window.electronAPI?.modsModrinthCategories?.("modpack") ?? []
+        if (!cancelled) {
+          setMrCategoryOptions(categories.map((category) => category.slug).filter(Boolean))
+          setMrCategoriesLoaded(true)
+        }
+      } catch {
+        if (!cancelled) {
+          setMrCategoryOptions([])
+          setMrCategoriesLoaded(true)
+        }
+      }
+    }
+
+    void loadCategories()
+
+    return () => {
+      cancelled = true
+    }
+  }, [mrCategoriesLoaded, view])
+
+  useEffect(() => {
+    if (view !== "curseforge" || cfCategoriesLoaded) return
+
+    let cancelled = false
+
+    const loadCategories = async () => {
+      try {
+        const categories = await window.electronAPI?.modsCurseforgeCategories?.("modpack") ?? []
+        if (!cancelled) {
+          setCfCategoryOptions(categories.map((category) => category.name || category.slug).filter(Boolean))
+          setCfCategoriesLoaded(true)
+        }
+      } catch {
+        if (!cancelled) {
+          setCfCategoryOptions([])
+          setCfCategoriesLoaded(true)
+        }
+      }
+    }
+
+    void loadCategories()
+
+    return () => {
+      cancelled = true
+    }
+  }, [cfCategoriesLoaded, view])
 
   useEffect(() => {
     if (view !== "modrinth") return
     const t = setTimeout(() => void fetchMrModpacks(mrSearch), 350)
     return () => clearTimeout(t)
-  }, [fetchMrModpacks, mrSearch, view])
+  }, [fetchMrModpacks, mrSearch, mrSelectedCategory, mrSortBy, selectedModLoader, selectedVersion, view])
+
+  useEffect(() => {
+    if (view === "modrinth" && !mrSearch.trim()) {
+      fetchMrModpacks("")
+    }
+  }, [view])
 
   useEffect(() => {
     if (view !== "curseforge") return
     const t = setTimeout(() => void fetchCfModpacks(cfSearch), 350)
     return () => clearTimeout(t)
-  }, [fetchCfModpacks, cfSearch, view])
+  }, [cfSearch, cfSelectedCategory, cfSortBy, fetchCfModpacks, selectedModLoader, selectedVersion, view])
 
-  const openBuildDetail = (id: string) => {
-    const build = builds.find(b => b.id === id)
+  useEffect(() => {
+    if (view === "curseforge" && !cfSearch.trim()) {
+      fetchCfModpacks("")
+    }
+  }, [view])
+
+  const openBuildDetail = useCallback((id: string) => {
     setActiveBuildId(id)
     setView("detail")
-    setDetailTab(build?.modLoader === "vanilla" ? "resourcepacks" : "general")
-  }
+    setDetailTab("general")
+  }, [setActiveBuildId])
 
-  const goToMyBuilds = () => {
+  const goToMyBuilds = useCallback(() => {
     setView("my"); setActiveBuildId(null); setDetailTab("general"); resetModSearch()
-  }
+  }, [resetModSearch, setActiveBuildId])
 
-  const totalBuilds = useMemo(() => builds.length, [builds.length])
+  const handleOpenCreate = useCallback(() => setCreateOpen(true), [])
+  const totalBuilds = builds.length
+
+  const handleInstallModalVersion = useCallback(async (version: ModVersion) => {
+    if (!selectedDetails) return
+
+    const modalItem: ModSearchResult = {
+      id: selectedDetails.id,
+      slug: selectedDetails.slug,
+      name: selectedDetails.name,
+      summary: selectedDetails.summary,
+      iconUrl: selectedDetails.iconUrl,
+      downloadCount: selectedDetails.downloadCount,
+      categories: selectedDetails.categories,
+      source: selectedDetails.source,
+      projectId: selectedDetails.projectId,
+      modId: selectedDetails.modId,
+      primaryFileId: Number(version.id),
+      primaryFileName: version.fileName,
+    }
+
+    closeModal()
+    if (selectedDetails.source === "modrinth") {
+      await downloadVersionFromModrinth(modalItem, version.id)
+      return
+    }
+
+    if (selectedDetails.modId) {
+      await downloadVersionFromCurseforge(modalItem, Number(version.id))
+    }
+  }, [closeModal, downloadVersionFromCurseforge, downloadVersionFromModrinth, selectedDetails])
 
   if (view === "detail" && activeBuild) {
     return (
@@ -96,6 +245,7 @@ export function InstancePage() {
         goToMyBuilds={goToMyBuilds}
         updateBuild={updateBuild}
         fileInputRef={fileInputRef}
+        reloadBuilds={reloadBuilds}
         modSearch={modSearch}
         setModSearch={setModSearch}
         modSource={modSource}
@@ -104,6 +254,8 @@ export function InstancePage() {
         setModSortBy={setModSortBy}
         modFileInputRef={modFileInputRef}
         addLocalModToBuild={addLocalModToBuild}
+        addLocalContentToBuild={addLocalContentToBuild}
+        removeContentFromBuild={removeContentFromBuild}
         modLoading={modLoading}
         modTotalHits={modTotalHits}
         modPage={modPage}
@@ -115,7 +267,10 @@ export function InstancePage() {
         installingModSlug={installingModSlug}
         setInstallingModSlug={setInstallingModSlug}
         addModToBuild={addModToBuild}
+        addContentToBuild={addContentToBuild}
         setBuilds={setBuilds}
+        toggleItemEnabled={toggleItemEnabled}
+        updateItemVersion={updateItemVersion}
         selectedDetails={selectedDetails}
         modalTab={modalTab}
         setModalTab={setModalTab}
@@ -128,7 +283,12 @@ export function InstancePage() {
 
   return (
     <div className="h-full flex flex-col animate-in fade-in-0 slide-in-from-bottom-4 duration-300">
-      <InstanceImportOverlay importProgress={importProgress} importError={importError} />
+      <InstanceImportOverlay
+        importProgress={importProgress}
+        importError={importError}
+        isCancelling={isCancellingImport}
+        onCancel={cancelImport}
+      />
 
       <InstanceHeader
         view={view}
@@ -137,13 +297,14 @@ export function InstancePage() {
         createOpen={createOpen}
         setCreateOpen={setCreateOpen}
         onCreate={createBuild}
+        onImported={reloadBuilds}
       />
 
       {view === "my" && (
         <InstanceList
           builds={builds}
           totalBuilds={totalBuilds}
-          onCreate={() => setCreateOpen(true)}
+          onCreate={handleOpenCreate}
           onDelete={deleteBuild}
           onOpen={openBuildDetail}
         />
@@ -156,6 +317,19 @@ export function InstancePage() {
           loading={mrLoading}
           results={mrResults}
           downloadingSlug={downloadingSlug}
+          sortBy={mrSortBy}
+          setSortBy={setMrSortBy}
+          sortOptions={MODRINTH_SORT_OPTIONS}
+          selectedVersion={selectedVersion}
+          setSelectedVersion={setSelectedVersion}
+          versionsLoaded={versionsLoaded}
+          versionOptions={visibleVersions}
+          selectedModLoader={selectedModLoader}
+          setSelectedModLoader={setSelectedModLoader}
+          selectedCategory={mrSelectedCategory}
+          setSelectedCategory={setMrSelectedCategory}
+          categoryOptions={mrCategoryOptions}
+          onOpenDetails={openProjectModal}
           onDownload={downloadFromModrinth}
         />
       )}
@@ -167,9 +341,32 @@ export function InstancePage() {
           cfLoading={cfLoading}
           cfResults={cfResults}
           cfDownloadingId={cfDownloadingId}
+          sortBy={cfSortBy}
+          setSortBy={setCfSortBy}
+          sortOptions={CURSEFORGE_SORT_OPTIONS}
+          selectedVersion={selectedVersion}
+          setSelectedVersion={setSelectedVersion}
+          versionsLoaded={versionsLoaded}
+          versionOptions={visibleVersions}
+          selectedModLoader={selectedModLoader}
+          setSelectedModLoader={setSelectedModLoader}
+          selectedCategory={cfSelectedCategory}
+          setSelectedCategory={setCfSelectedCategory}
+          categoryOptions={cfCategoryOptions}
+          onOpenDetails={openCFModal}
           onDownload={downloadFromCurseforge}
         />
       )}
+
+      <InstanceModal
+        selectedDetails={selectedDetails}
+        modalTab={modalTab}
+        setModalTab={setModalTab}
+        loadingModal={loadingModal}
+        displayedModalVersions={displayedModalVersions}
+        onInstallVersion={handleInstallModalVersion}
+        onClose={closeModal}
+      />
     </div>
   )
 }

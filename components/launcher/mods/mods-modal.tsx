@@ -40,10 +40,11 @@ interface ModrinthModalProps {
   loading: boolean
   modalTab: ModalTab
   setModalTab: (t: ModalTab) => void
+  onInstallVersion: (version: ModVersion) => void
   onClose: () => void
 }
 
-export function ModrinthModal({ details, versions, loading, modalTab, setModalTab, onClose }: ModrinthModalProps) {
+export function ModrinthModal({ details, versions, loading, modalTab, setModalTab, onInstallVersion, onClose }: ModrinthModalProps) {
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-5xl max-h-[85vh] mx-4 rounded-2xl bg-card border border-border shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
@@ -104,7 +105,7 @@ export function ModrinthModal({ details, versions, loading, modalTab, setModalTa
                           <span className="text-xs text-muted-foreground">{formatFileSize(ver.files?.[0]?.size || ver.fileSize || 0)}</span>
                         </div>
                       </div>
-                      <button onClick={() => { if (ver.files?.[0]?.url) window.open(ver.files[0].url, "_blank") }} className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"><IconDownload className="w-4 h-4" strokeWidth={1.75} />Download</button>
+                      <button onClick={() => onInstallVersion(ver)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"><IconDownload className="w-4 h-4" strokeWidth={1.75} />Download</button>
                     </div>
                   )) : <p className="text-center text-muted-foreground py-12">No versions available</p>}
                 </div>
@@ -126,7 +127,7 @@ interface CFModalProps {
   modalTab: ModalTab
   setModalTab: (t: ModalTab) => void
   onClose: () => void
-  onInstall: (fileId: number, modId: number) => void
+  onInstall: (fileId: number, modId: number, fileName?: string) => void
 }
 
 export function CFModal({ details, loading, modalTab, setModalTab, onClose, onInstall }: CFModalProps) {
@@ -181,7 +182,7 @@ export function CFModal({ details, loading, modalTab, setModalTab, onClose, onIn
                           <span className="text-xs text-muted-foreground">{formatFileSize(ver.fileSize)}</span>
                         </div>
                       </div>
-                      {details.modId && <button onClick={() => onInstall(Number(ver.id), details.modId!)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition-colors"><IconDownload className="w-4 h-4" strokeWidth={1.75} />Install</button>}
+                      {details.modId && <button onClick={() => onInstall(Number(ver.id), details.modId!, ver.fileName)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition-colors"><IconDownload className="w-4 h-4" strokeWidth={1.75} />Install</button>}
                     </div>
                   )) : <p className="text-center text-muted-foreground py-12">No versions available</p>}
                 </div>

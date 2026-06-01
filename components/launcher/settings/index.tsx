@@ -17,6 +17,8 @@ import type { SettingsTab, Theme, JavaInstallation } from "./types"
 export function SettingsPage() {
   const { t } = useTranslation()
   const settingsHydratedRef = useRef(false)
+  const pendingSettingsRef = useRef<Record<string, number>>({})
+  const lastPersistedSettingsRef = useRef<Record<string, string>>({})
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("game")
   const [selectedTheme, setSelectedTheme] = useState<string>("orange")
   const [customTheme, setCustomTheme] = useState<Theme>({
@@ -31,6 +33,8 @@ export function SettingsPage() {
   const [useCustomResolution, setUseCustomResolution] = useState(false)
   const [selectedJavaPath, setSelectedJavaPath] = useState("")
   const [javaArgs, setJavaArgs] = useState("")
+  const [memoryMin, setMemoryMin] = useState("2G")
+  const [memoryMax, setMemoryMax] = useState("4G")
   const [showJavaModal, setShowJavaModal] = useState(false)
   const [editingJavaVersion, setEditingJavaVersion] = useState("")
   const [detectedJavaInstallations, setDetectedJavaInstallations] = useState<JavaInstallation[]>([])
@@ -38,7 +42,9 @@ export function SettingsPage() {
   const [showAlpha, setShowAlpha] = useState(false)
   const [showBeta, setShowBeta] = useState(false)
   const [showSnapshot, setShowSnapshot] = useState(false)
-  const [authlibInjectorEnabled, setAuthlibInjectorEnabled] = useState(true)
+  const [useBmclapi, setUseBmclapi] = useState(false)
+  const [authlibInjectorEnabled, setAuthlibInjectorEnabled] = useState(false)
+  const [injectorType, setInjectorType] = useState<"authlib" | "retroauth">("retroauth")
   const [showAuthlibWarningModal, setShowAuthlibWarningModal] = useState(false)
   const [selectedLanguage, setSelectedLanguage] = useState(() => {
     const stored = typeof window !== "undefined" ? localStorage.getItem("language") : null
@@ -74,8 +80,11 @@ export function SettingsPage() {
 
       const [
         authlibSetting,
+        retroauthSetting,
         javaPathSetting,
         javaArgsSetting,
+        memoryMinSetting,
+        memoryMaxSetting,
         showAlphaSetting,
         showBetaSetting,
         showSnapshotSetting,
@@ -83,10 +92,14 @@ export function SettingsPage() {
         customWidthSetting,
         customHeightSetting,
         useCustomResolutionSetting,
+        useBmclapiSetting,
       ] = await Promise.all([
         api.getSetting("authlibInjectorEnabled"),
+        api.getSetting("retroauthInjectorEnabled"),
         api.getSetting("javaPath"),
         api.getSetting("javaArgs"),
+        api.getSetting("memoryMin"),
+        api.getSetting("memoryMax"),
         api.getSetting("showAlpha"),
         api.getSetting("showBeta"),
         api.getSetting("showSnapshot"),
@@ -94,11 +107,15 @@ export function SettingsPage() {
         api.getSetting("customWidth"),
         api.getSetting("customHeight"),
         api.getSetting("useCustomResolution"),
+        api.getSetting("useBmclapi"),
       ])
 
       if (cancelled) return
 
-      if (authlibSetting !== undefined) setAuthlibInjectorEnabled(authlibSetting !== "false")
+      const authlibEnabled = authlibSetting === "true"
+      const retroauthEnabled = retroauthSetting === "true"
+      setAuthlibInjectorEnabled(authlibEnabled || retroauthEnabled)
+      setInjectorType(authlibEnabled ? "authlib" : "retroauth")
       if (javaPathSetting) {
         const base = javaPathSetting.split(/[\\/]/).pop()?.toLowerCase() ?? ""
         const valid = base === "java" || base === "java.exe" || base === "javaw.exe"
@@ -109,13 +126,29 @@ export function SettingsPage() {
         }
       }
       setJavaArgs(javaArgsSetting ?? "")
+      if (memoryMinSetting) setMemoryMin(memoryMinSetting)
+      if (memoryMaxSetting) setMemoryMax(memoryMaxSetting)
       setShowAlpha(showAlphaSetting === "true")
       setShowBeta(showBetaSetting === "true")
       setShowSnapshot(showSnapshotSetting === "true")
+      setUseBmclapi(useBmclapiSetting === "true")
       if (selectedResolutionSetting) setSelectedResolution(selectedResolutionSetting)
       if (customWidthSetting) setCustomWidth(customWidthSetting)
       if (customHeightSetting) setCustomHeight(customHeightSetting)
       setUseCustomResolution(useCustomResolutionSetting === "true")
+      lastPersistedSettingsRef.current = {
+        javaArgs: javaArgsSetting ?? "",
+        memoryMin: memoryMinSetting ?? "2G",
+        memoryMax: memoryMaxSetting ?? "4G",
+        showAlpha: String(showAlphaSetting === "true"),
+        showBeta: String(showBetaSetting === "true"),
+        showSnapshot: String(showSnapshotSetting === "true"),
+        useBmclapi: String(useBmclapiSetting === "true"),
+        selectedResolution: selectedResolutionSetting ?? "1920x1080 (Full HD)",
+        customWidth: customWidthSetting ?? "1920",
+        customHeight: customHeightSetting ?? "1080",
+        useCustomResolution: String(useCustomResolutionSetting === "true"),
+      }
       settingsHydratedRef.current = true
     }
 
@@ -125,17 +158,34 @@ export function SettingsPage() {
 
   const persistSetting = useCallback((key: string, value: string) => {
     if (!settingsHydratedRef.current) return
-    void window.electronAPI?.setSetting(key, value)
-    window.dispatchEvent(new CustomEvent("launcher-setting-changed", { detail: { key, value } }))
+    if (lastPersistedSettingsRef.current[key] === value) return
+    if (pendingSettingsRef.current[key]) {
+      window.clearTimeout(pendingSettingsRef.current[key])
+    }
+    pendingSettingsRef.current[key] = window.setTimeout(() => {
+      delete pendingSettingsRef.current[key]
+      if (lastPersistedSettingsRef.current[key] === value) return
+      lastPersistedSettingsRef.current[key] = value
+      void window.electronAPI?.setSetting(key, value)
+      window.dispatchEvent(new CustomEvent("launcher-setting-changed", { detail: { key, value } }))
+    }, 250)
+  }, [])
+
+  useEffect(() => () => {
+    Object.values(pendingSettingsRef.current).forEach((timeoutId) => window.clearTimeout(timeoutId))
+    pendingSettingsRef.current = {}
   }, [])
 
   useEffect(() => {
     persistSetting("javaArgs", javaArgs)
   }, [javaArgs, persistSetting])
+  useEffect(() => { persistSetting("memoryMin", memoryMin.trim() || "2G") }, [memoryMin, persistSetting])
+  useEffect(() => { persistSetting("memoryMax", memoryMax.trim() || "4G") }, [memoryMax, persistSetting])
 
   useEffect(() => { persistSetting("showAlpha", String(showAlpha)) }, [persistSetting, showAlpha])
   useEffect(() => { persistSetting("showBeta", String(showBeta)) }, [persistSetting, showBeta])
   useEffect(() => { persistSetting("showSnapshot", String(showSnapshot)) }, [persistSetting, showSnapshot])
+  useEffect(() => { persistSetting("useBmclapi", String(useBmclapi)) }, [persistSetting, useBmclapi])
   useEffect(() => { persistSetting("selectedResolution", selectedResolution) }, [persistSetting, selectedResolution])
   useEffect(() => { persistSetting("customWidth", customWidth) }, [customWidth, persistSetting])
   useEffect(() => { persistSetting("customHeight", customHeight) }, [customHeight, persistSetting])
@@ -192,6 +242,33 @@ export function SettingsPage() {
             </section>
 
             <section className="space-y-4">
+              <h3 className="text-lg font-medium text-foreground">RAM</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-foreground">Minimum</label>
+                  <input
+                    type="text"
+                    value={memoryMin}
+                    onChange={(e) => setMemoryMin(e.target.value.toUpperCase())}
+                    placeholder="2G"
+                    className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-foreground">Maximum</label>
+                  <input
+                    type="text"
+                    value={memoryMax}
+                    onChange={(e) => setMemoryMax(e.target.value.toUpperCase())}
+                    placeholder="4G"
+                    className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">Use values like `2G`, `4G` or `1024M`. These limits are used for Minecraft launch.</p>
+            </section>
+
+            <section className="space-y-4">
               <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
                 {t("settings.versionTypes")}
               </h3>
@@ -213,12 +290,36 @@ export function SettingsPage() {
               <SettingsAuthlib
                 enabled={authlibInjectorEnabled}
                 setEnabled={setAuthlibInjectorEnabled}
+                injectorType={injectorType}
+                setInjectorType={setInjectorType}
                 showWarningModal={showAuthlibWarningModal}
                 setShowWarningModal={setShowAuthlibWarningModal}
               />
             </section>
 
-            
+            <section className="space-y-4">
+              <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+                <IconCloud className="w-5 h-5 text-primary" strokeWidth={1.5} />
+                BMCL API
+              </h3>
+              <div className="p-4 rounded-xl border border-border bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="font-medium text-foreground">BMCL API</div>
+                    <p className="text-sm text-muted-foreground mt-1">{t("settings.bmclapiDesc")}</p>
+                  </div>
+                  <button
+                    onClick={() => setUseBmclapi(!useBmclapi)}
+                    className={cn(
+                      "relative w-14 h-8 rounded-full transition-all duration-300",
+                      useBmclapi ? "bg-primary shadow-[0_0_15px_var(--glow-primary)]" : "bg-muted"
+                    )}
+                  >
+                    <span className={cn("absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all duration-300", useBmclapi ? "left-7" : "left-1")} />
+                  </button>
+                </div>
+              </div>
+            </section>
           </div>
         )}
 

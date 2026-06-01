@@ -1,7 +1,6 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import { useLaunchLogs, type LogEntry, type LogLevel } from "@/src/LaunchLogsContext"
-import { useAccounts } from "@/src/AccountsContext"
 import { useTranslation } from "react-i18next"
 import {
   IconFileText, IconCopy, IconCheck, IconRefresh, IconTrash,
@@ -9,7 +8,39 @@ import {
   IconBug, IconAlertTriangle, IconCircleX, IconTerminal2,
 } from "@tabler/icons-react"
 
-// ── Константы ──
+// --- Syntax Highlight Patterns for Minecraft Logs ---
+
+const LEVEL_COLORS: Record<string, string> = {
+  INFO: "#5cb85c",
+  ERROR: "#f62451",
+  WARN: "#FF6625",
+  WARNING: "#FF6625",
+  DEBUG: "#A4A4A4",
+  TRACE: "#A4A4A4",
+  FATAL: "#f62451",
+}
+
+const CLASS_COLORS = [
+  "#8be9fd", "#50fa7b", "#ffb86c", "#ff79c6", "#bd93f9",
+  "#ff5555", "#f1fa8c", "#6272a4", "#44d5c3", "#e6a8d7",
+]
+
+const JAVA_KEYWORDS = new RegExp(String.raw`\b(?:public|private|protected|static|final|class|interface|extends|implements|void|int|boolean|double|float|long|short|byte|char|String|Object|null|true|false|return|if|else|while|for|switch|case|break|continue|try|catch|finally|throw|new|this|super|import|package|synchronized|volatile|transient|native|strictfp|assert|enum|instanceof)\b`, "g")
+
+const URL_PATTERN = new RegExp(String.raw`https?://[^\s<>"'\)]*`, "g")
+const UUID_PATTERN = new RegExp(String.raw`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`, "gi")
+const CLASS_PATTERN = new RegExp(String.raw`(?:[a-z][a-zA-Z0-9_$]*\.)+[A-Z][a-zA-Z0-9_$]*`, "g")
+const STACK_TRACE_PATTERN = new RegExp(String.raw`\s+at\s+(.+)`, "g")
+const EXCEPTION_PATTERN = new RegExp(String.raw`([a-zA-Z][a-zA-Z0-9_$]*(?:Exception|Error|Throwable|RuntimeException)(?:\s*.*?)?)(?=\s|$)`, "g")
+const NUMBER_PATTERN = new RegExp(String.raw`\b-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b`, "g")
+const HEX_PATTERN = new RegExp(String.raw`\b0x[0-9a-fA-F]+\b`, "g")
+const TIMESTAMP_PATTERN = new RegExp(String.raw`\[\d{2}:\d{2}:\d{2}(?:\.\d+)?\]`, "g")
+const THREAD_PATTERN = new RegExp(String.raw`\[([^\]]*Thread[^\]]*)\]`, "g")
+const ARROW_PATTERN = new RegExp(String.raw`(\s*--->\s*|\s*==>\s*|\s*\|\s*)`, "g")
+const CAUSED_BY = new RegExp(String.raw`(Caused by:|Suppressed:)`, "g")
+const MIXIN_PATTERN = new RegExp(String.raw`@Mixin|@Inject|@Redirect|@Overwrite|@Shadow|@Accessor`, "g")
+const ANNOTATION_PATTERN = new RegExp(String.raw`@[A-Z][a-zA-Z0-9_$]*`, "g")
+
 
 const LS: Record<LogLevel, string> = {
   error: "text-[#f62451] font-semibold", warn: "text-[#FF6625] font-semibold",
@@ -48,7 +79,7 @@ const FILTER_DEFS: { id: LogLevel | "all"; icon: typeof IconFileText }[] = [
 
 const EMPTY_COUNTS: Record<LogLevel, number> = { info: 0, warn: 0, error: 0, debug: 0, game: 0, launcher: 0 }
 
-// ── Утилиты рендера ──
+// --- Render Utilities ---
 
 const fmtTime = (ts: number) => {
   const d = new Date(ts)
@@ -61,6 +92,189 @@ const txtColor = (l: LogLevel) =>
 const pfxColor = (l: LogLevel) =>
   l === "error" ? "text-[#f62451]" : l === "warn" ? "text-[#FF6625]" : "text-[#5cb85c]"
 
+function hashString(str: string): number {
+  let h = 0
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) - h) + str.charCodeAt(i)
+    h |= 0
+  }
+  return Math.abs(h)
+}
+
+function getClassColor(className: string): string {
+  return CLASS_COLORS[hashString(className) % CLASS_COLORS.length]
+}
+
+interface Token {
+  type: string
+  text: string
+  color?: string
+}
+
+function tokenizeLog(text: string, level: LogLevel): Token[] {
+  const tokens: Token[] = []
+  let remaining = text
+  let offset = 0
+
+  function push(type: string, color: string | undefined, text: string) {
+    if (text) tokens.push({ type, text, color })
+  }
+
+  // 1. Match Minecraft prefix format [HH:MM:SS] [Thread/LEVEL]:
+  const mcMatch = MC_RE.exec(text)
+  if (mcMatch && mcMatch.index === 0) {
+    const fullPrefix = mcMatch[0]
+    const levelStr = mcMatch[2]
+    const levelColor = LEVEL_COLORS[levelStr] ?? PFX_CLR[levelStr] ?? pfxColor(level)
+
+    // Extract timestamp and thread parts
+    const tsMatch = fullPrefix.match(new RegExp(String.raw`\\[(\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?)\\]`))
+    const threadMatch = fullPrefix.match(new RegExp(String.raw`\\[([^\\/\\]]*)\\/(INFO|ERROR|WARN|WARNING|DEBUG|TRACE)\\]`))
+
+    if (tsMatch) {
+      push("timestamp", "#6272a4", tsMatch[0])
+    }
+    if (threadMatch) {
+      const beforeThread = fullPrefix.substring(tsMatch ? tsMatch[0].length : 0, threadMatch.index)
+      if (beforeThread) push("text", undefined, beforeThread)
+      push("bracket", "#A4A4A4", "[")
+      push("thread", "#bd93f9", threadMatch[1])
+      push("separator", "#A4A4A4", "/")
+      push("level", levelColor, threadMatch[2])
+      push("bracket", "#A4A4A4", "]: ")
+    } else {
+      push("prefix", levelColor, fullPrefix)
+    }
+    offset = fullPrefix.length
+    remaining = text.substring(offset)
+  }
+
+  // 2. Caused by / Suppressed
+  if (CAUSED_BY.test(remaining)) {
+    const cbMatch = remaining.match(CAUSED_BY)
+    if (cbMatch) {
+      const idx = remaining.indexOf(cbMatch[0])
+      if (idx > 0) push("text", undefined, remaining.substring(0, idx))
+      push("caused", "#ff79c6", cbMatch[0])
+      remaining = remaining.substring(idx + cbMatch[0].length)
+    }
+  }
+
+  // 3. Stack trace lines
+  if (STACK_TRACE_PATTERN.test(remaining)) {
+    const parts = remaining.split(STACK_TRACE_PATTERN)
+    for (let i = 0; i < parts.length; i++) {
+      if (i % 2 === 0) {
+        if (parts[i]) push("text", undefined, parts[i])
+      } else {
+        const frame = parts[i]
+        // at class.method(file:line)
+        const classMatch = frame.match(/^(.+?)(\.)([a-zA-Z_$][\w$]*)(\(.*\))?(\s+\(.*\))?/)
+        if (classMatch) {
+          const className = classMatch[1]
+          push("class", getClassColor(className), className)
+          push("dot", "#A4A4A4", ".")
+          push("method", "#50fa7b", classMatch[3] + (classMatch[4] || ""))
+          if (classMatch[5]) push("source", "#6272a4", classMatch[5])
+        } else {
+          push("trace", "#A4A4A4", frame)
+        }
+      }
+    }
+    remaining = ""
+  }
+
+  // 4. Exception names
+  if (EXCEPTION_PATTERN.test(remaining)) {
+    const parts = remaining.split(EXCEPTION_PATTERN)
+    for (let i = 0; i < parts.length; i++) {
+      if (i % 2 === 0) {
+        if (parts[i]) push("text", undefined, parts[i])
+      } else {
+        push("exception", "#f62451", parts[i])
+      }
+    }
+    remaining = ""
+  }
+
+  if (remaining) {
+    // 5. Remaining tokenization for URLs, numbers, UUIDs, classes, etc.
+    const patterns: Array<{ re: RegExp; type: string; color?: string }> = [
+      { re: URL_PATTERN, type: "url", color: "#8be9fd" },
+      { re: UUID_PATTERN, type: "uuid", color: "#ffb86c" },
+      { re: HEX_PATTERN, type: "hex", color: "#ff79c6" },
+      { re: NUMBER_PATTERN, type: "number", color: "#bd93f9" },
+      { re: MIXIN_PATTERN, type: "mixin", color: "#f1fa8c" },
+      { re: ANNOTATION_PATTERN, type: "annotation", color: "#f1fa8c" },
+      { re: JAVA_KEYWORDS, type: "keyword", color: "#ff79c6" },
+      { re: CLASS_PATTERN, type: "class", color: undefined },
+    ]
+
+    let pos = 0
+    const result: Array<{ start: number; end: number; type: string; color?: string; text: string }> = []
+
+    for (const pat of patterns) {
+      let m: RegExpExecArray | null
+      const localRe = new RegExp(pat.re.source, pat.re.flags.includes("g") ? pat.re.flags : pat.re.flags + "g")
+      localRe.lastIndex = 0
+      while ((m = localRe.exec(remaining)) !== null) {
+        result.push({
+          start: m.index,
+          end: m.index + m[0].length,
+          type: pat.type,
+          color: pat.type === "class" ? getClassColor(m[0]) : pat.color,
+          text: m[0],
+        })
+      }
+    }
+
+    result.sort((a, b) => a.start - b.start)
+
+    // Remove overlapping
+    const cleaned: typeof result = []
+    for (const r of result) {
+      if (cleaned.length === 0 || r.start >= cleaned[cleaned.length - 1].end) {
+        cleaned.push(r)
+      }
+    }
+
+    for (const r of cleaned) {
+      if (pos < r.start) push("text", undefined, remaining.substring(pos, r.start))
+      push(r.type, r.color, r.text)
+      pos = r.end
+    }
+    if (pos < remaining.length) push("text", undefined, remaining.substring(pos))
+  }
+
+  if (tokens.length === 0 && text) {
+    push("text", undefined, text)
+  }
+
+  return tokens
+}
+
+function renderSyntaxHighlighted(text: string, level: LogLevel): React.ReactNode {
+  const tokens = tokenizeLog(text, level)
+  return (
+    <>
+      {tokens.map((t, i) => (
+        <span
+          key={i}
+          style={t.color ? { color: t.color } : undefined}
+          className={cn(
+            !t.color && t.type === "text" && txtColor(level),
+            t.type === "url" && "underline decoration-[#8be9fd]/50 hover:decoration-[#8be9fd]",
+            t.type === "exception" && "font-bold",
+            t.type === "keyword" && "font-semibold",
+          )}
+        >
+          {t.text}
+        </span>
+      ))}
+    </>
+  )
+}
+
 function renderMcLog(text: string, level: LogLevel) {
   const tc = txtColor(level), lc = pfxColor(level)
   const parts: React.ReactNode[] = []
@@ -71,7 +285,9 @@ function renderMcLog(text: string, level: LogLevel) {
     parts.push(<span key={`l${m.index}`} className={cn("font-semibold", PFX_CLR[m[2]] ?? lc)}>{m[1]}</span>)
     last = m.index + m[1].length
   }
-  if (last < text.length) parts.push(<span key={`t${last}`} className={tc}>{text.slice(last)}</span>)
+  if (last < text.length) {
+  parts.push(<span key={`tail-${last}`} className={tc}>{text.slice(last)}</span>)
+}
   return parts.length ? <>{parts}</> : <span className={tc}>{text}</span>
 }
 
@@ -80,7 +296,7 @@ function renderLog(text: string, level: LogLevel) {
     ? renderMcLog(text, level) : <span className={LS[level]}>{text}</span>
 }
 
-// ── LogRow ──
+// --- LogRow ---
 
 const LogRow = memo(function LogRow({ entry, label }: { entry: LogEntry; label: string }) {
   const own = OWN_FMT.test(entry.text) || entry.level === "launcher"
@@ -99,84 +315,97 @@ const LogRow = memo(function LogRow({ entry, label }: { entry: LogEntry; label: 
         <>
           <span className="text-muted-foreground/40 flex-shrink-0 select-none w-[54px]">{fmtTime(entry.ts)}</span>
           <span className={cn("flex-shrink-0 w-[52px] font-semibold text-[10px] uppercase tracking-wide mt-px", LS[entry.level])}>{label}</span>
-          <span className="flex-1 break-all whitespace-pre-wrap">{renderLog(entry.text, entry.level)}</span>
+          <span className="flex-1 break-all whitespace-pre-wrap">{renderSyntaxHighlighted(entry.text, entry.level)}</span>
         </>
       )}
     </div>
   )
 })
 
-// ── LogsPage ──
+// --- LogsPage ---
 
 export function LogsPage() {
-  const { t } = useTranslation()
   const { logs, clearLogs, isRunning } = useLaunchLogs()
-  const { activeAccount } = useAccounts()
-  const [filter, setFilter] = useState<LogLevel | "all">("all")
-  const [search, setSearch] = useState("")
-  const [autoScroll, setAutoScroll] = useState(true)
   const [copied, setCopied] = useState(false)
   const [shareState, setShareState] = useState<"idle" | "loading" | "done" | "error">("idle")
-  const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [shareUrl, setShareUrl] = useState<string>("")
+  const [filter, setFilter] = useState<LogLevel | "all">("all")
+  const [search, setSearch] = useState("")
+  const deferredSearch = useDeferredValue(search)
+  const [autoScroll, setAutoScroll] = useState(true)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { t } = useTranslation()
 
-  const levelLabels = useMemo(() =>
-    Object.fromEntries((Object.keys(LBL_KEY) as LogLevel[]).map(l => [l, t(LBL_KEY[l])])) as Record<LogLevel, string>,
-  [t])
+  const levelLabels = useMemo(() => {
+    const map: Partial<Record<LogLevel, string>> = {}
+    for (const key of Object.keys(LBL_KEY) as LogLevel[]) map[key] = t(LBL_KEY[key])
+    return map
+  }, [t])
 
-  const levelCounts = useMemo(() =>
-    logs.reduce<Record<LogLevel, number>>((a, l) => { a[l.level]++; return a }, { ...EMPTY_COUNTS }),
-  [logs])
+  const levelCounts = useMemo(() => {
+    const counts = { ...EMPTY_COUNTS }
+    for (const entry of logs) counts[entry.level]++
+    return counts
+  }, [logs])
 
   const filtered = useMemo(() => {
-    let r = filter === "all" ? logs : logs.filter(l => l.level === filter)
-    if (search.trim()) { const q = search.toLowerCase(); r = r.filter(l => l.text.toLowerCase().includes(q)) }
-    return r
-  }, [logs, filter, search])
+    let entries = filter === "all" ? logs : logs.filter(e => e.level === filter)
+    const q = deferredSearch.trim().toLowerCase()
+    if (q) entries = entries.filter(e => e.text.toLowerCase().includes(q))
+    return entries
+  }, [logs, filter, deferredSearch])
 
   useEffect(() => {
+    if (!autoScroll || !containerRef.current || filtered.length === 0) return
     const el = containerRef.current
-    if (!autoScroll || !el) return
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" })
+    const maxScroll = el.scrollHeight - el.clientHeight
+    if (maxScroll > 0 && el.scrollTop >= maxScroll - 80) {
+      el.scrollTop = maxScroll
+    }
   }, [filtered, autoScroll])
 
   const handleScroll = useCallback(() => {
+    if (!containerRef.current) return
     const el = containerRef.current
-    if (!el) return
-    setAutoScroll(el.scrollHeight - el.scrollTop - el.clientHeight < 40)
-  }, [])
+    const maxScroll = el.scrollHeight - el.clientHeight
+    if (maxScroll <= 0) return
+    const atBottom = el.scrollTop >= maxScroll - 80
+    if (!atBottom && autoScroll) setAutoScroll(false)
+    if (atBottom && !autoScroll) setAutoScroll(true)
+  }, [autoScroll])
 
-  const logsText = useCallback(() => {
-    const header = `Xneon Launcher log by ${activeAccount?.username ?? "Player"}\n${"=".repeat(40)}\n`
-    return header + logs.map(l => l.text).join("\n")
-  }, [logs, activeAccount])
-
-  const handleCopy = useCallback(async () => {
-    await navigator.clipboard.writeText(logsText())
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }, [logsText])
+  const handleCopy = useCallback(() => {
+    const text = filtered.map(e => e.text).join("\n")
+    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
+  }, [filtered])
 
   const handleShare = useCallback(async () => {
-    const text = logsText()
-    if (!text.trim()) return
-    setShareState("loading"); setShareUrl(null)
-    const result = await window.electronAPI?.shareToMclogs(text)
-    if (result?.success && result.url) {
-      setShareUrl(result.url); setShareState("done")
-      await navigator.clipboard.writeText(result.url)
-      setTimeout(() => setShareState("idle"), 4000)
-    } else {
+    setShareState("loading")
+    try {
+      const text = filtered.map(e => e.text).join("\n")
+      const res = await fetch("https://api.mclo.gs/1/log", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ content: text }),
+      })
+      const data = await res.json() as { success: boolean; url?: string; error?: string }
+      if (data.success && data.url) {
+        setShareUrl(data.url)
+        setShareState("done")
+        setTimeout(() => { setShareState("idle"); setShareUrl("") }, 8000)
+      } else {
+        setShareState("error")
+        setTimeout(() => setShareState("idle"), 3000)
+      }
+    } catch {
       setShareState("error")
       setTimeout(() => setShareState("idle"), 3000)
     }
-  }, [logsText])
+  }, [filtered])
 
   const shareCls = cn(
     "flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors",
-    shareState === "done" ? "bg-green-500/20 text-green-400"
-      : shareState === "error" ? "bg-destructive/20 text-destructive"
-      : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground",
+    shareState === "done" ? "bg-green-500/20 text-green-500" : shareState === "error" ? "bg-destructive/20 text-destructive" : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground",
     (shareState === "loading" || logs.length === 0) && "opacity-50 cursor-not-allowed",
   )
 
@@ -229,7 +458,7 @@ export function LogsPage() {
               className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                 filter === id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
               <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />
-              {id === "all" ? t("logs.all") : t(`logs.${id}`)}
+              {id === "all" ? t("logs.all") : levelLabels[id as LogLevel]}
               {id !== "all" && <span className="opacity-60">{levelCounts[id]}</span>}
             </button>
           ))}
@@ -257,10 +486,15 @@ export function LogsPage() {
           </div>
         ) : (
           <div className="p-3 space-y-0.5">
-            {filtered.map(entry => <LogRow key={entry.id} entry={entry} label={levelLabels[entry.level]} />)}
+            {filtered.map(entry => <LogRow key={entry.id} entry={entry} label={levelLabels[entry.level] ?? entry.level} />)}
           </div>
         )}
       </div>
     </div>
   )
 }
+
+
+
+
+

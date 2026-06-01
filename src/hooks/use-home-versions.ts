@@ -1,98 +1,111 @@
-import { useEffect, useState } from "react"
-import { fetchVersionsFromRenderer, type MinecraftVersionOption, VERSIONS } from "@/lib/home-page-shared"
+import { useEffect, useRef, useState } from "react"
+import { VERSIONS } from "@/lib/home-page-shared"
+import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
 
-export function useHomeVersions(selectedModLoader: string) {
-  const [allMinecraftVersions, setAllMinecraftVersions] = useState<MinecraftVersionOption[]>([])
+const LEGACY_DEFAULT_VERSION = VERSIONS[0] ?? ""
+
+export function useHomeVersions(selectedModLoader: string, initialVersion?: string) {
   const [versions, setVersions] = useState<string[]>(VERSIONS)
   const [versionsLoaded, setVersionsLoaded] = useState(false)
-  const [selectedVersion, setSelectedVersion] = useState("")
-  const [showSnapshot, setShowSnapshot] = useState(false)
-  const [showBeta, setShowBeta] = useState(false)
-  const [showAlpha, setShowAlpha] = useState(false)
+  const [selectedVersion, setSelectedVersion] = useState(initialVersion ?? "")
+  const [latestRelease, setLatestRelease] = useState<string | null>(null)
+  const { allMinecraftVersions, visibleVersions, versionsLoaded: minecraftVersionsLoaded } = useMinecraftVersionOptions()
+  const supportedVersionsCacheRef = useRef(new Map<string, string[]>())
+
+  useEffect(() => {
+    setVersionsLoaded(minecraftVersionsLoaded)
+  }, [minecraftVersionsLoaded])
 
   useEffect(() => {
     let cancelled = false
-    const loadFlag = async (key: "showSnapshot" | "showBeta" | "showAlpha", setter: (value: boolean) => void) => {
+
+    const loadLatestRelease = async () => {
       try {
-        const value = await window.electronAPI?.getSetting(key)
-        if (!cancelled) setter(value === "true")
-      } catch (error) {
-        console.error(`Failed to load ${key} setting`, error)
-      }
-    }
-    const loadFlags = async () => {
-      await Promise.all([
-        loadFlag("showSnapshot", setShowSnapshot),
-        loadFlag("showBeta", setShowBeta),
-        loadFlag("showAlpha", setShowAlpha),
-      ])
-    }
-    const loadVersions = async () => {
-      try {
-        const versions = await window.electronAPI?.getMinecraftVersions()
-        if (!cancelled && Array.isArray(versions) && versions.length > 0) {
-          setAllMinecraftVersions(versions)
-          setVersionsLoaded(true)
-          return
+        const version = await window.electronAPI?.getLatestRelease()
+        if (!cancelled) {
+          setLatestRelease(version ?? null)
         }
       } catch (error) {
-        console.error("Failed to load Minecraft versions from electron API", error)
-      }
-      try {
-        const fallbackVersions = await fetchVersionsFromRenderer()
-        if (!cancelled) setAllMinecraftVersions(fallbackVersions)
-      } catch (error) {
-        console.error("Failed to load Minecraft versions from renderer fallback", error)
-        if (!cancelled) setAllMinecraftVersions([])
-      } finally {
-        if (!cancelled) setVersionsLoaded(true)
+        console.error("Failed to load latest release", error)
+        if (!cancelled) {
+          setLatestRelease(null)
+        }
       }
     }
 
-    const handleSettingsChanged = (event: Event) => {
-      const customEvent = event as CustomEvent<{ key?: string }>
-      if (!customEvent.detail?.key || ["showSnapshot", "showBeta", "showAlpha"].includes(customEvent.detail.key)) {
-        void loadFlags()
-      }
-    }
+    void loadLatestRelease()
 
-    window.addEventListener("launcher-setting-changed", handleSettingsChanged as EventListener)
-    void loadFlags()
-    void loadVersions()
     return () => {
       cancelled = true
-      window.removeEventListener("launcher-setting-changed", handleSettingsChanged as EventListener)
     }
   }, [])
 
   useEffect(() => {
+    if (selectedModLoader === "instance") {
+      // Load builds as versions
+      const loadBuilds = async () => {
+        try {
+          const builds = await window.electronAPI?.loadBuilds() ?? []
+          const buildNames = builds.map(b => b.name)
+          setVersions(buildNames)
+          setVersionsLoaded(true)
+          setSelectedVersion(prev => buildNames.includes(prev) ? prev : buildNames[0] ?? "")
+        } catch (error) {
+          console.error("Failed to load builds", error)
+          setVersions([])
+          setVersionsLoaded(true)
+        }
+      }
+      void loadBuilds()
+      return
+    }
+
     if (allMinecraftVersions.length === 0) return
     let cancelled = false
     const loaders: Record<string, () => Promise<string[]>> = {
       vanilla: async () => allMinecraftVersions.map(v => v.version),
-      fabric: async () => await window.electronAPI?.getFabricSupported() ?? [],
       forge: async () => await window.electronAPI?.getForgeSupported() ?? [],
-      neoforge: async () => await window.electronAPI?.getNeoForgeSupported() ?? [],
+      fabric: async () => await window.electronAPI?.getFabricSupported() ?? [],
+      liteloader: async () => await window.electronAPI?.getLiteLoaderSupported() ?? [],
       quilt: async () => await window.electronAPI?.getQuiltSupported() ?? [],
+      neoforge: async () => await window.electronAPI?.getNeoForgeSupported() ?? [],
       optifine: async () => await window.electronAPI?.getOptifineSupported() ?? [],
     }
 
     const loadFilteredVersions = async () => {
       try {
-        const supported = await (loaders[selectedModLoader]?.() ?? loaders.vanilla())
-        const filtered = allMinecraftVersions
-          .filter(v => selectedModLoader === "vanilla" || supported.includes(v.version))
-          .filter(v =>
-            v.type === "release" ||
-            (v.type === "snapshot" && showSnapshot) ||
-            (v.type === "old_beta" && showBeta) ||
-            (v.type === "old_alpha" && showAlpha)
-          )
-          .map(v => v.version)
+        const cached = supportedVersionsCacheRef.current.get(selectedModLoader)
+        const supported = cached ?? await (loaders[selectedModLoader]?.() ?? loaders.vanilla())
+        if (!cached) {
+          supportedVersionsCacheRef.current.set(selectedModLoader, supported)
+        }
+        const filtered = visibleVersions.filter((version) =>
+          selectedModLoader === "vanilla" || supported.includes(version)
+        )
 
         if (cancelled) return
         setVersions(filtered)
-        setSelectedVersion(prev => filtered.includes(prev) ? prev : filtered[0] ?? "")
+        setSelectedVersion((prev) => {
+          if (filtered.length === 0) return ""
+          if (prev && filtered.includes(prev)) {
+            const shouldUpgradeLegacyDefault = (
+              prev === LEGACY_DEFAULT_VERSION
+              && !!latestRelease
+              && filtered.includes(latestRelease)
+              && latestRelease !== prev
+            )
+
+            if (!shouldUpgradeLegacyDefault) {
+              return prev
+            }
+          }
+          if (latestRelease && filtered.includes(latestRelease)) return latestRelease
+          const latestVisibleRelease = allMinecraftVersions.find(
+            (version) => version.type === "release" && filtered.includes(version.version),
+          )?.version
+          if (latestVisibleRelease) return latestVisibleRelease
+          return filtered[0] ?? ""
+        })
       } catch (error) {
         console.error("Failed to load versions for", selectedModLoader, error)
       }
@@ -102,7 +115,7 @@ export function useHomeVersions(selectedModLoader: string) {
     return () => {
       cancelled = true
     }
-  }, [allMinecraftVersions, selectedModLoader, showSnapshot, showBeta, showAlpha])
+  }, [allMinecraftVersions, latestRelease, selectedModLoader, visibleVersions])
 
   return { versions, versionsLoaded, selectedVersion, setSelectedVersion }
 }

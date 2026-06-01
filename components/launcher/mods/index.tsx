@@ -3,27 +3,43 @@ import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { IconSearch, IconPuzzle, IconStack2, IconPhoto, IconSparkles } from "@tabler/icons-react"
-import { contentTypes, gameVersions, modSortOptions, MODS_PER_PAGE } from "./constants"
+import { contentTypes, modLoaderOptions, modSortOptions, MODS_PER_PAGE } from "./constants"
+import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
 import { ModsList } from "./mods-list"
 import { ModrinthModal, CFModal } from "./mods-modal"
 import { Pagination } from "./mods-ui"
-import type { ContentType, Source, ModSort, ModalTab, ModSearchResult, ModSearchResponse, ModDetails, ModVersion } from "./types"
+import { DepInstallDialog } from "@/components/launcher/dep-install-dialog"
+import type { ContentType, Source, ModSort, ModalTab, ModSearchResult, ModSearchResponse, ModDetails, ModVersion, ModDependency } from "./types"
+
+interface DepInstallState {
+  version: ModVersion
+  modName: string
+  modIcon: string
+  source: "modrinth" | "curseforge"
+}
+
+function toInstallableContentType(type: ContentType): "mod" | "resourcepack" | "shader" | null {
+  if (type === "resourcepack") return "resourcepack"
+  if (type === "shader") return "shader"
+  if (type === "mod") return "mod"
+  return null
+}
+
+function matchesSelectedFilters(version: ModVersion, selectedVersion: string, selectedModLoader: string) {
+  const versionMatches = selectedVersion === "all" || version.gameVersion.split(/[|,/]/).map((entry) => entry.trim()).filter(Boolean).includes(selectedVersion)
+  const loaders = version.loaders?.map((loader) => loader.toLowerCase()) ?? []
+  const loaderMatches = selectedModLoader === "all" || loaders.length === 0 || loaders.includes(selectedModLoader)
+  return versionMatches && loaderMatches
+}
 
 export function ModsPage() {
   const { t } = useTranslation()
   const [activeType, setActiveType] = useState<ContentType>("mod")
   const [source, setSource] = useState<Source>("modrinth")
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedVersion, setSelectedVersion] = useState("1.21")
-  const [showAlpha, setShowAlpha] = useState(false)
-  const [showBeta, setShowBeta] = useState(false)
-  const [showSnapshot, setShowSnapshot] = useState(false)
-
-  useEffect(() => {
-    void window.electronAPI?.getSetting("showAlpha").then(v => setShowAlpha(v === "true"))
-    void window.electronAPI?.getSetting("showBeta").then(v => setShowBeta(v === "true"))
-    void window.electronAPI?.getSetting("showSnapshot").then(v => setShowSnapshot(v === "true"))
-  }, [])
+  const { visibleVersions, versionsLoaded } = useMinecraftVersionOptions()
+  const [selectedVersion, setSelectedVersion] = useState("all")
+  const [selectedModLoader, setSelectedModLoader] = useState("all")
   const [sortBy, setSortBy] = useState<ModSort>("downloads")
 
   const [results, setResults] = useState<ModSearchResult[]>([])
@@ -36,15 +52,18 @@ export function ModsPage() {
   const [projectVersions, setProjectVersions] = useState<ModVersion[]>([])
   const [loadingModal, setLoadingModal] = useState(false)
   const [modalTab, setModalTab] = useState<ModalTab>("description")
+  const [depInstallState, setDepInstallState] = useState<DepInstallState | null>(null)
 
   const fetchMods = useCallback(async (currentPage: number) => {
     setLoading(true)
     try {
       let resp: ModSearchResponse
+      const versionFilter = selectedVersion === "all" ? undefined : selectedVersion
+      const modLoaderFilter = selectedModLoader === "all" ? undefined : selectedModLoader
       if (source === "modrinth") {
-        resp = await window.electronAPI!.modsModrinthSearch(searchQuery, activeType, selectedVersion, sortBy, currentPage)
+        resp = await window.electronAPI!.modsModrinthSearch(searchQuery, activeType, versionFilter, modLoaderFilter as "vanilla" | "fabric" | "quilt" | "neoforge" | undefined, sortBy, currentPage)
       } else {
-        resp = await window.electronAPI!.modsCurseforgeSearch(searchQuery, activeType, selectedVersion, undefined, sortBy, currentPage)
+        resp = await window.electronAPI!.modsCurseforgeSearch(searchQuery, activeType, versionFilter, modLoaderFilter, sortBy, currentPage)
       }
       setResults(resp.results ?? [])
       setTotalHits(resp.totalCount ?? 0)
@@ -52,16 +71,20 @@ export function ModsPage() {
       setResults([]); setTotalHits(0)
     }
     setLoading(false)
-  }, [source, activeType, searchQuery, selectedVersion, sortBy])
+  }, [source, activeType, searchQuery, selectedModLoader, selectedVersion, sortBy])
 
-  useEffect(() => { setPage(0) }, [source, activeType, searchQuery, selectedVersion, sortBy])
+  useEffect(() => { setPage(0) }, [source, activeType, searchQuery, selectedModLoader, selectedVersion, sortBy])
+
+  useEffect(() => {
+    setSelectedModLoader("all")
+  }, [activeType])
 
   useEffect(() => {
     const timer = setTimeout(() => fetchMods(page), 300)
     return () => clearTimeout(timer)
   }, [fetchMods, page])
 
-  const openModModal = async (item: ModSearchResult) => {
+  const openModModal = useCallback(async (item: ModSearchResult) => {
     setModalTab("description"); setLoadingModal(true)
     setSelectedDetails({
       id: item.id, slug: item.slug, name: item.name, summary: item.summary,
@@ -84,14 +107,105 @@ export function ModsPage() {
       }
     } catch {}
     setLoadingModal(false)
-  }
+  }, [])
 
-  const installFile = async (fileId: number, modId: number) => {
+  const installRemoteFile = useCallback(async (url: string, fileName: string) => {
+    const installType = toInstallableContentType(activeType)
+    if (!installType) return
     try {
-      const url = await window.electronAPI?.modsCurseforgeDownloadUrl(fileId, modId)
-      if (url) window.open(url, "_blank")
-    } catch {}
-  }
+      await window.electronAPI?.installContentFile(installType, url, fileName)
+    } catch {
+      // ignore for now, button state resets below
+    }
+  }, [activeType])
+
+  const doDownloadDep = useCallback(async (dep: ModDependency, source: string) => {
+    if (dep.dependencyType === "embedded" || !dep.projectId) return
+    try {
+      if (source === "modrinth") {
+        const versions = await window.electronAPI?.modsModrinthVersions(dep.projectId)
+        const latest = versions?.find(v => v.files?.[0]?.url)
+        if (latest?.files?.[0]?.url) {
+          await installRemoteFile(latest.files[0].url, latest.files[0].filename || `${dep.projectId}.jar`)
+        }
+      } else {
+        const depModId = parseInt(dep.projectId)
+        if (isNaN(depModId)) return
+        const details = await window.electronAPI?.modsCurseforgeDetails(depModId)
+        if (details?.versions?.[0]) {
+          const url = await window.electronAPI?.modsCurseforgeDownloadUrl(Number(details.versions[0].id), depModId)
+          if (url) {
+            await installRemoteFile(url, details.versions[0].fileName || `${dep.projectId}.jar`)
+          }
+        }
+      }
+    } catch { /* skip */ }
+  }, [installRemoteFile])
+
+  const handleDepInstallConfirm = useCallback(async (selectedDeps: ModDependency[]) => {
+    if (!depInstallState) return
+    const { version, source } = depInstallState
+    try {
+      const file = version.files?.[0]
+      if (file?.url) {
+        await installRemoteFile(file.url, file.filename || version.fileName || `${version.id}.jar`)
+      }
+      for (const dep of selectedDeps) {
+        await doDownloadDep(dep, source)
+      }
+    } finally {
+      setDepInstallState(null)
+    }
+  }, [depInstallState, installRemoteFile, doDownloadDep])
+
+  const installFile = useCallback(async (fileId: number, modId: number, fileName?: string) => {
+    const url = await window.electronAPI?.modsCurseforgeDownloadUrl(fileId, modId)
+    if (!url) return
+    const fallbackName = fileName || url.split("/").pop()?.split("?")[0] || `mod-${fileId}.jar`
+    await installRemoteFile(url, fallbackName)
+  }, [installRemoteFile])
+
+  const installModrinthVersion = useCallback(async (version: ModVersion) => {
+    if (!selectedDetails) return
+    setDepInstallState({
+      version,
+      modName: selectedDetails.name,
+      modIcon: selectedDetails.iconUrl,
+      source: selectedDetails.source,
+    })
+  }, [selectedDetails])
+
+  const handleInstallMod = useCallback(async (item: ModSearchResult) => {
+    if (activeType === "modpack") {
+      const baseUrl = item.source === "modrinth" ? `https://modrinth.com/modpack/${item.slug}` : `https://www.curseforge.com/minecraft/modpacks/${item.slug}`
+      window.open(baseUrl, "_blank")
+      return
+    }
+
+    if (item.source === "modrinth") {
+      const versions = await window.electronAPI?.modsModrinthVersions(item.slug)
+      const preferredVersion = versions?.find((version) => version.files?.[0]?.url && matchesSelectedFilters(version, selectedVersion, selectedModLoader))
+      const fallbackVersion = versions?.find((version) => version.files?.[0]?.url)
+      const selVersion = preferredVersion ?? fallbackVersion
+      if (!selVersion?.files?.[0]?.url) return
+      setDepInstallState({
+        version: selVersion,
+        modName: item.name,
+        modIcon: item.iconUrl,
+        source: "modrinth",
+      })
+      return
+    }
+
+    if (item.primaryFileId && item.modId) {
+      void installFile(item.primaryFileId, item.modId, item.primaryFileName)
+    }
+  }, [activeType, installFile, selectedModLoader, selectedVersion])
+
+  const handleCloseModal = useCallback(() => {
+    setSelectedDetails(null)
+    setProjectVersions([])
+  }, [])
 
   const totalPages = Math.max(1, Math.ceil(totalHits / MODS_PER_PAGE))
 
@@ -155,14 +269,29 @@ export function ModsPage() {
             {modSortOptions.map(o => <SelectItem key={o.id} value={o.id}>{t(`mods.sort.${o.id}`)}</SelectItem>)}
           </SelectContent>
         </Select>
-        <select value={selectedVersion} onChange={e => setSelectedVersion(e.target.value)} className="px-4 py-1.5 rounded-xl bg-muted/50 border border-border text-foreground text-sm focus:outline-none focus:border-primary">
-          {gameVersions.filter(v =>
-            v.type === "release" ||
-            (v.type === "beta" && showBeta) ||
-            (v.type === "alpha" && showAlpha) ||
-            (v.type === "snapshot" && showSnapshot)
-          ).map(v => <option key={v.version} value={v.version}>{v.version}</option>)}
-        </select>
+        <Select value={selectedVersion} onValueChange={setSelectedVersion}>
+          <SelectTrigger className="w-[180px] h-[34px] rounded-xl bg-muted/50 border-border text-foreground">
+            <SelectValue placeholder={versionsLoaded ? "Minecraft version" : "Loading..."} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All versions</SelectItem>
+            {visibleVersions.map((version) => (
+              <SelectItem key={version} value={version}>{version}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {activeType === "mod" && (
+          <Select value={selectedModLoader} onValueChange={setSelectedModLoader}>
+            <SelectTrigger className="w-[160px] h-[34px] rounded-xl bg-muted/50 border-border text-foreground">
+              <SelectValue placeholder="Mod loader" />
+            </SelectTrigger>
+            <SelectContent>
+              {modLoaderOptions.map((loader) => (
+                <SelectItem key={loader.id} value={loader.id}>{loader.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
@@ -172,10 +301,7 @@ export function ModsPage() {
             source={source}
             results={results}
             onOpenMod={openModModal}
-            onInstallMod={item => {
-              if (item.source === "modrinth") window.open(`https://modrinth.com/mod/${item.slug}`, "_blank")
-              else if (item.primaryFileId && item.modId) installFile(item.primaryFileId, item.modId)
-            }}
+            onInstallMod={handleInstallMod}
           />
         </div>
         <Pagination
@@ -194,7 +320,8 @@ export function ModsPage() {
             loading={loadingModal}
             modalTab={modalTab}
             setModalTab={setModalTab}
-            onClose={() => { setSelectedDetails(null); setProjectVersions([]) }}
+            onInstallVersion={installModrinthVersion}
+            onClose={handleCloseModal}
           />
         ) : (
           <CFModal
@@ -202,10 +329,21 @@ export function ModsPage() {
             loading={loadingModal}
             modalTab={modalTab}
             setModalTab={setModalTab}
-            onClose={() => { setSelectedDetails(null); setProjectVersions([]) }}
+            onClose={handleCloseModal}
             onInstall={installFile}
           />
         )
+      )}
+
+      {depInstallState && (
+        <DepInstallDialog
+          version={depInstallState.version}
+          modName={depInstallState.modName}
+          modIcon={depInstallState.modIcon}
+          source={depInstallState.source}
+          onConfirm={handleDepInstallConfirm}
+          onCancel={() => setDepInstallState(null)}
+        />
       )}
     </div>
   )

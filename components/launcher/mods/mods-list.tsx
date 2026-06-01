@@ -1,3 +1,4 @@
+import { memo } from "react"
 import { cn } from "@/lib/utils"
 import { IconInfoCircle, IconDownload } from "@tabler/icons-react"
 import { Spinner } from "./mods-ui"
@@ -12,7 +13,7 @@ interface ModsListProps {
   onInstallMod: (item: ModSearchResult) => void
 }
 
-export function ModsList({ loading, source, results, onOpenMod, onInstallMod }: ModsListProps) {
+export const ModsList = memo(function ModsList({ loading, source, results, onOpenMod, onInstallMod }: ModsListProps) {
   if (loading) return <Spinner />
 
   if (results.length === 0) return <p className="text-center text-muted-foreground py-12">No results found</p>
@@ -44,4 +45,4 @@ export function ModsList({ loading, source, results, onOpenMod, onInstallMod }: 
       ))}
     </div>
   )
-}
+})

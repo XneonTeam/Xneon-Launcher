@@ -4,13 +4,11 @@ node_modules/
 # Build output
 dist/
 dist-electron/
-
-# Release / packaged apps
 release/
 
-# xnlc packages (installed from GitHub Packages, not source)
-packages/
-xnlc-package/
+# Local sub-package build outputs (TS build artifacts, can be regenerated)
+packages/*/lib/
+packages/*/*.tsbuildinfo
 
 # IDE
 .vscode/

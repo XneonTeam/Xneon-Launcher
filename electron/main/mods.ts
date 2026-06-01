@@ -7,13 +7,15 @@ import { ipcMain } from "electron"
 import type {
   ContentType,
   ModDetails,
+  ModDependency,
+  ModLoaderFilter,
   ModSearchResponse,
   ModSort,
   ModVersion,
 } from "@xnlc/mods" with { "resolution-mode": "import" }
 import type * as ModsApi from "@xnlc/mods" with { "resolution-mode": "import" }
 
-export type { ModSearchResponse, ModDetails, ModVersion }
+export type { ModSearchResponse, ModDetails, ModVersion, ModDependency }
 
 type ModsModule = typeof ModsApi
 
@@ -26,6 +28,30 @@ function loadModsModule(): Promise<ModsModule> {
   return modsModulePromise
 }
 
+async function fetchMrProjectInfo(projectId: string): Promise<{ name: string; iconUrl: string; slug: string } | null> {
+  try {
+    const res = await fetch(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}`, {
+      headers: { "User-Agent": "XNeon-Launcher/1.0 (launcher@xneon.fun)" },
+    })
+    if (!res.ok) return null
+    const data = await res.json() as Record<string, unknown>
+    return { name: typeof data.title === "string" ? data.title : projectId, iconUrl: typeof data.icon_url === "string" ? data.icon_url : "", slug: typeof data.slug === "string" ? data.slug : projectId }
+  } catch {
+    return null
+  }
+}
+
+async function fetchCfProjectInfo(modId: string): Promise<{ name: string; iconUrl: string; slug: string } | null> {
+  try {
+    const mods = await loadModsModule()
+    const data = await mods.cfFetch(`/mods/${modId}`) as { data?: Record<string, unknown> }
+    if (!data.data) return null
+    return { name: (data.data.name as string) ?? modId, iconUrl: ((data.data.logo as Record<string, unknown> | undefined)?.thumbnailUrl as string) ?? ((data.data.links as Record<string, unknown> | undefined)?.iconUrl as string) ?? "", slug: (data.data.slug as string) ?? `mod-${modId}` }
+  } catch {
+    return null
+  }
+}
+
 export function registerModsHandlers(): void {
   // ── Modrinth ──────────────────────────────────────────────
   ipcMain.handle(
@@ -35,12 +61,14 @@ export function registerModsHandlers(): void {
       query: string,
       contentType?: ContentType,
       gameVersion?: string,
+      modLoader?: ModLoaderFilter,
       sortBy?: ModSort,
       page?: number,
+      category?: string,
     ): Promise<ModSearchResponse> => {
       try {
         const mods = await loadModsModule()
-        return await mods.modrinthSearch(query, { contentType, gameVersion, sortBy, page }) as ModSearchResponse
+        return await mods.modrinthSearch(query, { contentType, gameVersion, modLoader, category, sortBy, page }) as ModSearchResponse
       } catch (err) {
         console.error("Modrinth search error:", err)
         return { results: [], totalCount: 0 }
@@ -64,6 +92,14 @@ export function registerModsHandlers(): void {
     },
   )
 
+  ipcMain.handle(
+    "mods:modrinth-categories",
+    async (_event, contentType?: ContentType): Promise<Array<{ slug: string; name: string }>> => {
+      const mods = await loadModsModule()
+      return await mods.modrinthCategories({ contentType })
+    },
+  )
+
   // ── CurseForge ────────────────────────────────────────────
   ipcMain.handle(
     "mods:curseforge-search",
@@ -75,10 +111,11 @@ export function registerModsHandlers(): void {
       modLoader?: string,
       sortBy?: ModSort,
       page?: number,
+      category?: string,
     ): Promise<ModSearchResponse> => {
       try {
         const mods = await loadModsModule()
-        return await mods.curseforgeSearch(query, { contentType, gameVersion, modLoader, sortBy, page }) as ModSearchResponse
+        return await mods.curseforgeSearch(query, { contentType, gameVersion, modLoader, category, sortBy, page }) as ModSearchResponse
       } catch (err) {
         console.error("CF search error:", err)
         return { results: [], totalCount: 0 }
@@ -104,9 +141,9 @@ export function registerModsHandlers(): void {
 
   ipcMain.handle(
     "mods:curseforge-categories",
-    async (): Promise<Array<{ id: number; slug: string; name: string }>> => {
+    async (_event, contentType?: ContentType): Promise<Array<{ id: number; slug: string; name: string }>> => {
       const mods = await loadModsModule()
-      return await mods.curseforgeCategories()
+      return await mods.curseforgeCategories(contentType)
     },
   )
 
@@ -118,6 +155,36 @@ export function registerModsHandlers(): void {
     ): Promise<{ popular: ModSearchResponse["results"]; trending: ModSearchResponse["results"] }> => {
       const mods = await loadModsModule()
       return await mods.curseforgeFeatured(gameVersion) as { popular: ModSearchResponse["results"]; trending: ModSearchResponse["results"] }
+    },
+  )
+
+  // ── Dependency Resolution ──────────────────────────────────
+  ipcMain.handle(
+    "mods:resolve-dependencies",
+    async (_event, version: ModVersion, source: "modrinth" | "curseforge"): Promise<ModDependency[]> => {
+      try {
+        const deps = version.dependencies ?? []
+        const enriched = await Promise.all(deps.map(async (dep) => {
+          if (dep.dependencyType === "incompatible") return null
+          if (dep.dependencyType === "embedded") {
+            return { ...dep, name: dep.fileName ?? "Embedded library" } as ModDependency
+          }
+          const info = source === "modrinth"
+            ? await fetchMrProjectInfo(dep.projectId)
+            : await fetchCfProjectInfo(dep.projectId)
+          if (!info) return null
+          return {
+            ...dep,
+            name: info.name,
+            slug: info.slug,
+            iconUrl: info.iconUrl,
+          } as ModDependency
+        }))
+        return enriched.filter(Boolean) as ModDependency[]
+      } catch (err) {
+        console.error("Dependency resolution error:", err)
+        return []
+      }
     },
   )
 }
