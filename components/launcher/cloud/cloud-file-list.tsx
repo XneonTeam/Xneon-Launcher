@@ -1,3 +1,4 @@
+import { memo } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { IconCloud, IconDownload, IconLoader2, IconLock, IconTrash, IconRefresh } from "@tabler/icons-react"
@@ -5,7 +6,7 @@ import type { CloudItem } from "./types"
 
 interface CloudFileListProps {
   isAuthLoading: boolean
-  user: any
+  user: unknown
   loading: boolean
   isSyncing: boolean
   error: string | null
@@ -17,7 +18,7 @@ interface CloudFileListProps {
   onDelete: (id: string) => void
 }
 
-export function CloudFileList({
+export const CloudFileList = memo(function CloudFileList({
   isAuthLoading, user, loading, isSyncing, error, filtered,
   getLocalBuildIcon, onShowAuth, onRetry, onDownload, onDelete,
 }: CloudFileListProps) {
@@ -108,4 +109,4 @@ export function CloudFileList({
       })}
     </div>
   )
-}
+})

@@ -1,6 +1,6 @@
 {
   "name": "xneon-launcher",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "XNeon Launcher desktop application",
   "author": {
     "name": "XNeon Launcher",
@@ -9,23 +9,27 @@
   "homepage": "launcher.xneon.org",
   "private": true,
   "main": "dist-electron/main/index.js",
+  "workspaces": [
+    "packages/*"
+  ],
   "dependencies": {
-    "@xnlc/core": "^1.0.2",
-    "@xnlc/mods": "^1.0.0",
     "adm-zip": "^0.5.17",
     "axios": "^1.7.0",
     "discord-rpc": "^4.0.1",
     "form-data": "^4.0.0",
+    "iconv-lite": "^0.7.2",
+    "prismarine-nbt": "^2.8.0",
     "sql.js": "^1.14.1"
   },
   "scripts": {
-    "dev": "concurrently -k -s first \"./node_modules/.bin/vite --host 127.0.0.1\" \"./node_modules/.bin/tsc -p tsconfig.node.json && ./node_modules/.bin/wait-on http://127.0.0.1:5173 --timeout 15000 && env -u ELECTRON_RUN_AS_NODE -u ELECTRON_NO_ATTACH_CONSOLE ./node_modules/.bin/cross-env NODE_ENV=development ./node_modules/.bin/electron .\"",
-    "dev:diag": "concurrently -k -s first \"./node_modules/.bin/vite --host 127.0.0.1\" \"./node_modules/.bin/tsc -p tsconfig.node.json && ./node_modules/.bin/wait-on http://127.0.0.1:5173 --timeout 15000 && env -u ELECTRON_RUN_AS_NODE -u ELECTRON_NO_ATTACH_CONSOLE ./node_modules/.bin/cross-env NODE_ENV=development ELECTRON_DEBUG_FLAGS=1 ./node_modules/.bin/electron .\"",
-    "dev:diag:no-shm": "concurrently -k -s first \"./node_modules/.bin/vite --host 127.0.0.1\" \"./node_modules/.bin/tsc -p tsconfig.node.json && ./node_modules/.bin/wait-on http://127.0.0.1:5173 --timeout 15000 && env -u ELECTRON_RUN_AS_NODE -u ELECTRON_NO_ATTACH_CONSOLE ./node_modules/.bin/cross-env NODE_ENV=development ELECTRON_DEBUG_FLAGS=1 ELECTRON_DISABLE_DEV_SHM_USAGE=0 ./node_modules/.bin/electron .\"",
-    "dev:diag:no-sandbox": "concurrently -k -s first \"./node_modules/.bin/vite --host 127.0.0.1\" \"./node_modules/.bin/tsc -p tsconfig.node.json && ./node_modules/.bin/wait-on http://127.0.0.1:5173 --timeout 15000 && env -u ELECTRON_RUN_AS_NODE -u ELECTRON_NO_ATTACH_CONSOLE ./node_modules/.bin/cross-env NODE_ENV=development ELECTRON_DEBUG_FLAGS=1 ELECTRON_NO_SANDBOX=0 ./node_modules/.bin/electron .\"",
+    "sync:xnlc": "node scripts/sync-local-xnlc.mjs",
+    "dev": "concurrently -k -s first \"vite --host 127.0.0.1\" \"npm run sync:xnlc && tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development node scripts/launch-electron-dev.mjs\"",
+    "dev:diag": "concurrently -k -s first \"vite --host 127.0.0.1\" \"npm run sync:xnlc && tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development ELECTRON_DEBUG_FLAGS=1 node scripts/launch-electron-dev.mjs\"",
+    "dev:diag:no-shm": "concurrently -k -s first \"vite --host 127.0.0.1\" \"npm run sync:xnlc && tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development ELECTRON_DEBUG_FLAGS=1 ELECTRON_DISABLE_DEV_SHM_USAGE=0 node scripts/launch-electron-dev.mjs\"",
+    "dev:diag:no-sandbox": "concurrently -k -s first \"vite --host 127.0.0.1\" \"npm run sync:xnlc && tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development ELECTRON_DEBUG_FLAGS=1 ELECTRON_NO_SANDBOX=0 node scripts/launch-electron-dev.mjs\"",
     "build:renderer": "vite build",
-    "build:electron": "tsc -p tsconfig.node.json",
-    "build": "vite build && tsc -p tsconfig.node.json",
+    "build:electron": "npm run sync:xnlc && tsc -p tsconfig.node.json",
+    "build": "vite build && npm run build:electron",
     "package": "npm run build && electron-builder",
     "typecheck": "tsc --noEmit",
     "test:xn-auth": "node scripts/test-xn-auth.mjs"
@@ -55,6 +59,7 @@
     "react-markdown": "^9.0.1",
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",
+    "ssh2": "^1.17.0",
     "tailwind-merge": "^2.6.0",
     "tailwindcss": "^4.2.0",
     "tw-animate-css": "1.3.3",
@@ -75,8 +80,7 @@
       "!**/xnlc/src/**",
       "!**/xnlc/test*",
       "!**/xnlc/installer.log",
-      "!**/xnlc/tsconfig.json",
-      "!**/xnlc/.forge-smoke-game"
+      "!**/xnlc/tsconfig.json"
     ],
     "win": {
       "target": [

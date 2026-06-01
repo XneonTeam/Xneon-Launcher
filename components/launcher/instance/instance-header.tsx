@@ -1,19 +1,20 @@
 import { useTranslation } from "react-i18next"
-import { IconPackage, IconStack2, IconFileImport } from "@tabler/icons-react"
+import { IconPackage, IconStack2 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { InstanceCreateDialog } from "./instance-create-dialog"
-import type { ViewMode, Build } from "./types"
+import type { ViewMode } from "./types"
 
 interface InstanceHeaderProps {
   view: ViewMode
   setView: (v: ViewMode) => void
-  onImportFile: () => Promise<void>
   createOpen: boolean
   setCreateOpen: (v: boolean) => void
-  onCreate: (params: { name: string; description: string; version: string; modLoader: string; icon: string }) => Promise<void>
+  onCreate: (params: { name: string; description: string; version: string; modLoader: string; loaderVersion?: string; icon: string }) => Promise<void>
+  onImported: () => Promise<void>
+  onImportFile: () => Promise<void>
 }
 
-export function InstanceHeader({ view, setView, onImportFile, createOpen, setCreateOpen, onCreate }: InstanceHeaderProps) {
+export function InstanceHeader({ view, setView, createOpen, setCreateOpen, onCreate, onImported, onImportFile }: InstanceHeaderProps) {
   const { t } = useTranslation()
   return (
     <div className="flex items-center justify-between gap-4 mb-6">
@@ -51,13 +52,13 @@ export function InstanceHeader({ view, setView, onImportFile, createOpen, setCre
           </button>
         </div>
         {view === "my" && (
-          <>
-            <button type="button" onClick={() => void onImportFile()} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-muted text-foreground hover:bg-muted/80">
-              <IconFileImport className="w-4 h-4" strokeWidth={1.75} />
-              {t("builds.import")}
-            </button>
-            <InstanceCreateDialog open={createOpen} setOpen={setCreateOpen} onCreate={onCreate} />
-          </>
+          <InstanceCreateDialog
+            open={createOpen}
+            setOpen={setCreateOpen}
+            onCreate={onCreate}
+            onImported={onImported}
+            onImportFile={onImportFile}
+          />
         )}
       </div>
     </div>

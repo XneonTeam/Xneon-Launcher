@@ -5,7 +5,7 @@ import path from "path"
 const CLIENT_ID = "1279183673660538972"
 let rpc: Client | null = null
 let connected = false
-let pendingActivity: any = null
+let pendingActivity: { state?: string; largeImageKey?: string; largeImageText?: string; smallImageKey?: string; smallImageText?: string; loader?: string; startTimestamp?: number } | null = null
 let gameStartTimestamp: number | undefined = undefined
 
 export function getGameStartTimestamp(): number | undefined {
@@ -65,7 +65,7 @@ async function loginWithRuntimeDir(runtimeDir?: string): Promise<Client> {
     connected = false
   })
 
-  client.on("error", (err) => {
+  client.on("error", (err: { code: number }) => {
     if (err.code !== 1000) {
       console.error("Discord RPC error:", err)
     }
@@ -136,7 +136,17 @@ export function setDiscordActivity(activity: {
   applyActivity(activity)
 }
 
-function applyActivity(activity: any): void {
+type DiscordActivity = {
+  state?: string
+  largeImageKey?: string
+  largeImageText?: string
+  smallImageKey?: string
+  smallImageText?: string
+  loader?: string
+  startTimestamp?: number
+}
+
+function applyActivity(activity: DiscordActivity): void {
   const {
     state = "В меню",
     largeImageKey = "logo",
@@ -147,7 +157,7 @@ function applyActivity(activity: any): void {
     startTimestamp,
   } = activity
 
-  const activityData: any = {
+  const activityData: DiscordActivity & { buttons?: { label: string; url: string }[] } = {
     state,
     largeImageKey,
     largeImageText,
@@ -165,18 +175,14 @@ if (smallImageKey) {
   }
 
   const loaderIcons: Record<string, string> = {
-    forge: "forge_icon",
     fabric: "fabric_icon",
     quilt: "quilt_icon",
-    neoforge: "neoforge_icon",
     optifine: "optifine_icon",
   }
 
   const loaderNames: Record<string, string> = {
-    forge: "Forge",
     fabric: "Fabric",
     quilt: "Quilt",
-    neoforge: "NeoForge",
     optifine: "OptiFine",
   }
 
@@ -198,7 +204,7 @@ if (smallImageKey) {
   }
 
   console.log("[DiscordRPC] setActivity - state:", state, "timestamp:", activityData.startTimestamp)
-  rpc?.setActivity(activityData).catch((err) => {
+  rpc?.setActivity(activityData).catch((err: unknown) => {
     console.error("[DiscordRPC] Failed to set activity:", err)
     connected = false
   })

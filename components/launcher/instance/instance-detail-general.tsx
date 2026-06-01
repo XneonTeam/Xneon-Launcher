@@ -1,6 +1,11 @@
+import { useEffect } from "react"
+import { cn } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
-import { IconCamera, IconTrash, IconExternalLink } from "@tabler/icons-react"
+import { IconCamera, IconTrash, IconExternalLink, IconFolderOpen } from "@tabler/icons-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MOD_LOADERS, VERSIONS } from "./constants"
+import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
+import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
 import type { Build } from "./types"
 
 interface InstanceDetailGeneralProps {
@@ -11,23 +16,47 @@ interface InstanceDetailGeneralProps {
 
 export function InstanceDetailGeneral({ activeBuild, updateBuild, fileInputRef }: InstanceDetailGeneralProps) {
   const { t } = useTranslation()
+  const { visibleVersions, versionsLoaded } = useMinecraftVersionOptions()
+  const { loaderVersions, loaderVersionsLoaded, recommendedLoaderVersion } = useLoaderVersionOptions(activeBuild.modLoader, activeBuild.version)
   const buildHasImage = !!(activeBuild.icon && (activeBuild.icon.startsWith("data:") || activeBuild.icon.startsWith("http")))
+  const availableVersions = visibleVersions.includes(activeBuild.version)
+    ? visibleVersions
+    : [activeBuild.version, ...visibleVersions.filter((item) => item !== activeBuild.version)]
+  const formattedCreatedAt = new Date(activeBuild.createdAt).toLocaleDateString()
+  const showLoaderVersionSelect = activeBuild.modLoader !== "vanilla" && activeBuild.modLoader !== "instance"
+  const profileLabel = showLoaderVersionSelect && activeBuild.loaderVersion
+    ? `${activeBuild.modLoader} ${activeBuild.loaderVersion} В· MC ${activeBuild.version}`
+    : `${activeBuild.modLoader} В· MC ${activeBuild.version}`
+
+  useEffect(() => {
+    if (!showLoaderVersionSelect) {
+      if (activeBuild.loaderVersion) updateBuild(activeBuild.id, { loaderVersion: undefined })
+      return
+    }
+
+    if (!loaderVersionsLoaded) return
+    if (loaderVersions.some(option => option.value === activeBuild.loaderVersion)) return
+    updateBuild(activeBuild.id, { loaderVersion: recommendedLoaderVersion || undefined })
+  }, [activeBuild.id, activeBuild.loaderVersion, loaderVersions, loaderVersionsLoaded, recommendedLoaderVersion, showLoaderVersionSelect, updateBuild])
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="grid gap-5 max-w-2xl">
-        <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-2">{t("builds.cover")}</label>
-          <div className="flex items-center gap-4">
+      <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="rounded-3xl border border-border bg-card/60 p-5">
+          <label className="mb-4 block text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            {t("builds.cover")}
+          </label>
+
+          <div className="flex flex-col items-center text-center">
             <div
-              className="w-24 h-24 rounded-2xl bg-muted/70 overflow-hidden border border-border cursor-pointer hover:border-primary/50 transition-colors flex-shrink-0 relative"
+              className="relative flex h-32 w-32 cursor-pointer items-center justify-center overflow-hidden rounded-[28px] border border-border bg-muted/70 transition-colors hover:border-primary/50"
               onClick={() => fileInputRef.current?.click()}
             >
               {buildHasImage ? (
-                <img src={activeBuild.icon} alt="" className="w-full h-full object-cover" />
+                <img src={activeBuild.icon} alt="" className="h-full w-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <IconCamera className="w-8 h-8 text-muted-foreground/50" />
+                <div className="flex h-full w-full items-center justify-center">
+                  <IconCamera className="h-10 w-10 text-muted-foreground/50" />
                 </div>
               )}
               <input
@@ -49,84 +78,154 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, fileInputRef }
                 }}
               />
             </div>
+
+            <div className="mt-4 text-sm font-medium text-foreground">{activeBuild.name || "Новая сборка"}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Нажми на аватарку, чтобы изменить иконку сборки</div>
+
             {buildHasImage && (
               <button
                 type="button"
                 onClick={() => updateBuild(activeBuild.id, { icon: "", coverImage: undefined })}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                className="mt-4 flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
               >
-                <IconTrash className="w-3.5 h-3.5" strokeWidth={1.75} />
+                <IconTrash className="h-3.5 w-3.5" strokeWidth={1.75} />
                 {t("builds.remove")}
               </button>
             )}
           </div>
-        </div>
 
-        <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">{t("builds.name")}</label>
-          <input
-            type="text"
-            value={activeBuild.name}
-            onChange={e => updateBuild(activeBuild.id, { name: e.target.value })}
-            className="w-full px-4 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground text-sm focus:outline-none focus:border-primary"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">{t("builds.description")}</label>
-          <textarea
-            value={activeBuild.description}
-            onChange={e => updateBuild(activeBuild.id, { description: e.target.value })}
-            rows={3}
-            className="w-full px-4 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary resize-none"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">{t("builds.version")}</label>
-            <select
-              value={activeBuild.version}
-              onChange={e => updateBuild(activeBuild.id, { version: e.target.value })}
-              className="w-full px-3 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground text-sm appearance-none focus:outline-none focus:border-primary"
-            >
-              {VERSIONS.map(item => (
-                <option key={item} value={item}>Minecraft {item}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">{t("builds.modLoader")}</label>
-            <select
-              value={activeBuild.modLoader}
-              onChange={e => updateBuild(activeBuild.id, { modLoader: e.target.value })}
-              className="w-full px-3 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground text-sm appearance-none focus:outline-none focus:border-primary"
-            >
-              {MOD_LOADERS.map(item => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-            </select>
+          <div className="mt-6 grid gap-3 rounded-2xl border border-border/70 bg-muted/20 p-4 text-left">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Статус</div>
+              <div className="mt-1 text-sm text-foreground">Готова к настройке</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Создана</div>
+              <div className="mt-1 text-sm text-foreground">{formattedCreatedAt}</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Профиль</div>
+              <div className="mt-1 text-sm text-foreground">{profileLabel}</div>
+            </div>
           </div>
         </div>
 
-        {activeBuild.projectSlug && (
-          <div className="text-sm text-muted-foreground">
-            <span className="text-muted-foreground/70">{t("builds.source")}: </span>
-            <button
-              type="button"
-              onClick={() => window.open(`https://modrinth.com/modpack/${activeBuild.projectSlug}`, "_blank")}
-              className="inline-flex items-center gap-1.5 text-primary hover:underline"
-            >
-              <IconExternalLink className="w-3.5 h-3.5" strokeWidth={1.75} />
-              Modrinth — {activeBuild.projectSlug}
-            </button>
+        <div className="grid gap-5 rounded-3xl border border-border bg-card/40 p-6">
+          <div className="grid gap-1">
+            <div className="text-xl font-semibold text-foreground">Создание сборки</div>
+            <div className="text-sm text-muted-foreground">
+              Заполни основные параметры сборки. Интерфейс стал плотнее, а ключевые настройки теперь собраны в одном блоке.
+            </div>
           </div>
-        )}
 
-        <div className="text-xs text-muted-foreground/60">
-          {t("builds.created", { date: new Date(activeBuild.createdAt).toLocaleDateString() })}
+          <div className="grid gap-5">
+            <div>
+              <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("builds.name")}</label>
+              <input
+                type="text"
+                value={activeBuild.name}
+                onChange={e => updateBuild(activeBuild.id, { name: e.target.value })}
+                className="h-12 w-full rounded-2xl border border-border bg-muted/40 px-4 text-sm text-foreground focus:outline-none focus:border-primary"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("builds.description")}</label>
+              <textarea
+                value={activeBuild.description}
+                onChange={e => updateBuild(activeBuild.id, { description: e.target.value })}
+                rows={5}
+                className="w-full rounded-2xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary resize-none"
+              />
+            </div>
+
+            <div className={showLoaderVersionSelect ? "grid gap-4 lg:grid-cols-3" : "grid gap-4 lg:grid-cols-2"}>
+              <div>
+                <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("builds.version")}</label>
+                <Select value={activeBuild.version} onValueChange={(value) => updateBuild(activeBuild.id, { version: value })}>
+                  <SelectTrigger className="h-12 w-full rounded-2xl border-border bg-muted/40 text-foreground">
+                    <SelectValue placeholder={versionsLoaded ? t("builds.version") : "Loading..."} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(availableVersions.length > 0 ? availableVersions : VERSIONS).map((item) => (
+                      <SelectItem key={item} value={item}>Minecraft {item}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("builds.modLoader")}</label>
+                <Select value={activeBuild.modLoader} onValueChange={(value) => updateBuild(activeBuild.id, { modLoader: value, loaderVersion: undefined })}>
+                  <SelectTrigger className="h-12 w-full rounded-2xl border-border bg-muted/40 text-foreground">
+                    <SelectValue placeholder={t("builds.modLoader")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MOD_LOADERS.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {showLoaderVersionSelect && (
+                <div>
+                  <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Loader Version</label>
+                  <Select value={activeBuild.loaderVersion ?? ""} onValueChange={(value) => updateBuild(activeBuild.id, { loaderVersion: value })} disabled={!loaderVersionsLoaded || loaderVersions.length === 0}>
+                    <SelectTrigger className="h-12 w-full rounded-2xl border-border bg-muted/40 text-foreground">
+                      <SelectValue placeholder={loaderVersionsLoaded ? "Loader Version" : "Loading..."} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {!loaderVersionsLoaded ? <div className="px-3 py-2 text-sm text-muted-foreground">Loading...</div>
+                        : loaderVersions.length === 0 ? <div className="px-3 py-2 text-sm text-muted-foreground">No versions available</div>
+                        : loaderVersions.map((item) => (
+                          <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {!loaderVersionsLoaded ? "Loading available loader versions..." : activeBuild.loaderVersion ? `Current loader version: ${activeBuild.loaderVersion}` : "Choose an exact loader version for this profile"}
+                  </p>
+                </div>
+              )}
+            </div>
+
+
+            {activeBuild.projectSlug && (
+              <div className="rounded-2xl border border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+                <span className="text-muted-foreground/70">{t("builds.source")}: </span>
+                <button
+                  type="button"
+                  onClick={() => window.open(`https://modrinth.com/modpack/${activeBuild.projectSlug}`, "_blank")}
+                  className="inline-flex items-center gap-1.5 text-primary hover:underline"
+                >
+                  <IconExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  Modrinth — {activeBuild.projectSlug}
+                </button>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-3">
+              {activeBuild.intentPath && (
+                <button
+                  type="button"
+                  onClick={() => window.electronAPI?.openPath(activeBuild.intentPath!)}
+                  className="flex items-center gap-2 rounded-2xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground transition-colors hover:bg-muted"
+                >
+                  <IconFolderOpen className="h-4 w-4" strokeWidth={1.75} />
+                  Открыть папку игры
+                </button>
+              )}
+              <div className="flex items-center rounded-2xl border border-border/70 bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
+                {t("builds.created", { date: formattedCreatedAt })}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   )
 }
+
+
+
+

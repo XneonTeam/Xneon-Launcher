@@ -12,6 +12,7 @@ interface CloudAuthModalProps {
 export function CloudAuthModal({ isOpen, onClose, onSuccess }: CloudAuthModalProps) {
   const [mode, setMode] = useState<"login" | "register">("login")
   const [loginInput, setLoginInput] = useState("")
+  const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -27,13 +28,16 @@ export function CloudAuthModal({ isOpen, onClose, onSuccess }: CloudAuthModalPro
         if (!result.token) throw new Error("Токен не получен")
         await setCloudToken(result.token)
       } else {
-        const result = await cloudApiRegister(loginInput, password)
+        const result = await cloudApiRegister(loginInput, password, email || undefined)
         if (!result.success) throw new Error(result.error || "Ошибка регистрации")
+        setMode("login")
+        setError("Регистрация успешна. Войдите.")
+        return
       }
       onSuccess()
       onClose()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
     } finally {
       setLoading(false)
     }
@@ -63,6 +67,14 @@ export function CloudAuthModal({ isOpen, onClose, onSuccess }: CloudAuthModalPro
               className="w-full px-4 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary transition-colors"
               placeholder="Введите имя пользователя" />
           </div>
+          {mode === "register" && (
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1.5">Email <span className="text-xs text-muted-foreground/70">(опционально)</span></label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary transition-colors"
+                placeholder="user@example.com" />
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-muted-foreground mb-1.5">Пароль</label>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6}

@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, Menu, shell } from "electron"
 import path from "path"
-import { isDev, setMainWindow, getMainWindow, logRuntime } from "./runtime"
+import { isDev, setMainWindow, getMainWindow, logRuntime, logRuntimeDebug } from "./runtime"
 import { initDatabase } from "../db"
 
 export function createWindow() {
@@ -26,10 +26,10 @@ export function createWindow() {
   setMainWindow(win)
 
   if (isDev) {
-    logRuntime("[Window] Loading dev URL http://localhost:5173")
+    logRuntimeDebug("[Window] Loading dev URL http://localhost:5173")
     void win.loadURL("http://localhost:5173")
   } else {
-    logRuntime("[Window] Loading packaged dist/index.html")
+    logRuntimeDebug("[Window] Loading packaged dist/index.html")
     void win.loadFile(path.join(__dirname, "../../dist/index.html"))
   }
 
@@ -44,7 +44,7 @@ export function createWindow() {
   })
 
   win.webContents.on("did-finish-load", () => {
-    logRuntime("[Window] did-finish-load")
+    logRuntimeDebug("[Window] did-finish-load")
   })
 
   win.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {

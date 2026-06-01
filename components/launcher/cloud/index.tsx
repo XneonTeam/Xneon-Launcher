@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { IconLoader2, IconRefresh, IconUpload, IconLock, IconLayoutGrid, IconColorSwatch, IconUser, IconShirt, IconLogout } from "@tabler/icons-react"
@@ -30,11 +30,11 @@ export function CloudPage() {
   const [showBuildUploadModal, setShowBuildUploadModal] = useState(false)
   const [localBuilds, setLocalBuilds] = useState<LocalBuild[]>([])
 
-  const getLocalBuildIcon = (name: string): string | undefined => {
+  const getLocalBuildIcon = useCallback((name: string): string | undefined => {
     const n = name.trim().toLowerCase()
     const found = localBuilds.find(b => b.name.trim().toLowerCase() === n || b.name.toLowerCase().includes(n) || n.includes(b.name.toLowerCase()))
     return found?.icon && found.icon.length > 0 ? found.icon : undefined
-  }
+  }, [localBuilds])
 
   const checkAuth = useCallback(async () => {
     setIsAuthLoading(true)
@@ -55,21 +55,23 @@ export function CloudPage() {
     if (!token) return
     setLoading(true); setError(null)
     try {
-      const categoryMap: Record<string, string> = { build: "instance", account: "accounts", skin: "skins" }
-      const result = await cloudApiGetFiles(token, filter !== "all" ? categoryMap[filter] : undefined)
+      const result = await cloudApiGetFiles(token)
       if (!result.success) throw new Error(result.error || "Ошибка загрузки файлов")
-      setItems((result.files || []).map((f: any) => ({
-        id: f.id || f._id,
-        name: f.name || f.originalName,
-        size: formatBytes(f.size || 0),
-        lastSynced: f.uploadedAt ? timeAgo(f.uploadedAt) : "неизвестно",
-        type: (f.category === "accounts" ? "account" : f.category === "skins" ? "skin" : "instance") as CloudItem["type"],
-        category: f.category,
-        downloadUrl: f.downloadUrl,
-        icon: f.icon || f.build?.icon,
-      })))
-    } catch (err: any) {
-      setError(err.message); setItems([])
+      setItems((result.files || []).map((f: Record<string, unknown>) => {
+        const rawIcon = f.icon ?? (f.build as Record<string, unknown> | undefined)?.icon
+        return ({
+          id: (f.id as string) || (f._id as string) || "",
+          name: (f.name as string) || (f.originalName as string) || "Без названия",
+          size: formatBytes(Number(f.size) || 0),
+          lastSynced: f.uploadedAt ? timeAgo(f.uploadedAt as string) : "неизвестно",
+          type: (f.type === "account" || f.type === "accounts" ? "account" : f.type === "skin" || f.type === "skins" ? "skin" : "instance") as CloudItem["type"],
+          category: f.type as string,
+          downloadUrl: f.downloadUrl as string | undefined,
+          icon: typeof rawIcon === "string" ? rawIcon : undefined,
+        })
+      }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err)); setItems([])
     } finally {
       setLoading(false)
     }
@@ -111,49 +113,47 @@ export function CloudPage() {
     fetchFiles(); fetchStorageInfo(); fetchCategories(); loadLocalBuilds()
   }, [user, fetchFiles, fetchStorageInfo, fetchCategories, loadLocalBuilds])
 
-  useEffect(() => { if (user) fetchFiles() }, [filter])
-
-  const handleSync = () => {
+  const handleSync = useCallback(() => {
     setIsSyncing(true); setSyncProgress(0)
-    fetchFiles(); fetchStorageInfo(); fetchCategories()
+    void fetchFiles(); void fetchStorageInfo(); void fetchCategories()
     const interval = setInterval(() => {
       setSyncProgress(prev => {
         if (prev >= 100) { clearInterval(interval); setIsSyncing(false); return 100 }
         return prev + 10
       })
     }, 100)
-  }
+  }, [fetchCategories, fetchFiles, fetchStorageInfo])
 
-  const handleUploadBuild = async (build: LocalBuild) => {
+  const handleUploadBuild = useCallback(async (build: LocalBuild) => {
     const token = await getCloudToken()
     if (!token) return
     setUploadingBuild(build.name); setBuildUploadProgress(0)
     try {
       setBuildUploadProgress(30)
-      const result = hasElectronAPI ? await (window as any).electronAPI.uploadBuildToCloud(build.name, token, "instance") : { success: false, error: "Недоступно в браузере" }
+      const result = hasElectronAPI ? await window.electronAPI!.uploadBuildToCloud(build.name, token, "instance") : { success: false, error: "Недоступно в браузере" }
       setBuildUploadProgress(80)
       if (!result.success) throw new Error(result.error || "Не удалось загрузить сборку")
       setBuildUploadProgress(100)
       await fetchFiles(); await fetchStorageInfo(); await fetchCategories()
       setShowBuildUploadModal(false)
-    } catch (err: any) {
-      alert(`Ошибка: ${err.message}`)
+    } catch (err) {
+      alert(`Ошибка: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setUploadingBuild(null); setBuildUploadProgress(0)
     }
-  }
+  }, [fetchCategories, fetchFiles, fetchStorageInfo])
 
-  const handleDownload = async (item: CloudItem) => {
+  const handleDownload = useCallback(async (item: CloudItem) => {
     const token = await getCloudToken()
     if (!token) return
     try {
       const result = await window.electronAPI?.cloudDownloadFile(token, item.id, item.name)
       if (!result?.success) throw new Error(result?.error || "Ошибка скачивания")
       if (result.filePath) alert(`Файл сохранён: ${result.filePath}`)
-    } catch (err: any) { alert(`Ошибка скачивания: ${err.message}`) }
-  }
+    } catch (err) { alert(`Ошибка скачивания: ${err instanceof Error ? err.message : String(err)}`) }
+  }, [])
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     if (!confirm("Удалить файл?")) return
     const token = await getCloudToken()
     if (!token) return
@@ -161,25 +161,48 @@ export function CloudPage() {
       const result = await cloudApiDeleteFile(token, id)
       if (!result.success) throw new Error(result.error || "Ошибка удаления")
       await fetchFiles(); await fetchStorageInfo(); await fetchCategories()
-    } catch (err: any) { alert(`Ошибка: ${err.message}`) }
-  }
+    } catch (err) { alert(`Ошибка: ${err instanceof Error ? err.message : String(err)}`) }
+  }, [fetchCategories, fetchFiles, fetchStorageInfo])
+
+  const handleCloseAuthModal = useCallback(() => setShowAuthModal(false), [])
+  const handleOpenAuthModal = useCallback(() => setShowAuthModal(true), [])
+  const handleAuthSuccess = useCallback(() => { void checkAuth() }, [checkAuth])
+  const handleCloseBuildUploadModal = useCallback(() => setShowBuildUploadModal(false), [])
+  const handleOpenBuildUploadModal = useCallback(() => {
+    setShowBuildUploadModal(true)
+    loadLocalBuilds()
+  }, [loadLocalBuilds])
+  const handleLogout = useCallback(async () => {
+    await removeCloudToken()
+    setUser(null)
+    setItems([])
+  }, [])
 
   const { t } = useTranslation()
-  const filtered = items.filter(item => filter === "all" || item.type === filter)
+  const filtered = useMemo(
+    () => items.filter(item => filter === "all" || item.type === filter),
+    [filter, items],
+  )
+  const filterOptions = useMemo(() => ([
+    { id: "all" as const, label: `${t("cloud.all")} (${items.length})`, icon: IconLayoutGrid },
+    { id: "instance" as const, label: `${t("cloud.builds")} (${categoryStats.instances?.count || 0})`, icon: IconColorSwatch },
+    { id: "account" as const, label: `${t("cloud.accounts")} (${categoryStats.accounts?.count || 0})`, icon: IconUser },
+    { id: "skin" as const, label: `${t("cloud.skins")} (${categoryStats.skins?.count || 0})`, icon: IconShirt },
+  ]), [categoryStats.accounts?.count, categoryStats.instances?.count, categoryStats.skins?.count, items.length, t])
 
   return (
     <div className="relative overflow-hidden rounded-2xl bg-card border border-border h-[calc(100vh-5rem)] flex flex-col">
       <div className="absolute -top-32 -right-32 w-64 h-64 bg-accent/5 rounded-full blur-3xl" />
       <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
 
-      <CloudAuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={() => checkAuth()} />
+      <CloudAuthModal isOpen={showAuthModal} onClose={handleCloseAuthModal} onSuccess={handleAuthSuccess} />
 
       {showBuildUploadModal && (
         <CloudBuildUploadModal
           localBuilds={localBuilds}
           uploadingBuild={uploadingBuild}
           buildUploadProgress={buildUploadProgress}
-          onClose={() => setShowBuildUploadModal(false)}
+          onClose={handleCloseBuildUploadModal}
           onUpload={handleUploadBuild}
         />
       )}
@@ -196,7 +219,7 @@ export function CloudPage() {
             {user ? (
               <>
                 <button
-                  onClick={() => { setShowBuildUploadModal(true); loadLocalBuilds() }}
+                  onClick={handleOpenBuildUploadModal}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_15px_var(--glow-primary)] transition-all"
                 >
                   <IconUpload className="w-5 h-5" strokeWidth={2} />
@@ -210,14 +233,14 @@ export function CloudPage() {
                 >
                   {isSyncing ? <><IconLoader2 className="w-5 h-5 animate-spin" />{t("cloud.syncing", { progress: syncProgress })}</> : <><IconRefresh className="w-5 h-5" strokeWidth={2} />{t("cloud.sync")}</>}
                 </button>
-                <button onClick={async () => { await removeCloudToken(); setUser(null); setItems([]) }}
+                <button onClick={() => { void handleLogout() }}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-muted/50 hover:bg-destructive/20 text-muted-foreground hover:text-destructive border border-border transition-all">
                   <IconLogout className="w-4 h-4" strokeWidth={1.75} />
                   {t("cloud.logout")}
                 </button>
               </>
             ) : (
-              <button onClick={() => setShowAuthModal(true)}
+              <button onClick={handleOpenAuthModal}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_15px_var(--glow-primary)] transition-all">
                 <IconLock className="w-5 h-5" strokeWidth={2} />
                 {t("cloud.login")}
@@ -235,12 +258,7 @@ export function CloudPage() {
         )}
 
         <div className="flex items-center gap-2 mb-3 p-1 rounded-lg bg-muted/40">
-          {[
-            { id: "all" as const, label: `${t("cloud.all")} (${items.length})`, icon: IconLayoutGrid },
-            { id: "instance" as const, label: `${t("cloud.builds")} (${categoryStats.instances?.count || 0})`, icon: IconColorSwatch },
-            { id: "account" as const, label: `${t("cloud.accounts")} (${categoryStats.accounts?.count || 0})`, icon: IconUser },
-            { id: "skin" as const, label: `${t("cloud.skins")} (${categoryStats.skins?.count || 0})`, icon: IconShirt },
-          ].map(({ id, label, icon: Icon }) => (
+          {filterOptions.map(({ id, label, icon: Icon }) => (
             <button key={id} type="button" onClick={() => setFilter(id)}
               className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
                 filter === id ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
@@ -259,7 +277,7 @@ export function CloudPage() {
             error={error}
             filtered={filtered}
             getLocalBuildIcon={getLocalBuildIcon}
-            onShowAuth={() => setShowAuthModal(true)}
+            onShowAuth={handleOpenAuthModal}
             onRetry={fetchFiles}
             onDownload={handleDownload}
             onDelete={handleDelete}

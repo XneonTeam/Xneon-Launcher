@@ -1,162 +1,232 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import type { Account } from "@/src/AccountsContext"
 import { useLaunchControls } from "@/src/LaunchLogsContext"
-import { getStageLabel, INITIAL_LAUNCH_UI_STATE, LAUNCH_RE, RUNNING_RE, type LaunchUiState } from "@/lib/home-page-shared"
 
-type UseHomeLaunchParams = { account?: Account; selectedVersion: string; selectedModLoader: string }
+type UseHomeLaunchParams = {
+  account?: Account
+  selectedVersion: string
+  selectedModLoader: string
+  selectedLoaderVersion?: string
+}
+
+function saveLastLaunchedPrefs(version: string, modLoader: string, loaderVersion?: string) {
+  try {
+    localStorage.setItem("xneon-launcher:lastVersion", version)
+    localStorage.setItem("xneon-launcher:lastModLoader", modLoader)
+    if (loaderVersion) localStorage.setItem("xneon-launcher:lastLoaderVersion", loaderVersion)
+    else localStorage.removeItem("xneon-launcher:lastLoaderVersion")
+  } catch {
+    // ignore storage errors
+  }
+}
 
 function normalizeJavaPath(javaPath?: string) {
   if (!javaPath) return javaPath
   return javaPath.replace(/(^|[\\/])javaw\.exe$/i, "$1java.exe")
 }
 
-export function useHomeLaunch({ account, selectedVersion, selectedModLoader }: UseHomeLaunchParams) {
-  const { t } = useTranslation()
-  const [launchUi, setLaunchUi] = useState<LaunchUiState>(INITIAL_LAUNCH_UI_STATE)
-  const launchUiRef = useRef(launchUi)
-  const pendingLaunchPatchRef = useRef<Partial<LaunchUiState> | null>(null)
-  const launchFrameRef = useRef<number | null>(null)
-  const { isRunning, setIsRunning, clearLogs, addLog } = useLaunchControls()
-  const isRunningRef = useRef(isRunning)
+function formatLoaderLabel(modLoader: string, loaderVersion?: string) {
+  return loaderVersion ? `${modLoader} ${loaderVersion}` : modLoader
+}
 
-  const patchLaunchUi = useCallback((patch: Partial<LaunchUiState>) => {
-    const optimistic = { ...launchUiRef.current, ...patch }
-    const hasChanges = Object.keys(patch).some(key => {
-      const typedKey = key as keyof LaunchUiState
-      return !Object.is(launchUiRef.current[typedKey], optimistic[typedKey])
-    })
-    if (!hasChanges) return
-    launchUiRef.current = optimistic
-    pendingLaunchPatchRef.current = { ...pendingLaunchPatchRef.current, ...patch }
-    if (launchFrameRef.current !== null) return
-    launchFrameRef.current = requestAnimationFrame(() => {
-      launchFrameRef.current = null
-      const pending = pendingLaunchPatchRef.current
-      pendingLaunchPatchRef.current = null
-      if (!pending) return
-      setLaunchUi(prev => {
-        const next = { ...prev, ...pending }
-        const changed = Object.keys(pending).some(key => {
-          const typedKey = key as keyof LaunchUiState
-          return !Object.is(prev[typedKey], next[typedKey])
-        })
-        if (!changed) return prev
-        launchUiRef.current = next
-        return next
-      })
-    })
-  }, [])
+type LaunchSettings = {
+  authlibEnabled: string | undefined
+  savedJavaArgs: string | undefined
+  savedMemoryMin: string | undefined
+  savedMemoryMax: string | undefined
+  savedUseCustomRes: string | undefined
+  savedCustomW: string | undefined
+  savedCustomH: string | undefined
+  savedResLabel: string | undefined
+}
 
-  useEffect(() => { isRunningRef.current = isRunning }, [isRunning])
-  useEffect(() => () => { if (launchFrameRef.current !== null) cancelAnimationFrame(launchFrameRef.current) }, [])
+async function loadLaunchSettings(): Promise<LaunchSettings> {
+  const api = window.electronAPI
+  if (!api) {
+    return { authlibEnabled: undefined, savedJavaArgs: undefined, savedMemoryMin: undefined, savedMemoryMax: undefined, savedUseCustomRes: undefined, savedCustomW: undefined, savedCustomH: undefined, savedResLabel: undefined }
+  }
+  const [
+    authlibEnabled,
+    savedJavaArgs,
+    savedMemoryMin,
+    savedMemoryMax,
+    savedUseCustomRes,
+    savedCustomW,
+    savedCustomH,
+    savedResLabel,
+  ] = await Promise.all([
+    api.getSetting("authlibInjectorEnabled"),
+    api.getSetting("javaArgs"),
+    api.getSetting("memoryMin"),
+    api.getSetting("memoryMax"),
+    api.getSetting("useCustomResolution"),
+    api.getSetting("customWidth"),
+    api.getSetting("customHeight"),
+    api.getSetting("selectedResolution"),
+  ])
+  return { authlibEnabled, savedJavaArgs, savedMemoryMin, savedMemoryMax, savedUseCustomRes, savedCustomW, savedCustomH, savedResLabel }
+}
 
-  useEffect(() => {
-    void window.electronAPI?.isMinecraftRunning().then(running => {
-      setIsRunning(!!running)
-      if (running) patchLaunchUi({ isLaunching: false, phase: "idle", progress: 100, status: t("launcherStatus.running") })
-    })
-  }, [patchLaunchUi, setIsRunning, t])
-
-  useEffect(() => {
-    const offProgress = window.electronAPI?.onMinecraftProgress((progress) => {
-      const patch: Partial<LaunchUiState> = {}
-      if (typeof progress.task === "number" && typeof progress.total === "number" && progress.total > 0) {
-        patch.progress = Math.round((progress.task / progress.total) * 100)
-        patch.phase = "installing"
-      }
-      if (progress.type) patch.status = `Загрузка: ${progress.type}`
-      patchLaunchUi(patch)
-    })
-    const offDownload = window.electronAPI?.onMinecraftDownloadStatus((progress) => {
-      const patch: Partial<LaunchUiState> = { status: getStageLabel(progress.type, progress.installationPhase) }
-      if (typeof progress.percent === "number") { patch.progress = progress.percent; patch.phase = "installing" }
-      if (typeof progress.downloadedBytes === "number") patch.downloadedBytes = progress.downloadedBytes
-      else if (typeof progress.downloaded === "number") patch.downloadedBytes = progress.downloaded
-      if (typeof progress.total === "number" && progress.total > 0) patch.totalBytes = progress.total
-      if (typeof progress.currentFile === "number") patch.currentFile = progress.currentFile
-      if (typeof progress.totalFiles === "number") patch.totalFiles = progress.totalFiles
-      patchLaunchUi(patch)
-    })
-    const offJava = window.electronAPI?.onMinecraftJavaProgress((progress) => {
-      patchLaunchUi({ progress: progress.percent, status: progress.message, phase: "installing" })
-    })
-    const offDebug = window.electronAPI?.onMinecraftDebug((message) => {
-      if (message && (launchUiRef.current.isLaunching || LAUNCH_RE.test(message))) {
-        patchLaunchUi({ status: message, ...(LAUNCH_RE.test(message) ? { phase: "launching" as const } : {}) })
-      }
-    })
-    const offData = window.electronAPI?.onMinecraftData((message) => {
-      if (message && RUNNING_RE.test(message)) {
-        if (!isRunningRef.current) { setIsRunning(true); isRunningRef.current = true }
-        patchLaunchUi({ isLaunching: false, progress: 100, status: "Игра запущена", phase: "idle" })
-      }
-    })
-    const offClose = window.electronAPI?.onMinecraftClose(() => { patchLaunchUi(INITIAL_LAUNCH_UI_STATE); setIsRunning(false) })
-    return () => { offProgress?.(); offDownload?.(); offJava?.(); offDebug?.(); offData?.(); offClose?.() }
-  }, [patchLaunchUi, setIsRunning])
-
-  const handlePlay = useCallback(async () => {
-    if (isRunning) return await window.electronAPI?.stopMinecraft()
-    if (!account || !window.electronAPI) return
-    if (!selectedVersion) {
-      patchLaunchUi({ isLaunching: false, phase: "idle", progress: null, status: "Не выбрана версия Minecraft" })
-      addLog("[Лаунчер] Не выбрана версия Minecraft", "error")
-      return
+function resolveLaunchDimensions(settings: LaunchSettings): { width: number; height: number } {
+  let launchWidth = 1280
+  let launchHeight = 720
+  if (settings.savedUseCustomRes === "true" && settings.savedCustomW && settings.savedCustomH) {
+    launchWidth = parseInt(settings.savedCustomW, 10) || 1280
+    launchHeight = parseInt(settings.savedCustomH, 10) || 720
+  } else if (settings.savedResLabel) {
+    const match = settings.savedResLabel.match(/(\d+)\s*x\s*(\d+)/i)
+    if (match) {
+      launchWidth = parseInt(match[1], 10) || 1280
+      launchHeight = parseInt(match[2], 10) || 720
     }
+  }
+  return { width: launchWidth, height: launchHeight }
+}
 
+export function useHomeLaunch({ account, selectedVersion, selectedModLoader, selectedLoaderVersion }: UseHomeLaunchParams) {
+  const { t } = useTranslation()
+  const { isRunning, setIsRunning, clearLogs, addLog, launchUi, patchLaunchUi } = useLaunchControls()
+
+  const launchInstance = useCallback(async (build: { name: string; version: string; modLoader: string; loaderVersion?: string; intentPath?: string }) => {
+    if (!account || !window.electronAPI) return
+
+    const usesSkinInjector = account.type === "xnskins" || account.type === "elyby"
     const normalizedJavaPath = normalizeJavaPath(await window.electronAPI.getSetting("javaPath"))
+    const settings = await loadLaunchSettings()
+    const { width, height } = resolveLaunchDimensions(settings)
+    const intentPath = await window.electronAPI.getBuildIntentPath(build.name) ?? ""
+
     patchLaunchUi({
-      isLaunching: true, progress: 0, status: t("launcherStatus.preparing"), phase: "launching",
-      downloadedBytes: 0, totalBytes: null, currentFile: null, totalFiles: null,
+      isLaunching: true,
+      progress: 0,
+      status: t("launcherStatus.preparing"),
+      phase: "launching",
+      downloadedBytes: 0,
+      totalBytes: null,
+      currentFile: null,
+      totalFiles: null,
+      currentFileName: null,
     })
     clearLogs()
-    addLog(`[Запуск] Minecraft ${selectedVersion} · ${selectedModLoader} · ${account.username}`)
-    const [authlibEnabled, savedJavaArgs, savedUseCustomRes, savedCustomW, savedCustomH, savedResLabel] = await Promise.all([
-      window.electronAPI.getSetting("authlibInjectorEnabled"),
-      window.electronAPI.getSetting("javaArgs"),
-      window.electronAPI.getSetting("useCustomResolution"),
-      window.electronAPI.getSetting("customWidth"),
-      window.electronAPI.getSetting("customHeight"),
-      window.electronAPI.getSetting("selectedResolution"),
-    ])
-
-    let launchWidth = 1280
-    let launchHeight = 720
-    if (savedUseCustomRes === "true" && savedCustomW && savedCustomH) {
-      launchWidth = parseInt(savedCustomW, 10) || 1280
-      launchHeight = parseInt(savedCustomH, 10) || 720
-    } else if (savedResLabel) {
-      const match = savedResLabel.match(/(\d+)\s*x\s*(\d+)/i)
-      if (match) { launchWidth = parseInt(match[1], 10) || 1280; launchHeight = parseInt(match[2], 10) || 720 }
-    }
+    addLog(`[Запуск] Сборка ${build.name} · ${formatLoaderLabel(build.modLoader, build.loaderVersion)} · ${account.username}`)
 
     const result = await window.electronAPI.launchMinecraft({
-      version: selectedVersion,
-      modLoader: selectedModLoader as "vanilla" | "fabric" | "quilt" | "forge" | "neoforge" | "optifine",
+      version: build.version,
+      modLoader: build.modLoader as "vanilla" | "forge" | "fabric" | "quilt" | "liteloader" | "optifine" | "neoforge",
+      ...(build.loaderVersion ? { loaderVersion: build.loaderVersion } : {}),
       account: { type: account.type, username: account.username, uuid: account.uuid, accessToken: account.accessToken },
-      memory: { min: "2G", max: "4G" },
-      width: launchWidth,
-      height: launchHeight,
-      authlibInjectorEnabled: authlibEnabled !== "false",
+      memory: { min: settings.savedMemoryMin || "2G", max: settings.savedMemoryMax || "4G" },
+      width,
+      height,
+      authlibInjectorEnabled: usesSkinInjector && settings.authlibEnabled !== "false",
+      retroauthInjectorEnabled: usesSkinInjector,
+      buildName: build.name,
+      gameDir: intentPath,
       ...(normalizedJavaPath ? { javaPath: normalizedJavaPath } : {}),
-      ...(savedJavaArgs ? { javaArgs: savedJavaArgs } : {}),
+      ...(settings.savedJavaArgs ? { javaArgs: settings.savedJavaArgs } : {}),
     })
 
     patchLaunchUi(result.success
       ? { isLaunching: false, phase: "idle", progress: 100, status: t("launcherStatus.running") }
       : { isLaunching: false, status: result.error ?? "Ошибка запуска" })
     if (!result.success) addLog(`[Лаунчер] ${result.error ?? "Ошибка запуска"}`, "error")
-    if (result.success) setIsRunning(true)
-  }, [account, addLog, clearLogs, isRunning, patchLaunchUi, selectedModLoader, selectedVersion, setIsRunning, t])
+    if (result.success) {
+      setIsRunning(true)
+      saveLastLaunchedPrefs(build.name, "instance")
+    }
+  }, [account, addLog, clearLogs, patchLaunchUi, setIsRunning, t])
+
+  const launchVanilla = useCallback(async () => {
+    if (!account || !window.electronAPI) return
+
+    const usesSkinInjector = account.type === "xnskins" || account.type === "elyby"
+    const normalizedJavaPath = normalizeJavaPath(await window.electronAPI.getSetting("javaPath"))
+    const settings = await loadLaunchSettings()
+    const { width, height } = resolveLaunchDimensions(settings)
+
+    patchLaunchUi({
+      isLaunching: true,
+      progress: 0,
+      status: t("launcherStatus.preparing"),
+      phase: "launching",
+      downloadedBytes: 0,
+      totalBytes: null,
+      currentFile: null,
+      totalFiles: null,
+      currentFileName: null,
+    })
+    clearLogs()
+    addLog(`[Запуск] Minecraft ${selectedVersion} · ${formatLoaderLabel(selectedModLoader, selectedLoaderVersion)} · ${account.username}`)
+
+    const result = await window.electronAPI.launchMinecraft({
+      version: selectedVersion,
+      modLoader: selectedModLoader as "vanilla" | "forge" | "fabric" | "quilt" | "liteloader" | "optifine" | "neoforge",
+      ...(selectedLoaderVersion ? { loaderVersion: selectedLoaderVersion } : {}),
+      account: { type: account.type, username: account.username, uuid: account.uuid, accessToken: account.accessToken },
+      memory: { min: settings.savedMemoryMin || "2G", max: settings.savedMemoryMax || "4G" },
+      width,
+      height,
+      authlibInjectorEnabled: usesSkinInjector && settings.authlibEnabled !== "false",
+      retroauthInjectorEnabled: usesSkinInjector,
+      ...(normalizedJavaPath ? { javaPath: normalizedJavaPath } : {}),
+      ...(settings.savedJavaArgs ? { javaArgs: settings.savedJavaArgs } : {}),
+    })
+
+    patchLaunchUi(result.success
+      ? { isLaunching: false, phase: "idle", progress: 100, status: t("launcherStatus.running") }
+      : { isLaunching: false, status: result.error ?? "Ошибка запуска" })
+    if (!result.success) addLog(`[Лаунчер] ${result.error ?? "Ошибка запуска"}`, "error")
+    if (result.success) {
+      setIsRunning(true)
+      saveLastLaunchedPrefs(selectedVersion, selectedModLoader, selectedLoaderVersion)
+    }
+  }, [account, addLog, clearLogs, patchLaunchUi, selectedLoaderVersion, selectedModLoader, selectedVersion, setIsRunning, t])
+
+  const handlePlay = useCallback(async () => {
+    if (isRunning) {
+      return await window.electronAPI?.stopMinecraft()
+    }
+    if (!account || !window.electronAPI) return
+
+    if (selectedModLoader === "instance") {
+      if (!selectedVersion) {
+        patchLaunchUi({ isLaunching: false, phase: "idle", progress: null, status: "Не выбрана сборка" })
+        addLog("[Лаунчер] Не выбрана сборка", "error")
+        return
+      }
+
+      const builds = await window.electronAPI.loadBuilds() ?? []
+      const build = builds.find((item) => item.name === selectedVersion)
+      if (!build) {
+        patchLaunchUi({ isLaunching: false, phase: "idle", progress: null, status: "Сборка не найдена" })
+        addLog(`[Лаунчер] Сборка "${selectedVersion}" не найдена`, "error")
+        return
+      }
+
+      await launchInstance(build)
+      return
+    }
+
+    if (!selectedVersion) {
+      patchLaunchUi({ isLaunching: false, phase: "idle", progress: null, status: "Не выбрана версия" })
+      addLog("[Лаунчер] Не выбрана версия Minecraft", "error")
+      return
+    }
+
+    await launchVanilla()
+  }, [isRunning, account, selectedModLoader, selectedVersion, patchLaunchUi, addLog, launchInstance, launchVanilla])
 
   const launchDetails = useMemo(() => {
     const parts: string[] = []
     if (launchUi.currentFile !== null && launchUi.totalFiles !== null && launchUi.totalFiles > 0) {
       parts.push(`${Math.min(launchUi.currentFile, launchUi.totalFiles)} / ${launchUi.totalFiles} файлов`)
     }
+    if (launchUi.currentFileName) {
+      parts.push(launchUi.currentFileName)
+    }
     return parts.join(" · ")
-  }, [launchUi.currentFile, launchUi.totalFiles])
+  }, [launchUi.currentFile, launchUi.currentFileName, launchUi.totalFiles])
 
   return { isRunning, launchUi, launchDetails, handlePlay }
 }

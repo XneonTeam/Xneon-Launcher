@@ -5,10 +5,9 @@ import type { LocalBuild } from "./types"
 
 const MOD_LOADERS = [
   { id: "vanilla", name: "Vanilla", dot: "bg-zinc-400" },
-  { id: "forge", name: "Forge", dot: "bg-orange-500" },
   { id: "fabric", name: "Fabric", dot: "bg-yellow-500" },
-  { id: "neoforge", name: "NeoForge", dot: "bg-red-500" },
   { id: "quilt", name: "Quilt", dot: "bg-purple-500" },
+  { id: "neoforge", name: "NeoForge", dot: "bg-orange-500" },
 ]
 
 interface CloudBuildUploadModalProps {

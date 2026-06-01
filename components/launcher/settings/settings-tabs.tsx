@@ -19,7 +19,7 @@ interface SettingsTabsProps {
 
 export function SettingsTabs({ tabs, activeTab, setActiveTab, t }: SettingsTabsProps) {
   return (
-    <div className="flex gap-2 mb-6 p-1 bg-muted/30 rounded-xl w-fit">
+    <div className="flex gap-2 mb-6 p-1 bg-muted/30 rounded-xl w-fit mx-auto">
       {tabs.map((tab) => {
         const Icon = ICONS[tab.icon]
         return (
@@ -41,3 +41,4 @@ export function SettingsTabs({ tabs, activeTab, setActiveTab, t }: SettingsTabsP
     </div>
   )
 }
+

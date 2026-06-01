@@ -1,4 +1,4 @@
-import { IconHome, IconLayoutBoard, IconFileText, IconPuzzle, IconUsers, IconServer, IconCloud, IconUserPlus, IconSettings, IconColorSwatch } from "@tabler/icons-react"
+import { IconHome, IconLayoutBoard, IconFileText, IconPuzzle, IconServer, IconCloud, IconUserPlus, IconSettings, IconColorSwatch } from "@tabler/icons-react"
 import type { TabId } from "./sidebar"
 
 interface ContentCardProps {
@@ -25,11 +25,6 @@ const tabContent: Record<TabId, { title: string; message: string; icon: React.Re
     title: "Моды",
     message: "Раздел модов находится в разработке",
     icon: <IconPuzzle className="w-12 h-12" strokeWidth={1.5} />,
-  },
-  friends: {
-    title: "Друзья",
-    message: "Социальные функции находятся в разработке",
-    icon: <IconUsers className="w-12 h-12" strokeWidth={1.5} />,
   },
   servers: {
     title: "Серверы",

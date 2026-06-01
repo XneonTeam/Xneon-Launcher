@@ -7,10 +7,11 @@ import { cn } from "@/lib/utils"
 type AccountWithAvatar = { uuid?: string; type?: string }
 
 const getAvatarUrl = (account: AccountWithAvatar, username: string) => {
-  const value = account.uuid || username
+  const isElyBy = account.type === "elyby"
+  const value = isElyBy ? username : (account.uuid || username)
   const params = new URLSearchParams()
 
-  if (account.type === "elyby") {
+  if (isElyBy) {
     params.set("skin_type", "ely")
   } else if (account.type === "xnskins") {
     params.set("skin_type", "xneon")

@@ -29,6 +29,7 @@ interface InstanceModalProps {
   setModalTab: (tab: ModalTab) => void
   loadingModal: boolean
   displayedModalVersions: ModVersion[]
+  onInstallVersion: (version: ModVersion) => void
   onClose: () => void
 }
 
@@ -38,6 +39,7 @@ export function InstanceModal({
   setModalTab,
   loadingModal,
   displayedModalVersions,
+  onInstallVersion,
   onClose,
 }: InstanceModalProps) {
   if (!selectedDetails) return null
@@ -127,11 +129,11 @@ export function InstanceModal({
           {!loadingModal && modalTab === "changelog" && (
             <div className="space-y-4">
               {displayedModalVersions.length > 0 ? (
-                displayedModalVersions.slice(0, 5).map((ver: any) => (
+                displayedModalVersions.slice(0, 5).map((ver) => (
                   <div key={ver.id} className="p-4 rounded-xl bg-muted/20 border border-border">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-semibold text-foreground">{ver.name}</h4>
-                      <span className="text-xs text-muted-foreground">{ver.date_published ? new Date(ver.date_published).toLocaleDateString() : ""}</span>
+                      <span className="text-xs text-muted-foreground">{ver.datePublished ? new Date(ver.datePublished).toLocaleDateString() : ""}</span>
                     </div>
                     {ver.changelog ? (
                       <div className="text-sm text-muted-foreground">
@@ -150,13 +152,13 @@ export function InstanceModal({
           {!loadingModal && modalTab === "versions" && (
             <div className="space-y-2">
               {displayedModalVersions.length > 0 ? (
-                displayedModalVersions.slice(0, 50).map((ver: any) => (
+                displayedModalVersions.slice(0, 50).map((ver) => (
                   <div key={ver.id} className="p-4 rounded-xl bg-muted/20 border border-border flex items-center justify-between hover:bg-muted/30 transition-colors">
                     <div className="flex-1">
                       <p className="font-medium text-foreground">{ver.name}</p>
                       <div className="flex items-center gap-3 mt-1">
                         <span className="text-xs text-muted-foreground">
-                          {Array.isArray(ver.game_versions) ? ver.game_versions.slice(0, 3).join(", ") : ver.gameVersion ?? ""}
+                          {ver.gameVersion ?? ""}
                         </span>
                         {ver.loaders && (
                           <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
@@ -166,10 +168,7 @@ export function InstanceModal({
                       </div>
                     </div>
                     <button
-                      onClick={() => {
-                        const url = ver.files?.[0]?.url ?? ver.downloadUrl
-                        if (url) window.open(url, "_blank")
-                      }}
+                      onClick={() => onInstallVersion(ver)}
                       className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
                     >
                       <IconDownload className="w-4 h-4" strokeWidth={1.75} />

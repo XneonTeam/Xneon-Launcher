@@ -1,3 +1,4 @@
+import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { IconPackage, IconX, IconPlus } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
@@ -12,10 +13,53 @@ interface InstanceListProps {
   onOpen: (id: string) => void
 }
 
-export function InstanceList({ builds, totalBuilds, onCreate, onDelete, onOpen }: InstanceListProps) {
+const CARD_MIN_WIDTH = 148
+const GRID_GAP = 12
+const CARD_HEIGHT = 220
+const GRID_OVERSCAN_ROWS = 2
+
+export const InstanceList = memo(function InstanceList({ builds, totalBuilds, onCreate, onDelete, onOpen }: InstanceListProps) {
   const { t } = useTranslation()
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [viewport, setViewport] = useState({ width: 0, height: 0, scrollTop: 0 })
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+
+    const updateViewport = () => {
+      setViewport(prev => {
+        const next = { width: el.clientWidth, height: el.clientHeight, scrollTop: el.scrollTop }
+        return prev.width === next.width && prev.height === next.height && prev.scrollTop === next.scrollTop ? prev : next
+      })
+    }
+
+    updateViewport()
+    const observer = new ResizeObserver(updateViewport)
+    observer.observe(el)
+    el.addEventListener("scroll", updateViewport, { passive: true })
+    return () => {
+      observer.disconnect()
+      el.removeEventListener("scroll", updateViewport)
+    }
+  }, [])
+
+  const virtualized = useMemo(() => {
+    const columns = Math.max(1, Math.floor((Math.max(viewport.width, CARD_MIN_WIDTH) + GRID_GAP) / (CARD_MIN_WIDTH + GRID_GAP)))
+    const rowHeight = CARD_HEIGHT + GRID_GAP
+    const startRow = Math.max(0, Math.floor(viewport.scrollTop / rowHeight) - GRID_OVERSCAN_ROWS)
+    const visibleRows = Math.ceil((viewport.height || rowHeight) / rowHeight) + GRID_OVERSCAN_ROWS * 2
+    const endRow = Math.min(Math.ceil(builds.length / columns), startRow + visibleRows)
+    return {
+      columns,
+      visibleBuilds: builds.slice(startRow * columns, endRow * columns),
+      topSpacerHeight: startRow * rowHeight,
+      bottomSpacerHeight: Math.max(0, (Math.ceil(builds.length / columns) - endRow) * rowHeight),
+    }
+  }, [builds, viewport.height, viewport.scrollTop, viewport.width])
+
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div ref={scrollRef} className="flex-1 overflow-y-auto">
       {totalBuilds === 0 ? (
         <div className="h-full flex flex-col items-center justify-center text-center">
           <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mb-5">
@@ -30,7 +74,8 @@ export function InstanceList({ builds, totalBuilds, onCreate, onDelete, onOpen }
         </div>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3">
-          {builds.map(build => {
+          {virtualized.topSpacerHeight > 0 && <div style={{ height: virtualized.topSpacerHeight, gridColumn: "1 / -1" }} />}
+          {virtualized.visibleBuilds.map(build => {
             const loader = MOD_LOADERS.find(item => item.id === build.modLoader) ?? MOD_LOADERS[0]
             const hasImage = build.icon && (build.icon.startsWith("data:") || build.icon.startsWith("http"))
             return (
@@ -83,8 +128,9 @@ export function InstanceList({ builds, totalBuilds, onCreate, onDelete, onOpen }
               </div>
             )
           })}
+          {virtualized.bottomSpacerHeight > 0 && <div style={{ height: virtualized.bottomSpacerHeight, gridColumn: "1 / -1" }} />}
         </div>
       )}
     </div>
   )
-}
+})

@@ -27,7 +27,7 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
       if (detailTab !== "mods") return true
       const loaders = ver.loaders?.map(l => l.toLowerCase()) ?? []
       if (activeBuild.modLoader === "vanilla") return loaders.length === 0
-      return loaders.length === 0 || loaders.includes(activeBuild.modLoader)
+      return loaders.includes(activeBuild.modLoader)
     })
   }, [activeBuild, projectVersions, detailTab])
 
@@ -36,23 +36,34 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
     return selectedDetails.versions.filter(ver => {
       const gameVersions = String(ver.gameVersion ?? "").split(/[|,/]/).map(v => v.trim()).filter(Boolean)
       if (gameVersions.length > 0 && !gameVersions.includes(activeBuild.version)) return false
-      if (detailTab !== "mods" || activeBuild.modLoader === "vanilla") return true
-      return `${ver.name} ${ver.fileName}`.toLowerCase().includes(activeBuild.modLoader)
+      if (detailTab !== "mods") return true
+      const loaders = ver.loaders?.map(loader => loader.toLowerCase()) ?? []
+      if (activeBuild.modLoader === "vanilla") return loaders.length === 0
+      return loaders.includes(activeBuild.modLoader)
     })
   }, [activeBuild, selectedDetails, detailTab])
 
-  const displayedModalVersions = selectedDetails?.source === "modrinth" ? compatibleProjectVersions : compatibleCFVersions
+  const displayedModalVersions = useMemo(() => {
+    if (!selectedDetails) return []
+    if (selectedDetails.source === "modrinth") {
+      return compatibleProjectVersions.length > 0 ? compatibleProjectVersions : projectVersions
+    }
+    return compatibleCFVersions.length > 0 ? compatibleCFVersions : (selectedDetails.versions ?? [])
+  }, [compatibleCFVersions, compatibleProjectVersions, projectVersions, selectedDetails])
   const displayResults = modResults.length > 0 ? modResults : modPrevResults
 
   const fetchModrinthMods = useCallback(async (query: string, type: ContentType = "mod", page: number = 0) => {
     try {
-      const resp = await window.electronAPI?.modsModrinthSearch(query, type, activeBuild?.version, modSortBy, page)
+      const modLoaderFilter = detailTab === "mods" && activeBuild?.modLoader && activeBuild.modLoader !== "vanilla"
+        ? activeBuild.modLoader as "fabric" | "quilt"
+        : undefined
+      const resp = await window.electronAPI?.modsModrinthSearch(query, type, activeBuild?.version, modLoaderFilter, modSortBy, page)
       setModResults(resp?.results ?? [])
       setModTotalHits(resp?.totalCount ?? 0)
     } catch {
       setModResults([]); setModTotalHits(0)
     }
-  }, [activeBuild?.version, modSortBy])
+  }, [activeBuild?.modLoader, activeBuild?.version, detailTab, modSortBy])
 
   const fetchCurseforgeContent = useCallback(async (query: string, type: ContentType = "mod", page: number = 0) => {
     try {

@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils"
+import { APP_NAME, APP_VERSION } from "@/lib/app-meta"
 import { IconCheck, IconBrandGithub, IconBrandDiscord, IconInfoCircle, IconLanguage } from "@tabler/icons-react"
 import type { Language } from "./types"
 
@@ -82,7 +83,7 @@ export const languages: Language[] = [
 interface SettingsLanguageProps {
   selectedLanguage: string
   setSelectedLanguage: (id: string) => void
-  t: (key: string) => string
+  t: (key: string, options?: Record<string, unknown>) => string
 }
 
 export function SettingsLanguage({ selectedLanguage, setSelectedLanguage, t }: SettingsLanguageProps) {
@@ -124,7 +125,7 @@ export function SettingsLanguage({ selectedLanguage, setSelectedLanguage, t }: S
 }
 
 interface SettingsAboutProps {
-  t: (key: string) => string
+  t: (key: string, options?: Record<string, unknown>) => string
 }
 
 export function SettingsAbout({ t }: SettingsAboutProps) {
@@ -132,10 +133,10 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
     <div className="space-y-8 animate-in fade-in-0 slide-in-from-left-4 duration-300">
       <section className="text-center py-8">
         <div className="w-20 h-20 rounded-2xl bg-primary/20 flex items-center justify-center mx-auto mb-4 shadow-[0_0_30px_var(--glow-primary)]">
-          <img src="/icon.svg" alt="XNeon Launcher" className="w-12 h-12" />
+          <img src="/icon.svg" alt={APP_NAME} className="w-12 h-12" />
         </div>
-        <h3 className="text-2xl font-bold text-foreground mb-2">XNeon Launcher</h3>
-        <p className="text-muted-foreground">{t("settings.about.version")}</p>
+        <h3 className="text-2xl font-bold text-foreground mb-2">{APP_NAME}</h3>
+        <p className="text-muted-foreground">{t("settings.about.version", { version: APP_VERSION })}</p>
       </section>
       <section className="space-y-4">
         <h3 className="text-lg font-medium text-foreground">{t("settings.about.social")}</h3>
@@ -181,6 +182,27 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
             <span className="text-muted-foreground">{t("settings.about.license")}</span>
             <span className="text-foreground">GPL-3.0</span>
           </div>
+        </div>
+      </section>
+      <section className="space-y-4">
+        <h3 className="text-lg font-medium text-foreground">Первоначальная настройка</h3>
+        <div className="p-4 rounded-xl border border-border bg-muted/30 flex items-center justify-between gap-4">
+          <div>
+            <div className="font-medium text-foreground">Сбросить мастер первого запуска</div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Покажет onboarding заново и вернёт экран первоначальной настройки.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              void window.electronAPI?.setSetting("onboardingCompleted", "false")
+              window.dispatchEvent(new CustomEvent("launcher:onboarding-reset"))
+            }}
+            className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
+          >
+            Сбросить
+          </button>
         </div>
       </section>
     </div>

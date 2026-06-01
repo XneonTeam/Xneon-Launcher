@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react'
 
 export interface Account {
   id: string
@@ -59,17 +59,34 @@ const AccountsContext = createContext<AccountsContextValue | null>(null)
 
 export function AccountsProvider({ children }: PropsWithChildren) {
   const [accounts, setAccounts] = useState<Account[]>(FALLBACK)
+  const accountsLoadedRef = useRef(false)
+  const syncTimeoutRef = useRef<number | null>(null)
 
   useEffect(() => {
-    void fetchAccounts().then(setAccounts)
+    void fetchAccounts().then((loadedAccounts) => {
+      accountsLoadedRef.current = true
+      setAccounts(loadedAccounts)
+    })
   }, [])
 
   useEffect(() => {
-    if (accounts === FALLBACK) return
-    for (const a of accounts) {
-      void window.electronAPI?.saveAccount(a)
+    if (!accountsLoadedRef.current) return
+    if (syncTimeoutRef.current !== null) {
+      window.clearTimeout(syncTimeoutRef.current)
     }
+    syncTimeoutRef.current = window.setTimeout(() => {
+      syncTimeoutRef.current = null
+      accounts.forEach((account) => {
+        void window.electronAPI?.saveAccount(account)
+      })
+    }, 150)
   }, [accounts])
+
+  useEffect(() => () => {
+    if (syncTimeoutRef.current !== null) {
+      window.clearTimeout(syncTimeoutRef.current)
+    }
+  }, [])
 
   const addAccount = useCallback((account: Account) => {
     setAccounts(prev => {
@@ -79,22 +96,14 @@ export function AccountsProvider({ children }: PropsWithChildren) {
         const updated = prev.map(a => a.id === account.id
           ? { ...a, ...account, isActive: shouldBeActive }
           : { ...a, isActive: shouldBeActive ? false : a.isActive })
-        for (const a of updated) {
-          void window.electronAPI?.saveAccount(a)
-        }
         return updated
       }
 
       const updated = [...prev, { ...account, isActive: prev.length === 0 || account.isActive }]
       if (account.isActive && prev.length > 0) {
-        const normalized = updated.map(a => ({ ...a, isActive: a.id === account.id }))
-        for (const a of normalized) {
-          void window.electronAPI?.saveAccount(a)
-        }
-        return normalized
+        return updated.map(a => ({ ...a, isActive: a.id === account.id }))
       }
 
-      void window.electronAPI?.saveAccount(updated[updated.length - 1])
       return updated
     })
   }, [])
@@ -106,7 +115,6 @@ export function AccountsProvider({ children }: PropsWithChildren) {
       if (wasActive && remaining.length > 0) {
         const updated = remaining.map((a, i) => ({ ...a, isActive: i === 0 }))
         void window.electronAPI?.removeAccount(id)
-        void window.electronAPI?.saveAccount(updated[0])
         return updated
       }
       void window.electronAPI?.removeAccount(id)
@@ -117,11 +125,7 @@ export function AccountsProvider({ children }: PropsWithChildren) {
   const setActiveAccount = useCallback((id: string) => {
     setAccounts(prev => {
       if (prev.some(a => a.id === id && a.isActive)) return prev
-      const updated = prev.map(a => ({ ...a, isActive: a.id === id }))
-      for (const a of updated) {
-        void window.electronAPI?.saveAccount(a)
-      }
-      return updated
+      return prev.map(a => ({ ...a, isActive: a.id === id }))
     })
   }, [])
 

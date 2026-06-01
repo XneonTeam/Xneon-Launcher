@@ -38,14 +38,17 @@ const nodeRequire = createRequire(__filename)
 
 let dbInitialized = false
 let dbAvailable = true
+let dbFallbackMode = false
 let sqlModulePromise: Promise<SqlJsModule> | null = null
 let database: SqlJsDatabase | null = null
+let persistTimer: NodeJS.Timeout | null = null
 
 const inMemoryAccounts = new Map<string, DbAccount>()
 const inMemoryBuilds = new Map<string, BuildJson>()
 const inMemorySettings = new Map<string, string>()
 
 const DEFAULT_SETTINGS: Record<string, string> = {
+  onboardingCompleted: "false",
   authlibInjectorEnabled: "false",
   retroauthInjectorEnabled: "true",
   showSnapshot: "false",
@@ -55,6 +58,7 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   memoryMax: "4G",
   javaPath: "",
   javaArgs: "",
+  useBmclapi: "false",
 }
 
 function ensureInMemoryDefaults() {
@@ -105,12 +109,38 @@ function run(sql: string, params: unknown[] = []) {
   ensureDatabase().run(sql, params)
 }
 
-function persistDatabase() {
+function writeDatabaseToDisk() {
   if (!database) {
     return
   }
   ensureDir(path.dirname(dbPath))
   fs.writeFileSync(dbPath, Buffer.from(database.export()))
+}
+
+function persistDatabase() {
+  if (!database) {
+    return
+  }
+
+  if (persistTimer) {
+    clearTimeout(persistTimer)
+  }
+
+  persistTimer = setTimeout(() => {
+    persistTimer = null
+    writeDatabaseToDisk()
+  }, 75)
+}
+
+function flushDatabasePersistence() {
+  if (persistTimer) {
+    clearTimeout(persistTimer)
+    persistTimer = null
+  }
+
+  if (database) {
+    writeDatabaseToDisk()
+  }
 }
 
 function initializeSchema() {
@@ -135,9 +165,14 @@ function initializeSchema() {
       description TEXT NOT NULL DEFAULT '',
       version TEXT NOT NULL,
       modLoader TEXT NOT NULL,
+      loaderVersion TEXT,
       icon TEXT NOT NULL DEFAULT '',
       coverImage TEXT,
       mods TEXT NOT NULL DEFAULT '[]',
+      resourcepacks TEXT NOT NULL DEFAULT '[]',
+      shaders TEXT NOT NULL DEFAULT '[]',
+      intentPath TEXT NOT NULL DEFAULT '',
+      installedMods TEXT NOT NULL DEFAULT '{}',
       createdAt TEXT NOT NULL,
       source TEXT NOT NULL DEFAULT 'local',
       projectSlug TEXT
@@ -161,6 +196,28 @@ function initializeSchema() {
     run("ALTER TABLE accounts ADD COLUMN clientId TEXT")
   }
 
+  const buildColumns = queryAll<{ name: string }>("PRAGMA table_info(builds)")
+
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "resourcepacks")) {
+    run("ALTER TABLE builds ADD COLUMN resourcepacks TEXT NOT NULL DEFAULT '[]'")
+  }
+
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "shaders")) {
+    run("ALTER TABLE builds ADD COLUMN shaders TEXT NOT NULL DEFAULT '[]'")
+  }
+
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "intentPath")) {
+    run("ALTER TABLE builds ADD COLUMN intentPath TEXT NOT NULL DEFAULT ''")
+  }
+
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "installedMods")) {
+    run("ALTER TABLE builds ADD COLUMN installedMods TEXT NOT NULL DEFAULT '{}'")
+  }
+
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "loaderVersion")) {
+    run("ALTER TABLE builds ADD COLUMN loaderVersion TEXT")
+  }
+
   for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
     run("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", [key, value])
   }
@@ -176,9 +233,10 @@ export async function initDatabase(): Promise<void> {
     const data = fs.existsSync(dbPath) ? fs.readFileSync(dbPath) : undefined
     database = new SQL.Database(data ? new Uint8Array(data) : undefined)
     initializeSchema()
-    persistDatabase()
+    flushDatabasePersistence()
   } catch (error) {
     dbAvailable = false
+    dbFallbackMode = true
     console.error("[DB] Falling back to in-memory storage:", error)
     try {
       database?.close()
@@ -189,6 +247,10 @@ export async function initDatabase(): Promise<void> {
   }
 
   dbInitialized = true
+}
+
+export function isUsingFallbackStorage(): boolean {
+  return dbFallbackMode
 }
 
 export type DbAccount = {
@@ -300,12 +362,17 @@ type BuildJson = {
   description: string
   version: string
   modLoader: string
+  loaderVersion?: string
   icon: string
   coverImage?: string
   mods: unknown[]
+  resourcepacks?: unknown[]
+  shaders?: unknown[]
   createdAt: string
   source: "local" | "modrinth" | "curseforge"
   projectSlug?: string
+  intentPath?: string
+  installedMods?: Record<string, string>
 }
 
 type BuildRow = {
@@ -314,9 +381,14 @@ type BuildRow = {
   description: string
   version: string
   modLoader: string
+  loaderVersion: string | null
   icon: string
   coverImage: string | null
   mods: string
+  resourcepacks: string
+  shaders: string
+  intentPath: string
+  installedMods: string
   createdAt: string
   source: string
   projectSlug: string | null
@@ -336,12 +408,17 @@ export async function loadBuilds(): Promise<BuildJson[]> {
     description: row.description,
     version: row.version,
     modLoader: row.modLoader,
+    loaderVersion: row.loaderVersion ?? undefined,
     icon: row.icon,
     coverImage: row.coverImage ?? undefined,
     mods: JSON.parse(row.mods),
+    resourcepacks: JSON.parse(row.resourcepacks || "[]"),
+    shaders: JSON.parse(row.shaders || "[]"),
     createdAt: row.createdAt,
     source: row.source as BuildJson["source"],
     projectSlug: row.projectSlug ?? undefined,
+    intentPath: row.intentPath || undefined,
+    installedMods: JSON.parse(row.installedMods || "{}"),
   }))
 }
 
@@ -359,17 +436,22 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
     run("DELETE FROM builds")
     for (const build of builds) {
       run(`
-        INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, icon, coverImage, mods, createdAt, source, projectSlug)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         build.id,
         build.name,
         build.description,
         build.version,
         build.modLoader,
+        build.loaderVersion ?? null,
         build.icon,
         build.coverImage ?? null,
         JSON.stringify(build.mods),
+        JSON.stringify(build.resourcepacks ?? []),
+        JSON.stringify(build.shaders ?? []),
+        build.intentPath ?? "",
+        JSON.stringify(build.installedMods ?? {}),
         build.createdAt,
         build.source,
         build.projectSlug ?? null,
@@ -422,3 +504,6 @@ export const dbHelpers = {
     persistDatabase()
   },
 }
+
+process.once("beforeExit", flushDatabasePersistence)
+process.once("exit", flushDatabasePersistence)

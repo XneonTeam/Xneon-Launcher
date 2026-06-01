@@ -1,26 +1,39 @@
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
-import { IconAlertTriangle, IconCircleX, IconPower, IconChevronDown } from "@tabler/icons-react"
-import { useState } from "react"
+import { IconAlertTriangle, IconCircleX, IconPower } from "@tabler/icons-react"
 
 interface SettingsAuthlibProps {
   enabled: boolean
   setEnabled: (v: boolean) => void
+  injectorType: "authlib" | "retroauth"
+  setInjectorType: (type: "authlib" | "retroauth") => void
   showWarningModal: boolean
   setShowWarningModal: (v: boolean) => void
 }
 
-export function SettingsAuthlib({ enabled, setEnabled, showWarningModal, setShowWarningModal }: SettingsAuthlibProps) {
+export function SettingsAuthlib({
+  enabled,
+  setEnabled,
+  injectorType,
+  setInjectorType,
+  showWarningModal,
+  setShowWarningModal,
+}: SettingsAuthlibProps) {
   const { t } = useTranslation()
-  const [injectorType, setInjectorType] = useState<"authlib" | "retroauth">("retroauth")
 
   const handleToggle = () => {
     if (enabled) {
       setShowWarningModal(true)
     } else {
       setEnabled(true)
-      window.electronAPI?.setSetting("authlibInjectorEnabled", "true")
+      if (injectorType === "authlib") {
+        window.electronAPI?.setSetting("authlibInjectorEnabled", "true")
+        window.electronAPI?.setSetting("retroauthInjectorEnabled", "false")
+      } else {
+        window.electronAPI?.setSetting("authlibInjectorEnabled", "false")
+        window.electronAPI?.setSetting("retroauthInjectorEnabled", "true")
+      }
     }
   }
 
@@ -140,6 +153,7 @@ export function SettingsAuthlib({ enabled, setEnabled, showWarningModal, setShow
                 onClick={() => {
                   setEnabled(false)
                   window.electronAPI?.setSetting("authlibInjectorEnabled", "false")
+                  window.electronAPI?.setSetting("retroauthInjectorEnabled", "false")
                   setShowWarningModal(false)
                 }}
                 className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground font-medium transition-colors"
