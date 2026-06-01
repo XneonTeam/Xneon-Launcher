@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process"
-import { existsSync, lstatSync, readFileSync, rmSync, symlinkSync } from "node:fs"
+import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync } from "node:fs"
 import path from "node:path"
 
 const rootDir = process.cwd()
@@ -41,16 +41,20 @@ for (const packageDirName of localPackages) {
   }
 
   const targetDir = path.join(rootDir, "node_modules", ...packageName.split("/"))
-  if (existsSync(targetDir)) {
-    try {
-      if (!lstatSync(targetDir).isSymbolicLink()) {
+  try {
+    if (existsSync(targetDir)) {
+      const stat = lstatSync(targetDir)
+      if (!stat.isSymbolicLink()) {
         rmSync(targetDir, { recursive: true, force: true })
-        const relativeTarget = path.relative(path.dirname(targetDir), packageDir)
-        symlinkSync(relativeTarget, targetDir, "dir")
       }
-    } catch (err) {
-      console.warn(`[sync-local-xnlc] Could not relink ${packageName}:`, err)
+    } else {
+      mkdirSync(path.dirname(targetDir), { recursive: true })
     }
+    const relativeTarget = path.relative(path.dirname(targetDir), packageDir)
+    const linkType = process.platform === "win32" ? "junction" : "dir"
+    symlinkSync(relativeTarget, targetDir, linkType)
+  } catch (err) {
+    console.warn(`[sync-local-xnlc] Could not link ${packageName}:`, err)
   }
 
   console.log(`[sync-local-xnlc] Synced ${packageName}`)
