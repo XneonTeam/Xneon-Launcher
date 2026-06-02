@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import { IconUpload, IconLock, IconLayoutGrid, IconColorSwatch, IconUser, IconLogout, IconCloud, IconLoader2 } from "@tabler/icons-react"
+import { IconUpload, IconLock, IconLayoutGrid, IconColorSwatch, IconUser, IconLogout, IconCloud, IconLoader2, IconArrowLeft } from "@tabler/icons-react"
 import {
   getCloudToken, removeCloudToken,
   cloudApiGetUser, cloudApiGetFiles, cloudApiGetStorageInfo,
@@ -266,7 +266,11 @@ export function CloudPage() {
       {showAccountPicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowAccountPicker(false)}>
           <div className="w-full max-w-lg mx-4 rounded-2xl bg-card border border-border shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="p-4 border-b border-border">
+            <div className="flex items-center gap-3 p-4 border-b border-border">
+              <button onClick={() => setShowUploadChoice(true)}
+                className="w-9 h-9 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center">
+                <IconArrowLeft className="w-5 h-5" strokeWidth={1.5} />
+              </button>
               <h3 className="text-lg font-semibold text-foreground">Выберите аккаунт</h3>
             </div>
             <div className="max-h-80 overflow-y-auto p-2 space-y-1">
@@ -280,8 +284,8 @@ export function CloudPage() {
                   ? "https://mcskinapi-three.vercel.app/avatar/Steve?skin_type=microsoft"
                   : `https://mcskinapi-three.vercel.app/avatar/${encodeURIComponent(acc.uuid || acc.username)}?skin_type=${acc.type === "elyby" ? "ely" : acc.type === "xnskins" ? "xneon" : acc.type === "microsoft" ? "microsoft" : ""}`
                 return (
-                  <button key={acc.id} onClick={() => handleUploadAccount(acc)} disabled={uploadingAccount}
-                    className="flex items-center gap-4 w-full p-3 rounded-xl border border-border bg-muted/30 hover:border-primary/50 transition-all disabled:opacity-50 text-left">
+                  <div key={acc.id}
+                    className="flex items-center gap-4 p-3 rounded-xl border border-border bg-muted/30 hover:border-primary/50 transition-all">
                     <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: `${color}20` }}>
                       <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
                     </div>
@@ -289,14 +293,14 @@ export function CloudPage() {
                       <p className="font-medium text-foreground truncate">{acc.username}</p>
                       <p className="text-sm text-muted-foreground">{typeLabels[acc.type] || acc.type}</p>
                     </div>
-                    {uploadingAccount && <IconLoader2 className="w-5 h-5 animate-spin text-primary shrink-0" strokeWidth={1.5} />}
-                  </button>
+                    <button onClick={() => handleUploadAccount(acc)} disabled={uploadingAccount}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium transition-all disabled:opacity-50 shrink-0">
+                      {uploadingAccount ? <IconLoader2 className="w-4 h-4 animate-spin" strokeWidth={2} /> : <IconUpload className="w-4 h-4" strokeWidth={2} />}
+                      Загрузить
+                    </button>
+                  </div>
                 )
               })}
-            </div>
-            <div className="p-3 border-t border-border flex justify-end">
-              <button onClick={() => setShowAccountPicker(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium bg-muted/50 hover:bg-muted text-foreground transition-colors">Отмена</button>
             </div>
           </div>
         </div>
