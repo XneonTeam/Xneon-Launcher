@@ -269,22 +269,30 @@ export function CloudPage() {
             <div className="p-4 border-b border-border">
               <h3 className="text-lg font-semibold text-foreground">Выберите аккаунт</h3>
             </div>
-            <div className="max-h-80 overflow-y-auto p-2">
+            <div className="max-h-80 overflow-y-auto p-2 space-y-1">
               {cloudAccounts.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">Нет сохранённых аккаунтов</p>
-              ) : cloudAccounts.map(acc => (
-                <button key={acc.id} onClick={() => handleUploadAccount(acc)} disabled={uploadingAccount}
-                  className="flex items-center gap-3 w-full px-3 py-3 rounded-xl hover:bg-muted/50 transition-colors disabled:opacity-50 text-left">
-                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-lg font-bold text-foreground shrink-0">
-                    {acc.username.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{acc.username}</p>
-                    <p className="text-xs text-muted-foreground">{acc.type}</p>
-                  </div>
-                  {uploadingAccount && <IconLoader2 className="w-5 h-5 animate-spin text-primary shrink-0" strokeWidth={1.5} />}
-                </button>
-              ))}
+              ) : cloudAccounts.map(acc => {
+                const typeColors: Record<string, string> = { elyby: "#217e5c", xnskins: "#f97316", microsoft: "#2563EB", offline: "#757575" }
+                const typeLabels: Record<string, string> = { elyby: "Ely.By", xnskins: "XN Skins", microsoft: "Microsoft", offline: "Offline" }
+                const color = typeColors[acc.type] || "#757575"
+                const avatarUrl = acc.type === "offline"
+                  ? "https://mcskinapi-three.vercel.app/avatar/Steve?skin_type=microsoft"
+                  : `https://mcskinapi-three.vercel.app/avatar/${encodeURIComponent(acc.uuid || acc.username)}?skin_type=${acc.type === "elyby" ? "ely" : acc.type === "xnskins" ? "xneon" : acc.type === "microsoft" ? "microsoft" : ""}`
+                return (
+                  <button key={acc.id} onClick={() => handleUploadAccount(acc)} disabled={uploadingAccount}
+                    className="flex items-center gap-4 w-full p-3 rounded-xl border border-border bg-muted/30 hover:border-primary/50 transition-all disabled:opacity-50 text-left">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: `${color}20` }}>
+                      <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground truncate">{acc.username}</p>
+                      <p className="text-sm text-muted-foreground">{typeLabels[acc.type] || acc.type}</p>
+                    </div>
+                    {uploadingAccount && <IconLoader2 className="w-5 h-5 animate-spin text-primary shrink-0" strokeWidth={1.5} />}
+                  </button>
+                )
+              })}
             </div>
             <div className="p-3 border-t border-border flex justify-end">
               <button onClick={() => setShowAccountPicker(false)}
