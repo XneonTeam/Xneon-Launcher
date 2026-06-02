@@ -170,13 +170,28 @@ export function registerCloudHandlers() {
 
   ipcMain.handle("cloud:upload-account-data", async (_event, cloudToken: string, account: { id: string; type: string; username: string; uuid?: string }): Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }> => {
     try {
-      const fileName = `account_${account.username}.json`
-      const filePath = path.join(app.getPath("temp"), fileName)
       const jsonData = JSON.stringify(account, null, 2)
-      fs.writeFileSync(filePath, jsonData, "utf-8")
-      const result = await handleUploadFile(filePath, cloudToken, "account")
-      try { fs.unlinkSync(filePath) } catch {}
-      return result
+      const buffer = Buffer.from(jsonData, "utf-8")
+      const form = new FormData()
+      form.append("file", buffer, { filename: `${account.username}.json`, contentType: "application/json" })
+      form.append("name", account.username)
+      form.append("type", "account")
+      form.append("category", "account")
+      form.append("version", account.type)
+
+      const baseUrl = await cloudApiUrl()
+      const response = await axios.post(`${baseUrl}/files/upload`, form, {
+        headers: { Authorization: `Bearer ${cloudToken}`, ...form.getHeaders() },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+      })
+
+      if (response.status < 200 || response.status >= 300) {
+        const errorMsg = response.data?.detail ?? response.data?.error ?? `HTTP ${response.status}`
+        return { success: false, error: errorMsg }
+      }
+
+      return { success: true, id: response.data.id, name: response.data.name, size: response.data.size }
     } catch (e) {
       return { success: false, error: safeErrorMessage(e) }
     }

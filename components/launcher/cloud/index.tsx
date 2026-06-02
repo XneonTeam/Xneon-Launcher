@@ -64,15 +64,23 @@ export function CloudPage() {
       if (!result.success) throw new Error(result.error || "Ошибка загрузки файлов")
       setItems((result.files || []).map((f: Record<string, unknown>) => {
         const rawIcon = f.icon ?? (f.build as Record<string, unknown> | undefined)?.icon
+        const type = (f.type === "account" || f.type === "accounts" ? "account" : f.type === "skin" || f.type === "skins" ? "skin" : "instance") as CloudItem["type"]
+        const version = f.version as string | undefined
+        const icon = type === "account"
+          ? version === "offline"
+            ? "https://mcskinapi-three.vercel.app/avatar/Steve?skin_type=microsoft"
+            : `https://mcskinapi-three.vercel.app/avatar/${encodeURIComponent((f.uuid as string) || (f.name as string))}?skin_type=${version === "elyby" ? "ely" : version === "xnskins" ? "xneon" : version === "microsoft" ? "microsoft" : ""}`
+          : typeof rawIcon === "string" ? rawIcon : undefined
         return ({
           id: (f.id as string) || (f._id as string) || "",
           name: (f.name as string) || (f.originalName as string) || "Без названия",
           size: formatBytes(Number(f.size) || 0),
           lastSynced: f.uploadedAt ? timeAgo(f.uploadedAt as string) : "неизвестно",
-          type: (f.type === "account" || f.type === "accounts" ? "account" : f.type === "skin" || f.type === "skins" ? "skin" : "instance") as CloudItem["type"],
+          type,
           category: f.type as string,
           downloadUrl: f.downloadUrl as string | undefined,
-          icon: typeof rawIcon === "string" ? rawIcon : undefined,
+          icon,
+          version,
         })
       }))
     } catch (err) {

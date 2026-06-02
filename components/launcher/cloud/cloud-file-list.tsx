@@ -28,6 +28,8 @@ export const CloudFileList = memo(function CloudFileList({
     account: { label: t("cloud.accounts") },
     skin: { label: t("cloud.skins") },
   }
+  const accountTypeLabels: Record<string, string> = { elyby: "Ely.By", xnskins: "XN Skins", microsoft: "Microsoft", offline: "Offline" }
+  const accountTypeColors: Record<string, string> = { elyby: "#217e5c", xnskins: "#f97316", microsoft: "#2563EB", offline: "#757575" }
   if (isAuthLoading) return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <IconLoader2 className="w-8 h-8 animate-spin text-primary mb-4" />
@@ -92,7 +94,11 @@ export const CloudFileList = memo(function CloudFileList({
             <div className="flex-1 min-w-0">
               <p className="font-medium text-foreground group-hover:text-primary transition-colors truncate">{item.name}</p>
               <div className="flex items-center gap-3 mt-1">
-                <span className="text-xs text-muted-foreground">{cfg.label}</span>
+                {item.type === "account" && item.version ? (
+                  <span className="text-xs font-medium" style={{ color: accountTypeColors[item.version] || "#757575" }}>{accountTypeLabels[item.version] || item.version}</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">{cfg.label}</span>
+                )}
                 <span className="text-xs text-muted-foreground">{item.size}</span>
               </div>
             </div>
