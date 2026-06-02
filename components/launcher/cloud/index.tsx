@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import { IconLoader2, IconRefresh, IconUpload, IconLock, IconLayoutGrid, IconColorSwatch, IconUser, IconShirt, IconLogout, IconCloud } from "@tabler/icons-react"
+import { IconUpload, IconLock, IconLayoutGrid, IconColorSwatch, IconUser, IconLogout, IconCloud } from "@tabler/icons-react"
 import {
   getCloudToken, removeCloudToken,
   cloudApiGetUser, cloudApiGetFiles, cloudApiGetStorageInfo,
@@ -28,6 +28,7 @@ export function CloudPage() {
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [isAuthLoading, setIsAuthLoading] = useState(true)
   const [showBuildUploadModal, setShowBuildUploadModal] = useState(false)
+  const [showUploadMenu, setShowUploadMenu] = useState(false)
   const [localBuilds, setLocalBuilds] = useState<LocalBuild[]>([])
   const [cloudApiUrl, setCloudApiUrl] = useState("http://87.121.82.248:3001/api")
 
@@ -116,17 +117,6 @@ export function CloudPage() {
     fetchFiles(); fetchStorageInfo(); fetchCategories(); loadLocalBuilds()
   }, [user, fetchFiles, fetchStorageInfo, fetchCategories, loadLocalBuilds])
 
-  const handleSync = useCallback(() => {
-    setIsSyncing(true); setSyncProgress(0)
-    void fetchFiles(); void fetchStorageInfo(); void fetchCategories()
-    const interval = setInterval(() => {
-      setSyncProgress(prev => {
-        if (prev >= 100) { clearInterval(interval); setIsSyncing(false); return 100 }
-        return prev + 10
-      })
-    }, 100)
-  }, [fetchCategories, fetchFiles, fetchStorageInfo])
-
   const handleUploadBuild = useCallback(async (build: LocalBuild) => {
     const token = await getCloudToken()
     if (!token) return
@@ -144,6 +134,19 @@ export function CloudPage() {
     } finally {
       setUploadingBuild(null); setBuildUploadProgress(0)
     }
+  }, [fetchCategories, fetchFiles, fetchStorageInfo])
+
+  const handleUploadAccount = useCallback(async () => {
+    const token = await getCloudToken()
+    if (!token) return
+    try {
+      const result = await window.electronAPI!.uploadAccountToCloud(token)
+      if (!result.success) throw new Error(result.error || "Ошибка загрузки")
+      await fetchFiles(); await fetchStorageInfo(); await fetchCategories()
+    } catch (err) {
+      if (err instanceof Error && err.message !== "Отменено") alert(`Ошибка: ${err.message}`)
+    }
+    setShowUploadMenu(false)
   }, [fetchCategories, fetchFiles, fetchStorageInfo])
 
   const handleDownload = useCallback(async (item: CloudItem) => {
@@ -190,7 +193,6 @@ export function CloudPage() {
     { id: "all" as const, label: `${t("cloud.all")} (${items.length})`, icon: IconLayoutGrid },
     { id: "instance" as const, label: `${t("cloud.builds")} (${categoryStats.instances?.count || 0})`, icon: IconColorSwatch },
     { id: "account" as const, label: `${t("cloud.accounts")} (${categoryStats.accounts?.count || 0})`, icon: IconUser },
-    { id: "skin" as const, label: `${t("cloud.skins")} (${categoryStats.skins?.count || 0})`, icon: IconShirt },
   ]), [categoryStats.accounts?.count, categoryStats.instances?.count, categoryStats.skins?.count, items.length, t])
 
   return (
@@ -225,21 +227,30 @@ export function CloudPage() {
           <div className="flex items-center gap-2">
             {user ? (
               <>
-                <button
-                  onClick={handleOpenBuildUploadModal}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_15px_var(--glow-primary)] transition-all"
-                >
-                  <IconUpload className="w-5 h-5" strokeWidth={2} />
-                  {t("cloud.uploadBuild")}
-                </button>
-                <button
-                  onClick={handleSync}
-                  disabled={isSyncing}
-                  className={cn("flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-200",
-                    isSyncing ? "bg-primary/70 text-primary-foreground cursor-wait" : "bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_15px_var(--glow-primary)]")}
-                >
-                  {isSyncing ? <><IconLoader2 className="w-5 h-5 animate-spin" />{t("cloud.syncing", { progress: syncProgress })}</> : <><IconRefresh className="w-5 h-5" strokeWidth={2} />{t("cloud.sync")}</>}
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowUploadMenu(v => !v)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_15px_var(--glow-primary)] transition-all"
+                  >
+                    <IconUpload className="w-5 h-5" strokeWidth={2} />
+                    {t("cloud.upload")}
+                  </button>
+                  {showUploadMenu && (
+                    <div className="absolute right-0 top-full mt-1 w-44 rounded-xl bg-card border border-border shadow-lg z-50 overflow-hidden">
+                      <button onClick={() => { setShowUploadMenu(false); handleOpenBuildUploadModal() }}
+                        className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-foreground hover:bg-muted/50 transition-colors text-left">
+                        <IconColorSwatch className="w-4 h-4" strokeWidth={1.5} />
+                        Сборка
+                      </button>
+                      <button onClick={handleUploadAccount}
+                        className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-foreground hover:bg-muted/50 transition-colors text-left">
+                        <IconUser className="w-4 h-4" strokeWidth={1.5} />
+                        Аккаунт
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <button onClick={() => { void handleLogout() }}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-muted/50 hover:bg-destructive/20 text-muted-foreground hover:text-destructive border border-border transition-all">
                   <IconLogout className="w-4 h-4" strokeWidth={1.75} />
@@ -255,14 +266,6 @@ export function CloudPage() {
             )}
           </div>
         </div>
-
-        {isSyncing && (
-          <div className="mb-3">
-            <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
-              <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${syncProgress}%` }} />
-            </div>
-          </div>
-        )}
 
         <div className="flex items-center gap-2 mb-3 p-1 rounded-lg bg-muted/40">
           {filterOptions.map(({ id, label, icon: Icon }) => (
