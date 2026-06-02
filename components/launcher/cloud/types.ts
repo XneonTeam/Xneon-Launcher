@@ -7,6 +7,7 @@ export type CloudItem = {
   category?: string
   downloadUrl?: string
   icon?: string
+  version?: string
 }
 
 export type StorageInfo = {
