@@ -28,7 +28,7 @@ export function CloudPage() {
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [isAuthLoading, setIsAuthLoading] = useState(true)
   const [showBuildUploadModal, setShowBuildUploadModal] = useState(false)
-  const [showUploadMenu, setShowUploadMenu] = useState(false)
+  const [showUploadChoice, setShowUploadChoice] = useState(false)
   const [localBuilds, setLocalBuilds] = useState<LocalBuild[]>([])
   const [cloudApiUrl, setCloudApiUrl] = useState("http://87.121.82.248:3001/api")
   const [showAccountPicker, setShowAccountPicker] = useState(false)
@@ -140,7 +140,7 @@ export function CloudPage() {
   }, [fetchCategories, fetchFiles, fetchStorageInfo])
 
   const handleOpenAccountPicker = useCallback(async () => {
-    setShowUploadMenu(false)
+    setShowUploadChoice(false)
     try {
       const accounts = await window.electronAPI!.loadAccounts()
       setCloudAccounts(accounts.map((a: { id: string; type: string; username: string; uuid?: string }) => ({ id: a.id, type: a.type, username: a.username, uuid: a.uuid })))
@@ -189,6 +189,7 @@ export function CloudPage() {
   const handleAuthSuccess = useCallback(() => { void checkAuth() }, [checkAuth])
   const handleCloseBuildUploadModal = useCallback(() => setShowBuildUploadModal(false), [])
   const handleOpenBuildUploadModal = useCallback(() => {
+    setShowUploadChoice(false)
     setShowBuildUploadModal(true)
     loadLocalBuilds()
   }, [loadLocalBuilds])
@@ -224,6 +225,42 @@ export function CloudPage() {
           onClose={handleCloseBuildUploadModal}
           onUpload={handleUploadBuild}
         />
+      )}
+
+      {showUploadChoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowUploadChoice(false)}>
+          <div className="w-80 rounded-2xl bg-card border border-border shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-4 border-b border-border">
+              <h3 className="text-lg font-semibold text-foreground">{t("cloud.upload")}</h3>
+            </div>
+            <div className="p-4 space-y-3">
+              <button onClick={handleOpenBuildUploadModal}
+                className="flex items-center gap-4 w-full px-5 py-5 rounded-xl bg-muted/30 hover:bg-muted/60 border border-border transition-all text-left">
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <IconColorSwatch className="w-6 h-6 text-primary" strokeWidth={1.5} />
+                </div>
+                <div>
+                  <p className="text-base font-medium text-foreground">Сборка</p>
+                  <p className="text-sm text-muted-foreground">Загрузить сборку Minecraft</p>
+                </div>
+              </button>
+              <button onClick={handleOpenAccountPicker}
+                className="flex items-center gap-4 w-full px-5 py-5 rounded-xl bg-muted/30 hover:bg-muted/60 border border-border transition-all text-left">
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <IconUser className="w-6 h-6 text-primary" strokeWidth={1.5} />
+                </div>
+                <div>
+                  <p className="text-base font-medium text-foreground">Аккаунт</p>
+                  <p className="text-sm text-muted-foreground">Загрузить аккаунт в облако</p>
+                </div>
+              </button>
+            </div>
+            <div className="p-3 border-t border-border flex justify-end">
+              <button onClick={() => setShowUploadChoice(false)}
+                className="px-4 py-2 rounded-xl text-sm font-medium bg-muted/50 hover:bg-muted text-foreground transition-colors">Отмена</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showAccountPicker && (
@@ -272,29 +309,12 @@ export function CloudPage() {
           <div className="flex items-center gap-2">
             {user ? (
               <>
-                <div className="relative">
-                  <button
-                    onClick={() => setShowUploadMenu(v => !v)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_15px_var(--glow-primary)] transition-all"
-                  >
-                    <IconUpload className="w-5 h-5" strokeWidth={2} />
-                    {t("cloud.upload")}
-                  </button>
-                  {showUploadMenu && (
-                    <div className="absolute right-0 top-full mt-1 w-44 rounded-xl bg-card border border-border shadow-lg z-50 overflow-hidden">
-                      <button onClick={() => { setShowUploadMenu(false); handleOpenBuildUploadModal() }}
-                        className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-foreground hover:bg-muted/50 transition-colors text-left">
-                        <IconColorSwatch className="w-4 h-4" strokeWidth={1.5} />
-                        Сборка
-                      </button>
-                      <button onClick={handleOpenAccountPicker}
-                        className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-foreground hover:bg-muted/50 transition-colors text-left">
-                        <IconUser className="w-4 h-4" strokeWidth={1.5} />
-                        Аккаунт
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <button onClick={() => setShowUploadChoice(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_15px_var(--glow-primary)] transition-all"
+                >
+                  <IconUpload className="w-5 h-5" strokeWidth={2} />
+                  {t("cloud.upload")}
+                </button>
 
                 <button onClick={() => { void handleLogout() }}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-muted/50 hover:bg-destructive/20 text-muted-foreground hover:text-destructive border border-border transition-all">
