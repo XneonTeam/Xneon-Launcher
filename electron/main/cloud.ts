@@ -1,4 +1,4 @@
-import { app, ipcMain, dialog, BrowserWindow } from "electron"
+import { app, ipcMain } from "electron"
 import path from "path"
 import fs from "fs"
 import axios from "axios"
@@ -168,16 +168,15 @@ export function registerCloudHandlers() {
     }
   })
 
-  ipcMain.handle("cloud:select-and-upload-account", async (_event, cloudToken: string): Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }> => {
+  ipcMain.handle("cloud:upload-account-data", async (_event, cloudToken: string, account: { id: string; type: string; username: string; uuid?: string }): Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }> => {
     try {
-      const win = BrowserWindow.getFocusedWindow()
-      if (!win) return { success: false, error: "Окно не найдено" }
-      const result = await dialog.showOpenDialog(win, {
-        properties: ["openFile"],
-        filters: [{ name: "Все файлы", extensions: ["*"] }],
-      })
-      if (result.canceled || result.filePaths.length === 0) return { success: false, error: "Отменено" }
-      return await handleUploadFile(result.filePaths[0], cloudToken, "account")
+      const fileName = `account_${account.username}.json`
+      const filePath = path.join(app.getPath("temp"), fileName)
+      const jsonData = JSON.stringify(account, null, 2)
+      fs.writeFileSync(filePath, jsonData, "utf-8")
+      const result = await handleUploadFile(filePath, cloudToken, "account")
+      try { fs.unlinkSync(filePath) } catch {}
+      return result
     } catch (e) {
       return { success: false, error: safeErrorMessage(e) }
     }

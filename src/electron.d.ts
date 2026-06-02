@@ -380,7 +380,7 @@ declare global {
       cloudDownloadFile: (token: string, fileId: string, fileName: string) => Promise<{ success: boolean; filePath?: string; error?: string }>
       cloudGetCategories: (token: string) => Promise<{ success: boolean; categories?: Record<string, { count: number; size: number }>; error?: string }>
       cloudUploadFile: (filePath: string, token: string, category: string) => Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }>
-      uploadAccountToCloud: (token: string) => Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }>
+      uploadAccountToCloud: (token: string, account: { id: string; type: string; username: string; uuid?: string }) => Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }>
       // XNLC Methods
       getMinecraftVersions: () => Promise<MinecraftVersionInfo[]>
       getLatestRelease: () => Promise<string | null>

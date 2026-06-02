@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import { IconUpload, IconLock, IconLayoutGrid, IconColorSwatch, IconUser, IconLogout, IconCloud } from "@tabler/icons-react"
+import { IconUpload, IconLock, IconLayoutGrid, IconColorSwatch, IconUser, IconLogout, IconCloud, IconLoader2 } from "@tabler/icons-react"
 import {
   getCloudToken, removeCloudToken,
   cloudApiGetUser, cloudApiGetFiles, cloudApiGetStorageInfo,
@@ -31,6 +31,9 @@ export function CloudPage() {
   const [showUploadMenu, setShowUploadMenu] = useState(false)
   const [localBuilds, setLocalBuilds] = useState<LocalBuild[]>([])
   const [cloudApiUrl, setCloudApiUrl] = useState("http://87.121.82.248:3001/api")
+  const [showAccountPicker, setShowAccountPicker] = useState(false)
+  const [cloudAccounts, setCloudAccounts] = useState<{ id: string; type: string; username: string; uuid?: string }[]>([])
+  const [uploadingAccount, setUploadingAccount] = useState(false)
 
   const getLocalBuildIcon = useCallback((name: string): string | undefined => {
     const n = name.trim().toLowerCase()
@@ -136,17 +139,28 @@ export function CloudPage() {
     }
   }, [fetchCategories, fetchFiles, fetchStorageInfo])
 
-  const handleUploadAccount = useCallback(async () => {
+  const handleOpenAccountPicker = useCallback(async () => {
+    setShowUploadMenu(false)
+    try {
+      const accounts = await window.electronAPI!.loadAccounts()
+      setCloudAccounts(accounts.map((a: { id: string; type: string; username: string; uuid?: string }) => ({ id: a.id, type: a.type, username: a.username, uuid: a.uuid })))
+      setShowAccountPicker(true)
+    } catch { alert("Не удалось загрузить аккаунты") }
+  }, [])
+
+  const handleUploadAccount = useCallback(async (account: { id: string; type: string; username: string; uuid?: string }) => {
     const token = await getCloudToken()
     if (!token) return
+    setUploadingAccount(true)
     try {
-      const result = await window.electronAPI!.uploadAccountToCloud(token)
+      const result = await window.electronAPI!.uploadAccountToCloud(token, account)
       if (!result.success) throw new Error(result.error || "Ошибка загрузки")
       await fetchFiles(); await fetchStorageInfo(); await fetchCategories()
     } catch (err) {
-      if (err instanceof Error && err.message !== "Отменено") alert(`Ошибка: ${err.message}`)
+      alert(`Ошибка: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setUploadingAccount(false); setShowAccountPicker(false)
     }
-    setShowUploadMenu(false)
   }, [fetchCategories, fetchFiles, fetchStorageInfo])
 
   const handleDownload = useCallback(async (item: CloudItem) => {
@@ -212,6 +226,37 @@ export function CloudPage() {
         />
       )}
 
+      {showAccountPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowAccountPicker(false)}>
+          <div className="w-96 rounded-2xl bg-card border border-border shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-4 border-b border-border">
+              <h3 className="text-lg font-semibold text-foreground">Выберите аккаунт</h3>
+            </div>
+            <div className="max-h-80 overflow-y-auto p-2">
+              {cloudAccounts.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">Нет сохранённых аккаунтов</p>
+              ) : cloudAccounts.map(acc => (
+                <button key={acc.id} onClick={() => handleUploadAccount(acc)} disabled={uploadingAccount}
+                  className="flex items-center gap-3 w-full px-3 py-3 rounded-xl hover:bg-muted/50 transition-colors disabled:opacity-50 text-left">
+                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-lg font-bold text-foreground shrink-0">
+                    {acc.username.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{acc.username}</p>
+                    <p className="text-xs text-muted-foreground">{acc.type}</p>
+                  </div>
+                  {uploadingAccount && <IconLoader2 className="w-5 h-5 animate-spin text-primary shrink-0" strokeWidth={1.5} />}
+                </button>
+              ))}
+            </div>
+            <div className="p-3 border-t border-border flex justify-end">
+              <button onClick={() => setShowAccountPicker(false)}
+                className="px-4 py-2 rounded-xl text-sm font-medium bg-muted/50 hover:bg-muted text-foreground transition-colors">Отмена</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="relative z-10 p-4 flex flex-col h-full">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -242,7 +287,7 @@ export function CloudPage() {
                         <IconColorSwatch className="w-4 h-4" strokeWidth={1.5} />
                         Сборка
                       </button>
-                      <button onClick={handleUploadAccount}
+                      <button onClick={handleOpenAccountPicker}
                         className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-foreground hover:bg-muted/50 transition-colors text-left">
                         <IconUser className="w-4 h-4" strokeWidth={1.5} />
                         Аккаунт

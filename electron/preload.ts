@@ -369,5 +369,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cloudDownloadFile: (token: string, fileId: string, fileName: string) => ipcRenderer.invoke('cloud:download-file', token, fileId, fileName) as Promise<{ success: boolean; filePath?: string; error?: string }>,
   cloudGetCategories: (token: string) => ipcRenderer.invoke('cloud:get-categories', token) as Promise<{ success: boolean; categories?: Record<string, { count: number; size: number }>; error?: string }>,
   cloudUploadFile: (filePath: string, token: string, category: string) => ipcRenderer.invoke('cloud:upload-file', filePath, token, category) as Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }>,
-  uploadAccountToCloud: (token: string) => ipcRenderer.invoke('cloud:select-and-upload-account', token) as Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }>,
+  uploadAccountToCloud: (token: string, account: { id: string; type: string; username: string; uuid?: string }) => ipcRenderer.invoke('cloud:upload-account-data', token, account) as Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }>,
 })
