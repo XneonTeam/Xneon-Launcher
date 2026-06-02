@@ -43,6 +43,7 @@ export function SettingsPage() {
   const [showBeta, setShowBeta] = useState(false)
   const [showSnapshot, setShowSnapshot] = useState(false)
   const [useBmclapi, setUseBmclapi] = useState(false)
+  const [cloudApiUrl, setCloudApiUrl] = useState("")
   const [authlibInjectorEnabled, setAuthlibInjectorEnabled] = useState(false)
   const [injectorType, setInjectorType] = useState<"authlib" | "retroauth">("retroauth")
   const [showAuthlibWarningModal, setShowAuthlibWarningModal] = useState(false)
@@ -93,6 +94,7 @@ export function SettingsPage() {
         customHeightSetting,
         useCustomResolutionSetting,
         useBmclapiSetting,
+        cloudApiUrlSetting,
       ] = await Promise.all([
         api.getSetting("authlibInjectorEnabled"),
         api.getSetting("retroauthInjectorEnabled"),
@@ -108,6 +110,7 @@ export function SettingsPage() {
         api.getSetting("customHeight"),
         api.getSetting("useCustomResolution"),
         api.getSetting("useBmclapi"),
+        api.getSetting("cloudApiUrl"),
       ])
 
       if (cancelled) return
@@ -132,6 +135,7 @@ export function SettingsPage() {
       setShowBeta(showBetaSetting === "true")
       setShowSnapshot(showSnapshotSetting === "true")
       setUseBmclapi(useBmclapiSetting === "true")
+      if (cloudApiUrlSetting) setCloudApiUrl(cloudApiUrlSetting)
       if (selectedResolutionSetting) setSelectedResolution(selectedResolutionSetting)
       if (customWidthSetting) setCustomWidth(customWidthSetting)
       if (customHeightSetting) setCustomHeight(customHeightSetting)
@@ -186,6 +190,7 @@ export function SettingsPage() {
   useEffect(() => { persistSetting("showBeta", String(showBeta)) }, [persistSetting, showBeta])
   useEffect(() => { persistSetting("showSnapshot", String(showSnapshot)) }, [persistSetting, showSnapshot])
   useEffect(() => { persistSetting("useBmclapi", String(useBmclapi)) }, [persistSetting, useBmclapi])
+  useEffect(() => { if (cloudApiUrl) persistSetting("cloudApiUrl", cloudApiUrl) }, [cloudApiUrl, persistSetting])
   useEffect(() => { persistSetting("selectedResolution", selectedResolution) }, [persistSetting, selectedResolution])
   useEffect(() => { persistSetting("customWidth", customWidth) }, [customWidth, persistSetting])
   useEffect(() => { persistSetting("customHeight", customHeight) }, [customHeight, persistSetting])
@@ -318,6 +323,24 @@ export function SettingsPage() {
                     <span className={cn("absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all duration-300", useBmclapi ? "left-7" : "left-1")} />
                   </button>
                 </div>
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+                <IconCloud className="w-5 h-5 text-primary" strokeWidth={1.5} />
+                XN Cloud
+              </h3>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-foreground">API URL</label>
+                <input
+                  type="text"
+                  value={cloudApiUrl}
+                  onChange={e => setCloudApiUrl(e.target.value)}
+                  placeholder="http://87.121.82.248:3001/api"
+                  className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                />
+                <p className="text-xs text-muted-foreground">Адрес облачного сервера. По умолчанию: http://localhost:3000/api</p>
               </div>
             </section>
           </div>
