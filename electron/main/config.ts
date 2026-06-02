@@ -3,7 +3,7 @@ import { dbHelpers } from "../db"
 export async function getCloudApiUrl(): Promise<string> {
   const stored = await dbHelpers.getSetting("cloudApiUrl")
   if (stored) return stored
-  return process.env.CLOUD_API_URL || "http://localhost:3000/api"
+  return process.env.CLOUD_API_URL || "http://87.121.82.248:3001/api"
 }
 
 export async function getXnClientId(): Promise<string> {

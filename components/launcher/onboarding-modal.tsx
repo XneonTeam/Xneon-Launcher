@@ -488,7 +488,6 @@ export function OnboardingModal({
   const selectedImportInstances = importableInstances.filter((instance) => selectedImportIds.includes(instance.id))
   const discoveredSourceCount = new Set(importableInstances.map((instance) => instance.source)).size
   const memoryPresets = [
-    { id: "starter", min: "2G", max: "4G" },
     { id: "balanced", min: "4G", max: "6G" },
     { id: "heavy", min: "6G", max: "8G" },
   ]
@@ -1042,7 +1041,7 @@ export function OnboardingModal({
     if (stepIndex === 4) {
       return (
         <div className="space-y-5">
-          <div className="grid gap-3 lg:grid-cols-3">
+          <div className="grid gap-3 lg:grid-cols-2">
             {memoryPresets.map((preset) => {
               const isActive = memoryMin === preset.min && memoryMax === preset.max
               return (

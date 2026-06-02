@@ -19,7 +19,8 @@
     "form-data": "^4.0.0",
     "iconv-lite": "^0.7.2",
     "prismarine-nbt": "^2.8.0",
-    "sql.js": "^1.14.1"
+    "sql.js": "^1.14.1",
+    "toml": "^4.1.1"
   },
   "scripts": {
     "sync:xnlc": "node scripts/sync-local-xnlc.mjs",

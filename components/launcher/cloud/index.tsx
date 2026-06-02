@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import { IconLoader2, IconRefresh, IconUpload, IconLock, IconLayoutGrid, IconColorSwatch, IconUser, IconShirt, IconLogout } from "@tabler/icons-react"
+import { IconLoader2, IconRefresh, IconUpload, IconLock, IconLayoutGrid, IconColorSwatch, IconUser, IconShirt, IconLogout, IconCloud } from "@tabler/icons-react"
 import {
   getCloudToken, removeCloudToken,
   cloudApiGetUser, cloudApiGetFiles, cloudApiGetStorageInfo,
-  cloudApiGetCategories, cloudApiDeleteFile, hasElectronAPI,
+  cloudApiGetCategories, cloudApiDeleteFile, hasElectronAPI, getCloudApiUrlSetting,
 } from "./api"
 import { formatBytes, timeAgo } from "./utils"
 import { CloudAuthModal } from "./cloud-auth-modal"
@@ -29,6 +29,7 @@ export function CloudPage() {
   const [isAuthLoading, setIsAuthLoading] = useState(true)
   const [showBuildUploadModal, setShowBuildUploadModal] = useState(false)
   const [localBuilds, setLocalBuilds] = useState<LocalBuild[]>([])
+  const [cloudApiUrl, setCloudApiUrl] = useState("http://87.121.82.248:3001/api")
 
   const getLocalBuildIcon = useCallback((name: string): string | undefined => {
     const n = name.trim().toLowerCase()
@@ -107,6 +108,8 @@ export function CloudPage() {
   }, [])
 
   useEffect(() => { checkAuth() }, [checkAuth])
+
+  useEffect(() => { getCloudApiUrlSetting().then(setCloudApiUrl) }, [])
 
   useEffect(() => {
     if (!user) return
@@ -213,6 +216,10 @@ export function CloudPage() {
             <h2 className="text-xl font-semibold text-foreground">{t("cloud.title")}</h2>
             <p className="text-sm text-muted-foreground mt-1">
               {user ? t("cloud.usage", { size: storageInfo.usedFormatted }) : t("cloud.loginRequired")}
+            </p>
+            <p className="text-xs text-muted-foreground/60 mt-0.5 flex items-center gap-1">
+              <IconCloud className="w-3 h-3" strokeWidth={1.5} />
+              {cloudApiUrl}
             </p>
           </div>
           <div className="flex items-center gap-2">

@@ -41,20 +41,24 @@ for (const packageDirName of localPackages) {
   }
 
   const targetDir = path.join(rootDir, "node_modules", ...packageName.split("/"))
+  const relativeTarget = path.relative(path.dirname(targetDir), packageDir)
+  const linkType = process.platform === "win32" ? "junction" : "dir"
   try {
     if (existsSync(targetDir)) {
       const stat = lstatSync(targetDir)
       if (!stat.isSymbolicLink()) {
         rmSync(targetDir, { recursive: true, force: true })
+      } else {
+        throw new Error("skip")
       }
     } else {
       mkdirSync(path.dirname(targetDir), { recursive: true })
     }
-    const relativeTarget = path.relative(path.dirname(targetDir), packageDir)
-    const linkType = process.platform === "win32" ? "junction" : "dir"
     symlinkSync(relativeTarget, targetDir, linkType)
   } catch (err) {
-    console.warn(`[sync-local-xnlc] Could not link ${packageName}:`, err)
+    if (err.message !== "skip") {
+      console.warn(`[sync-local-xnlc] Could not link ${packageName}:`, err)
+    }
   }
 
   console.log(`[sync-local-xnlc] Synced ${packageName}`)

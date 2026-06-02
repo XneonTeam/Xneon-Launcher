@@ -83,6 +83,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
 }: InstanceContentTabProps) {
   const { t } = useTranslation()
   const installedItems = type === "mods" ? activeBuild.mods : type === "resourcepacks" ? activeBuild.resourcepacks : activeBuild.shaders
+  const installedModsMap = type === "mods" ? (activeBuild.installedMods ?? {}) : {}
   const emptyStateText = type === "mods" ? t("builds.findMods") : type === "resourcepacks" ? t("builds.findResourcePacks") : t("builds.findShaders")
   const notFoundText = type === "mods" ? t("builds.noModsFound") : type === "resourcepacks" ? t("builds.noResourcePacksFound") : t("builds.noShadersFound")
   const visibleProjects = useMemo(
@@ -90,7 +91,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
       const projectProjectId = project.projectId ?? (project.source === "modrinth" ? project.id : undefined)
       const normalizedProjectSlug = normalizeContentIdentity(project.slug)
       const normalizedProjectName = normalizeContentIdentity(project.name)
-      return !installedItems.some(item => {
+      const isInstalled = installedItems.some(item => {
         if (project.source === "modrinth" && projectProjectId && item.source === "modrinth" && item.projectId === projectProjectId) {
           return true
         }
@@ -99,17 +100,37 @@ export const InstanceContentTab = memo(function InstanceContentTab({
         }
         const normalizedItemSlug = normalizeContentIdentity(item.slug)
         const normalizedItemName = normalizeContentIdentity(item.name)
-        return Boolean(normalizedProjectSlug) && (
+        if (Boolean(normalizedProjectSlug) && (
           normalizedItemSlug === normalizedProjectSlug
           || normalizedItemSlug === normalizedProjectName
           || normalizedItemName === normalizedProjectSlug
           || normalizedItemName === normalizedProjectName
           || normalizedItemSlug.includes(normalizedProjectName)
-          || normalizedProjectSlug.includes(normalizedItemName)
-        )
+          || normalizedProjectSlug.includes(normalizedItemSlug)
+        )) {
+          return true
+        }
+        if (normalizedProjectSlug) {
+          const itemNameNoVersion = normalizedItemName.replace(/(?:v?\d[\d.]*\w*)$/, "")
+          const projNameNoVersion = normalizedProjectName.replace(/(?:v?\d[\d.]*\w*)$/, "")
+          if (itemNameNoVersion && projNameNoVersion && (itemNameNoVersion !== normalizedItemName || projNameNoVersion !== normalizedProjectName)) {
+            if (itemNameNoVersion === projNameNoVersion) return true
+            if (projNameNoVersion.includes(itemNameNoVersion)) return true
+            if (itemNameNoVersion.includes(projNameNoVersion)) return true
+          }
+        }
+        return false
       })
+      if (isInstalled) return false
+      if (project.source === "modrinth" && normalizedProjectSlug) {
+        return !Object.keys(installedModsMap).some(key => {
+          const normalizedKey = normalizeContentIdentity(key)
+          return normalizedKey.includes(normalizedProjectSlug) || normalizedProjectSlug.includes(normalizedKey)
+        })
+      }
+      return true
     }),
-    [displayResults, installedItems],
+    [displayResults, installedItems, installedModsMap],
   )
   const totalPages = useMemo(() => Math.max(1, Math.ceil(modTotalHits / MODS_PER_PAGE)), [modTotalHits])
   const handlePageChange = useCallback((p: number) => {
