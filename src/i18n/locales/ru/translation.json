@@ -201,6 +201,7 @@
   "cloud.noDataDesc": "Загрузите файлы для синхронизации",
   "cloud.logout": "Выйти",
   "cloud.uploadBuild": "Загрузить сборку",
+  "cloud.upload": "Загрузить",
   "cloud.usage": "Используется {{size}} из облачного хранилища",
   "cloud.syncing": "Синхронизация... {{progress}}%",
   "cloud.sync": "Синхронизировать",

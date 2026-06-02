@@ -1,4 +1,4 @@
-import { app, ipcMain } from "electron"
+import { app, ipcMain, dialog, BrowserWindow } from "electron"
 import path from "path"
 import fs from "fs"
 import axios from "axios"
@@ -168,30 +168,49 @@ export function registerCloudHandlers() {
     }
   })
 
-  ipcMain.handle("cloud:upload-file", async (_event, filePath: string, cloudToken: string, category: string): Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }> => {
+  ipcMain.handle("cloud:select-and-upload-account", async (_event, cloudToken: string): Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }> => {
     try {
-      if (!fs.existsSync(filePath)) return { success: false, error: "Файл не найден" }
-      const fileName = path.basename(filePath)
-      const fileBuffer = fs.readFileSync(filePath)
-      const form = new FormData()
-      form.append("file", fileBuffer, { filename: fileName, contentType: "application/octet-stream" })
-      form.append("category", category)
-
-      const baseUrl = await cloudApiUrl()
-      const response = await axios.post(`${baseUrl}/files/upload`, form, {
-        headers: { Authorization: `Bearer ${cloudToken}`, ...form.getHeaders() },
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
+      const win = BrowserWindow.getFocusedWindow()
+      if (!win) return { success: false, error: "Окно не найдено" }
+      const result = await dialog.showOpenDialog(win, {
+        properties: ["openFile"],
+        filters: [{ name: "Все файлы", extensions: ["*"] }],
       })
-
-      if (response.status < 200 || response.status >= 300) {
-        const errorMsg = response.data?.detail ?? response.data?.error ?? `HTTP ${response.status}`
-        return { success: false, error: errorMsg }
-      }
-
-      return { success: true, id: response.data.id, name: response.data.name, size: response.data.size }
+      if (result.canceled || result.filePaths.length === 0) return { success: false, error: "Отменено" }
+      return await handleUploadFile(result.filePaths[0], cloudToken, "account")
     } catch (e) {
       return { success: false, error: safeErrorMessage(e) }
     }
   })
+
+  ipcMain.handle("cloud:upload-file", async (_event, filePath: string, cloudToken: string, category: string): Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }> => {
+    try {
+      return await handleUploadFile(filePath, cloudToken, category)
+    } catch (e) {
+      return { success: false, error: safeErrorMessage(e) }
+    }
+  })
+
+  async function handleUploadFile(filePath: string, cloudToken: string, category: string): Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }> {
+    if (!fs.existsSync(filePath)) return { success: false, error: "Файл не найден" }
+    const fileName = path.basename(filePath)
+    const fileBuffer = fs.readFileSync(filePath)
+    const form = new FormData()
+    form.append("file", fileBuffer, { filename: fileName, contentType: "application/octet-stream" })
+    form.append("category", category)
+
+    const baseUrl = await cloudApiUrl()
+    const response = await axios.post(`${baseUrl}/files/upload`, form, {
+      headers: { Authorization: `Bearer ${cloudToken}`, ...form.getHeaders() },
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+    })
+
+    if (response.status < 200 || response.status >= 300) {
+      const errorMsg = response.data?.detail ?? response.data?.error ?? `HTTP ${response.status}`
+      return { success: false, error: errorMsg }
+    }
+
+    return { success: true, id: response.data.id, name: response.data.name, size: response.data.size }
+  }
 }

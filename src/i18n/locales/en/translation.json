@@ -200,6 +200,7 @@
   "cloud.noDataDesc": "Upload files to sync",
   "cloud.logout": "Log Out",
   "cloud.uploadBuild": "Upload build",
+  "cloud.upload": "Upload",
   "cloud.usage": "{{size}} used of cloud storage",
   "cloud.syncing": "Syncing... {{progress}}%",
   "cloud.sync": "Sync",
