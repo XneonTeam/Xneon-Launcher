@@ -229,7 +229,7 @@ export function CloudPage() {
 
       {showUploadChoice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowUploadChoice(false)}>
-          <div className="w-80 rounded-2xl bg-card border border-border shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="p-4 border-b border-border">
               <h3 className="text-lg font-semibold text-foreground">{t("cloud.upload")}</h3>
             </div>
@@ -265,7 +265,7 @@ export function CloudPage() {
 
       {showAccountPicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowAccountPicker(false)}>
-          <div className="w-96 rounded-2xl bg-card border border-border shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-lg mx-4 rounded-2xl bg-card border border-border shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="p-4 border-b border-border">
               <h3 className="text-lg font-semibold text-foreground">Выберите аккаунт</h3>
             </div>
