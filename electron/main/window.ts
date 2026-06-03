@@ -19,7 +19,7 @@ export function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      devTools: false,
+      devTools: isDev,
     },
   })
 
@@ -68,6 +68,9 @@ export function createWindow() {
 }
 
 export function registerWindowLifecycle() {
+  // Suppress Chromium GPU disk cache errors (cache folder access denied in dev)
+  app.commandLine.appendSwitch("disable-gpu-shader-disk-cache")
+
   ipcMain.handle("window:is-maximized", () => getMainWindow()?.isMaximized() ?? false)
 
   ipcMain.on("window:minimize", () => getMainWindow()?.minimize())

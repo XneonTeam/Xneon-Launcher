@@ -1,9 +1,5 @@
-// ============================================================
-// XNLC — Version Resolver
 // Resolves version inheritance and builds complete version data
 // Author: MAINER4IK
-// ============================================================
-
 import { VersionJson, VersionJsonLibrary, VersionJsonRule } from "../types/index.js";
 import { MetaClient } from "./meta-client.js";
 import { checkRules } from "../utils/index.js";
@@ -32,7 +28,7 @@ export class VersionResolver {
     // Merge libraries (child overrides parent)
     const mergedLibraries = this.mergeLibraries(resolved.libraries, versionJson.libraries, osInfo);
 
-    // Prism Launcher style +libraries
+    // Handle +libraries extensions
     const plusLibraries = (versionJson as any)["+libraries"];
     if (Array.isArray(plusLibraries)) {
       mergedLibraries.push(...plusLibraries);
@@ -44,7 +40,7 @@ export class VersionResolver {
       mergedArgs = this.mergeArguments(mergedArgs, versionJson.arguments) as NonNullable<VersionJson["arguments"]>;
     }
 
-    // Prism Launcher style +jvmArgs and +gameArgs
+    // Handle +jvmArgs and +gameArgs extensions
     const plusJvmArgs = (versionJson as any)["+jvmArgs"];
     if (Array.isArray(plusJvmArgs)) {
       mergedArgs.jvm = [...(mergedArgs.jvm ?? []), ...plusJvmArgs];
@@ -54,7 +50,7 @@ export class VersionResolver {
       mergedArgs.game = [...(mergedArgs.game ?? []), ...plusGameArgs];
     }
 
-    // Handle +tweakers (often found in Prism meta)
+    // Handle +tweakers extension
     const plusTweakers = (versionJson as any)["+tweakers"];
     if (Array.isArray(plusTweakers) && plusTweakers.length > 0) {
       if (!mergedArgs.game) mergedArgs.game = [];

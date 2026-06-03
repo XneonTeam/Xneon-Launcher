@@ -1,9 +1,5 @@
-// ============================================================
-// XNLC — LiteLoader Handler
-// Handles LiteLoader installation via Prism Meta (Prism Style)
+// Handles LiteLoader installation via loader meta
 // Author: MAINER4IK
-// ============================================================
-
 import * as path from "path";
 import * as fs from "fs";
 import { 
@@ -12,31 +8,31 @@ import {
   VersionJson 
 } from "../types/index.js";
 import { Downloader } from "../core/downloader.js";
-import type { PrismMetaClient } from "../core/prism-meta-client.js";
-import { getPrismMetaClient } from "../core/prism-meta-client-singleton.js";
+import type { LoaderMetaClient } from "../core/loader-meta-client.js";
+import { getLoaderMetaClient } from "../core/loader-meta-client-singleton.js";
 import { MetaClient } from "../core/meta-client.js";
 import type { ILoaderHandler } from "./types.js";
 
 export class LiteLoaderHandler implements ILoaderHandler {
-  private prismMetaClient: PrismMetaClient;
+  private loaderMetaClient: LoaderMetaClient;
 
   constructor(
     private downloader: Downloader,
     private metaClient: MetaClient,
     private gameDir: string,
   ) {
-    this.prismMetaClient = getPrismMetaClient();
+    this.loaderMetaClient = getLoaderMetaClient();
   }
 
   async getVersions(mcVersion: string): Promise<string[]> {
-    const index = await this.prismMetaClient.getIndex("com.mumfrey.liteloader");
+    const index = await this.loaderMetaClient.getIndex("com.mumfrey.liteloader");
     return index.versions
       .filter(v => v.requires.some(r => r.uid === "net.minecraft" && r.equals === mcVersion))
       .map(v => v.version);
   }
 
   async getSupportedMinecraftVersions(): Promise<string[]> {
-    const index = await this.prismMetaClient.getIndex("com.mumfrey.liteloader");
+    const index = await this.loaderMetaClient.getIndex("com.mumfrey.liteloader");
     const mcVersions = new Set<string>();
     index.versions.forEach(v => {
       v.requires.forEach(r => {
@@ -58,8 +54,8 @@ export class LiteLoaderHandler implements ILoaderHandler {
   ): Promise<LoaderInstallResult> {
     console.log(`[LiteLoaderHandler] Installing LiteLoader ${liteloaderVersion} for Minecraft ${mcVersion}`);
 
-    const prismLite = await this.prismMetaClient.getVersion("com.mumfrey.liteloader", liteloaderVersion);
-    if (!prismLite) throw new Error(`LiteLoader ${liteloaderVersion} not found in Prism Meta`);
+    const metaLite = await this.loaderMetaClient.getVersion("com.mumfrey.liteloader", liteloaderVersion);
+    if (!metaLite) throw new Error(`LiteLoader ${liteloaderVersion} not found in loader meta`);
 
     const baseMcJson = await this.metaClient.fetchVersionJson(mcVersion);
     
@@ -73,20 +69,20 @@ export class LiteLoaderHandler implements ILoaderHandler {
       time: new Date().toISOString(),
       releaseTime: new Date().toISOString(),
       type: "modified",
-      mainClass: prismLite.mainClass || baseMcJson.mainClass,
+      mainClass: metaLite.mainClass || baseMcJson.mainClass,
       inheritsFrom: mcVersion,
       jar: mcVersion,
       libraries: [
-        ...(prismLite.libraries || []),
+        ...(metaLite.libraries || []),
         ...(baseMcJson.libraries || [])
       ],
-      traits: prismLite["+traits"]
+      traits: metaLite["+traits"]
     };
 
-    if (prismLite.arguments) {
+    if (metaLite.arguments) {
       versionJson.arguments = {
-        game: [...(prismLite.arguments.game || []), ...(baseMcJson.arguments?.game || [])],
-        jvm: [...(prismLite.arguments.jvm || []), ...(baseMcJson.arguments?.jvm || [])],
+        game: [...(metaLite.arguments.game || []), ...(baseMcJson.arguments?.game || [])],
+        jvm: [...(metaLite.arguments.jvm || []), ...(baseMcJson.arguments?.jvm || [])],
       };
     }
 

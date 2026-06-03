@@ -20,3 +20,13 @@ This file provides guidance to agents when working with code in this repository.
 - **`components.json` says `iconLibrary: "lucide"`** but project actually uses `@tabler/icons-react`
 - **Frameless window** with custom title bar (`src/TitleBar.tsx`); `devTools: false` in production
 - **Data directory** varies by OS: Win=`%APPDATA%/xneonlauncher`, macOS=`~/Library/Application Support/xneonlauncher`, Linux=`~/.xneonlauncher`
+
+## Anchored Summary (Session: Prism Cleanup + Modrinth App)
+- **Goal**: Remove non-import Prism/MultiMC/XMCL branding from codebase; add Modrinth App launcher discovery; fix AstralRinth Windows/macOS paths; write proper README.
+- **Prism meta client → Loader meta client**: `prism-meta-client.ts` → `loader-meta-client.ts`, `PrismMetaClient` → `LoaderMetaClient`, `getPrismMetaClient` → `getLoaderMetaClient`, types prefixed `PrismMeta*` → `LoaderMeta*`, URL key `URLS.official.prism` → `URLS.official.loader`. Env var names `XNLC_URL_PRISM_META` and `XNLC_URL_PRISM_FILES` kept for backward compat.
+- **Handler file updates**: All 5 handler files (`fabric-handler.ts`, `forge-handler.ts`, `neoforge-handler.ts`, `quilt-handler.ts`, `liteloader-handler.ts`) updated imports, class names, variable names, comments. `loader-resolver.ts` also updated.
+- **Comment cleanup**: Removed "Prism Style", "Prism Launcher", "Prism Meta" comments from `version-resolver.ts`, `libraries-manager.ts`, `downloader.ts`, `meta-client.ts`, handler files.
+- **Modrinth App**: Discovered at `%APPDATA%\ModrinthApp\profiles` on Win, reads `app.db` SQLite (via `sql.js`), extracts icon from `Modrinth App.exe`.
+- **AstralRinth**: Added `%APPDATA%/astralrinth` (Win) and `~/Library/Application Support/astralrinth` (macOS) paths.
+- **README**: Rewritten with badges, features table, import matrix, architecture diagram, install commands.
+- **Pending**: Commit and push refactoring changes to origin.

@@ -18,7 +18,7 @@ const env = { ...process.env }
 delete env.ELECTRON_RUN_AS_NODE
 delete env.ELECTRON_NO_ATTACH_CONSOLE
 
-const child = spawn(electronBinary, ["."], {
+const child = spawn(electronBinary, ["--no-deprecation", "."], {
   cwd: process.cwd(),
   env,
   stdio: "inherit",

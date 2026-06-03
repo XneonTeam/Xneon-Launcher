@@ -22,8 +22,8 @@ const neoforgeHost = envUrl("XNLC_URL_NEOFORGE_HOST", "https://maven.neoforged.n
 const neoforgeMaven = envUrl("XNLC_URL_NEOFORGE_MAVEN", "https://maven.neoforged.net/releases");
 const neoforgeMirror = envUrl("XNLC_URL_NEOFORGE_MIRROR", "https://mirrors.neoforged.net");
 const forgeMaven = envUrl("XNLC_URL_FORGE_MAVEN", "https://maven.minecraftforge.net");
-const prismMeta = envUrl("XNLC_URL_PRISM_META", "https://meta.prismlauncher.org/v1");
-const prismFiles = envUrl("XNLC_URL_PRISM_FILES", "https://files.prismlauncher.org");
+const loaderMeta = envUrl("XNLC_URL_PRISM_META", "https://meta.prismlauncher.org/v1");
+const loaderFiles = envUrl("XNLC_URL_PRISM_FILES", "https://files.prismlauncher.org");
 const quiltMeta = envUrl("XNLC_URL_QUILT_META", "https://meta.quiltmc.org");
 const quiltMavenHost = envUrl("XNLC_URL_QUILT_MAVEN_HOST", "https://maven.quiltmc.org");
 const quiltMavenRelease = envUrl("XNLC_URL_QUILT_MAVEN_RELEASE", "https://maven.quiltmc.org/repository/release");
@@ -59,9 +59,9 @@ export const URLS = {
     forge: {
       maven: forgeMaven,
     },
-    prism: {
-      meta: prismMeta,
-      files: prismFiles,
+    loader: {
+      meta: loaderMeta,
+      files: loaderFiles,
     },
     quilt: {
       meta: quiltMeta,

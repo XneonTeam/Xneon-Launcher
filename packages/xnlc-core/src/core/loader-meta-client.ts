@@ -1,26 +1,26 @@
 // ============================================================
-// XNLC — Prism Meta Client
-// Client for Prism Launcher metadata
+// XNLC — Loader Meta Client
+// Client for component metadata (version manifests, libraries)
 // ============================================================
 
 import { URLS } from "../constants/urls.js";
-import { PrismMetaIndex, PrismMetaVersion } from "../types/index.js";
+import { LoaderMetaIndex, LoaderMetaVersion } from "../types/index.js";
 
 declare const fetch: typeof globalThis.fetch;
 
-export class PrismMetaClient {
-  private baseUrl: string = URLS.official.prism.meta;
+export class LoaderMetaClient {
+  private baseUrl: string = URLS.official.loader.meta;
 
-  async getIndex(uid: string): Promise<PrismMetaIndex> {
+  async getIndex(uid: string): Promise<LoaderMetaIndex> {
     const res = await fetch(`${this.baseUrl}/${uid}/index.json`);
-    if (!res.ok) throw new Error(`Failed to fetch Prism Meta index for ${uid}: ${res.status}`);
-    return res.json() as Promise<PrismMetaIndex>;
+    if (!res.ok) throw new Error(`Failed to fetch component index for ${uid}: ${res.status}`);
+    return res.json() as Promise<LoaderMetaIndex>;
   }
 
-  async getVersion(uid: string, version: string): Promise<PrismMetaVersion> {
+  async getVersion(uid: string, version: string): Promise<LoaderMetaVersion> {
     const res = await fetch(`${this.baseUrl}/${uid}/${version}.json`);
-    if (!res.ok) throw new Error(`Failed to fetch Prism Meta version ${uid}:${version}: ${res.status}`);
-    return res.json() as Promise<PrismMetaVersion>;
+    if (!res.ok) throw new Error(`Failed to fetch component version ${uid}:${version}: ${res.status}`);
+    return res.json() as Promise<LoaderMetaVersion>;
   }
 
   async resolveLwjgl3Version(mcVersion: string): Promise<string | null> {

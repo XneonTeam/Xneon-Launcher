@@ -17,7 +17,7 @@ async function testForgeLaunch() {
   const selection = {
     mcVersion: "1.5.2",
     loaderType: "forge",
-    loaderVersion: "7.8.1.738", // Последняя версия для 1.5.2 из Prism Meta
+    loaderVersion: "7.8.1.738", // Latest version for 1.5.2 from loader meta
   };
 
   const auth = createLaunchAuth({

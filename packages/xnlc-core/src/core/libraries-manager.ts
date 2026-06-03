@@ -1,9 +1,5 @@
-// ============================================================
-// XNLC — Libraries Manager
-// Component-based library resolution and download (Prism Style)
+// Component-based library resolution and download
 // Author: MAINER4IK
-// ============================================================
-
 import * as path from "path";
 import * as fs from "fs";
 import { VersionJson, VersionJsonLibrary, ResolvedLibrary, OSInfo, DownloadProgressCallback } from "../types/index.js";
@@ -33,7 +29,7 @@ export class LibrariesManager {
     const seenPaths = new Set<string>();
 
     for (const lib of libraries) {
-      // 1. Check rules (Prism style)
+      // 1. Check rules
       if (lib.rules && !checkRules(lib.rules, this.osInfo)) {
         continue;
       }
@@ -62,13 +58,13 @@ export class LibrariesManager {
         }
       }
 
-      // 3. Handle main artifact (Prism/Mojang compatible)
+      // 3. Handle main artifact
       let mainArtifact: { url?: string; sha1?: string; size?: number; path?: string } | undefined;
 
       if (lib.downloads?.artifact) {
         mainArtifact = lib.downloads.artifact;
       } else if (!lib.natives) {
-        // Fallback for libraries without 'downloads' field (common in Prism Meta)
+        // Fallback for libraries without 'downloads' field
         // BUT only if it's not a native-only library.
         const libPath = libraryNameToPath(lib.name);
         const baseUrl = lib.url ? lib.url.replace(/\/$/, "") : URLS.official.mojang.libraries;
