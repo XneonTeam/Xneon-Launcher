@@ -713,7 +713,7 @@ function resolveMcDir(instancePath: string): string {
   return instancePath
 }
 
-function importLauncherInstance(instance: LauncherInstance): { id: string; name: string; description: string; version: string; modLoader: string; loaderVersion?: string; icon: string; coverImage?: string; mods: unknown[]; resourcepacks: unknown[]; shaders: unknown[]; createdAt: string; source: "local"; projectSlug?: string; intentPath: string; installedMods: Record<string, string> } | null {
+function importLauncherInstance(instance: LauncherInstance): { id: string; name: string; description: string; version: string; modLoader: string; loaderVersion?: string; icon: string; coverImage?: string; mods: unknown[]; resourcepacks: unknown[]; shaders: unknown[]; createdAt: string; source: "local"; projectSlug?: string; intentPath: string; installedMods: Record<string, string>; playtime: number } | null {
   try {
     const intentPath = ensureBuildIntentDir(instance.name)
 
@@ -761,6 +761,7 @@ function importLauncherInstance(instance: LauncherInstance): { id: string; name:
       source: "local",
       intentPath,
       installedMods: scanned.installedMods,
+      playtime: 0,
     }
   } catch {
     return null

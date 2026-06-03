@@ -27,6 +27,7 @@ export type Build = {
   memoryMin?: string
   memoryMax?: string
   memoryPreset?: MemoryPreset
+  playtime: number
 }
 
 export type BuildMod = {

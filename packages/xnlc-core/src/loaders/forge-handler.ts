@@ -10,8 +10,9 @@ import { MetaClient } from "../core/meta-client.js";
 import { PrismMetaClient } from "../core/prism-meta-client.js";
 import { ProfileBuilder } from "../core/profile-builder.js";
 import { ensureDirSync, getVersionDir } from "../utils/index.js";
+import type { ILoaderHandler } from "./types.js";
 
-export class ForgeHandler {
+export class ForgeHandler implements ILoaderHandler {
   constructor(
     private downloader: Downloader,
     private metaClient: MetaClient,

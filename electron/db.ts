@@ -4,6 +4,10 @@ import crypto from "node:crypto"
 import { createRequire } from "node:module"
 import { app } from "electron"
 import initSqlJs from "sql.js"
+import type { DbAccount } from "@xnlc/types" with { "resolution-mode": "import" }
+
+// Re-export for backward compatibility with existing imports
+export type { DbAccount }
 
 type SqlJsDatabase = {
   run: (sql: string, params?: unknown[] | Record<string, unknown>) => void
@@ -87,7 +91,14 @@ function ensureDatabase(): SqlJsDatabase {
 
 function queryAll<T>(sql: string, params: unknown[] = []): T[] {
   const db = ensureDatabase()
-  const result = db.exec(sql, params)
+  let result: Array<{ columns: string[]; values: unknown[][] }>
+  try {
+    result = db.exec(sql, params)
+  } catch (e) {
+    console.error(`[DB] queryAll SQL error running: ${sql}`)
+    console.error(`[DB] queryAll Params (${params.length}):`, params.map((p, i) => `${i + 1}: ${typeof p} = ${JSON.stringify(p)}`).join(", "))
+    throw e
+  }
   if (!Array.isArray(result) || result.length === 0) {
     return []
   }
@@ -106,7 +117,13 @@ function queryAll<T>(sql: string, params: unknown[] = []): T[] {
 }
 
 function run(sql: string, params: unknown[] = []) {
-  ensureDatabase().run(sql, params)
+  try {
+    ensureDatabase().run(sql, params)
+  } catch (e) {
+    console.error(`[DB] SQL error running: ${sql}`)
+    console.error(`[DB] Params (${params.length}):`, params.map((p, i) => `${i + 1}: ${typeof p} = ${JSON.stringify(p)}`).join(", "))
+    throw e
+  }
 }
 
 function writeDatabaseToDisk() {
@@ -175,7 +192,8 @@ function initializeSchema() {
       installedMods TEXT NOT NULL DEFAULT '{}',
       createdAt TEXT NOT NULL,
       source TEXT NOT NULL DEFAULT 'local',
-      projectSlug TEXT
+      projectSlug TEXT,
+      playtime INTEGER NOT NULL DEFAULT 0
     )
   `)
 
@@ -206,6 +224,10 @@ function initializeSchema() {
     run("ALTER TABLE builds ADD COLUMN shaders TEXT NOT NULL DEFAULT '[]'")
   }
 
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "playtime")) {
+    run("ALTER TABLE builds ADD COLUMN playtime INTEGER NOT NULL DEFAULT 0")
+  }
+
   if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "intentPath")) {
     run("ALTER TABLE builds ADD COLUMN intentPath TEXT NOT NULL DEFAULT ''")
   }
@@ -216,6 +238,14 @@ function initializeSchema() {
 
   if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "loaderVersion")) {
     run("ALTER TABLE builds ADD COLUMN loaderVersion TEXT")
+  }
+
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "coverImage")) {
+    run("ALTER TABLE builds ADD COLUMN coverImage TEXT")
+  }
+
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "projectSlug")) {
+    run("ALTER TABLE builds ADD COLUMN projectSlug TEXT")
   }
 
   for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
@@ -251,18 +281,6 @@ export async function initDatabase(): Promise<void> {
 
 export function isUsingFallbackStorage(): boolean {
   return dbFallbackMode
-}
-
-export type DbAccount = {
-  id: string
-  type: "elyby" | "xnskins" | "microsoft" | "offline"
-  username: string
-  isActive: boolean
-  uuid?: string
-  accessToken?: string
-  refreshToken?: string
-  clientId?: string
-  skinUrl?: string
 }
 
 function normalizeOfflineAccount(account: DbAccount): DbAccount {
@@ -338,10 +356,7 @@ export async function saveAccount(account: DbAccount): Promise<void> {
     return
   }
 
-  run(`
-    INSERT OR REPLACE INTO accounts (id, type, username, isActive, uuid, accessToken, refreshToken, clientId, skinUrl)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [
+  const accountParams: unknown[] = [
     normalizedAccount.id,
     normalizedAccount.type,
     normalizedAccount.username,
@@ -351,7 +366,18 @@ export async function saveAccount(account: DbAccount): Promise<void> {
     normalizedAccount.refreshToken ?? null,
     normalizedAccount.clientId ?? null,
     normalizedAccount.skinUrl ?? null,
-  ])
+  ]
+  for (let i = 0; i < accountParams.length; i++) {
+    const v = accountParams[i]
+    if (v === undefined || typeof v === "boolean" || typeof v === "bigint") {
+      console.error(`[DB] saveAccount param ${i + 1} for account ${normalizedAccount.id} has unexpected type: ${typeof v}, value: ${JSON.stringify(v)}, coercing to null`)
+      accountParams[i] = null
+    }
+  }
+  run(`
+    INSERT OR REPLACE INTO accounts (id, type, username, isActive, uuid, accessToken, refreshToken, clientId, skinUrl)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, accountParams)
 
   persistDatabase()
 }
@@ -373,6 +399,7 @@ type BuildJson = {
   projectSlug?: string
   intentPath?: string
   installedMods?: Record<string, string>
+  playtime: number
 }
 
 type BuildRow = {
@@ -392,6 +419,7 @@ type BuildRow = {
   createdAt: string
   source: string
   projectSlug: string | null
+  playtime: number
 }
 
 export async function loadBuilds(): Promise<BuildJson[]> {
@@ -419,6 +447,7 @@ export async function loadBuilds(): Promise<BuildJson[]> {
     projectSlug: row.projectSlug ?? undefined,
     intentPath: row.intentPath || undefined,
     installedMods: JSON.parse(row.installedMods || "{}"),
+    playtime: row.playtime ?? 0,
   }))
 }
 
@@ -435,10 +464,7 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
   try {
     run("DELETE FROM builds")
     for (const build of builds) {
-      run(`
-        INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
+      const params: unknown[] = [
         build.id,
         build.name,
         build.description,
@@ -455,7 +481,19 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
         build.createdAt,
         build.source,
         build.projectSlug ?? null,
-      ])
+        build.playtime ?? 0,
+      ]
+      for (let i = 0; i < params.length; i++) {
+        const v = params[i]
+        if (v === undefined || (typeof v === "object" && v !== null) || typeof v === "boolean" || typeof v === "bigint") {
+          console.error(`[DB] saveAllBuilds param ${i + 1} for build ${build.id} has unexpected type: ${typeof v}, value: ${JSON.stringify(v)}, coercing to null`)
+          params[i] = null
+        }
+      }
+      run(`
+        INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, playtime)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, params)
     }
     run("COMMIT")
     persistDatabase()
@@ -467,6 +505,19 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
     }
     throw error
   }
+}
+
+export async function updateBuildPlaytime(buildId: string, seconds: number): Promise<void> {
+  if (!dbAvailable) {
+    const build = inMemoryBuilds.get(buildId)
+    if (build) {
+      build.playtime = (build.playtime ?? 0) + seconds
+    }
+    return
+  }
+
+  run("UPDATE builds SET playtime = playtime + ? WHERE id = ?", [seconds, buildId])
+  persistDatabase()
 }
 
 export const dbHelpers = {
@@ -483,6 +534,7 @@ export const dbHelpers = {
   },
   loadBuilds,
   saveAllBuilds,
+  updateBuildPlaytime,
   getLauncherDirectory: () => ensureDir(getDataDir()),
   getSetting: async (key: string): Promise<string | undefined> => {
     if (!dbAvailable) {

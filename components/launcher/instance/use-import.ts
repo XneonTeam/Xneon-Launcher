@@ -153,7 +153,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
       let intentPath = ""
       try {
         intentPath = await window.electronAPI?.getBuildIntentPath(project.name) ?? ""
-        await window.electronAPI?.setBuildIntentPath(project.name)
+        await window.electronAPI?.setBuildIntentPath(project.name, intentPath)
       } catch {
         // ignore path preparation errors here, import will surface its own failure
       }
@@ -184,6 +184,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
         projectSlug: project.slug,
         intentPath,
         installedMods: importResult?.installedMods ?? {},
+        playtime: 0,
       })
     } catch (error) {
       safeSetImportError(error instanceof Error ? error.message : "Ошибка импорта")
@@ -243,6 +244,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
         source: "curseforge",
         intentPath,
         installedMods: importResult?.installedMods ?? {},
+        playtime: 0,
       })
     } catch (error) {
       safeSetImportError(error instanceof Error ? error.message : "Ошибка импорта")
@@ -316,6 +318,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
         source: result.source ?? "local",
         intentPath: result.intentPath ?? "",
         installedMods: result.installedMods ?? {},
+        playtime: 0,
       })
     } catch (error) {
       safeSetImportError(error instanceof Error ? error.message : "Ошибка импорта")

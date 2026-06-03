@@ -12,8 +12,10 @@ import { CloudAuthModal } from "./cloud-auth-modal"
 import { CloudBuildUploadModal } from "./cloud-build-upload-modal"
 import { CloudFileList } from "./cloud-file-list"
 import type { CloudItem, StorageInfo, CategoryStats, LocalBuild } from "./types"
+import { useAccounts, type Account } from "@/src/AccountsContext"
 
 export function CloudPage() {
+  const { addAccount } = useAccounts()
   const [items, setItems] = useState<CloudItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -175,11 +177,19 @@ export function CloudPage() {
     const token = await getCloudToken()
     if (!token) return
     try {
-      const result = await window.electronAPI?.cloudDownloadFile(token, item.id, item.name)
-      if (!result?.success) throw new Error(result?.error || "Ошибка скачивания")
-      if (result.filePath) alert(`Файл сохранён: ${result.filePath}`)
-    } catch (err) { alert(`Ошибка скачивания: ${err instanceof Error ? err.message : String(err)}`) }
-  }, [])
+      if (item.type === "account" || item.type === "instance") {
+        const result = await window.electronAPI?.cloudDownloadAndImport(token, item.id, item.name, item.type)
+        if (!result?.success) throw new Error(result?.error || "Ошибка импорта")
+        if (result.account) addAccount({ ...result.account, type: result.account.type as Account["type"], isActive: false })
+        if (item.type === "instance") loadLocalBuilds()
+        await fetchFiles()
+      } else {
+        const result = await window.electronAPI?.cloudDownloadFile(token, item.id, item.name)
+        if (!result?.success) throw new Error(result?.error || "Ошибка скачивания")
+        if (result.filePath) alert(`Файл сохранён: ${result.filePath}`)
+      }
+    } catch (err) { alert(`Ошибка: ${err instanceof Error ? err.message : String(err)}`) }
+  }, [fetchFiles, addAccount, loadLocalBuilds])
 
   const handleDelete = useCallback(async (id: string) => {
     if (!confirm("Удалить файл?")) return
@@ -295,7 +305,12 @@ export function CloudPage() {
                   <div key={acc.id}
                     className="flex items-center gap-4 p-3 rounded-xl border border-border bg-muted/30 hover:border-primary/50 transition-all">
                     <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: `${color}20` }}>
-                      <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                      <img src={avatarUrl} alt="" className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const t = e.currentTarget
+                          if (!t.dataset.retried) { t.dataset.retried = "1"; t.src = "https://mcskinapi-three.vercel.app/avatar/Steve?skin_type=microsoft" }
+                          else { t.style.display = "none" }
+                        }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-foreground truncate">{acc.username}</p>

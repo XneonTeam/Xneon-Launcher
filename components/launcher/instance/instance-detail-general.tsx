@@ -8,6 +8,18 @@ import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-op
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
 import type { Build } from "./types"
 
+function formatPlaytime(seconds: number): string {
+  if (seconds < 60) return `${seconds} сек`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes} мин`
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  if (hours < 24) return mins > 0 ? `${hours} ч ${mins} мин` : `${hours} ч`
+  const days = Math.floor(hours / 24)
+  const hrs = hours % 24
+  return hrs > 0 ? `${days} д ${hrs} ч` : `${days} д`
+}
+
 interface InstanceDetailGeneralProps {
   activeBuild: Build
   updateBuild: (id: string, fields: Partial<Build>) => void
@@ -24,9 +36,6 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, fileInputRef }
     : [activeBuild.version, ...visibleVersions.filter((item) => item !== activeBuild.version)]
   const formattedCreatedAt = new Date(activeBuild.createdAt).toLocaleDateString()
   const showLoaderVersionSelect = activeBuild.modLoader !== "vanilla" && activeBuild.modLoader !== "instance"
-  const profileLabel = showLoaderVersionSelect && activeBuild.loaderVersion
-    ? `${activeBuild.modLoader} ${activeBuild.loaderVersion} В· MC ${activeBuild.version}`
-    : `${activeBuild.modLoader} В· MC ${activeBuild.version}`
 
   useEffect(() => {
     if (!showLoaderVersionSelect) {
@@ -96,16 +105,12 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, fileInputRef }
 
           <div className="mt-6 grid gap-3 rounded-2xl border border-border/70 bg-muted/20 p-4 text-left">
             <div>
-              <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Статус</div>
-              <div className="mt-1 text-sm text-foreground">Готова к настройке</div>
+              <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Наиграно</div>
+              <div className="mt-1 text-sm text-foreground">{formatPlaytime(activeBuild.playtime ?? 0)}</div>
             </div>
             <div>
               <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Создана</div>
               <div className="mt-1 text-sm text-foreground">{formattedCreatedAt}</div>
-            </div>
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Профиль</div>
-              <div className="mt-1 text-sm text-foreground">{profileLabel}</div>
             </div>
           </div>
         </div>

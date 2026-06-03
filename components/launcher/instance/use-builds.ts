@@ -215,7 +215,7 @@ export function useBuilds() {
     let intentPath = ""
     try {
       intentPath = await window.electronAPI?.getBuildIntentPath(trimmedName) ?? ""
-      await window.electronAPI?.setBuildIntentPath(trimmedName)
+      await window.electronAPI?.setBuildIntentPath(trimmedName, intentPath)
     } catch {}
     setBuilds(prev => [{
       id, name: trimmedName, description: params.description.trim(),
@@ -223,7 +223,7 @@ export function useBuilds() {
       icon: params.icon, coverImage: params.icon || undefined,
       mods: [], resourcepacks: [], shaders: [],
       createdAt: new Date().toISOString(), source: "local",
-      intentPath, installedMods: {},
+      intentPath, installedMods: {}, playtime: 0,
     }, ...prev])
   }, [])
 

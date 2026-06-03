@@ -55,3 +55,40 @@ all-icons_old_no_delete_noedit.json
 
 # Electron builder output artifacts
 *.blockmap
+
+# Cloud server (separate project)
+cloud-server/
+
+# AI/tool workspace dirs
+.opencode/
+.kilo/
+.playwright-mcp/
+.codex/
+.roo/
+plans/
+
+# Cloud server data
+data/
+*.db
+*.db-shm
+*.db-wal
+.npmrc
+
+# Temp debug/deploy/test scripts
+check-*.js
+check_*.py
+deploy*.js
+deploy*.sh
+force-*.js
+get_session.py
+launch-*.mjs
+launch-*.js
+rebuild-*.js
+restart-*.js
+ssh-check.js
+test-*.js
+test-*.mjs
+update-*.js
+
+# Temp docs
+PRODUCT_SPECIFICATION.md

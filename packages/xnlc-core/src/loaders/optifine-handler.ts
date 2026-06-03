@@ -17,6 +17,7 @@ import { Downloader } from "../core/downloader.js";
 import { MetaClient } from "../core/meta-client.js";
 import { ensureDirSync, getLibraryDir, getVersionDir } from "../utils/index.js";
 import { URLS } from "../constants/urls.js";
+import type { ILoaderHandler } from "./types.js";
 
 const OPTIFINE_BASE = URLS.official.optifine.root;
 const LAUNCHWRAPPER_URL = `${URLS.official.mojang.libraries}/net/minecraft/launchwrapper/1.12/launchwrapper-1.12.jar`;
@@ -68,7 +69,7 @@ export function optifineVersionId(mcVersion: string, filename: string): string {
   return `${mcVersion}-OptiFine_${parsed.edition}_${parsed.release}`;
 }
 
-export class OptifineHandler {
+export class OptifineHandler implements ILoaderHandler {
   constructor(
     private downloader: Downloader,
     private metaClient: MetaClient,
@@ -144,7 +145,7 @@ export class OptifineHandler {
     return versions;
   }
 
-  async getVersions(mcVersion: string): Promise<OptifineVersion[]> {
+  async getOptifineVersions(mcVersion: string): Promise<OptifineVersion[]> {
     const res = await fetch(URLS.official.optifine.downloads);
     if (!res.ok) {
       throw new Error(`Failed to fetch OptiFine downloads: ${res.status}`);
@@ -173,7 +174,7 @@ export class OptifineHandler {
     return versions;
   }
 
-  async getRecommendedVersion(mcVersion: string): Promise<OptifineVersion | undefined> {
+  async getOptifineRecommended(mcVersion: string): Promise<OptifineVersion | undefined> {
     return this.findVersion(mcVersion, (version) => !version.isPreview);
   }
 
@@ -259,7 +260,7 @@ export class OptifineHandler {
   }
 
   private async resolveInstallerInfo(mcVersion: string, loaderVersion: string): Promise<OptifineInstallerInfo> {
-    const versions = await this.getVersions(mcVersion);
+    const versions = await this.getOptifineVersions(mcVersion);
     const matched = versions.find((version) =>
       version.filename === loaderVersion
       || `${version.edition}_${version.release}` === loaderVersion
@@ -283,7 +284,7 @@ export class OptifineHandler {
     mcVersion: string,
     predicate: (version: OptifineVersion) => boolean,
   ): Promise<OptifineVersion | undefined> {
-    return (await this.getVersions(mcVersion)).find(predicate);
+    return (await this.getOptifineVersions(mcVersion)).find(predicate);
   }
 
   private async extractBundledLaunchwrapper(installerJar: string, launchWrapperVersion?: string): Promise<void> {

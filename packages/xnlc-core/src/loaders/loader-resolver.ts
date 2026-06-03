@@ -1,6 +1,7 @@
 // ============================================================
 // XNLC — Loader Resolver
 // Determines which loader handler to use based on version
+// Handlers are created lazily on first access
 // Author: MAINER4IK
 // ============================================================
 
@@ -16,69 +17,84 @@ import { OptifineHandler } from "./optifine-handler.js";
 import { CustomVersionHandler } from "./custom-version-handler.js";
 import { Downloader } from "../core/downloader.js";
 import { MetaClient } from "../core/meta-client.js";
-import { PrismMetaClient } from "../core/prism-meta-client.js";
+import { getPrismMetaClient } from "../core/prism-meta-client-singleton.js";
 import { isLegacyFabric } from "../utils/index.js";
 
 type ResolvedLoaderType = Exclude<LoaderType, "vanilla">;
 
 export class LoaderResolver {
-  private forgeHandler: ForgeHandler;
-  private neoforgeHandler: NeoForgeHandler;
-  private prismMetaClient: PrismMetaClient;
-  private fabricHandler: FabricHandler;
-  private fabricLegacyHandler: FabricLegacyHandler;
-  private liteloaderHandler: LiteLoaderHandler;
-  private quiltHandler: QuiltHandler;
-  private optifineHandler: OptifineHandler;
-  private customVersionHandler: CustomVersionHandler;
+  private _forgeHandler?: ForgeHandler;
+  private _neoforgeHandler?: NeoForgeHandler;
+  private _fabricHandler?: FabricHandler;
+  private _fabricLegacyHandler?: FabricLegacyHandler;
+  private _liteloaderHandler?: LiteLoaderHandler;
+  private _quiltHandler?: QuiltHandler;
+  private _optifineHandler?: OptifineHandler;
+  private _customVersionHandler?: CustomVersionHandler;
 
   constructor(
-    downloader: Downloader,
-    metaClient: MetaClient,
-    gameDir: string,
-    customVersionsDir?: string,
-  ) {
-    this.prismMetaClient = new PrismMetaClient();
-    this.forgeHandler = new ForgeHandler(downloader, metaClient, this.prismMetaClient, gameDir);
-    this.neoforgeHandler = new NeoForgeHandler(downloader, metaClient, gameDir);
-    this.fabricHandler = new FabricHandler(downloader, gameDir, metaClient);
-    this.fabricLegacyHandler = new FabricLegacyHandler(downloader, gameDir);
-    this.liteloaderHandler = new LiteLoaderHandler(downloader, metaClient, gameDir);
-    this.quiltHandler = new QuiltHandler(downloader, gameDir, metaClient);
-    this.optifineHandler = new OptifineHandler(downloader, metaClient, gameDir);
-    this.customVersionHandler = new CustomVersionHandler(customVersionsDir || path.join(process.env.HOME || "", ".xnlc", "versions"));
+    private downloader: Downloader,
+    private metaClient: MetaClient,
+    private gameDir: string,
+    private customVersionsDir?: string,
+  ) {}
+
+  getForgeHandler(): ForgeHandler {
+    if (!this._forgeHandler) {
+      this._forgeHandler = new ForgeHandler(this.downloader, this.metaClient, getPrismMetaClient(), this.gameDir);
+    }
+    return this._forgeHandler;
   }
 
   getNeoForgeHandler(): NeoForgeHandler {
-    return this.neoforgeHandler;
-  }
-
-  getForgeHandler(): ForgeHandler {
-    return this.forgeHandler;
+    if (!this._neoforgeHandler) {
+      this._neoforgeHandler = new NeoForgeHandler(this.downloader, this.metaClient, this.gameDir);
+    }
+    return this._neoforgeHandler;
   }
 
   getFabricHandler(): FabricHandler {
-    return this.fabricHandler;
+    if (!this._fabricHandler) {
+      this._fabricHandler = new FabricHandler(this.downloader, this.gameDir, this.metaClient);
+    }
+    return this._fabricHandler;
   }
 
   getFabricLegacyHandler(): FabricLegacyHandler {
-    return this.fabricLegacyHandler;
+    if (!this._fabricLegacyHandler) {
+      this._fabricLegacyHandler = new FabricLegacyHandler(this.downloader, this.gameDir);
+    }
+    return this._fabricLegacyHandler;
   }
 
   getLiteLoaderHandler(): LiteLoaderHandler {
-    return this.liteloaderHandler;
+    if (!this._liteloaderHandler) {
+      this._liteloaderHandler = new LiteLoaderHandler(this.downloader, this.metaClient, this.gameDir);
+    }
+    return this._liteloaderHandler;
   }
 
   getQuiltHandler(): QuiltHandler {
-    return this.quiltHandler;
+    if (!this._quiltHandler) {
+      this._quiltHandler = new QuiltHandler(this.downloader, this.gameDir, this.metaClient);
+    }
+    return this._quiltHandler;
   }
 
   getOptifineHandler(): OptifineHandler {
-    return this.optifineHandler;
+    if (!this._optifineHandler) {
+      this._optifineHandler = new OptifineHandler(this.downloader, this.metaClient, this.gameDir);
+    }
+    return this._optifineHandler;
   }
 
   getCustomVersionHandler(): CustomVersionHandler {
-    return this.customVersionHandler;
+    if (!this._customVersionHandler) {
+      this._customVersionHandler = new CustomVersionHandler(
+        this.customVersionsDir || path.join(process.env.HOME || "", ".xnlc", "versions"),
+      );
+    }
+    return this._customVersionHandler;
   }
 
   getHandler(loaderType: ResolvedLoaderType):
@@ -92,21 +108,21 @@ export class LoaderResolver {
     | CustomVersionHandler {
     switch (loaderType) {
       case "forge":
-        return this.forgeHandler;
+        return this.getForgeHandler();
       case "neoforge":
-        return this.neoforgeHandler;
+        return this.getNeoForgeHandler();
       case "fabric":
-        return this.fabricHandler;
+        return this.getFabricHandler();
       case "fabric-legacy":
-        return this.fabricLegacyHandler;
+        return this.getFabricLegacyHandler();
       case "liteloader":
-        return this.liteloaderHandler;
+        return this.getLiteLoaderHandler();
       case "quilt":
-        return this.quiltHandler;
+        return this.getQuiltHandler();
       case "optifine":
-        return this.optifineHandler;
+        return this.getOptifineHandler();
       case "custom":
-        return this.customVersionHandler;
+        return this.getCustomVersionHandler();
     }
   }
 
@@ -120,7 +136,7 @@ export class LoaderResolver {
       throw new Error("Vanilla does not require loader installation");
     }
     if (loaderType === "custom") {
-      return this.customVersionHandler.install(loaderVersion, mcVersion, onProgress);
+      return this.getCustomVersionHandler().install(loaderVersion, mcVersion, onProgress);
     }
     return this.getHandler(loaderType).install(mcVersion, loaderVersion, onProgress);
   }

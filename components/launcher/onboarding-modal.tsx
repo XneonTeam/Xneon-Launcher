@@ -1005,7 +1005,12 @@ export function OnboardingModal({
                   )}
                 >
                   <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl">
-                    <img src={getAvatarUrl(account, account.username)} alt="" className="h-full w-full object-cover" />
+                    <img src={getAvatarUrl(account, account.username)} alt="" className="h-full w-full object-cover"
+                      onError={(e) => {
+                        const t = e.currentTarget
+                        if (!t.dataset.retried) { t.dataset.retried = "1"; t.src = "https://mcskinapi-three.vercel.app/avatar/Steve?skin_type=microsoft" }
+                        else { t.style.display = "none" }
+                      }} />
                   </div>
 
                   <div className="min-w-0 flex-1">

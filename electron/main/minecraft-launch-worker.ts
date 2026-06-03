@@ -2,72 +2,11 @@ import fs from "fs"
 import path from "path"
 import { spawnSync } from "child_process"
 import type { ChildProcess } from "child_process"
-import iconv from "iconv-lite"
 import type { LoaderType } from "@xnlc/core" with { "resolution-mode": "import" }
+import type { WorkerLaunchPayload } from "@xnlc/types" with { "resolution-mode": "import" }
 
 let minecraftProcess: ChildProcess | null = null
 let launchStarted = false
-
-class OutputRelay {
-  private buffer = ""
-  private suppressingMinecraftResources = false
-
-  constructor(
-    private readonly channel: "stdout" | "stderr",
-    private readonly sendFn: (payload: Record<string, unknown>) => void,
-  ) {}
-
-  push(chunk: Buffer | string): void {
-    const text = typeof chunk === "string" ? chunk : iconv.decode(chunk, "cp866")
-    this.buffer += text
-    const lines = this.buffer.split(/\r?\n/)
-    this.buffer = lines.pop() ?? ""
-
-    for (const line of lines) {
-      this.processLine(line)
-    }
-  }
-
-  flush(): void {
-    if (!this.buffer) return
-    this.processLine(this.buffer)
-    this.buffer = ""
-  }
-
-  private processLine(line: string): void {
-    if (this.shouldSuppressMinecraftResourcesLine(line)) {
-      return
-    }
-
-    this.sendFn({ type: this.channel, data: `${line}\n` })
-  }
-
-  private shouldSuppressMinecraftResourcesLine(line: string): boolean {
-    const trimmed = line.trim()
-    const startsMinecraftResources = trimmed === "java.io.FileNotFoundException: http://s3.amazonaws.com/MinecraftResources/"
-
-    if (startsMinecraftResources) {
-      this.suppressingMinecraftResources = true
-      return true
-    }
-
-    if (!this.suppressingMinecraftResources) {
-      return false
-    }
-
-    if (!trimmed) {
-      this.suppressingMinecraftResources = false
-      return true
-    }
-
-    if (trimmed.startsWith("at ") || trimmed === "Caused by:" || trimmed.startsWith("Caused by: ")) {
-      return true
-    }
-
-    this.suppressingMinecraftResources = false
-    return false
-  }
-}
 
 function normalizeJavaPath(javaPath?: string): string | undefined {
   if (!javaPath) return javaPath
@@ -193,49 +132,13 @@ function resolveRetroAuthServer(accountType?: string): string {
   return "https://skins.xneon.org"
 }
 
-type AccountPayload = {
-  type: string
-  username: string
-  uuid?: string
-  accessToken?: string
-}
-
-type LaunchPayload = {
-  gameDir: string
-  account: AccountPayload
-  options: {
-    mcVersion: string
-    loaderType: string
-    loaderVersion?: string
-    memoryMin: string
-    memoryMax: string
-    width: number
-    height: number
-    javaPath?: string
-    retroauthEnabled: boolean
-    useBmclapi?: boolean
-  }
-}
-
-// Standalone shape matching the Xnlc surface the worker uses.
-// Cannot extend Xnlc from @xnlc/core because osInfo and getRequiredJavaVersion are private.
-type XnlcWorker = {
-  osInfo: Record<string, unknown>
-  versionResolver: { resolveVersion(mcVersion: string, osInfo: Record<string, unknown>): Promise<unknown> }
-  getRequiredJavaVersion(baseVersionJson: unknown, options: { mcVersion: string; loaderType: string; loaderVersion?: string }): number | null
-  javaManager: { findOrDownloadJava(version: number | null, javaPath?: string, onProgress?: (pct: number) => void): Promise<{ path: string }> }
-  javaRunner: { setPipeOutputToConsole(v: boolean): void; getCurrentProcess?: () => import("child_process").ChildProcess | null }
-  launch(mcVersion: string, loaderType: string, loaderVersion: string | undefined, auth: unknown, options: unknown, progressCb: unknown): Promise<unknown>
-  setPipeOutputToConsole?: (v: boolean) => void
-}
-
-async function resolveRequiredJavaVersionForPayload(xnlc: unknown, payload: LaunchPayload): Promise<number | null> {
+async function resolveRequiredJavaVersionForPayload(xnlc: unknown, payload: WorkerLaunchPayload): Promise<number | null> {
   if (payload.options.loaderType === "custom") {
     return null
   }
 
   try {
-    const w = xnlc as XnlcWorker
+    const w = xnlc as any
     const baseVersionJson = await w.versionResolver.resolveVersion(payload.options.mcVersion, w.osInfo)
     return w.getRequiredJavaVersion(baseVersionJson, {
       mcVersion: payload.options.mcVersion,
@@ -248,7 +151,7 @@ async function resolveRequiredJavaVersionForPayload(xnlc: unknown, payload: Laun
   }
 }
 
-async function prepareJavaEnvironmentForInstallers(xnlc: unknown, payload: LaunchPayload, javaPath?: string): Promise<void> {
+async function prepareJavaEnvironmentForInstallers(xnlc: unknown, payload: WorkerLaunchPayload, javaPath?: string): Promise<void> {
   const seeded = seedKnownJavaRuntimes(payload.gameDir, javaPath)
   if (seeded.length > 0) {
     debug(`Seeded Java PATH entries from ${seeded.join(", ")}`)
@@ -259,7 +162,7 @@ async function prepareJavaEnvironmentForInstallers(xnlc: unknown, payload: Launc
   }
 
   try {
-    const w = xnlc as XnlcWorker
+    const w = xnlc as any
     const baseVersionJson = await w.versionResolver.resolveVersion(payload.options.mcVersion, w.osInfo)
     const requiredJavaVersion = w.getRequiredJavaVersion(baseVersionJson, {
       mcVersion: payload.options.mcVersion,
@@ -316,20 +219,7 @@ type XnlcLaunchProgress = {
   totalFiles?: number
 }
 
-const BMCLAPI_BASE = "https://bmclapi2.bangbang93.com"
-
-function applyBmclapiEnv(): void {
-  process.env.XNLC_URL_MOJANG_META = BMCLAPI_BASE
-  process.env.XNLC_URL_MOJANG_LAUNCHER = BMCLAPI_BASE
-  process.env.XNLC_URL_MOJANG_LIBRARIES = `${BMCLAPI_BASE}/maven`
-  process.env.XNLC_URL_MOJANG_ASSETS = `${BMCLAPI_BASE}/assets`
-  process.env.XNLC_URL_FABRIC_MAVEN = `${BMCLAPI_BASE}/maven`
-  process.env.XNLC_URL_FORGE_MAVEN = `${BMCLAPI_BASE}/maven`
-  process.env.XNLC_URL_AUTHLIB_INJECTOR_ROOT = `${BMCLAPI_BASE}/mirrors/authlib-injector`
-  process.env.XNLC_URL_MOJANG_JAVA_RUNTIME = `${BMCLAPI_BASE}/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json`
-}
-
-async function launchMinecraft(payload: LaunchPayload): Promise<void> {
+async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
   debug(`Worker launch request: ${payload.options.loaderType} ${payload.options.mcVersion}${payload.options.loaderVersion ? ` (${payload.options.loaderVersion})` : ""}`)
   debug(`Worker environment: platform=${process.platform} arch=${process.arch} pid=${process.pid} cwd=${process.cwd()} node=${process.versions.node}`)
   debug(`Worker gameDir: ${payload.gameDir}`)
@@ -343,12 +233,12 @@ async function launchMinecraft(payload: LaunchPayload): Promise<void> {
     useBmclapi: payload.options.useBmclapi ?? false,
   })}`)
 
+  const { Xnlc, createLaunchAuth, OutputRelay, applyBmclapiEnv } = await import("@xnlc/core")
+
   if (payload.options.useBmclapi) {
     debug("BMCLAPI enabled: overriding download URLs")
     applyBmclapiEnv()
   }
-
-  const { Xnlc, createLaunchAuth } = await import("@xnlc/core")
   const javaPath = normalizeJavaPath(payload.options.javaPath)
   const defaultJvmArgs: string[] = []
   const xnlc = new Xnlc({
@@ -466,7 +356,7 @@ async function launchMinecraft(payload: LaunchPayload): Promise<void> {
 }
 
 process.on("message", async (msg: unknown) => {
-  const message = msg as { type: string; payload?: LaunchPayload } | null
+  const message = msg as { type: string; payload?: WorkerLaunchPayload } | null
   if (!message) return
 
   if (message.type === "stop") {

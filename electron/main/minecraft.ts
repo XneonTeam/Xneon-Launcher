@@ -1,8 +1,6 @@
-import { ipcMain } from "electron"
-import type { AuthSession, LaunchRequestOptions, VersionInfo, XnlcHandler } from "@xnlc/core" with { "resolution-mode": "import" }
-import { dbHelpers } from "../db"
+import type { AuthSession, VersionInfo } from "@xnlc/core" with { "resolution-mode": "import" }
+import type { MinecraftLaunchParams } from "@xnlc/types" with { "resolution-mode": "import" }
 import {
-  callHandler,
   clearLaunchState,
   getGameDir,
   isLaunchActive,
@@ -12,19 +10,7 @@ import {
   stopLaunchWorker,
 } from "./minecraft-core"
 import { logRuntimeDebug } from "./runtime"
-
-type LaunchAccountPayload = {
-  type: "elyby" | "xnskins" | "microsoft" | "offline"
-  username: string
-  uuid?: string
-  accessToken?: string
-}
-
-type LaunchRequestOptionsWithAccount = LaunchRequestOptions & {
-  account?: LaunchAccountPayload
-  buildName?: string
-  gameDir?: string
-}
+import { registerIpcHandlers, ctxHandler, rawHandler, type IpcHandlerDef } from "./ipc-router"
 
 type LaunchResultPayload = {
   success: boolean
@@ -32,219 +18,110 @@ type LaunchResultPayload = {
   error?: string
 }
 
-type MinecraftVersionInfo = {
-  version: string
-  stable: boolean
-  type: string
-}
+// ---------- Version Handlers ----------
 
-type NoArgRegistration<T> = {
-  channel: string
-  label: string
-  fallback: T
-  action: (handler: XnlcHandler) => Promise<T>
-}
+const versionHandlers: IpcHandlerDef[] = [
+  ctxHandler("minecraft:get-versions", "get versions", [], async (handler) => {
+    const versions = await handler.getVersions()
+    return versions.map((version: VersionInfo) => ({
+      version: version.id,
+      stable: version.type === "release",
+      type: version.type,
+    }))
+  }),
 
-type WithArgRegistration<TArg, TResult> = {
-  channel: string
-  label: string
-  fallback: TResult
-  action: (handler: XnlcHandler, arg: TArg) => Promise<TResult>
-}
+  ctxHandler("minecraft:get-latest-release", "get latest release", null,
+    (handler) => handler.getLatestRelease()),
 
-function registerHandler<T>({ channel, label, fallback, action }: NoArgRegistration<T>): void {
-  ipcMain.handle(channel, async (): Promise<T> => callHandler(label, fallback, action))
-}
+  ctxHandler("minecraft:get-latest-snapshot", "get latest snapshot", null,
+    (handler) => handler.getLatestSnapshot()),
 
-function registerHandlerWithArg<TArg, TResult>({ channel, label, fallback, action }: WithArgRegistration<TArg, TResult>): void {
-  ipcMain.handle(channel, async (_event: Electron.IpcMainInvokeEvent, arg: TArg): Promise<TResult> => {
-    return callHandler(label, fallback, (handler) => action(handler, arg))
-  })
-}
+  // Fabric / LiteLoader / Quilt / NeoForge / Forge / OptiFine version queries (with mcVersion arg)
+  ctxHandler("minecraft:get-fabric-versions", "get Fabric versions", [],
+    (handler, mcVersion) => handler.getFabricVersions(mcVersion as string)),
 
-function registerSupportedVersionsHandler(
-  channel: string,
-  label: string,
-  action: (handler: XnlcHandler) => Promise<string[]>,
-): void {
-  registerHandler<string[]>({
-    channel,
-    label: `get supported ${label} versions`,
-    fallback: [],
-    action,
-  })
-}
+  ctxHandler("minecraft:get-liteloader-versions", "get LiteLoader versions", [],
+    (handler, mcVersion) => handler.getLiteLoaderVersions(mcVersion as string)),
 
-function registerRecommendedHandler(
-  channel: string,
-  label: string,
-  action: (handler: XnlcHandler, mcVersion: string) => Promise<string | undefined>,
-): void {
-  registerHandlerWithArg<string, string | null>({
-    channel,
-    label,
-    fallback: null,
-    action: async (handler, mcVersion) => await action(handler, mcVersion) ?? null,
-  })
-}
+  ctxHandler("minecraft:get-quilt-versions", "get Quilt versions", [],
+    (handler, mcVersion) => handler.getQuiltVersions(mcVersion as string)),
 
-function registerVersionHandlers(): void {
-  registerHandler<MinecraftVersionInfo[]>({
-    channel: "minecraft:get-versions",
-    label: "get versions",
-    fallback: [],
-    action: async (handler) => {
-      const versions = await handler.getVersions()
-      return versions.map((version: VersionInfo) => ({
-        version: version.id,
-        stable: version.type === "release",
-        type: version.type,
-      }))
-    },
-  })
+  ctxHandler("minecraft:get-neoforge-versions", "get NeoForge versions", [], async (handler, mcVersion) => {
+    const versions = await handler.getNeoForgeVersions(mcVersion as string)
+    return versions.map(v => ({ version: v, stable: !v.includes("beta") && !v.includes("alpha") && !v.includes("rc") }))
+  }),
 
-  const stringHandlers: NoArgRegistration<string | null>[] = [
-    {
-      channel: "minecraft:get-latest-release",
-      label: "get latest release",
-      fallback: null,
-      action: (handler) => handler.getLatestRelease(),
-    },
-    {
-      channel: "minecraft:get-latest-snapshot",
-      label: "get latest snapshot",
-      fallback: null,
-      action: (handler) => handler.getLatestSnapshot(),
-    },
-  ]
+  ctxHandler("minecraft:get-forge-versions", "get Forge versions", [], async (handler, mcVersion) => {
+    const versions = await handler.getForgeVersions(mcVersion as string)
+    return versions.map(v => ({ version: v, stable: true }))
+  }),
 
-  const versionHandlers: WithArgRegistration<string, unknown[]>[] = [
-    {
-      channel: "minecraft:get-fabric-versions",
-      label: "get Fabric versions",
-      fallback: [],
-      action: (handler, mcVersion) => handler.getFabricVersions(mcVersion),
-    },
-    {
-      channel: "minecraft:get-liteloader-versions",
-      label: "get LiteLoader versions",
-      fallback: [],
-      action: (handler, mcVersion) => handler.getLiteLoaderVersions(mcVersion),
-    },
-    {
-      channel: "minecraft:get-quilt-versions",
-      label: "get Quilt versions",
-      fallback: [],
-      action: (handler, mcVersion) => handler.getQuiltVersions(mcVersion),
-    },
-    {
-      channel: "minecraft:get-neoforge-versions",
-      label: "get NeoForge versions",
-      fallback: [],
-      action: async (handler, mcVersion) => {
-        const versions = await handler.getNeoForgeVersions(mcVersion)
-        return versions.map(v => ({ version: v, stable: !v.includes("beta") && !v.includes("alpha") && !v.includes("rc") }))
-      },
-    },
-    {
-      channel: "minecraft:get-forge-versions",
-      label: "get Forge versions",
-      fallback: [],
-      action: async (handler, mcVersion) => {
-        const versions = await handler.getForgeVersions(mcVersion)
-        return versions.map(v => ({ version: v, stable: true }))
-      },
-    },
-    {
-      channel: "minecraft:get-optifine-versions",
-      label: "get OptiFine versions",
-      fallback: [],
-      action: (handler, mcVersion) => handler.getOptifineVersions(mcVersion),
-    },
-  ]
+  ctxHandler("minecraft:get-optifine-versions", "get OptiFine versions", [],
+    (handler, mcVersion) => handler.getOptifineVersions(mcVersion as string)),
 
-  const simpleHandlers: Array<NoArgRegistration<{ version: string; stable: boolean }[] | string[]>> = [
-    {
-      channel: "minecraft:get-fabric-game-versions",
-      label: "get Fabric game versions",
-      fallback: [],
-      action: (handler) => handler.getFabricGameVersions(),
-    },
-    {
-      channel: "minecraft:get-fabric-supported",
-      label: "get supported Fabric versions",
-      fallback: [],
-      action: (handler) => handler.getFabricSupportedVersions(),
-    },
-    {
-      channel: "minecraft:get-quilt-game-versions",
-      label: "get Quilt game versions",
-      fallback: [],
-      action: (handler) => handler.getQuiltGameVersions(),
-    },
-    {
-      channel: "minecraft:get-neoforge-supported",
-      label: "get supported NeoForge versions",
-      fallback: [],
-      action: (handler) => handler.getNeoForgeSupportedVersions(),
-    },
-    {
-      channel: "minecraft:get-forge-supported",
-      label: "get supported Forge versions",
-      fallback: [],
-      action: (handler) => handler.getForgeSupportedVersions(),
-    },
-    {
-      channel: "minecraft:get-custom-versions",
-      label: "get custom versions",
-      fallback: [],
-      action: (handler) => handler.getCustomVersions(),
-    },
-  ]
+  // No-arg version queries
+  ctxHandler("minecraft:get-fabric-game-versions", "get Fabric game versions", [],
+    (handler) => handler.getFabricGameVersions()),
 
-  stringHandlers.forEach(registerHandler)
-  versionHandlers.forEach(registerHandlerWithArg)
-  simpleHandlers.forEach(registerHandler)
+  ctxHandler("minecraft:get-fabric-supported", "get supported Fabric versions", [],
+    (handler) => handler.getFabricSupportedVersions()),
 
-  registerRecommendedHandler("minecraft:get-liteloader-recommended", "get recommended LiteLoader", (handler, mcVersion) => handler.getLiteLoaderRecommended(mcVersion))
-  registerRecommendedHandler("minecraft:get-neoforge-recommended", "get recommended NeoForge", (handler, mcVersion) => handler.getNeoForgeRecommended(mcVersion))
-  registerRecommendedHandler("minecraft:get-forge-recommended", "get recommended Forge", (handler, mcVersion) => handler.getForgeRecommended(mcVersion))
+  ctxHandler("minecraft:get-quilt-game-versions", "get Quilt game versions", [],
+    (handler) => handler.getQuiltGameVersions()),
 
-  registerHandler<string[]>({
-    channel: "minecraft:get-quilt-supported",
-    label: "get supported Quilt versions",
-    fallback: [],
-    action: async (handler) => await handler.getQuiltSupportedVersions(),
-  })
+  ctxHandler("minecraft:get-neoforge-supported", "get supported NeoForge versions", [],
+    (handler) => handler.getNeoForgeSupportedVersions()),
 
-  registerHandlerWithArg<string, string | null>({
-    channel: "minecraft:get-optifine-recommended",
-    label: "get recommended OptiFine",
-    fallback: null,
-    action: async (handler, mcVersion) => {
-      const result = await handler.getOptifineRecommended(mcVersion)
+  ctxHandler("minecraft:get-forge-supported", "get supported Forge versions", [],
+    (handler) => handler.getForgeSupportedVersions()),
+
+  ctxHandler("minecraft:get-custom-versions", "get custom versions", [],
+    (handler) => handler.getCustomVersions()),
+
+  ctxHandler("minecraft:get-quilt-supported", "get supported Quilt versions", [],
+    (handler) => handler.getQuiltSupportedVersions()),
+
+  // Recommended version handlers (with mcVersion arg, return string | null)
+  ctxHandler("minecraft:get-liteloader-recommended", "get recommended LiteLoader", null,
+    async (handler, mcVersion) => await handler.getLiteLoaderRecommended(mcVersion as string) ?? null),
+
+  ctxHandler("minecraft:get-neoforge-recommended", "get recommended NeoForge", null,
+    async (handler, mcVersion) => await handler.getNeoForgeRecommended(mcVersion as string) ?? null),
+
+  ctxHandler("minecraft:get-forge-recommended", "get recommended Forge", null,
+    async (handler, mcVersion) => await handler.getForgeRecommended(mcVersion as string) ?? null),
+
+  ctxHandler("minecraft:get-optifine-recommended", "get recommended OptiFine", null,
+    async (handler, mcVersion) => {
+      const result = await handler.getOptifineRecommended(mcVersion as string)
       return result?.filename ?? null
-    },
-  })
+    }),
 
-  registerHandlerWithArg<string, AuthSession | null>({
-    channel: "minecraft:set-offline-auth",
-    label: "set offline auth",
-    fallback: null,
-    action: async (handler, username) => {
-      handler.setOfflineAuth(username)
+  // Supported MC versions for loaders
+  ctxHandler("minecraft:get-liteloader-supported", "get supported LiteLoader versions", [],
+    (handler) => handler.getLiteLoaderSupportedVersions()),
+
+  ctxHandler("minecraft:get-optifine-supported", "get supported OptiFine versions", [],
+    (handler) => handler.getOptifineSupportedVersions()),
+
+  // Auth
+  ctxHandler("minecraft:set-offline-auth", "set offline auth", null,
+    async (handler, username) => {
+      handler.setOfflineAuth(username as string)
       return handler.getAuth()
-    },
-  })
+    }),
 
-  registerSupportedVersionsHandler("minecraft:get-liteloader-supported", "LiteLoader", (handler) => handler.getLiteLoaderSupportedVersions())
-  registerSupportedVersionsHandler("minecraft:get-optifine-supported", "OptiFine", (handler) => handler.getOptifineSupportedVersions())
-}
+  ctxHandler("minecraft:get-auth", "get auth", null,
+    async (handler) => handler.getAuth()),
+]
 
-function registerLaunchHandlers(): void {
-  ipcMain.handle("minecraft:launch", async (_event: Electron.IpcMainInvokeEvent, options: LaunchRequestOptionsWithAccount): Promise<LaunchResultPayload> => {
+// ---------- Launch Handlers ----------
+
+const launchHandlers: IpcHandlerDef[] = [
+  rawHandler("minecraft:launch", async (...args: unknown[]): Promise<LaunchResultPayload> => {
+    const options = args[0] as MinecraftLaunchParams
     const { resolveLaunchRequest } = await loadXnlcModule()
-    const request = resolveLaunchRequest(options)
+    const request = resolveLaunchRequest(options as any)
 
     try {
       if (isLaunchActive()) {
@@ -255,17 +132,17 @@ function registerLaunchHandlers(): void {
         return { success: false, error: request.error }
       }
 
-      const launchAccount = await resolveLaunchAccount(options.account)
+      const launchAccount = await resolveLaunchAccount(options.account as any)
       if (!launchAccount) {
         return { success: false, error: "No active account. Please select an account first." }
       }
 
       logRuntimeDebug(`[Minecraft] Using account ${launchAccount.type}:${launchAccount.username}`)
       if (!launchAccount.isActive) {
+        const { dbHelpers } = await import("../db.js")
         await dbHelpers.saveAccount({ ...launchAccount, isActive: true })
       }
 
-      // Pass buildName and gameDir from options to runLaunchWorker
       const extendedRequest = {
         ...request,
         buildName: options.buildName,
@@ -279,29 +156,22 @@ function registerLaunchHandlers(): void {
       clearLaunchState()
       return { success: false, error: errorMessage }
     }
-  })
+  }),
 
-  ipcMain.handle("minecraft:get-game-dir", async (): Promise<string> => getGameDir())
-  ipcMain.handle("minecraft:is-running", async (): Promise<boolean> => isLaunchActive())
-  ipcMain.handle("minecraft:stop", async (): Promise<void> => {
+  rawHandler("minecraft:get-game-dir", async () => getGameDir()),
+
+  rawHandler("minecraft:is-running", async () => isLaunchActive()),
+
+  rawHandler("minecraft:stop", async () => {
     if (!isLaunchActive()) {
       clearLaunchState()
       return
     }
-
     stopLaunchWorker()
-  })
-
-  registerHandler<AuthSession | null>({
-    channel: "minecraft:get-auth",
-    label: "get auth",
-    fallback: null,
-    action: async (handler) => handler.getAuth(),
-  })
-}
+  }),
+]
 
 export function registerMinecraftHandlers(): void {
-  registerVersionHandlers()
-  registerLaunchHandlers()
+  registerIpcHandlers([...versionHandlers, ...launchHandlers])
   logRuntimeDebug("[Minecraft] Handlers registered")
 }
