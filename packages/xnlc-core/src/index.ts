@@ -57,6 +57,7 @@ export { JavaRunner } from "./core/java-runner.js";
 export { JavaManager } from "./core/java-manager.js";
 
 // Loaders
+export { ForgeHandler } from "./loaders/forge-handler.js";
 export { NeoForgeHandler } from "./loaders/neoforge-handler.js";
 export { FabricHandler } from "./loaders/fabric-handler.js";
 export { FabricLegacyHandler } from "./loaders/fabric-legacy-handler.js";
@@ -64,7 +65,18 @@ export { LiteLoaderHandler } from "./loaders/liteloader-handler.js";
 export { QuiltHandler } from "./loaders/quilt-handler.js";
 export { OptifineHandler } from "./loaders/optifine-handler.js";
 export type { OptifineVersion } from "./loaders/optifine-handler.js";
+export { CustomVersionHandler } from "./loaders/custom-version-handler.js";
 export { LoaderResolver } from "./loaders/loader-resolver.js";
+export type { ILoaderHandler } from "./loaders/types.js";
+
+// Services
+export { XnlcVersionService } from "./services/version-service.js";
+export { XnlcLoaderService } from "./services/loader-service.js";
+export { XnlcLaunchPipeline } from "./services/launch-pipeline.js";
+
+// Core - Singleton
+export { getPrismMetaClient } from "./core/prism-meta-client-singleton.js";
+export { PrismMetaClient } from "./core/prism-meta-client.js";
 
 // Auth
 export { AuthManager } from "./auth/auth-manager.js";
@@ -126,3 +138,16 @@ export {
 // Handler - Simple API
 export { XnlcHandler, createDefaultHandler } from "./handler.js";
 export type { DefaultHandlerOptions, HandlerOptions, LaunchOptions, VersionInfo, ModLoaderInfo } from "./handler.js";
+
+// Utils - Version JSON
+export { getRequiredJavaVersion } from "./utils/version-json.js";
+
+// Utils - Output Relay
+export { OutputRelay } from "./utils/output-relay.js";
+export type { OutputRelayCallback } from "./utils/output-relay.js";
+
+// Config - BMCLAPI
+export { applyBmclapiEnv } from "./config.js";
+
+// Errors
+export { LaunchError } from "./errors/launch-error.js";

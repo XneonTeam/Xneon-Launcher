@@ -8,6 +8,12 @@ export type {
   ModVersion,
   ModSortOption,
   ModDependency,
+  ModProjectInfo,
+  ModrinthVersionFile,
+  ModrinthVersionDetail,
+  ModrinthManifestFile,
+  ModrinthManifest,
+  CurseForgeManifestFile,
 } from "./types.js"
 
 export {
@@ -20,6 +26,8 @@ export {
   modrinthGetDetails,
   modrinthGetVersions,
   modrinthCategories,
+  modrinthGetProjectInfo,
+  modrinthGetRawVersions,
 } from "./modrinth-client.js"
 
 export {
@@ -29,4 +37,6 @@ export {
   curseforgeGetFileDownloadUrl,
   curseforgeCategories,
   curseforgeFeatured,
+  curseforgeGetDownloadUrl,
+  curseforgeGetProjectInfo,
 } from "./curseforge-client.js"

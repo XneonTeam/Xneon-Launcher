@@ -1,13 +1,14 @@
 import * as path from "path";
 import * as fs from "fs";
 import type { VersionJson, LoaderInstallResult, DownloadProgressCallback } from "../types/index.js";
+import type { ILoaderHandler } from "./types.js";
 
-export class CustomVersionHandler {
+export class CustomVersionHandler implements ILoaderHandler {
   constructor(
     private customVersionsDir: string,
   ) {}
 
-  async getVersions(): Promise<string[]> {
+  async listCustomVersions(): Promise<string[]> {
     if (!fs.existsSync(this.customVersionsDir)) {
       return [];
     }

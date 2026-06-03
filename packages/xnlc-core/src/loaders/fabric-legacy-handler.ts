@@ -10,10 +10,11 @@ import { VersionJson, FabricLoaderVersion, LoaderInstallResult, DownloadProgress
 import { Downloader, DownloadOptions } from "../core/downloader.js";
 import { getVersionDir, getLibraryDir, ensureDirSync } from "../utils/index.js";
 import { URLS } from "../constants/urls.js";
+import type { ILoaderHandler } from "./types.js";
 
 const FABRIC_META = URLS.official.fabric.metaV2;
 
-export class FabricLegacyHandler {
+export class FabricLegacyHandler implements ILoaderHandler {
   constructor(
     private downloader: Downloader,
     private gameDir: string,

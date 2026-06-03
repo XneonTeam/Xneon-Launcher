@@ -30,12 +30,8 @@ function loadModsModule(): Promise<ModsModule> {
 
 async function fetchMrProjectInfo(projectId: string): Promise<{ name: string; iconUrl: string; slug: string } | null> {
   try {
-    const res = await fetch(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}`, {
-      headers: { "User-Agent": "XNeon-Launcher/1.0 (launcher@xneon.fun)" },
-    })
-    if (!res.ok) return null
-    const data = await res.json() as Record<string, unknown>
-    return { name: typeof data.title === "string" ? data.title : projectId, iconUrl: typeof data.icon_url === "string" ? data.icon_url : "", slug: typeof data.slug === "string" ? data.slug : projectId }
+    const mods = await loadModsModule()
+    return await mods.modrinthGetProjectInfo(projectId)
   } catch {
     return null
   }
@@ -44,9 +40,7 @@ async function fetchMrProjectInfo(projectId: string): Promise<{ name: string; ic
 async function fetchCfProjectInfo(modId: string): Promise<{ name: string; iconUrl: string; slug: string } | null> {
   try {
     const mods = await loadModsModule()
-    const data = await mods.cfFetch(`/mods/${modId}`) as { data?: Record<string, unknown> }
-    if (!data.data) return null
-    return { name: (data.data.name as string) ?? modId, iconUrl: ((data.data.logo as Record<string, unknown> | undefined)?.thumbnailUrl as string) ?? ((data.data.links as Record<string, unknown> | undefined)?.iconUrl as string) ?? "", slug: (data.data.slug as string) ?? `mod-${modId}` }
+    return await mods.curseforgeGetProjectInfo(modId)
   } catch {
     return null
   }

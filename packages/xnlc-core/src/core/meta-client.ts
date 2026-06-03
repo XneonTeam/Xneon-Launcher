@@ -6,7 +6,8 @@
 
 import { MojangVersionManifest, MojangVersionEntry, VersionJson } from "../types/index.js";
 import { URLS } from "../constants/urls.js";
-import { PrismMetaClient } from "./prism-meta-client.js";
+import type { PrismMetaClient } from "./prism-meta-client.js";
+import { getPrismMetaClient } from "./prism-meta-client-singleton.js";
 
 declare const fetch: typeof globalThis.fetch;
 
@@ -18,7 +19,7 @@ export class MetaClient {
   private prismClient: PrismMetaClient;
 
   constructor() {
-    this.prismClient = new PrismMetaClient();
+    this.prismClient = getPrismMetaClient();
   }
 
   async fetchManifest(): Promise<MojangVersionManifest> {

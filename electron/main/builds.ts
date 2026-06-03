@@ -2,48 +2,24 @@ import { app, dialog, ipcMain } from "electron"
 import path from "path"
 import fs from "fs"
 import crypto from "crypto"
-import { cfFetch } from "./curseforge"
+import type {
+  ModrinthVersionDetail,
+  ModrinthManifestFile,
+  CurseForgeManifestFile,
+} from "@xnlc/mods" with { "resolution-mode": "import" }
+import type * as ModsApi from "@xnlc/mods" with { "resolution-mode": "import" }
 import { getMainWindow, sendToRenderer } from "./runtime"
 import { getGameDir } from "./minecraft-core"
 
-type ModrinthVersion = {
-  id: string
-  version_type?: string
-  game_versions?: string[]
-  files?: ModrinthVersionFile[]
-}
+type ModsModule = typeof ModsApi
 
-type ModrinthVersionFile = {
-  filename?: string
-  url?: string
-  primary?: boolean
-}
+let modsModulePromise: Promise<ModsModule> | null = null
 
-type ModrinthIndexFile = {
-  env?: { client?: string }
-  path?: string
-  downloads?: string[]
-  hashes?: { sha512?: string; sha1?: string }
-}
-
-type ModrinthManifest = {
-  name?: string
-  summary?: string
-  slug?: string
-  version?: string
-  dependencies?: Record<string, string>
-  files?: ModrinthIndexFile[]
-}
-
-type CurseForgeFile = {
-  env?: { client?: string }
-  displayName?: string
-  downloadUrl?: string
-  fileLength?: number
-  projectID?: number
-  fileID?: number
-  primary?: boolean
-  id?: number
+function loadModsModule(): Promise<ModsModule> {
+  if (!modsModulePromise) {
+    modsModulePromise = import("@xnlc/mods")
+  }
+  return modsModulePromise
 }
 
 export type ImportModEntry = {
@@ -707,16 +683,15 @@ export function registerBuildHandlers() {
     try {
       const intentPath = ensureBuildIntentDir(buildName)
       sendImportProgress(0, 100, "Получение версий...")
-      const versionsRes = await fetch(`https://api.modrinth.com/v2/project/${projectSlug}/version`, { signal })
-      if (!versionsRes.ok) throw new Error(`Modrinth API: ${versionsRes.status}`)
-      const versions = await versionsRes.json() as ModrinthVersion[]
+      const mods = await loadModsModule()
+      const versions = await mods.modrinthGetRawVersions(projectSlug)
       throwIfImportCancelled(signal)
 
-      let version: ModrinthVersion | undefined = versionId ? versions.find((v) => v.id === versionId) : undefined
+      let version: ModrinthVersionDetail | undefined = versionId ? versions.find((v) => v.id === versionId) : undefined
       if (!version) version = versions.find((v) => v.version_type === "release") ?? versions[0]
       if (!version) throw new Error("Версии не найдены")
 
-      const mrpackFile = version.files?.find((f) => f.filename?.endsWith(".mrpack"))
+      const mrpackFile = version.files?.find((f: { filename?: string }) => f.filename?.endsWith(".mrpack"))
       if (!mrpackFile) throw new Error(".mrpack файл не найден")
 
       if (!mrpackFile?.url) throw new Error("URL для .mrpack файла не найден")
@@ -727,7 +702,7 @@ export function registerBuildHandlers() {
       const index = JSON.parse(indexEntry.getData().toString("utf-8"))
       throwIfImportCancelled(signal)
 
-      const files: ModrinthIndexFile[] = (index.files as ModrinthIndexFile[] ?? []).filter((f) => f.env?.client !== "unsupported")
+      const files: ModrinthManifestFile[] = (index.files as ModrinthManifestFile[] ?? []).filter((f) => f.env?.client !== "unsupported")
       const gameVersion: string = version.game_versions?.[0] ?? index.dependencies?.minecraft ?? ""
       const deps: Record<string, string> = index.dependencies ?? {}
       const loaderSelection = getLoaderSelectionFromModrinthDeps(deps)
@@ -744,7 +719,7 @@ export function registerBuildHandlers() {
       let downloaded = 0
       const totalFiles = files.length
       sendImportProgress(0, totalFiles, `Скачивание ${totalFiles} файлов...`)
-      const tasks = files.map((f: ModrinthIndexFile) => async () => {
+      const tasks = files.map((f: ModrinthManifestFile) => async () => {
         const currentFileName = path.basename(f.path ?? "")
         try {
           throwIfImportCancelled(signal)
@@ -790,8 +765,8 @@ export function registerBuildHandlers() {
     try {
       const intentPath = ensureBuildIntentDir(buildName)
       sendImportProgress(0, 100, "Получение ссылки...")
-      const urlData = await cfFetch(`/mods/${modId}/files/${fileId}/download-url`) as { data?: string }
-      const zipUrl = urlData.data
+      const mods = await loadModsModule()
+      const zipUrl = await mods.curseforgeGetDownloadUrl(modId, fileId)
       throwIfImportCancelled(signal)
       if (!zipUrl) throw new Error("Ссылка на скачивание недоступна")
 
@@ -803,7 +778,7 @@ export function registerBuildHandlers() {
       throwIfImportCancelled(signal)
 
       const mcVersion: string = manifest.minecraft?.version ?? ""
-      const loaderRaw: string = manifest.minecraft?.modLoaders?.find((m: CurseForgeFile) => m.primary)?.id ?? ""
+      const loaderRaw: string = manifest.minecraft?.modLoaders?.find((m: CurseForgeManifestFile) => m.primary)?.id ?? ""
       const loaderSelection = getLoaderSelectionFromCurseManifest(loaderRaw)
       let modLoader = loaderSelection.modLoader
       const loaderVersion = loaderSelection.loaderVersion
@@ -820,12 +795,11 @@ export function registerBuildHandlers() {
       const totalFiles = files.length
       let downloaded = 0
       sendImportProgress(0, totalFiles, `Скачивание ${totalFiles} модов...`)
-      const tasks = files.map((f: CurseForgeFile) => async () => {
+      const tasks = files.map((f: CurseForgeManifestFile) => async () => {
         let fileName = `mod-${f.fileID}.jar`
         try {
           throwIfImportCancelled(signal)
-          const urlRes = await cfFetch(`/mods/${f.projectID}/files/${f.fileID}/download-url`) as { data?: string }
-          const fileUrl = urlRes.data
+          const fileUrl = await mods.curseforgeGetDownloadUrl(f.projectID!, f.fileID!)
           if (!fileUrl) throw new Error(`Не получена ссылка для ${fileName}`)
           fileName = fileUrl.split("/").pop()?.split("?")[0] ?? fileName
           sendImportProgress(downloaded, totalFiles, "Скачивание мода...", fileName)
@@ -883,7 +857,7 @@ export function registerBuildHandlers() {
         const index = JSON.parse(mrpackIndex.getData().toString("utf-8"))
         const buildName = index.name ?? path.basename(selectedFile, path.extname(selectedFile))
         const intentPath = ensureBuildIntentDir(buildName)
-        const files: ModrinthIndexFile[] = (index.files as ModrinthIndexFile[] ?? []).filter((f) => f.env?.client !== "unsupported")
+        const files: ModrinthManifestFile[] = (index.files as ModrinthManifestFile[] ?? []).filter((f) => f.env?.client !== "unsupported")
         const deps: Record<string, string> = index.dependencies ?? {}
         const version = deps.minecraft ?? ""
         const loaderSelection = getLoaderSelectionFromModrinthDeps(deps)
@@ -900,7 +874,7 @@ if (deps["fabric-loader"]) {
       let downloaded = 0
       const totalFiles = files.length
       sendImportProgress(0, totalFiles, `Скачивание ${totalFiles} файлов...`)
-      const tasks = files.map((f: ModrinthIndexFile) => async () => {
+      const tasks = files.map((f: ModrinthManifestFile) => async () => {
         const currentFileName = path.basename(f.path ?? "")
         try {
           const fileDir = path.join(intentPath, path.dirname(f.path ?? ""))
@@ -932,11 +906,9 @@ if (deps["fabric-loader"]) {
       let mrIcon = ""
       try {
           const projectSlug = index.slug ?? buildName.toLowerCase().replace(/\s+/g, "-")
-          const projectRes = await fetch(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectSlug)}`, { signal })
-          if (projectRes.ok) {
-            const projectData = await projectRes.json() as { icon_url?: string }
-            mrIcon = projectData.icon_url ?? ""
-          }
+          const mods = await loadModsModule()
+          const projectInfo = await mods.modrinthGetProjectInfo(projectSlug)
+          mrIcon = projectInfo?.iconUrl ?? ""
         } catch {}
 
         return {
@@ -958,7 +930,7 @@ if (deps["fabric-loader"]) {
         const buildName = manifest.name ?? path.basename(selectedFile, path.extname(selectedFile))
         const intentPath = ensureBuildIntentDir(buildName)
         const version: string = manifest.minecraft?.version ?? ""
-        const loaderRaw: string = manifest.minecraft?.modLoaders?.find((m: CurseForgeFile) => m.primary)?.id ?? ""
+        const loaderRaw: string = manifest.minecraft?.modLoaders?.find((m: CurseForgeManifestFile) => m.primary)?.id ?? ""
         const loaderSelection = getLoaderSelectionFromCurseManifest(loaderRaw)
         let modLoader = loaderSelection.modLoader
         const loaderVersion = loaderSelection.loaderVersion
@@ -977,11 +949,11 @@ if (loaderRaw.startsWith("fabric")) {
       const totalFiles = files.length
       let downloaded = 0
       sendImportProgress(0, totalFiles, `Скачивание ${totalFiles} модов...`)
-      const tasks = files.map((f: CurseForgeFile) => async () => {
+      const tasks = files.map((f: CurseForgeManifestFile) => async () => {
           let fileName = `mod-${f.fileID}.jar`
           try {
-            const urlRes = await cfFetch(`/mods/${f.projectID}/files/${f.fileID}/download-url`) as { data?: string }
-            const fileUrl = urlRes.data
+            const mods = await loadModsModule()
+            const fileUrl = await mods.curseforgeGetDownloadUrl(f.projectID!, f.fileID!)
             if (!fileUrl) throw new Error(`Не получена ссылка для ${fileName}`)
             fileName = fileUrl.split("/").pop()?.split("?")[0] ?? fileName
             sendImportProgress(downloaded, totalFiles, "Скачивание мода...", fileName)
@@ -1007,8 +979,9 @@ if (loaderRaw.startsWith("fabric")) {
 
         let cfIcon = ""
         try {
-          const cfSearchRes = await cfFetch("/mods/search", { gameId: "432", searchFilter: buildName, pageSize: "1" }) as { data?: { logo?: { thumbnailUrl?: string } }[] }
-          cfIcon = cfSearchRes.data?.[0]?.logo?.thumbnailUrl ?? ""
+          const mods = await loadModsModule()
+          const cfSearch = await mods.curseforgeSearch(buildName, { page: 0 })
+          cfIcon = cfSearch.results?.[0]?.iconUrl ?? ""
         } catch {}
 
         return {

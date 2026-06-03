@@ -1,6 +1,6 @@
 {
   "name": "@xnlc/mods",
-  "version": "1.0.3",
+  "version": "1.0.0",
   "description": "XNLC Mods — Modrinth and CurseForge API client for Minecraft mod search and management",
   "type": "module",
   "author": "MAINER4IK",
@@ -39,6 +39,6 @@
     "lib"
   ],
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "registry": "http://193.23.209.71:7081/api/packages/MAINER4IK/npm/"
   }
 }

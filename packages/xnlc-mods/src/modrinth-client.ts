@@ -11,6 +11,8 @@ import type {
   ModSearchResponse,
   ModDetails,
   ModVersion,
+  ModProjectInfo,
+  ModrinthVersionDetail,
 } from "./types.js";
 import { MOD_SORT_OPTIONS, CONTENT_TYPE_FACETS } from "./types.js";
 
@@ -166,6 +168,28 @@ export async function modrinthCategories(
       .sort((a, b) => a.name.localeCompare(b.name));
   } catch (err) {
     console.error("Modrinth categories error:", err);
+    return [];
+  }
+}
+
+export async function modrinthGetProjectInfo(slug: string): Promise<ModProjectInfo | null> {
+  try {
+    const data = await mrFetch(`/project/${encodeURIComponent(slug)}`) as Record<string, unknown>;
+    return {
+      name: typeof data.title === "string" ? data.title : slug,
+      iconUrl: typeof data.icon_url === "string" ? data.icon_url : "",
+      slug: typeof data.slug === "string" ? data.slug : slug,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function modrinthGetRawVersions(slug: string): Promise<ModrinthVersionDetail[]> {
+  try {
+    const data = (await mrFetch(`/project/${encodeURIComponent(slug)}/version`)) as ModrinthVersionDetail[];
+    return Array.isArray(data) ? data : [];
+  } catch {
     return [];
   }
 }

@@ -100,3 +100,51 @@ export const CONTENT_TYPE_FACETS: Record<ContentType, { facet: string; cfClassId
   resourcepack: { facet: "resourcepack", cfClassId: 12 },
   shader: { facet: "shader", cfClassId: 6552 },
 };
+
+// ── Modpack Import Types ────────────────────────────────────
+
+export interface ModProjectInfo {
+  name: string;
+  iconUrl: string;
+  slug: string;
+}
+
+export interface ModrinthVersionFile {
+  filename?: string;
+  url?: string;
+  primary?: boolean;
+}
+
+export interface ModrinthVersionDetail {
+  id: string;
+  version_type?: string;
+  game_versions?: string[];
+  files?: ModrinthVersionFile[];
+}
+
+export interface ModrinthManifestFile {
+  env?: { client?: string };
+  path?: string;
+  downloads?: string[];
+  hashes?: { sha512?: string; sha1?: string };
+}
+
+export interface ModrinthManifest {
+  name?: string;
+  summary?: string;
+  slug?: string;
+  version?: string;
+  dependencies?: Record<string, string>;
+  files?: ModrinthManifestFile[];
+}
+
+export interface CurseForgeManifestFile {
+  env?: { client?: string };
+  displayName?: string;
+  downloadUrl?: string;
+  fileLength?: number;
+  projectID?: number;
+  fileID?: number;
+  primary?: boolean;
+  id?: number;
+}

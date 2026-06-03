@@ -232,7 +232,12 @@ export function AccountsPage() {
                     className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"
                     style={{ backgroundColor: `${accountTypeInfo[account.type].color}20` }}
                   >
-                    <img src={getAvatarUrl(account, account.username)} alt="" className="w-full h-full object-cover" />
+                    <img src={getAvatarUrl(account, account.username)} alt="" className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const t = e.currentTarget
+                        if (!t.dataset.retried) { t.dataset.retried = "1"; t.src = "https://mcskinapi-three.vercel.app/avatar/Steve?skin_type=microsoft" }
+                        else { t.style.display = "none" }
+                      }} />
                   </div>
 
                   <div className="flex-1 min-w-0">

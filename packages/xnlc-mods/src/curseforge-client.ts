@@ -11,6 +11,7 @@ import type {
   ModDetails,
   ModVersion,
   ModDependency,
+  ModProjectInfo,
 } from "./types.js";
 import { MOD_SORT_OPTIONS, CONTENT_TYPE_FACETS } from "./types.js";
 
@@ -284,5 +285,31 @@ export async function curseforgeFeatured(gameVersion?: string): Promise<{ popula
     return { popular, trending };
   } catch {
     return { popular: [], trending: [] };
+  }
+}
+
+export async function curseforgeGetDownloadUrl(modId: number, fileId: number): Promise<string | null> {
+  try {
+    const data = (await cfFetch(`/mods/${modId}/files/${fileId}/download-url`)) as { data?: string };
+    return data.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function curseforgeGetProjectInfo(modId: number | string): Promise<ModProjectInfo | null> {
+  try {
+    const data = await cfFetch(`/mods/${modId}`) as { data?: Record<string, unknown> };
+    if (!data.data) return null;
+    const d = data.data;
+    const logo = d.logo as Record<string, unknown> | undefined;
+    const links = d.links as Record<string, unknown> | undefined;
+    return {
+      name: (d.name as string) ?? String(modId),
+      iconUrl: (logo?.thumbnailUrl as string) ?? (links?.iconUrl as string) ?? "",
+      slug: (d.slug as string) ?? `mod-${modId}`,
+    };
+  } catch {
+    return null;
   }
 }

@@ -12,10 +12,12 @@ import {
   VersionJson 
 } from "../types/index.js";
 import { Downloader } from "../core/downloader.js";
-import { PrismMetaClient } from "../core/prism-meta-client.js";
+import type { PrismMetaClient } from "../core/prism-meta-client.js";
+import { getPrismMetaClient } from "../core/prism-meta-client-singleton.js";
 import { MetaClient } from "../core/meta-client.js";
+import type { ILoaderHandler } from "./types.js";
 
-export class FabricHandler {
+export class FabricHandler implements ILoaderHandler {
   private prismMetaClient: PrismMetaClient;
 
   constructor(
@@ -23,7 +25,7 @@ export class FabricHandler {
     private gameDir: string,
     private metaClient: MetaClient,
   ) {
-    this.prismMetaClient = new PrismMetaClient();
+    this.prismMetaClient = getPrismMetaClient();
   }
 
   async getGameVersions(): Promise<string[]> {

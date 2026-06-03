@@ -1,8 +1,25 @@
-import { memo } from "react"
+import { memo, useCallback, useRef } from "react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
 import { IconCloud, IconDownload, IconLoader2, IconLock, IconTrash, IconRefresh } from "@tabler/icons-react"
 import type { CloudItem } from "./types"
+
+const FALLBACK_AVATAR = "https://mcskinapi-three.vercel.app/avatar/Steve?skin_type=microsoft"
+
+function CloudFileIcon({ icon, name }: { icon?: string; name: string }) {
+  const retryCount = useRef(0)
+
+  const handleError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    retryCount.current++
+    if (retryCount.current === 1 && icon && icon !== FALLBACK_AVATAR) {
+      e.currentTarget.src = FALLBACK_AVATAR
+    } else {
+      e.currentTarget.style.display = "none"
+    }
+  }, [icon])
+
+  if (!icon) return null
+  return <img src={icon} alt="" className="w-full h-full object-cover" onError={handleError} />
+}
 
 interface CloudFileListProps {
   isAuthLoading: boolean
@@ -89,7 +106,7 @@ export const CloudFileList = memo(function CloudFileList({
         return (
           <div key={item.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20 hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
             <div className="w-10 h-10 rounded-lg bg-muted/70 flex items-center justify-center flex-shrink-0 overflow-hidden">
-              {icon && <img src={icon} alt="" className="w-full h-full object-cover" />}
+              <CloudFileIcon icon={icon} name={item.name} />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-medium text-foreground group-hover:text-primary transition-colors truncate">{item.name}</p>

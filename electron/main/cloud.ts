@@ -6,6 +6,7 @@ import FormData from "form-data"
 import AdmZip from "adm-zip"
 import { ensureBuildIntentDir, getBuildIntentDirName } from "./builds"
 import { getCloudApiUrl } from "./config"
+import { dbHelpers } from "../db"
 
 type CloudFile = {
   id: string
@@ -118,6 +119,55 @@ export function registerCloudHandlers() {
     }
   })
 
+  ipcMain.handle("cloud:download-and-import", async (_event, token: string, fileId: string, fileName: string, fileType: string): Promise<{ success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } }> => {
+    try {
+      const baseUrl = await cloudApiUrl()
+      const res = await axios.get(`${baseUrl}/files/${fileId}/download`, { headers: { Authorization: `Bearer ${token}` }, responseType: "arraybuffer" })
+      const buffer = Buffer.from(res.data)
+
+      if (fileType === "account") {
+        const text = buffer.toString("utf-8")
+        const account = JSON.parse(text) as { id: string; type: string; username: string; uuid?: string }
+        return { success: true, account }
+      } else if (fileType === "instance") {
+        const buildName = fileName.replace(/\.zip$/i, "")
+        const metaUrl = await cloudApiUrl()
+        const metaRes = await axios.get(`${metaUrl}/files/${fileId}`, { headers: { Authorization: `Bearer ${token}` } })
+        const meta = metaRes.data as { version?: string; mcVersion?: string; modLoader?: string; description?: string; icon?: string; coverImage?: string }
+
+        const intentPath = ensureBuildIntentDir(buildName)
+        const zip = new AdmZip(buffer)
+        zip.extractAllTo(intentPath, true)
+
+        const existingBuilds = await dbHelpers.loadBuilds()
+        existingBuilds.push({
+          id: fileId,
+          name: buildName,
+          description: meta.description || "",
+          version: meta.version || "1.0",
+          modLoader: meta.modLoader || "",
+          icon: meta.icon || "",
+          coverImage: meta.coverImage ?? undefined,
+          mods: [],
+          resourcepacks: [],
+          shaders: [],
+          createdAt: new Date().toISOString(),
+          source: "local",
+          intentPath,
+          loaderVersion: undefined,
+          installedMods: {},
+          projectSlug: undefined,
+          playtime: 0,
+        })
+        await dbHelpers.saveAllBuilds(existingBuilds)
+      }
+
+      return { success: true }
+    } catch (e) {
+      return { success: false, error: safeErrorMessage(e) }
+    }
+  })
+
   ipcMain.handle("cloud:get-categories", async (_event, token: string): Promise<{ success: boolean; categories?: Record<string, { count: number; size: number }>; error?: string }> => {
     try {
       const baseUrl = await cloudApiUrl()
@@ -130,6 +180,7 @@ export function registerCloudHandlers() {
 
   ipcMain.handle("build:upload-to-cloud", async (_event, buildName: string, cloudToken: string, category: string = "instance"): Promise<{ success: boolean; error?: string }> => {
     try {
+      console.log("[BUILD-UPLOAD] Starting upload for", buildName)
       const intentPath = ensureBuildIntentDir(buildName)
       if (!fs.existsSync(intentPath)) return { success: false, error: "Сборка не найдена" }
 
@@ -148,6 +199,19 @@ export function registerCloudHandlers() {
       })
       form.append("name", buildName)
       form.append("category", category)
+
+      console.log("[BUILD-UPLOAD] Calling loadBuilds()")
+      const allBuilds = await dbHelpers.loadBuilds()
+      console.log("[BUILD-UPLOAD] loadBuilds() returned", allBuilds.length, "builds")
+      const dbBuild = allBuilds.find(b => b.name === buildName || getBuildIntentDirName(b.name) === safeName)
+      form.append("type", category)
+      form.append("version", dbBuild ? (dbBuild.version || "1.0") : (category === "instance" ? "1.0" : category))
+      if (dbBuild) {
+        form.append("mcVersion", dbBuild.modLoader || "")
+        form.append("modLoader", dbBuild.modLoader || "")
+        form.append("description", dbBuild.description || "")
+        form.append("icon", dbBuild.icon || "")
+      }
 
       const baseUrl = await cloudApiUrl()
       const response = await axios.post(`${baseUrl}/files/upload`, form, {

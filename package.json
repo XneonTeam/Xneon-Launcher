@@ -9,10 +9,10 @@
   "homepage": "launcher.xneon.org",
   "private": true,
   "main": "dist-electron/main/index.js",
-  "workspaces": [
-    "packages/*"
-  ],
   "dependencies": {
+    "@xnlc/core": "1.0.0",
+    "@xnlc/mods": "1.0.0",
+    "@xnlc/types": "1.0.0",
     "adm-zip": "^0.5.17",
     "axios": "^1.7.0",
     "discord-rpc": "^4.0.1",
@@ -24,12 +24,12 @@
   },
   "scripts": {
     "sync:xnlc": "node scripts/sync-local-xnlc.mjs",
-    "dev": "concurrently -k -s first \"vite --host 127.0.0.1\" \"npm run sync:xnlc && tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development node scripts/launch-electron-dev.mjs\"",
-    "dev:diag": "concurrently -k -s first \"vite --host 127.0.0.1\" \"npm run sync:xnlc && tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development ELECTRON_DEBUG_FLAGS=1 node scripts/launch-electron-dev.mjs\"",
-    "dev:diag:no-shm": "concurrently -k -s first \"vite --host 127.0.0.1\" \"npm run sync:xnlc && tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development ELECTRON_DEBUG_FLAGS=1 ELECTRON_DISABLE_DEV_SHM_USAGE=0 node scripts/launch-electron-dev.mjs\"",
-    "dev:diag:no-sandbox": "concurrently -k -s first \"vite --host 127.0.0.1\" \"npm run sync:xnlc && tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development ELECTRON_DEBUG_FLAGS=1 ELECTRON_NO_SANDBOX=0 node scripts/launch-electron-dev.mjs\"",
+    "dev": "concurrently -k -s first \"vite --host 127.0.0.1\" \"tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development node scripts/launch-electron-dev.mjs\"",
+    "dev:diag": "concurrently -k -s first \"vite --host 127.0.0.1\" \"tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development ELECTRON_DEBUG_FLAGS=1 node scripts/launch-electron-dev.mjs\"",
+    "dev:diag:no-shm": "concurrently -k -s first \"vite --host 127.0.0.1\" \"tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development ELECTRON_DEBUG_FLAGS=1 ELECTRON_DISABLE_DEV_SHM_USAGE=0 node scripts/launch-electron-dev.mjs\"",
+    "dev:diag:no-sandbox": "concurrently -k -s first \"vite --host 127.0.0.1\" \"tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development ELECTRON_DEBUG_FLAGS=1 ELECTRON_NO_SANDBOX=0 node scripts/launch-electron-dev.mjs\"",
     "build:renderer": "vite build",
-    "build:electron": "npm run sync:xnlc && tsc -p tsconfig.node.json",
+    "build:electron": "tsc -p tsconfig.node.json",
     "build": "vite build && npm run build:electron",
     "package": "npm run build && electron-builder",
     "typecheck": "tsc --noEmit",
@@ -50,10 +50,11 @@
     "concurrently": "^9.1.0",
     "cross-env": "^7.0.3",
     "depcheck": "^1.4.7",
-    "electron": "^35.0.0",
-    "electron-builder": "^25.1.8",
-    "electron-rebuild": "^3.2.9",
+    "electron": "^42.3.2",
+    "electron-builder": "^26.8.1",
+    "electron-rebuild": "^2.0.3",
     "postcss": "^8.5",
+    "rcedit": "^5.0.2",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-i18next": "^17.0.2",
@@ -72,6 +73,21 @@
     "appId": "com.xneonlauncher.app",
     "productName": "XNeon Launcher",
     "npmRebuild": false,
+    "forceCodeSigning": false,
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
+    },
     "directories": {
       "output": "release"
     },
@@ -83,11 +99,6 @@
       "!**/xnlc/installer.log",
       "!**/xnlc/tsconfig.json"
     ],
-    "win": {
-      "target": [
-        "nsis"
-      ]
-    },
     "linux": {
       "target": [
         "AppImage"

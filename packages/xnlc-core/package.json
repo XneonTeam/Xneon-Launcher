@@ -1,6 +1,6 @@
 {
   "name": "@xnlc/core",
-  "version": "1.0.3",
+  "version": "1.0.0",
   "description": "XNLC Core - Minecraft launcher library: version resolution, loader installation (Fabric, Quilt, NeoForge, Forge, LiteLoader, OptiFine), asset management, and game launching",
   "type": "module",
   "author": "MAINER4IK",
@@ -37,6 +37,7 @@
     }
   },
   "dependencies": {
+    "@xnlc/types": "*",
     "adm-zip": "^0.5.17"
   },
   "scripts": {
@@ -50,6 +51,6 @@
     "lib"
   ],
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "registry": "http://193.23.209.71:7081/api/packages/MAINER4IK/npm/"
   }
 }
