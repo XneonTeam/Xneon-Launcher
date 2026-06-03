@@ -1,9 +1,5 @@
-// ============================================================
-// XNLC — Quilt Handler
-// Handles Quilt installation via Prism Meta (Prism Style)
+// Handles Quilt installation via loader meta
 // Author: MAINER4IK
-// ============================================================
-
 import * as path from "path";
 import * as fs from "fs";
 import { 
@@ -12,29 +8,29 @@ import {
   VersionJson 
 } from "../types/index.js";
 import { Downloader } from "../core/downloader.js";
-import type { PrismMetaClient } from "../core/prism-meta-client.js";
-import { getPrismMetaClient } from "../core/prism-meta-client-singleton.js";
+import type { LoaderMetaClient } from "../core/loader-meta-client.js";
+import { getLoaderMetaClient } from "../core/loader-meta-client-singleton.js";
 import { MetaClient } from "../core/meta-client.js";
 import type { ILoaderHandler } from "./types.js";
 
 export class QuiltHandler implements ILoaderHandler {
-  private prismMetaClient: PrismMetaClient;
+  private loaderMetaClient: LoaderMetaClient;
 
   constructor(
     private downloader: Downloader,
     private gameDir: string,
     private metaClient: MetaClient,
   ) {
-    this.prismMetaClient = getPrismMetaClient();
+    this.loaderMetaClient = getLoaderMetaClient();
   }
 
   async getGameVersions(): Promise<string[]> {
-    const index = await this.prismMetaClient.getIndex("net.fabricmc.intermediary");
+    const index = await this.loaderMetaClient.getIndex("net.fabricmc.intermediary");
     return index.versions.map(v => v.version);
   }
 
   async getLoaderVersionsForGame(mcVersion: string): Promise<string[]> {
-    const index = await this.prismMetaClient.getIndex("org.quiltmc.quilt-loader");
+    const index = await this.loaderMetaClient.getIndex("org.quiltmc.quilt-loader");
     return index.versions.map(v => v.version);
   }
 
@@ -45,12 +41,12 @@ export class QuiltHandler implements ILoaderHandler {
   ): Promise<LoaderInstallResult> {
     console.log(`[QuiltHandler] Installing Quilt ${quiltVersion} for Minecraft ${mcVersion}`);
 
-    // 1. Fetch Prism Meta for Quilt
-    const prismQuilt = await this.prismMetaClient.getVersion("org.quiltmc.quilt-loader", quiltVersion);
-    const prismIntermediary = await this.prismMetaClient.getVersion("net.fabricmc.intermediary", mcVersion);
+    // 1. Fetch loader meta for Quilt
+    const metaQuilt = await this.loaderMetaClient.getVersion("org.quiltmc.quilt-loader", quiltVersion);
+    const metaIntermediary = await this.loaderMetaClient.getVersion("net.fabricmc.intermediary", mcVersion);
 
-    if (!prismQuilt || !prismIntermediary) {
-      throw new Error(`Quilt components not found in Prism Meta for MC ${mcVersion}`);
+    if (!metaQuilt || !metaIntermediary) {
+      throw new Error(`Quilt components not found in loader meta for MC ${mcVersion}`);
     }
 
     // 2. Fetch Base Minecraft JSON
@@ -68,20 +64,20 @@ export class QuiltHandler implements ILoaderHandler {
       time: new Date().toISOString(),
       releaseTime: new Date().toISOString(),
       type: "modified",
-      mainClass: prismQuilt.mainClass || "org.quiltmc.loader.impl.launch.knot.KnotClient",
+      mainClass: metaQuilt.mainClass || "org.quiltmc.loader.impl.launch.knot.KnotClient",
       inheritsFrom: mcVersion,
       jar: mcVersion,
       libraries: [
-        ...(prismQuilt.libraries || []),
-        ...(prismIntermediary.libraries || [])
+        ...(metaQuilt.libraries || []),
+        ...(metaIntermediary.libraries || [])
       ],
-      traits: [...(prismQuilt["+traits"] || []), "quilt-loader"]
+      traits: [...(metaQuilt["+traits"] || []), "quilt-loader"]
     };
 
-    if (prismQuilt.arguments) {
+    if (metaQuilt.arguments) {
       versionJson.arguments = {
-        game: [...(prismQuilt.arguments.game || []), ...(baseMcJson.arguments?.game || [])],
-        jvm: [...(prismQuilt.arguments.jvm || []), ...(baseMcJson.arguments?.jvm || [])],
+        game: [...(metaQuilt.arguments.game || []), ...(baseMcJson.arguments?.game || [])],
+        jvm: [...(metaQuilt.arguments.jvm || []), ...(baseMcJson.arguments?.jvm || [])],
       };
     }
 

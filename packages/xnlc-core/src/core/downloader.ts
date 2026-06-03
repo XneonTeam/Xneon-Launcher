@@ -1,9 +1,5 @@
-// ============================================================
-// XNLC — Downloader
-// Robust task-oriented downloader inspired by Prism Launcher's NetJob
+// Robust task-oriented downloader
 // Author: MAINER4IK
-// ============================================================
-
 import * as fs from "fs";
 import * as path from "path";
 import * as fsSync from "fs";

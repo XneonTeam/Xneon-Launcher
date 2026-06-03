@@ -6,33 +6,33 @@ import {
   ComponentData,
 } from "../types/index.js";
 import { Downloader } from "../core/downloader.js";
-import type { PrismMetaClient } from "../core/prism-meta-client.js";
-import { getPrismMetaClient } from "../core/prism-meta-client-singleton.js";
+import type { LoaderMetaClient } from "../core/loader-meta-client.js";
+import { getLoaderMetaClient } from "../core/loader-meta-client-singleton.js";
 import { MetaClient } from "../core/meta-client.js";
 import { ProfileBuilder } from "../core/profile-builder.js";
 import { ensureDirSync, getVersionDir } from "../utils/index.js";
 import type { ILoaderHandler } from "./types.js";
 
 export class NeoForgeHandler implements ILoaderHandler {
-  private prismMetaClient: PrismMetaClient;
+  private loaderMetaClient: LoaderMetaClient;
 
   constructor(
     private downloader: Downloader,
     private metaClient: MetaClient,
     private gameDir: string,
   ) {
-    this.prismMetaClient = getPrismMetaClient();
+    this.loaderMetaClient = getLoaderMetaClient();
   }
 
   async getVersions(mcVersion: string): Promise<string[]> {
-    const index = await this.prismMetaClient.getIndex("net.neoforged");
+    const index = await this.loaderMetaClient.getIndex("net.neoforged");
     return index.versions
       .filter(v => v.requires.some(r => r.uid === "net.minecraft" && r.equals === mcVersion))
       .map(v => v.version);
   }
 
   async getSupportedMinecraftVersions(): Promise<string[]> {
-    const index = await this.prismMetaClient.getIndex("net.neoforged");
+    const index = await this.loaderMetaClient.getIndex("net.neoforged");
     const mcVersions = new Set<string>();
     index.versions.forEach(v => {
       v.requires.forEach(r => {
@@ -54,18 +54,18 @@ export class NeoForgeHandler implements ILoaderHandler {
   ): Promise<LoaderInstallResult> {
     console.log(`[NeoForgeHandler] Installing NeoForge ${neoforgeVersion} for Minecraft ${mcVersion}`);
 
-    const prismNeo = await this.prismMetaClient.getVersion("net.neoforged", neoforgeVersion);
-    if (!prismNeo) throw new Error(`NeoForge ${neoforgeVersion} not found in Prism Meta`);
+    const metaNeo = await this.loaderMetaClient.getVersion("net.neoforged", neoforgeVersion);
+    if (!metaNeo) throw new Error(`NeoForge ${neoforgeVersion} not found in loader meta`);
 
     const baseMcJson = await this.metaClient.fetchVersionJson(mcVersion);
 
     // Extract FML-specific args from minecraftArguments (avoids duplicating base MC placeholders)
     const forgeGameArgs: string[] = [];
-    if (prismNeo.arguments?.game) {
-      forgeGameArgs.push(...prismNeo.arguments.game);
+    if (metaNeo.arguments?.game) {
+      forgeGameArgs.push(...metaNeo.arguments.game);
     }
-    if (prismNeo.minecraftArguments) {
-      const parts = prismNeo.minecraftArguments.split(/\s+/);
+    if (metaNeo.minecraftArguments) {
+      const parts = metaNeo.minecraftArguments.split(/\s+/);
       const fmlIdx = parts.findIndex(p => p === "--launchTarget" || p.startsWith("--fml."));
       if (fmlIdx >= 0) {
         forgeGameArgs.push(...parts.slice(fmlIdx));
@@ -75,23 +75,23 @@ export class NeoForgeHandler implements ILoaderHandler {
     const neoforgeComponent: ComponentData = {
       uid: "net.neoforged",
       version: neoforgeVersion,
-      name: prismNeo.name,
-      requires: prismNeo.requires,
-      mainClass: prismNeo.mainClass,
+      name: metaNeo.name,
+      requires: metaNeo.requires,
+      mainClass: metaNeo.mainClass,
       arguments: {
-        game: forgeGameArgs.length > 0 ? forgeGameArgs : prismNeo.arguments?.game,
-        jvm: prismNeo.arguments?.jvm,
+        game: forgeGameArgs.length > 0 ? forgeGameArgs : metaNeo.arguments?.game,
+        jvm: metaNeo.arguments?.jvm,
       },
-      libraries: prismNeo.libraries,
-      jarMods: prismNeo.jarMods,
-      agents: prismNeo.agents,
-      mods: prismNeo.mods,
-      mavenFiles: prismNeo.mavenFiles,
-      traits: prismNeo["+traits"],
-      tweakers: prismNeo["+tweakers"],
-      jvmArgs: prismNeo["+jvmArgs"],
-      gameArgs: prismNeo["+gameArgs"],
-      plusLibraries: prismNeo["+libraries"],
+      libraries: metaNeo.libraries,
+      jarMods: metaNeo.jarMods,
+      agents: metaNeo.agents,
+      mods: metaNeo.mods,
+      mavenFiles: metaNeo.mavenFiles,
+      traits: metaNeo["+traits"],
+      tweakers: metaNeo["+tweakers"],
+      jvmArgs: metaNeo["+jvmArgs"],
+      gameArgs: metaNeo["+gameArgs"],
+      plusLibraries: metaNeo["+libraries"],
     };
 
     // Build full profile from components: net.minecraft + lwjgl3 + neoforge
@@ -111,9 +111,9 @@ export class NeoForgeHandler implements ILoaderHandler {
     });
 
     // 2. org.lwjgl3 component (if Minecraft 1.13+)
-    const lwjglVersion = await this.prismMetaClient.resolveLwjgl3Version(mcVersion);
+    const lwjglVersion = await this.loaderMetaClient.resolveLwjgl3Version(mcVersion);
     if (lwjglVersion) {
-      const lwjglComponent = await this.prismMetaClient.getVersion("org.lwjgl3", lwjglVersion);
+      const lwjglComponent = await this.loaderMetaClient.getVersion("org.lwjgl3", lwjglVersion);
       if (lwjglComponent) {
         builder.applyComponent({
           uid: "org.lwjgl3",
@@ -130,7 +130,7 @@ export class NeoForgeHandler implements ILoaderHandler {
 
     // ForgeWrapper needs to find the Minecraft client jar.
     // XNLC stores it in versions/<mcVersion>/<mcVersion>.jar,
-    // but the MultiMCFileDetector looks in libraries/com/mojang/minecraft/.
+    // but the loader's file detector looks in libraries/com/mojang/minecraft/.
     // Tell it where the jar actually is via system property.
     const mcClientJar = path.join(this.gameDir, "versions", mcVersion, `${mcVersion}.jar`);
     if (!resolvedJson.arguments) resolvedJson.arguments = { game: [], jvm: [] };
@@ -139,7 +139,7 @@ export class NeoForgeHandler implements ILoaderHandler {
 
     const profileName = `neoforge-${neoforgeVersion}-${mcVersion}`;
     resolvedJson.id = profileName;
-    resolvedJson.releaseTime = prismNeo.releaseTime;
+    resolvedJson.releaseTime = metaNeo.releaseTime;
     resolvedJson.time = new Date().toISOString();
     resolvedJson.type = "modified";
 

@@ -1,6 +1,6 @@
 // ============================================================
 // XNLC — Fabric Handler
-// Handles Fabric installation via Prism Meta (Prism Style)
+// Handles Fabric installation via loader meta
 // Author: MAINER4IK
 // ============================================================
 
@@ -12,29 +12,29 @@ import {
   VersionJson 
 } from "../types/index.js";
 import { Downloader } from "../core/downloader.js";
-import type { PrismMetaClient } from "../core/prism-meta-client.js";
-import { getPrismMetaClient } from "../core/prism-meta-client-singleton.js";
+import type { LoaderMetaClient } from "../core/loader-meta-client.js";
+import { getLoaderMetaClient } from "../core/loader-meta-client-singleton.js";
 import { MetaClient } from "../core/meta-client.js";
 import type { ILoaderHandler } from "./types.js";
 
 export class FabricHandler implements ILoaderHandler {
-  private prismMetaClient: PrismMetaClient;
+  private loaderMetaClient: LoaderMetaClient;
 
   constructor(
     private downloader: Downloader,
     private gameDir: string,
     private metaClient: MetaClient,
   ) {
-    this.prismMetaClient = getPrismMetaClient();
+    this.loaderMetaClient = getLoaderMetaClient();
   }
 
   async getGameVersions(): Promise<string[]> {
-    const index = await this.prismMetaClient.getIndex("net.fabricmc.intermediary");
+    const index = await this.loaderMetaClient.getIndex("net.fabricmc.intermediary");
     return index.versions.map(v => v.version);
   }
 
   async getLoaderVersionsForGame(mcVersion: string): Promise<string[]> {
-    const index = await this.prismMetaClient.getIndex("net.fabricmc.fabric-loader");
+    const index = await this.loaderMetaClient.getIndex("net.fabricmc.fabric-loader");
     return index.versions.map(v => v.version);
   }
 
@@ -45,12 +45,12 @@ export class FabricHandler implements ILoaderHandler {
   ): Promise<LoaderInstallResult> {
     console.log(`[FabricHandler] Installing Fabric ${fabricVersion} for Minecraft ${mcVersion}`);
 
-    // 1. Fetch Prism Meta for Fabric Loader
-    const prismFabric = await this.prismMetaClient.getVersion("net.fabricmc.fabric-loader", fabricVersion);
-    const prismIntermediary = await this.prismMetaClient.getVersion("net.fabricmc.intermediary", mcVersion);
+    // 1. Fetch loader meta for Fabric Loader
+    const metaFabric = await this.loaderMetaClient.getVersion("net.fabricmc.fabric-loader", fabricVersion);
+    const metaIntermediary = await this.loaderMetaClient.getVersion("net.fabricmc.intermediary", mcVersion);
 
-    if (!prismFabric || !prismIntermediary) {
-      throw new Error(`Fabric components not found in Prism Meta for MC ${mcVersion}`);
+    if (!metaFabric || !metaIntermediary) {
+      throw new Error(`Fabric components not found in loader meta for MC ${mcVersion}`);
     }
 
     // 2. Fetch Base Minecraft JSON
@@ -61,44 +61,44 @@ export class FabricHandler implements ILoaderHandler {
     const versionDir = path.join(this.gameDir, "versions", profileName);
     if (!fs.existsSync(versionDir)) fs.mkdirSync(versionDir, { recursive: true });
 
-    // 4. Build VersionJson (Prism Style merging)
+    // 4. Build VersionJson (loader-style merging)
     const versionJson: VersionJson = {
       ...baseMcJson,
       id: profileName,
       time: new Date().toISOString(),
       releaseTime: new Date().toISOString(),
       type: "modified",
-      mainClass: prismFabric.mainClass || "net.fabricmc.loader.impl.launch.knot.KnotClient",
+      mainClass: metaFabric.mainClass || "net.fabricmc.loader.impl.launch.knot.KnotClient",
       inheritsFrom: mcVersion,
       jar: mcVersion,
       libraries: [
-        ...(prismFabric.libraries || []),
-        ...(prismIntermediary.libraries || []),
-        ...((prismFabric as any)["+libraries"] || []),
+        ...(metaFabric.libraries || []),
+        ...(metaIntermediary.libraries || []),
+        ...((metaFabric as any)["+libraries"] || []),
       ],
-      traits: [...(prismFabric["+traits"] || []), "fabric-loader"]
+      traits: [...(metaFabric["+traits"] || []), "fabric-loader"]
     };
 
-    // Handle Prism-style arguments (base first, then patch)
-    if (prismFabric.arguments) {
+    // Handle loader-style arguments (base first, then patch)
+    if (metaFabric.arguments) {
       versionJson.arguments = {
-        game: [...(baseMcJson.arguments?.game || []), ...(prismFabric.arguments.game || [])],
-        jvm: [...(baseMcJson.arguments?.jvm || []), ...(prismFabric.arguments.jvm || [])],
+        game: [...(baseMcJson.arguments?.game || []), ...(metaFabric.arguments.game || [])],
+        jvm: [...(baseMcJson.arguments?.jvm || []), ...(metaFabric.arguments.jvm || [])],
       };
     }
 
-    // Pass raw Prism extensions through for VersionResolver to merge later
-    if (prismFabric["+tweakers"]) {
-      (versionJson as any)["+tweakers"] = prismFabric["+tweakers"];
+    // Pass raw loader extensions through for VersionResolver to merge later
+    if (metaFabric["+tweakers"]) {
+      (versionJson as any)["+tweakers"] = metaFabric["+tweakers"];
     }
-    if (prismFabric["+jvmArgs"]) {
-      (versionJson as any)["+jvmArgs"] = prismFabric["+jvmArgs"];
+    if (metaFabric["+jvmArgs"]) {
+      (versionJson as any)["+jvmArgs"] = metaFabric["+jvmArgs"];
     }
-    if (prismFabric["+gameArgs"]) {
-      (versionJson as any)["+gameArgs"] = prismFabric["+gameArgs"];
+    if (metaFabric["+gameArgs"]) {
+      (versionJson as any)["+gameArgs"] = metaFabric["+gameArgs"];
     }
-    if ((prismFabric as any)["+libraries"]) {
-      (versionJson as any)["+libraries"] = (prismFabric as any)["+libraries"];
+    if ((metaFabric as any)["+libraries"]) {
+      (versionJson as any)["+libraries"] = (metaFabric as any)["+libraries"];
     }
 
     const jsonPath = path.join(versionDir, `${profileName}.json`);

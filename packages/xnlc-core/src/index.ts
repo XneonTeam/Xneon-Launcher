@@ -75,8 +75,8 @@ export { XnlcLoaderService } from "./services/loader-service.js";
 export { XnlcLaunchPipeline } from "./services/launch-pipeline.js";
 
 // Core - Singleton
-export { getPrismMetaClient } from "./core/prism-meta-client-singleton.js";
-export { PrismMetaClient } from "./core/prism-meta-client.js";
+export { getLoaderMetaClient } from "./core/loader-meta-client-singleton.js";
+export { LoaderMetaClient } from "./core/loader-meta-client.js";
 
 // Auth
 export { AuthManager } from "./auth/auth-manager.js";

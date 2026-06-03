@@ -17,7 +17,7 @@ import { OptifineHandler } from "./optifine-handler.js";
 import { CustomVersionHandler } from "./custom-version-handler.js";
 import { Downloader } from "../core/downloader.js";
 import { MetaClient } from "../core/meta-client.js";
-import { getPrismMetaClient } from "../core/prism-meta-client-singleton.js";
+import { getLoaderMetaClient } from "../core/loader-meta-client-singleton.js";
 import { isLegacyFabric } from "../utils/index.js";
 
 type ResolvedLoaderType = Exclude<LoaderType, "vanilla">;
@@ -41,7 +41,7 @@ export class LoaderResolver {
 
   getForgeHandler(): ForgeHandler {
     if (!this._forgeHandler) {
-      this._forgeHandler = new ForgeHandler(this.downloader, this.metaClient, getPrismMetaClient(), this.gameDir);
+      this._forgeHandler = new ForgeHandler(this.downloader, this.metaClient, getLoaderMetaClient(), this.gameDir);
     }
     return this._forgeHandler;
   }

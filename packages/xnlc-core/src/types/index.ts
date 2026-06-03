@@ -208,7 +208,7 @@ export interface LoaderInstallResult {
   componentData?: ComponentData;
 }
 
-export interface PrismMetaVersionSummary {
+export interface LoaderMetaVersionSummary {
   version: string;
   releaseTime: string;
   requires: Array<{ uid: string; equals?: string; suggests?: string }>;
@@ -216,14 +216,14 @@ export interface PrismMetaVersionSummary {
   recommended?: boolean;
 }
 
-export interface PrismMetaIndex {
+export interface LoaderMetaIndex {
   formatVersion: number;
   name: string;
   uid: string;
-  versions: PrismMetaVersionSummary[];
+  versions: LoaderMetaVersionSummary[];
 }
 
-export interface PrismMetaLibrary {
+export interface LoaderMetaLibrary {
   name: string;
   downloads?: {
     artifact?: VersionJsonDownload;
@@ -265,17 +265,17 @@ export interface ComponentData {
   compatibleJavaMajors?: number[];
 }
 
-export interface PrismMetaVersion {
+export interface LoaderMetaVersion {
   uid: string;
   version: string;
   name: string;
   releaseTime: string;
   requires: Array<{ uid: string; equals?: string }>;
-  libraries?: PrismMetaLibrary[];
-  jarMods?: PrismMetaLibrary[];
-  agents?: PrismMetaLibrary[];
-  mods?: PrismMetaLibrary[];
-  mavenFiles?: PrismMetaLibrary[];
+  libraries?: LoaderMetaLibrary[];
+  jarMods?: LoaderMetaLibrary[];
+  agents?: LoaderMetaLibrary[];
+  mods?: LoaderMetaLibrary[];
+  mavenFiles?: LoaderMetaLibrary[];
   mainClass?: string;
   minecraftArguments?: string;
   arguments?: {
@@ -286,7 +286,7 @@ export interface PrismMetaVersion {
   "+tweakers"?: string[];
   "+jvmArgs"?: string[];
   "+gameArgs"?: string[];
-  "+libraries"?: PrismMetaLibrary[];
+  "+libraries"?: LoaderMetaLibrary[];
   order?: number;
 }
 

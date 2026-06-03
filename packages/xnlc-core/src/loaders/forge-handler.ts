@@ -7,7 +7,7 @@ import {
 } from "../types/index.js";
 import { Downloader } from "../core/downloader.js";
 import { MetaClient } from "../core/meta-client.js";
-import { PrismMetaClient } from "../core/prism-meta-client.js";
+import { LoaderMetaClient } from "../core/loader-meta-client.js";
 import { ProfileBuilder } from "../core/profile-builder.js";
 import { ensureDirSync, getVersionDir } from "../utils/index.js";
 import type { ILoaderHandler } from "./types.js";
@@ -16,19 +16,19 @@ export class ForgeHandler implements ILoaderHandler {
   constructor(
     private downloader: Downloader,
     private metaClient: MetaClient,
-    private prismMetaClient: PrismMetaClient,
+    private loaderMetaClient: LoaderMetaClient,
     private gameDir: string,
   ) {}
 
   async getVersions(mcVersion: string): Promise<string[]> {
-    const index = await this.prismMetaClient.getIndex("net.minecraftforge");
+    const index = await this.loaderMetaClient.getIndex("net.minecraftforge");
     return index.versions
       .filter(v => v.requires.some(r => r.uid === "net.minecraft" && r.equals === mcVersion))
       .map(v => v.version);
   }
 
   async getSupportedMinecraftVersions(): Promise<string[]> {
-    const index = await this.prismMetaClient.getIndex("net.minecraftforge");
+    const index = await this.loaderMetaClient.getIndex("net.minecraftforge");
     const mcVersions = new Set<string>();
     index.versions.forEach(v => {
       v.requires.forEach(r => {
@@ -39,7 +39,7 @@ export class ForgeHandler implements ILoaderHandler {
   }
 
   async getRecommendedVersion(mcVersion: string): Promise<string | null> {
-    const index = await this.prismMetaClient.getIndex("net.minecraftforge");
+    const index = await this.loaderMetaClient.getIndex("net.minecraftforge");
     const compatible = index.versions
       .filter(v => v.requires.some(r => r.uid === "net.minecraft" && r.equals === mcVersion));
     const recommended = compatible.find(v => v.recommended);
@@ -53,20 +53,20 @@ export class ForgeHandler implements ILoaderHandler {
   ): Promise<LoaderInstallResult> {
     console.log(`[ForgeHandler] Installing Forge ${forgeVersion} for Minecraft ${mcVersion}`);
 
-    const prismForge = await this.prismMetaClient.getVersion("net.minecraftforge", forgeVersion);
-    if (!prismForge) {
-      throw new Error(`Forge ${forgeVersion} not found in Prism Meta`);
+    const metaForge = await this.loaderMetaClient.getVersion("net.minecraftforge", forgeVersion);
+    if (!metaForge) {
+      throw new Error(`Forge ${forgeVersion} not found in loader meta`);
     }
 
     const baseMcJson = await this.metaClient.fetchVersionJson(mcVersion);
 
     // Extract FML-specific args from minecraftArguments (avoids duplicating base MC placeholders)
     const forgeGameArgs: string[] = [];
-    if (prismForge.arguments?.game) {
-      forgeGameArgs.push(...prismForge.arguments.game);
+    if (metaForge.arguments?.game) {
+      forgeGameArgs.push(...metaForge.arguments.game);
     }
-    if (prismForge.minecraftArguments) {
-      const parts = prismForge.minecraftArguments.split(/\s+/);
+    if (metaForge.minecraftArguments) {
+      const parts = metaForge.minecraftArguments.split(/\s+/);
       const fmlIdx = parts.findIndex(p => p === "--launchTarget" || p.startsWith("--fml."));
       if (fmlIdx >= 0) {
         forgeGameArgs.push(...parts.slice(fmlIdx));
@@ -76,23 +76,23 @@ export class ForgeHandler implements ILoaderHandler {
     const forgeComponent: ComponentData = {
       uid: "net.minecraftforge",
       version: forgeVersion,
-      name: prismForge.name,
-      requires: prismForge.requires,
-      mainClass: prismForge.mainClass,
+      name: metaForge.name,
+      requires: metaForge.requires,
+      mainClass: metaForge.mainClass,
       arguments: {
-        game: forgeGameArgs.length > 0 ? forgeGameArgs : prismForge.arguments?.game,
-        jvm: prismForge.arguments?.jvm,
+        game: forgeGameArgs.length > 0 ? forgeGameArgs : metaForge.arguments?.game,
+        jvm: metaForge.arguments?.jvm,
       },
-      libraries: prismForge.libraries,
-      jarMods: prismForge.jarMods,
-      agents: prismForge.agents,
-      mods: prismForge.mods,
-      mavenFiles: prismForge.mavenFiles,
-      traits: prismForge["+traits"],
-      tweakers: prismForge["+tweakers"],
-      jvmArgs: prismForge["+jvmArgs"],
-      gameArgs: prismForge["+gameArgs"],
-      plusLibraries: prismForge["+libraries"],
+      libraries: metaForge.libraries,
+      jarMods: metaForge.jarMods,
+      agents: metaForge.agents,
+      mods: metaForge.mods,
+      mavenFiles: metaForge.mavenFiles,
+      traits: metaForge["+traits"],
+      tweakers: metaForge["+tweakers"],
+      jvmArgs: metaForge["+jvmArgs"],
+      gameArgs: metaForge["+gameArgs"],
+      plusLibraries: metaForge["+libraries"],
     };
 
     // Build full profile from components: net.minecraft + lwjgl3 + forge
@@ -112,9 +112,9 @@ export class ForgeHandler implements ILoaderHandler {
     });
 
     // 2. org.lwjgl3 component (if Minecraft 1.13+)
-    const lwjglVersion = await this.prismMetaClient.resolveLwjgl3Version(mcVersion);
+    const lwjglVersion = await this.loaderMetaClient.resolveLwjgl3Version(mcVersion);
     if (lwjglVersion) {
-      const lwjglComponent = await this.prismMetaClient.getVersion("org.lwjgl3", lwjglVersion);
+      const lwjglComponent = await this.loaderMetaClient.getVersion("org.lwjgl3", lwjglVersion);
       if (lwjglComponent) {
         builder.applyComponent({
           uid: "org.lwjgl3",
@@ -137,7 +137,7 @@ export class ForgeHandler implements ILoaderHandler {
 
     const profileName = `forge-${forgeVersion}-${mcVersion}`;
     resolvedJson.id = profileName;
-    resolvedJson.releaseTime = prismForge.releaseTime;
+    resolvedJson.releaseTime = metaForge.releaseTime;
     resolvedJson.time = new Date().toISOString();
     resolvedJson.type = "modified";
 

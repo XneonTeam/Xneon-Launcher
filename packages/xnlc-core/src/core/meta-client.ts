@@ -6,8 +6,8 @@
 
 import { MojangVersionManifest, MojangVersionEntry, VersionJson } from "../types/index.js";
 import { URLS } from "../constants/urls.js";
-import type { PrismMetaClient } from "./prism-meta-client.js";
-import { getPrismMetaClient } from "./prism-meta-client-singleton.js";
+import type { LoaderMetaClient } from "./loader-meta-client.js";
+import { getLoaderMetaClient } from "./loader-meta-client-singleton.js";
 
 declare const fetch: typeof globalThis.fetch;
 
@@ -16,10 +16,10 @@ const VERSION_MANIFEST_V2_URL = URLS.official.mojang.versionManifestV2;
 export class MetaClient {
   private cache: Map<string, VersionJson> = new Map();
   private manifestCache: MojangVersionManifest | null = null;
-  private prismClient: PrismMetaClient;
+  private loaderClient: LoaderMetaClient;
 
   constructor() {
-    this.prismClient = getPrismMetaClient();
+    this.loaderClient = getLoaderMetaClient();
   }
 
   async fetchManifest(): Promise<MojangVersionManifest> {
@@ -57,66 +57,66 @@ export class MetaClient {
 
     let data = (await res.json()) as VersionJson;
 
-    // Try to "Prism-ify" the version data for better stability
+    // Try to enrich version data with loader meta for better stability
     try {
-      const prismVersion = await this.prismClient.getVersion("net.minecraft", versionId);
-      if (prismVersion) {
-        console.log(`[MetaClient] Prism-ifying Minecraft ${versionId} for better stability`);
+      const metaVersion = await this.loaderClient.getVersion("net.minecraft", versionId);
+      if (metaVersion) {
+        console.log(`[MetaClient] Enriching Minecraft ${versionId} with loader meta for better stability`);
 
-        // DON'T replace all libraries. Prism's net.minecraft component only contains 
+        // DON'T replace all libraries. Loader meta net.minecraft component only contains 
         // the main jar and some specific libraries. Mojang's JSON contains everything.
-        // We only want to update libraries that Prism also has (to get their fixed URLs).
-        if (prismVersion.libraries && prismVersion.libraries.length > 0) {
-          const prismLibs = new Map(prismVersion.libraries.map((lib: any) => [lib.name, lib]));
+        // We only want to update libraries that loader meta also has (to get their fixed URLs).
+        if (metaVersion.libraries && metaVersion.libraries.length > 0) {
+          const metaLibs = new Map(metaVersion.libraries.map((lib: any) => [lib.name, lib]));
           
           data.libraries = data.libraries.map(lib => {
-            const prismLib = prismLibs.get(lib.name);
-            if (prismLib) {
+            const metaLib = metaLibs.get(lib.name);
+            if (metaLib) {
               return {
                 ...lib,
-                downloads: prismLib.downloads || lib.downloads,
-                rules: prismLib.rules || lib.rules,
-                natives: prismLib.natives || lib.natives,
-                extract: prismLib.extract || lib.extract,
+                downloads: metaLib.downloads || lib.downloads,
+                rules: metaLib.rules || lib.rules,
+                natives: metaLib.natives || lib.natives,
+                extract: metaLib.extract || lib.extract,
               };
             }
             return lib;
           });
 
-          // Add libraries that are in Prism but NOT in Mojang
-          for (const [name, pLib] of prismLibs) {
+          // Add libraries that are in loader meta but NOT in Mojang
+          for (const [name, mLib] of metaLibs) {
             if (!data.libraries.some(l => l.name === name)) {
               data.libraries.push({
-                name: pLib.name,
-                downloads: pLib.downloads,
-                rules: pLib.rules,
-                natives: pLib.natives,
-                extract: pLib.extract,
+                name: mLib.name,
+                downloads: mLib.downloads,
+                rules: mLib.rules,
+                natives: mLib.natives,
+                extract: mLib.extract,
               });
             }
           }
         }
 
         // Merge arguments if present
-        if (prismVersion.arguments) {
+        if (metaVersion.arguments) {
           data.arguments = {
-            game: [...(prismVersion.arguments.game || []), ...(data.arguments?.game || [])],
-            jvm: [...(prismVersion.arguments.jvm || []), ...(data.arguments?.jvm || [])],
+            game: [...(metaVersion.arguments.game || []), ...(data.arguments?.game || [])],
+            jvm: [...(metaVersion.arguments.jvm || []), ...(data.arguments?.jvm || [])],
           };
         }
 
-        // Use Prism's mainClass if available
-        if (prismVersion.mainClass) {
-          data.mainClass = prismVersion.mainClass;
+        // Use loader meta's mainClass if available
+        if (metaVersion.mainClass) {
+          data.mainClass = metaVersion.mainClass;
         }
 
         // Copy traits
-        if (prismVersion["+traits"]) {
-          (data as any).traits = Array.from(new Set([...((data as any).traits || []), ...prismVersion["+traits"]]));
+        if (metaVersion["+traits"]) {
+          (data as any).traits = Array.from(new Set([...((data as any).traits || []), ...metaVersion["+traits"]]));
         }
       }
     } catch (e) {
-      console.warn(`[MetaClient] Failed to fetch Prism Meta for Minecraft ${versionId}; using raw Mojang data`);
+      console.warn(`[MetaClient] Failed to fetch loader meta for Minecraft ${versionId}; using raw Mojang data`);
     }
 
     this.cache.set(versionId, data);
