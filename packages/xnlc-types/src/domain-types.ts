@@ -114,7 +114,7 @@ export type ImportableLauncherInstance = {
   loaderVersion?: string
   icon?: string
   path: string
-  source: "gdlauncher" | "prism" | "multimc" | "polymc" | "astralrinth" | "xlauncher"
+  source: "gdlauncher" | "prism" | "multimc" | "polymc" | "astralrinth" | "xlauncher" | "modrinthapp"
   modCount?: number
   resourcepackCount?: number
   shaderCount?: number
