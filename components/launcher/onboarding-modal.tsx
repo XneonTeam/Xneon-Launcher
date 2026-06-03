@@ -77,7 +77,7 @@ const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     importSource: "Источник:",
     importButton: "Импортировать",
     importingButton: "Импорт...",
-    importEmpty: "Сборки для импорта не найдены. Поддерживаются X Launcher, GDLauncher, Prism Launcher и AstralRinth.",
+    importEmpty: "Сборки для импорта не найдены. Поддерживаются X Launcher, GDLauncher, Prism Launcher, Modrinth App и AstralRinth.",
     importResult: "Результат импорта",
     importNotStarted: "Импорт ещё не запускался",
     importCompleted: "Импортировано сборок: {{count}}",
@@ -101,12 +101,13 @@ const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
       { id: "authlib", title: "Authlib Injector", description: "Классический authlib-режим для совместимых серверов и сборок." },
       { id: "disabled", title: "Отключено", description: "Запуск без дополнительного инжектора." },
     ],
-    sourceNames: { gdlauncher: "GDLauncher", prism: "Prism Launcher", astralrinth: "AstralRinth", xlauncher: "X Launcher" },
+    sourceNames: { gdlauncher: "GDLauncher", prism: "Prism Launcher", astralrinth: "AstralRinth", xlauncher: "X Launcher", modrinthapp: "Modrinth App" },
     sourcePaths: {
       xlauncher: "~/.minecraftx/instances",
       gdlauncher: "~/.local/share/gdlauncher_carbon/data/instances",
       prism: "~/.var/app/org.prismlauncher.PrismLauncher/... или ~/.local/share/PrismLauncher",
       astralrinth: "~/.local/share/AstralRinthApp/profiles",
+      modrinthapp: "~/.local/share/modrinth-app/profiles или %APPDATA%/ModrinthApp/profiles",
     },
     errors: {
       offlineUsername: "Введи ник для оффлайн-аккаунта.",
@@ -133,7 +134,7 @@ const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     importSource: "Source:",
     importButton: "Import",
     importingButton: "Importing...",
-    importEmpty: "No instances found for import. X Launcher, GDLauncher, Prism Launcher, and AstralRinth are supported.",
+    importEmpty: "No instances found for import. X Launcher, GDLauncher, Prism Launcher, Modrinth App, and AstralRinth are supported.",
     importResult: "Import result",
     importNotStarted: "Import has not been started yet",
     importCompleted: "Imported instances: {{count}}",
@@ -157,12 +158,13 @@ const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
       { id: "authlib", title: "Authlib Injector", description: "Classic authlib mode for compatible servers and modpacks." },
       { id: "disabled", title: "Disabled", description: "Launch without an additional injector." },
     ],
-    sourceNames: { gdlauncher: "GDLauncher", prism: "Prism Launcher", astralrinth: "AstralRinth", xlauncher: "X Launcher" },
+    sourceNames: { gdlauncher: "GDLauncher", prism: "Prism Launcher", astralrinth: "AstralRinth", xlauncher: "X Launcher", modrinthapp: "Modrinth App" },
     sourcePaths: {
       xlauncher: "~/.minecraftx/instances",
       gdlauncher: "~/.local/share/gdlauncher_carbon/data/instances",
       prism: "~/.var/app/org.prismlauncher.PrismLauncher/... or ~/.local/share/PrismLauncher",
       astralrinth: "~/.local/share/AstralRinthApp/profiles",
+      modrinthapp: "~/.local/share/modrinth-app/profiles or %APPDATA%/ModrinthApp/profiles",
     },
     errors: {
       offlineUsername: "Enter a username for the offline account.",
@@ -189,7 +191,7 @@ const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     importSource: "Джерело:",
     importButton: "Імпортувати",
     importingButton: "Імпорт...",
-    importEmpty: "Збірки для імпорту не знайдено. Підтримуються X Launcher, GDLauncher, Prism Launcher і AstralRinth.",
+    importEmpty: "Збірки для імпорту не знайдено. Підтримуються X Launcher, GDLauncher, Prism Launcher, Modrinth App і AstralRinth.",
     importResult: "Результат імпорту",
     importNotStarted: "Імпорт ще не запускався",
     importCompleted: "Імпортовано збірок: {{count}}",
@@ -213,12 +215,13 @@ const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
       { id: "authlib", title: "Authlib Injector", description: "Класичний authlib-режим для сумісних серверів і збірок." },
       { id: "disabled", title: "Вимкнено", description: "Запуск без додаткового інжектора." },
     ],
-    sourceNames: { gdlauncher: "GDLauncher", prism: "Prism Launcher", astralrinth: "AstralRinth", xlauncher: "X Launcher" },
+    sourceNames: { gdlauncher: "GDLauncher", prism: "Prism Launcher", astralrinth: "AstralRinth", xlauncher: "X Launcher", modrinthapp: "Modrinth App" },
     sourcePaths: {
       xlauncher: "~/.minecraftx/instances",
       gdlauncher: "~/.local/share/gdlauncher_carbon/data/instances",
       prism: "~/.var/app/org.prismlauncher.PrismLauncher/... або ~/.local/share/PrismLauncher",
       astralrinth: "~/.local/share/AstralRinthApp/profiles",
+      modrinthapp: "~/.local/share/modrinth-app/profiles або %APPDATA%/ModrinthApp/profiles",
     },
     errors: {
       offlineUsername: "Введи нік для офлайн-акаунта.",
@@ -245,7 +248,7 @@ const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     importSource: "Quelle:",
     importButton: "Importieren",
     importingButton: "Importiere...",
-    importEmpty: "Keine Instanzen zum Import gefunden. X Launcher, GDLauncher, Prism Launcher und AstralRinth werden unterstützt.",
+    importEmpty: "Keine Instanzen zum Import gefunden. X Launcher, GDLauncher, Prism Launcher, Modrinth App und AstralRinth werden unterstützt.",
     importResult: "Importergebnis",
     importNotStarted: "Import wurde noch nicht gestartet",
     importCompleted: "Importierte Instanzen: {{count}}",
@@ -269,12 +272,13 @@ const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
       { id: "authlib", title: "Authlib Injector", description: "Klassischer authlib-Modus für kompatible Server und Modpacks." },
       { id: "disabled", title: "Deaktiviert", description: "Start ohne zusätzlichen Injector." },
     ],
-    sourceNames: { gdlauncher: "GDLauncher", prism: "Prism Launcher", astralrinth: "AstralRinth", xlauncher: "X Launcher" },
+    sourceNames: { gdlauncher: "GDLauncher", prism: "Prism Launcher", astralrinth: "AstralRinth", xlauncher: "X Launcher", modrinthapp: "Modrinth App" },
     sourcePaths: {
       xlauncher: "~/.minecraftx/instances",
       gdlauncher: "~/.local/share/gdlauncher_carbon/data/instances",
       prism: "~/.var/app/org.prismlauncher.PrismLauncher/... oder ~/.local/share/PrismLauncher",
       astralrinth: "~/.local/share/AstralRinthApp/profiles",
+      modrinthapp: "~/.local/share/modrinth-app/profiles oder %APPDATA%/ModrinthApp/profiles",
     },
     errors: {
       offlineUsername: "Gib einen Namen für das Offline-Konto ein.",
@@ -301,7 +305,7 @@ const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     importSource: "Origen:",
     importButton: "Importar",
     importingButton: "Importando...",
-    importEmpty: "No se encontraron instancias para importar. Se admiten X Launcher, GDLauncher, Prism Launcher y AstralRinth.",
+    importEmpty: "No se encontraron instancias para importar. Se admiten X Launcher, GDLauncher, Prism Launcher, Modrinth App y AstralRinth.",
     importResult: "Resultado de la importación",
     importNotStarted: "La importación aún no se ha iniciado",
     importCompleted: "Instancias importadas: {{count}}",
@@ -325,12 +329,13 @@ const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
       { id: "authlib", title: "Authlib Injector", description: "Modo authlib clásico para servidores y modpacks compatibles." },
       { id: "disabled", title: "Desactivado", description: "Iniciar sin un injector adicional." },
     ],
-    sourceNames: { gdlauncher: "GDLauncher", prism: "Prism Launcher", astralrinth: "AstralRinth", xlauncher: "X Launcher" },
+    sourceNames: { gdlauncher: "GDLauncher", prism: "Prism Launcher", astralrinth: "AstralRinth", xlauncher: "X Launcher", modrinthapp: "Modrinth App" },
     sourcePaths: {
       xlauncher: "~/.minecraftx/instances",
       gdlauncher: "~/.local/share/gdlauncher_carbon/data/instances",
       prism: "~/.var/app/org.prismlauncher.PrismLauncher/... o ~/.local/share/PrismLauncher",
       astralrinth: "~/.local/share/AstralRinthApp/profiles",
+      modrinthapp: "~/.local/share/modrinth-app/profiles o %APPDATA%/ModrinthApp/profiles",
     },
     errors: {
       offlineUsername: "Introduce un nombre para la cuenta offline.",
@@ -376,7 +381,7 @@ function getAvatarUrl(account: { uuid?: string; type?: string }, username: strin
   return `https://mcskinapi-three.vercel.app/avatar/${encodeURIComponent(value)}`
 }
 
-type LauncherSource = "gdlauncher" | "prism" | "multimc" | "polymc" | "astralrinth" | "xlauncher"
+type LauncherSource = "gdlauncher" | "prism" | "multimc" | "polymc" | "astralrinth" | "xlauncher" | "modrinthapp"
 
 const LAUNCHER_SOURCE_ICON_SRC: Record<LauncherSource, string> = {
   prism: "/launcher-icons/prism.png",
@@ -385,6 +390,7 @@ const LAUNCHER_SOURCE_ICON_SRC: Record<LauncherSource, string> = {
   polymc: "/launcher-icons/polymc.svg",
   xlauncher: "/launcher-icons/xlauncher.svg",
   astralrinth: "/launcher-icons/astralrinth.webp",
+  modrinthapp: "/launcher-icons/modrinthapp.png",
 }
 
 function LauncherSourceIcon({ source, className }: { source: LauncherSource; className?: string }) {
@@ -842,6 +848,7 @@ export function OnboardingModal({
         if (source === "gdlauncher") return "bg-sky-500/15 text-sky-300 border-sky-400/25"
         if (source === "prism") return "bg-violet-500/15 text-violet-300 border-violet-400/25"
         if (source === "astralrinth") return "bg-cyan-500/15 text-cyan-300 border-cyan-400/25"
+        if (source === "modrinthapp") return "bg-orange-500/15 text-orange-300 border-orange-400/25"
         return "bg-muted text-muted-foreground border-border"
       }
 

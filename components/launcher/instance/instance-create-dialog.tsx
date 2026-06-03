@@ -16,7 +16,7 @@ interface InstanceCreateDialogProps {
   onImportFile: () => Promise<void>
 }
 
-type ImportSource = "gdlauncher" | "prism" | "multimc" | "polymc" | "astralrinth" | "xlauncher"
+type ImportSource = "gdlauncher" | "prism" | "multimc" | "polymc" | "astralrinth" | "xlauncher" | "modrinthapp"
 
 const SOURCE_ICON_SRC: Record<ImportSource, string> = {
   gdlauncher: "/launcher-icons/gdlauncher.png",
@@ -25,6 +25,7 @@ const SOURCE_ICON_SRC: Record<ImportSource, string> = {
   polymc: "/launcher-icons/polymc.svg",
   astralrinth: "/launcher-icons/astralrinth.webp",
   xlauncher: "/launcher-icons/xlauncher.svg",
+  modrinthapp: "/launcher-icons/modrinthapp.png",
 }
 
 export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onImportFile }: InstanceCreateDialogProps) {
@@ -99,6 +100,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
     polymc: "PolyMC",
     astralrinth: "AstralRinth",
     xlauncher: "X Launcher",
+    modrinthapp: "Modrinth App",
   }
 
   const filteredImportableInstances = useMemo(() => {
