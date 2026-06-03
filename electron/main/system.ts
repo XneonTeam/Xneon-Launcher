@@ -63,7 +63,15 @@ type GdLauncherInstanceJson = {
 }
 
 function getGdLauncherInstancesDir() {
-  return path.join(app.getPath("home"), ".local", "share", "gdlauncher_carbon", "data", "instances")
+  const home = app.getPath("home")
+  if (process.platform === "win32") {
+    const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming")
+    return path.join(appData, "gdlauncher_carbon", "data", "instances")
+  }
+  if (process.platform === "darwin") {
+    return path.join(home, "Library", "Application Support", "gdlauncher_carbon", "data", "instances")
+  }
+  return path.join(home, ".local", "share", "gdlauncher_carbon", "data", "instances")
 }
 
 function resolveInstanceIconPath(iconPath: string | null | undefined, searchRoots: string[]): string | undefined {
@@ -134,6 +142,7 @@ type MmcLikeType = "multimc" | "polymc" | "prism"
 function getMmcLikeInstancesDirs(): { type: MmcLikeType; dirs: string[] }[] {
   const home = app.getPath("home")
   const isWindows = process.platform === "win32"
+  const isMacOS = process.platform === "darwin"
   const appData = isWindows ? (process.env.APPDATA || "C:\\Windows\\System32\\config\\systemprofile\\AppData\\Roaming") : ""
   const result: { type: MmcLikeType; dirs: string[] }[] = []
 
@@ -142,6 +151,10 @@ function getMmcLikeInstancesDirs(): { type: MmcLikeType; dirs: string[] }[] {
   if (isWindows) {
     mmcDirs.push(
       path.join(appData, "MultiMC", "instances"),
+    )
+  } else if (isMacOS) {
+    mmcDirs.push(
+      path.join(home, "Library", "Application Support", "multimc", "instances"),
     )
   } else {
     mmcDirs.push(
@@ -157,6 +170,10 @@ function getMmcLikeInstancesDirs(): { type: MmcLikeType; dirs: string[] }[] {
     pmcDirs.push(
       path.join(appData, "PolyMC", "instances"),
     )
+  } else if (isMacOS) {
+    pmcDirs.push(
+      path.join(home, "Library", "Application Support", "PolyMC", "instances"),
+    )
   } else {
     pmcDirs.push(
       path.join(home, ".local", "share", "PolyMC", "instances"),
@@ -170,6 +187,10 @@ function getMmcLikeInstancesDirs(): { type: MmcLikeType; dirs: string[] }[] {
   if (isWindows) {
     prismDirs.push(
       path.join(appData, "PrismLauncher", "instances"),
+    )
+  } else if (isMacOS) {
+    prismDirs.push(
+      path.join(home, "Library", "Application Support", "PrismLauncher", "instances"),
     )
   } else {
     prismDirs.push(
@@ -185,19 +206,35 @@ function getMmcLikeInstancesDirs(): { type: MmcLikeType; dirs: string[] }[] {
 
 function getMmcLikeIconsDir(type: MmcLikeType): string {
   const home = app.getPath("home")
+  const isMacOS = process.platform === "darwin"
   const candidates: string[] = []
 
   if (type === "multimc") {
+    if (isMacOS) {
+      candidates.push(
+        path.join(home, "Library", "Application Support", "multimc", "icons"),
+      )
+    }
     candidates.push(
       path.join(home, ".local", "share", "MultiMC", "icons"),
       path.join(home, ".var", "app", "org.polymc.PolyMC", "data", "MultiMC", "icons"),
     )
   } else if (type === "polymc") {
+    if (isMacOS) {
+      candidates.push(
+        path.join(home, "Library", "Application Support", "PolyMC", "icons"),
+      )
+    }
     candidates.push(
       path.join(home, ".local", "share", "PolyMC", "icons"),
       path.join(home, ".var", "app", "org.polymc.PolyMC", "data", "PolyMC", "icons"),
     )
   } else if (type === "prism") {
+    if (isMacOS) {
+      candidates.push(
+        path.join(home, "Library", "Application Support", "PrismLauncher", "icons"),
+      )
+    }
     candidates.push(
       path.join(home, ".var", "app", "org.prismlauncher.PrismLauncher", "data", "PrismLauncher", "icons"),
       path.join(home, ".local", "share", "PrismLauncher", "icons"),
@@ -474,9 +511,18 @@ function discoverAstralRinthInstances(): LauncherInstance[] {
 
 function getXLauncherInstancesDirs(): string[] {
   const home = app.getPath("home")
+  const isMacOS = process.platform === "darwin"
   return uniqPaths([
-    path.join(home, ".minecraftx", "instances"),
-    path.join(home, ".xmcl", "instances"),
+    ...(isMacOS
+      ? [
+        path.join(home, "Library", "Application Support", "xmcl", "instances"),
+        path.join(home, "Library", "Application Support", ".minecraftx", "instances"),
+      ]
+      : [
+        path.join(home, ".xmcl", "instances"),
+        path.join(home, ".minecraftx", "instances"),
+      ]
+    ),
   ]).filter((dir) => fs.existsSync(dir))
 }
 
