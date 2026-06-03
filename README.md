@@ -66,10 +66,10 @@ XNeon автоматически обнаружит установленные �
 | Лаунчер | Windows | macOS | Linux |
 |---------|---------|-------|-------|
 | Prism Launcher | `%APPDATA%\PrismLauncher\instances` | `~/Library/Application Support/PrismLauncher` | `~/.local/share/PrismLauncher` |
-| MultiMC | `%APPDATA%\MultiMC\instances` | — | `~/.local/share/MultiMC` |
-| PolyMC | `%APPDATA%\PolyMC\instances` | — | `~/.local/share/PolyMC` |
-| GDLauncher Carbon | `%APPDATA%\gdlauncher_carbon\data\instances` | — | `~/.local/share/gdlauncher_carbon` |
-| XMCL / X Launcher | `~\.minecraftx\instances` | `~/.minecraftx/instances` | `~/.minecraftx/instances` |
+| MultiMC | `%APPDATA%\MultiMC\instances` | `~/Library/Application Support/multimc` | `~/.local/share/MultiMC` |
+| PolyMC | `%APPDATA%\PolyMC\instances` | `~/Library/Application Support/PolyMC` | `~/.local/share/PolyMC` |
+| GDLauncher Carbon | `%APPDATA%\gdlauncher_carbon\data\instances` | `~/Library/Application Support/gdlauncher_carbon/data/instances` | `~/.local/share/gdlauncher_carbon` |
+| XMCL / X Launcher | `~\.minecraftx\instances` | `~/Library/Application Support/{xmcl,.minecraftx}/instances` | `~/.minecraftx/instances` |
 | Modrinth App | `%APPDATA%\ModrinthApp\profiles` | `~/Library/Application Support/ModrinthApp` | `~/.local/share/ModrinthApp` |
 | AstralRinth | `%APPDATA%\AstralRinthApp\profiles` | `~/Library/Application Support/AstralRinthApp` | `~/.local/share/AstralRinthApp` |
 
