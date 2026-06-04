@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+        include:
+          - os: ubuntu-latest
+            artifact_name: XNeon-Launcher-Linux
+          - os: windows-latest
+            artifact_name: XNeon-Launcher-Windows
+          - os: macos-latest
+            artifact_name: XNeon-Launcher-macOS
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install system deps (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Package
+        run: npm run package
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: release/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        env:
+          FORGEJO_TOKEN: ${{ forgejo.token }}
+          tag: ${{ forgejo.ref_name }}
+        run: |
+          OWNER="${FORGEJO_REPOSITORY%%/*}"
+          REPO="${FORGEJO_REPOSITORY#*/}"
+          API="${FORGEJO_API_URL}/repos/${OWNER}/${REPO}/releases"
+
+          echo "Creating release for tag ${tag}..."
+
+          RELEASE_ID=$(curl -s -X POST "$API" \
+            -H "Authorization: token ${FORGEJO_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$(cat <<EOF
+          {
+            "tag_name": "${tag}",
+            "name": "${tag}",
+            "body": "Release ${tag}",
+            "draft": false,
+            "prerelease": false
+          }
+          EOF
+          )" | tee /dev/stderr | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+
+          echo "Release ID: ${RELEASE_ID}"
+
+          find artifacts -type f | while read -r file; do
+            echo "Uploading $(basename "$file")..."
+            curl -s -X POST "${API}/${RELEASE_ID}/assets" \
+              -H "Authorization: token ${FORGEJO_TOKEN}" \
+              -F "attachment=@${file}"
+          done

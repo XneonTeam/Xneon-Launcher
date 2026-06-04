@@ -50,7 +50,7 @@
     "concurrently": "^9.1.0",
     "cross-env": "^7.0.3",
     "depcheck": "^1.4.7",
-    "electron": "^42.3.2",
+    "electron": "^42.3.3",
     "electron-builder": "^26.8.1",
     "electron-rebuild": "^2.0.3",
     "postcss": "^8.5",
