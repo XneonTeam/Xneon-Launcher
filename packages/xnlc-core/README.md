@@ -39,4 +39,4 @@ await xnlc.launch(
 
 ## License
 
-MIT
+GPL-3.0

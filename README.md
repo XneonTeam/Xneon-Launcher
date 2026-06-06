@@ -11,7 +11,7 @@
     <img src="https://img.shields.io/github/actions/workflow/status/MAINER4IK/Xneon-Launcher/build.yml?style=flat-square" alt="Build">
   </a>
   <a href="https://github.com/MAINER4IK/Xneon-Launcher/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License">
+    <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License">
   </a>
   <img src="https://img.shields.io/badge/Electron-35-47848F?style=flat-square&logo=electron" alt="Electron">
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react" alt="React">
@@ -109,7 +109,7 @@ public/                # Статические файлы, иконки лау�
 
 ## Лицензия
 
-[MIT](LICENSE)
+[GPL-3.0](LICENSE)
 
 ## Благодарности
 

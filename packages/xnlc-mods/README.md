@@ -31,4 +31,4 @@ const versions = await modrinth.getVersions('mod-id');
 
 ## Лицензия
 
-MIT © MAINER4IK
+GPL-3.0 © MAINER4IK
