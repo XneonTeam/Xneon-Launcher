@@ -7,6 +7,10 @@
     "email": "support@xneon.org"
   },
   "homepage": "launcher.xneon.org",
+  "repository": {
+    "type": "git",
+    "url": "https://git.xneon.org/MAINER4IK/Xneon-Launcher.git"
+  },
   "private": true,
   "main": "dist-electron/main/index.js",
   "dependencies": {
