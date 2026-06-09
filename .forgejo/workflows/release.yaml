@@ -23,9 +23,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: https://data.forgejo.org/actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: https://data.forgejo.org/actions/setup-node@v4
         with:
           node-version: 22
 
@@ -42,7 +42,7 @@ jobs:
         run: npm run package
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: https://data.forgejo.org/actions/upload-artifact@v3
         with:
           name: ${{ matrix.artifact_name }}
           path: release/*
@@ -50,41 +50,63 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: https://data.forgejo.org/actions/download-artifact@v3
         with:
           path: artifacts
 
       - name: Create release
         env:
-          FORGEJO_TOKEN: ${{ forgejo.token }}
-          tag: ${{ forgejo.ref_name }}
+          FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+          FORGEJO_API_URL: ${{ forgejo.api_url }}
+          FORGEJO_REPOSITORY: ${{ forgejo.repository }}
+          TAG_NAME: ${{ forgejo.ref_name }}
         run: |
+          set -eu
+
           OWNER="${FORGEJO_REPOSITORY%%/*}"
           REPO="${FORGEJO_REPOSITORY#*/}"
           API="${FORGEJO_API_URL}/repos/${OWNER}/${REPO}/releases"
 
-          echo "Creating release for tag ${tag}..."
+          echo "Creating release for tag ${TAG_NAME}..."
 
-          RELEASE_ID=$(curl -s -X POST "$API" \
+          RESPONSE_FILE="$(mktemp)"
+          HTTP_CODE="$(curl -sS -o "${RESPONSE_FILE}" -w "%{http_code}" \
+            -X POST "${API}" \
             -H "Authorization: token ${FORGEJO_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "$(cat <<EOF
           {
-            "tag_name": "${tag}",
-            "name": "${tag}",
-            "body": "Release ${tag}",
+            "tag_name": "${TAG_NAME}",
+            "name": "${TAG_NAME}",
+            "body": "Release ${TAG_NAME}",
             "draft": false,
             "prerelease": false
           }
           EOF
-          )" | tee /dev/stderr | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+          )")"
+
+          if [ "${HTTP_CODE}" != "201" ]; then
+            echo "Release creation failed with status ${HTTP_CODE}:"
+            cat "${RESPONSE_FILE}"
+            exit 1
+          fi
+
+          RELEASE_ID="$(grep -o '"id":[0-9]*' "${RESPONSE_FILE}" | head -1 | cut -d: -f2)"
+
+          if [ -z "${RELEASE_ID}" ]; then
+            echo "Could not parse release id from Forgejo response:"
+            cat "${RESPONSE_FILE}"
+            exit 1
+          fi
 
           echo "Release ID: ${RELEASE_ID}"
 
           find artifacts -type f | while read -r file; do
-            echo "Uploading $(basename "$file")..."
-            curl -s -X POST "${API}/${RELEASE_ID}/assets" \
+            echo "Uploading $(basename "${file}")..."
+            curl -sS -f \
+              -X POST "${API}/${RELEASE_ID}/assets" \
               -H "Authorization: token ${FORGEJO_TOKEN}" \
               -F "attachment=@${file}"
           done
