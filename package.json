@@ -6,10 +6,10 @@
     "name": "XNeon Launcher",
     "email": "support@xneon.org"
   },
-  "homepage": "launcher.xneon.org",
+  "homepage": "https://launcher.xneon.org",
   "repository": {
     "type": "git",
-    "url": "https://git.xneon.org/MAINER4IK/Xneon-Launcher.git"
+    "url": "git+https://git.xneon.org/MAINER4IK/Xneon-Launcher.git"
   },
   "private": true,
   "main": "dist-electron/main/index.js",
@@ -78,6 +78,10 @@
     "productName": "XNeon Launcher",
     "npmRebuild": false,
     "forceCodeSigning": false,
+    "publish": {
+      "provider": "generic",
+      "url": "https://git.xneon.org/MAINER4IK/Xneon-Launcher/releases/download/v${version}"
+    },
     "win": {
       "target": [
         "nsis"
