@@ -28,14 +28,14 @@ jobs:
       - name: Install system deps (Linux)
         if: matrix.target == 'linux'
         run: |
-          apt-get update -qq
-          apt-get install -y -qq libwebkit2gtk-4.1-dev
+          sudo -n apt-get update -qq
+          sudo -n apt-get install -y -qq libwebkit2gtk-4.1-dev
 
       - name: Install cross-build deps (Windows)
         if: matrix.target == 'windows'
         run: |
-          apt-get update -qq
-          apt-get install -y -qq wine64 xvfb
+          sudo -n apt-get update -qq
+          sudo -n apt-get install -y -qq wine64 xvfb
 
       - name: Install dependencies
         run: npm ci
