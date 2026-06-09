@@ -51,6 +51,6 @@
     "lib"
   ],
   "publishConfig": {
-    "registry": "http://193.23.209.71:7081/api/packages/MAINER4IK/npm/"
+    "registry": "https://git.xneon.org/api/packages/MAINER4IK/npm/"
   }
 }
