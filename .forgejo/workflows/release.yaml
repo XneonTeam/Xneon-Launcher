@@ -39,6 +39,13 @@ jobs:
           apt-get update -qq
           apt-get install -y -qq wine64 xvfb
 
+      - name: Configure Forgejo npm registry
+        env:
+          FORGEJO_NPM_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+        run: |
+          npm config set @xnlc:registry https://git.xneon.org/api/packages/MAINER4IK/npm/
+          npm config set -- //git.xneon.org/api/packages/MAINER4IK/npm/:_authToken "${FORGEJO_NPM_TOKEN}"
+
       - name: Install dependencies
         run: npm ci
 
