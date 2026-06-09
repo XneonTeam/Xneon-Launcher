@@ -43,8 +43,8 @@ jobs:
         env:
           FORGEJO_NPM_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
         run: |
-          printf '%s\n' '//git.xneon.org/api/packages/MAINER4IK/npm/:_authToken=${FORGEJO_NPM_TOKEN}' >> .npmrc
-          printf '%s\n' 'always-auth=true' >> .npmrc
+          printf "%s\n" "//git.xneon.org/api/packages/MAINER4IK/npm/:_authToken=${FORGEJO_NPM_TOKEN}" >> .npmrc
+          printf "%s\n" "always-auth=true" >> .npmrc
 
       - name: Install dependencies
         run: npm ci
