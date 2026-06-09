@@ -9,18 +9,14 @@ jobs:
   build:
     strategy:
       matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
-          - macos-latest
         include:
-          - os: ubuntu-latest
+          - target: linux
             artifact_name: XNeon-Launcher-Linux
-          - os: windows-latest
+            build_cmd: npx electron-builder --linux AppImage
+          - target: windows
             artifact_name: XNeon-Launcher-Windows
-          - os: macos-latest
-            artifact_name: XNeon-Launcher-macOS
-    runs-on: ${{ matrix.os }}
+            build_cmd: npx electron-builder --win nsis
+    runs-on: ubuntu-latest
 
     steps:
       - uses: https://data.forgejo.org/actions/checkout@v4
@@ -30,16 +26,25 @@ jobs:
           node-version: 22
 
       - name: Install system deps (Linux)
-        if: runner.os == 'Linux'
+        if: matrix.target == 'linux'
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev
+          apt-get update -qq
+          apt-get install -y -qq libwebkit2gtk-4.1-dev
+
+      - name: Install cross-build deps (Windows)
+        if: matrix.target == 'windows'
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq wine64 xvfb
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Build app
+        run: npm run build
+
       - name: Package
-        run: npm run package
+        run: ${{ matrix.build_cmd }}
 
       - name: Upload artifacts
         uses: https://data.forgejo.org/actions/upload-artifact@v3
