@@ -17,6 +17,8 @@ jobs:
             artifact_name: XNeon-Launcher-Windows
             build_cmd: npx electron-builder --win nsis
     runs-on: ubuntu-latest
+    container:
+      image: node:22-bullseye
 
     steps:
       - uses: https://data.forgejo.org/actions/checkout@v4
@@ -28,14 +30,14 @@ jobs:
       - name: Install system deps (Linux)
         if: matrix.target == 'linux'
         run: |
-          sudo -n apt-get update -qq
-          sudo -n apt-get install -y -qq libwebkit2gtk-4.1-dev
+          apt-get update -qq
+          apt-get install -y -qq libwebkit2gtk-4.1-dev
 
       - name: Install cross-build deps (Windows)
         if: matrix.target == 'windows'
         run: |
-          sudo -n apt-get update -qq
-          sudo -n apt-get install -y -qq wine64 xvfb
+          apt-get update -qq
+          apt-get install -y -qq wine64 xvfb
 
       - name: Install dependencies
         run: npm ci
@@ -55,6 +57,8 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+    container:
+      image: node:22-bullseye
 
     steps:
       - uses: https://data.forgejo.org/actions/download-artifact@v3
