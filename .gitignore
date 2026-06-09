@@ -73,6 +73,7 @@ data/
 *.db-shm
 *.db-wal
 .npmrc
+!/.npmrc
 
 # Temp debug/deploy/test scripts
 check-*.js
