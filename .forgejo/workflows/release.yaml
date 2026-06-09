@@ -12,10 +12,10 @@ jobs:
         include:
           - target: linux
             artifact_name: XNeon-Launcher-Linux
-            build_cmd: npx electron-builder --linux AppImage
+            build_cmd: npx electron-builder --linux AppImage --publish never
           - target: windows
             artifact_name: XNeon-Launcher-Windows
-            build_cmd: npx electron-builder --win nsis
+            build_cmd: npx electron-builder --win nsis --publish never
     runs-on: ubuntu-latest
     container:
       image: node:22-bullseye
