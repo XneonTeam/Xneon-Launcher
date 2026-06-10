@@ -57,7 +57,7 @@ import { getElyClientId, getElyClientSecret, getXnClientId, getXnClientSecret } 
 const ELY_REDIRECT_URI = "http://localhost:51234/elyby/callback"
 const ELY_SCOPE = "account_info minecraft_server_session offline_access"
 
-const XN_REDIRECT_URI = "http://localhost:5123/xneon/callback1"
+const XN_REDIRECT_URI = "http://localhost:5123/xneon/callback"
 const XN_SCOPE = "account_info offline_access"
 const XN_AUTH_SERVER = "https://skins.xneon.org"
 
@@ -448,3 +448,4 @@ async function exchangeXnSkinsCode(code: string): Promise<XnSkinsAccountPayload>
     throw err instanceof Error ? err : new Error(String(err))
   }
 }
+
