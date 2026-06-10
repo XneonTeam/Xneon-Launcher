@@ -9,7 +9,7 @@ export async function getCloudApiUrl(): Promise<string> {
 export async function getXnClientId(): Promise<string> {
   const stored = await dbHelpers.getSetting("xnClientId")
   if (stored) return stored
-  return process.env.XN_CLIENT_ID || "xneon-launcher-client"
+  return process.env.XN_CLIENT_ID || ""
 }
 
 export async function getXnClientSecret(): Promise<string> {
@@ -29,3 +29,6 @@ export async function getElyClientSecret(): Promise<string> {
   if (stored) return stored
   return process.env.ELY_CLIENT_SECRET || ""
 }
+
+
+
