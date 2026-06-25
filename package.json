@@ -78,6 +78,11 @@
     "vite": "^6.3.0",
     "wait-on": "^8.0.0"
   },
+  "overrides": {
+    "@emoji-mart/react": {
+      "react": "$react"
+    }
+  },
   "build": {
     "appId": "com.xneonlauncher.app",
     "productName": "XNeon Launcher",
