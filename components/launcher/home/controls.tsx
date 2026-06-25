@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import type { Account } from "@/src/AccountsContext"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ACCOUNT_TYPE_LABELS, MOD_LOADERS, type LaunchUiState } from "@/lib/home-page-shared"
 import { IconCheck, IconChevronDown, IconFolder, IconLoader2, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react"
 import type { LoaderVersionOption } from "@/src/hooks/use-loader-version-options"
@@ -50,10 +51,10 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
     <div className="w-72 flex-shrink-0 flex flex-col justify-start gap-4 px-1">
       <div className="relative overflow-hidden rounded-2xl bg-card/80 border border-border transition-colors">
         <div className="relative z-10">
-          <button type="button" className="w-full px-4 py-3 text-left hover:bg-muted/20 transition-colors duration-150" onClick={() => setAccountComboOpen(v => !v)}>
+          <button type="button" className="w-full px-4 py-3 text-left hover:bg-muted/20 transition-colors duration-150" onClick={() => setAccountComboOpen(true)}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-muted-foreground">{t("home.account")}</span>
-              <IconChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground/60 transition-transform duration-200", accountComboOpen && "rotate-180")} size={14} strokeWidth={2} />
+              <IconChevronDown className="w-3.5 h-3.5 text-muted-foreground/60" size={14} strokeWidth={2} />
             </div>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 ring-2 ring-primary/30">
@@ -66,25 +67,31 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
             </div>
           </button>
 
-          {accountComboOpen && accounts.length > 0 && (
-            <div className="border-t border-border px-2 pb-2 pt-1">
-              <div className="flex flex-col gap-0.5 max-h-[150px] overflow-y-auto pr-1 scrollbar-thin">
+          <Dialog open={accountComboOpen} onOpenChange={setAccountComboOpen}>
+            <DialogContent className="max-w-md p-0 gap-0">
+              <DialogHeader className="px-5 pt-5 pb-3">
+                <DialogTitle>{t("home.account")}</DialogTitle>
+              </DialogHeader>
+              <div className="flex flex-col gap-1 px-3 pb-3 max-h-[400px] overflow-y-auto scrollbar-thin">
                 {accounts.map(acc => {
                   const isActive = acc.id === account?.id
                   return (
-                    <button key={acc.id} type="button" onClick={() => { setActiveAccount(acc.id); setAccountComboOpen(false) }} className={cn("flex items-center gap-3 w-full px-3 py-2 rounded-xl transition-colors duration-150 text-left", isActive ? "bg-primary/15 border border-primary/25" : "hover:bg-muted/60 border border-transparent")}>
-                      <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0"><img src={accountAvatarUrls[acc.id]} alt="" className="w-full h-full object-cover" /></div>
+                    <button key={acc.id} type="button" onClick={() => { setActiveAccount(acc.id); setAccountComboOpen(false) }} className={cn("flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-colors duration-150 text-left", isActive ? "bg-primary/15 border border-primary/25" : "hover:bg-muted/60 border border-transparent")}>
+                      <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0"><img src={accountAvatarUrls[acc.id]} alt="" className="w-full h-full object-cover" /></div>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm text-foreground truncate">{acc.username}</p>
                         <p className="text-[11px] text-muted-foreground">{ACCOUNT_TYPE_LABELS[acc.type] ?? acc.type}</p>
                       </div>
-                      {isActive && <IconCheck className="w-3.5 h-3.5 text-primary flex-shrink-0" strokeWidth={2} />}
+                      {isActive && <IconCheck className="w-4 h-4 text-primary flex-shrink-0" strokeWidth={2} />}
                     </button>
                   )
                 })}
+                {accounts.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">Нет аккаунтов</p>
+                )}
               </div>
-            </div>
-          )}
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 

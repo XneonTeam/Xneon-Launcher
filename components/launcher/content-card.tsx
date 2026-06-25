@@ -51,6 +51,7 @@ const tabContent: Record<TabId, { title: string; message: string; icon: React.Re
     message: "Настройки тем находятся в разработке",
     icon: <IconColorSwatch className="w-12 h-12" strokeWidth={1.5} />,
   },
+
 }
 
 export function ContentCard({ activeTab }: ContentCardProps) {
