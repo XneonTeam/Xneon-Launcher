@@ -12,9 +12,10 @@ import {
   IconSettings,
   IconChevronRight,
   IconColorSwatch,
+  IconNetwork,
 } from "@tabler/icons-react";
 
-type TabId = "home" | "builds" | "logs" | "mods" | "servers" | "cloud" | "accounts" | "settings" | "themes";
+type TabId = "home" | "builds" | "logs" | "mods" | "servers" | "cloud" | "network" | "accounts" | "settings" | "themes";
 
 interface SidebarItem {
   id: TabId;
@@ -57,6 +58,11 @@ const sidebarItems: SidebarItem[] = [
     id: "cloud",
     labelKey: "sidebar.cloud",
     icon: <IconCloud className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
+  },
+  {
+    id: "network",
+    labelKey: "sidebar.network",
+    icon: <IconNetwork className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
   },
   {
     id: "accounts",

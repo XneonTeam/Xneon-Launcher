@@ -221,3 +221,60 @@ export type ImportProgress = {
   message: string
   itemName?: string
 }
+
+// ── P2P Multiplayer Types ───────────────────────────────────
+
+export type P2PRoom = {
+  id: string
+  name: string
+  isHost: boolean
+  createdAt: number
+}
+
+export type P2PRoomMember = {
+  id: string
+  login: string
+  isHost: boolean
+  clientUuid?: string
+  joinedAt: number
+}
+
+export type P2PLogLevel = "debug" | "info" | "warn" | "error"
+
+export type P2PLogEntry = {
+  ts: string
+  level: P2PLogLevel
+  prefix: string
+  message: string
+}
+
+export type P2PConnState = "disconnected" | "connecting" | "connected" | "failed"
+
+export type P2PLanServer = {
+  motd: string
+  port: number
+  localPort: number
+}
+
+export type P2PRole = "host" | "joiner"
+
+export type P2PAuthResult = {
+  success: boolean
+  token?: string
+  userId?: string
+  login?: string
+  error?: string
+}
+
+export type P2PRoomOpResult = {
+  success: boolean
+  groupId?: string
+  name?: string
+  error?: string
+}
+
+export type P2PChatMessage = {
+  sender: string
+  message: string
+  ts: number
+}

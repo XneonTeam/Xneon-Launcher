@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { AccountsPage } from "./accounts-page"
 import { InstancePage } from "./instance"
 import { CloudPage } from "./cloud"
+import { NetworkPage } from "./network-page"
 import { HomePage } from "./home-page"
 import { LogsPage } from "./logs-page"
 import { ModsPage } from "./mods"
@@ -87,6 +88,8 @@ export function Launcher() {
             <ServersPage />
           ) : activeTab === "cloud" ? (
             <CloudPage />
+          ) : activeTab === "network" ? (
+            <NetworkPage />
           ) : null}
         </div>
       </main>

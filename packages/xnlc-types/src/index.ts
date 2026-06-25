@@ -27,6 +27,16 @@ export type {
   ModpackImportMod,
   ModpackImportResult,
   ImportProgress,
+  P2PRoom,
+  P2PRoomMember,
+  P2PLogLevel,
+  P2PLogEntry,
+  P2PConnState,
+  P2PLanServer,
+  P2PRole,
+  P2PAuthResult,
+  P2PRoomOpResult,
+  P2PChatMessage,
 } from "./domain-types.js"
 
 // Mod types
