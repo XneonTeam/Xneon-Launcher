@@ -10,6 +10,7 @@ const npmCommand = process.platform === "win32"
 const localPackages = [
   "xnlc-core",
   "xnlc-mods",
+  "xnlc-p2p",
 ]
 
 for (const packageDirName of localPackages) {
