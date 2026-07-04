@@ -1,0 +1,36 @@
+{
+  "name": "@xnlc/p2p",
+  "version": "1.0.2",
+  "description": "XNLC P2P — WebRTC peer-to-peer multiplayer for Minecraft: signaling, LAN discovery, TCP proxy bridge over DataChannels",
+  "type": "module",
+  "author": "MAINER4IK",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://git.xneon.org/MAINER4IK/Xneon-Launcher.git"
+  },
+  "homepage": "https://launcher.xneon.org",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "dependencies": {
+    "@xnlc/types": "*",
+    "node-datachannel": "^0.26.0",
+    "ws": "^8.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf lib"
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "publishConfig": {
+    "registry": "https://git.xneon.org/api/packages/MAINER4IK/npm/"
+  }
+}
