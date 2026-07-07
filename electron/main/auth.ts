@@ -184,8 +184,8 @@ function createAuthCallbackHandler(
 
 export { XN_AUTH_SERVER, XN_REDIRECT_URI, XN_SCOPE }
 
-function makeOAuthWindow(title: string) {
-  ensureRuntimeTempDir()
+async function makeOAuthWindow(title: string) {
+  await ensureRuntimeTempDir()
   const preload = title === "xnskins"
     ? path.join(__dirname, "../auth-xnskins-preload.js")
     : path.join(__dirname, "../auth-preload.js")
@@ -220,7 +220,7 @@ ipcMain.handle("auth:elyby-login", async (): Promise<ElyByAccountPayload> => {
   authUrl.searchParams.set("response_type", "code")
   authUrl.searchParams.set("scope", ELY_SCOPE)
 
-  const authWindow = makeOAuthWindow("elyby")
+  const authWindow = await makeOAuthWindow("elyby")
   authWindow.show()
   authWindow.focus()
 
@@ -252,7 +252,7 @@ ipcMain.handle("auth:xnskins-login", async (): Promise<XnSkinsAccountPayload> =>
   console.log("[XN Skins] authorizeUrl:", authorizeUrlStr)
   console.log("[XN Skins] loginUrl:", loginUrlStr)
 
-  const authWindow = makeOAuthWindow("xnskins")
+  const authWindow = await makeOAuthWindow("xnskins")
   authWindow.show()
   authWindow.focus()
 
@@ -269,7 +269,7 @@ ipcMain.handle("auth:microsoft-login", async (): Promise<MicrosoftAccountPayload
   const redirectUri = microsoft.getMicrosoftRedirectUri()
   const authUrl = microsoft.createMicrosoftAuthUrl()
 
-  const authWindow = makeOAuthWindow("microsoft")
+  const authWindow = await makeOAuthWindow("microsoft")
   authWindow.show()
   authWindow.focus()
 

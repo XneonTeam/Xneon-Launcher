@@ -75,8 +75,11 @@ export class JavaRunner {
     const logFile = path.join(logsDir, "latest.log");
     const logStream = fs.createWriteStream(logFile, { flags: "w" });
 
+    const decode = (data: Buffer) =>
+      process.platform === "win32" ? new TextDecoder("cp866").decode(data) : data.toString();
+
     child.stdout?.on("data", (data: Buffer) => {
-      const text = data.toString();
+      const text = decode(data);
       if (this.pipeOutputToConsole) {
         process.stdout.write(text);
       }
@@ -84,7 +87,7 @@ export class JavaRunner {
     });
 
     child.stderr?.on("data", (data: Buffer) => {
-      const text = data.toString();
+      const text = decode(data);
       if (this.pipeOutputToConsole) {
         process.stderr.write(text);
       }

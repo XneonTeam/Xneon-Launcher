@@ -43,7 +43,7 @@ export function SettingsResolution({
           <span className="font-medium">{res.label}</span>
         </button>
       ))}
-      <div className="col-span-2 space-y-3">
+      <div className="col-span-2 space-y-3 flex flex-col items-center">
         <label className="flex items-center gap-3 cursor-pointer">
           <Checkbox
             checked={useCustomResolution}
@@ -52,7 +52,7 @@ export function SettingsResolution({
           <span className="text-foreground">{t("settings.customResolution")}</span>
         </label>
         {useCustomResolution && (
-          <div className="flex gap-3 items-center animate-in fade-in-0 slide-in-from-top-2">
+          <div className="flex gap-3 items-center justify-center animate-in fade-in-0 slide-in-from-top-2">
             <input
               type="number"
               value={customWidth}

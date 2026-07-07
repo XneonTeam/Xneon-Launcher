@@ -1,5 +1,5 @@
 import path from "path"
-import fs from "fs"
+import fs from "fs/promises"
 import crypto from "node:crypto"
 import { createRequire } from "node:module"
 import { app } from "electron"
@@ -30,14 +30,12 @@ function getDataDir(): string {
   return path.join(app.getPath("home"), ".xneonlauncher")
 }
 
-function ensureDir(dir: string) {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true })
-  }
+async function ensureDir(dir: string) {
+  await fs.mkdir(dir, { recursive: true }).catch(() => {})
   return dir
 }
 
-const dbPath = path.join(ensureDir(getDataDir()), "data.db")
+const dbPath = path.join(getDataDir(), "data.db")
 const nodeRequire = createRequire(__filename)
 
 let dbInitialized = false
@@ -126,12 +124,12 @@ function run(sql: string, params: unknown[] = []) {
   }
 }
 
-function writeDatabaseToDisk() {
+async function writeDatabaseToDisk() {
   if (!database) {
     return
   }
-  ensureDir(path.dirname(dbPath))
-  fs.writeFileSync(dbPath, Buffer.from(database.export()))
+  await fs.mkdir(path.dirname(dbPath), { recursive: true }).catch(() => {})
+  await fs.writeFile(dbPath, Buffer.from(database.export()))
 }
 
 function persistDatabase() {
@@ -260,7 +258,8 @@ export async function initDatabase(): Promise<void> {
 
   try {
     const SQL = await getSqlModule()
-    const data = fs.existsSync(dbPath) ? fs.readFileSync(dbPath) : undefined
+    let data: Buffer | undefined
+    try { data = await fs.readFile(dbPath) } catch {}
     database = new SQL.Database(data ? new Uint8Array(data) : undefined)
     initializeSchema()
     flushDatabasePersistence()
@@ -535,7 +534,7 @@ export const dbHelpers = {
   loadBuilds,
   saveAllBuilds,
   updateBuildPlaytime,
-  getLauncherDirectory: () => ensureDir(getDataDir()),
+  getLauncherDirectory: async () => ensureDir(getDataDir()),
   getSetting: async (key: string): Promise<string | undefined> => {
     if (!dbAvailable) {
       ensureInMemoryDefaults()

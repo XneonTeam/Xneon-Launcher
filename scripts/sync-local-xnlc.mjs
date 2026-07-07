@@ -11,6 +11,7 @@ const localPackages = [
   "xnlc-core",
   "xnlc-mods",
   "xnlc-p2p",
+  "xnlc-types",
 ]
 
 for (const packageDirName of localPackages) {

@@ -1,9 +1,6 @@
 import { app, ipcMain } from "electron"
 import path from "path"
-import fs from "fs"
-import axios from "axios"
-import FormData from "form-data"
-import AdmZip from "adm-zip"
+import fs from "fs/promises"
 import { ensureBuildIntentDir, getBuildIntentDirName } from "./builds"
 import { getCloudApiUrl } from "./config"
 import { dbHelpers } from "../db"
@@ -39,8 +36,9 @@ async function cloudApiUrl(): Promise<string> {
 }
 
 function safeErrorMessage(error: unknown): string {
-  if (axios.isAxiosError(error)) {
-    return error.response?.data?.detail ?? error.response?.data?.error ?? error.message
+  if (error && typeof error === "object" && "isAxiosError" in error) {
+    const axiosErr = error as any
+    return axiosErr.response?.data?.detail ?? axiosErr.response?.data?.error ?? axiosErr.message
   }
   return error instanceof Error ? error.message : String(error)
 }
@@ -49,6 +47,7 @@ export function registerCloudHandlers() {
   ipcMain.handle("cloud:login", async (_event, username: string, password: string): Promise<{ success: boolean; token?: string; error?: string }> => {
     try {
       const baseUrl = await cloudApiUrl()
+      const axios = (await import("axios")).default
       const res = await axios.post(`${baseUrl}/auth/login`, { username, password }, { headers: { "Content-Type": "application/json" } })
       return { success: true, token: res.data.token }
     } catch (e) {
@@ -59,6 +58,7 @@ export function registerCloudHandlers() {
   ipcMain.handle("cloud:get-user", async (_event, token: string): Promise<{ success: boolean; user?: CloudUser; error?: string }> => {
     try {
       const baseUrl = await cloudApiUrl()
+      const axios = (await import("axios")).default
       const res = await axios.get(`${baseUrl}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
       return { success: true, user: res.data.user ?? res.data }
     } catch (e) {
@@ -69,6 +69,7 @@ export function registerCloudHandlers() {
   ipcMain.handle("cloud:register", async (_event, username: string, password: string, email?: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const baseUrl = await cloudApiUrl()
+      const axios = (await import("axios")).default
       await axios.post(`${baseUrl}/auth/register`, { username, password, email })
       return { success: true }
     } catch (e) {
@@ -79,6 +80,7 @@ export function registerCloudHandlers() {
   ipcMain.handle("cloud:get-storage-info", async (_event, token: string): Promise<StorageInfo | null> => {
     try {
       const baseUrl = await cloudApiUrl()
+      const axios = (await import("axios")).default
       const res = await axios.get(`${baseUrl}/files/storage/info`, { headers: { Authorization: `Bearer ${token}` } })
       return res.data as StorageInfo
     } catch {
@@ -89,6 +91,7 @@ export function registerCloudHandlers() {
   ipcMain.handle("cloud:get-files", async (_event, token: string, category?: string): Promise<{ success: boolean; files?: CloudFile[]; error?: string }> => {
     try {
       const baseUrl = await cloudApiUrl()
+      const axios = (await import("axios")).default
       const params = category ? `?category=${category}` : ""
       const res = await axios.get(`${baseUrl}/files${params}`, { headers: { Authorization: `Bearer ${token}` } })
       return { success: true, files: res.data.files ?? res.data ?? [] }
@@ -100,6 +103,7 @@ export function registerCloudHandlers() {
   ipcMain.handle("cloud:delete-file", async (_event, token: string, fileId: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const baseUrl = await cloudApiUrl()
+      const axios = (await import("axios")).default
       await axios.delete(`${baseUrl}/files/${fileId}`, { headers: { Authorization: `Bearer ${token}` } })
       return { success: true }
     } catch (e) {
@@ -110,9 +114,10 @@ export function registerCloudHandlers() {
   ipcMain.handle("cloud:download-file", async (_event, token: string, fileId: string, fileName: string): Promise<{ success: boolean; filePath?: string; error?: string }> => {
     try {
       const baseUrl = await cloudApiUrl()
+      const axios = (await import("axios")).default
       const res = await axios.get(`${baseUrl}/files/${fileId}/download`, { headers: { Authorization: `Bearer ${token}` }, responseType: "arraybuffer" })
       const filePath = path.join(app.getPath("temp"), fileName)
-      fs.writeFileSync(filePath, Buffer.from(res.data))
+      await fs.writeFile(filePath, Buffer.from(res.data))
       return { success: true, filePath }
     } catch (e) {
       return { success: false, error: safeErrorMessage(e) }
@@ -122,6 +127,7 @@ export function registerCloudHandlers() {
   ipcMain.handle("cloud:download-and-import", async (_event, token: string, fileId: string, fileName: string, fileType: string): Promise<{ success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } }> => {
     try {
       const baseUrl = await cloudApiUrl()
+      const axios = (await import("axios")).default
       const res = await axios.get(`${baseUrl}/files/${fileId}/download`, { headers: { Authorization: `Bearer ${token}` }, responseType: "arraybuffer" })
       const buffer = Buffer.from(res.data)
 
@@ -131,11 +137,12 @@ export function registerCloudHandlers() {
         return { success: true, account }
       } else if (fileType === "instance") {
         const buildName = fileName.replace(/\.zip$/i, "")
+        const AdmZip = (await import("adm-zip")).default
         const metaUrl = await cloudApiUrl()
         const metaRes = await axios.get(`${metaUrl}/files/${fileId}`, { headers: { Authorization: `Bearer ${token}` } })
         const meta = metaRes.data as { version?: string; mcVersion?: string; modLoader?: string; description?: string; icon?: string; coverImage?: string }
 
-        const intentPath = ensureBuildIntentDir(buildName)
+        const intentPath = await ensureBuildIntentDir(buildName)
         const zip = new AdmZip(buffer)
         zip.extractAllTo(intentPath, true)
 
@@ -171,6 +178,7 @@ export function registerCloudHandlers() {
   ipcMain.handle("cloud:get-categories", async (_event, token: string): Promise<{ success: boolean; categories?: Record<string, { count: number; size: number }>; error?: string }> => {
     try {
       const baseUrl = await cloudApiUrl()
+      const axios = (await import("axios")).default
       const res = await axios.get(`${baseUrl}/files/categories`, { headers: { Authorization: `Bearer ${token}` } })
       return { success: true, categories: res.data.categories ?? {} }
     } catch (e) {
@@ -181,8 +189,12 @@ export function registerCloudHandlers() {
   ipcMain.handle("build:upload-to-cloud", async (_event, buildName: string, cloudToken: string, category: string = "instance"): Promise<{ success: boolean; error?: string }> => {
     try {
       console.log("[BUILD-UPLOAD] Starting upload for", buildName)
-      const intentPath = ensureBuildIntentDir(buildName)
-      if (!fs.existsSync(intentPath)) return { success: false, error: "Сборка не найдена" }
+      const intentPath = await ensureBuildIntentDir(buildName)
+      try { await fs.access(intentPath) } catch { return { success: false, error: "Сборка не найдена" } }
+
+      const AdmZip = (await import("adm-zip")).default
+      const FormData = (await import("form-data")).default
+      const axios = (await import("axios")).default
 
       const zip = new AdmZip()
       zip.addLocalFolder(intentPath)
@@ -190,7 +202,7 @@ export function registerCloudHandlers() {
       const archivePath = path.join(app.getPath("temp"), `${safeName}.zip`)
       zip.writeZip(archivePath)
 
-      const fileBuffer = fs.readFileSync(archivePath)
+      const fileBuffer = await fs.readFile(archivePath)
       const form = new FormData()
       form.append("file", fileBuffer, {
         filepath: `${safeName}.zip`,
@@ -225,7 +237,7 @@ export function registerCloudHandlers() {
         throw new Error(errorMsg)
       }
 
-      try { fs.unlinkSync(archivePath) } catch {}
+      try { await fs.unlink(archivePath) } catch {}
       return { success: true }
     } catch (e) {
       return { success: false, error: safeErrorMessage(e) }
@@ -234,6 +246,9 @@ export function registerCloudHandlers() {
 
   ipcMain.handle("cloud:upload-account-data", async (_event, cloudToken: string, account: { id: string; type: string; username: string; uuid?: string }): Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }> => {
     try {
+      const FormData = (await import("form-data")).default
+      const axios = (await import("axios")).default
+
       const jsonData = JSON.stringify(account, null, 2)
       const buffer = Buffer.from(jsonData, "utf-8")
       const form = new FormData()
@@ -270,9 +285,11 @@ export function registerCloudHandlers() {
   })
 
   async function handleUploadFile(filePath: string, cloudToken: string, category: string): Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }> {
-    if (!fs.existsSync(filePath)) return { success: false, error: "Файл не найден" }
+    try { await fs.access(filePath) } catch { return { success: false, error: "Файл не найден" } }
+    const FormData = (await import("form-data")).default
+    const axios = (await import("axios")).default
     const fileName = path.basename(filePath)
-    const fileBuffer = fs.readFileSync(filePath)
+    const fileBuffer = await fs.readFile(filePath)
     const form = new FormData()
     form.append("file", fileBuffer, { filename: fileName, contentType: "application/octet-stream" })
     form.append("category", category)

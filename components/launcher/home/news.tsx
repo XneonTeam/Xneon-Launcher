@@ -75,15 +75,26 @@ const VirtualNewsGrid = memo(function VirtualNewsGrid({ entries }: { entries: Ne
   )
 })
 
+let cachedNews: NewsEntry[] | null = null
+let cachedNewsPromise: Promise<NewsEntry[]> | null = null
+
+function fetchNewsCached(): Promise<NewsEntry[]> {
+  if (cachedNews) return Promise.resolve(cachedNews)
+  if (cachedNewsPromise) return cachedNewsPromise
+  cachedNewsPromise = window.electronAPI?.fetchMinecraftNews().then((entries) => { cachedNews = entries; return entries }) ?? Promise.resolve([])
+  return cachedNewsPromise
+}
+
 export const NewsSection = memo(function NewsSection() {
   const { t } = useTranslation()
-  const [news, setNews] = useState<NewsEntry[]>([])
-  const [loading, setLoading] = useState(true)
+  const [news, setNews] = useState<NewsEntry[]>(() => cachedNews ?? [])
+  const [loading, setLoading] = useState(!cachedNews)
   const [filter, setFilter] = useState<"all" | "java">("java")
 
   useEffect(() => {
+    if (cachedNews) { setNews(cachedNews); setLoading(false); return }
     setLoading(true)
-    window.electronAPI?.fetchMinecraftNews().then((entries) => { setNews(entries); setLoading(false) }).catch(() => setLoading(false))
+    fetchNewsCached().then((entries) => { setNews(entries); setLoading(false) }).catch(() => setLoading(false))
   }, [])
 
   const filtered = useMemo(() => filter === "java" ? news.filter(e => !e.newsType || e.newsType.includes("Java") || e.newsType.includes("java_edition")) : news, [filter, news])

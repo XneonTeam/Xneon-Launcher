@@ -1,6 +1,7 @@
 import { app } from "electron"
 import path from "path"
-import fs from "fs"
+import fs from "fs/promises"
+import { constants } from "fs"
 
 const homeDir = app.getPath("home")
 const configDir = path.join(homeDir, ".config", "xneon-launcher")
@@ -8,37 +9,37 @@ const cacheDir = path.join(homeDir, ".cache", "xneon-launcher")
 const runtimeDir = path.join(cacheDir, "runtime")
 const runtimeTempDir = path.join(cacheDir, "temp")
 
-function ensureDir(dir: string) {
+async function ensureDir(dir: string) {
   try {
-    fs.mkdirSync(dir, { recursive: true, mode: 0o700 })
+    await fs.mkdir(dir, { recursive: true, mode: 0o700 })
   } catch {}
   return dir
 }
 
-function canUseDir(dir?: string) {
+async function canUseDir(dir?: string) {
   if (!dir) return false
   try {
-    fs.mkdirSync(dir, { recursive: true, mode: 0o700 })
-    fs.accessSync(dir, fs.constants.R_OK | fs.constants.W_OK | fs.constants.X_OK)
+    await fs.mkdir(dir, { recursive: true, mode: 0o700 })
+    await fs.access(dir, constants.R_OK | constants.W_OK | constants.X_OK)
     return true
   } catch {
     return false
   }
 }
 
-export function ensureRuntimeDir() {
+export async function ensureRuntimeDir() {
   return ensureDir(runtimeDir)
 }
 
-export function ensureRuntimeTempDir() {
+export async function ensureRuntimeTempDir() {
   return ensureDir(runtimeTempDir)
 }
 
-export function configureRuntimePaths() {
-  const resolvedRuntimeDir = canUseDir(process.env.XDG_RUNTIME_DIR)
+export async function configureRuntimePaths() {
+  const resolvedRuntimeDir = (await canUseDir(process.env.XDG_RUNTIME_DIR))
     ? process.env.XDG_RUNTIME_DIR!
-    : ensureRuntimeDir()
-  const resolvedTempDir = ensureRuntimeTempDir()
+    : await ensureRuntimeDir()
+  const resolvedTempDir = await ensureRuntimeTempDir()
 
   process.env.XDG_RUNTIME_DIR = resolvedRuntimeDir
   process.env.TMPDIR = resolvedTempDir
@@ -51,16 +52,17 @@ export function configureRuntimePaths() {
   } catch {}
 }
 
-export function cleanupRuntimeCaches() {
+export async function cleanupRuntimeCaches() {
   const codeCacheDir = path.join(configDir, "Code Cache")
   const shaderCacheDir = path.join(configDir, "Shader Cache")
 
   for (const cacheDir of [codeCacheDir, shaderCacheDir]) {
     try {
-      if (!fs.existsSync(cacheDir)) continue
-      for (const entry of fs.readdirSync(cacheDir)) {
+      let entries
+      try { entries = await fs.readdir(cacheDir) } catch { continue }
+      for (const entry of entries) {
         try {
-          fs.unlinkSync(path.join(cacheDir, entry))
+          await fs.unlink(path.join(cacheDir, entry))
         } catch {}
       }
     } catch {}
