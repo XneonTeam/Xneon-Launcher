@@ -6,12 +6,11 @@
 
 import path from "path"
 import { fork, type ChildProcess } from "child_process"
-import iconv from "iconv-lite"
 import type { LoaderType, ResolvedLaunchRequest } from "@xnlc/core" with { "resolution-mode": "import" }
 import { getMainWindow, sendToRenderer, logRuntime, logRuntimeDebug } from "./runtime"
 import { dbHelpers, type DbAccount } from "../db"
 import { getGameStartTimestamp, setDiscordActivity } from "./discord-rpc"
-import { getBuildIntentPath } from "./builds.js"
+import { getBuildIntentPath } from "./builds"
 
 type LaunchAccountPayload = {
   type: "elyby" | "xnskins" | "microsoft" | "offline"
@@ -216,13 +215,17 @@ export class LaunchOrchestrator {
         this.clearState()
       })
 
+      const decodeChunk = async (chunk: Buffer | string): Promise<string> => {
+        if (typeof chunk === "string") return chunk
+        const iconv = await import("iconv-lite")
+        return iconv.default.decode(chunk, "cp866")
+      }
+
       worker.stdout?.on("data", (chunk: Buffer | string) => {
-        const text = typeof chunk === "string" ? chunk : iconv.decode(chunk, "cp866")
-        this.emitDebug(`[XNLC] ${text}`)
+        decodeChunk(chunk).then(text => this.emitDebug(`[XNLC] ${text}`))
       })
       worker.stderr?.on("data", (chunk: Buffer | string) => {
-        const text = typeof chunk === "string" ? chunk : iconv.decode(chunk, "cp866")
-        this.emitDebug(`[XNLC] ${text}`)
+        decodeChunk(chunk).then(text => this.emitDebug(`[XNLC] ${text}`))
       })
 
       try {

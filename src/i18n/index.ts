@@ -1,33 +1,38 @@
 import i18n from "i18next"
 import { initReactI18next } from "react-i18next"
-import translationRU from "./locales/ru/translation.json"
-import translationEN from "./locales/en/translation.json"
-import translationUK from "./locales/uk/translation.json"
-import translationDE from "./locales/de/translation.json"
-import translationES from "./locales/es/translation.json"
-
-const resources = {
-  ru: { translation: translationRU },
-  en: { translation: translationEN },
-  uk: { translation: translationUK },
-  de: { translation: translationDE },
-  es: { translation: translationES },
-}
 
 const stored = typeof window !== "undefined" ? localStorage.getItem("language") : null
 const lang = stored || "ru"
 
-i18n.use(initReactI18next).init({
-  resources,
-  lng: lang,
-  fallbackLng: "ru",
-  interpolation: {
-    escapeValue: false,
-  },
-})
+const localeMap: Record<string, () => Promise<Record<string, string>>> = {
+  ru: () => import("./locales/ru/translation.json").then(m => m.default || m),
+  en: () => import("./locales/en/translation.json").then(m => m.default || m),
+  uk: () => import("./locales/uk/translation.json").then(m => m.default || m),
+  de: () => import("./locales/de/translation.json").then(m => m.default || m),
+  es: () => import("./locales/es/translation.json").then(m => m.default || m),
+}
 
-export function changeLanguage(lng: string) {
-  i18n.changeLanguage(lng)
+async function initI18n() {
+  const translation = await (localeMap[lang] || localeMap.ru)()
+
+  await i18n.use(initReactI18next).init({
+    resources: {
+      [lang]: { translation },
+    },
+    lng: lang,
+    fallbackLng: "ru",
+    interpolation: {
+      escapeValue: false,
+    },
+  })
+}
+
+initI18n()
+
+export async function changeLanguage(lng: string) {
+  const translation = await (localeMap[lng] || localeMap.ru)()
+  i18n.addResourceBundle(lng, "translation", translation)
+  await i18n.changeLanguage(lng)
   if (typeof window !== "undefined") {
     localStorage.setItem("language", lng)
   }

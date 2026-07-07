@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from "react"
+import { memo, useCallback, useMemo, useState, useDeferredValue } from "react"
 import { useTranslation } from "react-i18next"
 import { IconSearch, IconUpload, IconInfoCircle, IconPlus, IconTrash, IconRefresh, IconList, IconPower } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -86,8 +86,9 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   const installedModsMap = type === "mods" ? (activeBuild.installedMods ?? {}) : {}
   const emptyStateText = type === "mods" ? t("builds.findMods") : type === "resourcepacks" ? t("builds.findResourcePacks") : t("builds.findShaders")
   const notFoundText = type === "mods" ? t("builds.noModsFound") : type === "resourcepacks" ? t("builds.noResourcePacksFound") : t("builds.noShadersFound")
+  const deferredResults = useDeferredValue(displayResults)
   const visibleProjects = useMemo(
-    () => displayResults.filter(project => {
+    () => deferredResults.filter(project => {
       const projectProjectId = project.projectId ?? (project.source === "modrinth" ? project.id : undefined)
       const normalizedProjectSlug = normalizeContentIdentity(project.slug)
       const normalizedProjectName = normalizeContentIdentity(project.name)
@@ -130,7 +131,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
       }
       return true
     }),
-    [displayResults, installedItems, installedModsMap],
+    [deferredResults, installedItems, installedModsMap],
   )
   const totalPages = useMemo(() => Math.max(1, Math.ceil(modTotalHits / MODS_PER_PAGE)), [modTotalHits])
   const handlePageChange = useCallback((p: number) => {

@@ -1,9 +1,8 @@
-import { Client } from "discord-rpc"
-import fs from "fs"
+import fs from "fs/promises"
 import path from "path"
 
 const CLIENT_ID = "1279183673660538972"
-let rpc: Client | null = null
+let rpc: any = null
 let connected = false
 let pendingActivity: { state?: string; largeImageKey?: string; largeImageText?: string; smallImageKey?: string; smallImageText?: string; loader?: string; startTimestamp?: number } | null = null
 let gameStartTimestamp: number | undefined = undefined
@@ -12,7 +11,7 @@ export function getGameStartTimestamp(): number | undefined {
   return gameStartTimestamp
 }
 
-function getRuntimeDirCandidates(): string[] {
+async function getRuntimeDirCandidates(): Promise<string[]> {
   if (process.platform === "win32") return []
 
   const uid = typeof process.getuid === "function" ? process.getuid() : undefined
@@ -37,27 +36,28 @@ function getRuntimeDirCandidates(): string[] {
     ...baseDirs,
   ]
 
-  return [...new Set(candidates)].filter((dir) => {
+  const results: string[] = []
+  for (const dir of [...new Set(candidates)]) {
     try {
-      return fs.existsSync(dir)
-    } catch {
-      return false
-    }
-  })
+      await fs.access(dir)
+      results.push(dir)
+    } catch {}
+  }
+  return results
 }
 
-function hasDiscordIpcSocket(runtimeDir: string): boolean {
+async function hasDiscordIpcSocket(runtimeDir: string): Promise<boolean> {
   for (let i = 0; i < 10; i += 1) {
     try {
-      if (fs.existsSync(path.join(runtimeDir, `discord-ipc-${i}`))) {
-        return true
-      }
+      await fs.access(path.join(runtimeDir, `discord-ipc-${i}`))
+      return true
     } catch { }
   }
   return false
 }
 
-async function loginWithRuntimeDir(runtimeDir?: string): Promise<Client> {
+async function loginWithRuntimeDir(runtimeDir?: string): Promise<any> {
+  const { Client } = await import("discord-rpc")
   const previousRuntimeDir = process.env.XDG_RUNTIME_DIR
   const client = new Client({ transport: "ipc" })
 
@@ -102,8 +102,13 @@ export async function initDiscordRpc(): Promise<void> {
     return
   }
 
-  const runtimeDirs = getRuntimeDirCandidates()
-  const preferredRuntimeDirs = runtimeDirs.filter(hasDiscordIpcSocket)
+  const runtimeDirs = await getRuntimeDirCandidates()
+  const preferredRuntimeDirs: string[] = []
+  for (const dir of runtimeDirs) {
+    if (await hasDiscordIpcSocket(dir)) {
+      preferredRuntimeDirs.push(dir)
+    }
+  }
   const candidates = preferredRuntimeDirs.length > 0 ? preferredRuntimeDirs : runtimeDirs
 
   for (const runtimeDir of candidates) {
@@ -157,7 +162,7 @@ function applyActivity(activity: DiscordActivity): void {
     startTimestamp,
   } = activity
 
-  const activityData: DiscordActivity & { buttons?: { label: string; url: string }[] } = {
+  const activityData: Record<string, unknown> = {
     state,
     largeImageKey,
     largeImageText,

@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, Menu, shell } from "electron"
 import path from "path"
-import { isDev, setMainWindow, getMainWindow, logRuntime, logRuntimeDebug } from "./runtime"
+import { isDev, setMainWindow, getMainWindow, logRuntime, logRuntimeDebug, initRuntimePaths } from "./runtime"
 import { initDatabase } from "../db"
 
 export function createWindow() {
@@ -89,6 +89,8 @@ export function registerWindowLifecycle() {
 
   app.whenReady().then(async () => {
     logRuntime("[App] whenReady")
+    // Initialize runtime paths lazily, not at module load time
+    await initRuntimePaths()
     try {
       await initDatabase()
       logRuntime("[App] database initialized")

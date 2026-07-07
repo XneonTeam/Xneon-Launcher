@@ -1,9 +1,7 @@
 import { ipcMain } from "electron"
 import { parseHost } from "./server-status"
-import * as nbt from "prismarine-nbt"
-import fs from "fs"
+import fs from "fs/promises"
 import path from "path"
-import zlib from "zlib"
 
 const HOTMC_API_BASE = "https://hotmc-parser.vercel.app"
 const MCSKIN_API_BASE = "https://mcskinapi-three.vercel.app"
@@ -31,7 +29,9 @@ async function getMinecraftRoot(): Promise<string> {
   return getDefaultMinecraftRootFromEnv()
 }
 
-function generateServersDat(servers: Array<{ name: string; ip: string }>): Buffer {
+async function generateServersDat(servers: Array<{ name: string; ip: string }>): Promise<Buffer> {
+  const { default: nbt } = await import("prismarine-nbt")
+  const zlib = await import("zlib")
   const tag = nbt.comp({
     servers: nbt.list(
       nbt.comp(
@@ -41,9 +41,15 @@ function generateServersDat(servers: Array<{ name: string; ip: string }>): Buffe
         })),
       ),
     ),
-  }, "") as unknown as nbt.NBT
+  }, "") as any
 
-  return zlib.gzipSync(nbt.writeUncompressed(tag))
+  const uncompressed = nbt.writeUncompressed(tag)
+  return new Promise<Buffer>((resolve, reject) => {
+    zlib.gzip(uncompressed, (err, result) => {
+      if (err) reject(err)
+      else resolve(result)
+    })
+  })
 }
 
 type HotmcSearchResult = {
@@ -314,11 +320,9 @@ export function registerServersHandlers() {
     async (_event, servers: Array<{ name: string; ip: string }>) => {
       try {
         const root = await getMinecraftRoot()
-        if (!fs.existsSync(root)) {
-          fs.mkdirSync(root, { recursive: true })
-        }
+        await fs.mkdir(root, { recursive: true }).catch(() => {})
         const datPath = path.join(root, "servers.dat")
-        fs.writeFileSync(datPath, generateServersDat(servers))
+        await fs.writeFile(datPath, await generateServersDat(servers))
         return { success: true }
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : String(error) }

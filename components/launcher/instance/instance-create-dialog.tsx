@@ -172,7 +172,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
 
           {mode === "create" ? (
             <div className="grid gap-4 rounded-2xl border border-border bg-card p-4">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center justify-center gap-4">
                 <div
                   className="w-16 h-16 rounded-xl bg-muted/70 overflow-hidden border border-border cursor-pointer hover:border-primary/50 transition-colors flex-shrink-0 flex items-center justify-center"
                   onClick={() => formFileInputRef.current?.click()}

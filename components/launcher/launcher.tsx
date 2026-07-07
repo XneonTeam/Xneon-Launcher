@@ -72,25 +72,15 @@ export function Launcher() {
 
       <main className="flex-1 min-h-0 overflow-hidden">
         <div className="h-full p-4 overflow-hidden flex flex-col">
-          {activeTab === "home" ? (
-            <HomePage />
-          ) : activeTab === "builds" ? (
-            <InstancePage />
-          ) : activeTab === "logs" ? (
-            <LogsPage />
-          ) : activeTab === "settings" ? (
-            <SettingsPage />
-          ) : activeTab === "accounts" ? (
-            <AccountsPage />
-          ) : activeTab === "mods" ? (
-            <ModsPage />
-          ) : activeTab === "servers" ? (
-            <ServersPage />
-          ) : activeTab === "cloud" ? (
-            <CloudPage />
-          ) : activeTab === "network" ? (
-            <NetworkPage />
-          ) : null}
+          <div className={activeTab === "home" ? "h-full flex flex-col" : "hidden"}><HomePage /></div>
+          <div className={activeTab === "builds" ? "h-full flex flex-col" : "hidden"}><InstancePage /></div>
+          <div className={activeTab === "logs" ? "h-full flex flex-col" : "hidden"}><LogsPage /></div>
+          <div className={activeTab === "settings" ? "h-full flex flex-col" : "hidden"}><SettingsPage /></div>
+          <div className={activeTab === "accounts" ? "h-full flex flex-col" : "hidden"}><AccountsPage /></div>
+          <div className={activeTab === "mods" ? "h-full flex flex-col" : "hidden"}><ModsPage /></div>
+          <div className={activeTab === "servers" ? "h-full flex flex-col" : "hidden"}><ServersPage /></div>
+          <div className={activeTab === "cloud" ? "h-full flex flex-col" : "hidden"}><CloudPage /></div>
+          <div className={activeTab === "network" ? "h-full flex flex-col" : "hidden"}><NetworkPage /></div>
         </div>
       </main>
 

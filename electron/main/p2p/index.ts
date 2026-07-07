@@ -1,6 +1,5 @@
 import { ipcMain, app } from "electron"
 import axios from "axios"
-import { preload as datachannelPreload, cleanup as datachannelCleanup } from "node-datachannel"
 import { dbHelpers } from "../../db"
 import { sendToRenderer } from "../runtime"
 import type { P2PClient as P2PClientType } from "@xnlc/p2p" with { "resolution-mode": "import" }
@@ -67,11 +66,19 @@ function setState(state: P2PConnState): void {
 }
 
 export function registerP2PHandlers(): void {
-  datachannelPreload()
+  let cleanup: (() => void) | undefined
 
-  app.on("will-quit", () => {
-    try { datachannelCleanup() } catch { /* noop */ }
-  })
+  try {
+    const dc = require("node-datachannel") as { preload: () => void; cleanup: () => void }
+    dc.preload()
+    cleanup = () => { try { dc.cleanup() } catch { /* noop */ } }
+  } catch {
+    console.warn("[p2p] node-datachannel not available — P2P will be disabled")
+  }
+
+  if (cleanup) {
+    app.on("will-quit", cleanup)
+  }
 
   ipcMain.handle("p2p:register", async (_event, login: string, password: string) => {
     try {

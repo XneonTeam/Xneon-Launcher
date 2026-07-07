@@ -185,12 +185,12 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
         </div>
       </section>
       <section className="space-y-4">
-        <h3 className="text-lg font-medium text-foreground">Первоначальная настройка</h3>
+        <h3 className="text-lg font-medium text-foreground">{t("settings.about.onboarding.title")}</h3>
         <div className="p-4 rounded-xl border border-border bg-muted/30 flex items-center justify-between gap-4">
           <div>
-            <div className="font-medium text-foreground">Сбросить мастер первого запуска</div>
+            <div className="font-medium text-foreground">{t("settings.about.onboarding.reset")}</div>
             <p className="text-sm text-muted-foreground mt-1">
-              Покажет onboarding заново и вернёт экран первоначальной настройки.
+              {t("settings.about.onboarding.description")}
             </p>
           </div>
           <button
@@ -201,7 +201,7 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
             }}
             className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
           >
-            Сбросить
+            {t("settings.about.onboarding.button")}
           </button>
         </div>
       </section>

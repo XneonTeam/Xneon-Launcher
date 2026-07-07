@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useDeferredValue } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { IconUpload, IconLock, IconLayoutGrid, IconColorSwatch, IconUser, IconLogout, IconCloud, IconLoader2, IconArrowLeft } from "@tabler/icons-react"
@@ -218,9 +218,10 @@ export function CloudPage() {
   }, [])
 
   const { t } = useTranslation()
+  const deferredFilter = useDeferredValue(filter)
   const filtered = useMemo(
-    () => items.filter(item => filter === "all" || item.type === filter),
-    [filter, items],
+    () => items.filter(item => deferredFilter === "all" || item.type === deferredFilter),
+    [deferredFilter, items],
   )
   const filterOptions = useMemo(() => ([
     { id: "all" as const, label: `${t("cloud.all")} (${items.length})`, icon: IconLayoutGrid },

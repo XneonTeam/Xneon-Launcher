@@ -1,5 +1,5 @@
 import { app, BrowserWindow } from "electron"
-import fs from "fs"
+import fs from "fs/promises"
 import path from "path"
 import { configureRuntimePaths, ensureRuntimeDir, ensureRuntimeTempDir, cleanupRuntimeCaches } from "./runtime-paths"
 
@@ -19,25 +19,19 @@ export const isDev = !app.isPackaged || process.env.NODE_ENV === "development"
 const isVerboseRuntimeLogging = process.env.XN_VERBOSE_LOGS === "true"
 export { ensureRuntimeDir, ensureRuntimeTempDir }
 
-configureRuntimePaths()
-
-if (process.platform === "linux" && isDev) {
-  cleanupRuntimeCaches()
-}
-
 let mainWindow: BrowserWindow | null = null
 let pendingRuntimeLogs: string[] = []
 let runtimeLogFlushTimer: NodeJS.Timeout | null = null
 
-function flushRuntimeLogs() {
+async function flushRuntimeLogs() {
   runtimeLogFlushTimer = null
   if (pendingRuntimeLogs.length === 0) return
   try {
-    const dir = ensureRuntimeDir()
-    fs.mkdirSync(dir, { recursive: true })
+    const dir = await ensureRuntimeDir()
+    await fs.mkdir(dir, { recursive: true })
     const chunk = pendingRuntimeLogs.join("")
     pendingRuntimeLogs = []
-    fs.appendFile(path.join(dir, "launcher-main.log"), chunk, () => {})
+    await fs.appendFile(path.join(dir, "launcher-main.log"), chunk)
   } catch {
     // ignore logging failures
   }
@@ -46,7 +40,7 @@ function flushRuntimeLogs() {
 function appendRuntimeLog(line: string) {
   pendingRuntimeLogs.push(`[${new Date().toISOString()}] ${line}\n`)
   if (runtimeLogFlushTimer) return
-  runtimeLogFlushTimer = setTimeout(flushRuntimeLogs, 50)
+  runtimeLogFlushTimer = setTimeout(() => { flushRuntimeLogs() }, 50)
 }
 
 export function logRuntime(line: string) {
@@ -99,4 +93,17 @@ export function sendToRenderer(channel: string, data: unknown) {
     return
   }
   mainWindow.webContents.send(channel, data)
+}
+
+// Lazy deferred configureRuntimePaths — called from window.ts after app.whenReady
+export let runtimePathsConfigured: Promise<void> | null = null
+
+export function initRuntimePaths(): Promise<void> {
+  if (!runtimePathsConfigured) {
+    runtimePathsConfigured = configureRuntimePaths()
+    if (process.platform === "linux" && isDev) {
+      runtimePathsConfigured = runtimePathsConfigured.then(() => cleanupRuntimeCaches())
+    }
+  }
+  return runtimePathsConfigured
 }
