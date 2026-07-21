@@ -5,8 +5,6 @@ import {
   IconHome,
   IconLayoutBoard,
   IconFileText,
-  IconPuzzle,
-  IconServer,
   IconCloud,
   IconUserCircle,
   IconSettings,
@@ -15,7 +13,7 @@ import {
   IconNetwork,
 } from "@tabler/icons-react";
 
-type TabId = "home" | "builds" | "logs" | "mods" | "servers" | "cloud" | "network" | "accounts" | "settings" | "themes";
+type TabId = "home" | "builds" | "logs" | "cloud" | "network" | "accounts" | "settings" | "themes";
 
 interface SidebarItem {
   id: TabId;
@@ -43,16 +41,6 @@ const sidebarItems: SidebarItem[] = [
     id: "logs",
     labelKey: "sidebar.logs",
     icon: <IconFileText className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
-  },
-  {
-    id: "mods",
-    labelKey: "sidebar.mods",
-    icon: <IconPuzzle className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
-  },
-  {
-    id: "servers",
-    labelKey: "sidebar.servers",
-    icon: <IconServer className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
   },
   {
     id: "cloud",

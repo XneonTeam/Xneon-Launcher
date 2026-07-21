@@ -44,7 +44,9 @@ export default defineConfig({
           if (pkg === 'recharts' || pkg.startsWith('d3-') || pkg === 'victory-vendor') return 'charts'
           if (pkg === 'skinview3d' || pkg === 'three') return 'skinview'
           if (pkg === 'date-fns') return 'datefns'
-          if (pkg === '@tabler') return 'icons'
+          if (pkg.startsWith('@tabler/')) return 'icons'
+          if (pkg === 'react-markdown' || pkg === 'rehype-raw' || pkg === 'rehype-sanitize' || pkg === 'remark-rehype' || pkg === 'unified') return 'markdown'
+          if (pkg.startsWith('@emoji-mart/')) return 'emoji-mart'
           return 'vendor'
         },
       },

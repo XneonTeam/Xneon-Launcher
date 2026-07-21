@@ -120,23 +120,6 @@ export type ImportableLauncherInstance = {
   shaderCount?: number
 }
 
-// ── Server Types ────────────────────────────────────────────
-
-export type HotmcServerSearchResult = {
-  name: string
-  pageUrl: string
-  description: string
-  ip: string
-  version: string
-  playersOnline: number
-  playersMax: number
-  rank?: string
-  country?: string
-  avatarUrl?: string
-  bannerUrl?: string
-  isOnline: boolean
-}
-
 // ── Java Types ──────────────────────────────────────────────
 
 export type JavaDetectResult = {

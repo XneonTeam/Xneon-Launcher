@@ -5,9 +5,10 @@ interface PaginationProps {
   currentPage: number
   totalPages: number
   onPageChange: (p: number) => void
+  className?: string
 }
 
-export function Pagination({ currentPage, totalPages, onPageChange }: PaginationProps) {
+export function Pagination({ currentPage, totalPages, onPageChange, className }: PaginationProps) {
   if (totalPages <= 1) return null
   const pages: (number | "...")[] = []
   const maxVisible = 5
@@ -23,7 +24,7 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
     pages.push(totalPages - 1)
   }
   return (
-    <div className="flex items-center justify-center gap-1 py-4 flex-shrink-0">
+    <div className={cn("flex items-center justify-center gap-1 py-4 flex-shrink-0", className)}>
       <button onClick={() => onPageChange(Math.max(0, currentPage - 1))} disabled={currentPage === 0} className={cn("w-8 h-8 rounded-lg text-sm font-medium transition-all", currentPage === 0 ? "text-muted-foreground cursor-not-allowed" : "hover:bg-muted")}>
         <IconChevronLeft className="w-4 h-4 mx-auto" />
       </button>

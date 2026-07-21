@@ -11,7 +11,7 @@ import type {
   MinecraftLaunchParams,
   JavaProgress,
   ImportableLauncherInstance,
-  HotmcServerSearchResult,
+
   JavaDetectResult,
   BuildIntentScanResult,
   ModpackImportResult,
@@ -146,12 +146,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Settings ───────────────────────────────────────────
   getSetting: (key: string) => ipcRenderer.invoke('settings:get', key) as Promise<string | undefined>,
   setSetting: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value) as Promise<void>,
-
-  // ── Servers ────────────────────────────────────────────
-  writeServersDat: (servers: Array<{ name: string; ip: string }>) => ipcRenderer.invoke('servers:write-dat', servers) as Promise<{ success: boolean; error?: string }>,
-  checkServerStatus: (ip: string) => ipcRenderer.invoke('servers:check-status', ip) as Promise<{ success: boolean; result: unknown }>,
-  checkServerStatuses: (ips: string[]) => ipcRenderer.invoke('servers:check-statuses', ips) as Promise<{ success: boolean; results: Array<{ ip: string; result: unknown; error?: string }> }>,
-  searchHotmcServers: (query: string, limit?: number, maxPages?: number, exact?: boolean) => ipcRenderer.invoke('servers:hotmc-search', query, limit, maxPages, exact) as Promise<{ success: boolean; results: HotmcServerSearchResult[]; error?: string }>,
 
   // ── Build Intent Operations ────────────────────────────
   getBuildIntentPath: (buildId: string) => ipcRenderer.invoke('build:get-intent-path', buildId) as Promise<string>,

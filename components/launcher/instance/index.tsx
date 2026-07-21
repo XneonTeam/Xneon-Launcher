@@ -45,6 +45,10 @@ export function InstancePage() {
   const [selectedModLoader, setSelectedModLoader] = useState("all")
   const [mrSelectedCategory, setMrSelectedCategory] = useState("all")
   const [cfSelectedCategory, setCfSelectedCategory] = useState("all")
+  const [mrPage, setMrPage] = useState(0)
+  const [cfPage, setCfPage] = useState(0)
+  const [mrTotalHits, setMrTotalHits] = useState(0)
+  const [cfTotalHits, setCfTotalHits] = useState(0)
   const [mrCategoryOptions, setMrCategoryOptions] = useState<string[]>([])
   const [cfCategoryOptions, setCfCategoryOptions] = useState<string[]>([])
   const [mrCategoriesLoaded, setMrCategoriesLoaded] = useState(false)
@@ -72,7 +76,7 @@ export function InstancePage() {
     cancelImport, downloadFromModrinth, downloadVersionFromModrinth, downloadFromCurseforge, downloadVersionFromCurseforge, handleImportFile,
   } = useImport(setBuilds, () => setView("my"))
 
-  const fetchMrModpacks = useCallback(async (query: string) => {
+  const fetchMrModpacks = useCallback(async (query: string, currentPage: number) => {
     setMrLoading(true)
     try {
       const searchQuery = query.trim()
@@ -82,19 +86,21 @@ export function InstancePage() {
         selectedVersion === "all" ? undefined : selectedVersion,
         selectedModLoader === "all" ? undefined : selectedModLoader as "vanilla" | "fabric" | "quilt" | "neoforge",
         mrSortBy,
-        0,
+        currentPage,
         mrSelectedCategory === "all" ? undefined : mrSelectedCategory,
       )
       const nextResults = resp?.results ?? []
       setMrResults(nextResults)
+      setMrTotalHits(resp?.totalCount ?? 0)
       setMrCategoryOptions((current) => mergeCategories(current, nextResults))
     } catch {
       setMrResults([])
+      setMrTotalHits(0)
     }
     finally { setMrLoading(false) }
   }, [mrSelectedCategory, mrSortBy, selectedModLoader, selectedVersion])
 
-  const fetchCfModpacks = useCallback(async (query: string) => {
+  const fetchCfModpacks = useCallback(async (query: string, currentPage: number) => {
     setCfLoading(true)
     try {
       const searchQuery = query.trim()
@@ -104,14 +110,16 @@ export function InstancePage() {
         selectedVersion === "all" ? undefined : selectedVersion,
         selectedModLoader === "all" ? undefined : selectedModLoader,
         cfSortBy,
-        0,
+        currentPage,
         cfSelectedCategory === "all" ? undefined : cfSelectedCategory,
       )
       const nextResults = resp?.results ?? []
       setCfResults(nextResults)
+      setCfTotalHits(resp?.totalCount ?? 0)
       setCfCategoryOptions((current) => mergeCategories(current, nextResults))
     } catch {
       setCfResults([])
+      setCfTotalHits(0)
     }
     finally { setCfLoading(false) }
   }, [cfSelectedCategory, cfSortBy, selectedModLoader, selectedVersion])
@@ -172,27 +180,31 @@ export function InstancePage() {
 
   useEffect(() => {
     if (view !== "modrinth") return
-    const t = setTimeout(() => void fetchMrModpacks(mrSearch), 350)
+    const t = setTimeout(() => void fetchMrModpacks(mrSearch, mrPage), 350)
     return () => clearTimeout(t)
-  }, [fetchMrModpacks, mrSearch, mrSelectedCategory, mrSortBy, selectedModLoader, selectedVersion, view])
+  }, [fetchMrModpacks, mrSearch, mrPage, mrSelectedCategory, mrSortBy, selectedModLoader, selectedVersion, view])
 
   useEffect(() => {
     if (view === "modrinth" && !mrSearch.trim()) {
-      fetchMrModpacks("")
+      fetchMrModpacks("", mrPage)
     }
-  }, [view])
+  }, [view, mrPage])
+
+  useEffect(() => { setMrPage(0) }, [mrSearch, mrSelectedCategory, mrSortBy, selectedModLoader, selectedVersion])
 
   useEffect(() => {
     if (view !== "curseforge") return
-    const t = setTimeout(() => void fetchCfModpacks(cfSearch), 350)
+    const t = setTimeout(() => void fetchCfModpacks(cfSearch, cfPage), 350)
     return () => clearTimeout(t)
-  }, [cfSearch, cfSelectedCategory, cfSortBy, fetchCfModpacks, selectedModLoader, selectedVersion, view])
+  }, [cfSearch, cfPage, cfSelectedCategory, cfSortBy, fetchCfModpacks, selectedModLoader, selectedVersion, view])
 
   useEffect(() => {
     if (view === "curseforge" && !cfSearch.trim()) {
-      fetchCfModpacks("")
+      fetchCfModpacks("", cfPage)
     }
-  }, [view])
+  }, [view, cfPage])
+
+  useEffect(() => { setCfPage(0) }, [cfSearch, cfSelectedCategory, cfSortBy, selectedModLoader, selectedVersion])
 
   const openBuildDetail = useCallback((id: string) => {
     setActiveBuildId(id)
@@ -206,6 +218,8 @@ export function InstancePage() {
 
   const handleOpenCreate = useCallback(() => setCreateOpen(true), [])
   const totalBuilds = builds.length
+  const mrTotalPages = Math.max(1, Math.ceil(mrTotalHits / 10))
+  const cfTotalPages = Math.max(1, Math.ceil(cfTotalHits / 10))
 
   const handleInstallModalVersion = useCallback(async (version: ModVersion) => {
     if (!selectedDetails) return
@@ -329,6 +343,9 @@ export function InstancePage() {
           selectedCategory={mrSelectedCategory}
           setSelectedCategory={setMrSelectedCategory}
           categoryOptions={mrCategoryOptions}
+          page={mrPage}
+          totalPages={mrTotalPages}
+          onPageChange={setMrPage}
           onOpenDetails={openProjectModal}
           onDownload={downloadFromModrinth}
         />
@@ -353,6 +370,9 @@ export function InstancePage() {
           selectedCategory={cfSelectedCategory}
           setSelectedCategory={setCfSelectedCategory}
           categoryOptions={cfCategoryOptions}
+          page={cfPage}
+          totalPages={cfTotalPages}
+          onPageChange={setCfPage}
           onOpenDetails={openCFModal}
           onDownload={downloadFromCurseforge}
         />
