@@ -18,7 +18,7 @@ export class CustomVersionHandler implements ILoaderHandler {
 
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        const versionJsonPath = path.join(entry.path, `${entry.name}.json`);
+        const versionJsonPath = path.join((entry as any).path, `${entry.name}.json`);
         if (fs.existsSync(versionJsonPath)) {
           versions.push(entry.name);
         }

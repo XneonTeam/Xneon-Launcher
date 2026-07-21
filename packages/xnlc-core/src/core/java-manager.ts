@@ -62,19 +62,19 @@ function getMojangPlatformKey(): string | null {
 
   if (platform === "win32") {
     if (arch === "x64") return "windows-x64";
-    if (arch === "x86") return "windows-x86";
+    if (arch === "x86" as string) return "windows-x86";
     if (arch === "arm64") return "windows-arm64";
     return "windows-x64";
   }
 
   if (platform === "darwin") {
-    if (arch === "arm64" || arch === "aarch64") return "mac-os-arm64";
+    if (arch === "arm64" || arch === ("aarch64" as string)) return "mac-os-arm64";
     return "mac-os";
   }
 
   if (platform === "linux") {
     if (arch === "x64") return "linux";
-    if (arch === "x86") return "linux-i386";
+    if (arch === "x86" as string) return "linux-i386";
     return null;
   }
 
@@ -446,7 +446,7 @@ export class JavaManager {
 
     let archName: string;
     if (arch === "x64") archName = "x86_64";
-    else if (arch === "arm64" || arch === "aarch64") archName = "aarch64";
+    else if (arch === "arm64" || arch === ("aarch64" as string)) archName = "aarch64";
     else if (arch === "arm") archName = "arm";
     else {
       console.warn(`Unknown architecture: ${arch}, defaulting to x86_64`);
