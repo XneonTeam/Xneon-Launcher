@@ -30,7 +30,7 @@ export function getOSInfo(): OSInfo {
   let archType: ArchType;
   if (arch === "x64") {
     archType = "x64";
-  } else if (arch === "arm64" || arch === "aarch64") {
+  } else if (arch === "arm64" || arch === ("aarch64" as string)) {
     archType = "arm64";
   } else {
     archType = "x86";

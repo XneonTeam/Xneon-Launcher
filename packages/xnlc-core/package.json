@@ -38,7 +38,7 @@
   },
   "dependencies": {
     "@xnlc/types": "*",
-    "adm-zip": "^0.5.17"
+    "adm-zip": "^0.6.0"
   },
   "scripts": {
     "build": "node ./scripts/clean-legacy-forge-launch.mjs && tsc -p tsconfig.json",
