@@ -3,6 +3,7 @@ import { IconDownload, IconInfoCircle, IconLoader2 } from "@tabler/icons-react"
 import { Spinner } from "./spinner"
 import { formatDownloads } from "./utils"
 import { InstanceBrowseToolbar } from "./instance-browse-toolbar"
+import { Pagination } from "./pagination"
 import type { ModSearchResult, ModSort } from "./types"
 
 interface InstanceCurseForgeProps {
@@ -23,6 +24,9 @@ interface InstanceCurseForgeProps {
   selectedCategory: string
   setSelectedCategory: (value: string) => void
   categoryOptions: string[]
+  page: number
+  totalPages: number
+  onPageChange: (page: number) => void
   onOpenDetails: (pack: ModSearchResult) => void
   onDownload: (pack: ModSearchResult) => void
 }
@@ -45,6 +49,9 @@ export function InstanceCurseForge({
   selectedCategory,
   setSelectedCategory,
   categoryOptions,
+  page,
+  totalPages,
+  onPageChange,
   onOpenDetails,
   onDownload,
 }: InstanceCurseForgeProps) {
@@ -121,6 +128,12 @@ export function InstanceCurseForge({
             ))}
           </div>
         )}
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          onPageChange={onPageChange}
+          className="mt-auto"
+        />
       </div>
     </div>
   )

@@ -5,9 +5,7 @@ import { CloudPage } from "./cloud"
 import { NetworkPage } from "./network-page"
 import { HomePage } from "./home-page"
 import { LogsPage } from "./logs-page"
-import { ModsPage } from "./mods"
 import { OnboardingModal } from "./onboarding-modal"
-import { ServersPage } from "./servers-page"
 import { SettingsPage } from "./settings"
 import { Sidebar, type TabId } from "./sidebar"
 import { applyTheme, presetThemes } from "./settings/data"
@@ -77,8 +75,6 @@ export function Launcher() {
           <div className={activeTab === "logs" ? "h-full flex flex-col" : "hidden"}><LogsPage /></div>
           <div className={activeTab === "settings" ? "h-full flex flex-col" : "hidden"}><SettingsPage /></div>
           <div className={activeTab === "accounts" ? "h-full flex flex-col" : "hidden"}><AccountsPage /></div>
-          <div className={activeTab === "mods" ? "h-full flex flex-col" : "hidden"}><ModsPage /></div>
-          <div className={activeTab === "servers" ? "h-full flex flex-col" : "hidden"}><ServersPage /></div>
           <div className={activeTab === "cloud" ? "h-full flex flex-col" : "hidden"}><CloudPage /></div>
           <div className={activeTab === "network" ? "h-full flex flex-col" : "hidden"}><NetworkPage /></div>
         </div>

@@ -17,7 +17,6 @@ export type {
   VersionEntry,
   MinecraftNewsEntry,
   ImportableLauncherInstance,
-  HotmcServerSearchResult,
   JavaDetectResult,
   CleanupFn,
   CloudUser,

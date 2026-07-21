@@ -12,7 +12,7 @@ import type {
   MinecraftNewsEntry,
   MinecraftVersionInfo,
   ImportableLauncherInstance,
-  HotmcServerSearchResult,
+
   JavaDetectResult,
   BuildIntentScanResult,
   ModpackImportResult,
@@ -140,12 +140,6 @@ export interface IpcInvokeMap {
   // ── Settings ──
   "settings:get": { args: [key: string]; return: string | undefined }
   "settings:set": { args: [key: string, value: string]; return: void }
-
-  // ── Servers ──
-  "servers:write-dat": { args: [servers: Array<{ name: string; ip: string }>]; return: { success: boolean; error?: string } }
-  "servers:check-status": { args: [ip: string]; return: { success: boolean; result: unknown } }
-  "servers:check-statuses": { args: [ips: string[]]; return: { success: boolean; results: Array<{ ip: string; result: unknown; error?: string }> } }
-  "servers:hotmc-search": { args: [query: string, limit?: number, maxPages?: number, exact?: boolean]; return: { success: boolean; results: HotmcServerSearchResult[]; error?: string } }
 
   // ── Content ──
   "content:install-remote": { args: [contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string]; return: { success: boolean; filePath?: string; error?: string } }
@@ -283,10 +277,6 @@ export interface ElectronAPIExplicit {
   onAuthProgress: (callback: (msg: string) => void) => CleanupFn
   getSetting: (key: string) => Promise<string | undefined>
   setSetting: (key: string, value: string) => Promise<void>
-  writeServersDat: (servers: Array<{ name: string; ip: string }>) => Promise<{ success: boolean; error?: string }>
-  checkServerStatus: (ip: string) => Promise<{ success: boolean; result: unknown }>
-  checkServerStatuses: (ips: string[]) => Promise<{ success: boolean; results: Array<{ ip: string; result: unknown; error?: string }> }>
-  searchHotmcServers: (query: string, limit?: number, maxPages?: number, exact?: boolean) => Promise<{ success: boolean; results: HotmcServerSearchResult[]; error?: string }>
   getBuildIntentPath: (buildId: string) => Promise<string>
   saveModToIntent: (buildId: string, url: string, fileName: string) => Promise<string | null>
   saveLocalModToIntent: (buildId: string, localFilePath: string) => Promise<string | null>
