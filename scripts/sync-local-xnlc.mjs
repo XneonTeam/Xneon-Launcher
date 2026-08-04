@@ -35,11 +35,15 @@ for (const packageDirName of localPackages) {
   })
 
   if (buildResult.error) {
-    throw buildResult.error
+    console.warn(`[sync-local-xnlc] Build failed for ${packageName}:`, buildResult.error)
+    console.warn(`[sync-local-xnlc] Skipping ${packageName} (existing build output is kept).`)
+    continue
   }
 
   if (buildResult.status !== 0) {
-    process.exit(buildResult.status ?? 1)
+    console.warn(`[sync-local-xnlc] Build failed for ${packageName} (exit code ${buildResult.status ?? 1})`)
+    console.warn(`[sync-local-xnlc] Skipping ${packageName} (existing build output is kept).`)
+    continue
   }
 
   const targetDir = path.join(rootDir, "node_modules", ...packageName.split("/"))

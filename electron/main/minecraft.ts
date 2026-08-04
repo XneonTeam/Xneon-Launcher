@@ -147,7 +147,7 @@ const launchHandlers: IpcHandlerDef[] = [
         ...request,
         buildName: options.buildName,
         gameDir: options.gameDir,
-        javaArgs: options.javaArgs,
+        javaArgs: (options as { javaArgs?: string }).javaArgs,
       }
 
       return await runLaunchWorker(launchAccount, extendedRequest)
