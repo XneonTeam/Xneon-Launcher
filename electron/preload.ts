@@ -8,6 +8,9 @@ import type {
   DbAccount,
   DbBuild,
   DbBuildMod,
+  WorldInfo,
+  DatapackInfo,
+  ScreenshotInfo,
   MinecraftLaunchParams,
   JavaProgress,
   ImportableLauncherInstance,
@@ -174,6 +177,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Java ───────────────────────────────────────────────
   detectJavaInstallations: invoke<JavaDetectResult[]>('java:detect'),
   pickJavaFile: invoke<string | null>('java:pick-file'),
+
+  // ── Worlds ─────────────────────────────────────────────
+  listWorlds: (buildName: string) => ipcRenderer.invoke('worlds:list', buildName) as Promise<WorldInfo[]>,
+  renameWorld: (buildName: string, folder: string, newName: string) => ipcRenderer.invoke('worlds:rename', buildName, folder, newName) as Promise<{ success: boolean; error?: string }>,
+  deleteWorld: (buildName: string, folder: string) => ipcRenderer.invoke('worlds:delete', buildName, folder) as Promise<{ success: boolean; error?: string }>,
+  setWorldIcon: (buildName: string, folder: string, dataUrl: string) => ipcRenderer.invoke('worlds:set-icon', buildName, folder, dataUrl) as Promise<{ success: boolean; error?: string }>,
+  listWorldDatapacks: (buildName: string, folder: string) => ipcRenderer.invoke('worlds:list-datapacks', buildName, folder) as Promise<DatapackInfo[]>,
+  installDatapackRemote: (buildName: string, folder: string, url: string, fileName: string) => ipcRenderer.invoke('worlds:install-datapack-remote', buildName, folder, url, fileName) as Promise<{ success: boolean; path?: string; error?: string }>,
+  installDatapackLocal: (buildName: string, folder: string, localFilePath: string) => ipcRenderer.invoke('worlds:install-datapack-local', buildName, folder, localFilePath) as Promise<{ success: boolean; path?: string; error?: string }>,
+  deleteWorldDatapack: (buildName: string, folder: string, fileName: string) => ipcRenderer.invoke('worlds:delete-datapack', buildName, folder, fileName) as Promise<{ success: boolean; error?: string }>,
+
+  // ── Screenshots ───────────────────────────────────────
+  listScreenshots: (buildName: string) => ipcRenderer.invoke('screenshots:list', buildName) as Promise<ScreenshotInfo[]>,
+  getScreenshot: (buildName: string, fileName: string) => ipcRenderer.invoke('screenshots:get', buildName, fileName) as Promise<string | null>,
+  deleteScreenshot: (buildName: string, fileName: string) => ipcRenderer.invoke('screenshots:delete', buildName, fileName) as Promise<{ success: boolean; error?: string }>,
 
   // ── Build Cloud Upload ─────────────────────────────────
   uploadBuildToCloud: (buildName: string, cloudToken: string, category?: string) => ipcRenderer.invoke('build:upload-to-cloud', buildName, cloudToken, category) as Promise<{ success: boolean; error?: string }>,

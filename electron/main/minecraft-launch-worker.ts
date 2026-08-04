@@ -13,6 +13,25 @@ function normalizeJavaPath(javaPath?: string): string | undefined {
   return javaPath.replace(/(^|[\\/])javaw\.exe$/i, "$1java.exe")
 }
 
+/**
+ * Splits a raw JVM args string (e.g. "-Xmx4G -XX:+UseG1GC \"-Dfoo=bar baz\"")
+ * into individual tokens, respecting double quotes.
+ */
+function parseExtraJvmArgs(rawArgs?: string): string[] {
+  if (!rawArgs) return []
+  const tokens: string[] = []
+  const regex = /"([^"]*)"|(\S+)/g
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(rawArgs)) !== null) {
+    if (match[1] !== undefined) {
+      if (match[1].trim()) tokens.push(match[1].trim())
+    } else if (match[2] !== undefined) {
+      tokens.push(match[2])
+    }
+  }
+  return tokens
+}
+
 function getJavaBinaryCandidates(rootDir: string): string[] {
   const isWindows = process.platform === "win32"
   return [
@@ -285,6 +304,9 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
   }
   launchStarted = true
 
+  const extraJvmArgs = parseExtraJvmArgs(payload.options.javaArgs)
+  debug(`Extra JVM args (${extraJvmArgs.length}): ${extraJvmArgs.join(" ")}`)
+
   debug("Calling XNLC launch pipeline")
   const launchResult = await xnlc.launch(
     {
@@ -295,6 +317,7 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
     auth,
     {
       javaPath,
+      jvmArgs: extraJvmArgs,
       memoryMin: payload.options.memoryMin,
       memoryMax: payload.options.memoryMax,
       width: payload.options.width,

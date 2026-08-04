@@ -3,7 +3,7 @@
 // Unified mod search/detail types for Modrinth & CurseForge
 // ============================================================
 
-export type ModContentType = "mod" | "modpack" | "resourcepack" | "shader"
+export type ModContentType = "mod" | "modpack" | "resourcepack" | "shader" | "datapack"
 export type ModSort = "relevance" | "downloads" | "popular" | "followers" | "updated" | "published"
 export type ModLoaderFilter = "vanilla" | "fabric" | "quilt" | "neoforge"
 

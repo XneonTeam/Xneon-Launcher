@@ -88,14 +88,34 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
   const { t } = useTranslation()
   const { isRunning, setIsRunning, clearLogs, addLog, launchUi, patchLaunchUi } = useLaunchControls()
 
-  const launchInstance = useCallback(async (build: { name: string; version: string; modLoader: string; loaderVersion?: string; intentPath?: string }) => {
+  const launchInstance = useCallback(async (build: {
+    name: string
+    version: string
+    modLoader: string
+    loaderVersion?: string
+    intentPath?: string
+    javaOverride?: boolean
+    javaPath?: string
+    javaArgs?: string
+    memoryMin?: string
+    memoryMax?: string
+  }) => {
     if (!account || !window.electronAPI) return
 
     const usesSkinInjector = account.type === "xnskins" || account.type === "elyby"
-    const normalizedJavaPath = normalizeJavaPath(await window.electronAPI.getSetting("javaPath"))
     const settings = await loadLaunchSettings()
     const { width, height } = resolveLaunchDimensions(settings)
     const intentPath = await window.electronAPI.getBuildIntentPath(build.name) ?? ""
+
+    // Per-build Java override (memory, java path, extra JVM args)
+    const useBuildJava = build.javaOverride === true
+    const memoryMin = useBuildJava && build.memoryMin ? build.memoryMin : settings.savedMemoryMin || "2G"
+    const memoryMax = useBuildJava && build.memoryMax ? build.memoryMax : settings.savedMemoryMax || "4G"
+    const buildJavaPath = useBuildJava && build.javaPath ? build.javaPath : undefined
+    const normalizedJavaPath = normalizeJavaPath(buildJavaPath ?? await window.electronAPI.getSetting("javaPath"))
+    const javaArgs = useBuildJava
+      ? (build.javaArgs ?? "")
+      : (settings.savedJavaArgs ?? "")
 
     patchLaunchUi({
       isLaunching: true,
@@ -116,7 +136,7 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
       modLoader: build.modLoader as "vanilla" | "forge" | "fabric" | "quilt" | "liteloader" | "optifine" | "neoforge",
       ...(build.loaderVersion ? { loaderVersion: build.loaderVersion } : {}),
       account: { type: account.type, username: account.username, uuid: account.uuid, accessToken: account.accessToken },
-      memory: { min: settings.savedMemoryMin || "2G", max: settings.savedMemoryMax || "4G" },
+      memory: { min: memoryMin, max: memoryMax },
       width,
       height,
       authlibInjectorEnabled: usesSkinInjector && settings.authlibEnabled !== "false",
@@ -124,7 +144,7 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
       buildName: build.name,
       gameDir: intentPath,
       ...(normalizedJavaPath ? { javaPath: normalizedJavaPath } : {}),
-      ...(settings.savedJavaArgs ? { javaArgs: settings.savedJavaArgs } : {}),
+      ...(javaArgs ? { javaArgs } : {}),
     })
 
     patchLaunchUi(result.success

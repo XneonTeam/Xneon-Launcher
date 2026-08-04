@@ -49,6 +49,46 @@ export type DbBuild = {
   intentPath?: string
   installedMods?: Record<string, string>
   playtime: number
+  /** Per-build Java override: use build-specific java/memory/args instead of global settings */
+  javaOverride?: boolean
+  javaPath?: string
+  javaArgs?: string
+  memoryMin?: string
+  memoryMax?: string
+}
+
+// ── World / Save Management ─────────────────────────────────
+
+export type WorldInfo = {
+  folder: string
+  name: string
+  seed: string
+  gameMode: string
+  hardcore: boolean
+  lastPlayed: number
+  playedTime: number
+  mcVersion: string
+  iconDataUrl: string
+  sizeBytes: number
+  lastModified: number
+  path: string
+  datapackCount: number
+  hasLevelData: boolean
+}
+
+export type DatapackInfo = {
+  name: string
+  sizeBytes: number
+  lastModified: number
+  path: string
+}
+
+export type ScreenshotInfo = {
+  name: string
+  sizeBytes: number
+  lastModified: number
+  thumbDataUrl: string
+  path: string
 }
 
 // ── Auth Payloads ───────────────────────────────────────────
