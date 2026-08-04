@@ -121,6 +121,8 @@
   "builds.tab.mods": "Mods ({{count}})",
   "builds.tab.resourcepacks": "Resource Packs ({{count}})",
   "builds.tab.shaders": "Shaders ({{count}})",
+  "builds.tab.worlds": "Worlds",
+  "builds.tab.screenshots": "Screenshots",
   "builds.import": "Import",
   "builds.details": "Details",
   "builds.findResourcePacks": "Find and add resource packs",

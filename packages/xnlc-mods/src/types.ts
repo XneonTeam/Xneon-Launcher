@@ -3,7 +3,7 @@
 // Author: MAINER4IK
 // ============================================================
 
-export type ContentType = "mod" | "modpack" | "resourcepack" | "shader";
+export type ContentType = "mod" | "modpack" | "resourcepack" | "shader" | "datapack";
 export type ModSort = "relevance" | "downloads" | "popular" | "followers" | "updated" | "published";
 
 export interface ModSearchResult {
@@ -99,6 +99,7 @@ export const CONTENT_TYPE_FACETS: Record<ContentType, { facet: string; cfClassId
   modpack: { facet: "modpack", cfClassId: 4471 },
   resourcepack: { facet: "resourcepack", cfClassId: 12 },
   shader: { facet: "shader", cfClassId: 6552 },
+  datapack: { facet: "datapack", cfClassId: 6945 },
 };
 
 // ── Modpack Import Types ────────────────────────────────────

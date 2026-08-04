@@ -1,11 +1,13 @@
 import { memo, useCallback, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IconArrowLeft, IconSettings, IconPuzzle, IconPhoto, IconSparkles } from "@tabler/icons-react"
+import { IconArrowLeft, IconSettings, IconPuzzle, IconPhoto, IconSparkles, IconWorld, IconCamera } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { MOD_LOADERS } from "./constants"
 import { pickCompatibleVersion } from "./utils"
 import { InstanceContentTab } from "./instance-content-tab"
 import { InstanceDetailGeneral } from "./instance-detail-general"
+import { InstanceWorldsTab } from "./instance-worlds-tab"
+import { InstanceScreenshotsTab } from "./instance-screenshots-tab"
 import { InstanceModal } from "./instance-modal"
 import { DepInstallDialog } from "@/components/launcher/dep-install-dialog"
 import type {
@@ -412,6 +414,14 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
               </button>
             </>
           )}
+          <button type="button" onClick={() => setDetailTab("worlds")} className={cn("flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all", detailTab === "worlds" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+            <IconWorld className="w-4 h-4" strokeWidth={1.75} />
+            {t("builds.tab.worlds")}
+          </button>
+          <button type="button" onClick={() => setDetailTab("screenshots")} className={cn("flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all", detailTab === "screenshots" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+            <IconCamera className="w-4 h-4" strokeWidth={1.75} />
+            {t("builds.tab.screenshots")}
+          </button>
         </div>
       </div>
 
@@ -522,6 +532,14 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
           toggleItemEnabled={toggleItemEnabled}
           updateItemVersion={updateItemVersion}
         />
+      )}
+
+      {detailTab === "worlds" && (
+        <InstanceWorldsTab build={activeBuild} />
+      )}
+
+      {detailTab === "screenshots" && (
+        <InstanceScreenshotsTab build={activeBuild} />
       )}
 
       <InstanceModal

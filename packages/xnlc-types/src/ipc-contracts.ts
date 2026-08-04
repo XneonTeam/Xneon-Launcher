@@ -7,6 +7,9 @@ import type {
   DbAccount,
   DbBuild,
   DbBuildMod,
+  WorldInfo,
+  DatapackInfo,
+  ScreenshotInfo,
   AuthPayload,
   AuthSession,
   MinecraftNewsEntry,
@@ -143,6 +146,21 @@ export interface IpcInvokeMap {
 
   // ── Content ──
   "content:install-remote": { args: [contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string]; return: { success: boolean; filePath?: string; error?: string } }
+
+  // ── Worlds ──
+  "worlds:list": { args: [buildName: string]; return: WorldInfo[] }
+  "worlds:rename": { args: [buildName: string, folder: string, newName: string]; return: { success: boolean; error?: string } }
+  "worlds:delete": { args: [buildName: string, folder: string]; return: { success: boolean; error?: string } }
+  "worlds:set-icon": { args: [buildName: string, folder: string, dataUrl: string]; return: { success: boolean; error?: string } }
+  "worlds:list-datapacks": { args: [buildName: string, folder: string]; return: DatapackInfo[] }
+  "worlds:install-datapack-remote": { args: [buildName: string, folder: string, url: string, fileName: string]; return: { success: boolean; path?: string; error?: string } }
+  "worlds:install-datapack-local": { args: [buildName: string, folder: string, localFilePath: string]; return: { success: boolean; path?: string; error?: string } }
+  "worlds:delete-datapack": { args: [buildName: string, folder: string, fileName: string]; return: { success: boolean; error?: string } }
+
+  // ── Screenshots ──
+  "screenshots:list": { args: [buildName: string]; return: ScreenshotInfo[] }
+  "screenshots:get": { args: [buildName: string, fileName: string]; return: string | null }
+  "screenshots:delete": { args: [buildName: string, fileName: string]; return: { success: boolean; error?: string } }
 
   // ── Shell ──
   "shell:open-external": { args: [url: string]; return: void }
@@ -297,6 +315,17 @@ export interface ElectronAPIExplicit {
   shareToMclogs: (content: string) => Promise<{ success: boolean; url?: string; error?: string }>
   detectJavaInstallations: () => Promise<JavaDetectResult[]>
   pickJavaFile: () => Promise<string | null>
+  listWorlds: (buildName: string) => Promise<WorldInfo[]>
+  renameWorld: (buildName: string, folder: string, newName: string) => Promise<{ success: boolean; error?: string }>
+  deleteWorld: (buildName: string, folder: string) => Promise<{ success: boolean; error?: string }>
+  setWorldIcon: (buildName: string, folder: string, dataUrl: string) => Promise<{ success: boolean; error?: string }>
+  listWorldDatapacks: (buildName: string, folder: string) => Promise<DatapackInfo[]>
+  installDatapackRemote: (buildName: string, folder: string, url: string, fileName: string) => Promise<{ success: boolean; path?: string; error?: string }>
+  installDatapackLocal: (buildName: string, folder: string, localFilePath: string) => Promise<{ success: boolean; path?: string; error?: string }>
+  deleteWorldDatapack: (buildName: string, folder: string, fileName: string) => Promise<{ success: boolean; error?: string }>
+  listScreenshots: (buildName: string) => Promise<ScreenshotInfo[]>
+  getScreenshot: (buildName: string, fileName: string) => Promise<string | null>
+  deleteScreenshot: (buildName: string, fileName: string) => Promise<{ success: boolean; error?: string }>
   uploadBuildToCloud: (buildName: string, cloudToken: string, category?: string) => Promise<{ success: boolean; error?: string }>
   cloudLogin: (username: string, password: string) => Promise<{ success: boolean; token?: string; error?: string }>
   cloudRegister: (username: string, password: string, email?: string) => Promise<{ success: boolean; error?: string }>
