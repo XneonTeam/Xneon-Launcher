@@ -246,6 +246,26 @@ function initializeSchema() {
     run("ALTER TABLE builds ADD COLUMN projectSlug TEXT")
   }
 
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "javaOverride")) {
+    run("ALTER TABLE builds ADD COLUMN javaOverride INTEGER NOT NULL DEFAULT 0")
+  }
+
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "javaPath")) {
+    run("ALTER TABLE builds ADD COLUMN javaPath TEXT NOT NULL DEFAULT ''")
+  }
+
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "javaArgs")) {
+    run("ALTER TABLE builds ADD COLUMN javaArgs TEXT NOT NULL DEFAULT ''")
+  }
+
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "memoryMin")) {
+    run("ALTER TABLE builds ADD COLUMN memoryMin TEXT NOT NULL DEFAULT ''")
+  }
+
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "memoryMax")) {
+    run("ALTER TABLE builds ADD COLUMN memoryMax TEXT NOT NULL DEFAULT ''")
+  }
+
   for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
     run("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", [key, value])
   }
@@ -399,6 +419,11 @@ type BuildJson = {
   intentPath?: string
   installedMods?: Record<string, string>
   playtime: number
+  javaOverride?: boolean
+  javaPath?: string
+  javaArgs?: string
+  memoryMin?: string
+  memoryMax?: string
 }
 
 type BuildRow = {
@@ -419,6 +444,11 @@ type BuildRow = {
   source: string
   projectSlug: string | null
   playtime: number
+  javaOverride: number | null
+  javaPath: string | null
+  javaArgs: string | null
+  memoryMin: string | null
+  memoryMax: string | null
 }
 
 export async function loadBuilds(): Promise<BuildJson[]> {
@@ -447,6 +477,11 @@ export async function loadBuilds(): Promise<BuildJson[]> {
     intentPath: row.intentPath || undefined,
     installedMods: JSON.parse(row.installedMods || "{}"),
     playtime: row.playtime ?? 0,
+    javaOverride: row.javaOverride === 1,
+    javaPath: row.javaPath || undefined,
+    javaArgs: row.javaArgs || undefined,
+    memoryMin: row.memoryMin || undefined,
+    memoryMax: row.memoryMax || undefined,
   }))
 }
 
@@ -481,6 +516,11 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
         build.source,
         build.projectSlug ?? null,
         build.playtime ?? 0,
+        build.javaOverride ? 1 : 0,
+        build.javaPath ?? "",
+        build.javaArgs ?? "",
+        build.memoryMin ?? "",
+        build.memoryMax ?? "",
       ]
       for (let i = 0; i < params.length; i++) {
         const v = params[i]
@@ -490,8 +530,8 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
         }
       }
       run(`
-        INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, playtime)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, params)
     }
     run("COMMIT")

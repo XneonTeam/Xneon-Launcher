@@ -8,6 +8,7 @@ import { registerP2PHandlers } from "./p2p"
 import { registerSystemHandlers } from "./system"
 import { registerWindowLifecycle } from "./window"
 import { registerMinecraftHandlers } from "./minecraft"
+import { registerWorldsHandlers } from "./worlds"
 
 registerWindowLifecycle()
 registerSystemHandlers()
@@ -15,6 +16,7 @@ registerModsHandlers()
 registerBuildHandlers()
 registerCloudHandlers()
 registerMinecraftHandlers()
+registerWorldsHandlers()
 
 registerP2PHandlers()
 

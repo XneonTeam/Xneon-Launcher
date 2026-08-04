@@ -129,6 +129,8 @@
   "builds.tab.mods": "Mods ({{count}})",
   "builds.tab.resourcepacks": "Paquetes de recursos ({{count}})",
   "builds.tab.shaders": "Shaders ({{count}})",
+  "builds.tab.worlds": "Mundos",
+  "builds.tab.screenshots": "Capturas",
   "accounts.title": "Cuentas",
   "accounts.addAccount": "Añadir cuenta",
   "accounts.noAccounts": "No hay cuentas añadidas",

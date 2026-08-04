@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MOD_LOADERS, VERSIONS } from "./constants"
 import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
+import { InstanceBuildJava } from "./instance-build-java"
 import type { Build } from "./types"
 
 function formatPlaytime(seconds: number): string {
@@ -227,6 +228,8 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, fileInputRef }
           </div>
         </div>
       </div>
+
+      <InstanceBuildJava build={activeBuild} updateBuild={updateBuild} />
     </div>
   )
 }

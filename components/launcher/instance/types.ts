@@ -1,5 +1,5 @@
 export type ViewMode = "my" | "detail" | "modrinth" | "curseforge"
-export type DetailTab = "general" | "mods" | "resourcepacks" | "shaders"
+export type DetailTab = "general" | "mods" | "resourcepacks" | "shaders" | "worlds" | "screenshots"
 export type ModSort = "relevance" | "downloads" | "popular" | "followers" | "updated" | "published"
 export type Source = "modrinth" | "curseforge"
 export type ContentType = "mod" | "modpack" | "resourcepack" | "shader"
@@ -27,6 +27,9 @@ export type Build = {
   memoryMin?: string
   memoryMax?: string
   memoryPreset?: MemoryPreset
+  javaOverride?: boolean
+  javaPath?: string
+  javaArgs?: string
   playtime: number
 }
 
@@ -106,6 +109,39 @@ export type ModDetails = {
   body?: string
   modId?: number
   projectId?: string
+}
+
+// -- World / Save Management --
+
+export type WorldInfo = {
+  folder: string
+  name: string
+  seed: string
+  gameMode: string
+  hardcore: boolean
+  lastPlayed: number
+  playedTime: number
+  mcVersion: string
+  iconDataUrl: string
+  sizeBytes: number
+  lastModified: number
+  path: string
+  datapackCount: number
+}
+
+export type DatapackInfo = {
+  name: string
+  sizeBytes: number
+  lastModified: number
+  path: string
+}
+
+export type ScreenshotInfo = {
+  name: string
+  sizeBytes: number
+  lastModified: number
+  thumbDataUrl: string
+  path: string
 }
 
 /** @deprecated Use ModSearchResult instead */
