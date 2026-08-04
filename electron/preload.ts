@@ -42,6 +42,41 @@ import type {
   P2PChatMessage,
 } from '@xnlc/types' with { 'resolution-mode': 'import' }
 
+// World/screenshot types are defined locally (not imported from @xnlc/types)
+// so the preload compiles against any published version of the package.
+// Keep in sync with electron/main/worlds.ts and @xnlc/types domain-types.
+type WorldInfo = {
+  folder: string
+  name: string
+  seed: string
+  gameMode: string
+  hardcore: boolean
+  lastPlayed: number
+  playedTime: number
+  mcVersion: string
+  iconDataUrl: string
+  sizeBytes: number
+  lastModified: number
+  path: string
+  datapackCount: number
+  hasLevelData: boolean
+}
+
+type DatapackInfo = {
+  name: string
+  sizeBytes: number
+  lastModified: number
+  path: string
+}
+
+type ScreenshotInfo = {
+  name: string
+  sizeBytes: number
+  lastModified: number
+  thumbDataUrl: string
+  path: string
+}
+
 function subscribe<T>(channel: string, callback: (payload: T) => void): CleanupFn {
   const handler = (_: Electron.IpcRendererEvent, payload: T) => callback(payload)
   ipcRenderer.on(channel, handler)

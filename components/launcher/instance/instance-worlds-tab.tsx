@@ -121,9 +121,11 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     }
     setSearching(true)
     try {
+      // `as never` keeps this compiling against old @xnlc/types where
+      // ModContentType has no "datapack" member yet.
       const response = src === "modrinth"
-        ? await window.electronAPI?.modsModrinthSearch(query.trim(), "datapack", undefined, undefined, "downloads", 0)
-        : await window.electronAPI?.modsCurseforgeSearch(query.trim(), "datapack", undefined, undefined, "downloads", 0)
+        ? await window.electronAPI?.modsModrinthSearch(query.trim(), "datapack" as never, undefined, undefined, "downloads", 0)
+        : await window.electronAPI?.modsCurseforgeSearch(query.trim(), "datapack" as never, undefined, undefined, "downloads", 0)
       setResults(response?.results ?? [])
     } catch {
       setResults([])
