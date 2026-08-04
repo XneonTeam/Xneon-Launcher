@@ -121,6 +121,8 @@
   "builds.tab.mods": "Моды ({{count}})",
   "builds.tab.resourcepacks": "Ресурспаки ({{count}})",
   "builds.tab.shaders": "Шейдеры ({{count}})",
+  "builds.tab.worlds": "Миры",
+  "builds.tab.screenshots": "Скриншоты",
   "builds.import": "Импортировать",
   "builds.details": "Подробнее",
   "builds.findResourcePacks": "Найдите и добавьте ресурспаки",

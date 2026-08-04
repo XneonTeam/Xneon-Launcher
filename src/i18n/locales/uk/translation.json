@@ -129,6 +129,8 @@
   "builds.tab.mods": "Моди ({{count}})",
   "builds.tab.resourcepacks": "Ресурспаки ({{count}})",
   "builds.tab.shaders": "Шейдери ({{count}})",
+  "builds.tab.worlds": "Світи",
+  "builds.tab.screenshots": "Скріншоти",
   "accounts.title": "Акаунти",
   "accounts.addAccount": "Додати акаунт",
   "accounts.noAccounts": "Немає доданих акаунтів",

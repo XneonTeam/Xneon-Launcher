@@ -22,6 +22,7 @@ export type WorkerLaunchPayload = {
     width: number
     height: number
     javaPath?: string
+    javaArgs?: string
     retroauthEnabled: boolean
     useBmclapi?: boolean
   }
