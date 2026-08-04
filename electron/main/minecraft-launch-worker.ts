@@ -304,7 +304,7 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
   }
   launchStarted = true
 
-  const extraJvmArgs = parseExtraJvmArgs(payload.options.javaArgs)
+  const extraJvmArgs = parseExtraJvmArgs((payload.options as { javaArgs?: string }).javaArgs)
   debug(`Extra JVM args (${extraJvmArgs.length}): ${extraJvmArgs.join(" ")}`)
 
   debug("Calling XNLC launch pipeline")
