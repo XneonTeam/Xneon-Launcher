@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogTr
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { MOD_LOADERS } from "./constants"
+import { LoaderIcon } from "./loader-icon"
 import { useHomeVersions } from "@/src/hooks/use-home-versions"
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
 
@@ -218,7 +219,14 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                     <SelectValue placeholder={t("builds.modLoader")} />
                   </SelectTrigger>
                   <SelectContent>
-                    {MOD_LOADERS.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}
+                    {MOD_LOADERS.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        <span className="flex items-center gap-2">
+                          <LoaderIcon loaderId={item.id} className="w-4 h-4 flex-shrink-0" />
+                          {item.name}
+                        </span>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 {requiresLoaderVersion && (

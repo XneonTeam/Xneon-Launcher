@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { IconCamera, IconTrash, IconExternalLink, IconFolderOpen } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MOD_LOADERS, VERSIONS } from "./constants"
+import { LoaderIcon } from "./loader-icon"
 import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
 import type { Build } from "./types"
@@ -167,7 +168,12 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, fileInputRef }
                   </SelectTrigger>
                   <SelectContent>
                     {MOD_LOADERS.map((item) => (
-                      <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
+                      <SelectItem key={item.id} value={item.id}>
+                        <span className="flex items-center gap-2">
+                          <LoaderIcon loaderId={item.id} className="w-4 h-4 flex-shrink-0" />
+                          {item.name}
+                        </span>
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

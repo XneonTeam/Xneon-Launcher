@@ -48,7 +48,7 @@ export function CloudAuthModal({ isOpen, onClose, onSuccess }: CloudAuthModalPro
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="relative w-full max-w-md mx-4 rounded-2xl bg-card border border-border p-6 shadow-2xl">
-        <button onClick={onClose} className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted transition-colors">
+        <button onClick={onClose} className="absolute top-4 right-4 p-1.5 rounded-lg border border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
           <IconX className="w-5 h-5 text-muted-foreground" />
         </button>
         <div className="flex items-center gap-3 mb-6">

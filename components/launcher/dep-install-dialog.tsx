@@ -145,7 +145,7 @@ export function DepInstallDialog({ version, modName, modIcon, source, resolvedDe
               })}
             </div>
             <div className="p-3 border-t border-border flex justify-end gap-2 flex-shrink-0">
-              <button onClick={onCancel} className="px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+              <button onClick={onCancel} className="px-4 py-2 rounded-xl text-sm font-medium border border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                 Отмена
               </button>
               <button

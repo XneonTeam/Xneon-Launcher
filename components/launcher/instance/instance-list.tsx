@@ -1,8 +1,9 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IconPackage, IconX, IconPlus, IconPlayerPlay } from "@tabler/icons-react"
+import { IconPackage, IconX, IconPlus } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { MOD_LOADERS } from "./constants"
+import { LoaderIcon } from "./loader-icon"
 import type { Build } from "./types"
 
 interface InstanceListProps {
@@ -11,7 +12,6 @@ interface InstanceListProps {
   onCreate: () => void
   onDelete: (id: string) => void
   onOpen: (id: string) => void
-  onPlay: (build: Build) => void
 }
 
 const CARD_MIN_WIDTH = 148
@@ -19,7 +19,7 @@ const GRID_GAP = 12
 const CARD_HEIGHT = 220
 const GRID_OVERSCAN_ROWS = 2
 
-export const InstanceList = memo(function InstanceList({ builds, totalBuilds, onCreate, onDelete, onOpen, onPlay }: InstanceListProps) {
+export const InstanceList = memo(function InstanceList({ builds, totalBuilds, onCreate, onDelete, onOpen }: InstanceListProps) {
   const { t } = useTranslation()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0, scrollTop: 0 })
@@ -94,16 +94,6 @@ export const InstanceList = memo(function InstanceList({ builds, totalBuilds, on
                         <IconPackage className="w-10 h-10 text-primary/40" />
                       </div>
                     )}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <button
-                        type="button"
-                        onClick={e => { e.stopPropagation(); onPlay(build) }}
-                        className="w-12 h-12 rounded-full bg-primary/90 text-primary-foreground backdrop-blur-sm flex items-center justify-center shadow-lg shadow-black/30 hover:bg-primary hover:scale-105 active:scale-95 transition-all border border-white/20"
-                        title={t("builds.play")}
-                      >
-                        <IconPlayerPlay className="w-5 h-5 ml-0.5 fill-current" />
-                      </button>
-                    </div>
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         type="button"
@@ -132,7 +122,7 @@ export const InstanceList = memo(function InstanceList({ builds, totalBuilds, on
               <div className="px-3 py-2.5 bg-card border-t border-border/50">
                   <p className="text-sm font-semibold text-foreground truncate leading-tight">{build.name}</p>
                   <div className="flex items-center gap-1.5 mt-1">
-                    <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", loader.dot)} />
+                    <LoaderIcon loaderId={build.modLoader} className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                     <span className="text-[11px] text-muted-foreground truncate">{loader.name} · {build.version}</span>
                   </div>
                 </div>

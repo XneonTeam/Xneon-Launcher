@@ -29,14 +29,14 @@ export type MinecraftVersionOption = { version: string; stable: boolean; type: s
 export type VersionVisibility = { showSnapshot: boolean; showBeta: boolean; showAlpha: boolean }
 
 export const MOD_LOADERS = [
-  { id: "vanilla", name: "Vanilla", icon: "V", color: "bg-gray-500" },
-  { id: "forge", name: "Forge", icon: "F", color: "bg-red-600" },
-  { id: "fabric", name: "Fabric", icon: "Fb", color: "bg-yellow-600" },
-  { id: "liteloader", name: "LiteLoader", icon: "L", color: "bg-cyan-500" },
-  { id: "quilt", name: "Quilt", icon: "Q", color: "bg-purple-500" },
-  { id: "neoforge", name: "NeoForge", icon: "Nf", color: "bg-orange-500" },
-  { id: "optifine", name: "OptiFine", icon: "O", color: "bg-green-500" },
-  { id: "instance", name: "Instance", icon: "I", color: "bg-blue-500" },
+  { id: "vanilla", name: "Vanilla", color: "bg-gray-500" },
+  { id: "forge", name: "Forge", color: "bg-red-600" },
+  { id: "fabric", name: "Fabric", color: "bg-yellow-600" },
+  { id: "liteloader", name: "LiteLoader", color: "bg-cyan-500" },
+  { id: "quilt", name: "Quilt", color: "bg-purple-500" },
+  { id: "neoforge", name: "NeoForge", color: "bg-orange-500" },
+  { id: "optifine", name: "OptiFine", color: "bg-green-500" },
+  { id: "instance", name: "Instance", color: "bg-blue-500" },
 ] as const
 export const NEWS_CARD_STYLE: CSSProperties = { contain: "layout paint" }
 export const NEWS_SCROLL_STYLE: CSSProperties = { contain: "layout paint", overscrollBehavior: "contain" }
