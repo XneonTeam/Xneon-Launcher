@@ -79,19 +79,19 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Create release
+          name: Create GitHub release
           command: |
             if [ -z "$CIRCLE_TAG" ]; then
               echo "Not a tag push, skipping release."
               exit 0
             fi
 
-            echo "Creating release for tag ${CIRCLE_TAG}..."
+            echo "Creating GitHub release for tag ${CIRCLE_TAG}..."
 
             RESPONSE_FILE="$(mktemp)"
             HTTP_CODE="$(curl -sS -o "${RESPONSE_FILE}" -w "%{http_code}" \
-              -X POST "https://git.xneon.org/api/v1/repos/MAINER4IK/xnlauncher/releases" \
-              -H "Authorization: token ${FORGEJO_TOKEN}" \
+              -X POST "https://api.github.com/repos/MAINER4IK/xnlauncher/releases" \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
               -H "Content-Type: application/json" \
               -d "$(cat <<EOF
             {
@@ -113,7 +113,7 @@ jobs:
             RELEASE_ID="$(grep -o '"id":[0-9]*' "${RESPONSE_FILE}" | head -1 | cut -d: -f2)"
 
             if [ -z "${RELEASE_ID}" ]; then
-              echo "Could not parse release id from Forgejo response:"
+              echo "Could not parse release id from GitHub response:"
               cat "${RESPONSE_FILE}"
               exit 1
             fi
@@ -124,9 +124,10 @@ jobs:
               find linux -type f | while read -r file; do
                 echo "Uploading $(basename "${file}")..."
                 curl -sS -f \
-                  -X POST "https://git.xneon.org/api/v1/repos/MAINER4IK/xnlauncher/releases/${RELEASE_ID}/assets" \
-                  -H "Authorization: token ${FORGEJO_TOKEN}" \
-                  -F "attachment=@${file}"
+                  -X POST "https://uploads.github.com/repos/MAINER4IK/xnlauncher/releases/${RELEASE_ID}/assets?name=$(basename "${file}")" \
+                  -H "Authorization: token ${GITHUB_TOKEN}" \
+                  -H "Content-Type: application/octet-stream" \
+                  --data-binary @"${file}"
               done
             fi
 
@@ -134,9 +135,10 @@ jobs:
               find windows -type f | while read -r file; do
                 echo "Uploading $(basename "${file}")..."
                 curl -sS -f \
-                  -X POST "https://git.xneon.org/api/v1/repos/MAINER4IK/xnlauncher/releases/${RELEASE_ID}/assets" \
-                  -H "Authorization: token ${FORGEJO_TOKEN}" \
-                  -F "attachment=@${file}"
+                  -X POST "https://uploads.github.com/repos/MAINER4IK/xnlauncher/releases/${RELEASE_ID}/assets?name=$(basename "${file}")" \
+                  -H "Authorization: token ${GITHUB_TOKEN}" \
+                  -H "Content-Type: application/octet-stream" \
+                  --data-binary @"${file}"
               done
             fi
 
