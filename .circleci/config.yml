@@ -83,6 +83,39 @@ jobs:
           paths:
             - release
 
+  build-macos:
+    macos:
+      xcode: "15.4.0"
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - v1-macos-dependencies-{{ checksum "package-lock.json" }}
+            - v1-macos-dependencies-
+
+      - run:
+          name: Install dependencies
+          command: npm ci --include=optional || npm install
+
+      - save_cache:
+          paths:
+            - ~/.npm
+          key: v1-macos-dependencies-{{ checksum "package-lock.json" }}
+
+      - run:
+          name: Build app
+          command: npm run build
+
+      - run:
+          name: Package macOS
+          command: npx electron-builder --mac dmg --publish never
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - release
+
   release:
     docker:
       - image: cimg/node:22.12
@@ -92,35 +125,47 @@ jobs:
           at: .
 
       - run:
-          name: Create GitHub release
+          name: Upload artifacts to GitHub release
           command: |
             if [ -z "$CIRCLE_TAG" ]; then
               echo "Not a tag push, skipping release."
               exit 0
             fi
 
-            echo "Creating GitHub release for tag ${CIRCLE_TAG}..."
+            echo "Looking up GitHub release for tag ${CIRCLE_TAG}..."
 
             RESPONSE_FILE="$(mktemp)"
-            BODY="Release ${CIRCLE_TAG}"
-            JSON="{\"tag_name\":\"${CIRCLE_TAG}\",\"name\":\"${CIRCLE_TAG}\",\"body\":\"${BODY}\",\"draft\":false,\"prerelease\":false}"
 
+            # Try to find existing release by tag first
             HTTP_CODE="$(curl -sS -o "${RESPONSE_FILE}" -w "%{http_code}" \
-              -X POST "https://api.github.com/repos/MAINER4IK/xnlauncher/releases" \
-              -H "Authorization: token ${GITHUB_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d "${JSON}")"
+              "https://api.github.com/repos/MAINER4IK/xnlauncher/releases/tags/${CIRCLE_TAG}" \
+              -H "Authorization: token ${GITHUB_TOKEN}")"
 
-            if [ "${HTTP_CODE}" != "201" ]; then
-              echo "Release creation failed with status ${HTTP_CODE}:"
-              cat "${RESPONSE_FILE}"
-              exit 1
+            if [ "${HTTP_CODE}" = "200" ]; then
+              RELEASE_ID="$(grep -o '"id":[0-9]*' "${RESPONSE_FILE}" | head -1 | cut -d: -f2)"
+              echo "Found existing release ID: ${RELEASE_ID}"
+            else
+              echo "No existing release found (HTTP ${HTTP_CODE}), creating one..."
+              BODY="Release ${CIRCLE_TAG}"
+              JSON="{\"tag_name\":\"${CIRCLE_TAG}\",\"name\":\"${CIRCLE_TAG}\",\"body\":\"${BODY}\",\"draft\":false,\"prerelease\":false}"
+
+              HTTP_CODE="$(curl -sS -o "${RESPONSE_FILE}" -w "%{http_code}" \
+                -X POST "https://api.github.com/repos/MAINER4IK/xnlauncher/releases" \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d "${JSON}")"
+
+              if [ "${HTTP_CODE}" != "201" ]; then
+                echo "Release creation failed with status ${HTTP_CODE}:"
+                cat "${RESPONSE_FILE}"
+                exit 1
+              fi
+
+              RELEASE_ID="$(grep -o '"id":[0-9]*' "${RESPONSE_FILE}" | head -1 | cut -d: -f2)"
             fi
 
-            RELEASE_ID="$(grep -o '"id":[0-9]*' "${RESPONSE_FILE}" | head -1 | cut -d: -f2)"
-
             if [ -z "${RELEASE_ID}" ]; then
-              echo "Could not parse release id from GitHub response:"
+              echo "Could not parse release id:"
               cat "${RESPONSE_FILE}"
               exit 1
             fi
@@ -129,9 +174,10 @@ jobs:
 
             if [ -d "release" ]; then
               find release -type f | while read -r file; do
-                echo "Uploading $(basename "${file}")..."
+                FILENAME="$(basename "${file}")"
+                echo "Uploading ${FILENAME}..."
                 curl -sS -f \
-                  -X POST "https://uploads.github.com/repos/MAINER4IK/xnlauncher/releases/${RELEASE_ID}/assets?name=$(basename "${file}")" \
+                  -X POST "https://uploads.github.com/repos/MAINER4IK/xnlauncher/releases/${RELEASE_ID}/assets?name=${FILENAME}" \
                   -H "Authorization: token ${GITHUB_TOKEN}" \
                   -H "Content-Type: application/octet-stream" \
                   --data-binary @"${file}"
@@ -141,12 +187,29 @@ jobs:
 workflows:
   release:
     jobs:
-      - build-linux
-      - build-windows
+      - build-linux:
+          filters:
+            tags:
+              only: /v.*/
+            branches:
+              ignore: /.*/
+      - build-windows:
+          filters:
+            tags:
+              only: /v.*/
+            branches:
+              ignore: /.*/
+      - build-macos:
+          filters:
+            tags:
+              only: /v.*/
+            branches:
+              ignore: /.*/
       - release:
           requires:
             - build-linux
             - build-windows
+            - build-macos
           filters:
             tags:
               only: /v.*/
