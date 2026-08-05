@@ -25,6 +25,8 @@ export type WorkerLaunchPayload = {
     javaArgs?: string
     retroauthEnabled: boolean
     useBmclapi?: boolean
+    server?: string
+    serverPort?: string
   }
 }
 

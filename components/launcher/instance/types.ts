@@ -1,5 +1,5 @@
 export type ViewMode = "my" | "detail" | "modrinth" | "curseforge"
-export type DetailTab = "general" | "mods" | "resourcepacks" | "shaders" | "worlds" | "screenshots"
+export type DetailTab = "settings" | "general" | "mods" | "resourcepacks" | "shaders" | "worlds" | "screenshots" | "servers"
 export type ModSort = "relevance" | "downloads" | "popular" | "followers" | "updated" | "published"
 export type Source = "modrinth" | "curseforge"
 export type ContentType = "mod" | "modpack" | "resourcepack" | "shader"
@@ -30,6 +30,12 @@ export type Build = {
   javaOverride?: boolean
   javaPath?: string
   javaArgs?: string
+  windowOverride?: boolean
+  windowWidth?: number
+  windowHeight?: number
+  serverOverride?: boolean
+  server?: string
+  serverPort?: string
   playtime: number
 }
 

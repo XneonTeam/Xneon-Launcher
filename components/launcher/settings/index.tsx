@@ -47,6 +47,9 @@ export function SettingsPage() {
   const [authlibInjectorEnabled, setAuthlibInjectorEnabled] = useState(false)
   const [injectorType, setInjectorType] = useState<"authlib" | "retroauth">("retroauth")
   const [showAuthlibWarningModal, setShowAuthlibWarningModal] = useState(false)
+  const [autoJoinServer, setAutoJoinServer] = useState(false)
+  const [serverAddress, setServerAddress] = useState("")
+  const [serverPort, setServerPort] = useState("25565")
   const [selectedLanguage, setSelectedLanguage] = useState(() => {
     const stored = typeof window !== "undefined" ? localStorage.getItem("language") : null
     return stored || "ru"
@@ -95,6 +98,9 @@ export function SettingsPage() {
         useCustomResolutionSetting,
         useBmclapiSetting,
         cloudApiUrlSetting,
+        autoJoinServerSetting,
+        serverSetting,
+        serverPortSetting,
       ] = await Promise.all([
         api.getSetting("authlibInjectorEnabled"),
         api.getSetting("retroauthInjectorEnabled"),
@@ -111,6 +117,9 @@ export function SettingsPage() {
         api.getSetting("useCustomResolution"),
         api.getSetting("useBmclapi"),
         api.getSetting("cloudApiUrl"),
+        api.getSetting("autoJoinServer"),
+        api.getSetting("server"),
+        api.getSetting("serverPort"),
       ])
 
       if (cancelled) return
@@ -136,6 +145,9 @@ export function SettingsPage() {
       setShowSnapshot(showSnapshotSetting === "true")
       setUseBmclapi(useBmclapiSetting === "true")
       if (cloudApiUrlSetting) setCloudApiUrl(cloudApiUrlSetting)
+      setAutoJoinServer(autoJoinServerSetting === "true")
+      if (serverSetting) setServerAddress(serverSetting)
+      if (serverPortSetting) setServerPort(serverPortSetting)
       if (selectedResolutionSetting) setSelectedResolution(selectedResolutionSetting)
       if (customWidthSetting) setCustomWidth(customWidthSetting)
       if (customHeightSetting) setCustomHeight(customHeightSetting)
@@ -190,6 +202,9 @@ export function SettingsPage() {
   useEffect(() => { persistSetting("showBeta", String(showBeta)) }, [persistSetting, showBeta])
   useEffect(() => { persistSetting("showSnapshot", String(showSnapshot)) }, [persistSetting, showSnapshot])
   useEffect(() => { persistSetting("useBmclapi", String(useBmclapi)) }, [persistSetting, useBmclapi])
+  useEffect(() => { persistSetting("autoJoinServer", String(autoJoinServer)) }, [autoJoinServer, persistSetting])
+  useEffect(() => { if (serverAddress) persistSetting("server", serverAddress) }, [serverAddress, persistSetting])
+  useEffect(() => { persistSetting("serverPort", serverPort.trim() || "25565") }, [serverPort, persistSetting])
   useEffect(() => { if (cloudApiUrl) persistSetting("cloudApiUrl", cloudApiUrl) }, [cloudApiUrl, persistSetting])
   useEffect(() => { persistSetting("selectedResolution", selectedResolution) }, [persistSetting, selectedResolution])
   useEffect(() => { persistSetting("customWidth", customWidth) }, [customWidth, persistSetting])
@@ -271,6 +286,54 @@ export function SettingsPage() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">Use values like `2G`, `4G` or `1024M`. These limits are used for Minecraft launch.</p>
+            </section>
+
+            <section className="space-y-4">
+              <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+                <IconCloud className="w-5 h-5 text-primary" strokeWidth={1.5} />
+                Автоподключение к серверу
+              </h3>
+              <div className="p-4 rounded-xl border border-border bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="font-medium text-foreground">Автоподключение</div>
+                    <p className="text-sm text-muted-foreground mt-1">При запуске Minecraft автоматически подключится к указанному серверу.</p>
+                  </div>
+                  <button
+                    onClick={() => setAutoJoinServer(!autoJoinServer)}
+                    className={cn(
+                      "relative w-14 h-8 rounded-full transition-all duration-300",
+                      autoJoinServer ? "bg-primary shadow-[0_0_15px_var(--glow-primary)]" : "bg-muted"
+                    )}
+                  >
+                    <span className={cn("absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all duration-300", autoJoinServer ? "left-7" : "left-1")} />
+                  </button>
+                </div>
+                {autoJoinServer && (
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2 space-y-1.5">
+                      <label className="block text-sm font-medium text-foreground">IP адрес</label>
+                      <input
+                        type="text"
+                        value={serverAddress}
+                        onChange={(e) => setServerAddress(e.target.value)}
+                        placeholder="play.example.com"
+                        className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block text-sm font-medium text-foreground">Порт</label>
+                      <input
+                        type="text"
+                        value={serverPort}
+                        onChange={(e) => setServerPort(e.target.value)}
+                        placeholder="25565"
+                        className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             </section>
 
             <section className="space-y-4">

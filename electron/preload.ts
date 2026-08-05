@@ -74,6 +74,23 @@ type ScreenshotInfo = {
   path: string
 }
 
+// Server status type is defined locally (not imported from @xnlc/types)
+// so the preload compiles against any published version of the package.
+// Keep in sync with electron/main/server-status.ts.
+type ServerStatusResult = {
+  online: boolean
+  ip: string
+  port: number
+  players_online: number
+  players_max: number
+  motd_raw?: string
+  motd_clean?: string
+  version: string
+  latency_ms: number
+  icon?: string
+  error?: string
+}
+
 function subscribe<T>(channel: string, callback: (payload: T) => void): CleanupFn {
   const handler = (_: Electron.IpcRendererEvent, payload: T) => callback(payload)
   ipcRenderer.on(channel, handler)
@@ -182,6 +199,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSetting: (key: string) => ipcRenderer.invoke('settings:get', key) as Promise<string | undefined>,
   setSetting: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value) as Promise<void>,
 
+  // ── Servers ────────────────────────────────────────────
+  writeServersDat: (servers: Array<{ name: string; ip: string }>) => ipcRenderer.invoke('servers:write-dat', servers) as Promise<{ success: boolean; error?: string }>,
+  pingServer: (address: string) => ipcRenderer.invoke('servers:ping', address) as Promise<ServerStatusResult>,
+
   // ── Build Intent Operations ────────────────────────────
   getBuildIntentPath: (buildId: string) => ipcRenderer.invoke('build:get-intent-path', buildId) as Promise<string>,
   saveModToIntent: (buildId: string, url: string, fileName: string) => ipcRenderer.invoke('build:save-mod-to-intent', buildId, url, fileName) as Promise<string | null>,
@@ -213,8 +234,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Worlds ─────────────────────────────────────────────
   listWorlds: (buildName: string) => ipcRenderer.invoke('worlds:list', buildName) as Promise<WorldInfo[]>,
   renameWorld: (buildName: string, folder: string, newName: string) => ipcRenderer.invoke('worlds:rename', buildName, folder, newName) as Promise<{ success: boolean; error?: string }>,
+  copyWorld: (buildName: string, folder: string, newName: string) => ipcRenderer.invoke('worlds:copy', buildName, folder, newName) as Promise<{ success: boolean; folder?: string; error?: string }>,
+  importWorldZip: (buildName: string, localFilePath: string, newName?: string) => ipcRenderer.invoke('worlds:import-zip', buildName, localFilePath, newName) as Promise<{ success: boolean; folder?: string; error?: string }>,
   deleteWorld: (buildName: string, folder: string) => ipcRenderer.invoke('worlds:delete', buildName, folder) as Promise<{ success: boolean; error?: string }>,
   setWorldIcon: (buildName: string, folder: string, dataUrl: string) => ipcRenderer.invoke('worlds:set-icon', buildName, folder, dataUrl) as Promise<{ success: boolean; error?: string }>,
+  resetWorldIcon: (buildName: string, folder: string) => ipcRenderer.invoke('worlds:reset-icon', buildName, folder) as Promise<{ success: boolean; error?: string }>,
   listWorldDatapacks: (buildName: string, folder: string) => ipcRenderer.invoke('worlds:list-datapacks', buildName, folder) as Promise<DatapackInfo[]>,
   installDatapackRemote: (buildName: string, folder: string, url: string, fileName: string) => ipcRenderer.invoke('worlds:install-datapack-remote', buildName, folder, url, fileName) as Promise<{ success: boolean; path?: string; error?: string }>,
   installDatapackLocal: (buildName: string, folder: string, localFilePath: string) => ipcRenderer.invoke('worlds:install-datapack-local', buildName, folder, localFilePath) as Promise<{ success: boolean; path?: string; error?: string }>,

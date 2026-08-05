@@ -89,7 +89,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex flex-1 flex-col overflow-hidden">
       {shots === null ? (
         <div className="flex h-full items-center justify-center text-muted-foreground">
           <IconLoader2 className="h-6 w-6 animate-spin" />
@@ -105,7 +105,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
           </p>
         </div>
       ) : (
-        <>
+        <div className="flex flex-1 flex-col overflow-hidden">
           <div className="mb-3 flex items-center justify-between">
             <div className="text-sm font-semibold text-foreground">Скриншоты · {shots.length}</div>
             <button
@@ -118,7 +118,8 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
             </button>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="flex-1 overflow-y-auto pr-1">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {shots.map((shot, index) => (
               <div
                 key={shot.name}
@@ -155,8 +156,9 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
                 </div>
               </div>
             ))}
+            </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* Lightbox */}

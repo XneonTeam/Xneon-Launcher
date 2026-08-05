@@ -30,7 +30,7 @@ export function SettingsTabs({ tabs, activeTab, setActiveTab, t }: SettingsTabsP
               "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200",
               activeTab === tab.id
                 ? "bg-primary text-primary-foreground shadow-[0_0_15px_var(--glow-primary)]"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                : "bg-muted/60 border border-border text-muted-foreground hover:text-foreground hover:bg-muted"
             )}
           >
             {Icon && <Icon className="w-4 h-4" strokeWidth={1.75} />}

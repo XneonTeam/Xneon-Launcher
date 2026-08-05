@@ -9,6 +9,7 @@ import { registerSystemHandlers } from "./system"
 import { registerWindowLifecycle } from "./window"
 import { registerMinecraftHandlers } from "./minecraft"
 import { registerWorldsHandlers } from "./worlds"
+import { registerServerHandlers } from "./servers"
 
 registerWindowLifecycle()
 registerSystemHandlers()
@@ -17,6 +18,7 @@ registerBuildHandlers()
 registerCloudHandlers()
 registerMinecraftHandlers()
 registerWorldsHandlers()
+registerServerHandlers()
 
 registerP2PHandlers()
 

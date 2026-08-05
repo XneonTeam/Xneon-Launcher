@@ -93,8 +93,8 @@ export function InstanceModal({
               key={id}
               onClick={() => setModalTab(id)}
               className={cn(
-                "flex items-center gap-1.5 px-4 py-3 text-sm font-medium transition-colors relative capitalize",
-                modalTab === id ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                "flex items-center gap-1.5 px-4 py-3 text-sm font-medium transition-colors relative capitalize rounded-t-lg",
+                modalTab === id ? "text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
               )}
             >
               <Icon className="w-4 h-4" strokeWidth={1.75} />

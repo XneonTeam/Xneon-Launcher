@@ -24,6 +24,8 @@ export type MinecraftLaunchParams = {
   authlibInjectorEnabled?: boolean
   retroauthInjectorEnabled?: boolean
   buildName?: string
+  server?: string
+  serverPort?: string
 }
 
 export type MinecraftProgress = {

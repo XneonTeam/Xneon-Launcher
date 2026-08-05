@@ -66,6 +66,48 @@ function resolveChildPath(parentDir: string, fileName: string): string | null {
   return targetPath
 }
 
+async function folderExists(dirPath: string): Promise<boolean> {
+  try {
+    await fs.access(dirPath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function uniqueFolderPath(savesDir: string, baseName: string): Promise<string> {
+  const base = baseName.trim().replace(/\s+/g, "_")
+  let candidate = base
+  let index = 2
+  while (await folderExists(path.join(savesDir, candidate))) {
+    candidate = `${base}_${index}`
+    index++
+  }
+  return candidate
+}
+
+function resolveRelativeSafe(destRoot: string, relPath: string): string | null {
+  const target = path.resolve(destRoot, relPath)
+  const rootNorm = `${path.resolve(destRoot)}${path.sep}`
+  if (!target.startsWith(rootNorm)) return null
+  return target
+}
+
+async function updateLevelName(worldPath: string, newName: string): Promise<void> {
+  const level = await readLevelNbt(worldPath)
+  if (!level?.parsed) return
+  try {
+    const nbt = await import("prismarine-nbt")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = (level.parsed as any).value?.Data
+    if (data?.value?.LevelName) {
+      data.value.LevelName.value = newName
+      const uncompressed = nbt.writeUncompressed(level.parsed as never, level.type as never)
+      await fs.writeFile(path.join(worldPath, "level.dat"), zlib.gzipSync(uncompressed))
+    }
+  } catch { /* level.dat update is best-effort */ }
+}
+
 async function dirSize(dirPath: string, maxEntries = 200000): Promise<number> {
   let total = 0
   let count = 0
@@ -316,6 +358,89 @@ export function registerWorldsHandlers(): void {
       const resized = image.resize({ width: 256, height: 256 })
       await fs.writeFile(path.join(worldPath, "icon.png"), resized.toPNG())
       return { success: true }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
+  ipcMain.handle("worlds:reset-icon", async (_event, buildName: string, folder: string): Promise<OpResult> => {
+    try {
+      const gameDir = await getGameDir(buildName)
+      const savesDir = path.join(gameDir, "saves")
+      const worldPath = resolveWorldPath(savesDir, folder)
+      if (!worldPath) return { success: false, error: "Некорректное имя папки мира" }
+      await fs.rm(path.join(worldPath, "icon.png"), { force: true })
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
+  ipcMain.handle("worlds:copy", async (_event, buildName: string, folder: string, newName: string): Promise<OpResult & { folder?: string }> => {
+    try {
+      const gameDir = await getGameDir(buildName)
+      const savesDir = path.join(gameDir, "saves")
+      const worldPath = resolveWorldPath(savesDir, folder)
+      if (!worldPath) return { success: false, error: "Некорректное имя папки мира" }
+
+      const trimmedName = newName.trim().replace(/[<>:"/\\|?*\u0000-\u001F]/g, "").slice(0, 64)
+      if (!trimmedName) return { success: false, error: "Введите название мира" }
+
+      const newFolder = await uniqueFolderPath(savesDir, trimmedName.replace(/\s+/g, "_"))
+      const newWorldPath = path.join(savesDir, newFolder)
+      await fs.cp(worldPath, newWorldPath, { recursive: true })
+      await updateLevelName(newWorldPath, trimmedName)
+      return { success: true, folder: newFolder }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
+  ipcMain.handle("worlds:import-zip", async (_event, buildName: string, localFilePath: string, newName?: string): Promise<OpResult & { folder?: string }> => {
+    try {
+      const gameDir = await getGameDir(buildName)
+      const savesDir = path.join(gameDir, "saves")
+      const AdmZip = (await import("adm-zip")).default
+      const zip = new AdmZip(localFilePath)
+      const entries: Array<{ entryName: string; isDirectory: boolean; getData: () => Buffer }> = zip.getEntries()
+      const levelEntry = entries.find(e => !e.isDirectory && e.entryName.replace(/\\/g, "/").split("/").pop() === "level.dat")
+      if (!levelEntry) {
+        return { success: false, error: "В архиве не найден мир Minecraft (level.dat)" }
+      }
+
+      // Определяем корневую папку мира внутри архива.
+      const levelPath = levelEntry.entryName.replace(/\\/g, "/")
+      const slashIdx = levelPath.lastIndexOf("/")
+      const levelDir = slashIdx === -1 ? "" : levelPath.slice(0, slashIdx)
+      let prefix: string
+      let defaultFolderName: string
+      if (levelDir) {
+        const firstSegment = levelDir.split("/")[0]
+        prefix = `${firstSegment}/`
+        defaultFolderName = firstSegment
+      } else {
+        prefix = ""
+        defaultFolderName = path.basename(localFilePath, path.extname(localFilePath))
+      }
+
+      const trimmedName = newName?.trim().replace(/[<>:"/\\|?*\u0000-\u001F]/g, "").slice(0, 64) ?? ""
+      const destFolder = await uniqueFolderPath(savesDir, (trimmedName || defaultFolderName).replace(/\s+/g, "_"))
+      const destRoot = path.join(savesDir, destFolder)
+      await fs.mkdir(destRoot, { recursive: true })
+
+      for (const entry of entries) {
+        if (entry.isDirectory) continue
+        const entryPath = entry.entryName.replace(/\\/g, "/")
+        if (prefix && !entryPath.startsWith(prefix)) continue
+        const rel = prefix ? entryPath.slice(prefix.length) : entryPath
+        const target = resolveRelativeSafe(destRoot, rel)
+        if (!target) continue
+        await fs.mkdir(path.dirname(target), { recursive: true })
+        await fs.writeFile(target, entry.getData())
+      }
+
+      if (trimmedName) await updateLevelName(destRoot, trimmedName)
+      return { success: true, folder: destFolder }
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) }
     }

@@ -61,6 +61,9 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   javaPath: "",
   javaArgs: "",
   useBmclapi: "false",
+  autoJoinServer: "false",
+  server: "",
+  serverPort: "25565",
 }
 
 function ensureInMemoryDefaults() {
@@ -266,6 +269,18 @@ function initializeSchema() {
     run("ALTER TABLE builds ADD COLUMN memoryMax TEXT NOT NULL DEFAULT ''")
   }
 
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "serverOverride")) {
+    run("ALTER TABLE builds ADD COLUMN serverOverride INTEGER NOT NULL DEFAULT 0")
+  }
+
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "server")) {
+    run("ALTER TABLE builds ADD COLUMN server TEXT NOT NULL DEFAULT ''")
+  }
+
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "serverPort")) {
+    run("ALTER TABLE builds ADD COLUMN serverPort TEXT NOT NULL DEFAULT ''")
+  }
+
   for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
     run("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", [key, value])
   }
@@ -424,6 +439,9 @@ type BuildJson = {
   javaArgs?: string
   memoryMin?: string
   memoryMax?: string
+  serverOverride?: boolean
+  server?: string
+  serverPort?: string
 }
 
 type BuildRow = {
@@ -449,6 +467,9 @@ type BuildRow = {
   javaArgs: string | null
   memoryMin: string | null
   memoryMax: string | null
+  serverOverride: number | null
+  server: string | null
+  serverPort: string | null
 }
 
 export async function loadBuilds(): Promise<BuildJson[]> {
@@ -482,6 +503,9 @@ export async function loadBuilds(): Promise<BuildJson[]> {
     javaArgs: row.javaArgs || undefined,
     memoryMin: row.memoryMin || undefined,
     memoryMax: row.memoryMax || undefined,
+    serverOverride: row.serverOverride === 1,
+    server: row.server || undefined,
+    serverPort: row.serverPort || undefined,
   }))
 }
 
@@ -521,6 +545,9 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
         build.javaArgs ?? "",
         build.memoryMin ?? "",
         build.memoryMax ?? "",
+        build.serverOverride ? 1 : 0,
+        build.server ?? "",
+        build.serverPort ?? "",
       ]
       for (let i = 0; i < params.length; i++) {
         const v = params[i]
@@ -530,8 +557,8 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
         }
       }
       run(`
-        INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax, serverOverride, server, serverPort)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, params)
     }
     run("COMMIT")

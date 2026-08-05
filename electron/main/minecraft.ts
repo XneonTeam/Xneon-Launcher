@@ -148,6 +148,8 @@ const launchHandlers: IpcHandlerDef[] = [
         buildName: options.buildName,
         gameDir: options.gameDir,
         javaArgs: (options as { javaArgs?: string }).javaArgs,
+        server: (options as { server?: string }).server,
+        serverPort: (options as { serverPort?: string }).serverPort,
       }
 
       return await runLaunchWorker(launchAccount, extendedRequest)
