@@ -76,7 +76,7 @@ jobs:
 
       - run:
           name: Package Windows
-          command: npx electron-builder --win nsis --publish never
+          command: xvfb-run --auto-servernum npx electron-builder --win nsis --publish never
 
       - persist_to_workspace:
           root: .
