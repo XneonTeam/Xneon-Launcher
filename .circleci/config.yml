@@ -1,32 +1,15 @@
 version: 2.1
 
 jobs:
-  build:
-    parameters:
-      target:
-        type: string
-      artifact_name:
-        type: string
-      build_cmd:
-        type: string
-    machine:
-      image: ubuntu-2204:current
+  build-linux:
+    docker:
+      - image: cimg/node:22.0
     steps:
       - checkout
 
       - run:
           name: Install system deps
-          command: |
-            if [ "<< parameters.target >>" = "linux" ]; then
-              sudo apt-get update -qq
-              sudo apt-get install -y -qq libwebkit2gtk-4.0-dev
-            else
-              sudo apt-get update -qq
-              sudo apt-get install -y -qq wine64 xvfb
-            fi
-
-      - node/install:
-          node-version: 22
+          command: sudo apt-get update -qq && sudo apt-get install -y -qq libwebkit2gtk-4.0-dev
 
       - restore_cache:
           keys:
@@ -47,33 +30,9 @@ jobs:
           command: npm run build
 
       - run:
-          name: Package
-          command: << parameters.build_cmd >>
+          name: Package Linux
+          command: npx electron-builder --linux AppImage --publish never
 
-      - persist_to_workspace:
-          root: .
-          paths:
-            - release
-
-  build-linux:
-    docker:
-      - image: cimg/node:22.0
-    steps:
-      - checkout
-      - run:
-          name: Install system deps
-          command: sudo apt-get update -qq && sudo apt-get install -y -qq libwebkit2gtk-4.0-dev
-      - restore_cache:
-          keys:
-            - v1-dependencies-{{ checksum "package-lock.json" }}
-            - v1-dependencies-
-      - run: npm ci
-      - save_cache:
-          paths:
-            - ~/.npm
-          key: v1-dependencies-{{ checksum "package-lock.json" }}
-      - run: npm run build
-      - run: npx electron-builder --linux AppImage --publish never
       - store_artifacts:
           path: release
           destination: linux
@@ -83,20 +42,33 @@ jobs:
       - image: cimg/node:22.0
     steps:
       - checkout
+
       - run:
           name: Install cross-build deps
           command: sudo apt-get update -qq && sudo apt-get install -y -qq wine64 xvfb
+
       - restore_cache:
           keys:
             - v1-dependencies-{{ checksum "package-lock.json" }}
             - v1-dependencies-
-      - run: npm ci
+
+      - run:
+          name: Install dependencies
+          command: npm ci
+
       - save_cache:
           paths:
             - ~/.npm
           key: v1-dependencies-{{ checksum "package-lock.json" }}
-      - run: npm run build
-      - run: npx electron-builder --win nsis --publish never
+
+      - run:
+          name: Build app
+          command: npm run build
+
+      - run:
+          name: Package Windows
+          command: npx electron-builder --win nsis --publish never
+
       - store_artifacts:
           path: release
           destination: windows
@@ -106,8 +78,6 @@ jobs:
       - image: cimg/node:22.0
     steps:
       - checkout
-      - attach_workspace:
-          at: .
       - run:
           name: Create release
           command: |
@@ -150,13 +120,25 @@ jobs:
 
             echo "Release ID: ${RELEASE_ID}"
 
-            find release -type f | while read -r file; do
-              echo "Uploading $(basename "${file}")..."
-              curl -sS -f \
-                -X POST "https://git.xneon.org/api/v1/repos/MAINER4IK/xnlauncher/releases/${RELEASE_ID}/assets" \
-                -H "Authorization: token ${FORGEJO_TOKEN}" \
-                -F "attachment=@${file}"
-            done
+            if [ -d "linux" ]; then
+              find linux -type f | while read -r file; do
+                echo "Uploading $(basename "${file}")..."
+                curl -sS -f \
+                  -X POST "https://git.xneon.org/api/v1/repos/MAINER4IK/xnlauncher/releases/${RELEASE_ID}/assets" \
+                  -H "Authorization: token ${FORGEJO_TOKEN}" \
+                  -F "attachment=@${file}"
+              done
+            fi
+
+            if [ -d "windows" ]; then
+              find windows -type f | while read -r file; do
+                echo "Uploading $(basename "${file}")..."
+                curl -sS -f \
+                  -X POST "https://git.xneon.org/api/v1/repos/MAINER4IK/xnlauncher/releases/${RELEASE_ID}/assets" \
+                  -H "Authorization: token ${FORGEJO_TOKEN}" \
+                  -F "attachment=@${file}"
+              done
+            fi
 
 workflows:
   release:
