@@ -33,9 +33,10 @@ jobs:
           name: Package Linux
           command: npx electron-builder --linux AppImage --publish never
 
-      - store_artifacts:
-          path: release
-          destination: linux
+      - persist_to_workspace:
+          root: .
+          paths:
+            - release
 
   build-windows:
     docker:
@@ -69,15 +70,19 @@ jobs:
           name: Package Windows
           command: npx electron-builder --win nsis --publish never
 
-      - store_artifacts:
-          path: release
-          destination: windows
+      - persist_to_workspace:
+          root: .
+          paths:
+            - release
 
   release:
     docker:
       - image: cimg/node:22.0
     steps:
       - checkout
+      - attach_workspace:
+          at: .
+
       - run:
           name: Create GitHub release
           command: |
@@ -89,20 +94,14 @@ jobs:
             echo "Creating GitHub release for tag ${CIRCLE_TAG}..."
 
             RESPONSE_FILE="$(mktemp)"
+            BODY="Release ${CIRCLE_TAG}"
+            JSON="{\"tag_name\":\"${CIRCLE_TAG}\",\"name\":\"${CIRCLE_TAG}\",\"body\":\"${BODY}\",\"draft\":false,\"prerelease\":false}"
+
             HTTP_CODE="$(curl -sS -o "${RESPONSE_FILE}" -w "%{http_code}" \
               -X POST "https://api.github.com/repos/MAINER4IK/xnlauncher/releases" \
               -H "Authorization: token ${GITHUB_TOKEN}" \
               -H "Content-Type: application/json" \
-              -d "$(cat <<EOF
-            {
-              "tag_name": "${CIRCLE_TAG}",
-              "name": "${CIRCLE_TAG}",
-              "body": "Release ${CIRCLE_TAG}",
-              "draft": false,
-              "prerelease": false
-            }
-            EOF
-            )")"
+              -d "${JSON}")"
 
             if [ "${HTTP_CODE}" != "201" ]; then
               echo "Release creation failed with status ${HTTP_CODE}:"
@@ -120,19 +119,8 @@ jobs:
 
             echo "Release ID: ${RELEASE_ID}"
 
-            if [ -d "linux" ]; then
-              find linux -type f | while read -r file; do
-                echo "Uploading $(basename "${file}")..."
-                curl -sS -f \
-                  -X POST "https://uploads.github.com/repos/MAINER4IK/xnlauncher/releases/${RELEASE_ID}/assets?name=$(basename "${file}")" \
-                  -H "Authorization: token ${GITHUB_TOKEN}" \
-                  -H "Content-Type: application/octet-stream" \
-                  --data-binary @"${file}"
-              done
-            fi
-
-            if [ -d "windows" ]; then
-              find windows -type f | while read -r file; do
+            if [ -d "release" ]; then
+              find release -type f | while read -r file; do
                 echo "Uploading $(basename "${file}")..."
                 curl -sS -f \
                   -X POST "https://uploads.github.com/repos/MAINER4IK/xnlauncher/releases/${RELEASE_ID}/assets?name=$(basename "${file}")" \
