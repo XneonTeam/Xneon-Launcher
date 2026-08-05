@@ -307,6 +307,13 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
   const extraJvmArgs = parseExtraJvmArgs((payload.options as { javaArgs?: string }).javaArgs)
   debug(`Extra JVM args (${extraJvmArgs.length}): ${extraJvmArgs.join(" ")}`)
 
+  const server = (payload.options.server ?? "").trim()
+  const serverPort = (payload.options.serverPort ?? "").trim()
+  const extraGameArgs = server ? ["--server", server, "--port", serverPort || "25565"] : []
+  if (extraGameArgs.length > 0) {
+    debug(`Auto-join server: ${server}:${serverPort || "25565"}`)
+  }
+
   debug("Calling XNLC launch pipeline")
   const launchResult = await xnlc.launch(
     {
@@ -322,6 +329,7 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
       memoryMax: payload.options.memoryMax,
       width: payload.options.width,
       height: payload.options.height,
+      gameArgs: extraGameArgs,
     },
     (progress: XnlcLaunchProgress) => {
       send({

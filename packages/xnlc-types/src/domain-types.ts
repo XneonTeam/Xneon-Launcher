@@ -55,6 +55,10 @@ export type DbBuild = {
   javaArgs?: string
   memoryMin?: string
   memoryMax?: string
+  /** Per-build auto-join server: use build-specific address instead of global settings */
+  serverOverride?: boolean
+  server?: string
+  serverPort?: string
 }
 
 // ── World / Save Management ─────────────────────────────────

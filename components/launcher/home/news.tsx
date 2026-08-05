@@ -114,7 +114,7 @@ export const NewsSection = memo(function NewsSection() {
             </div>
             <div className="flex gap-1 p-1 rounded-lg bg-muted/40">
               {filters.map(({ id, label, icon: Icon }) => (
-                <button key={id} type="button" onClick={() => setFilter(prev => prev === id ? prev : id)} className={cn("flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all", filter === id ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                <button key={id} type="button" onClick={() => setFilter(prev => prev === id ? prev : id)} className={cn("flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all border", filter === id ? "border-transparent bg-primary text-primary-foreground shadow-sm" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
                   <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />
                   {label}
                 </button>

@@ -152,8 +152,8 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
               type="button"
               onClick={() => setMode("create")}
               className={cn(
-                "flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-                mode === "create" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                "flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors border",
+                mode === "create" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
               )}
             >
               {t("builds.createBuild")}
@@ -162,8 +162,8 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
               type="button"
               onClick={() => setMode("import")}
               className={cn(
-                "flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-                mode === "import" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                "flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors border",
+                mode === "import" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
               )}
             >
               {t("builds.import")}

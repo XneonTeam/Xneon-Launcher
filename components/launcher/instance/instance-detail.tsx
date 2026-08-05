@@ -1,13 +1,15 @@
 import { memo, useCallback, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IconArrowLeft, IconSettings, IconPuzzle, IconPhoto, IconSparkles, IconWorld, IconCamera } from "@tabler/icons-react"
+import { IconArrowLeft, IconInfoCircle, IconSettings, IconPuzzle, IconPhoto, IconSparkles, IconWorld, IconCamera, IconServer } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { MOD_LOADERS } from "./constants"
 import { pickCompatibleVersion } from "./utils"
 import { InstanceContentTab } from "./instance-content-tab"
 import { InstanceDetailGeneral } from "./instance-detail-general"
+import { InstanceBuildSettings } from "./instance-build-settings"
 import { InstanceWorldsTab } from "./instance-worlds-tab"
 import { InstanceScreenshotsTab } from "./instance-screenshots-tab"
+import { InstanceServersTab } from "./instance-servers-tab"
 import { InstanceModal } from "./instance-modal"
 import { DepInstallDialog } from "@/components/launcher/dep-install-dialog"
 import type {
@@ -394,36 +396,48 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
           </div>
         </div>
         <div className="flex items-center gap-1 p-1 rounded-lg bg-muted/40">
-          <button type="button" onClick={() => setDetailTab("general")} className={cn("flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all", detailTab === "general" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
-            <IconSettings className="w-4 h-4" strokeWidth={1.75} />
+          <button type="button" onClick={() => setDetailTab("general")} className={cn("flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all border", detailTab === "general" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
+            <IconInfoCircle className="w-4 h-4" strokeWidth={1.75} />
             {t("builds.tab.general")}
+          </button>
+          <button type="button" onClick={() => setDetailTab("settings")} className={cn("flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all border", detailTab === "settings" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
+            <IconSettings className="w-4 h-4" strokeWidth={1.75} />
+            {t("builds.tab.settings")}
           </button>
           {!isVanilla && (
             <>
-              <button type="button" onClick={() => setDetailTab("mods")} className={cn("flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all", detailTab === "mods" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+              <button type="button" onClick={() => setDetailTab("mods")} className={cn("flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all border", detailTab === "mods" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
                 <IconPuzzle className="w-4 h-4" strokeWidth={1.75} />
-                {t("builds.tab.mods", { count: activeBuild.mods?.length ?? 0 })}
+                {t("builds.tab.mods")}
               </button>
-              <button type="button" onClick={() => setDetailTab("resourcepacks")} className={cn("flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all", detailTab === "resourcepacks" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+              <button type="button" onClick={() => setDetailTab("resourcepacks")} className={cn("flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all border", detailTab === "resourcepacks" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
                 <IconPhoto className="w-4 h-4" strokeWidth={1.75} />
-                {t("builds.tab.resourcepacks", { count: activeBuild.resourcepacks?.length ?? 0 })}
+                {t("builds.tab.resourcepacks")}
               </button>
-              <button type="button" onClick={() => setDetailTab("shaders")} className={cn("flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all", detailTab === "shaders" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+              <button type="button" onClick={() => setDetailTab("shaders")} className={cn("flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all border", detailTab === "shaders" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
                 <IconSparkles className="w-4 h-4" strokeWidth={1.75} />
-                {t("builds.tab.shaders", { count: activeBuild.shaders?.length ?? 0 })}
+                {t("builds.tab.shaders")}
               </button>
             </>
           )}
-          <button type="button" onClick={() => setDetailTab("worlds")} className={cn("flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all", detailTab === "worlds" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+          <button type="button" onClick={() => setDetailTab("servers")} className={cn("flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all border", detailTab === "servers" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
+            <IconServer className="w-4 h-4" strokeWidth={1.75} />
+            {t("builds.tab.servers")}
+          </button>
+          <button type="button" onClick={() => setDetailTab("worlds")} className={cn("flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all border", detailTab === "worlds" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
             <IconWorld className="w-4 h-4" strokeWidth={1.75} />
             {t("builds.tab.worlds")}
           </button>
-          <button type="button" onClick={() => setDetailTab("screenshots")} className={cn("flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all", detailTab === "screenshots" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+          <button type="button" onClick={() => setDetailTab("screenshots")} className={cn("flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all border", detailTab === "screenshots" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
             <IconCamera className="w-4 h-4" strokeWidth={1.75} />
             {t("builds.tab.screenshots")}
           </button>
         </div>
       </div>
+
+      {detailTab === "settings" && (
+        <InstanceBuildSettings build={activeBuild} updateBuild={updateBuild} />
+      )}
 
       {detailTab === "general" && (
         <InstanceDetailGeneral activeBuild={activeBuild} updateBuild={updateBuild} fileInputRef={fileInputRef} />
@@ -536,6 +550,10 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
 
       {detailTab === "worlds" && (
         <InstanceWorldsTab build={activeBuild} />
+      )}
+
+      {detailTab === "servers" && (
+        <InstanceServersTab build={activeBuild} updateBuild={updateBuild} />
       )}
 
       {detailTab === "screenshots" && (

@@ -455,8 +455,8 @@ export function LogsPage() {
         <div className="flex items-center gap-1 p-1 rounded-xl bg-muted/40 flex-shrink-0">
           {FILTER_DEFS.map(({ id, icon: Icon }) => (
             <button key={id} type="button" onClick={() => setFilter(id)}
-              className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                filter === id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+              className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border",
+                filter === id ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
               <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />
               {id === "all" ? t("logs.all") : levelLabels[id as LogLevel]}
               {id !== "all" && <span className="opacity-60">{levelCounts[id]}</span>}

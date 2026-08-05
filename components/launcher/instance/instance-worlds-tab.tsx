@@ -5,6 +5,7 @@ import {
   IconCopy,
   IconDownload,
   IconFolderOpen,
+  IconInfoCircle,
   IconLoader2,
   IconMap,
   IconPhoto,
@@ -14,7 +15,8 @@ import {
   IconUpload,
   IconX,
 } from "@tabler/icons-react"
-import type { Build, DatapackInfo, ModSearchResult, Source, WorldInfo } from "./types"
+import { InstanceModal } from "./instance-modal"
+import type { Build, DatapackInfo, ModalTab, ModDetails, ModSearchResult, ModVersion, Source, WorldInfo } from "./types"
 
 interface InstanceWorldsTabProps {
   build: Build
@@ -61,10 +63,14 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
   const [datapacks, setDatapacks] = useState<DatapackInfo[]>([])
   const [loading, setLoading] = useState(false)
 
-  // rename modal
-  const [renameOpen, setRenameOpen] = useState(false)
-  const [renameValue, setRenameValue] = useState("")
+  // inline rename draft
+  const [nameDraft, setNameDraft] = useState("")
   const [renaming, setRenaming] = useState(false)
+
+  // copy / import name prompt
+  const [namePrompt, setNamePrompt] = useState<{ mode: "copy" | "import"; initial: string; pendingFile?: string } | null>(null)
+  const [promptValue, setPromptValue] = useState("")
+  const [promptBusy, setPromptBusy] = useState(false)
 
   // delete confirm modal
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -77,8 +83,15 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
   const [searching, setSearching] = useState(false)
   const [installing, setInstalling] = useState<string | null>(null)
 
+  // datapack details modal
+  const [selectedDetails, setSelectedDetails] = useState<ModDetails | null>(null)
+  const [modalTab, setModalTab] = useState<ModalTab>("description")
+  const [loadingModal, setLoadingModal] = useState(false)
+  const [displayedModalVersions, setDisplayedModalVersions] = useState<ModVersion[]>([])
+
   const iconInputRef = useRef<HTMLInputElement>(null)
   const datapackInputRef = useRef<HTMLInputElement>(null)
+  const worldZipInputRef = useRef<HTMLInputElement>(null)
 
   const selectedWorld = worlds?.find(w => w.folder === selectedFolder) ?? null
 
@@ -114,6 +127,10 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     else setDatapacks([])
   }, [selectedFolder, refreshDatapacks])
 
+  useEffect(() => {
+    setNameDraft(selectedWorld?.name ?? "")
+  }, [selectedWorld?.folder])
+
   const runSearch = useCallback(async (query: string, src: Source) => {
     if (!query.trim()) {
       setResults(null)
@@ -139,24 +156,65 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     return () => window.clearTimeout(timer)
   }, [search, source, runSearch])
 
-  const handleRename = async () => {
-    if (!selectedWorld) return
-    const newName = renameValue.trim()
-    if (!newName) return
+  const handleRenameInline = async (next: string) => {
+    if (!selectedWorld) { setNameDraft(""); return }
+    const newName = next.trim()
+    if (!newName || newName === selectedWorld.name) {
+      setNameDraft(selectedWorld.name)
+      return
+    }
     setRenaming(true)
     try {
       const result = await window.electronAPI?.renameWorld(build.name, selectedWorld.folder, newName)
       if (result?.success) {
-        setRenameOpen(false)
         const newFolder = newName.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "").slice(0, 64).replace(/\s+/g, "_")
         await refreshWorlds()
         setSelectedFolder(newFolder)
+        setNameDraft(newName)
       } else {
+        setNameDraft(selectedWorld.name)
         alert(result?.error ?? "Не удалось переименовать мир")
       }
     } finally {
       setRenaming(false)
     }
+  }
+
+  const submitNamePrompt = async () => {
+    if (!namePrompt) return
+    const name = promptValue.trim()
+    setPromptBusy(true)
+    try {
+      if (namePrompt.mode === "copy") {
+        if (!selectedWorld) return
+        const result = await window.electronAPI?.copyWorld(build.name, selectedWorld.folder, name)
+        if (result?.success) {
+          setNamePrompt(null)
+          await refreshWorlds()
+          if (result.folder) setSelectedFolder(result.folder)
+        } else {
+          alert(result?.error ?? "Не удалось скопировать мир")
+        }
+      } else {
+        const result = await window.electronAPI?.importWorldZip(build.name, namePrompt.pendingFile ?? "", name || undefined)
+        if (result?.success) {
+          setNamePrompt(null)
+          await refreshWorlds()
+          if (result.folder) setSelectedFolder(result.folder)
+        } else {
+          alert(result?.error ?? "Не удалось импортировать мир")
+        }
+      }
+    } finally {
+      setPromptBusy(false)
+    }
+  }
+
+  const handleResetIcon = async () => {
+    if (!selectedWorld) return
+    const result = await window.electronAPI?.resetWorldIcon(build.name, selectedWorld.folder)
+    if (result?.success) await refreshWorlds()
+    else alert(result?.error ?? "Не удалось сбросить иконку")
   }
 
   const handleDelete = async () => {
@@ -181,6 +239,17 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     const result = await window.electronAPI?.setWorldIcon(build.name, selectedWorld.folder, dataUrl)
     if (result?.success) await refreshWorlds()
     else alert(result?.error ?? "Не удалось изменить иконку")
+  }
+
+  const handleImportFile = (file: File) => {
+    const localPath = (file as File & { path?: string }).path
+    if (!localPath) {
+      alert("Не удалось получить путь к файлу")
+      return
+    }
+    const initial = file.name.replace(/\.zip$/i, "")
+    setPromptValue(initial)
+    setNamePrompt({ mode: "import", initial, pendingFile: localPath })
   }
 
   const handleInstallDatapackLocal = async (file: File) => {
@@ -244,6 +313,44 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     await refreshDatapacks(selectedWorld.folder)
   }
 
+  const openDatapackDetails = async (mod: ModSearchResult) => {
+    setLoadingModal(true)
+    try {
+      const details = mod.source === "modrinth"
+        ? await window.electronAPI?.modsModrinthDetails(mod.slug)
+        : mod.modId
+          ? await window.electronAPI?.modsCurseforgeDetails(mod.modId)
+          : null
+      if (details) {
+        setSelectedDetails(details)
+        setDisplayedModalVersions(details.versions ?? [])
+        setModalTab("description")
+      } else {
+        alert("Не удалось загрузить информацию о датапаке")
+      }
+    } catch {
+      alert("Не удалось загрузить информацию о датапаке")
+    } finally {
+      setLoadingModal(false)
+    }
+  }
+
+  const handleInstallDatapackVersion = async (version: ModVersion) => {
+    if (!selectedWorld) return
+    const url = version.downloadUrl || version.files?.[0]?.url
+    if (!url) {
+      alert("Нет ссылки на скачивание")
+      return
+    }
+    const fileName = version.fileName || url.split("/").pop()?.split("?")[0] || "datapack.zip"
+    const result = await window.electronAPI?.installDatapackRemote(build.name, selectedWorld.folder, url, fileName)
+    if (!result?.success) {
+      alert(result?.error ?? "Не удалось скачать датапак")
+      return
+    }
+    await refreshDatapacks(selectedWorld.folder)
+  }
+
   return (
     <div className="flex-1 overflow-y-auto">
       {worlds === null ? (
@@ -264,16 +371,37 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
           {/* World list */}
           <div>
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold text-foreground">Миры · {worlds.length}</div>
-              <button
-                type="button"
-                onClick={() => void refreshWorlds()}
-                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <IconRefresh className={cn("h-3.5 w-3.5", loading && "animate-spin")} strokeWidth={1.75} />
-                Обновить
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => worldZipInputRef.current?.click()}
+                  className="flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <IconUpload className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  Загрузить ZIP
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void refreshWorlds()}
+                  className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <IconRefresh className={cn("h-3.5 w-3.5", loading && "animate-spin")} strokeWidth={1.75} />
+                  Обновить
+                </button>
+              </div>
+              <input
+                ref={worldZipInputRef}
+                type="file"
+                accept=".zip"
+                className="hidden"
+                onChange={e => {
+                  const file = e.target.files?.[0]
+                  if (file) void handleImportFile(file)
+                  e.target.value = ""
+                }}
+              />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {worlds.map(world => (
@@ -327,6 +455,14 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                   )}
                   <button
                     type="button"
+                    onClick={() => void handleResetIcon()}
+                    title="Сбросить иконку мира"
+                    className="absolute bottom-1 right-9 flex h-7 w-7 items-center justify-center rounded-lg bg-background/85 text-muted-foreground shadow-sm transition-colors hover:text-destructive"
+                  >
+                    <IconX className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => iconInputRef.current?.click()}
                     title="Сменить иконку мира"
                     className="absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-lg bg-background/85 text-muted-foreground shadow-sm transition-colors hover:text-foreground"
@@ -346,7 +482,26 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                   />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-lg font-bold text-foreground">{selectedWorld.name}</div>
+                  <input
+                    value={nameDraft}
+                    onChange={e => setNameDraft(e.target.value)}
+                    onBlur={() => void handleRenameInline(nameDraft)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") (e.target as HTMLInputElement).blur()
+                      else if (e.key === "Escape") {
+                        setNameDraft(selectedWorld.name)
+                        ;(e.target as HTMLInputElement).blur()
+                      }
+                    }}
+                    disabled={renaming}
+                    maxLength={64}
+                    placeholder="Название мира"
+                    title="Название мира (Enter — сохранить)"
+                    className={cn(
+                      "h-10 w-full rounded-xl border border-border bg-muted/40 px-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary",
+                      renaming && "opacity-60"
+                    )}
+                  />
                   <div className="mt-0.5 text-sm text-muted-foreground">
                     {selectedWorld.gameMode}
                     {selectedWorld.hardcore ? " · Хардкор" : ""}
@@ -363,11 +518,11 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setRenameValue(selectedWorld.name); setRenameOpen(true) }}
+                      onClick={() => { setPromptValue(`${selectedWorld.name} (копия)`); setNamePrompt({ mode: "copy", initial: `${selectedWorld.name} (копия)` }) }}
                       className="flex items-center gap-1.5 rounded-xl bg-muted/60 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
                     >
                       <IconCopy className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      Переименовать
+                      Копировать
                     </button>
                     <button
                       type="button"
@@ -484,8 +639,8 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                           type="button"
                           onClick={() => setSource(src)}
                           className={cn(
-                            "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
-                            source === src ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                            "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors border",
+                            source === src ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
                           )}
                         >
                           {src === "modrinth" ? "Modrinth" : "CurseForge"}
@@ -523,6 +678,14 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                           </div>
                           <button
                             type="button"
+                            onClick={() => void openDatapackDetails(mod)}
+                            className="flex items-center gap-1.5 rounded-xl bg-muted/60 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          >
+                            <IconInfoCircle className="h-3.5 w-3.5" strokeWidth={1.75} />
+                            Подробнее
+                          </button>
+                          <button
+                            type="button"
                             disabled={installing === mod.id}
                             onClick={() => void handleInstallDatapackRemote(mod)}
                             className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
@@ -545,26 +708,32 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         </div>
       )}
 
-      {/* Rename modal */}
-      {renameOpen && selectedWorld && (
+      {/* Copy / import name prompt modal */}
+      {namePrompt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0">
           <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-2xl border border-border animate-in zoom-in-95">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-foreground">Переименовать мир</h3>
+              <h3 className="text-lg font-semibold text-foreground">
+                {namePrompt.mode === "copy" ? "Копировать мир" : "Импортировать мир из ZIP"}
+              </h3>
               <button
                 type="button"
-                onClick={() => setRenameOpen(false)}
+                onClick={() => setNamePrompt(null)}
                 className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <IconX className="h-5 w-5" strokeWidth={1.5} />
               </button>
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">Введи новое название мира «{selectedWorld.name}»</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {namePrompt.mode === "copy"
+                ? `Будет создана копия мира «${selectedWorld?.name ?? ""}». Введи название для копии.`
+                : "Введи название для мира. Если оставить поле пустым — имя возьмётся из архива."}
+            </p>
             <input
               type="text"
-              value={renameValue}
-              onChange={e => setRenameValue(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") void handleRename() }}
+              value={promptValue}
+              onChange={e => setPromptValue(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") void submitNamePrompt() }}
               autoFocus
               maxLength={64}
               placeholder="Название мира"
@@ -573,19 +742,19 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
             <div className="mt-5 flex gap-3">
               <button
                 type="button"
-                onClick={() => setRenameOpen(false)}
+                onClick={() => setNamePrompt(null)}
                 className="flex-1 rounded-2xl border border-border bg-muted/30 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
               >
                 Отмена
               </button>
               <button
                 type="button"
-                disabled={!renameValue.trim() || renaming}
-                onClick={() => void handleRename()}
+                disabled={promptBusy}
+                onClick={() => void submitNamePrompt()}
                 className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
               >
-                {renaming && <IconLoader2 className="h-4 w-4 animate-spin" />}
-                Переименовать
+                {promptBusy && <IconLoader2 className="h-4 w-4 animate-spin" />}
+                {namePrompt.mode === "copy" ? "Копировать" : "Импортировать"}
               </button>
             </div>
           </div>
@@ -630,6 +799,17 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
           </div>
         </div>
       )}
+
+      {/* Datapack details modal */}
+      <InstanceModal
+        selectedDetails={selectedDetails}
+        modalTab={modalTab}
+        setModalTab={setModalTab}
+        loadingModal={loadingModal}
+        displayedModalVersions={displayedModalVersions}
+        onInstallVersion={(version) => void handleInstallDatapackVersion(version)}
+        onClose={() => setSelectedDetails(null)}
+      />
     </div>
   )
 }
