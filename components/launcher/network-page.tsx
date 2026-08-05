@@ -528,7 +528,7 @@ export function NetworkPage() {
             <IconPlus className="w-4 h-4" />{t("network.create")}
           </button>
           <button onClick={() => { setShowJoin(true); setFormError(""); setFormName(""); setFormPassword("") }}
-            className="flex-1 flex items-center justify-center gap-2.5 py-3 rounded-xl bg-muted/30 hover:bg-muted/50 text-muted-foreground hover:text-foreground text-sm font-semibold transition-all border border-border/50 active:scale-[0.98]">
+            className="flex-1 flex items-center justify-center gap-2.5 py-3 rounded-xl bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground text-sm font-semibold transition-all border border-border active:scale-[0.98]">
             <IconLogin className="w-4 h-4" />{t("network.join")}
           </button>
         </div>

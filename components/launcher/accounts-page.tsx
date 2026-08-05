@@ -283,7 +283,7 @@ export function AccountsPage() {
               <h3 className="text-lg font-semibold text-foreground">{t("accounts.addAccount")}</h3>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                className="w-8 h-8 rounded-lg border border-border bg-muted/60 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
               >
                 <IconX className="w-5 h-5" />
               </button>
@@ -327,7 +327,7 @@ export function AccountsPage() {
               <h3 className="text-lg font-semibold text-foreground">{t("accounts.offline")} {t("accounts.title").toLowerCase()}</h3>
               <button
                 onClick={() => { setSelectedAccountType(null); setShowAddModal(false) }}
-                className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                className="w-8 h-8 rounded-lg border border-border bg-muted/60 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
               >
                 <IconX className="w-5 h-5" />
               </button>
@@ -380,7 +380,7 @@ export function AccountsPage() {
                   setSelectedAccountType(null)
                 }}
                 disabled={elybyAuthLoading}
-                className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                className="w-8 h-8 rounded-lg border border-border bg-muted/60 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
               >
                 <IconX className="w-5 h-5" />
               </button>
@@ -448,7 +448,7 @@ export function AccountsPage() {
                   setSelectedAccountType(null)
                 }}
                 disabled={xnskinsAuthLoading}
-                className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                className="w-8 h-8 rounded-lg border border-border bg-muted/60 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
               >
                 <IconX className="w-5 h-5" />
               </button>
@@ -516,7 +516,7 @@ export function AccountsPage() {
                   setSelectedAccountType(null)
                 }}
                 disabled={microsoftAuthLoading}
-                className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                className="w-8 h-8 rounded-lg border border-border bg-muted/60 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
               >
                 <IconX className="w-5 h-5" />
               </button>

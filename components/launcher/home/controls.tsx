@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ACCOUNT_TYPE_LABELS, MOD_LOADERS, type LaunchUiState } from "@/lib/home-page-shared"
 import { IconCheck, IconChevronDown, IconFolder, IconLoader2, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react"
+import { LoaderIcon } from "@/components/launcher/instance/loader-icon"
 import type { LoaderVersionOption } from "@/src/hooks/use-loader-version-options"
 
 type HomeControlsProps = {
@@ -112,7 +113,14 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
           <label className="block text-xs font-medium text-muted-foreground mb-1.5">{t("home.modLoader")}</label>
           <Select value={selectedModLoader} onValueChange={setSelectedModLoader}>
             <SelectTrigger className="w-full h-[42px] rounded-xl bg-muted/50 border border-border text-foreground text-sm"><SelectValue placeholder="Mod Loader" /></SelectTrigger>
-            <SelectContent>{MOD_LOADERS.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+            <SelectContent>{MOD_LOADERS.map(l => (
+              <SelectItem key={l.id} value={l.id}>
+                <span className="flex items-center gap-2">
+                  <LoaderIcon loaderId={l.id} className="w-4 h-4 flex-shrink-0" />
+                  {l.name}
+                </span>
+              </SelectItem>
+            ))}</SelectContent>
           </Select>
         </div>
         {showLoaderVersionSelect && (

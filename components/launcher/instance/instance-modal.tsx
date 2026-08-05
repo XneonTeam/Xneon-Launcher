@@ -74,7 +74,7 @@ export function InstanceModal({
                   <h2 className="text-xl font-bold text-foreground">{title}</h2>
                   <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{description}</p>
                 </div>
-                <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors">
+                <button onClick={onClose} className="p-2 rounded-lg border border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                   <IconX className="w-5 h-5" />
                 </button>
               </div>

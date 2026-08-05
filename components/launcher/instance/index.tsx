@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useState } from "react"
-import { useAccounts } from "@/src/AccountsContext"
-import { useBuildLaunch } from "@/src/hooks/use-build-launch"
 import { InstanceDetail } from "./instance-detail"
 import { InstanceList } from "./instance-list"
 import { InstanceModrinth } from "./instance-modrinth"
@@ -12,7 +10,7 @@ import { useBuilds } from "./use-builds"
 import { useModSearch } from "./use-mod-search"
 import { useImport } from "./use-import"
 import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
-import type { ViewMode, DetailTab, ModSearchResult, ModVersion, ModSort, Build } from "./types"
+import type { ViewMode, DetailTab, ModSearchResult, ModVersion, ModSort } from "./types"
 
 const MODRINTH_SORT_OPTIONS: ModSort[] = ["relevance", "downloads", "followers", "published", "updated"]
 const CURSEFORGE_SORT_OPTIONS: ModSort[] = ["downloads", "popular", "published", "updated"]
@@ -32,10 +30,6 @@ export function InstancePage() {
   const [view, setView] = useState<ViewMode>("my")
   const [detailTab, setDetailTab] = useState<DetailTab>("general")
   const [createOpen, setCreateOpen] = useState(false)
-
-  const { accounts, activeAccount } = useAccounts()
-  const account = activeAccount ?? accounts[0]
-  const { isRunning, launchInstance } = useBuildLaunch({ account })
 
   const [mrSearch, setMrSearch] = useState("")
   const [mrResults, setMrResults] = useState<ModSearchResult[]>([])
@@ -223,13 +217,6 @@ export function InstancePage() {
   }, [resetModSearch, setActiveBuildId])
 
   const handleOpenCreate = useCallback(() => setCreateOpen(true), [])
-  const handlePlay = useCallback((build: Build) => {
-    if (isRunning) {
-      void window.electronAPI?.stopMinecraft()
-      return
-    }
-    void launchInstance(build)
-  }, [isRunning, launchInstance])
   const totalBuilds = builds.length
   const mrTotalPages = Math.max(1, Math.ceil(mrTotalHits / 10))
   const cfTotalPages = Math.max(1, Math.ceil(cfTotalHits / 10))
@@ -334,7 +321,6 @@ export function InstancePage() {
           onCreate={handleOpenCreate}
           onDelete={deleteBuild}
           onOpen={openBuildDetail}
-          onPlay={handlePlay}
         />
       )}
 
