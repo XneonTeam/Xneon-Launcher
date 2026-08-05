@@ -1,0 +1,174 @@
+version: 2.1
+
+jobs:
+  build:
+    parameters:
+      target:
+        type: string
+      artifact_name:
+        type: string
+      build_cmd:
+        type: string
+    machine:
+      image: ubuntu-2204:current
+    steps:
+      - checkout
+
+      - run:
+          name: Install system deps
+          command: |
+            if [ "<< parameters.target >>" = "linux" ]; then
+              sudo apt-get update -qq
+              sudo apt-get install -y -qq libwebkit2gtk-4.0-dev
+            else
+              sudo apt-get update -qq
+              sudo apt-get install -y -qq wine64 xvfb
+            fi
+
+      - node/install:
+          node-version: 22
+
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "package-lock.json" }}
+            - v1-dependencies-
+
+      - run:
+          name: Install dependencies
+          command: npm ci
+
+      - save_cache:
+          paths:
+            - ~/.npm
+          key: v1-dependencies-{{ checksum "package-lock.json" }}
+
+      - run:
+          name: Build app
+          command: npm run build
+
+      - run:
+          name: Package
+          command: << parameters.build_cmd >>
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - release
+
+  build-linux:
+    docker:
+      - image: cimg/node:22.0
+    steps:
+      - checkout
+      - run:
+          name: Install system deps
+          command: sudo apt-get update -qq && sudo apt-get install -y -qq libwebkit2gtk-4.0-dev
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "package-lock.json" }}
+            - v1-dependencies-
+      - run: npm ci
+      - save_cache:
+          paths:
+            - ~/.npm
+          key: v1-dependencies-{{ checksum "package-lock.json" }}
+      - run: npm run build
+      - run: npx electron-builder --linux AppImage --publish never
+      - store_artifacts:
+          path: release
+          destination: linux
+
+  build-windows:
+    docker:
+      - image: cimg/node:22.0
+    steps:
+      - checkout
+      - run:
+          name: Install cross-build deps
+          command: sudo apt-get update -qq && sudo apt-get install -y -qq wine64 xvfb
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "package-lock.json" }}
+            - v1-dependencies-
+      - run: npm ci
+      - save_cache:
+          paths:
+            - ~/.npm
+          key: v1-dependencies-{{ checksum "package-lock.json" }}
+      - run: npm run build
+      - run: npx electron-builder --win nsis --publish never
+      - store_artifacts:
+          path: release
+          destination: windows
+
+  release:
+    docker:
+      - image: cimg/node:22.0
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Create release
+          command: |
+            if [ -z "$CIRCLE_TAG" ]; then
+              echo "Not a tag push, skipping release."
+              exit 0
+            fi
+
+            echo "Creating release for tag ${CIRCLE_TAG}..."
+
+            RESPONSE_FILE="$(mktemp)"
+            HTTP_CODE="$(curl -sS -o "${RESPONSE_FILE}" -w "%{http_code}" \
+              -X POST "https://git.xneon.org/api/v1/repos/MAINER4IK/xnlauncher/releases" \
+              -H "Authorization: token ${FORGEJO_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "$(cat <<EOF
+            {
+              "tag_name": "${CIRCLE_TAG}",
+              "name": "${CIRCLE_TAG}",
+              "body": "Release ${CIRCLE_TAG}",
+              "draft": false,
+              "prerelease": false
+            }
+            EOF
+            )")"
+
+            if [ "${HTTP_CODE}" != "201" ]; then
+              echo "Release creation failed with status ${HTTP_CODE}:"
+              cat "${RESPONSE_FILE}"
+              exit 1
+            fi
+
+            RELEASE_ID="$(grep -o '"id":[0-9]*' "${RESPONSE_FILE}" | head -1 | cut -d: -f2)"
+
+            if [ -z "${RELEASE_ID}" ]; then
+              echo "Could not parse release id from Forgejo response:"
+              cat "${RESPONSE_FILE}"
+              exit 1
+            fi
+
+            echo "Release ID: ${RELEASE_ID}"
+
+            find release -type f | while read -r file; do
+              echo "Uploading $(basename "${file}")..."
+              curl -sS -f \
+                -X POST "https://git.xneon.org/api/v1/repos/MAINER4IK/xnlauncher/releases/${RELEASE_ID}/assets" \
+                -H "Authorization: token ${FORGEJO_TOKEN}" \
+                -F "attachment=@${file}"
+            done
+
+workflows:
+  release:
+    jobs:
+      - build-linux
+      - build-windows
+      - release:
+          requires:
+            - build-linux
+            - build-windows
+          filters:
+            tags:
+              only: /v.*/
+            branches:
+              ignore: /.*/
