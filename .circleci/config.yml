@@ -50,7 +50,10 @@ jobs:
 
       - run:
           name: Install cross-build deps
-          command: sudo apt-get update -qq && sudo apt-get install -y -qq wine64 xvfb
+          command: |
+            sudo dpkg --add-architecture i386
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq wine wine64 wine32:i386 xvfb
 
       - restore_cache:
           keys:
