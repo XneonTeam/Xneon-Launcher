@@ -17,15 +17,15 @@ jobs:
           - os: ubuntu-latest
             target: linux
             artifact_name: XNeon-Launcher-Linux
-            build_cmd: npx electron-builder --linux AppImage --publish never
+            build_cmd: npx electron-builder --linux AppImage deb rpm tar.xz pacman --publish never
           - os: windows-latest
             target: windows
             artifact_name: XNeon-Launcher-Windows
-            build_cmd: npx electron-builder --win nsis --publish never
+            build_cmd: npx electron-builder --win nsis zip appx --publish never
           - os: macos-latest
             target: mac
             artifact_name: XNeon-Launcher-Mac
-            build_cmd: npx electron-builder --mac dmg --publish never
+            build_cmd: npx electron-builder --mac dmg zip --publish never
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -40,7 +40,7 @@ jobs:
         if: matrix.target == 'linux'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libarchive-tools rpm2cpio cpio
 
       - name: Configure git.xneon.org npm registry auth
         env:

@@ -99,10 +99,13 @@
     },
     "win": {
       "target": [
-        "nsis"
+        "nsis",
+        "zip",
+        "appx"
       ],
       "icon": "build/icon.ico",
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "artifactName": "${name}-${version}-win-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": true,
@@ -124,17 +127,68 @@
     ],
     "linux": {
       "target": [
-        "AppImage"
+        "AppImage",
+        "deb",
+        "rpm",
+        "tar.xz",
+        "pacman"
       ],
       "category": "Game",
-      "maintainer": "XNeon Launcher <support@xneon.org>"
+      "maintainer": "XNeon Launcher <support@xneon.org>",
+      "artifactName": "${name}-${version}-${arch}.${ext}",
+      "desktop": {
+        "Name": "XNeon Launcher",
+        "Comment": "Modern Minecraft Launcher",
+        "Categories": "Game;",
+        "StartupWMClass": "xneon-launcher"
+      }
+    },
+    "deb": {
+      "depends": [
+        "libnotify4",
+        "libsecret-1-0",
+        "libappindicator3-1",
+        "libxss1"
+      ]
+    },
+    "rpm": {
+      "depends": [
+        "libnotify",
+        "libsecret",
+        "libappindicator-gtk3",
+        "libXScrnSaver"
+      ]
+    },
+    "appImage": {
+      "artifactName": "${name}-${version}-x86_64.${ext}"
+    },
+    "pacman": {
+      "artifactName": "${name}-${version}-x86_64.${ext}"
     },
     "mac": {
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ],
       "icon": "build/icon.png",
-      "category": "public.app-category.games"
+      "category": "public.app-category.games",
+      "artifactName": "${name}-${version}-mac-${arch}.${ext}",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
     }
   }
 }
