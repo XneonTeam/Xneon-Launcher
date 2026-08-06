@@ -76,6 +76,7 @@
   "home.installing": "Installing...",
   "home.stop": "STOP",
   "home.openFolder": "Open launcher folder",
+  "home.quickPlay": "Quick Play",
   "home.play": "PLAY",
   "home.newsError": "Failed to load news",
   "home.noAccount": "No account",

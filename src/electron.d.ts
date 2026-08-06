@@ -1,6 +1,7 @@
 import type {
   ElectronAPIExplicit,
   ImportableLauncherInstance,
+  QuickPlayEntry,
 } from '@xnlc/types'
 
 export {}
@@ -74,6 +75,9 @@ export type LauncherExtraApi = {
   deleteScreenshot: (buildName: string, fileName: string) => Promise<{ success: boolean; error?: string }>
   writeServersDat: (servers: Array<{ name: string; ip: string }>) => Promise<{ success: boolean; error?: string }>
   pingServer: (address: string) => Promise<LauncherServerStatus>
+  quickPlayList: (buildName?: string, gameDir?: string) => Promise<QuickPlayEntry[]>
+  quickPlayClear: (buildName?: string, gameDir?: string) => Promise<void>
+  quickPlayRemove: (buildName: string | undefined, gameDir: string | undefined, entry: QuickPlayEntry) => Promise<void>
 }
 
 declare global {

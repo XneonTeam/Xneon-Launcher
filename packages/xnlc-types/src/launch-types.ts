@@ -26,6 +26,10 @@ export type MinecraftLaunchParams = {
   buildName?: string
   server?: string
   serverPort?: string
+  /** Quick Play: launch directly into a singleplayer world */
+  quickPlaySingleplayer?: string
+  /** Quick Play: launch directly into a multiplayer server */
+  quickPlayMultiplayer?: string
 }
 
 export type MinecraftProgress = {

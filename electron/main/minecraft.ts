@@ -150,6 +150,8 @@ const launchHandlers: IpcHandlerDef[] = [
         javaArgs: (options as { javaArgs?: string }).javaArgs,
         server: (options as { server?: string }).server,
         serverPort: (options as { serverPort?: string }).serverPort,
+        quickPlaySingleplayer: (options as { quickPlaySingleplayer?: string }).quickPlaySingleplayer,
+        quickPlayMultiplayer: (options as { quickPlayMultiplayer?: string }).quickPlayMultiplayer,
       }
 
       return await runLaunchWorker(launchAccount, extendedRequest)

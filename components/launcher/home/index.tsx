@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useAccounts } from "@/src/AccountsContext"
 import { getAvatarUrl } from "@/lib/home-page-shared"
 import { useHomeLaunch } from "@/src/hooks/use-home-launch"
 import { useHomeVersions } from "@/src/hooks/use-home-versions"
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
+import { loadLaunchSettings, resolveLaunchDimensions } from "@/src/hooks/use-build-launch"
 import { HomeControls } from "./controls"
 import { NewsSection } from "./news"
 
@@ -42,6 +43,51 @@ export function HomePage() {
   const activeAvatarUrl = useMemo(() => account ? getAvatarUrl(account, account.username) : "", [account])
   const accountAvatarUrls = useMemo(() => Object.fromEntries(accounts.map(a => [a.id, getAvatarUrl(a, a.username)])), [accounts])
   const { isRunning, launchUi, launchDetails, handlePlay } = useHomeLaunch({ account, selectedVersion, selectedModLoader, selectedLoaderVersion })
+
+  const handleQuickPlayLaunch = useCallback(async (type: "singleplayer" | "multiplayer", address: string) => {
+    if (!account || !window.electronAPI || isRunning) return
+
+    const settings = await loadLaunchSettings()
+    const { width, height } = resolveLaunchDimensions(settings)
+
+    const quickPlayParams = type === "singleplayer"
+      ? { quickPlaySingleplayer: address }
+      : { quickPlayMultiplayer: address }
+
+    const isInstance = selectedModLoader === "instance"
+    const buildName = isInstance ? selectedVersion : undefined
+    let mcVersion = selectedVersion
+    let modLoader = selectedModLoader
+    let loaderVersion: string | undefined
+
+    if (isInstance && buildName) {
+      const builds = await window.electronAPI.loadBuilds() ?? []
+      const build = builds.find(b => b.name === buildName)
+      if (!build) return
+      mcVersion = build.version
+      modLoader = build.modLoader
+      loaderVersion = build.loaderVersion
+    }
+
+    const intentPath = buildName ? await window.electronAPI.getBuildIntentPath(buildName) : undefined
+
+    const result = await window.electronAPI.launchMinecraft({
+      version: mcVersion,
+      modLoader: modLoader as "vanilla" | "forge" | "fabric" | "quilt" | "liteloader" | "optifine" | "neoforge",
+      ...(loaderVersion ? { loaderVersion } : {}),
+      account: { type: account.type, username: account.username, uuid: account.uuid, accessToken: account.accessToken },
+      memory: { min: settings.savedMemoryMin || "2G", max: settings.savedMemoryMax || "4G" },
+      width,
+      height,
+      buildName,
+      gameDir: intentPath,
+      ...quickPlayParams,
+    })
+
+    if (result.success) {
+      // Refresh is handled by the running state
+    }
+  }, [account, isRunning, selectedModLoader, selectedVersion])
 
   useEffect(() => {
     if (selectedModLoader === "vanilla" || selectedModLoader === "instance") {
@@ -82,6 +128,7 @@ export function HomePage() {
         launchDetails={launchDetails}
         isRunning={isRunning}
         onPlay={handlePlay}
+        onQuickPlayLaunch={handleQuickPlayLaunch}
       />
       <div className="flex-1 overflow-hidden"><NewsSection /></div>
     </div>

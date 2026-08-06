@@ -39,6 +39,7 @@ export type {
   P2PAuthResult,
   P2PRoomOpResult,
   P2PChatMessage,
+  QuickPlayEntry,
 } from "./domain-types.js"
 
 // Mod types
