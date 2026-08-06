@@ -310,6 +310,21 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
   const server = (payload.options.server ?? "").trim()
   const serverPort = (payload.options.serverPort ?? "").trim()
   const extraGameArgs = server ? ["--server", server, "--port", serverPort || "25565"] : []
+
+  // Quick Play: game args (NOT jvm args — Java VM doesn't recognize them)
+  const quickPlayLogDir = path.join(payload.gameDir, "logs", "quick_play")
+  extraGameArgs.push("--quickPlayPath", quickPlayLogDir)
+  debug(`Quick Play: path=${quickPlayLogDir}`)
+
+  const qpOptions = payload.options as { quickPlaySingleplayer?: string; quickPlayMultiplayer?: string }
+  if (qpOptions.quickPlaySingleplayer) {
+    extraGameArgs.push("--quickPlaySingleplayer", qpOptions.quickPlaySingleplayer)
+    debug(`Quick Play: singleplayer world=${qpOptions.quickPlaySingleplayer}`)
+  } else if (qpOptions.quickPlayMultiplayer) {
+    extraGameArgs.push("--quickPlayMultiplayer", qpOptions.quickPlayMultiplayer)
+    debug(`Quick Play: multiplayer server=${qpOptions.quickPlayMultiplayer}`)
+  }
+
   if (extraGameArgs.length > 0) {
     debug(`Auto-join server: ${server}:${serverPort || "25565"}`)
   }

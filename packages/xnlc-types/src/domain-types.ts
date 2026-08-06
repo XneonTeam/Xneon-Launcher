@@ -305,3 +305,12 @@ export type P2PChatMessage = {
   message: string
   ts: number
 }
+
+// ── Quick Play ─────────────────────────────────────────────
+
+export type QuickPlayEntry = {
+  type: "singleplayer" | "multiplayer"
+  label: string
+  address: string
+  lastPlayed: number
+}

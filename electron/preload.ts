@@ -37,6 +37,7 @@ import type {
   P2PAuthResult,
   P2PRoomOpResult,
   P2PChatMessage,
+  QuickPlayEntry,
 } from '@xnlc/types' with { 'resolution-mode': 'import' }
 
 // World/screenshot types are defined locally (not imported from @xnlc/types)
@@ -288,4 +289,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onP2PLan: (callback: (server: P2PLanServer) => void) => subscribe<P2PLanServer>('p2p:lan', callback),
   onP2PLanRemove: (callback: (data: { port: number }) => void) => subscribe<{ port: number }>('p2p:lan_remove', callback),
   onP2PChat: (callback: (message: P2PChatMessage) => void) => subscribe<P2PChatMessage>('p2p:chat', callback),
+
+  // ── Quick Play ──────────────────────────────────────────
+  quickPlayList: (buildName?: string, gameDir?: string) => ipcRenderer.invoke('quickplay:list', buildName, gameDir) as Promise<QuickPlayEntry[]>,
+  quickPlayClear: (buildName?: string, gameDir?: string) => ipcRenderer.invoke('quickplay:clear', buildName, gameDir) as Promise<void>,
+  quickPlayRemove: (buildName: string | undefined, gameDir: string | undefined, entry: QuickPlayEntry) => ipcRenderer.invoke('quickplay:remove', buildName, gameDir, entry) as Promise<void>,
 })
