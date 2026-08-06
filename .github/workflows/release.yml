@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux
+            artifact_name: XNeon-Launcher-Linux
+            build_cmd: npx electron-builder --linux AppImage --publish never
+          - os: windows-latest
+            target: windows
+            artifact_name: XNeon-Launcher-Windows
+            build_cmd: npx electron-builder --win nsis --publish never
+          - os: macos-latest
+            target: mac
+            artifact_name: XNeon-Launcher-Mac
+            build_cmd: npx electron-builder --mac dmg --publish never
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install system deps (Linux)
+        if: matrix.target == 'linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwebkit2gtk-4.0-dev
+
+      - name: Configure git.xneon.org npm registry auth
+        env:
+          FORGEJO_NPM_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+        run: |
+          printf "%s\n" "//git.xneon.org/api/packages/MAINER4IK/npm/:_authToken=${FORGEJO_NPM_TOKEN}" >> .npmrc
+          printf "%s\n" "always-auth=true" >> .npmrc
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Package
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: ${{ matrix.build_cmd }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: release/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: |
+            Release ${{ github.ref_name }}
+          files: artifacts/*
+          fail_on_unmatched_files: true
