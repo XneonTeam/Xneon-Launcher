@@ -76,7 +76,7 @@ jobs:
 
       - run:
           name: Package Windows
-          command: npx electron-builder --win nsis --publish never
+          command: xvfb-run -a npx electron-builder --win nsis --publish never
 
       - persist_to_workspace:
           root: .
@@ -97,6 +97,10 @@ jobs:
       - run:
           name: Install dependencies
           command: npm ci --include=optional || npm install
+
+      - run:
+          name: Install rolldown binding
+          command: npm install @rolldown/binding-darwin-arm64 --no-save
 
       - save_cache:
           paths:
