@@ -20,7 +20,7 @@
     "@xnlc/core": "1.0.0",
     "@xnlc/mods": "1.0.0",
     "@xnlc/p2p": "^1.0.2",
-    "@xnlc/types": "1.0.2",
+    "@xnlc/types": "1.0.3",
     "adm-zip": "^0.6.0",
     "axios": "^1.18.1",
     "discord-rpc": "^4.0.1",
