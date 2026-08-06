@@ -100,8 +100,7 @@
     "win": {
       "target": [
         "nsis",
-        "zip",
-        "appx"
+        "zip"
       ],
       "icon": "build/icon.ico",
       "signAndEditExecutable": false,
@@ -135,13 +134,7 @@
       ],
       "category": "Game",
       "maintainer": "XNeon Launcher <support@xneon.org>",
-      "artifactName": "${name}-${version}-${arch}.${ext}",
-      "desktop": {
-        "Name": "XNeon Launcher",
-        "Comment": "Modern Minecraft Launcher",
-        "Categories": "Game;",
-        "StartupWMClass": "xneon-launcher"
-      }
+      "artifactName": "${name}-${version}-${arch}.${ext}"
     },
     "deb": {
       "depends": [

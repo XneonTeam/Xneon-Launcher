@@ -21,7 +21,7 @@ jobs:
           - os: windows-latest
             target: windows
             artifact_name: XNeon-Launcher-Windows
-            build_cmd: npx electron-builder --win nsis zip appx --publish never
+            build_cmd: npx electron-builder --win nsis zip --publish never
           - os: macos-latest
             target: mac
             artifact_name: XNeon-Launcher-Mac
