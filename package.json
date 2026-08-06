@@ -132,7 +132,9 @@
     "mac": {
       "target": [
         "dmg"
-      ]
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.games"
     }
   }
 }
