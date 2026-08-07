@@ -183,6 +183,17 @@ export function useBuilds() {
   }, [reloadBuilds])
 
   useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.type === "build") {
+        void reloadBuilds()
+      }
+    }
+    window.addEventListener("cloud:imported", handler)
+    return () => window.removeEventListener("cloud:imported", handler)
+  }, [reloadBuilds])
+
+  useEffect(() => {
     if (!buildsHydrated || isReloadingRef.current) {
       return
     }

@@ -1,7 +1,7 @@
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import { IconCheck, IconFolderPlus, IconLoader2, IconSettings, IconX } from "@tabler/icons-react"
+import { IconCheck, IconFolderPlus, IconLoader2, IconX } from "@tabler/icons-react"
 import type { JavaInstallation } from "./types"
 
 interface SettingsJavaProps {
@@ -44,11 +44,16 @@ export function SettingsJava({
     <>
       <div className="space-y-3">
         {autoVersions.map((java) => (
-          <div
+          <button
             key={java.version}
+            type="button"
+            onClick={() => {
+              setEditingJavaVersion(java.version)
+              setShowJavaModal(true)
+            }}
             className={cn(
-              "w-full p-4 rounded-xl border transition-all duration-200 flex items-center justify-between",
-              selectedJavaPath === java.version ? "border-primary bg-primary/10" : "border-border bg-muted/30"
+              "w-full p-4 rounded-xl border transition-all duration-200 flex items-center justify-between text-left",
+              selectedJavaPath === java.version ? "border-primary bg-primary/10" : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50"
             )}
           >
             <div className="flex items-center gap-3">
@@ -59,19 +64,8 @@ export function SettingsJava({
             </div>
             <div className="flex items-center gap-2 text-muted-foreground">
               {selectedJavaPath === java.version && <IconCheck className="w-4 h-4 text-primary" strokeWidth={2} />}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setEditingJavaVersion(java.version)
-                  setShowJavaModal(true)
-                }}
-                className="p-1 hover:bg-muted/50 rounded-md transition-colors"
-              >
-                <IconSettings className="w-4 h-4" strokeWidth={1.5} />
-              </button>
             </div>
-          </div>
+          </button>
         ))}
 
         <button

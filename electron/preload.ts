@@ -16,9 +16,6 @@ import type {
   BuildIntentScanResult,
   ModpackImportResult,
   ImportProgress,
-  CloudUser,
-  CloudFile,
-  CloudStorageInfo,
   ModContentType,
   ModSort,
   ModLoaderFilter,
@@ -250,21 +247,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getScreenshot: (buildName: string, fileName: string) => ipcRenderer.invoke('screenshots:get', buildName, fileName) as Promise<string | null>,
   deleteScreenshot: (buildName: string, fileName: string) => ipcRenderer.invoke('screenshots:delete', buildName, fileName) as Promise<{ success: boolean; error?: string }>,
 
-  // ── Build Cloud Upload ─────────────────────────────────
-  uploadBuildToCloud: (buildName: string, cloudToken: string, category?: string) => ipcRenderer.invoke('build:upload-to-cloud', buildName, cloudToken, category) as Promise<{ success: boolean; error?: string }>,
-
-  // ── Cloud ──────────────────────────────────────────────
-  cloudLogin: (username: string, password: string) => ipcRenderer.invoke('cloud:login', username, password) as Promise<{ success: boolean; token?: string; error?: string }>,
-  cloudRegister: (username: string, password: string, email?: string) => ipcRenderer.invoke('cloud:register', username, password, email) as Promise<{ success: boolean; error?: string }>,
-  cloudGetUser: (token: string) => ipcRenderer.invoke('cloud:get-user', token) as Promise<{ success: boolean; user?: CloudUser; error?: string }>,
-  cloudGetStorageInfo: (token: string) => ipcRenderer.invoke('cloud:get-storage-info', token) as Promise<CloudStorageInfo | null>,
-  cloudGetFiles: (token: string, category?: string) => ipcRenderer.invoke('cloud:get-files', token, category) as Promise<{ success: boolean; files?: CloudFile[]; error?: string }>,
-  cloudDeleteFile: (token: string, fileId: string) => ipcRenderer.invoke('cloud:delete-file', token, fileId) as Promise<{ success: boolean; error?: string }>,
-  cloudDownloadFile: (token: string, fileId: string, fileName: string) => ipcRenderer.invoke('cloud:download-file', token, fileId, fileName) as Promise<{ success: boolean; filePath?: string; error?: string }>,
-  cloudDownloadAndImport: (token: string, fileId: string, fileName: string, fileType: string) => ipcRenderer.invoke('cloud:download-and-import', token, fileId, fileName, fileType) as Promise<{ success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } }>,
-  cloudGetCategories: (token: string) => ipcRenderer.invoke('cloud:get-categories', token) as Promise<{ success: boolean; categories?: Record<string, { count: number; size: number }>; error?: string }>,
-  cloudUploadFile: (filePath: string, token: string, category: string) => ipcRenderer.invoke('cloud:upload-file', filePath, token, category) as Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }>,
-  uploadAccountToCloud: (token: string, account: { id: string; type: string; username: string; uuid?: string }) => ipcRenderer.invoke('cloud:upload-account-data', token, account) as Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }>,
+  // ── Cloud (Third-party providers) ──────────────────────
+  cloudListProviders: invoke<Array<{ id: string; name: string }>>('cloud:list-providers'),
+  cloudConnect: (providerId: string, authData?: Record<string, string>) => ipcRenderer.invoke('cloud:connect', providerId, authData) as Promise<{ success: boolean; provider?: string; error?: string }>,
+  cloudIsConnected: (providerId: string) => ipcRenderer.invoke('cloud:is-connected', providerId) as Promise<boolean>,
+  cloudDisconnect: (providerId: string) => ipcRenderer.invoke('cloud:disconnect', providerId) as Promise<{ success: boolean; error?: string }>,
+  cloudListFiles: (providerId: string, folderPath?: string) => ipcRenderer.invoke('cloud:list-files', providerId, folderPath) as Promise<{ success: boolean; files?: Array<{ id: string; name: string; size: number; modifiedAt?: string; path: string; isDir: boolean; category?: string }>; error?: string }>,
+  cloudUploadFile: (providerId: string, localPath: string, remotePath: string) => ipcRenderer.invoke('cloud:upload-file', providerId, localPath, remotePath) as Promise<{ success: boolean; id?: string; name?: string; error?: string }>,
+  cloudDownloadFile: (providerId: string, remotePath: string, localPath: string) => ipcRenderer.invoke('cloud:download-file', providerId, remotePath, localPath) as Promise<{ success: boolean; localPath?: string; error?: string }>,
+  cloudDeleteFile: (providerId: string, remotePath: string) => ipcRenderer.invoke('cloud:delete-file', providerId, remotePath) as Promise<{ success: boolean; error?: string }>,
+  cloudGetQuota: (providerId: string) => ipcRenderer.invoke('cloud:get-quota', providerId) as Promise<{ used: number; total: number } | null>,
+  cloudUploadBuild: (providerId: string, buildName: string) => ipcRenderer.invoke('cloud:upload-build', providerId, buildName) as Promise<{ success: boolean; id?: string; name?: string; error?: string }>,
+  cloudUploadAccount: (providerId: string, account: { id: string; type: string; username: string; uuid?: string }) => ipcRenderer.invoke('cloud:upload-account', providerId, account) as Promise<{ success: boolean; id?: string; name?: string; error?: string }>,
+  cloudDownloadAndImport: (providerId: string, remotePath: string, fileType: string) => ipcRenderer.invoke('cloud:download-and-import', providerId, remotePath, fileType) as Promise<{ success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } }>,
 
   // ── P2P Multiplayer ────────────────────────────────────
   p2pRegister: (login: string, password: string) => ipcRenderer.invoke('p2p:register', login, password) as Promise<P2PAuthResult>,

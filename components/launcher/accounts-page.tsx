@@ -6,8 +6,7 @@ import { cn } from "@/lib/utils"
 
 type AccountWithAvatar = { uuid?: string; type?: string }
 
-const getAvatarUrl = (account: AccountWithAvatar, username: string) => {
-  const isElyBy = account.type === "elyby"
+export const getAvatarUrl = (account: AccountWithAvatar, username: string) => {  const isElyBy = account.type === "elyby"
   const value = isElyBy ? username : (account.uuid || username)
   const params = new URLSearchParams()
 
@@ -30,7 +29,9 @@ const getAvatarUrl = (account: AccountWithAvatar, username: string) => {
 type AccountType = "elyby" | "xnskins" | "microsoft" | "offline"
 type DisplayAccountType = AccountType
 
-const getAccountTypeInfo = (t: (k: string) => string): Record<DisplayAccountType, { name: string; description: string; color: string }> => ({
+export type { AccountType }
+
+export const getAccountTypeInfo = (t: (k: string) => string): Record<DisplayAccountType, { name: string; description: string; color: string }> => ({
   elyby: { name: t("accounts.elyBy"), description: t("accounts.elyByDesc"), color: "#217e5c" },
   xnskins: { name: t("accounts.xneonSkins"), description: t("accounts.xneonSkinsDesc"), color: "#f97316" },
   microsoft: { name: t("accounts.microsoft"), description: t("accounts.microsoftDesc"), color: "#2563EB" },

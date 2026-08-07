@@ -177,3 +177,17 @@
 .gradient-bg {
   background: linear-gradient(135deg, #f97316 0%, #fbbf24 100%);
 }
+
+em-emoji-picker {
+  --border-radius: 12px;
+  --category-icon-size: 18px;
+  --rgb-background: 9, 9, 12;
+  --rgb-color: 255, 255, 255;
+  --rgb-input: 25, 25, 30;
+  --rgb-accent: 249, 115, 22;
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-border-over: rgba(255, 255, 255, 0.1);
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --font-family: 'Inter', system-ui, sans-serif;
+  --font-size: 14px;
+}

@@ -403,14 +403,14 @@ export function NetworkPage() {
                       })}
                       <div ref={chatEndRef} />
                     </div>
-                    <div className="px-3 py-2.5 border-t border-border/40 shrink-0">
+                    <div className="relative px-3 py-2.5 border-t border-border/40 shrink-0">
                       <div className="flex items-center gap-2 bg-muted/20 rounded-xl border border-border/40 px-3 py-2 focus-within:border-primary/40 transition-colors">
                         <button onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                           className="p-0.5 rounded text-muted-foreground/40 hover:text-foreground transition-colors">
                           <IconMoodSmile className="w-4 h-4" />
                         </button>
                         {showEmojiPicker && (
-                          <div className="absolute bottom-full left-0 mb-2 z-50 shadow-2xl rounded-xl overflow-hidden">
+                          <div className="absolute bottom-full left-0 mb-2 z-50 shadow-2xl rounded-xl">
                             <Picker data={data}
                               onEmojiSelect={(emoji: { native: string }) => { setChatInput((p) => p + emoji.native); setShowEmojiPicker(false) }}
                               theme="dark" previewPosition="none" skinTonePosition="none" />

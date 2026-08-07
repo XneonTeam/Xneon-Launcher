@@ -1,9 +1,10 @@
+try { require("dotenv/config") } catch {}
 import "./auth"
 import "./discord-rpc"
 
 import { registerModsHandlers } from "./mods"
 import { registerBuildHandlers } from "./builds"
-import { registerCloudHandlers } from "./cloud"
+import { registerCloudHandlers } from "./cloud/handlers"
 import { registerP2PHandlers } from "./p2p"
 import { registerSystemHandlers } from "./system"
 import { registerWindowLifecycle } from "./window"

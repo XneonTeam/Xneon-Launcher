@@ -58,7 +58,29 @@ export type LauncherServerStatus = {
   error?: string
 }
 
+export type LauncherCloudFile = {
+  id: string
+  name: string
+  size: number
+  modifiedAt?: string
+  path: string
+  isDir: boolean
+  category?: string
+}
+
 export type LauncherExtraApi = {
+  cloudListProviders: () => Promise<Array<{ id: string; name: string }>>
+  cloudConnect: (providerId: string, authData?: Record<string, string>) => Promise<{ success: boolean; provider?: string; error?: string }>
+  cloudIsConnected: (providerId: string) => Promise<boolean>
+  cloudDisconnect: (providerId: string) => Promise<{ success: boolean; error?: string }>
+  cloudListFiles: (providerId: string, folderPath?: string) => Promise<{ success: boolean; files?: LauncherCloudFile[]; error?: string }>
+  cloudUploadFile: (providerId: string, localPath: string, remotePath: string) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
+  cloudDownloadFile: (providerId: string, remotePath: string, localPath: string) => Promise<{ success: boolean; localPath?: string; error?: string }>
+  cloudDeleteFile: (providerId: string, remotePath: string) => Promise<{ success: boolean; error?: string }>
+  cloudGetQuota: (providerId: string) => Promise<{ used: number; total: number } | null>
+  cloudUploadBuild: (providerId: string, buildName: string) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
+  cloudUploadAccount: (providerId: string, account: { id: string; type: string; username: string; uuid?: string }) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
+  cloudDownloadAndImport: (providerId: string, remotePath: string, fileType: string) => Promise<{ success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } }>
   listWorlds: (buildName: string) => Promise<LauncherWorldInfo[]>
   renameWorld: (buildName: string, folder: string, newName: string) => Promise<{ success: boolean; error?: string }>
   copyWorld: (buildName: string, folder: string, newName: string) => Promise<{ success: boolean; folder?: string; error?: string }>
