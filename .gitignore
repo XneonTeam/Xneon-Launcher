@@ -28,6 +28,7 @@ desktop.ini
 .env*.local
 .env.production
 .env.development
+electron/main/cloud/credentials.generated.ts
 
 # Cache
 .codex/

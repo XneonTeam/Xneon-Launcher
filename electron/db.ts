@@ -1,5 +1,6 @@
 import path from "path"
 import fs from "fs/promises"
+import fsSync from "fs"
 import crypto from "node:crypto"
 import { createRequire } from "node:module"
 import { app } from "electron"
@@ -36,6 +37,7 @@ async function ensureDir(dir: string) {
 }
 
 const dbPath = path.join(getDataDir(), "data.db")
+const tmpDbPath = path.join(getDataDir(), "data.db.tmp")
 const nodeRequire = createRequire(__filename)
 
 let dbInitialized = false
@@ -131,8 +133,18 @@ async function writeDatabaseToDisk() {
   if (!database) {
     return
   }
-  await fs.mkdir(path.dirname(dbPath), { recursive: true }).catch(() => {})
-  await fs.writeFile(dbPath, Buffer.from(database.export()))
+  try {
+    const bytes = Buffer.from(database.export())
+    await fs.mkdir(path.dirname(dbPath), { recursive: true }).catch(() => {})
+    // Atomic write: write to tmp file first, then rename over data.db.
+    // If the process dies mid-write, data.db stays intact (never truncated to 0 bytes).
+    await fs.writeFile(tmpDbPath, bytes)
+    await fs.rename(tmpDbPath, dbPath)
+  } catch (error) {
+    const message = error instanceof Error ? error.stack ?? error.message : String(error)
+    console.error(`[DB] writeDatabaseToDisk() FAILED: ${message}`)
+    throw error
+  }
 }
 
 function persistDatabase() {
@@ -158,6 +170,30 @@ function flushDatabasePersistence() {
 
   if (database) {
     writeDatabaseToDisk()
+  }
+}
+
+// Synchronous flush used on the 'exit' event and 'will-quit' — async fs writes
+// cannot complete before the process terminates, which previously left data.db
+// truncated to 0 bytes and wiped all user data on the next launch.
+function flushDatabasePersistenceSync() {
+  if (persistTimer) {
+    clearTimeout(persistTimer)
+    persistTimer = null
+  }
+
+  if (!database) {
+    return
+  }
+
+  try {
+    const bytes = Buffer.from(database.export())
+    fsSync.mkdirSync(path.dirname(dbPath), { recursive: true })
+    fsSync.writeFileSync(tmpDbPath, bytes)
+    fsSync.renameSync(tmpDbPath, dbPath)
+  } catch (error) {
+    const message = error instanceof Error ? error.stack ?? error.message : String(error)
+    console.error(`[DB] flushDatabasePersistenceSync() FAILED: ${message}`)
   }
 }
 
@@ -202,6 +238,13 @@ function initializeSchema() {
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
+    )
+  `)
+
+  run(`
+    CREATE TABLE IF NOT EXISTS cloud_configs (
+      provider TEXT PRIMARY KEY,
+      data TEXT NOT NULL
     )
   `)
 
@@ -294,7 +337,17 @@ export async function initDatabase(): Promise<void> {
   try {
     const SQL = await getSqlModule()
     let data: Buffer | undefined
-    try { data = await fs.readFile(dbPath) } catch {}
+    try {
+      data = await fs.readFile(dbPath)
+    } catch {}
+    if (!data || data.length === 0) {
+      // data.db is missing or empty (previously caused by an interrupted async write
+      // truncating the file). Try to recover the last good snapshot from the tmp file.
+      try {
+        const tmpData = await fs.readFile(tmpDbPath)
+        data = tmpData
+      } catch {}
+    }
     database = new SQL.Database(data ? new Uint8Array(data) : undefined)
     initializeSchema()
     flushDatabasePersistence()
@@ -621,7 +674,29 @@ export const dbHelpers = {
     run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [key, value])
     persistDatabase()
   },
+  getCloudConfig: async (provider: string): Promise<string | null> => {
+    if (!dbAvailable) return null
+
+    const rows = queryAll<{ data?: string }>("SELECT data FROM cloud_configs WHERE provider = ?", [provider])
+    if (!Array.isArray(rows) || rows.length === 0) return null
+    return rows[0].data ?? null
+  },
+  setCloudConfig: async (provider: string, data: string): Promise<void> => {
+    if (!dbAvailable) return
+
+    run("INSERT OR REPLACE INTO cloud_configs (provider, data) VALUES (?, ?)", [provider, data])
+    persistDatabase()
+  },
+  removeCloudConfig: async (provider: string): Promise<void> => {
+    if (!dbAvailable) return
+
+    run("DELETE FROM cloud_configs WHERE provider = ?", [provider])
+    persistDatabase()
+  },
 }
 
 process.once("beforeExit", flushDatabasePersistence)
-process.once("exit", flushDatabasePersistence)
+process.once("exit", flushDatabasePersistenceSync)
+app.on("will-quit", () => {
+  flushDatabasePersistenceSync()
+})

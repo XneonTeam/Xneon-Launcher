@@ -70,6 +70,17 @@ export function AccountsProvider({ children }: PropsWithChildren) {
   }, [])
 
   useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.type === "account") {
+        void fetchAccounts().then(setAccounts)
+      }
+    }
+    window.addEventListener("cloud:imported", handler)
+    return () => window.removeEventListener("cloud:imported", handler)
+  }, [])
+
+  useEffect(() => {
     if (!accountsLoadedRef.current) return
     if (syncTimeoutRef.current !== null) {
       window.clearTimeout(syncTimeoutRef.current)

@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
-import { IconCheck, IconFolderPlus, IconLoader2, IconSettings } from "@tabler/icons-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { IconFolderPlus, IconLoader2, IconSettings, IconX } from "@tabler/icons-react"
 import type { JavaInstallation } from "@/components/launcher/settings/types"
 import type { Build } from "./types"
 
@@ -9,12 +9,6 @@ interface InstanceBuildJavaProps {
   build: Build
   updateBuild: (id: string, fields: Partial<Build>) => void
 }
-
-const MEMORY_PRESETS = [
-  { id: "light", label: "2 ГБ", min: "2G", max: "2G", desc: "Для слабых ПК" },
-  { id: "balanced", label: "4 ГБ", min: "2G", max: "4G", desc: "Оптимально" },
-  { id: "heavy", label: "8 ГБ", min: "4G", max: "8G", desc: "Для тяжёлых сборок" },
-] as const
 
 function normalizeMemoryInput(value: string): string {
   const digits = value.replace(/[^\d]/g, "").slice(0, 3)
@@ -25,11 +19,13 @@ function normalizeMemoryInput(value: string): string {
 export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps) {
   const [detected, setDetected] = useState<JavaInstallation[]>([])
   const [loadingDetect, setLoadingDetect] = useState(false)
+  const [showJavaModal, setShowJavaModal] = useState(false)
 
   const override = build.javaOverride === true
+  const isAuto = !build.javaPath || build.javaPath === ""
 
   useEffect(() => {
-    if (!override || detected.length > 0 || loadingDetect) return
+    if (!showJavaModal || detected.length > 0) return
     let cancelled = false
     setLoadingDetect(true)
     window.electronAPI?.detectJavaInstallations().then(list => {
@@ -38,25 +34,19 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
       if (!cancelled) setLoadingDetect(false)
     })
     return () => { cancelled = true }
-  }, [override, detected.length, loadingDetect])
-
-  const memoryPresetId = useMemo(() => {
-    const min = build.memoryMin ?? ""
-    const max = build.memoryMax ?? ""
-    const preset = MEMORY_PRESETS.find(p => p.min === min && p.max === max)
-    return preset ? preset.id : "custom"
-  }, [build.memoryMin, build.memoryMax])
-
-  const applyPreset = (id: string) => {
-    const preset = MEMORY_PRESETS.find(p => p.id === id)
-    if (!preset) return
-    updateBuild(build.id, { memoryMin: preset.min, memoryMax: preset.max, memoryPreset: preset.id })
-  }
+  }, [showJavaModal, detected.length])
 
   const handlePickJavaFile = async () => {
     const picked = await window.electronAPI?.pickJavaFile()
-    if (picked) updateBuild(build.id, { javaPath: picked })
+    if (picked) {
+      updateBuild(build.id, { javaPath: picked })
+      setShowJavaModal(false)
+    }
   }
+
+  const selectedLabel = isAuto
+    ? "Автоматически (как в лаунчере)"
+    : detected.find(j => j.path === build.javaPath)?.label || build.javaPath?.split(/[\\/]/).pop() || build.javaPath
 
   return (
     <div className="rounded-3xl border border-border bg-card/40 p-6">
@@ -88,28 +78,7 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
           {/* Memory */}
           <div>
             <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Память</label>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {MEMORY_PRESETS.map(preset => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => applyPreset(preset.id)}
-                  className={cn(
-                    "rounded-2xl border p-3 text-left transition-colors",
-                    memoryPresetId === preset.id
-                      ? "border-primary bg-primary/10"
-                      : "border-border bg-muted/30 hover:border-primary/40"
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-foreground">{preset.label}</span>
-                    {memoryPresetId === preset.id && <IconCheck className="h-4 w-4 text-primary" strokeWidth={2} />}
-                  </div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">{preset.desc}</div>
-                </button>
-              ))}
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Мин. память (-Xms)</label>
                 <div className="flex items-center gap-2">
@@ -117,7 +86,7 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
                     type="text"
                     inputMode="numeric"
                     value={(build.memoryMin ?? "").replace(/G$/i, "")}
-                    onChange={e => updateBuild(build.id, { memoryMin: normalizeMemoryInput(e.target.value), memoryPreset: "custom" })}
+                    onChange={e => updateBuild(build.id, { memoryMin: normalizeMemoryInput(e.target.value) })}
                     placeholder="2"
                     className="h-11 w-full rounded-2xl border border-border bg-muted/40 px-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary"
                   />
@@ -131,7 +100,7 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
                     type="text"
                     inputMode="numeric"
                     value={(build.memoryMax ?? "").replace(/G$/i, "")}
-                    onChange={e => updateBuild(build.id, { memoryMax: normalizeMemoryInput(e.target.value), memoryPreset: "custom" })}
+                    onChange={e => updateBuild(build.id, { memoryMax: normalizeMemoryInput(e.target.value) })}
                     placeholder="4"
                     className="h-11 w-full rounded-2xl border border-border bg-muted/40 px-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary"
                   />
@@ -144,31 +113,17 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
           {/* Java path */}
           <div>
             <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Java (путь к java.exe)</label>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Select
-                value={build.javaPath ?? "auto"}
-                onValueChange={(value) => updateBuild(build.id, { javaPath: value === "auto" ? "" : value })}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowJavaModal(true)}
+                className={cn(
+                  "flex-1 h-11 rounded-2xl border px-4 text-left text-sm transition-all duration-200 flex items-center justify-between",
+                  isAuto ? "border-border bg-muted/40 text-muted-foreground hover:border-primary/50 hover:bg-muted/50" : "border-primary/50 bg-primary/5 text-foreground hover:bg-primary/10"
+                )}
               >
-                <SelectTrigger className="h-11 flex-1 rounded-2xl border-border bg-muted/40 text-foreground">
-                  <SelectValue placeholder="Автоматически (как в лаунчере)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">Автоматически (как в лаунчере)</SelectItem>
-                  {loadingDetect ? (
-                    <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
-                      <IconLoader2 className="h-4 w-4 animate-spin" /> Поиск Java...
-                    </div>
-                  ) : detected.length > 0 ? (
-                    detected.map((java, index) => (
-                      <SelectItem key={`${java.path}-${index}`} value={java.path}>
-                        {java.label} — {java.path}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">Установленные Java не найдены</div>
-                  )}
-                </SelectContent>
-              </Select>
+                <span className="truncate">{selectedLabel}</span>
+              </button>
               <button
                 type="button"
                 onClick={handlePickJavaFile}
@@ -178,9 +133,6 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
                 Выбрать файл...
               </button>
             </div>
-            {build.javaPath && (
-              <p className="mt-2 truncate text-xs text-muted-foreground">Выбрано: {build.javaPath}</p>
-            )}
           </div>
 
           {/* JVM args */}
@@ -198,6 +150,107 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
             </p>
           </div>
         </div>
+      )}
+
+      {showJavaModal && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+          <div className="w-full max-w-lg p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-semibold text-foreground">Java (путь к java.exe)</h3>
+              <button
+                onClick={() => setShowJavaModal(false)}
+                className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <IconX className="w-5 h-5" strokeWidth={1.5} />
+              </button>
+            </div>
+
+            <div className="space-y-3 mb-4">
+              <button
+                onClick={() => {
+                  updateBuild(build.id, { javaPath: "" })
+                  setShowJavaModal(false)
+                }}
+                className={cn(
+                  "w-full p-4 rounded-xl border transition-all duration-200 text-left",
+                  isAuto
+                    ? "border-primary bg-primary/10 shadow-[0_0_10px_var(--glow-primary)]"
+                    : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50"
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="font-medium text-foreground">Автоматически (как в лаунчере)</div>
+                  <span className={cn(
+                    "text-xs px-2 py-1 rounded-md font-medium",
+                    isAuto ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
+                  )}>
+                    {isAuto ? "Выбрано" : "Выбрать"}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">Использовать Java из общих настроек лаунчера</div>
+              </button>
+
+              {loadingDetect ? (
+                <div className="w-full p-4 rounded-xl border border-border bg-muted/30 flex items-center justify-center gap-2">
+                  <IconLoader2 className="w-4 h-4 animate-spin text-primary" strokeWidth={1.5} />
+                  <span className="text-sm text-muted-foreground">Поиск Java...</span>
+                </div>
+              ) : detected.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground px-1">Обнаруженные</div>
+                  <div className="max-h-[304px] space-y-2 overflow-y-auto pr-1">
+                    {detected.map((java, index) => (
+                      <button
+                        key={index}
+                        onClick={() => {
+                          updateBuild(build.id, { javaPath: java.path })
+                          setShowJavaModal(false)
+                        }}
+                        className={cn(
+                          "w-full min-h-[70px] p-3 rounded-xl border transition-all duration-200 text-left",
+                          build.javaPath === java.path
+                            ? "border-primary bg-primary/10 shadow-[0_0_10px_var(--glow-primary)]"
+                            : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50"
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="font-medium text-foreground text-sm">{java.label}</div>
+                          <span className={cn(
+                            "shrink-0 text-xs px-2 py-1 rounded-md font-medium",
+                            build.javaPath === java.path ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
+                          )}>
+                            {build.javaPath === java.path ? "Выбрано" : "Выбрать"}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1 truncate">{java.path}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <button
+                onClick={handlePickJavaFile}
+                className="w-full p-4 rounded-xl border border-dashed border-border bg-muted/20 hover:border-accent hover:bg-accent/5 transition-all flex items-center justify-between px-4 text-muted-foreground hover:text-accent"
+              >
+                <div className="flex items-center gap-2">
+                  <IconFolderPlus className="w-5 h-5" strokeWidth={1.5} />
+                  <span className="text-sm">Выбрать файл...</span>
+                </div>
+                <span className="text-xs px-2 py-1 rounded-md bg-muted/50 font-medium">Выбрать</span>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowJavaModal(false)}
+              className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground text-sm transition-colors"
+            >
+              <IconX className="w-4 h-4" strokeWidth={1.75} />
+              Отмена
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   )

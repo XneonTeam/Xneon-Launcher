@@ -1,6 +1,6 @@
 {
   "name": "xneon-launcher",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "XNeon Launcher desktop application",
   "author": {
     "name": "XNeon Launcher",
@@ -30,10 +30,14 @@
     "iconv-lite": "^0.7.3",
     "prismarine-nbt": "^2.8.0",
     "sql.js": "^1.14.1",
-    "toml": "^5.0.0"
+    "toml": "^5.0.0",
+    "webdav": "^5.10.0"
   },
   "scripts": {
     "sync:xnlc": "node scripts/sync-local-xnlc.mjs",
+    "predev": "node scripts/gen-credentials.mjs",
+    "prebuild": "node scripts/gen-credentials.mjs",
+    "prepackage": "node scripts/gen-credentials.mjs",
     "dev": "concurrently -k -s first \"vite --host 127.0.0.1\" \"tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development node scripts/launch-electron-dev.mjs\"",
     "dev:diag": "concurrently -k -s first \"vite --host 127.0.0.1\" \"tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development ELECTRON_DEBUG_FLAGS=1 node scripts/launch-electron-dev.mjs\"",
     "dev:diag:no-shm": "concurrently -k -s first \"vite --host 127.0.0.1\" \"tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development ELECTRON_DEBUG_FLAGS=1 ELECTRON_DISABLE_DEV_SHM_USAGE=0 node scripts/launch-electron-dev.mjs\"",
@@ -46,6 +50,7 @@
     "test:xn-auth": "node scripts/test-xn-auth.mjs"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
     "@radix-ui/react-checkbox": "1.3.8",
     "@radix-ui/react-dialog": "1.1.20",
     "@radix-ui/react-select": "2.3.4",
@@ -60,9 +65,9 @@
     "concurrently": "^10.0.3",
     "cross-env": "^10.1.0",
     "depcheck": "^1.4.7",
+    "dotenv": "^17.4.2",
     "electron": "^43.1.1",
     "electron-builder": "^26.15.3",
-    "@electron/rebuild": "^4.2.0",
     "postcss": "^8.5",
     "rcedit": "^5.0.2",
     "react": "19.2.8",
@@ -103,7 +108,7 @@
         "zip"
       ],
       "icon": "build/icon.ico",
-      "signAndEditExecutable": false,
+      "signAndEditExecutable": true,
       "artifactName": "${name}-${version}-win-${arch}.${ext}"
     },
     "nsis": {
