@@ -42,7 +42,7 @@ async function readGdLauncherInstance(instanceDir: string): Promise<LauncherInst
     const loaderVersion = firstLoader?.version?.trim() || undefined
     const version = parsed.game_configuration?.version?.release ?? "unknown"
     if (!isSupportedImportedLoader(loaderType)) return null
-    const iconFile = resolveInstanceIconPath(parsed.icon, [
+    const iconFile = await resolveInstanceIconPath(parsed.icon, [
       instanceDir,
       path.join(instanceDir, "instance"),
       path.dirname(instanceDir),

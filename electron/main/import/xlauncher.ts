@@ -77,7 +77,7 @@ async function readXLauncherInstance(instanceDir: string): Promise<LauncherInsta
       version: parsed.runtime?.minecraft?.trim() || "unknown",
       modLoader: detectXLauncherModLoader(parsed.runtime),
       loaderVersion: detectXLauncherLoaderVersion(parsed.runtime),
-      icon: resolveInstanceIconPath(parsed.icon, [
+      icon: await resolveInstanceIconPath(parsed.icon, [
         instanceDir,
         path.join(instanceDir, ".minecraft"),
         path.dirname(instanceDir),

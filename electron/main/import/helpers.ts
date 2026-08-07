@@ -200,7 +200,7 @@ export async function resolveMcDir(instancePath: string): Promise<string> {
   return instancePath
 }
 
-function resolveInstanceIconPath(iconPath: string | null | undefined, searchRoots: string[]): string | undefined {
+async function resolveInstanceIconPath(iconPath: string | null | undefined, searchRoots: string[]): Promise<string | undefined> {
   const raw = iconPath?.trim()
   if (!raw) return undefined
   if (raw.startsWith("http://") || raw.startsWith("https://") || raw.startsWith("data:")) return raw
@@ -213,6 +213,9 @@ function resolveInstanceIconPath(iconPath: string | null | undefined, searchRoot
       path.join(root, path.basename(normalizedRaw)),
     ])
 
+  for (const candidate of candidates) {
+    if (await fileExists(candidate)) return candidate
+  }
   return undefined
 }
 

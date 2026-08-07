@@ -116,7 +116,7 @@ export async function discoverModrinthAppInstances(): Promise<LauncherInstance[]
       else if (loaderRaw === "neoforge") modLoader = "neoforge"
       else if (loaderRaw === "quilt") modLoader = "quilt"
       loaderVersion = dbRow.mod_loader_version || undefined
-      iconPath = resolveInstanceIconPath(dbRow.icon_path, [dir, profilesDir, path.dirname(dbPath || profilesDir)])
+      iconPath = await resolveInstanceIconPath(dbRow.icon_path, [dir, profilesDir, path.dirname(dbPath || profilesDir)])
     }
 
     if (!isSupportedImportedLoader(modLoader)) continue
