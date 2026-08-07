@@ -103,6 +103,7 @@ export async function discoverAstralRinthInstances(): Promise<LauncherInstance[]
         const loaderRaw = (dbRow.mod_loader || "").toLowerCase()
         if (loaderRaw === "fabric") modLoader = "fabric"
         else if (loaderRaw === "quilt") modLoader = "quilt"
+        else if (loaderRaw === "forge") modLoader = "forge"
         else if (loaderRaw === "neoforge") modLoader = "neoforge"
         loaderVersion = dbRow.mod_loader_version || undefined
         iconPath = resolveInstanceIconPath(dbRow.icon_path, [

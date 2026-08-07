@@ -45,6 +45,7 @@ function detectXLauncherModLoader(runtime: XLauncherInstanceJson["runtime"]): st
   if (!runtime) return "vanilla"
   if (runtime.fabricLoader) return "fabric"
   if (runtime.quiltLoader) return "quilt"
+  if (runtime.forgeLoader) return "forge"
   if (runtime.neoforgeLoader) return "neoforge"
   if (runtime.optifine) return "optifine"
   return "vanilla"

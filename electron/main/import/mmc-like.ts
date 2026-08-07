@@ -153,6 +153,7 @@ async function readMmcLikeInstance(instanceDir: string, iconsDir: string, type: 
           else if (comp.uid === "net.fabricmc.fabric-loader") { modLoader = "fabric"; loaderVersion = comp.version }
           else if (comp.uid === "org.quiltmc.quilt-loader") { modLoader = "quilt"; loaderVersion = comp.version }
           else if (comp.uid === "net.neoforged") { modLoader = "neoforge"; loaderVersion = comp.version }
+          else if (comp.uid === "net.minecraftforge" || comp.uid === "net.minecraftforgeforge") { modLoader = "forge"; loaderVersion = comp.version }
         }
       } catch {}
     }
@@ -169,6 +170,7 @@ async function readMmcLikeInstance(instanceDir: string, iconsDir: string, type: 
             if (args.includes("fabric")) modLoader = "fabric"
             else if (args.includes("quilt")) modLoader = "quilt"
             else if (args.includes("neoforge")) modLoader = "neoforge"
+            else if (args.includes("forge")) modLoader = "forge"
           }
         } catch {}
       }
