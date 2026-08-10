@@ -16,6 +16,8 @@
   "settings.tab.language": "Language",
   "settings.tab.about": "About",
   "settings.ram": "RAM",
+  "settings.ram.allocated": "Memory allocated",
+  "settings.ram.desc": "Maximum memory available to Minecraft.",
   "settings.ramMin": "512 MB",
   "settings.ramMax": "32 GB",
   "settings.versionTypes": "Minecraft Version Types",

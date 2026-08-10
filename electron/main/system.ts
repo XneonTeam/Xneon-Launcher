@@ -1,4 +1,5 @@
 import { app, dialog, ipcMain, shell } from "electron"
+import os from "os"
 import path from "path"
 import fs from "fs/promises"
 import { dbHelpers, isUsingFallbackStorage } from "../db"
@@ -31,6 +32,8 @@ function makeJavaLabel(version: string): string {
 }
 
 export function registerSystemHandlers() {
+  ipcMain.handle("system:get-total-memory", () => os.totalmem())
+
   ipcMain.handle("fetch:minecraft-news", async () => {
     try {
       const res = await fetch(`${MOJANG_BASE}/v2/news.json`)
@@ -135,7 +138,7 @@ export function registerSystemHandlers() {
       ]
       for (const base of bases) {
         if (!(await fileExists(base))) continue
-        let dirs
+        let dirs: string[] = []
         try { dirs = await fs.readdir(base) } catch { continue }
         for (const dir of dirs) await tryJava(path.join(base, dir, "bin", "java.exe"))
       }
@@ -149,7 +152,7 @@ export function registerSystemHandlers() {
     } else if (process.platform === "darwin") {
       const jvmBase = "/Library/Java/JavaVirtualMachines"
       if (await fileExists(jvmBase)) {
-        let dirs
+        let dirs: string[] = []
         try { dirs = await fs.readdir(jvmBase) } catch { dirs = [] }
         for (const dir of dirs) await tryJava(path.join(jvmBase, dir, "Contents", "Home", "bin", "java"))
       }
@@ -161,7 +164,7 @@ export function registerSystemHandlers() {
     } else {
       const jvmBase = "/usr/lib/jvm"
       if (await fileExists(jvmBase)) {
-        let dirs
+        let dirs: string[] = []
         try { dirs = await fs.readdir(jvmBase) } catch { dirs = [] }
         for (const dir of dirs) await tryJava(path.join(jvmBase, dir, "bin", "java"))
       }

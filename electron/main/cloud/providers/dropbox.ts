@@ -1,4 +1,4 @@
-import { shell, app } from "electron"
+import { shell } from "electron"
 import http from "http"
 import { URL } from "url"
 import fs from "fs/promises"
@@ -16,10 +16,6 @@ const REDIRECT_URI = `http://localhost:${REDIRECT_PORT}/callback`
 const BASE_FOLDER = "/Xneon Launcher"
 const SUB_FOLDERS = ["/builds", "/accounts"]
 
-function getTokenPath(): string {
-  return path.join(app.getPath("userData"), "cloud-dropbox.json")
-}
-
 type TokenData = { access_token: string }
 
 async function readToken(): Promise<TokenData | null> {
@@ -27,25 +23,12 @@ async function readToken(): Promise<TokenData | null> {
     const raw = await dbHelpers.getCloudConfig("dropbox")
     if (raw) return JSON.parse(raw) as TokenData
   } catch { /* noop */ }
-  try {
-    const raw = await fs.readFile(getTokenPath(), "utf-8")
-    const data = JSON.parse(raw) as TokenData
-    try {
-      await dbHelpers.setCloudConfig("dropbox", raw)
-      await fs.unlink(getTokenPath())
-    } catch { /* noop */ }
-    return data
-  } catch { return null }
+  return null
 }
 
 async function writeToken(data: TokenData): Promise<void> {
   const raw = JSON.stringify(data)
-  try {
-    await dbHelpers.setCloudConfig("dropbox", raw)
-    await fs.unlink(getTokenPath()).catch(() => {})
-  } catch {
-    await fs.writeFile(getTokenPath(), raw)
-  }
+  await dbHelpers.setCloudConfig("dropbox", raw)
 }
 
 async function getAccessToken(): Promise<string | null> {
@@ -116,7 +99,6 @@ export class DropboxProvider implements CloudProvider {
   async isAuthenticated(): Promise<boolean> { return (await getAccessToken()) !== null }
   async logout(): Promise<void> {
     try { await dbHelpers.removeCloudConfig("dropbox") } catch { /* noop */ }
-    try { await fs.unlink(getTokenPath()) } catch { /* noop */ }
   }
 
   async ensureBaseFolder(): Promise<void> {

@@ -196,6 +196,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Settings ───────────────────────────────────────────
   getSetting: (key: string) => ipcRenderer.invoke('settings:get', key) as Promise<string | undefined>,
   setSetting: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value) as Promise<void>,
+  getTotalMemory: invoke<number>('system:get-total-memory'),
 
   // ── Servers ────────────────────────────────────────────
   writeServersDat: (servers: Array<{ name: string; ip: string }>) => ipcRenderer.invoke('servers:write-dat', servers) as Promise<{ success: boolean; error?: string }>,

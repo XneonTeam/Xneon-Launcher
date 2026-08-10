@@ -45,7 +45,7 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
       modLoader: selectedModLoader as "vanilla" | "forge" | "fabric" | "quilt" | "liteloader" | "optifine" | "neoforge",
       ...(selectedLoaderVersion ? { loaderVersion: selectedLoaderVersion } : {}),
       account: { type: account.type, username: account.username, uuid: account.uuid, accessToken: account.accessToken },
-      memory: { min: settings.savedMemoryMin || "2G", max: settings.savedMemoryMax || "4G" },
+      memory: { min: settings.savedMemoryMin || "512M", max: settings.savedMemoryMax || "4G" },
       width,
       height,
       authlibInjectorEnabled: usesSkinInjector && settings.authlibEnabled !== "false",

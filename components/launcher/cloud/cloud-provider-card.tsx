@@ -20,7 +20,7 @@ function OneDriveIcon({ className, style }: { className?: string; style?: React.
   )
 }
 
-const PROVIDER_ICONS: Record<string, { icon?: React.FC<{ className?: string; strokeWidth?: number }>; svg?: React.FC<{ className?: string; style?: React.CSSProperties }>; color: string }> = {
+const PROVIDER_ICONS: Record<string, { icon?: React.FC<{ className?: string; strokeWidth?: number; style?: React.CSSProperties }>; svg?: React.FC<{ className?: string; style?: React.CSSProperties }>; color: string }> = {
   "google-drive": { icon: IconBrandGoogleDrive, color: "#4285F4" },
   "dropbox": { icon: IconBrandDropbox, color: "#0061FF" },
   "yandex-disk": { svg: YandexDiskIcon, color: "#FC3F1D" },

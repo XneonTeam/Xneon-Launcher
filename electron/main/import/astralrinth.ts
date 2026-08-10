@@ -106,6 +106,7 @@ export async function discoverAstralRinthInstances(): Promise<LauncherInstance[]
         else if (loaderRaw === "forge") modLoader = "forge"
         else if (loaderRaw === "neoforge") modLoader = "neoforge"
         loaderVersion = dbRow.mod_loader_version || undefined
+
         iconPath = await resolveInstanceIconPath(dbRow.icon_path, [
           dir,
           profilesDir,

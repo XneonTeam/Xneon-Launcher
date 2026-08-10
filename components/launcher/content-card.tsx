@@ -1,4 +1,4 @@
-import { IconHome, IconLayoutBoard, IconFileText, IconPuzzle, IconServer, IconCloud, IconUserPlus, IconSettings, IconColorSwatch } from "@tabler/icons-react"
+import { IconHome, IconLayoutBoard, IconFileText, IconCloud, IconNetwork, IconUserPlus, IconSettings, IconColorSwatch } from "@tabler/icons-react"
 import type { TabId } from "./sidebar"
 
 interface ContentCardProps {
@@ -21,20 +21,15 @@ const tabContent: Record<TabId, { title: string; message: string; icon: React.Re
     message: "Просмотр логов запуска Minecraft",
     icon: <IconFileText className="w-12 h-12" strokeWidth={1.5} />,
   },
-  mods: {
-    title: "Моды",
-    message: "Раздел модов находится в разработке",
-    icon: <IconPuzzle className="w-12 h-12" strokeWidth={1.5} />,
-  },
-  servers: {
-    title: "Серверы",
-    message: "Браузер серверов находится в разработке",
-    icon: <IconServer className="w-12 h-12" strokeWidth={1.5} />,
-  },
   cloud: {
     title: "Облако",
     message: "Облачное хранилище сборок и аккаунтов в разработке",
     icon: <IconCloud className="w-12 h-12" strokeWidth={1.5} />,
+  },
+  network: {
+    title: "Серверы",
+    message: "Браузер серверов находится в разработке",
+    icon: <IconNetwork className="w-12 h-12" strokeWidth={1.5} />,
   },
   accounts: {
     title: "Аккаунты",

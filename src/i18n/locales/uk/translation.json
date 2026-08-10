@@ -17,6 +17,8 @@
   "settings.tab.about": "Про лаунчер",
   "settings.tab.java": "Java",
   "settings.ram": "Оперативна пам'ять",
+  "settings.ram.allocated": "Виділено пам'яті",
+  "settings.ram.desc": "Максимум оперативної пам'яті, доступної Minecraft.",
   "settings.ramMin": "512 MB",
   "settings.ramMax": "32 GB",
   "settings.versionTypes": "Типи версій Minecraft",

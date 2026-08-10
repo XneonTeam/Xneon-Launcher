@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { changeLanguage } from "@/src/i18n"
 import { cn } from "@/lib/utils"
-import { IconDeviceDesktop, IconShield, IconCloud } from "@tabler/icons-react"
+import { IconCpu, IconDeviceDesktop, IconShield, IconCloud } from "@tabler/icons-react"
+import { MemorySlider } from "@/components/ui/memory-slider"
+import { useMemoryOptions } from "@/src/hooks/use-memory-options"
+import { memoryToMb, mbToMemory } from "@/lib/memory"
 import { settingsTabs, presetThemes, applyTheme } from "./data"
 import { SettingsTabs } from "./settings-tabs"
 import { SettingsResolution } from "./settings-resolution"
@@ -12,28 +15,23 @@ import { SettingsVersions } from "./settings-versions"
 import { SettingsThemes } from "./settings-themes"
 import { SettingsLanguage } from "./settings-language-about"
 import { SettingsAbout } from "./settings-language-about"
-import type { SettingsTab, Theme, JavaInstallation } from "./types"
+import type { SettingsTab, JavaInstallation } from "./types"
 
 export function SettingsPage() {
   const { t } = useTranslation()
+  const { maxMb, snapPoints } = useMemoryOptions()
   const settingsHydratedRef = useRef(false)
   const pendingSettingsRef = useRef<Record<string, number>>({})
   const lastPersistedSettingsRef = useRef<Record<string, string>>({})
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("game")
   const [selectedTheme, setSelectedTheme] = useState<string>("orange")
-  const [customTheme, setCustomTheme] = useState<Theme>({
-    id: "custom", name: "Моя тема",
-    primary: "#f97316", accent: "#fbbf24", background: "#18181b",
-    primaryOklch: "0.65 0.22 40", accentOklch: "0.75 0.18 75", backgroundOklch: "0.08 0.01 260",
-  })
-  const [useCustomTheme, setUseCustomTheme] = useState(false)
   const [selectedResolution, setSelectedResolution] = useState("1920x1080 (Full HD)")
   const [customWidth, setCustomWidth] = useState("1920")
   const [customHeight, setCustomHeight] = useState("1080")
   const [useCustomResolution, setUseCustomResolution] = useState(false)
   const [selectedJavaPath, setSelectedJavaPath] = useState("")
   const [javaArgs, setJavaArgs] = useState("")
-  const [memoryMin, setMemoryMin] = useState("2G")
+  const [memoryMin, setMemoryMin] = useState("512M")
   const [memoryMax, setMemoryMax] = useState("4G")
   const [showJavaModal, setShowJavaModal] = useState(false)
   const [editingJavaVersion, setEditingJavaVersion] = useState("")
@@ -63,8 +61,8 @@ export function SettingsPage() {
 
   useEffect(() => {
     const theme = presetThemes.find(t => t.id === selectedTheme)
-    if (theme && !useCustomTheme) applyTheme(theme)
-  }, [selectedTheme, useCustomTheme])
+    if (theme) applyTheme(theme)
+  }, [selectedTheme])
 
   useEffect(() => {
     changeLanguage(selectedLanguage)
@@ -150,7 +148,7 @@ export function SettingsPage() {
       setUseCustomResolution(useCustomResolutionSetting === "true")
       lastPersistedSettingsRef.current = {
         javaArgs: javaArgsSetting ?? "",
-        memoryMin: memoryMinSetting ?? "2G",
+        memoryMin: memoryMinSetting ?? "512M",
         memoryMax: memoryMaxSetting ?? "4G",
         showAlpha: String(showAlphaSetting === "true"),
         showBeta: String(showBetaSetting === "true"),
@@ -191,7 +189,7 @@ export function SettingsPage() {
   useEffect(() => {
     persistSetting("javaArgs", javaArgs)
   }, [javaArgs, persistSetting])
-  useEffect(() => { persistSetting("memoryMin", memoryMin.trim() || "2G") }, [memoryMin, persistSetting])
+  useEffect(() => { persistSetting("memoryMin", memoryMin.trim() || "512M") }, [memoryMin, persistSetting])
   useEffect(() => { persistSetting("memoryMax", memoryMax.trim() || "4G") }, [memoryMax, persistSetting])
 
   useEffect(() => { persistSetting("showAlpha", String(showAlpha)) }, [persistSetting, showAlpha])
@@ -257,30 +255,24 @@ export function SettingsPage() {
             </section>
 
             <section className="space-y-4">
-              <h3 className="text-lg font-medium text-foreground">RAM</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-foreground">Minimum</label>
-                  <input
-                    type="text"
-                    value={memoryMin}
-                    onChange={(e) => setMemoryMin(e.target.value.toUpperCase())}
-                    placeholder="2G"
-                    className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-foreground">Maximum</label>
-                  <input
-                    type="text"
-                    value={memoryMax}
-                    onChange={(e) => setMemoryMax(e.target.value.toUpperCase())}
-                    placeholder="4G"
-                    className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                  />
-                </div>
+              <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+                <IconCpu className="w-5 h-5 text-primary" strokeWidth={1.5} />
+                {t("settings.ram")}
+              </h3>
+              <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-2.5">
+                <label className="block text-sm font-medium text-foreground">{t("settings.ram.allocated")}</label>
+                <MemorySlider
+                  value={memoryToMb(memoryMax)}
+                  min={512}
+                  max={maxMb}
+                  step={64}
+                  snapPoints={snapPoints}
+                  snapRange={512}
+                  unit="MB"
+                  onChange={(v) => setMemoryMax(mbToMemory(v))}
+                />
+                <p className="text-xs text-muted-foreground">{t("settings.ram.desc")}</p>
               </div>
-              <p className="text-xs text-muted-foreground">Use values like `2G`, `4G` or `1024M`. These limits are used for Minecraft launch.</p>
             </section>
 
             <section className="space-y-4">
@@ -409,10 +401,6 @@ export function SettingsPage() {
             <SettingsThemes
               selectedTheme={selectedTheme}
               setSelectedTheme={setSelectedTheme}
-              useCustomTheme={useCustomTheme}
-              setUseCustomTheme={setUseCustomTheme}
-              customTheme={customTheme}
-              setCustomTheme={setCustomTheme}
             />
           </div>
         )}

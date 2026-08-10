@@ -83,7 +83,7 @@
 }
 
 @theme inline {
-  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -178,6 +178,78 @@
   background: linear-gradient(135deg, #f97316 0%, #fbbf24 100%);
 }
 
+.launcher-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(
+      to right,
+      var(--primary) 0%,
+      var(--primary)
+        calc(
+          (var(--current-value) - var(--min-value)) / (var(--max-value) - var(--min-value)) * 100%
+        ),
+      var(--border)
+        calc(
+          (var(--current-value) - var(--min-value)) / (var(--max-value) - var(--min-value)) * 100%
+        ),
+      var(--border) 100%
+    )
+    100% 100% no-repeat;
+  cursor: pointer;
+
+  &::-webkit-slider-runnable-track {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 0.25rem;
+    background: transparent;
+    border-radius: 9999px;
+  }
+
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 0.75rem;
+    height: 0.75rem;
+    background: var(--primary);
+    border: 2px solid var(--card);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--glow-primary);
+    margin-top: -4px;
+    transition:
+      width 0.2s,
+      height 0.2s;
+  }
+
+  &::-moz-range-track {
+    height: 0.25rem;
+    background: transparent;
+    border-radius: 9999px;
+    border: none;
+  }
+
+  &::-moz-range-thumb {
+    border: 2px solid var(--card);
+    width: 0.75rem;
+    height: 0.75rem;
+    background: var(--primary);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--glow-primary);
+    transition:
+      width 0.2s,
+      height 0.2s;
+  }
+
+  &::-moz-range-progress {
+    background: transparent;
+  }
+
+  &:hover::-webkit-slider-thumb,
+  &:hover::-moz-range-thumb {
+    width: 1rem;
+    height: 1rem;
+  }
+}
+
 em-emoji-picker {
   --border-radius: 12px;
   --category-icon-size: 18px;
@@ -188,6 +260,6 @@ em-emoji-picker {
   --color-border: rgba(255, 255, 255, 0.06);
   --color-border-over: rgba(255, 255, 255, 0.1);
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-  --font-family: 'Inter', system-ui, sans-serif;
+  --font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-size: 14px;
 }

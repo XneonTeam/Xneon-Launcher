@@ -69,6 +69,7 @@ export type LauncherCloudFile = {
 }
 
 export type LauncherExtraApi = {
+  getTotalMemory: () => Promise<number>
   cloudListProviders: () => Promise<Array<{ id: string; name: string }>>
   cloudConnect: (providerId: string, authData?: Record<string, string>) => Promise<{ success: boolean; provider?: string; error?: string }>
   cloudIsConnected: (providerId: string) => Promise<boolean>

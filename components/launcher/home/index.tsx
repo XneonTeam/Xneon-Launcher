@@ -76,7 +76,7 @@ export function HomePage() {
       modLoader: modLoader as "vanilla" | "forge" | "fabric" | "quilt" | "liteloader" | "optifine" | "neoforge",
       ...(loaderVersion ? { loaderVersion } : {}),
       account: { type: account.type, username: account.username, uuid: account.uuid, accessToken: account.accessToken },
-      memory: { min: settings.savedMemoryMin || "2G", max: settings.savedMemoryMax || "4G" },
+      memory: { min: settings.savedMemoryMin || "512M", max: settings.savedMemoryMax || "4G" },
       width,
       height,
       buildName,

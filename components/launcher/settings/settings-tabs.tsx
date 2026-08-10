@@ -1,10 +1,10 @@
 import { cn } from "@/lib/utils"
-import { IconDeviceGamepad2, IconBrandJavascript, IconPalette, IconLanguage, IconInfoCircle } from "@tabler/icons-react"
+import { IconDeviceGamepad2, IconCoffee, IconPalette, IconLanguage, IconInfoCircle } from "@tabler/icons-react"
 import type { SettingsTab } from "./types"
 
 const ICONS: Record<string, React.ComponentType<{ className?: string; strokeWidth?: number }>> = {
   IconDeviceGamepad2,
-  IconBrandJavascript,
+  IconCoffee,
   IconPalette,
   IconLanguage,
   IconInfoCircle,
