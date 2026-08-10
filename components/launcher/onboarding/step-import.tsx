@@ -7,10 +7,11 @@ type StepImportProps = {
   copy: OnboardingCopy
   importableInstances: ImportableLauncherInstance[]
   selectedImportIds: string[]
+  activeFilter: string | null
   importingInstances: boolean
   importedCount: number
   onToggle: (instanceId: string) => void
-  onToggleSource: (source: string) => void
+  onFilterSource: (source: string) => void
   onImport: () => void
 }
 
@@ -27,13 +28,17 @@ function formatMessage(template: string, values: Record<string, string | number>
   return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => String(values[key] ?? ""))
 }
 
-export function StepImport({ copy, importableInstances, selectedImportIds, importingInstances, importedCount, onToggle, onToggleSource, onImport }: StepImportProps) {
+export function StepImport({ copy, importableInstances, selectedImportIds, activeFilter, importingInstances, importedCount, onToggle, onFilterSource, onImport }: StepImportProps) {
   const grouped = importableInstances.reduce<Record<string, ImportableLauncherInstance[]>>((acc, inst) => {
     const key = inst.source
     if (!acc[key]) acc[key] = []
     acc[key].push(inst)
     return acc
   }, {})
+
+  const visibleInstances = activeFilter
+    ? importableInstances.filter((i) => i.source === activeFilter)
+    : importableInstances
 
   return (
     <div className="space-y-5">
@@ -42,18 +47,17 @@ export function StepImport({ copy, importableInstances, selectedImportIds, impor
           <div className="flex items-center justify-between gap-3">
             <div className="flex flex-wrap gap-2">
               {Object.entries(grouped).map(([source, instances]) => {
+                const isActive = activeFilter === source
                 const sourceIds = instances.map((i) => i.id)
                 const selectedCount = sourceIds.filter((id) => selectedImportIds.includes(id)).length
-                const allSelected = selectedCount === sourceIds.length
-                const noneSelected = selectedCount === 0
                 return (
                   <button
                     key={source}
                     type="button"
-                    onClick={() => onToggleSource(source)}
+                    onClick={() => onFilterSource(source)}
                     className={cn(
                       "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition-all",
-                      noneSelected ? "opacity-50" : "",
+                      !isActive && activeFilter ? "opacity-40" : "",
                       sourceBadge(source)
                     )}
                   >
@@ -79,7 +83,7 @@ export function StepImport({ copy, importableInstances, selectedImportIds, impor
           </div>
 
           <div className="grid max-h-[340px] gap-3 overflow-y-auto pr-1 xl:grid-cols-2">
-            {importableInstances.map((instance) => {
+            {visibleInstances.map((instance) => {
               const counts = [
                 instance.modCount ? `${instance.modCount} ${copy.modsLabel}` : null,
                 instance.resourcepackCount ? `${instance.resourcepackCount} ${copy.resourcepacksLabel}` : null,
