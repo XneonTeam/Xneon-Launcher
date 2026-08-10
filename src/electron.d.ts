@@ -101,6 +101,12 @@ export type LauncherExtraApi = {
   quickPlayList: (buildName?: string, gameDir?: string) => Promise<QuickPlayEntry[]>
   quickPlayClear: (buildName?: string, gameDir?: string) => Promise<void>
   quickPlayRemove: (buildName: string | undefined, gameDir: string | undefined, entry: QuickPlayEntry) => Promise<void>
+  updateCheck: () => Promise<{ available: boolean; version?: string; error?: string }>
+  updateDownload: () => Promise<{ success: boolean; error?: string }>
+  updateInstall: () => Promise<void>
+  updateInfo: () => Promise<{ version: string | null; downloaded: boolean }>
+  onUpdateStatus: (callback: (status: { status: string; version?: string; releaseDate?: string; releaseNotes?: string; error?: string }) => void) => () => void
+  onUpdateProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void
 }
 
 declare global {

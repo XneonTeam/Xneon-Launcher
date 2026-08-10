@@ -12,6 +12,7 @@ import { registerMinecraftHandlers } from "./minecraft"
 import { registerWorldsHandlers } from "./worlds"
 import { registerServerHandlers } from "./servers"
 import { registerQuickPlayHandlers } from "./quick-play"
+import { registerUpdater } from "./updater"
 
 registerWindowLifecycle()
 registerSystemHandlers()
@@ -24,4 +25,5 @@ registerServerHandlers()
 
 registerP2PHandlers()
 registerQuickPlayHandlers()
+registerUpdater()
 
