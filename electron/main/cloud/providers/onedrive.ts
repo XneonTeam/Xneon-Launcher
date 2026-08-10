@@ -1,4 +1,4 @@
-import { shell, app } from "electron"
+import { shell } from "electron"
 import http from "http"
 import { URL } from "url"
 import fs from "fs/promises"
@@ -19,10 +19,6 @@ const SUB_FOLDERS = ["builds", "accounts"]
 const SCOPES = "Files.ReadWrite offline_access User.Read"
 const ONEDRIVE_CLIENT_ID = getCloudCredentials().onedrive.clientId
 
-function getConfigPath(): string {
-  return path.join(app.getPath("userData"), "cloud-onedrive.json")
-}
-
 type OneDriveConfig = {
   client_id: string
   access_token: string
@@ -35,25 +31,12 @@ async function readConfig(): Promise<OneDriveConfig | null> {
     const raw = await dbHelpers.getCloudConfig("onedrive")
     if (raw) return JSON.parse(raw) as OneDriveConfig
   } catch { /* noop */ }
-  try {
-    const raw = await fs.readFile(getConfigPath(), "utf-8")
-    const config = JSON.parse(raw) as OneDriveConfig
-    try {
-      await dbHelpers.setCloudConfig("onedrive", raw)
-      await fs.unlink(getConfigPath())
-    } catch { /* noop */ }
-    return config
-  } catch { return null }
+  return null
 }
 
 async function writeConfig(config: OneDriveConfig): Promise<void> {
   const raw = JSON.stringify(config)
-  try {
-    await dbHelpers.setCloudConfig("onedrive", raw)
-    await fs.unlink(getConfigPath()).catch(() => {})
-  } catch {
-    await fs.writeFile(getConfigPath(), raw)
-  }
+  await dbHelpers.setCloudConfig("onedrive", raw)
 }
 
 async function refreshAccessToken(config: OneDriveConfig): Promise<OneDriveConfig> {
@@ -185,7 +168,6 @@ export class OneDriveProvider implements CloudProvider {
   async isAuthenticated(): Promise<boolean> { return (await getValidConfig()) !== null }
   async logout(): Promise<void> {
     try { await dbHelpers.removeCloudConfig("onedrive") } catch { /* noop */ }
-    try { await fs.unlink(getConfigPath()) } catch { /* noop */ }
   }
 
   async ensureBaseFolder(): Promise<void> {

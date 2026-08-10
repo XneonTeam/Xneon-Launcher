@@ -5,14 +5,13 @@ import { cn } from "@/lib/utils"
 import { useAccounts } from "@/src/AccountsContext"
 import { changeLanguage } from "@/src/i18n"
 import { applyTheme, presetThemes } from "./settings/data"
-import { ONBOARDING_COPY, type OnboardingLanguage, type InjectorMode } from "./onboarding/translations"
+import { ONBOARDING_COPY, type OnboardingLanguage } from "./onboarding/translations"
 import { StepDots } from "./onboarding/step-dots"
 import { StepLanguage } from "./onboarding/step-language"
 import { StepTheme } from "./onboarding/step-theme"
 import { StepImport } from "./onboarding/step-import"
 import { StepAccount } from "./onboarding/step-account"
 import { StepMemory } from "./onboarding/step-memory"
-import { StepInjector } from "./onboarding/step-injector"
 import { OfflineModal } from "./onboarding/offline-modal"
 
 type OnboardingModalProps = {
@@ -25,7 +24,9 @@ type OnboardingModalProps = {
 function normalizeMemoryValue(value: string | undefined, fallback: string) {
   const trimmed = value?.trim()
   if (!trimmed) return fallback
-  return trimmed.toUpperCase().endsWith("G") ? trimmed.toUpperCase() : `${trimmed}G`
+  const upper = trimmed.toUpperCase()
+  if (upper.endsWith("G") || upper.endsWith("M")) return upper
+  return `${upper}G`
 }
 
 function getAvatarUrl(account: { uuid?: string; type?: string }, username: string) {
@@ -50,9 +51,8 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
   })
   const [offlineUsername, setOfflineUsername] = useState("")
   const [showOfflineAccountModal, setShowOfflineAccountModal] = useState(false)
-  const [memoryMin, setMemoryMin] = useState("2G")
+  const [memoryMin, setMemoryMin] = useState("512M")
   const [memoryMax, setMemoryMax] = useState("4G")
-  const [injectorMode, setInjectorMode] = useState<InjectorMode>("retroauth")
   const [importableInstances, setImportableInstances] = useState<ImportableLauncherInstance[]>([])
   const [selectedImportIds, setSelectedImportIds] = useState<string[]>([])
   const [importingInstances, setImportingInstances] = useState(false)
@@ -73,19 +73,14 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
     const loadSettings = async () => {
       const api = window.electronAPI
       if (!api) return
-      const [min, max, authlibEnabled, retroauthEnabled, discoveredInstances] = await Promise.all([
+      const [min, max, discoveredInstances] = await Promise.all([
         api.getSetting("memoryMin"),
         api.getSetting("memoryMax"),
-        api.getSetting("authlibInjectorEnabled"),
-        api.getSetting("retroauthInjectorEnabled"),
         api.discoverImportableInstances?.() ?? Promise.resolve([]),
       ])
       if (cancelled) return
-      setMemoryMin(normalizeMemoryValue(min, "2G"))
+      setMemoryMin(normalizeMemoryValue(min, "512M"))
       setMemoryMax(normalizeMemoryValue(max, "4G"))
-      if (authlibEnabled === "true") setInjectorMode("authlib")
-      else if (retroauthEnabled === "true") setInjectorMode("retroauth")
-      else setInjectorMode("disabled")
       setImportableInstances(discoveredInstances)
       setSelectedImportIds(discoveredInstances.map((i: ImportableLauncherInstance) => i.id))
     }
@@ -98,7 +93,7 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
   const anyLoginLoading = elyByLoading || xnSkinsLoading || microsoftLoading
   const isLastStep = stepIndex === steps.length - 1
   const currentStep = steps[stepIndex]
-  const STEP_ICONS = [IconRocket, IconRocket, IconRocket, IconRocket, IconRocket, IconRocket]
+  const STEP_ICONS = [IconRocket, IconRocket, IconRocket, IconRocket, IconRocket]
   const CurrentStepIcon = STEP_ICONS[stepIndex] ?? IconRocket
 
   const canProceed = useMemo(() => {
@@ -111,9 +106,8 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
       const max = Number.parseInt(memoryMax.replace(/[^\d]/g, ""), 10)
       return Number.isFinite(min) && Number.isFinite(max) && min > 0 && max >= min
     }
-    if (stepIndex === 5) return Boolean(injectorMode)
     return true
-  }, [accounts.length, injectorMode, memoryMax, memoryMin, selectedLanguage, selectedTheme, stepIndex])
+  }, [accounts.length, memoryMax, memoryMin, selectedLanguage, selectedTheme, stepIndex])
 
   const persistLanguage = (languageId: OnboardingLanguage) => {
     setSelectedLanguage(languageId)
@@ -174,10 +168,8 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
     const api = window.electronAPI
     if (!api) return
     await Promise.all([
-      api.setSetting("memoryMin", normalizeMemoryValue(memoryMin, "2G")),
+      api.setSetting("memoryMin", normalizeMemoryValue(memoryMin, "512M")),
       api.setSetting("memoryMax", normalizeMemoryValue(memoryMax, "4G")),
-      api.setSetting("authlibInjectorEnabled", injectorMode === "authlib" ? "true" : "false"),
-      api.setSetting("retroauthInjectorEnabled", injectorMode === "retroauth" ? "true" : "false"),
     ])
   }
 
@@ -200,7 +192,6 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
       case 2: return <StepImport copy={copy} importableInstances={importableInstances} selectedImportIds={selectedImportIds} importingInstances={importingInstances} importedCount={importedCount} onToggle={toggleImportSelection} onImport={importSelectedInstances} />
       case 3: return <StepAccount copy={copy} accounts={accounts as any} anyLoginLoading={anyLoginLoading} getAvatarUrl={getAvatarUrl} setActiveAccount={setActiveAccount} onProviderLogin={handleProviderLogin} onOpenOffline={() => setShowOfflineAccountModal(true)} />
       case 4: return <StepMemory copy={copy} memoryMin={memoryMin} memoryMax={memoryMax} onChange={(min, max) => { setMemoryMin(min); setMemoryMax(max) }} onError={setError} />
-      case 5: return <StepInjector copy={copy} injectorMode={injectorMode} onChange={setInjectorMode} onError={setError} />
       default: return null
     }
   }

@@ -134,7 +134,7 @@ export function useBuildLaunch({ account }: { account?: Account }) {
 
     // Per-build Java override (memory, java path, extra JVM args)
     const useBuildJava = build.javaOverride === true
-    const memoryMin = useBuildJava && build.memoryMin ? build.memoryMin : settings.savedMemoryMin || "2G"
+    const memoryMin = useBuildJava && build.memoryMin ? build.memoryMin : settings.savedMemoryMin || "512M"
     const memoryMax = useBuildJava && build.memoryMax ? build.memoryMax : settings.savedMemoryMax || "4G"
     const buildJavaPath = useBuildJava && build.javaPath ? build.javaPath : undefined
     const normalizedJavaPath = normalizeJavaPath(buildJavaPath ?? await window.electronAPI.getSetting("javaPath"))

@@ -41,7 +41,7 @@ export async function getHandler(): Promise<XnlcHandler> {
     const { createDefaultHandler } = await loadXnlcModule()
     handler = createDefaultHandler({
       memoryMax: "4G",
-      memoryMin: "2G",
+      memoryMin: "512M",
     })
   }
 

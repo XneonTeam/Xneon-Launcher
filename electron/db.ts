@@ -58,7 +58,7 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   showSnapshot: "false",
   showBeta: "false",
   showAlpha: "false",
-  memoryMin: "2G",
+  memoryMin: "512M",
   memoryMax: "4G",
   javaPath: "",
   javaArgs: "",

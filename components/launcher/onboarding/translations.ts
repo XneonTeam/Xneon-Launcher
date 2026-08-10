@@ -1,4 +1,3 @@
-export type InjectorMode = "disabled" | "authlib" | "retroauth"
 export type OnboardingLanguage = "ru" | "en" | "uk" | "de" | "es"
 export type LauncherSource = "gdlauncher" | "prism" | "multimc" | "polymc" | "astralrinth" | "xlauncher" | "modrinthapp"
 
@@ -30,9 +29,6 @@ export type OnboardingCopy = {
   memoryMin: string
   memoryMax: string
   memoryHint: string
-  injectorSummary: string
-  summaryNoAccount: string
-  injectorModes: Array<{ id: InjectorMode; title: string; description: string }>
   sourceNames: Record<string, string>
   sourcePaths: Record<string, string>
   errors: {
@@ -51,7 +47,6 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
       { title: "Импорт", description: "Импортируй найденные сборки из другого лаунчера." },
       { title: "Аккаунт", description: "Добавь хотя бы один аккаунт прямо здесь." },
       { title: "Память", description: "Укажи, сколько RAM выделять игре." },
-      { title: "Инжектор", description: "Выбери режим авторизации по умолчанию." },
     ],
     skip: "Пропустить",
     back: "Назад",
@@ -79,13 +74,6 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     memoryMin: "Минимум, GB",
     memoryMax: "Максимум, GB",
     memoryHint: "Минимум не должен быть больше максимума. Обычный стартовый вариант: `2G` и `4G`.",
-    injectorSummary: "Итог",
-    summaryNoAccount: "без аккаунта",
-    injectorModes: [
-      { id: "retroauth", title: "RetroAuth", description: "Рекомендуемый режим по умолчанию для совместимости и HD-скинов." },
-      { id: "authlib", title: "Authlib Injector", description: "Классический authlib-режим для совместимых серверов и сборок." },
-      { id: "disabled", title: "Отключено", description: "Запуск без дополнительного инжектора." },
-    ],
     sourceNames: { gdlauncher: "GDLauncher", prism: "Prism Launcher", astralrinth: "AstralRinth", xlauncher: "X Launcher", modrinthapp: "Modrinth App" },
     sourcePaths: {
       xlauncher: "~/.minecraftx/instances",
@@ -108,7 +96,6 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
       { title: "Import", description: "Import detected instances from another launcher." },
       { title: "Account", description: "Add at least one account right here." },
       { title: "Memory", description: "Choose how much RAM the game should use." },
-      { title: "Injector", description: "Select the default authentication mode." },
     ],
     skip: "Skip",
     back: "Back",
@@ -136,13 +123,6 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     memoryMin: "Minimum, GB",
     memoryMax: "Maximum, GB",
     memoryHint: "Minimum must not be greater than maximum. A common starting point is `2G` and `4G`.",
-    injectorSummary: "Summary",
-    summaryNoAccount: "no account",
-    injectorModes: [
-      { id: "retroauth", title: "RetroAuth", description: "Recommended default mode for compatibility and HD skins." },
-      { id: "authlib", title: "Authlib Injector", description: "Classic authlib mode for compatible servers and modpacks." },
-      { id: "disabled", title: "Disabled", description: "Launch without an additional injector." },
-    ],
     sourceNames: { gdlauncher: "GDLauncher", prism: "Prism Launcher", astralrinth: "AstralRinth", xlauncher: "X Launcher", modrinthapp: "Modrinth App" },
     sourcePaths: {
       xlauncher: "~/.minecraftx/instances",
@@ -165,7 +145,6 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
       { title: "Імпорт", description: "Імпортуй знайдені збірки з іншого лаунчера." },
       { title: "Акаунт", description: "Додай хоча б один акаунт прямо тут." },
       { title: "Пам'ять", description: "Вкажи, скільки RAM виділяти грі." },
-      { title: "Інжектор", description: "Обери типовий режим авторизації." },
     ],
     skip: "Пропустити",
     back: "Назад",
@@ -193,13 +172,6 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     memoryMin: "Мінімум, GB",
     memoryMax: "Максимум, GB",
     memoryHint: "Мінімум не повинен бути більшим за максимум. Звичний стартовий варіант: `2G` і `4G`.",
-    injectorSummary: "Підсумок",
-    summaryNoAccount: "без акаунта",
-    injectorModes: [
-      { id: "retroauth", title: "RetroAuth", description: "Рекомендований режим за замовчуванням для сумісності та HD-скінів." },
-      { id: "authlib", title: "Authlib Injector", description: "Класичний authlib-режим для сумісних серверів і збірок." },
-      { id: "disabled", title: "Вимкнено", description: "Запуск без додаткового інжектора." },
-    ],
     sourceNames: { gdlauncher: "GDLauncher", prism: "Prism Launcher", astralrinth: "AstralRinth", xlauncher: "X Launcher", modrinthapp: "Modrinth App" },
     sourcePaths: {
       xlauncher: "~/.minecraftx/instances",
@@ -222,7 +194,6 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
       { title: "Import", description: "Importiere gefundene Instanzen aus einem anderen Launcher." },
       { title: "Konto", description: "Füge direkt hier mindestens ein Konto hinzu." },
       { title: "Speicher", description: "Lege fest, wie viel RAM das Spiel nutzen soll." },
-      { title: "Injector", description: "Wähle den Standardmodus für die Anmeldung." },
     ],
     skip: "Überspringen",
     back: "Zurück",
@@ -250,13 +221,6 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     memoryMin: "Minimum, GB",
     memoryMax: "Maximum, GB",
     memoryHint: "Das Minimum darf nicht größer als das Maximum sein. Ein üblicher Startwert ist `2G` und `4G`.",
-    injectorSummary: "Zusammenfassung",
-    summaryNoAccount: "kein Konto",
-    injectorModes: [
-      { id: "retroauth", title: "RetroAuth", description: "Empfohlener Standardmodus für Kompatibilität und HD-Skins." },
-      { id: "authlib", title: "Authlib Injector", description: "Klassischer authlib-Modus für kompatible Server und Modpacks." },
-      { id: "disabled", title: "Deaktiviert", description: "Start ohne zusätzlichen Injector." },
-    ],
     sourceNames: { gdlauncher: "GDLauncher", prism: "Prism Launcher", astralrinth: "AstralRinth", xlauncher: "X Launcher", modrinthapp: "Modrinth App" },
     sourcePaths: {
       xlauncher: "~/.minecraftx/instances",
@@ -279,7 +243,6 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
       { title: "Importar", description: "Importa las instancias detectadas desde otro launcher." },
       { title: "Cuenta", description: "Añade al menos una cuenta aquí mismo." },
       { title: "Memoria", description: "Define cuánta RAM debe usar el juego." },
-      { title: "Injector", description: "Elige el modo de autenticación predeterminado." },
     ],
     skip: "Omitir",
     back: "Atrás",
@@ -307,13 +270,6 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     memoryMin: "Mínimo, GB",
     memoryMax: "Máximo, GB",
     memoryHint: "El mínimo no debe ser mayor que el máximo. Un punto de partida habitual es `2G` y `4G`.",
-    injectorSummary: "Resumen",
-    summaryNoAccount: "sin cuenta",
-    injectorModes: [
-      { id: "retroauth", title: "RetroAuth", description: "Modo predeterminado recomendado para compatibilidad y skins HD." },
-      { id: "authlib", title: "Authlib Injector", description: "Modo authlib clásico para servidores y modpacks compatibles." },
-      { id: "disabled", title: "Desactivado", description: "Iniciar sin un injector adicional." },
-    ],
     sourceNames: { gdlauncher: "GDLauncher", prism: "Prism Launcher", astralrinth: "AstralRinth", xlauncher: "X Launcher", modrinthapp: "Modrinth App" },
     sourcePaths: {
       xlauncher: "~/.minecraftx/instances",

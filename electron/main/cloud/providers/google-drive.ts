@@ -1,4 +1,4 @@
-import { BrowserWindow, shell, app } from "electron"
+import { BrowserWindow, shell } from "electron"
 import http from "http"
 import { URL } from "url"
 import fs from "fs/promises"
@@ -20,10 +20,6 @@ const GOOGLE_UPLOAD_API = "https://www.googleapis.com/upload/drive/v3"
 const BASE_FOLDER = "Xneon Launcher"
 const SUB_FOLDERS = ["builds", "accounts"]
 
-function getTokenPath(): string {
-  return path.join(app.getPath("userData"), "cloud-google-drive.json")
-}
-
 type TokenData = {
   access_token: string
   refresh_token?: string
@@ -39,31 +35,15 @@ function isValidToken(data: TokenData | null): data is TokenData {
 async function readToken(): Promise<TokenData | null> {
   try {
     const raw = await dbHelpers.getCloudConfig("google-drive")
-    const data = JSON.parse(raw) as TokenData
+    const data = JSON.parse(raw ?? "null") as TokenData
     if (isValidToken(data)) return data
-  } catch { /* noop */ }
-  try {
-    const raw = await fs.readFile(getTokenPath(), "utf-8")
-    const data = JSON.parse(raw) as TokenData
-    if (isValidToken(data)) {
-      try {
-        await dbHelpers.setCloudConfig("google-drive", raw)
-        await fs.unlink(getTokenPath())
-      } catch { /* noop */ }
-      return data
-    }
   } catch { /* noop */ }
   return null
 }
 
 async function writeToken(data: TokenData): Promise<void> {
   const raw = JSON.stringify(data)
-  try {
-    await dbHelpers.setCloudConfig("google-drive", raw)
-    await fs.unlink(getTokenPath()).catch(() => {})
-  } catch {
-    await fs.writeFile(getTokenPath(), raw)
-  }
+  await dbHelpers.setCloudConfig("google-drive", raw)
 }
 
 async function refreshAccessToken(token: TokenData): Promise<TokenData> {
@@ -241,7 +221,6 @@ export class GoogleDriveProvider implements CloudProvider {
 
   async logout(): Promise<void> {
     try { await dbHelpers.removeCloudConfig("google-drive") } catch { /* noop */ }
-    try { await fs.unlink(getTokenPath()) } catch { /* noop */ }
   }
 
   async ensureBaseFolder(): Promise<void> {

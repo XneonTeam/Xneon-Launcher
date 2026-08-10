@@ -1,16 +1,11 @@
 import fs from "fs/promises"
 import path from "path"
-import { app } from "electron"
 import type { CloudProvider, CloudAuthResult, CloudFileListResult, CloudUploadResult, CloudDownloadResult, CloudStorageQuota, CloudFileInfo } from "../provider"
 import { createClient } from "webdav"
 import { dbHelpers } from "../../../db"
 
 const BASE_FOLDER = "Xneon Launcher"
 const SUB_FOLDERS = ["builds", "accounts"]
-
-function getConfigPath(): string {
-  return path.join(app.getPath("userData"), "cloud-webdav.json")
-}
 
 type WebDavConfig = {
   url: string
@@ -26,25 +21,12 @@ async function readConfig(): Promise<WebDavConfig | null> {
     const raw = await dbHelpers.getCloudConfig("webdav")
     if (raw) return JSON.parse(raw) as WebDavConfig
   } catch { /* noop */ }
-  try {
-    const raw = await fs.readFile(getConfigPath(), "utf-8")
-    const config = JSON.parse(raw) as WebDavConfig
-    try {
-      await dbHelpers.setCloudConfig("webdav", raw)
-      await fs.unlink(getConfigPath())
-    } catch { /* noop */ }
-    return config
-  } catch { return null }
+  return null
 }
 
 async function writeConfig(config: WebDavConfig): Promise<void> {
   const raw = JSON.stringify(config)
-  try {
-    await dbHelpers.setCloudConfig("webdav", raw)
-    await fs.unlink(getConfigPath()).catch(() => {})
-  } catch {
-    await fs.writeFile(getConfigPath(), raw)
-  }
+  await dbHelpers.setCloudConfig("webdav", raw)
 }
 
 async function getClient(): Promise<ReturnType<typeof createClient> | null> {
@@ -94,7 +76,6 @@ export class WebDavProvider implements CloudProvider {
 
   async logout(): Promise<void> {
     try { await dbHelpers.removeCloudConfig("webdav") } catch { /* noop */ }
-    try { await fs.unlink(getConfigPath()) } catch { /* noop */ }
     cachedClient = null
     cachedConfig = null
   }

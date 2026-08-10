@@ -17,6 +17,8 @@
   "settings.tab.about": "Acerca de",
   "settings.tab.java": "Java",
   "settings.ram": "Memoria RAM",
+  "settings.ram.allocated": "Memoria asignada",
+  "settings.ram.desc": "Máxima memoria disponible para Minecraft.",
   "settings.ramMin": "512 MB",
   "settings.ramMax": "32 GB",
   "settings.versionTypes": "Tipos de versiones de Minecraft",

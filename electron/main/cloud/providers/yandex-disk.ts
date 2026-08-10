@@ -1,4 +1,4 @@
-import { shell, app } from "electron"
+import { shell } from "electron"
 import http from "http"
 import { URL } from "url"
 import fs from "fs/promises"
@@ -17,10 +17,6 @@ const YANDEX_API = "https://cloud-api.yandex.net/v1"
 const BASE_FOLDER = "Xneon Launcher"
 const SUB_FOLDERS = ["builds", "accounts"]
 
-function getTokenPath(): string {
-  return path.join(app.getPath("userData"), "cloud-yandex.json")
-}
-
 type TokenData = { access_token: string; refresh_token?: string; expires_at?: number }
 
 async function readToken(): Promise<TokenData | null> {
@@ -28,25 +24,12 @@ async function readToken(): Promise<TokenData | null> {
     const raw = await dbHelpers.getCloudConfig("yandex")
     if (raw) return JSON.parse(raw) as TokenData
   } catch { /* noop */ }
-  try {
-    const raw = await fs.readFile(getTokenPath(), "utf-8")
-    const data = JSON.parse(raw) as TokenData
-    try {
-      await dbHelpers.setCloudConfig("yandex", raw)
-      await fs.unlink(getTokenPath())
-    } catch { /* noop */ }
-    return data
-  } catch { return null }
+  return null
 }
 
 async function writeToken(data: TokenData): Promise<void> {
   const raw = JSON.stringify(data)
-  try {
-    await dbHelpers.setCloudConfig("yandex", raw)
-    await fs.unlink(getTokenPath()).catch(() => {})
-  } catch {
-    await fs.writeFile(getTokenPath(), raw)
-  }
+  await dbHelpers.setCloudConfig("yandex", raw)
 }
 
 async function refreshAccessToken(token: TokenData): Promise<TokenData> {
@@ -150,7 +133,6 @@ export class YandexDiskProvider implements CloudProvider {
   async isAuthenticated(): Promise<boolean> { return (await getValidToken()) !== null }
   async logout(): Promise<void> {
     try { await dbHelpers.removeCloudConfig("yandex") } catch { /* noop */ }
-    try { await fs.unlink(getTokenPath()) } catch { /* noop */ }
   }
 
   async ensureBaseFolder(): Promise<void> {

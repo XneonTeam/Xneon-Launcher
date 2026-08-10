@@ -24,7 +24,15 @@ export async function discoverAllInstances(): Promise<LauncherInstance[]> {
   const all = [...gd, ...mmcLike, ...astral, ...xlauncher, ...modrinthapp].sort((a, b) => a.name.localeCompare(b.name, "ru"))
   console.log('[discoverAllInstances] Total instances:', all.length)
   console.log('[discoverAllInstances] Sources:', all.map(i => `${i.name} (${i.source})`))
-  return all
+
+  const hydrated = await Promise.all(
+    all.map(async (instance) => ({
+      ...instance,
+      icon: await readIconAsDataUrl(instance.icon),
+    }))
+  )
+
+  return hydrated
 }
 
 export async function importLauncherInstance(instance: LauncherInstance) {

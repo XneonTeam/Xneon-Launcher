@@ -75,7 +75,6 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         isExpanded ? "w-[240px]" : "w-[72px]"
       )}
     >
-      {/* Header with Toggle */}
       <div className={cn(
         "flex items-center mb-4 px-2",
         isExpanded ? "justify-end" : "justify-center"
@@ -94,50 +93,46 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         </button>
       </div>
 
-      {/* Navigation */}
       <nav className="flex flex-col gap-1 flex-1 px-2">
         {sidebarItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => onTabChange(item.id)}
-            className={cn(
-              "group relative rounded-xl flex items-center transition-all duration-300",
-              "hover:bg-primary/10",
-              isExpanded 
-                ? "w-full h-12 px-3 gap-3 justify-start" 
-                : "w-12 h-12 justify-center mx-auto",
-              activeTab === item.id
-                ? "bg-primary/20 text-primary shadow-[0_0_15px_var(--glow-primary)]"
-                : "text-muted-foreground hover:text-primary"
-            )}
-          >
-            {/* Active indicator */}
-            <span
+          <div key={item.id} className="relative group">
+            <button
+              onClick={() => onTabChange(item.id)}
               className={cn(
-                "absolute left-0 w-1 h-6 rounded-r-full bg-primary transition-all duration-300",
-                activeTab === item.id ? "opacity-100" : "opacity-0"
+                "relative rounded-xl flex items-center transition-all duration-300 w-full h-12",
+                "hover:bg-primary/10",
+                isExpanded 
+                  ? "px-3 gap-3 justify-start" 
+                  : "justify-center mx-auto w-12",
+                activeTab === item.id
+                  ? "bg-primary/20 text-primary shadow-[0_0_15px_var(--glow-primary)]"
+                  : "text-muted-foreground hover:text-primary"
               )}
-            />
-            
-            {item.icon}
-            
-            {/* Label - shown when expanded */}
-            {isExpanded && (
-              <span className="text-sm font-medium whitespace-nowrap overflow-hidden">
-                {t(item.labelKey)}
-              </span>
-            )}
-            
-            {/* Tooltip - only when collapsed */}
+            >
+              <span
+                className={cn(
+                  "absolute left-0 w-1 h-6 rounded-r-full bg-primary transition-all duration-300",
+                  activeTab === item.id ? "opacity-100" : "opacity-0"
+                )}
+              />
+              
+              {item.icon}
+              
+              {isExpanded && (
+                <span className="text-sm font-medium whitespace-nowrap overflow-hidden">
+                  {t(item.labelKey)}
+                </span>
+              )}
+            </button>
+
             {!isExpanded && (
-              <span className="sr-only">
+              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 rounded-lg bg-popover border border-border shadow-lg text-sm font-medium text-popover-foreground whitespace-nowrap opacity-0 scale-95 pointer-events-none transition-all duration-150 z-50 group-hover:opacity-100 group-hover:scale-100">
                 {t(item.labelKey)}
-              </span>
+              </div>
             )}
-          </button>
+          </div>
         ))}
       </nav>
-
     </aside>
   );
 }

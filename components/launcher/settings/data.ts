@@ -43,7 +43,7 @@ export const presetResolutions: Resolution[] = [
 
 export const settingsTabs: { id: import("./types").SettingsTab; labelKey: string; icon: string }[] = [
   { id: "game", labelKey: "settings.tab.game", icon: "IconDeviceGamepad2" },
-  { id: "java", labelKey: "settings.tab.java", icon: "IconBrandJavascript" },
+  { id: "java", labelKey: "settings.tab.java", icon: "IconCoffee" },
   { id: "themes", labelKey: "settings.tab.themes", icon: "IconPalette" },
   { id: "language", labelKey: "settings.tab.language", icon: "IconLanguage" },
   { id: "about", labelKey: "settings.tab.about", icon: "IconInfoCircle" },
@@ -61,15 +61,4 @@ export function applyTheme(theme: Theme) {
   root.style.setProperty("--glow-accent", `oklch(${theme.accentOklch} / 0.4)`)
   root.style.setProperty("--background", `oklch(${theme.backgroundOklch})`)
   root.style.setProperty("--sidebar", `oklch(${theme.backgroundOklch})`)
-}
-
-export function applyCustomTheme(primary: string, accent: string) {
-  const root = document.documentElement
-  root.style.setProperty("--primary", primary)
-  root.style.setProperty("--ring", primary)
-  root.style.setProperty("--sidebar-primary", primary)
-  root.style.setProperty("--glow-primary", primary + "66")
-  root.style.setProperty("--accent", accent)
-  root.style.setProperty("--sidebar-accent", accent)
-  root.style.setProperty("--glow-accent", accent + "66")
 }

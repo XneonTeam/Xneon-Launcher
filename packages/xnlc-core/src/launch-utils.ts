@@ -154,7 +154,7 @@ export function resolveLaunchRequest(options: LaunchRequestOptions): ResolvedLau
     mcVersion,
     loaderType: options.loaderType ?? (options.modLoader ? modLoaderToLoaderType[options.modLoader] : "vanilla"),
     loaderVersion: options.loaderVersion,
-    memoryMin: options.memoryMin ?? "2G",
+    memoryMin: options.memoryMin ?? "512M",
     memoryMax: options.memoryMax ?? "4G",
     javaPath: options.javaPath,
     width: options.width ?? 1280,
