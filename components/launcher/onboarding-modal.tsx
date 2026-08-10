@@ -56,6 +56,7 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
   const [importableInstances, setImportableInstances] = useState<ImportableLauncherInstance[]>([])
   const [selectedImportIds, setSelectedImportIds] = useState<string[]>([])
   const [importingInstances, setImportingInstances] = useState(false)
+  const [activeFilter, setActiveFilter] = useState<string | null>(null)
   const [importedCount, setImportedCount] = useState(0)
   const [elyByLoading, setElyByLoading] = useState(false)
   const [xnSkinsLoading, setXnSkinsLoading] = useState(false)
@@ -148,14 +149,8 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
     setSelectedImportIds((c) => c.includes(instanceId) ? c.filter((id) => id !== instanceId) : [...c, instanceId])
   }
 
-  const toggleImportSource = (source: string) => {
-    const sourceIds = importableInstances.filter((i) => i.source === source).map((i) => i.id)
-    const allSelected = sourceIds.every((id) => selectedImportIds.includes(id))
-    if (allSelected) {
-      setSelectedImportIds((c) => c.filter((id) => !sourceIds.includes(id)))
-    } else {
-      setSelectedImportIds((c) => [...new Set([...c, ...sourceIds])])
-    }
+  const filterSource = (source: string) => {
+    setActiveFilter((prev) => prev === source ? null : source)
   }
 
   const importSelectedInstances = async () => {
@@ -199,7 +194,7 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
     switch (stepIndex) {
       case 0: return <StepLanguage selectedLanguage={selectedLanguage} copy={copy} onSelect={persistLanguage} />
       case 1: return <StepTheme selectedTheme={selectedTheme} onSelect={persistTheme} />
-      case 2: return <StepImport copy={copy} importableInstances={importableInstances} selectedImportIds={selectedImportIds} importingInstances={importingInstances} importedCount={importedCount} onToggle={toggleImportSelection} onToggleSource={toggleImportSource} onImport={importSelectedInstances} />
+      case 2: return <StepImport copy={copy} importableInstances={importableInstances} selectedImportIds={selectedImportIds} activeFilter={activeFilter} importingInstances={importingInstances} importedCount={importedCount} onToggle={toggleImportSelection} onFilterSource={filterSource} onImport={importSelectedInstances} />
       case 3: return <StepAccount copy={copy} accounts={accounts as any} anyLoginLoading={anyLoginLoading} getAvatarUrl={getAvatarUrl} setActiveAccount={setActiveAccount} onProviderLogin={handleProviderLogin} onOpenOffline={() => setShowOfflineAccountModal(true)} />
       case 4: return <StepMemory copy={copy} memoryMin={memoryMin} memoryMax={memoryMax} onChange={(min, max) => { setMemoryMin(min); setMemoryMax(max) }} onError={setError} />
       default: return null
