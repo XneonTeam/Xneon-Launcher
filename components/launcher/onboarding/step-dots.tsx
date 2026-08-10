@@ -19,7 +19,7 @@ type StepDotsProps = {
 
 export function StepDots({ steps, stepIndex, onSelectStep }: StepDotsProps) {
   return (
-    <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
+    <div className="flex gap-2">
       {steps.map((step, index) => {
         const StepIcon = STEP_ICONS[index] ?? IconRocket
         const state = getStepState(index, stepIndex)
@@ -30,7 +30,7 @@ export function StepDots({ steps, stepIndex, onSelectStep }: StepDotsProps) {
             type="button"
             onClick={() => onSelectStep(index)}
             className={cn(
-              "flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all duration-200",
+              "flex flex-1 items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all duration-200",
               state === "current"
                 ? "border-primary bg-primary/10 shadow-[0_0_16px_var(--glow-primary)]"
                 : state === "done"
