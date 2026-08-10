@@ -71,17 +71,19 @@ async function readXLauncherInstance(instanceDir: string): Promise<LauncherInsta
     const rpDirs = await getInstanceContentDirs(instanceDir, "resourcepacks")
     const spDirs = await getInstanceContentDirs(instanceDir, "shaderpacks")
 
+    let iconPath: string | undefined
+    for (const sub of [path.join(instanceDir, "minecraft"), path.join(instanceDir, ".minecraft"), instanceDir]) {
+      const candidate = path.join(sub, "icon.png")
+      if (await fileExists(candidate)) { iconPath = candidate; break }
+    }
+
     return {
       id: `xlauncher:${path.basename(instanceDir)}`,
       name: parsed.name?.trim() || path.basename(instanceDir),
       version: parsed.runtime?.minecraft?.trim() || "unknown",
       modLoader: detectXLauncherModLoader(parsed.runtime),
       loaderVersion: detectXLauncherLoaderVersion(parsed.runtime),
-      icon: await resolveInstanceIconPath(parsed.icon, [
-        instanceDir,
-        path.join(instanceDir, ".minecraft"),
-        path.dirname(instanceDir),
-      ]),
+      icon: iconPath,
       path: parsed.path?.trim() || instanceDir,
       source: "xlauncher",
       modCount: await countFilesInDirs(modsDirs),

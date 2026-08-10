@@ -1,9 +1,9 @@
 {
   "name": "xneon-launcher",
   "version": "1.0.1",
-  "description": "XNeon Launcher desktop application",
+  "description": "Xneon Launcher desktop application",
   "author": {
-    "name": "XNeon Launcher",
+    "name": "Xneon Launcher",
     "email": "support@xneon.org"
   },
   "homepage": "https://launcher.xneon.org",
@@ -96,7 +96,7 @@
   },
   "build": {
     "appId": "com.xneonlauncher.app",
-    "productName": "XNeon Launcher",
+    "productName": "Xneon Launcher",
     "npmRebuild": false,
     "forceCodeSigning": false,
     "publish": {
@@ -139,7 +139,7 @@
         "pacman"
       ],
       "category": "Game",
-      "maintainer": "XNeon Launcher <support@xneon.org>",
+      "maintainer": "Xneon Launcher <support@xneon.org>",
       "artifactName": "${name}-${version}-${arch}.${ext}"
     },
     "deb": {
