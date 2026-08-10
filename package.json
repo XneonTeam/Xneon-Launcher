@@ -18,7 +18,7 @@
     "@emoji-mart/react": "^1.1.1",
     "@fontsource/inter": "^5.3.0",
     "@fontsource/plus-jakarta-sans": "^5.3.0",
-    "@xnlc/core": "1.0.0",
+    "@xnlc/core": "1.0.2",
     "@xnlc/mods": "1.0.0",
     "@xnlc/p2p": "^1.0.2",
     "@xnlc/types": "1.0.4",
