@@ -15,6 +15,7 @@ import { SettingsVersions } from "./settings-versions"
 import { SettingsThemes } from "./settings-themes"
 import { SettingsLanguage } from "./settings-language-about"
 import { SettingsAbout } from "./settings-language-about"
+import { SettingsUpdate } from "./settings-update"
 import type { SettingsTab, JavaInstallation } from "./types"
 
 export function SettingsPage() {
@@ -412,8 +413,9 @@ export function SettingsPage() {
         )}
 
         {activeSettingsTab === "about" && (
-          <div className="min-h-0 flex-1 overflow-y-auto pr-6">
+          <div className="min-h-0 flex-1 overflow-y-auto pr-6 space-y-8">
             <SettingsAbout t={t} />
+            <SettingsUpdate />
           </div>
         )}
       </div>

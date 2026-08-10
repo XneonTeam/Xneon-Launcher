@@ -9,7 +9,7 @@
   "homepage": "https://launcher.xneon.org",
   "repository": {
     "type": "git",
-    "url": "git+https://git.xneon.org/MAINER4IK/Xneon-Launcher.git"
+    "url": "git+https://github.com/MAINER4IK/xnlauncher.git"
   },
   "private": true,
   "main": "dist-electron/main/index.js",
@@ -31,6 +31,7 @@
     "iconv-lite": "^0.7.3",
     "prismarine-nbt": "^2.8.0",
     "sql.js": "^1.14.1",
+    "electron-updater": "^6.8.9",
     "toml": "^5.0.0",
     "webdav": "^5.10.0"
   },
@@ -100,8 +101,9 @@
     "npmRebuild": false,
     "forceCodeSigning": false,
     "publish": {
-      "provider": "generic",
-      "url": "https://git.xneon.org/MAINER4IK/Xneon-Launcher/releases/download/v${version}"
+      "provider": "github",
+      "owner": "MAINER4IK",
+      "repo": "xnlauncher"
     },
     "win": {
       "target": [

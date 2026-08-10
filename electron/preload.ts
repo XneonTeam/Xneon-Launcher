@@ -290,4 +290,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   quickPlayList: (buildName?: string, gameDir?: string) => ipcRenderer.invoke('quickplay:list', buildName, gameDir) as Promise<QuickPlayEntry[]>,
   quickPlayClear: (buildName?: string, gameDir?: string) => ipcRenderer.invoke('quickplay:clear', buildName, gameDir) as Promise<void>,
   quickPlayRemove: (buildName: string | undefined, gameDir: string | undefined, entry: QuickPlayEntry) => ipcRenderer.invoke('quickplay:remove', buildName, gameDir, entry) as Promise<void>,
+
+  // ── Updater ─────────────────────────────────────────────
+  updateCheck: invoke<{ available: boolean; version?: string; error?: string }>('update:check'),
+  updateDownload: invoke<{ success: boolean; error?: string }>('update:download'),
+  updateInstall: invoke<void>('update:install'),
+  updateInfo: invoke<{ version: string | null; downloaded: boolean }>('update:info'),
+  onUpdateStatus: (callback: (status: { status: string; version?: string; releaseDate?: string; releaseNotes?: string; error?: string }) => void) => subscribe('update:status', callback),
+  onUpdateProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => subscribe('update:progress', callback),
 })
