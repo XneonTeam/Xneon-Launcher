@@ -35,7 +35,7 @@ function serveHtml() {
 }
 
 async function renderVideo() {
-  console.log("XNeon Launcher — Video Render")
+  console.log("Xneon Launcher — Video Render")
   console.log("=".repeat(40))
   console.log(`Resolution: 1920×1080`)
   console.log(`FPS: ${FPS}`)

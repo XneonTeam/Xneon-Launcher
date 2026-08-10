@@ -1,10 +1,10 @@
 <p align="center">
   <a href="https://launcher.xneon.org" target="_blank">
-    <img alt="XNeon Launcher" width="120" src="https://launcher.xneon.org/icon.png">
+    <img alt="Xneon Launcher" width="120" src="https://launcher.xneon.org/icon.png">
   </a>
 </p>
 
-<h1 align="center">XNeon Launcher</h1>
+<h1 align="center">Xneon Launcher</h1>
 
 <p align="center">
   <a href="https://github.com/MAINER4IK/xnlauncher/releases/latest">
@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <strong>XNeon Launcher</strong> — современный лаунчер для Minecraft с открытым исходным кодом. Быстрый, гибкий, с поддержкой импорта сборок из других лаунчеров и облачным хранением.
+  <strong>Xneon Launcher</strong> — современный лаунчер для Minecraft с открытым исходным кодом. Быстрый, гибкий, с поддержкой импорта сборок из других лаунчеров и облачным хранением.
 </p>
 
 ## Features
