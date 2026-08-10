@@ -148,6 +148,16 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
     setSelectedImportIds((c) => c.includes(instanceId) ? c.filter((id) => id !== instanceId) : [...c, instanceId])
   }
 
+  const toggleImportSource = (source: string) => {
+    const sourceIds = importableInstances.filter((i) => i.source === source).map((i) => i.id)
+    const allSelected = sourceIds.every((id) => selectedImportIds.includes(id))
+    if (allSelected) {
+      setSelectedImportIds((c) => c.filter((id) => !sourceIds.includes(id)))
+    } else {
+      setSelectedImportIds((c) => [...new Set([...c, ...sourceIds])])
+    }
+  }
+
   const importSelectedInstances = async () => {
     if (!selectedImportIds.length) return
     setImportingInstances(true)
@@ -189,7 +199,7 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
     switch (stepIndex) {
       case 0: return <StepLanguage selectedLanguage={selectedLanguage} copy={copy} onSelect={persistLanguage} />
       case 1: return <StepTheme selectedTheme={selectedTheme} onSelect={persistTheme} />
-      case 2: return <StepImport copy={copy} importableInstances={importableInstances} selectedImportIds={selectedImportIds} importingInstances={importingInstances} importedCount={importedCount} onToggle={toggleImportSelection} onImport={importSelectedInstances} />
+      case 2: return <StepImport copy={copy} importableInstances={importableInstances} selectedImportIds={selectedImportIds} importingInstances={importingInstances} importedCount={importedCount} onToggle={toggleImportSelection} onToggleSource={toggleImportSource} onImport={importSelectedInstances} />
       case 3: return <StepAccount copy={copy} accounts={accounts as any} anyLoginLoading={anyLoginLoading} getAvatarUrl={getAvatarUrl} setActiveAccount={setActiveAccount} onProviderLogin={handleProviderLogin} onOpenOffline={() => setShowOfflineAccountModal(true)} />
       case 4: return <StepMemory copy={copy} memoryMin={memoryMin} memoryMax={memoryMax} onChange={(min, max) => { setMemoryMin(min); setMemoryMax(max) }} onError={setError} />
       default: return null
