@@ -56,10 +56,10 @@ export function NetworkAuthModal({ isOpen, onClose, onSuccess }: {
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-1.5">{t("network.name")}</label>
+            <label className="block text-sm font-medium text-muted-foreground mb-1.5">{t("network.login")}</label>
             <input type="text" value={login} onChange={(e) => setLogin(e.target.value)} required autoFocus
               className="w-full px-4 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary transition-colors"
-              placeholder={t("network.enterNetworkName")} />
+              placeholder={t("network.enterLogin")} />
           </div>
           <div>
             <label className="block text-sm font-medium text-muted-foreground mb-1.5">{t("network.password")}</label>
