@@ -6,6 +6,7 @@ import { useAccounts } from "@/src/AccountsContext"
 import { changeLanguage } from "@/src/i18n"
 import { applyTheme, presetThemes } from "./settings/data"
 import { ONBOARDING_COPY, type OnboardingLanguage } from "./onboarding/translations"
+import { memoryToMb } from "@/lib/memory"
 import { StepDots } from "./onboarding/step-dots"
 import { StepLanguage } from "./onboarding/step-language"
 import { StepTheme } from "./onboarding/step-theme"
@@ -103,9 +104,9 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
     if (stepIndex === 2) return true
     if (stepIndex === 3) return accounts.length > 0
     if (stepIndex === 4) {
-      const min = Number.parseInt(memoryMin.replace(/[^\d]/g, ""), 10)
-      const max = Number.parseInt(memoryMax.replace(/[^\d]/g, ""), 10)
-      return Number.isFinite(min) && Number.isFinite(max) && min > 0 && max >= min
+      const minMb = memoryToMb(memoryMin)
+      const maxMb = memoryToMb(memoryMax)
+      return minMb > 0 && maxMb >= minMb
     }
     return true
   }, [accounts.length, memoryMax, memoryMin, selectedLanguage, selectedTheme, stepIndex])
