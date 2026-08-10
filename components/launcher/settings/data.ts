@@ -23,13 +23,23 @@ export const presetThemes: Theme[] = [
   },
   {
     id: "ocean", name: "Aqua",
-    primary: "#2196F3", accent: "#00BCD4", background: "#0a192f",
-    primaryOklch: "0.60 0.22 230", accentOklch: "0.65 0.18 200", backgroundOklch: "0.13 0.04 240",
+    primary: "#4A8FE7", accent: "#80CAFF", background: "#111419",
+    primaryOklch: "0.62 0.18 245", accentOklch: "0.80 0.12 240", backgroundOklch: "0.09 0.015 250",
   },
   {
     id: "gold", name: "Solar",
     primary: "#FFC107", accent: "#FF9800", background: "#1a1509",
     primaryOklch: "0.80 0.17 85", accentOklch: "0.72 0.19 55", backgroundOklch: "0.12 0.02 80",
+  },
+  {
+    id: "rose", name: "Rose",
+    primary: "#E91E63", accent: "#FF4081", background: "#1a0a12",
+    primaryOklch: "0.55 0.27 355", accentOklch: "0.65 0.28 350", backgroundOklch: "0.11 0.02 340",
+  },
+  {
+    id: "arctic", name: "Arctic",
+    primary: "#78909C", accent: "#B0BEC5", background: "#0f1318",
+    primaryOklch: "0.58 0.04 230", accentOklch: "0.78 0.02 230", backgroundOklch: "0.09 0.01 240",
   },
 ]
 
