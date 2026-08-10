@@ -10,6 +10,7 @@ type StepImportProps = {
   importingInstances: boolean
   importedCount: number
   onToggle: (instanceId: string) => void
+  onToggleSource: (source: string) => void
   onImport: () => void
 }
 
@@ -26,7 +27,7 @@ function formatMessage(template: string, values: Record<string, string | number>
   return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => String(values[key] ?? ""))
 }
 
-export function StepImport({ copy, importableInstances, selectedImportIds, importingInstances, importedCount, onToggle, onImport }: StepImportProps) {
+export function StepImport({ copy, importableInstances, selectedImportIds, importingInstances, importedCount, onToggle, onToggleSource, onImport }: StepImportProps) {
   const grouped = importableInstances.reduce<Record<string, ImportableLauncherInstance[]>>((acc, inst) => {
     const key = inst.source
     if (!acc[key]) acc[key] = []
@@ -40,14 +41,29 @@ export function StepImport({ copy, importableInstances, selectedImportIds, impor
         <>
           <div className="flex items-center justify-between gap-3">
             <div className="flex flex-wrap gap-2">
-              {Object.entries(grouped).map(([source, instances]) => (
-                <div key={source} className={cn("inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm", sourceBadge(source))}>
-                  <LauncherSourceIcon source={source as LauncherSource} className="h-4 w-4 shrink-0" />
-                  <span>{copy.sourceNames[source] ?? source}</span>
-                  <span className="text-current/70">•</span>
-                  <span>{instances.length}</span>
-                </div>
-              ))}
+              {Object.entries(grouped).map(([source, instances]) => {
+                const sourceIds = instances.map((i) => i.id)
+                const selectedCount = sourceIds.filter((id) => selectedImportIds.includes(id)).length
+                const allSelected = selectedCount === sourceIds.length
+                const noneSelected = selectedCount === 0
+                return (
+                  <button
+                    key={source}
+                    type="button"
+                    onClick={() => onToggleSource(source)}
+                    className={cn(
+                      "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition-all",
+                      noneSelected ? "opacity-50" : "",
+                      sourceBadge(source)
+                    )}
+                  >
+                    <LauncherSourceIcon source={source as LauncherSource} className="h-4 w-4 shrink-0" />
+                    <span>{copy.sourceNames[source] ?? source}</span>
+                    <span className="text-current/70">•</span>
+                    <span>{selectedCount}/{instances.length}</span>
+                  </button>
+                )
+              })}
             </div>
             <button
               type="button"
