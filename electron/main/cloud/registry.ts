@@ -7,10 +7,10 @@ import { OneDriveProvider } from "./providers/onedrive"
 
 const providers: Record<CloudProviderId, CloudProvider> = {
   "google-drive": new GoogleDriveProvider(),
+  "onedrive": new OneDriveProvider(),
   "dropbox": new DropboxProvider(),
   "yandex-disk": new YandexDiskProvider(),
   "webdav": new WebDavProvider(),
-  "onedrive": new OneDriveProvider(),
 }
 
 export function getProvider(id: CloudProviderId): CloudProvider {
