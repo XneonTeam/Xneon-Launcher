@@ -2,7 +2,7 @@ import path from "path"
 import fs from "fs/promises"
 import { app } from "electron"
 import type { LauncherInstance } from "./helpers"
-import { fileExists, getInstanceContentDirs, countFilesInDirs, resolveInstanceIconPath, isSupportedImportedLoader, execAsync } from "./helpers"
+import { fileExists, getInstanceContentDirs, countFilesInDirs, resolveInstanceIconPath, isSupportedImportedLoader, readSqliteDb } from "./helpers"
 
 type AstralProfileRow = {
   path: string
@@ -50,17 +50,18 @@ async function getAstralRinthDbPath(): Promise<string> {
 }
 
 async function readAstralDbProfiles(dbPath: string): Promise<AstralProfileRow[]> {
-  try {
-    const { stdout } = await execAsync(`sqlite3 "${dbPath}" "SELECT path, name, icon_path, game_version, mod_loader, mod_loader_version FROM profiles;" -json`, {
-      timeout: 5000,
-      maxBuffer: 1024 * 1024,
-      encoding: "cp866",
-    })
-    if (!stdout.trim()) return []
-    return JSON.parse(stdout) as AstralProfileRow[]
-  } catch {
-    return []
-  }
+  return readSqliteDb<AstralProfileRow>(
+    dbPath,
+    "SELECT path, name, icon_path, game_version, mod_loader, mod_loader_version FROM profiles",
+    (row) => ({
+      path: String(row[0] ?? ""),
+      name: String(row[1] ?? ""),
+      icon_path: row[2] ? String(row[2]) : null,
+      game_version: String(row[3] ?? ""),
+      mod_loader: String(row[4] ?? ""),
+      mod_loader_version: row[5] ? String(row[5]) : null,
+    }),
+  )
 }
 
 export async function discoverAstralRinthInstances(): Promise<LauncherInstance[]> {

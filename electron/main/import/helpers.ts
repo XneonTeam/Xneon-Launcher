@@ -175,7 +175,7 @@ export async function buildImportedContentList(dir: string, type: "mod" | "resou
 
 export async function readIconAsDataUrl(iconPath: string | undefined): Promise<string> {
   if (!iconPath) return ""
-  if (iconPath.startsWith("http://") || iconPath.startsWith("https://")) return iconPath
+  if (iconPath.startsWith("data:") || iconPath.startsWith("http://") || iconPath.startsWith("https://")) return iconPath
   if (!(await fileExists(iconPath))) return ""
   try {
     const ext = path.extname(iconPath).toLowerCase()
@@ -206,7 +206,7 @@ async function resolveInstanceIconPath(iconPath: string | null | undefined, sear
   if (raw.startsWith("http://") || raw.startsWith("https://") || raw.startsWith("data:")) return raw
 
   const normalizedRaw = raw.startsWith("file://") ? raw.slice("file://".length) : raw
-  const candidates = normalizedRaw.startsWith("/")
+  const candidates = path.isAbsolute(normalizedRaw)
     ? [normalizedRaw]
     : searchRoots.flatMap((root) => [
       path.join(root, normalizedRaw),
@@ -220,3 +220,28 @@ async function resolveInstanceIconPath(iconPath: string | null | undefined, sear
 }
 
 export { resolveInstanceIconPath }
+
+let sqlJsInit: any = null
+
+export async function readSqliteDb<T>(dbPath: string, query: string, mapRow: (row: any[]) => T): Promise<T[]> {
+  try {
+    if (!sqlJsInit) {
+      const mod = await import("sql.js")
+      sqlJsInit = (mod as any).default || mod
+    }
+    const SQL = await sqlJsInit()
+    const data = await fs.readFile(dbPath)
+    const db = new SQL.Database(data)
+    const results = db.exec(query)
+    db.close()
+    if (!results.length) return []
+    const columns = results[0].columns
+    return results[0].values.map((row: any[]) => {
+      const obj: Record<string, any> = {}
+      for (let i = 0; i < columns.length; i++) obj[columns[i]] = row[i] ?? null
+      return mapRow(row)
+    })
+  } catch {
+    return []
+  }
+}

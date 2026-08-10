@@ -74,50 +74,6 @@ async function getMmcLikeInstancesDirs(): Promise<{ type: MmcLikeType; dirs: str
   return result
 }
 
-async function getMmcLikeIconsDir(type: MmcLikeType): Promise<string> {
-  const home = app.getPath("home")
-  const isMacOS = process.platform === "darwin"
-  const candidates: string[] = []
-
-  if (type === "multimc") {
-    if (isMacOS) {
-      candidates.push(
-        path.join(home, "Library", "Application Support", "multimc", "icons"),
-      )
-    }
-    candidates.push(
-      path.join(home, ".local", "share", "MultiMC", "icons"),
-      path.join(home, ".var", "app", "org.polymc.PolyMC", "data", "MultiMC", "icons"),
-    )
-  } else if (type === "polymc") {
-    if (isMacOS) {
-      candidates.push(
-        path.join(home, "Library", "Application Support", "PolyMC", "icons"),
-      )
-    }
-    candidates.push(
-      path.join(home, ".local", "share", "PolyMC", "icons"),
-      path.join(home, ".var", "app", "org.polymc.PolyMC", "data", "PolyMC", "icons"),
-    )
-  } else if (type === "prism") {
-    if (isMacOS) {
-      candidates.push(
-        path.join(home, "Library", "Application Support", "PrismLauncher", "icons"),
-      )
-    }
-    candidates.push(
-      path.join(home, ".var", "app", "org.prismlauncher.PrismLauncher", "data", "PrismLauncher", "icons"),
-      path.join(home, ".local", "share", "PrismLauncher", "icons"),
-      path.join(home, ".PrismLauncher", "icons"),
-    )
-  }
-
-  for (const c of candidates) {
-    if (await fileExists(c)) return c
-  }
-  return ""
-}
-
 function parseIniValue(iniContent: string, key: string): string | undefined {
   const lines = iniContent.split("\n")
   for (const line of lines) {
@@ -129,14 +85,13 @@ function parseIniValue(iniContent: string, key: string): string | undefined {
   return undefined
 }
 
-async function readMmcLikeInstance(instanceDir: string, iconsDir: string, type: MmcLikeType): Promise<LauncherInstance | null> {
+async function readMmcLikeInstance(instanceDir: string, type: MmcLikeType): Promise<LauncherInstance | null> {
   try {
     const cfgPath = path.join(instanceDir, "instance.cfg")
     if (!(await fileExists(cfgPath))) return null
 
     const cfgRaw = await fs.readFile(cfgPath, "utf-8")
     const cfgName = parseIniValue(cfgRaw, "name")
-    const cfgIconKey = parseIniValue(cfgRaw, "iconKey")
 
     let version = "unknown"
     let modLoader: string = "vanilla"
@@ -179,17 +134,9 @@ async function readMmcLikeInstance(instanceDir: string, iconsDir: string, type: 
     if (!isSupportedImportedLoader(modLoader)) return null
 
     let iconPath: string | undefined
-    if (cfgIconKey && iconsDir) {
-      for (const ext of ["png", "jpg", "jpeg", "svg", "webp", "bmp", "ico"]) {
-        const candidate = path.join(iconsDir, `${cfgIconKey}.${ext}`)
-        if (await fileExists(candidate)) { iconPath = candidate; break }
-      }
-    }
-
-    // Also check for icon.png in instance dir
-    if (!iconPath) {
-      const localIcon = path.join(instanceDir, "icon.png")
-      if (await fileExists(localIcon)) iconPath = localIcon
+    for (const sub of [path.join(instanceDir, "minecraft"), path.join(instanceDir, ".minecraft"), instanceDir]) {
+      const candidate = path.join(sub, "icon.png")
+      if (await fileExists(candidate)) { iconPath = candidate; break }
     }
 
     const modsDirs = await getInstanceContentDirs(instanceDir, "mods")
@@ -221,8 +168,7 @@ export async function discoverMmcLikeInstances(): Promise<LauncherInstance[]> {
   console.log('[MultiMC/PolyMC/Prism] Found configs:', mmcLikeConfigs)
 
   for (const { type, dirs } of mmcLikeConfigs) {
-    const iconsDir = await getMmcLikeIconsDir(type)
-    console.log(`[${type}] Checking dirs:`, dirs, `iconsDir:`, iconsDir)
+    console.log(`[${type}] Checking dirs:`, dirs)
     for (const instancesDir of dirs) {
       if (!(await fileExists(instancesDir))) continue
       let entries
@@ -232,7 +178,7 @@ export async function discoverMmcLikeInstances(): Promise<LauncherInstance[]> {
       console.log(`[${type}] Found dirs in ${instancesDir}:`, dirs2.length)
 
       for (const dir of dirs2) {
-        const inst = await readMmcLikeInstance(dir, iconsDir, type)
+        const inst = await readMmcLikeInstance(dir, type)
         if (inst) {
           console.log(`[${type}] Found instance:`, inst.name, inst.id)
           instances.push(inst)
