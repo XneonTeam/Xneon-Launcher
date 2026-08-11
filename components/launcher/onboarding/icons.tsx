@@ -2,13 +2,13 @@ import { cn } from "@/lib/utils"
 import type { LauncherSource } from "./translations"
 
 const LAUNCHER_SOURCE_ICON_SRC: Record<LauncherSource, string> = {
-  prism: "/launcher-icons/prism.png",
-  gdlauncher: "/launcher-icons/gdlauncher.png",
-  multimc: "/launcher-icons/multimc.svg",
-  polymc: "/launcher-icons/polymc.svg",
-  xlauncher: "/launcher-icons/xlauncher.svg",
-  astralrinth: "/launcher-icons/astralrinth.webp",
-  modrinthapp: "/launcher-icons/modrinthapp.png",
+  prism: "./launcher-icons/prism.png",
+  gdlauncher: "./launcher-icons/gdlauncher.png",
+  multimc: "./launcher-icons/multimc.svg",
+  polymc: "./launcher-icons/polymc.svg",
+  xlauncher: "./launcher-icons/xlauncher.svg",
+  astralrinth: "./launcher-icons/astralrinth.webp",
+  modrinthapp: "./launcher-icons/modrinthapp.png",
 }
 
 export function LauncherSourceIcon({ source, className }: { source: LauncherSource; className?: string }) {
