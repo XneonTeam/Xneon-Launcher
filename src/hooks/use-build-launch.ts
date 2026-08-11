@@ -170,7 +170,7 @@ export function useBuildLaunch({ account }: { account?: Account }) {
       gameDir: intentPath,
       ...(normalizedJavaPath ? { javaPath: normalizedJavaPath } : {}),
       ...(javaArgs ? { javaArgs } : {}),
-      ...(serverEnabled ? { server: server.trim(), serverPort: serverPort.trim() || "25565" } : {}),
+      ...(serverEnabled ? { quickPlayMultiplayer: `${server.trim()}:${serverPort.trim() || "25565"}` } : {}),
     })
 
     patchLaunchUi(result.success

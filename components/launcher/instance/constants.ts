@@ -1,19 +1,16 @@
-import { VERSIONS as DEFAULT_VERSIONS } from "@/lib/home-page-shared"
 import type { ModSort } from "./types"
 
 export const MODS_PER_PAGE = 9
 
-export const VERSIONS = DEFAULT_VERSIONS
-
 export const MOD_LOADERS = [
-  { id: "vanilla", name: "Vanilla", dot: "bg-zinc-400" },
-  { id: "forge", name: "Forge", dot: "bg-red-500" },
-  { id: "fabric", name: "Fabric", dot: "bg-yellow-500" },
-  { id: "liteloader", name: "LiteLoader", dot: "bg-cyan-500" },
-  { id: "quilt", name: "Quilt", dot: "bg-purple-500" },
-  { id: "neoforge", name: "NeoForge", dot: "bg-orange-500" },
-  { id: "optifine", name: "OptiFine", dot: "bg-blue-500" },
-  { id: "instance", name: "Instance", dot: "bg-blue-500" },
+  { id: "vanilla", name: "Vanilla" },
+  { id: "forge", name: "Forge" },
+  { id: "fabric", name: "Fabric" },
+  { id: "liteloader", name: "LiteLoader" },
+  { id: "quilt", name: "Quilt" },
+  { id: "neoforge", name: "NeoForge" },
+  { id: "optifine", name: "OptiFine" },
+  { id: "instance", name: "Instance" },
 ]
 
 export const modSortOptions: { id: ModSort; label: string; modrinthIndex: string; cfSortField: number }[] = [

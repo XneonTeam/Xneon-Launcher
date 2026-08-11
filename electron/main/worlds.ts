@@ -8,7 +8,7 @@
 import { ipcMain, nativeImage } from "electron"
 import path from "path"
 import fs from "fs/promises"
-import zlib from "zlib"
+import type { NBTCompound } from "@xnlc/nbt"
 import { ensureBuildIntentDir, downloadBuffer, sanitizeFileName } from "./builds/helpers"
 
 type WorldInfo = {
@@ -95,15 +95,14 @@ function resolveRelativeSafe(destRoot: string, relPath: string): string | null {
 
 async function updateLevelName(worldPath: string, newName: string): Promise<void> {
   const level = await readLevelNbt(worldPath)
-  if (!level?.parsed) return
+  if (!level) return
   try {
-    const nbt = await import("prismarine-nbt")
+    const nbt = await import("@xnlc/nbt")
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = (level.parsed as any).value?.Data
-    if (data?.value?.LevelName) {
-      data.value.LevelName.value = newName
-      const uncompressed = nbt.writeUncompressed(level.parsed as never, level.type as never)
-      await fs.writeFile(path.join(worldPath, "level.dat"), zlib.gzipSync(uncompressed))
+    const data = (level as any).Data
+    if (data?.LevelName) {
+      data.LevelName = newName
+      await fs.writeFile(path.join(worldPath, "level.dat"), new nbt.NBTWriter().write(level, { compressed: "gzip" }))
     }
   } catch { /* level.dat update is best-effort */ }
 }
@@ -130,28 +129,18 @@ async function dirSize(dirPath: string, maxEntries = 200000): Promise<number> {
   return total
 }
 
-async function readLevelNbt(worldPath: string): Promise<{ parsed: unknown; type: string } | null> {
+async function readLevelNbt(worldPath: string): Promise<NBTCompound | null> {
   try {
-    const nbt = await import("prismarine-nbt")
+    const nbt = await import("@xnlc/nbt")
     const levelFile = path.join(worldPath, "level.dat")
     const buffer = await fs.readFile(levelFile)
-    const { parsed, type } = await nbt.parse(buffer)
-    return { parsed, type }
+    return new nbt.NBTReader(buffer).read({ compressed: "gzip" })
   } catch {
     return null
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getTagValue(parent: any, key: string): any {
-  try {
-    if (!parent || typeof parent !== "object") return undefined
-    const tag = parent.value?.[key]
-    return tag?.value
-  } catch {
-    return undefined
-  }
-}
+// ---------- Helpers ----------
 
 function formatBigInt(value: unknown): string {
   if (typeof value === "bigint") return value.toString()
@@ -206,26 +195,40 @@ function parseWorldFolder(savesDir: string, folder: string): Promise<WorldInfo> 
     let hasLevelData = false
 
     const level = await readLevelNbt(worldPath)
-    if (level?.parsed) {
+    if (level) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const data = (level.parsed as any).value?.Data
-      const levelName = getTagValue(data, "LevelName")
+      const data = (level as any).Data
+      const levelName = data?.LevelName
       if (typeof levelName === "string" && levelName.trim()) name = levelName
-      const randomSeed = getTagValue(data, "RandomSeed")
+      const randomSeed = data?.RandomSeed
       if (randomSeed !== undefined && randomSeed !== null) seed = formatBigInt(randomSeed)
-      const gameType = getTagValue(data, "GameType")
-      const hardcoreValue = getTagValue(data, "hardcore")
+      const gameType = data?.GameType
+      const hardcoreValue = data?.hardcore
       hardcore = hardcoreValue === 1 || hardcoreValue === true
       gameMode = gameModeName(toNumber(gameType))
-      lastPlayed = toNumber(getTagValue(data, "LastPlayed"))
-      const worldTime = getTagValue(data, "Time")
+      lastPlayed = toNumber(data?.LastPlayed)
+      const worldTime = data?.Time
       if (worldTime !== undefined) playedTime = Math.max(0, Math.floor(toNumber(worldTime) / 20))
-      const versionName = getTagValue(data, "Version")
+      const versionName = data?.Version
       if (versionName && typeof versionName === "object") {
-        const nameValue = versionName?.value?.Name?.value ?? getTagValue(versionName, "Name")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const nameValue = (versionName as any)?.Name
         if (typeof nameValue === "string") mcVersion = nameValue
       }
       hasLevelData = true
+    }
+
+    if (!seed) {
+      try {
+        const nbt = await import("@xnlc/nbt")
+        const wgsPath = path.join(worldPath, "data", "minecraft", "world_gen_settings.dat")
+        const wgsBuffer = await fs.readFile(wgsPath)
+        const wgsNbt = new nbt.NBTReader(wgsBuffer).read({ compressed: "gzip" })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const wgs = ((wgsNbt as any).data || (wgsNbt as any).Data) as any
+        const wgsSeed = wgs?.seed
+        if (wgsSeed !== undefined && wgsSeed !== null) seed = formatBigInt(wgsSeed)
+      } catch { /* world_gen_settings.dat not found or unreadable */ }
     }
 
     let sizeBytes = 0
@@ -314,15 +317,14 @@ export function registerWorldsHandlers(): void {
       // Update LevelName inside level.dat (keep in-sync display name)
       const targetWorldPath = newWorldPath
       const level = await readLevelNbt(targetWorldPath)
-      if (level?.parsed) {
+      if (level) {
         try {
-          const nbt = await import("prismarine-nbt")
+          const nbt = await import("@xnlc/nbt")
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const data = (level.parsed as any).value?.Data
-          if (data?.value?.LevelName) {
-            data.value.LevelName.value = trimmedName
-            const uncompressed = nbt.writeUncompressed(level.parsed as never, level.type as never)
-            await fs.writeFile(path.join(targetWorldPath, "level.dat"), zlib.gzipSync(uncompressed))
+          const data = (level as any).Data
+          if (data?.LevelName) {
+            data.LevelName = trimmedName
+            await fs.writeFile(path.join(targetWorldPath, "level.dat"), new nbt.NBTWriter().write(level, { compressed: "gzip" }))
           }
         } catch { /* level.dat update is best-effort */ }
       }

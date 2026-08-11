@@ -1,4 +1,4 @@
-import { MOD_LOADERS, VERSIONS } from "./constants"
+import { MOD_LOADERS } from "./constants"
 import type { Build, ModVersion } from "./types"
 
 export function loadBuilds(): Build[] {
@@ -10,7 +10,7 @@ export function loadBuilds(): Build[] {
         id: build.id ?? crypto.randomUUID(),
         name: build.name ?? "Без названия",
         description: build.description ?? "",
-        version: build.version ?? VERSIONS[0],
+        version: build.version ?? "",
         modLoader: build.modLoader ?? MOD_LOADERS[0].id,
         loaderVersion: build.loaderVersion,
         icon: build.icon ?? "",

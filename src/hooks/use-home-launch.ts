@@ -52,7 +52,7 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
       retroauthInjectorEnabled: usesSkinInjector,
       ...(normalizedJavaPath ? { javaPath: normalizedJavaPath } : {}),
       ...(settings.savedJavaArgs ? { javaArgs: settings.savedJavaArgs } : {}),
-      ...(server.trim() ? { server: server.trim(), serverPort: serverPort.trim() || "25565" } : {}),
+      ...(server.trim() ? { quickPlayMultiplayer: `${server.trim()}:${serverPort.trim() || "25565"}` } : {}),
     })
 
     patchLaunchUi(result.success

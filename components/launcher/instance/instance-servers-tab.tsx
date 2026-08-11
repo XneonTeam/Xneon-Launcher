@@ -14,6 +14,8 @@ import {
   IconTrash,
   IconX,
 } from "@tabler/icons-react"
+import { useAccounts } from "@/src/AccountsContext"
+import { loadLaunchSettings, resolveLaunchDimensions } from "@/src/hooks/use-build-launch"
 import type { Build } from "./types"
 
 interface ServerStatus {
@@ -43,15 +45,6 @@ interface InstanceServersTabProps {
   build: Build
   updateBuild: (id: string, fields: Partial<Build>) => void
 }
-
-const SERVER_LIST = [
-  { name: "Hypixel", ip: "mc.hypixel.net" },
-  { name: "Mineplex", ip: "us.mineplex.com" },
-  { name: "CubeCraft", ip: "play.cubecraft.net" },
-  { name: "2b2t", ip: "2b2t.org" },
-  { name: "Wynncraft", ip: "play.wynncraft.com" },
-  { name: "ManaCube", ip: "play.manacube.com" },
-]
 
 async function fetchServerStatus(ip: string): Promise<ServerStatus> {
   const api = window.electronAPI
@@ -304,6 +297,7 @@ function parseMotd(raw: string): ReactNode[] {
 
 export function InstanceServersTab({ build, updateBuild }: InstanceServersTabProps) {
   const { t } = useTranslation()
+  const { activeAccount } = useAccounts()
   const [servers, setServers] = useState<ServerEntry[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [showAddModal, setShowAddModal] = useState(false)
@@ -313,33 +307,37 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
   const [initialized, setInitialized] = useState(false)
   const [connectingIp, setConnectingIp] = useState<string | null>(null)
 
-  // Load saved servers on mount
+  // Load saved servers on mount (from servers.dat + favorites from localStorage)
   useEffect(() => {
     let cancelled = false
     const load = async () => {
-      let savedServers: Array<{ name: string; ip: string; isFavorite: boolean }> = []
+      // Load favorites from localStorage
+      let favoriteIps: Set<string> = new Set()
       try {
-        const raw = await window.electronAPI?.getSetting("servers_list")
-        if (raw) savedServers = JSON.parse(raw)
+        const raw = await window.electronAPI?.getSetting("servers_favorites")
+        if (raw) {
+          const favs: string[] = JSON.parse(raw)
+          favoriteIps = new Set(favs)
+        }
       } catch {}
 
-      const list = savedServers.length > 0
-        ? savedServers.map((s) => ({
-            name: s.name,
-            ip: s.ip,
-            status: null,
-            loading: true,
-            error: null,
-            isFavorite: s.isFavorite ?? false,
-          }))
-        : SERVER_LIST.map((s) => ({
-            name: s.name,
-            ip: s.ip,
-            status: null,
-            loading: true,
-            error: null,
-            isFavorite: false,
-          }))
+      // Load base server list from servers.dat
+      let serverList: Array<{ name: string; ip: string }> = []
+      try {
+        const datServers = await window.electronAPI?.listServers(build.name)
+        if (datServers && datServers.length > 0) {
+          serverList = datServers
+        }
+      } catch {}
+
+      const list = serverList.map((s) => ({
+        name: s.name,
+        ip: s.ip,
+        status: null,
+        loading: true,
+        error: null,
+        isFavorite: favoriteIps.has(s.ip),
+      }))
 
       if (!cancelled) {
         setServers(list)
@@ -348,21 +346,16 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
     }
     void load()
     return () => { cancelled = true }
-  }, [])
+  }, [build.name])
 
-  // Save servers list + generate servers.dat whenever servers change
+  // Save servers to servers.dat + favorites to localStorage whenever servers change
   useEffect(() => {
     if (!initialized) return
 
-    const persistData = servers.map((s) => ({
-      name: s.name,
-      ip: s.ip,
-      isFavorite: s.isFavorite,
-    }))
-
-    void window.electronAPI?.setSetting("servers_list", JSON.stringify(persistData))
-    void window.electronAPI?.writeServersDat(servers.map((s) => ({ name: s.name, ip: s.ip })))
-  }, [servers, initialized])
+    const favoriteIps = servers.filter((s) => s.isFavorite).map((s) => s.ip)
+    void window.electronAPI?.setSetting("servers_favorites", JSON.stringify(favoriteIps))
+    void window.electronAPI?.writeServersDat(build.name, servers.map((s) => ({ name: s.name, ip: s.ip })))
+  }, [servers, initialized, build.name])
 
   const fetchAll = useCallback(async () => {
     setRefreshing(true)
@@ -446,13 +439,27 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
 
   const connectToServer = async (server: ServerEntry) => {
     const status = server.status
-    if (!status?.online || !status.ip) return
+    if (!status?.online || !status.ip || !activeAccount) return
     setConnectingIp(server.ip)
     try {
-      updateBuild(build.id, {
-        serverOverride: true,
-        server: status.ip,
-        serverPort: String(status.port || 25565),
+      const settings = await loadLaunchSettings()
+      const { width, height } = resolveLaunchDimensions(settings)
+
+      const intentPath = build.name ? await window.electronAPI.getBuildIntentPath(build.name) : undefined
+
+      await window.electronAPI.launchMinecraft({
+        version: build.version,
+        modLoader: build.modLoader as "vanilla" | "forge" | "fabric" | "quilt" | "liteloader" | "optifine" | "neoforge",
+        ...(build.loaderVersion ? { loaderVersion: build.loaderVersion } : {}),
+        account: { type: activeAccount.type, username: activeAccount.username, uuid: activeAccount.uuid, accessToken: activeAccount.accessToken },
+        memory: { min: build.javaOverride && build.memoryMin ? build.memoryMin : (settings.savedMemoryMin || "512M"), max: build.javaOverride && build.memoryMax ? build.memoryMax : (settings.savedMemoryMax || "4G") },
+        javaPath: build.javaOverride ? build.javaPath : undefined,
+        javaArgs: build.javaOverride ? build.javaArgs : undefined,
+        width,
+        height,
+        buildName: build.name,
+        gameDir: intentPath,
+        quickPlayMultiplayer: `${status.ip}:${status.port || 25565}`,
       })
     } finally {
       setConnectingIp(null)
@@ -494,22 +501,6 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
           >
             <img src="/server-icon.png" alt="" className="w-12 h-12" />
           </div>
-          {loading ? (
-            <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-card bg-gray-500 animate-pulse" />
-          ) : (
-            <span
-              className={cn(
-                "absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-card",
-                isOnline
-                  ? latency < 60
-                    ? "bg-green-500"
-                    : latency < 100
-                    ? "bg-yellow-500"
-                    : "bg-red-500"
-                  : "bg-red-600"
-              )}
-            />
-          )}
         </div>
 
         <div className="flex-1 min-w-0">
@@ -551,16 +542,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
                 <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
                   {status?.version ?? ""}
                 </span>
-                <span
-                  className={cn(
-                    "text-xs font-medium",
-                    latency < 60
-                      ? "text-green-400"
-                      : latency < 100
-                      ? "text-yellow-400"
-                      : "text-red-400"
-                  )}
-                >
+                <span className="text-xs font-medium text-green-400">
                   {latency} ms
                 </span>
               </div>
@@ -577,8 +559,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
                 e.stopPropagation()
                 moveServer(server.ip, -1)
               }}
-              disabled={index === 0}
-              className="p-1 rounded-md bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              className="p-1 rounded-md bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
               title={t("servers.moveUp")}
             >
               <IconChevronUp className="w-4 h-4" />
@@ -588,8 +569,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
                 e.stopPropagation()
                 moveServer(server.ip, 1)
               }}
-              disabled={index === servers.length - 1}
-              className="p-1 rounded-md bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              className="p-1 rounded-md bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
               title={t("servers.moveDown")}
             >
               <IconChevronDown className="w-4 h-4" />
