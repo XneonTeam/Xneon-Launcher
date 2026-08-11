@@ -20,13 +20,13 @@ interface InstanceCreateDialogProps {
 type ImportSource = "gdlauncher" | "prism" | "multimc" | "polymc" | "astralrinth" | "xlauncher" | "modrinthapp"
 
 const SOURCE_ICON_SRC: Record<ImportSource, string> = {
-  gdlauncher: "/launcher-icons/gdlauncher.png",
-  prism: "/launcher-icons/prism.png",
-  multimc: "/launcher-icons/multimc.svg",
-  polymc: "/launcher-icons/polymc.svg",
-  astralrinth: "/launcher-icons/astralrinth.webp",
-  xlauncher: "/launcher-icons/xlauncher.svg",
-  modrinthapp: "/launcher-icons/modrinthapp.png",
+  gdlauncher: "./launcher-icons/gdlauncher.png",
+  prism: "./launcher-icons/prism.png",
+  multimc: "./launcher-icons/multimc.svg",
+  polymc: "./launcher-icons/polymc.svg",
+  astralrinth: "./launcher-icons/astralrinth.webp",
+  xlauncher: "./launcher-icons/xlauncher.svg",
+  modrinthapp: "./launcher-icons/modrinthapp.png",
 }
 
 export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onImportFile }: InstanceCreateDialogProps) {
