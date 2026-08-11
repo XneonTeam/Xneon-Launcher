@@ -3,13 +3,10 @@ import {
   fetchVersionsFromRenderer,
   filterMinecraftVersions,
   type MinecraftVersionOption,
-  VERSIONS,
 } from "@/lib/home-page-shared"
 
 export function useMinecraftVersionOptions() {
-  const [allMinecraftVersions, setAllMinecraftVersions] = useState<MinecraftVersionOption[]>(
-    VERSIONS.map((version) => ({ version, stable: true, type: "release" }))
-  )
+  const [allMinecraftVersions, setAllMinecraftVersions] = useState<MinecraftVersionOption[]>([])
   const [versionsLoaded, setVersionsLoaded] = useState(false)
   const [showSnapshot, setShowSnapshot] = useState(false)
   const [showBeta, setShowBeta] = useState(false)

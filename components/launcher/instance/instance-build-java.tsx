@@ -2,6 +2,8 @@ import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { IconFolderPlus, IconLoader2, IconSettings, IconX } from "@tabler/icons-react"
+import { MemorySlider } from "@/components/ui/memory-slider"
+import { useMemoryOptions } from "@/src/hooks/use-memory-options"
 import type { JavaInstallation } from "@/components/launcher/settings/types"
 import type { Build } from "./types"
 
@@ -10,10 +12,17 @@ interface InstanceBuildJavaProps {
   updateBuild: (id: string, fields: Partial<Build>) => void
 }
 
-function normalizeMemoryInput(value: string): string {
-  const digits = value.replace(/[^\d]/g, "").slice(0, 3)
-  if (!digits) return ""
-  return `${digits}G`
+function memoryToMb(val?: string): number {
+  if (!val) return 2048
+  const s = val.trim().toUpperCase()
+  if (s.endsWith("G")) return parseInt(s, 10) * 1024
+  if (s.endsWith("M")) return parseInt(s, 10)
+  return parseInt(s, 10) || 2048
+}
+
+function mbToMemory(mb: number): string {
+  if (mb >= 1024 && mb % 1024 === 0) return `${mb / 1024}G`
+  return `${mb}M`
 }
 
 export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps) {
@@ -48,6 +57,8 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
     ? "Автоматически (как в лаунчере)"
     : detected.find(j => j.path === build.javaPath)?.label || build.javaPath?.split(/[\\/]/).pop() || build.javaPath
 
+  const { maxMb, snapPoints } = useMemoryOptions()
+
   return (
     <div className="rounded-3xl border border-border bg-card/40 p-6">
       <div className="flex items-start justify-between gap-4">
@@ -75,42 +86,24 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
 
       {override && (
         <div className="mt-6 grid gap-6">
-          {/* Memory */}
           <div>
             <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Память</label>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Мин. память (-Xms)</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={(build.memoryMin ?? "").replace(/G$/i, "")}
-                    onChange={e => updateBuild(build.id, { memoryMin: normalizeMemoryInput(e.target.value) })}
-                    placeholder="2"
-                    className="h-11 w-full rounded-2xl border border-border bg-muted/40 px-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary"
-                  />
-                  <span className="text-sm font-medium text-muted-foreground">ГБ</span>
-                </div>
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Макс. память (-Xmx)</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={(build.memoryMax ?? "").replace(/G$/i, "")}
-                    onChange={e => updateBuild(build.id, { memoryMax: normalizeMemoryInput(e.target.value) })}
-                    placeholder="4"
-                    className="h-11 w-full rounded-2xl border border-border bg-muted/40 px-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary"
-                  />
-                  <span className="text-sm font-medium text-muted-foreground">ГБ</span>
-                </div>
-              </div>
+            <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-2.5">
+              <label className="block text-sm font-medium text-foreground">Выделено памяти</label>
+              <MemorySlider
+                value={memoryToMb(build.memoryMax)}
+                min={512}
+                max={maxMb}
+                step={64}
+                snapPoints={snapPoints}
+                snapRange={512}
+                unit="MB"
+                onChange={(v) => updateBuild(build.id, { memoryMax: mbToMemory(v) })}
+              />
+              <p className="text-xs text-muted-foreground">Максимум оперативной памяти, выделяемой Minecraft.</p>
             </div>
           </div>
 
-          {/* Java path */}
           <div>
             <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Java (путь к java.exe)</label>
             <div className="flex items-center gap-3">
@@ -135,7 +128,6 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
             </div>
           </div>
 
-          {/* JVM args */}
           <div>
             <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Доп. аргументы JVM</label>
             <textarea

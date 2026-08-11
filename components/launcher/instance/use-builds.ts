@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { VERSIONS, MOD_LOADERS } from "./constants"
+import { MOD_LOADERS } from "./constants"
 import { loadBuilds, pickCompatibleVersion } from "./utils"
 import type { Build, BuildMod, ModSearchResult, ModDependency, ModVersion } from "./types"
 

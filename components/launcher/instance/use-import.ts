@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useActivityCenter } from "@/src/ActivityCenterContext"
-import { MOD_LOADERS, VERSIONS } from "./constants"
+import { MOD_LOADERS } from "./constants"
 import type { Build, ModSearchResult } from "./types"
 
 export interface ImportProgressState {
@@ -146,7 +146,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
       const versionsData = await response.json()
       const versions = Array.isArray(versionsData) ? versionsData : []
       const latestVersion = versions.find((item: { game_versions?: unknown[]; loaders?: unknown[] }) => item.game_versions?.length || item.loaders?.length)
-      const selectedVersion = latestVersion?.game_versions?.[0] ?? VERSIONS[0]
+      const selectedVersion = latestVersion?.game_versions?.[0] ?? ""
       const selectedLoader = latestVersion?.loaders?.find((loader: string) => MOD_LOADERS.some(item => item.id === loader)) ?? "vanilla"
 
       const id = crypto.randomUUID()
@@ -232,7 +232,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
         id,
         name: pack.name,
         description: pack.summary,
-        version: importResult?.version ?? VERSIONS[0],
+        version: importResult?.version ?? "",
         modLoader: importResult?.modLoader ?? "vanilla",
         loaderVersion: importResult?.loaderVersion,
         icon: pack.iconUrl ?? "",
@@ -307,7 +307,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
         id: crypto.randomUUID(),
         name: result.name ?? "Импортированная сборка",
         description: result.description ?? "",
-        version: result.version ?? VERSIONS[0],
+        version: result.version ?? "",
         modLoader: result.modLoader ?? "vanilla",
         loaderVersion: result.loaderVersion,
         icon: result.icon ?? "",

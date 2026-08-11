@@ -62,7 +62,7 @@ export function registerModsHandlers(): void {
     ): Promise<ModSearchResponse> => {
       try {
         const mods = await loadModsModule()
-        return await mods.modrinthSearch(query, { contentType, gameVersion, modLoader, category, sortBy, page }) as ModSearchResponse
+        return await mods.modrinthSearch(query, { contentType: contentType ?? "mod", gameVersion, modLoader, category, sortBy, page }) as ModSearchResponse
       } catch (err) {
         console.error("Modrinth search error:", err)
         return { results: [], totalCount: 0 }
@@ -109,7 +109,7 @@ export function registerModsHandlers(): void {
     ): Promise<ModSearchResponse> => {
       try {
         const mods = await loadModsModule()
-        return await mods.curseforgeSearch(query, { contentType, gameVersion, modLoader, category, sortBy, page }) as ModSearchResponse
+        return await mods.curseforgeSearch(query, { contentType: contentType ?? "mod", gameVersion, modLoader, category, sortBy, page }) as ModSearchResponse
       } catch (err) {
         console.error("CF search error:", err)
         return { results: [], totalCount: 0 }

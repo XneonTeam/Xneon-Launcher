@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
 import { IconCamera, IconTrash, IconExternalLink, IconFolderOpen } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MOD_LOADERS, VERSIONS } from "./constants"
+import { MOD_LOADERS } from "./constants"
 import { LoaderIcon } from "./loader-icon"
 import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
@@ -153,7 +153,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, fileInputRef }
                     <SelectValue placeholder={versionsLoaded ? t("builds.version") : "Loading..."} />
                   </SelectTrigger>
                   <SelectContent>
-                    {(availableVersions.length > 0 ? availableVersions : VERSIONS).map((item) => (
+                    {availableVersions.map((item) => (
                       <SelectItem key={item} value={item}>Minecraft {item}</SelectItem>
                     ))}
                   </SelectContent>

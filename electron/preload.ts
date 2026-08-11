@@ -199,7 +199,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getTotalMemory: invoke<number>('system:get-total-memory'),
 
   // ── Servers ────────────────────────────────────────────
-  writeServersDat: (servers: Array<{ name: string; ip: string }>) => ipcRenderer.invoke('servers:write-dat', servers) as Promise<{ success: boolean; error?: string }>,
+  listServers: (buildName: string) => ipcRenderer.invoke('servers:list', buildName) as Promise<Array<{ name: string; ip: string }>>,
+  writeServersDat: (buildName: string, servers: Array<{ name: string; ip: string }>) => ipcRenderer.invoke('servers:write-dat', buildName, servers) as Promise<{ success: boolean; error?: string }>,
   pingServer: (address: string) => ipcRenderer.invoke('servers:ping', address) as Promise<ServerStatusResult>,
 
   // ── Build Intent Operations ────────────────────────────

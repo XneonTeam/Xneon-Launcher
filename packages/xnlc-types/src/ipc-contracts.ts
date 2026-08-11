@@ -167,6 +167,10 @@ export interface IpcInvokeMap {
   "shell:open-launcher-folder": { args: []; return: void }
   "shell:open-path": { args: [dirPath: string]; return: void }
 
+  // ── Servers ──
+  "servers:list": { args: [buildName: string]; return: Array<{ name: string; ip: string }> }
+  "servers:write-dat": { args: [buildName: string, servers: Array<{ name: string; ip: string }>]; return: { success: boolean; error?: string } }
+
   // ── Logs ──
   "logs:share-to-mclogs": { args: [content: string]; return: { success: boolean; url?: string; error?: string } }
 
@@ -326,6 +330,8 @@ export interface ElectronAPIExplicit {
   listScreenshots: (buildName: string) => Promise<ScreenshotInfo[]>
   getScreenshot: (buildName: string, fileName: string) => Promise<string | null>
   deleteScreenshot: (buildName: string, fileName: string) => Promise<{ success: boolean; error?: string }>
+  listServers: (buildName: string) => Promise<Array<{ name: string; ip: string }>>
+  writeServersDat: (buildName: string, servers: Array<{ name: string; ip: string }>) => Promise<{ success: boolean; error?: string }>
   uploadBuildToCloud: (buildName: string, cloudToken: string, category?: string) => Promise<{ success: boolean; error?: string }>
   cloudLogin: (username: string, password: string) => Promise<{ success: boolean; token?: string; error?: string }>
   cloudRegister: (username: string, password: string, email?: string) => Promise<{ success: boolean; error?: string }>

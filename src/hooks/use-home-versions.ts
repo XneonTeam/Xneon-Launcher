@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from "react"
-import { VERSIONS } from "@/lib/home-page-shared"
 import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
 
-const LEGACY_DEFAULT_VERSION = VERSIONS[0] ?? ""
-
 export function useHomeVersions(selectedModLoader: string, initialVersion?: string) {
-  const [versions, setVersions] = useState<string[]>(VERSIONS)
+  const [versions, setVersions] = useState<string[]>([])
   const [versionsLoaded, setVersionsLoaded] = useState(false)
   const [selectedVersion, setSelectedVersion] = useState(initialVersion ?? "")
   const [latestRelease, setLatestRelease] = useState<string | null>(null)
@@ -88,16 +85,7 @@ export function useHomeVersions(selectedModLoader: string, initialVersion?: stri
         setSelectedVersion((prev) => {
           if (filtered.length === 0) return ""
           if (prev && filtered.includes(prev)) {
-            const shouldUpgradeLegacyDefault = (
-              prev === LEGACY_DEFAULT_VERSION
-              && !!latestRelease
-              && filtered.includes(latestRelease)
-              && latestRelease !== prev
-            )
-
-            if (!shouldUpgradeLegacyDefault) {
-              return prev
-            }
+            return prev
           }
           if (latestRelease && filtered.includes(latestRelease)) return latestRelease
           const latestVisibleRelease = allMinecraftVersions.find(
