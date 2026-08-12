@@ -140,6 +140,11 @@
 
   body {
     @apply min-h-screen bg-background text-foreground;
+    user-select: none;
+  }
+
+  input, textarea, [contenteditable], code, pre {
+    user-select: text;
   }
 }
 

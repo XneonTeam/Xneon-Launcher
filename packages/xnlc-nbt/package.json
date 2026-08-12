@@ -1,0 +1,35 @@
+{
+  "name": "@xnlc/nbt",
+  "version": "1.0.0",
+  "description": "NBT (Named Binary Tag) reader/writer library for Minecraft",
+  "type": "module",
+  "author": "MAINER4IK",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://git.xneon.org/MAINER4IK/Xneon-Launcher.git"
+  },
+  "homepage": "https://launcher.xneon.org",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf lib"
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "publishConfig": {
+    "registry": "https://git.xneon.org/api/packages/MAINER4IK/npm/"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2"
+  }
+}

@@ -128,9 +128,13 @@
       "dist/**/*",
       "dist-electron/**/*",
       "!**/xnlc/src/**",
+      "!**/xnlc-nbt/src/**",
       "!**/xnlc/test*",
+      "!**/xnlc-nbt/test*",
       "!**/xnlc/installer.log",
-      "!**/xnlc/tsconfig.json"
+      "!**/xnlc-nbt/installer.log",
+      "!**/xnlc/tsconfig.json",
+      "!**/xnlc-nbt/tsconfig.json"
     ],
     "linux": {
       "target": [

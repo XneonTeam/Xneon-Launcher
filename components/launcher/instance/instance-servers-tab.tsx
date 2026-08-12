@@ -499,7 +499,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
               icon ? "hidden" : "bg-background/80"
             )}
           >
-            <img src="/server-icon.png" alt="" className="w-12 h-12" />
+            <img src="./server-icon.png" alt="" className="w-12 h-12" />
           </div>
         </div>
 
