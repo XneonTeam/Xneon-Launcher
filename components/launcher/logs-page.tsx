@@ -391,8 +391,9 @@ export function LogsPage() {
       const data = await res.json() as { success: boolean; url?: string; error?: string }
       if (data.success && data.url) {
         setShareUrl(data.url)
+        await navigator.clipboard.writeText(data.url)
         setShareState("done")
-        setTimeout(() => { setShareState("idle"); setShareUrl("") }, 8000)
+        setTimeout(() => { setShareState("idle"); setShareUrl("") }, 3000)
       } else {
         setShareState("error")
         setTimeout(() => setShareState("idle"), 3000)
@@ -438,7 +439,7 @@ export function LogsPage() {
 
           <button type="button" disabled={shareState === "loading" || logs.length === 0} onClick={() => void handleShare()} className={shareCls}>
             {shareState === "loading" ? <><IconRefresh className="w-4 h-4 animate-spin" />{t("logs.uploading")}</>
-              : shareState === "done" ? <><IconCheck className="w-4 h-4" />{shareUrl ? <span className="max-w-[120px] truncate">{shareUrl.replace("https://", "")}</span> : t("logs.published")}</>
+              : shareState === "done" ? <><IconCheck className="w-4 h-4 text-green-500" />{t("logs.copied")}</>
               : shareState === "error" ? <><IconTrash className="w-4 h-4" />{t("logs.shareError")}</>
               : <><IconShare className="w-4 h-4" />{t("logs.share")}</>}
           </button>

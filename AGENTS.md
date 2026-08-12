@@ -1,38 +1,53 @@
-# AGENTS.md
+# AGENTS.md — Xneon Launcher
 
-This file provides guidance to agents when working with code in this repository.
+## Language
 
-## Build & Run
-- `npm run dev` — starts Vite + Electron concurrently (renderer on :5173, then Electron main)
-- `npm run build` — builds both renderer (`vite build`) and electron main (`tsc -p tsconfig.node.json`)
-- `npm run package` — builds + electron-builder (output to `release/`)
-- No test framework; only `npm run test:xn-auth` (manual script)
+Always respond to the user in Russian.
+All explanations, plans, analysis, descriptions of changes, and comments — write in Russian.
+Code, function names, API, terminal commands, and error messages — keep in the original language.
 
-## Architecture (Non-Obvious)
-- **Two separate TS compilations**: renderer via Vite (`tsconfig.json`), electron main via tsc (`tsconfig.node.json` → `dist-electron/`)
-- **`@/*` path alias maps to project root `.`**, NOT `src/` — so imports use `@/components/`, `@/src/`, `@/lib/`, `@/electron/`
-- **Types are triple-defined** in `electron/preload.ts`, `src/electron.d.ts`, and `electron/db.ts` — changes to IPC types must update all three
-- **Local packages** `@xnlc/core` and `@xnlc/mods` in `packages/` are listed as dependencies but loaded lazily via dynamic `import()` in electron main process
-- **Minecraft launch runs in a forked worker** (`electron/main/minecraft-launch-worker.ts`), not the main process
-- **i18n default/fallback language is Russian** (`ru`), not English — configured in `src/i18n/index.ts`
-- **`strict: false`** in both tsconfigs — no strict null checks, no strict function types
-- **`components.json` has `rsc: true`** but this is NOT a Next.js app — it's an Electron app (shadcn/ui config artifact)
-- **`components.json` says `iconLibrary: "lucide"`** but project actually uses `@tabler/icons-react`
-- **Frameless window** with custom title bar (`src/TitleBar.tsx`); `devTools: false` in production
-- **Data directory** varies by OS: Win=`%APPDATA%/xneonlauncher`, macOS=`~/Library/Application Support/xneonlauncher`, Linux=`~/.xneonlauncher`
+## Project
 
-## Anchored Summary (Session: Landing Page KLauncher-style)
-- **New project**: `D:\xn-important\launcher.xneon.org` — Next.js 16 + Tailwind v4 landing page `launcher.xneon.org`, matching KLauncher's HTML structure exactly.
-- **Goal**: Make landing page visually identical to KLauncher (orange `#f90` theme, 3 feature sections left/right, header with download/login buttons, footer menu grid) with fully working demo tabs matching real Xneon-Launcher components.
-- **All components rewritten**: Navbar, Hero, Features, Screenshot, Download, Footer — all matching KLauncher structure.
-- **All 8 demo tabs (`src/launcher-demo/`) rewritten** to match real code from `Xneon-Launcher/src/components/launcher/`:
-  - **Сборки**: grid cards with gradient icons, Modrinth/CurseForge badges, loader dot, version; Мои сборки / Modrinth / CurseForge toggle header. Modal with 4 tabs (Description, Gallery, Changelog, Versions). Fetches real data from Modrinth API and CurseForge API (via proxy route).
-  - **Логи**: filterable list with OK/Cancel/level highlighting.
-  - **Моды**: content type tabs (моды/модпаки/ресурспаки/шейдеры), Modrinth/CurseForge toggle, search, sort, version/loader filters, cards with icon/categories/downloads.
-  - **Серверы**: ServerCard with MOTD rendering (JSON chat format + section codes), server icon, status (green/yellow/red by latency), favorite star, Connect/Delete buttons, search via HotMC API (`hotmc-parser.vercel.app`), status via `mcskinapi-three.vercel.app`, add server modal.
-  - **Облако**: login modal, upload modal (build/account), filter (all/builds/accounts), file list with icons/sizes/dates, download/delete buttons, storage progress bar.
-  - **Аккаунты**: avatar cards, Microsoft/Offline type badges, active status.
-  - **Настройки**: 5 tabs (Game/Java/Themes/Language/About), Java tab with auto-version select + JVM args, themes with SVG previews, Language tab with flag SVGs + checkmark on selected, About tab with GitHub/Discord social cards + developer info.
-- **`tabler-icons.d.ts`** created manually with all used icon declarations.
-- **Build passes** (`npm run build`) — no TS or build errors.
-- **All done** — no pending items.
+Xneon Launcher — Electron + React 19 Minecraft launcher.
+- **Renderer** (React): `components/`, `src/`, `lib/`
+- **Electron main**: `electron/main/`, `electron/preload.ts`
+- **Local packages** (`packages/`): `@xnlc/core`, `@xnlc/mods`, `@xnlc/types`, `@xnlc/p2p` — hosted at `https://git.xneon.org/api/packages/MAINER4IK/npm/` (see `.npmrc`)
+- **IPC contracts**: `packages/xnlc-types/src/ipc-contracts.ts` — single source of truth for channel signatures
+- **Launch params**: `packages/xnlc-types/src/launch-types.ts` — `MinecraftLaunchParams`
+
+## Commands
+
+```bash
+npm run dev          # Vite + Electron dev (hot-reload)
+npm run build        # production build (vite + tsc)
+npm run package      # build + electron-builder → release/
+npm run typecheck    # tsc --noEmit (renderer tsconfig)
+```
+
+No lint/test scripts exist. `npm run build` is the primary verification.
+
+## Build pipeline
+
+`predev`, `prebuild`, `prepackage` all run `scripts/gen-credentials.mjs` which reads `.env` and generates `electron/main/cloud/credentials.generated.ts`. This file is gitignored — without `.env`, cloud features won't compile, but the build still succeeds (empty creds).
+
+`build:renderer` = `vite build` → `dist/`
+`build:electron` = `tsc -p tsconfig.node.json` → `dist-electron/`
+
+## Key architecture notes
+
+- **Vite `base: './'`** — all asset paths in HTML must be relative (`./path`), not absolute (`/path`). Absolute paths break in the packaged Electron app (asar).
+- **`@/*` alias** resolves to project root: `@/src` → `src/`, `@/components` → `components/`.
+- **IPC**: preload exposes `window.electronAPI` methods. Types in `src/electron.d.ts`. Adding a new IPC channel requires updating: handler in `electron/main/`, preload bridge in `electron/preload.ts`, type in `src/electron.d.ts`, and contract in `packages/xnlc-types/src/ipc-contracts.ts`.
+- **Server data**: `servers.dat` uses raw NBT via `@xnlc/nbt` — **no** `{ compressed: "gzip" }` on read/write. `level.dat` **requires** `{ compressed: "gzip" }`.
+- **Minecraft launch**: `electron/main/minecraft-launch-worker.ts` runs in a forked worker. `--quickPlayMultiplayer ip:port` is used for server connect (not `--server`/`--port`).
+- **Build intent dirs**: `getBuildIntentPath(buildName)` → `%APPDATA%/xneonlauncher/intents/<sanitized-name>/` — isolates each build's `.minecraft`.
+- **Accounts**: `src/AccountsContext.tsx` provides `activeAccount`, `accounts`.
+- **Language**: all user-facing strings go through `react-i18next` (`src/i18n/`), not hardcoded.
+
+## Common pitfalls
+
+- Running `npm run package` fails with `EPERM` on `dxil.dll` if a previous Electron process is still running — kill it first.
+- After adding/editing IPC channels, run `npm run build` (not just `dev`) to catch type errors across both tsconfigs.
+- `multimc.svg` and `polymc.svg` icons don't exist in `public/launcher-icons/` — only `.png` variants are available.
+- `sql.js` is used (not better-sqlite3) for reading Modrinth App's `app.db` — table is `instances` joined with `instance_content_sets`, not `profiles`.
+- `prismarine-nbt` was replaced by `@xnlc/nbt` — do not re-add prismarine-nbt.

@@ -48,11 +48,11 @@ function WorldCarousel({ worlds, buildName, onPlay }: { worlds: LauncherWorldInf
   return (
     <div className="flex flex-col gap-1.5">
       <div
-        className="group relative overflow-hidden rounded-2xl border border-border bg-card/60 hover:border-emerald-500/50 hover:bg-muted/40 transition-all text-left w-full"
+        className="group relative overflow-hidden rounded-2xl border border-border bg-card/60 hover:border-primary/50 hover:bg-muted/40 transition-all text-left w-full"
       >
         <div className="relative h-32 w-full overflow-hidden bg-muted/30">
           {world.iconDataUrl ? (
-            <img src={world.iconDataUrl} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" style={{ imageRendering: "pixelated" }} />
+            <img src={world.iconDataUrl} alt="" className="h-full w-full object-cover" style={{ imageRendering: "pixelated" }} />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-emerald-500/10 to-muted/30">
               <IconMap className="h-10 w-10 text-emerald-400/30" strokeWidth={1.5} />

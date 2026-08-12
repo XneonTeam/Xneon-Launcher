@@ -22,8 +22,8 @@ type ImportSource = "gdlauncher" | "prism" | "multimc" | "polymc" | "astralrinth
 const SOURCE_ICON_SRC: Record<ImportSource, string> = {
   gdlauncher: "./launcher-icons/gdlauncher.png",
   prism: "./launcher-icons/prism.png",
-  multimc: "./launcher-icons/multimc.svg",
-  polymc: "./launcher-icons/polymc.svg",
+  multimc: "./launcher-icons/multimc.png",
+  polymc: "./launcher-icons/polymc.png",
   astralrinth: "./launcher-icons/astralrinth.webp",
   xlauncher: "./launcher-icons/xlauncher.svg",
   modrinthapp: "./launcher-icons/modrinthapp.png",
