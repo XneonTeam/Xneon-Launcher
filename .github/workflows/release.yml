@@ -17,15 +17,15 @@ jobs:
           - os: ubuntu-latest
             target: linux
             artifact_name: XNeon-Launcher-Linux
-            build_cmd: npx electron-builder --linux AppImage deb rpm tar.xz pacman --publish never
+            build_cmd: pnpm exec electron-builder --linux AppImage deb rpm tar.xz pacman --publish never
           - os: windows-latest
             target: windows
             artifact_name: XNeon-Launcher-Windows
-            build_cmd: npx electron-builder --win nsis zip --publish never
+            build_cmd: pnpm exec electron-builder --win nsis zip --publish never
           - os: macos-latest
             target: mac
             artifact_name: XNeon-Launcher-Mac
-            build_cmd: npx electron-builder --mac dmg zip --publish never
+            build_cmd: pnpm exec electron-builder --mac dmg zip --publish never
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -34,7 +34,10 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: npm
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - name: Install system deps (Linux)
         if: matrix.target == 'linux'
@@ -50,7 +53,7 @@ jobs:
           printf "%s\n" "always-auth=true" >> .npmrc
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build app
         env:
@@ -63,7 +66,7 @@ jobs:
           ELY_CLIENT_SECRET: ${{ secrets.ELY_CLIENT_SECRET }}
           XN_CLIENT_ID: ${{ secrets.XN_CLIENT_ID }}
           XN_CLIENT_SECRET: ${{ secrets.XN_CLIENT_SECRET }}
-        run: npm run build
+        run: pnpm run build
 
       - name: Package
         env:
