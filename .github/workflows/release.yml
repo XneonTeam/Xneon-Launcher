@@ -37,7 +37,7 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 11
 
       - name: Install system deps (Linux)
         if: matrix.target == 'linux'
