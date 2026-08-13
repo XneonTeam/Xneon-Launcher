@@ -2,6 +2,7 @@ import { app } from "electron"
 import path from "path"
 import fs from "fs/promises"
 import { sendToRenderer } from "../runtime"
+import { dbHelpers } from "../../db"
 
 export function getBaseDataRoot(): string {
   if (process.platform === "win32") return path.join(app.getPath("appData"), "xneonlauncher")
@@ -9,18 +10,38 @@ export function getBaseDataRoot(): string {
   return path.join(app.getPath("home"), ".xneonlauncher")
 }
 
+let cachedInstancesRoot: string | null = null
+
+/** Loads the configured instances directory (setting `instancesPath`) into the cache. */
+export async function loadInstancesRoot(): Promise<string> {
+  try {
+    const stored = await dbHelpers.getSetting("instancesPath")
+    if (stored && stored.trim()) {
+      cachedInstancesRoot = stored.trim()
+      return cachedInstancesRoot
+    }
+  } catch {}
+  cachedInstancesRoot = getBaseDataRoot()
+  return cachedInstancesRoot
+}
+
+/** Returns the current instances root (the parent directory that contains `intents/`). */
+export function getInstancesRoot(): string {
+  return cachedInstancesRoot ?? getBaseDataRoot()
+}
+
 export function getBuildIntentDirName(rawName: string): string {
   return rawName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ _-]/g, "_") || "unnamed-build"
 }
 
 export function getBuildIntentPath(dirName: string): string {
-  const baseDataRoot = getBaseDataRoot()
+  const baseDataRoot = getInstancesRoot()
   const safeName = getBuildIntentDirName(dirName)
   return path.join(baseDataRoot, "intents", safeName)
 }
 
 export async function ensureBuildIntentDir(dirName: string): Promise<string> {
-  const baseDataRoot = getBaseDataRoot()
+  const baseDataRoot = getInstancesRoot()
   const safeName = getBuildIntentDirName(dirName)
   const intentPath = path.join(baseDataRoot, "intents", safeName)
   await fs.mkdir(intentPath, { recursive: true }).catch(() => {})
@@ -194,7 +215,7 @@ export function readArchiveEntryAsDataUrl(zip: AdmZipType, entryName?: string | 
 export type AdmZipType = {
   getEntries(): { entryName: string; isDirectory: boolean; getData(): Buffer }[]
   getEntry(name: string): { getData(): Buffer } | null
-  addLocalFolder(localPath: string, readstream?: unknown): void
+  addLocalFolder(localPath: string, readstream?: unknown, filter?: (entryPath: string) => boolean): void
   writeZip(outputPath: string, keepOrder?: boolean): void
   toBuffer(): Buffer
 }

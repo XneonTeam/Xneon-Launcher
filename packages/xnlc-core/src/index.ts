@@ -110,6 +110,7 @@ export {
   sha1Hash,
   sha1HashSync,
   generateOfflineUUID,
+  cleanEnvForGame,
   ensureDirSync,
   getGameDirStructure,
   getVersionDir,

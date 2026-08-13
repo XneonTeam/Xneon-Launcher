@@ -5,6 +5,8 @@
 
 // ── Database Types ──────────────────────────────────────────
 
+export type BuildExportCategory = "mods" | "resourcepacks" | "shaderpacks" | "saves" | "data" | "logs"
+
 export type DbAccount = {
   id: string
   type: "elyby" | "xnskins" | "microsoft" | "offline"
@@ -15,6 +17,8 @@ export type DbAccount = {
   refreshToken?: string
   clientId?: string
   skinUrl?: string
+  /** Display order in the accounts list */
+  sortOrder?: number
 }
 
 export type DbBuildMod = {
@@ -59,6 +63,18 @@ export type DbBuild = {
   serverOverride?: boolean
   server?: string
   serverPort?: string
+  /** Pre-launch command executed before the game starts (supports $INST_* placeholders) */
+  preLaunchCommand?: string
+  /** Post-launch command executed after the game exits (supports $INST_* placeholders) */
+  postLaunchCommand?: string
+  /** Wrapper command prepended to the java invocation (e.g. optirun, primusrun) */
+  wrapperCommand?: string
+  /** Custom environment variables for the game process (newline-separated KEY=VALUE) */
+  customEnv?: string
+  /** Default account used when launching this build */
+  defaultAccountId?: string
+  /** Group/category label for organizing builds (e.g. "Моды для сервера") */
+  group?: string
 }
 
 // ── World / Save Management ─────────────────────────────────
@@ -170,6 +186,12 @@ export type JavaDetectResult = {
   path: string
   version: string
   label: string
+  /** Full runtime version string, e.g. "17.0.8+7" */
+  fullVersion?: string
+  /** Java vendor, e.g. "Eclipse Adoptium", "Microsoft" */
+  vendor?: string
+  /** Data model: "64" or "32" */
+  arch?: string
 }
 
 // ── Utility Types ───────────────────────────────────────────

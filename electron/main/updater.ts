@@ -1,10 +1,25 @@
 import { autoUpdater, UpdateInfo } from "electron-updater"
-import { ipcMain, BrowserWindow } from "electron"
+import { app, ipcMain, BrowserWindow } from "electron"
 import { isDev, logRuntime, logRuntimeDebug } from "./runtime"
+import { isLaunchActive } from "./minecraft-core"
 
 let pendingUpdate: UpdateInfo | null = null
 let isDownloading = false
 let updateDownloaded = false
+
+function isVersionNewer(remote: string, local: string): boolean {
+  const r = remote.replace(/^v/, "").split(".").map(Number)
+  const l = local.replace(/^v/, "").split(".").map(Number)
+  for (let i = 0; i < Math.max(r.length, l.length); i++) {
+    const a = r[i] ?? 0
+    const b = l[i] ?? 0
+    if (a > b) return true
+    if (a < b) return false
+  }
+  return false
+}
+
+const CURRENT_VERSION = app.getVersion()
 
 function sendToRenderer(channel: string, ...args: unknown[]) {
   BrowserWindow.getAllWindows().forEach((win) => {
@@ -32,6 +47,10 @@ export function registerUpdater() {
   })
 
   autoUpdater.on("update-available", (info: UpdateInfo) => {
+    if (!isVersionNewer(info.version, CURRENT_VERSION)) {
+      logRuntime(`[Updater] Update ${info.version} is not newer than current ${CURRENT_VERSION}, skipping`)
+      return
+    }
     logRuntime(`[Updater] Update available: ${info.version}`)
     pendingUpdate = info
     sendToRenderer("update:status", {
@@ -73,10 +92,18 @@ export function registerUpdater() {
   })
 
   ipcMain.handle("update:check", async () => {
+    if (isLaunchActive()) {
+      logRuntime("[Updater] Update check blocked: Minecraft is running")
+      return { available: false, error: "Minecraft is running. Close the game to check for updates." }
+    }
     try {
       const result = await autoUpdater.checkForUpdates()
       if (result?.updateInfo) {
-        return { available: true, version: result.updateInfo.version }
+        const remote = result.updateInfo.version
+        if (isVersionNewer(remote, CURRENT_VERSION)) {
+          return { available: true, version: remote }
+        }
+        return { available: false }
       }
       return { available: false }
     } catch (err) {
@@ -87,6 +114,10 @@ export function registerUpdater() {
   ipcMain.handle("update:download", async () => {
     if (!pendingUpdate) return { success: false, error: "No update available" }
     if (isDownloading) return { success: false, error: "Download already in progress" }
+    if (isLaunchActive()) {
+      logRuntime("[Updater] Update download blocked: Minecraft is running")
+      return { success: false, error: "Minecraft is running. Close the game to download the update." }
+    }
     try {
       isDownloading = true
       await autoUpdater.downloadUpdate()
@@ -99,6 +130,10 @@ export function registerUpdater() {
   })
 
   ipcMain.handle("update:install", () => {
+    if (isLaunchActive()) {
+      logRuntime("[Updater] Update install blocked: Minecraft is running")
+      return
+    }
     logRuntime("[Updater] Installing update and restarting...")
     autoUpdater.quitAndInstall(false, true)
   })

@@ -11,20 +11,21 @@ Code, function names, API, terminal commands, and error messages — keep in the
 Xneon Launcher — Electron + React 19 Minecraft launcher.
 - **Renderer** (React): `components/`, `src/`, `lib/`
 - **Electron main**: `electron/main/`, `electron/preload.ts`
-- **Local packages** (`packages/`): `@xnlc/core`, `@xnlc/mods`, `@xnlc/types`, `@xnlc/p2p` — hosted at `https://git.xneon.org/api/packages/MAINER4IK/npm/` (see `.npmrc`)
+- **Local packages** (`packages/`): `@xnlc/core`, `@xnlc/mods`, `@xnlc/types`, `@xnlc/p2p`, `@xnlc/nbt` — linked via pnpm workspace (`workspace:*` in `package.json`). Registry fallback at `https://git.xneon.org/api/packages/MAINER4IK/npm/`
 - **IPC contracts**: `packages/xnlc-types/src/ipc-contracts.ts` — single source of truth for channel signatures
 - **Launch params**: `packages/xnlc-types/src/launch-types.ts` — `MinecraftLaunchParams`
 
 ## Commands
 
 ```bash
-npm run dev          # Vite + Electron dev (hot-reload)
-npm run build        # production build (vite + tsc)
-npm run package      # build + electron-builder → release/
-npm run typecheck    # tsc --noEmit (renderer tsconfig)
+pnpm run dev          # Vite + Electron dev (hot-reload)
+pnpm run build        # production build (vite + tsc)
+pnpm run package      # build + electron-builder → release/
+pnpm run typecheck    # tsc --noEmit (renderer tsconfig)
+pnpm run sync:xnlc    # build & symlink local @xnlc/* packages into node_modules
 ```
 
-No lint/test scripts exist. `npm run build` is the primary verification.
+No lint/test scripts exist. `pnpm run build` is the primary verification.
 
 ## Build pipeline
 
@@ -46,8 +47,15 @@ No lint/test scripts exist. `npm run build` is the primary verification.
 
 ## Common pitfalls
 
-- Running `npm run package` fails with `EPERM` on `dxil.dll` if a previous Electron process is still running — kill it first.
-- After adding/editing IPC channels, run `npm run build` (not just `dev`) to catch type errors across both tsconfigs.
+- Running `pnpm run package` fails with `EPERM` on `dxil.dll` if a previous Electron process is still running — kill it first.
+- After adding/editing IPC channels, run `pnpm run build` (not just `dev`) to catch type errors across both tsconfigs.
 - `multimc.svg` and `polymc.svg` icons don't exist in `public/launcher-icons/` — only `.png` variants are available.
 - `sql.js` is used (not better-sqlite3) for reading Modrinth App's `app.db` — table is `instances` joined with `instance_content_sets`, not `profiles`.
 - `prismarine-nbt` was replaced by `@xnlc/nbt` — do not re-add prismarine-nbt.
+
+## Package manager
+
+This project uses **pnpm** (v11+). Configuration lives in:
+- `pnpm-workspace.yaml` — workspace packages, overrides, allowBuilds, security settings
+- `.npmrc` — auth/registry settings only (pnpm 11 ignores non-auth settings here)
+- `package.json` — dependencies use `workspace:*` for local `@xnlc/*` packages

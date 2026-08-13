@@ -10,6 +10,7 @@ export interface Account {
   refreshToken?: string
   clientId?: string
   skinUrl?: string
+  sortOrder?: number
 }
 
 const FALLBACK: Account[] = [{ id: '1', type: 'offline', username: 'Player', isActive: true }]
@@ -52,6 +53,7 @@ interface AccountsContextValue {
   addAccount: (account: Account) => void
   removeAccount: (id: string) => void
   setActiveAccount: (id: string) => void
+  moveAccount: (id: string, direction: -1 | 1) => void
   activeAccount: Account | null
 }
 
@@ -140,14 +142,29 @@ export function AccountsProvider({ children }: PropsWithChildren) {
     })
   }, [])
 
+  const moveAccount = useCallback((id: string, direction: -1 | 1) => {
+    setAccounts(prev => {
+      const index = prev.findIndex(a => a.id === id)
+      const target = index + direction
+      if (index === -1 || target < 0 || target >= prev.length) return prev
+      const next = [...prev]
+      const [moved] = next.splice(index, 1)
+      next.splice(target, 0, moved)
+      const ordered = next.map((a, i) => ({ ...a, sortOrder: i }))
+      void window.electronAPI?.reorderAccounts(ordered.map(a => a.id))
+      return ordered
+    })
+  }, [])
+
   const activeAccount = useMemo(() => accounts.find(a => a.isActive) ?? accounts[0] ?? null, [accounts])
   const value = useMemo<AccountsContextValue>(() => ({
     accounts,
     addAccount,
     removeAccount,
     setActiveAccount,
+    moveAccount,
     activeAccount,
-  }), [accounts, addAccount, removeAccount, setActiveAccount, activeAccount])
+  }), [accounts, addAccount, removeAccount, setActiveAccount, moveAccount, activeAccount])
 
   return (
     <AccountsContext.Provider value={value}>

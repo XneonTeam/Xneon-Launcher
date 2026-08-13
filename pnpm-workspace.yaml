@@ -1,0 +1,18 @@
+packages:
+  - "packages/*"
+
+allowBuilds:
+  cpu-features: true
+  electron-winstaller: true
+  node-datachannel: true
+  register-scheme: true
+  register-scheme@https://codeload.github.com/devsnek/node-register-scheme/tar.gz/e7cc9a63a1f512565da44cb57316d9fb10750e17: set this to true or false
+  ssh2: true
+
+strictDepBuilds: false
+blockExoticSubdeps: false
+
+overrides:
+  "@emoji-mart/react>react": "19.2.8"
+  "shell-quote": ">=1.9.0"
+  "@xnlc/core>adm-zip": "^0.6.0"

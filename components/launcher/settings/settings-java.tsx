@@ -167,6 +167,13 @@ export function SettingsJava({
                           </span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 truncate">{java.path}</div>
+                        {(java.arch || java.vendor || java.fullVersion) && (
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                            {java.arch && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground">{java.arch}-бит</span>}
+                            {java.vendor && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground">{java.vendor}</span>}
+                            {java.fullVersion && java.fullVersion !== java.version && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground">{java.fullVersion}</span>}
+                          </div>
+                        )}
                       </button>
                     ))}
                   </div>

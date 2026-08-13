@@ -28,4 +28,7 @@ export interface JavaInstallation {
   path: string
   version: string
   label: string
+  fullVersion?: string
+  vendor?: string
+  arch?: string
 }

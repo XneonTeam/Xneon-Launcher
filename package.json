@@ -18,11 +18,11 @@
     "@emoji-mart/react": "^1.1.1",
     "@fontsource/inter": "^5.3.0",
     "@fontsource/plus-jakarta-sans": "^5.3.0",
-    "@xnlc/core": "1.0.2",
-    "@xnlc/mods": "1.0.0",
+    "@xnlc/core": "^1.0.3",
+    "@xnlc/mods": "^1.0.0",
     "@xnlc/nbt": "^1.0.0",
     "@xnlc/p2p": "^1.0.2",
-    "@xnlc/types": "1.0.4",
+    "@xnlc/types": "^1.0.5",
     "adm-zip": "^0.6.0",
     "axios": "^1.18.1",
     "discord-rpc": "^4.0.1",
@@ -46,8 +46,8 @@
     "dev:diag:no-sandbox": "concurrently -k -s first \"vite --host 127.0.0.1\" \"tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development ELECTRON_DEBUG_FLAGS=1 ELECTRON_NO_SANDBOX=0 node scripts/launch-electron-dev.mjs\"",
     "build:renderer": "vite build",
     "build:electron": "tsc -p tsconfig.node.json",
-    "build": "vite build && npm run build:electron",
-    "package": "npm run build && electron-builder",
+    "build": "vite build && pnpm run build:electron",
+    "package": "pnpm run build && electron-builder",
     "typecheck": "tsc --noEmit",
     "test:xn-auth": "node scripts/test-xn-auth.mjs"
   },
@@ -85,15 +85,6 @@
     "typescript": "7.0.2",
     "vite": "^8.1.5",
     "wait-on": "^9.0.10"
-  },
-  "overrides": {
-    "@emoji-mart/react": {
-      "react": "$react"
-    },
-    "shell-quote": ">=1.9.0",
-    "@xnlc/core": {
-      "adm-zip": "^0.6.0"
-    }
   },
   "build": {
     "appId": "com.xneonlauncher.app",

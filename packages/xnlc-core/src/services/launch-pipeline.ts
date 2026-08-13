@@ -64,6 +64,8 @@ export class XnlcLaunchPipeline {
       memoryMax?: string;
       width?: number;
       height?: number;
+      env?: Record<string, string>;
+      wrapperCommand?: string;
     } = {},
     onProgress?: DownloadProgressCallback,
   ): Promise<LaunchResult> {
@@ -163,7 +165,10 @@ export class XnlcLaunchPipeline {
     console.log(`[XNLC] Launch command built with ${fullCommand.length} segments`);
 
     // Step 10: Launch
-    return this.javaRunner.launch(fullCommand, this.options.gameDir);
+    return this.javaRunner.launch(fullCommand, this.options.gameDir, {
+      env: config.env,
+      wrapperCommand: config.wrapperCommand,
+    });
   }
 
   // ---------- Private Helpers ----------

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { changeLanguage } from "@/src/i18n"
 import { cn } from "@/lib/utils"
-import { IconCpu, IconDeviceDesktop, IconShield, IconCloud } from "@tabler/icons-react"
+import { IconCpu, IconDeviceDesktop, IconShield, IconCloud, IconFolder } from "@tabler/icons-react"
 import { MemorySlider } from "@/components/ui/memory-slider"
 import { useMemoryOptions } from "@/src/hooks/use-memory-options"
 import { memoryToMb, mbToMemory } from "@/lib/memory"
@@ -52,6 +52,7 @@ export function SettingsPage() {
     const stored = typeof window !== "undefined" ? localStorage.getItem("language") : null
     return stored || "ru"
   })
+  const [instancesRoot, setInstancesRoot] = useState("")
 
   useEffect(() => {
     const stored = localStorage.getItem("theme")
@@ -160,6 +161,10 @@ export function SettingsPage() {
         customHeight: customHeightSetting ?? "1080",
         useCustomResolution: String(useCustomResolutionSetting === "true"),
       }
+      try {
+        const root = await api.getInstancesRoot()
+        if (!cancelled) setInstancesRoot(root ?? "")
+      } catch {}
       settingsHydratedRef.current = true
     }
 
@@ -223,6 +228,18 @@ export function SettingsPage() {
       setSelectedJavaPath(picked)
       void window.electronAPI?.setSetting("javaPath", picked)
       setShowJavaModal(false)
+    }
+  }
+
+  const handleChangeInstancesDir = async () => {
+    if (!window.electronAPI) return
+    const picked = await window.electronAPI.pickFolder("Выбрать папку для сборок")
+    if (!picked) return
+    const result = await window.electronAPI.setInstancesRoot(picked)
+    if (result.success && result.root) {
+      setInstancesRoot(result.root)
+    } else if (result.error) {
+      console.warn("[Настройки] Не удалось сменить папку сборок:", result.error)
     }
   }
 
@@ -336,6 +353,22 @@ export function SettingsPage() {
                 showSnapshot={showSnapshot}
                 setShowSnapshot={setShowSnapshot}
               />
+            </section>
+
+            <section className="space-y-4">
+              <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+                <IconFolder className="w-5 h-5 text-primary" strokeWidth={1.5} />
+                Папка сборок
+              </h3>
+              <div className="p-4 rounded-xl border border-border bg-muted/30">
+                <p className="text-sm text-muted-foreground mb-3">Сюда сохраняются файлы сборок (mods, resourcepacks, shaderpacks). При смене папки существующие сборки переносятся автоматически.</p>
+                <div className="flex items-center gap-3">
+                  <code className="flex-1 truncate rounded-lg bg-background/60 border border-border px-3 py-2 text-xs text-muted-foreground">{instancesRoot || "Загрузка…"}</code>
+                  <button type="button" onClick={() => void handleChangeInstancesDir()} className="px-3 py-2 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 shrink-0">
+                    Изменить
+                  </button>
+                </div>
+              </div>
             </section>
 
             <section className="space-y-4">

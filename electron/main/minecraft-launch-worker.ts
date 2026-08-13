@@ -48,6 +48,144 @@ function resolveJavaBinaryPath(rootDir: string): string | null {
   return null
 }
 
+type LaunchVarContext = {
+  instName: string
+  instId?: string
+  gameDir: string
+  javaPath: string
+  mcVersion: string
+  loaderType: string
+  loaderVersion?: string
+  javaArgs?: string
+  accountName: string
+  accountUuid?: string
+  accountAccessToken?: string
+}
+
+/**
+ * Substitutes environment-style placeholders ($VAR / ${VAR}) in
+ * pre/post-launch commands, wrapper command and env values.
+ * Matches the substitution semantics of the reference launcher:
+ * a placeholder is replaced only when the variable has a non-empty value.
+ */
+function substituteLaunchVars(command: string, ctx: LaunchVarContext): string {
+  const vars: Record<string, string> = {
+    INST_NAME: ctx.instName,
+    INST_ID: ctx.instId ?? ctx.instName,
+    INST_DIR: ctx.gameDir,
+    INST_MC_DIR: ctx.gameDir,
+    INST_JAVA: ctx.javaPath,
+    INST_JAVA_ARGS: ctx.javaArgs ?? "",
+    NO_COLOR: "1",
+    MINECRAFT_VERSION: ctx.mcVersion,
+    MC_VERSION: ctx.mcVersion,
+    LOADER_TYPE: ctx.loaderType,
+    LOADER_VERSION: ctx.loaderVersion ?? "",
+    AUTH_PLAYER_NAME: ctx.accountName,
+    AUTH_UUID: ctx.accountUuid ?? "",
+    AUTH_ACCESS_TOKEN: ctx.accountAccessToken ?? "",
+  }
+  return command.replace(/\$\{([A-Za-z0-9_]+)\}|\$([A-Za-z0-9_]+)/g, (match, braceKey, bareKey) => {
+    const key = braceKey ?? bareKey
+    const value = vars[key]
+    return value ? value : match
+  })
+}
+
+/**
+ * Splits a command string into program + arguments, mirroring the
+ * Commandline::splitArgs behavior of the reference launcher: whitespace
+ * separates tokens, single/double quotes group tokens, backslash escapes
+ * the next character inside quotes.
+ */
+function splitCommandLine(input: string): string[] {
+  const argv: string[] = []
+  let current = ""
+  let escape = false
+  let inQuotes: string | null = null
+  for (let i = 0; i < input.length; i++) {
+    const c = input[i]
+    if (escape) {
+      current += c
+      escape = false
+    } else if (inQuotes) {
+      if (c === "\\") {
+        escape = true
+      } else if (c === inQuotes) {
+        inQuotes = null
+      } else {
+        current += c
+      }
+    } else {
+      if (c === " ") {
+        if (current.length > 0) {
+          argv.push(current)
+          current = ""
+        }
+      } else if (c === '"' || c === "'") {
+        inQuotes = c
+      } else {
+        current += c
+      }
+    }
+  }
+  if (current.length > 0) argv.push(current)
+  return argv
+}
+
+function isBatchFile(program: string): boolean {
+  return process.platform === "win32" && /\.(bat|cmd)$/i.test(program)
+}
+
+/**
+ * Runs a command (pre/post-launch / wrapper) with placeholders substituted.
+ * Like the reference launcher, the command is executed directly without a
+ * shell; .bat/.cmd files on Windows are routed through cmd.exe.
+ * Returns exit code and captured stderr.
+ */
+function runLaunchCommand(
+  rawCommand: string,
+  ctx: LaunchVarContext,
+  env: Record<string, string>,
+  cwd: string,
+): { code: number; error?: string } {
+  const command = substituteLaunchVars(rawCommand.trim(), ctx)
+  if (!command) return { code: 0 }
+
+  const argv = splitCommandLine(command)
+  const program = argv.shift()
+  if (!program) return { code: 0 }
+
+  debug(`[Command] ${command}`)
+
+  let spawnTarget = { cmd: program, args: argv }
+  if (isBatchFile(program)) {
+    const comspec = process.env.ComSpec ?? "cmd.exe"
+    const inner = `"${program}"${argv.map((a) => ` "${a.replace(/"/g, '""')}"`).join("")}`
+    spawnTarget = { cmd: comspec, args: ["/d", "/s", "/c", `"${inner}"`] }
+  }
+
+  try {
+    const result = spawnSync(spawnTarget.cmd, spawnTarget.args, {
+      cwd,
+      env,
+      encoding: "utf-8",
+      shell: false,
+      timeout: 10 * 60 * 1000,
+      stdio: ["inherit", "pipe", "pipe"],
+    })
+    if (result.status !== 0) {
+      const stderr = (result.stderr ?? "").trim()
+      if (stderr) debug(`[Command] stderr: ${stderr}`)
+      debug(`[Command] exited with code ${result.status}`)
+      return { code: result.status ?? 1, error: stderr || `Command exited with code ${result.status}` }
+    }
+    return { code: 0 }
+  } catch (error) {
+    return { code: 1, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
 function prependToPathEnv(dirPath: string): boolean {
   const normalized = path.normalize(dirPath)
   const currentPath = process.env.PATH ?? process.env.Path ?? ""
@@ -252,7 +390,7 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
     useBmclapi: payload.options.useBmclapi ?? false,
   })}`)
 
-  const { Xnlc, createLaunchAuth, OutputRelay, applyBmclapiEnv } = await import("@xnlc/core")
+  const { Xnlc, createLaunchAuth, OutputRelay, applyBmclapiEnv, cleanEnvForGame } = await import("@xnlc/core")
 
   if (payload.options.useBmclapi) {
     debug("BMCLAPI enabled: overriding download URLs")
@@ -297,8 +435,14 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
 
   await prepareJavaEnvironmentForInstallers(xnlc, payload, javaPath)
 
-  const auth = createLaunchAuth(payload.account)
-  debug(`Auth prepared for ${payload.account.type}:${payload.account.username}`)
+  // Offline username override: allow launching with a custom nickname regardless
+  // of the stored offline account name.
+  const launchAccount = (payload.options.offlineUsername && payload.account.type === "offline")
+    ? { ...payload.account, username: payload.options.offlineUsername }
+    : payload.account
+
+  const auth = createLaunchAuth(launchAccount)
+  debug(`Auth prepared for ${launchAccount.type}:${launchAccount.username}`)
   if (payload.options.javaPath && javaPath !== payload.options.javaPath) {
     debug(`Normalized Java runtime from ${payload.options.javaPath} to ${javaPath}`)
   }
@@ -307,11 +451,57 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
   const extraJvmArgs = parseExtraJvmArgs((payload.options as { javaArgs?: string }).javaArgs)
   debug(`Extra JVM args (${extraJvmArgs.length}): ${extraJvmArgs.join(" ")}`)
 
-  const server = (payload.options.server ?? "").trim()
-  const serverPort = (payload.options.serverPort ?? "").trim()
-  const extraGameArgs = server ? ["--server", server, "--port", serverPort || "25565"] : []
+  const launchVarContext: LaunchVarContext = {
+    instName: payload.options.buildName ?? payload.options.mcVersion,
+    instId: payload.options.buildId,
+    gameDir: payload.gameDir,
+    javaPath: javaPath || "java",
+    mcVersion: payload.options.mcVersion,
+    loaderType: payload.options.loaderType,
+    loaderVersion: payload.options.loaderVersion,
+    javaArgs: extraJvmArgs.join(" "),
+    accountName: launchAccount.username,
+    accountUuid: launchAccount.uuid,
+    accountAccessToken: launchAccount.accessToken,
+  }
+
+  // Game process environment: system env (with JAVA_*/LAUNCHER_* stripped, as the
+  // reference launcher does in CleanEnviroment()) + custom env + INST_* variables.
+  const instEnv: Record<string, string> = {}
+  for (const [key, value] of Object.entries({
+    INST_NAME: launchVarContext.instName,
+    INST_ID: launchVarContext.instId ?? launchVarContext.instName,
+    INST_DIR: launchVarContext.gameDir,
+    INST_MC_DIR: launchVarContext.gameDir,
+    INST_JAVA: launchVarContext.javaPath,
+    INST_JAVA_ARGS: launchVarContext.javaArgs ?? "",
+    NO_COLOR: "1",
+  })) {
+    if (value) instEnv[key] = value
+  }
+  const gameEnv = {
+    ...cleanEnvForGame(process.env as Record<string, string>),
+    ...payload.options.customEnv,
+    ...instEnv,
+  }
+
+  // Pre-launch command: runs before the game process starts. Aborts launch on non-zero exit.
+  const preLaunchCommand = (payload.options.preLaunchCommand ?? "").trim()
+  if (preLaunchCommand) {
+    debug(`[PreLaunch] Running pre-launch command`)
+    const preResult = runLaunchCommand(preLaunchCommand, launchVarContext, gameEnv, payload.gameDir)
+    if (preResult.code !== 0) {
+      const errorMessage = `Pre-launch command failed (code ${preResult.code})${preResult.error ? `: ${preResult.error}` : ""}`
+      debug(`[PreLaunch] ${errorMessage}`)
+      send({ type: "error", error: errorMessage })
+      process.exit(1)
+      return
+    }
+    debug(`[PreLaunch] Pre-launch command completed successfully`)
+  }
 
   // Quick Play: game args (NOT jvm args — Java VM doesn't recognize them)
+  const extraGameArgs: string[] = []
   const quickPlayLogDir = path.join(payload.gameDir, "logs", "quick_play")
   extraGameArgs.push("--quickPlayPath", quickPlayLogDir)
   debug(`Quick Play: path=${quickPlayLogDir}`)
@@ -323,10 +513,6 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
   } else if (qpOptions.quickPlayMultiplayer) {
     extraGameArgs.push("--quickPlayMultiplayer", qpOptions.quickPlayMultiplayer)
     debug(`Quick Play: multiplayer server=${qpOptions.quickPlayMultiplayer}`)
-  }
-
-  if (extraGameArgs.length > 0) {
-    debug(`Auto-join server: ${server}:${serverPort || "25565"}`)
   }
 
   debug("Calling XNLC launch pipeline")
@@ -345,6 +531,8 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
       width: payload.options.width,
       height: payload.options.height,
       gameArgs: extraGameArgs,
+      env: gameEnv,
+      wrapperCommand: substituteLaunchVars((payload.options.wrapperCommand ?? "").trim(), launchVarContext) || undefined,
     },
     (progress: XnlcLaunchProgress) => {
       send({
@@ -389,9 +577,20 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
     stdoutRelay.flush()
     stderrRelay.flush()
     debug(`Minecraft process closed with code ${typeof code === "number" ? code : 0}`)
-    send({ type: "close", code: typeof code === "number" ? code : 0 })
-    // Give IPC time to deliver before exiting
-    setTimeout(() => process.exit(0), 100)
+    void (async () => {
+      // Post-launch command: runs after the game exits (placeholders supported).
+      const postLaunchCommand = (payload.options.postLaunchCommand ?? "").trim()
+      if (postLaunchCommand) {
+        debug(`[PostLaunch] Running post-launch command`)
+        const postResult = runLaunchCommand(postLaunchCommand, launchVarContext, gameEnv, payload.gameDir)
+        if (postResult.code !== 0) {
+          debug(`[PostLaunch] Post-launch command exited with code ${postResult.code}${postResult.error ? `: ${postResult.error}` : ""}`)
+        }
+      }
+      send({ type: "close", code: typeof code === "number" ? code : 0 })
+      // Give IPC time to deliver before exiting
+      setTimeout(() => process.exit(0), 100)
+    })()
   })
 
   minecraftProcess.once("error", (error) => {

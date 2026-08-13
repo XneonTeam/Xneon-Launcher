@@ -10,6 +10,7 @@ import {
   IconRefresh,
   IconTrash,
   IconX,
+  IconPencil,
 } from "@tabler/icons-react"
 import type { Build, ScreenshotInfo } from "./types"
 
@@ -33,6 +34,8 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
   const [viewIndex, setViewIndex] = useState<number | null>(null)
   const [fullImage, setFullImage] = useState<string | null>(null)
   const [loadingFull, setLoadingFull] = useState(false)
+  const [renameFor, setRenameFor] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState("")
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -85,6 +88,21 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
       await refresh()
     } else {
       alert(result?.error ?? "Не удалось удалить скриншот")
+    }
+  }
+
+  const handleRename = async (oldName: string) => {
+    const newName = renameDraft.trim()
+    if (!newName || newName === oldName) {
+      setRenameFor(null)
+      return
+    }
+    const result = await window.electronAPI?.renameScreenshot(build.name, oldName, newName)
+    setRenameFor(null)
+    if (result?.success) {
+      await refresh()
+    } else {
+      alert(result?.error ?? "Не удалось переименовать скриншот")
     }
   }
 
@@ -145,6 +163,14 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
                     <div className="truncate text-xs font-medium text-foreground" title={shot.name}>{shot.name}</div>
                     <div className="text-[11px] text-muted-foreground">{formatDate(shot.lastModified)} · {formatBytes(shot.sizeBytes)}</div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => { setRenameDraft(shot.name.replace(/\.[a-zA-Z0-9]+$/, "")); setRenameFor(shot.name) }}
+                    title="Переименовать скриншот"
+                    className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <IconPencil className="h-4 w-4" strokeWidth={1.75} />
+                  </button>
                   <button
                     type="button"
                     onClick={() => void handleDelete(index)}
@@ -229,6 +255,39 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
                 <IconChevronRight className="h-6 w-6" strokeWidth={1.75} />
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Rename dialog */}
+      {renameFor && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-background/70 backdrop-blur-sm animate-in fade-in-0"
+          onClick={() => setRenameFor(null)}
+        >
+          <div className="w-80 rounded-2xl border border-border bg-card p-4 shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <p className="text-sm font-semibold text-foreground mb-3">Переименовать скриншот</p>
+            <input
+              autoFocus
+              value={renameDraft}
+              onChange={e => setRenameDraft(e.target.value)}
+              placeholder="Новое имя"
+              onKeyDown={e => {
+                if (e.key === "Enter") void handleRename(renameFor)
+                if (e.key === "Escape") setRenameFor(null)
+              }}
+              className="w-full rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm outline-none focus:border-primary mb-3"
+            />
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setRenameFor(null)} className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-muted text-muted-foreground">Отмена</button>
+              <button
+                type="button"
+                onClick={() => void handleRename(renameFor)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground"
+              >
+                Переименовать
+              </button>
+            </div>
           </div>
         </div>
       )}

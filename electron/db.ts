@@ -258,6 +258,10 @@ function initializeSchema() {
     run("ALTER TABLE accounts ADD COLUMN clientId TEXT")
   }
 
+  if (Array.isArray(accountColumns) && !accountColumns.some((column) => column.name === "sortOrder")) {
+    run("ALTER TABLE accounts ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
+  }
+
   const buildColumns = queryAll<{ name: string }>("PRAGMA table_info(builds)")
 
   if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "resourcepacks")) {
@@ -322,6 +326,10 @@ function initializeSchema() {
 
   if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "serverPort")) {
     run("ALTER TABLE builds ADD COLUMN serverPort TEXT NOT NULL DEFAULT ''")
+  }
+
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "group")) {
+    run("ALTER TABLE builds ADD COLUMN [group] TEXT")
   }
 
   for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
@@ -407,6 +415,7 @@ type AccountRow = {
   refreshToken: string | null
   clientId: string | null
   skinUrl: string | null
+  sortOrder?: number | null
 }
 
 export async function loadAccounts(): Promise<DbAccount[]> {
@@ -414,7 +423,7 @@ export async function loadAccounts(): Promise<DbAccount[]> {
     return Array.from(inMemoryAccounts.values()).map(normalizeOfflineAccount)
   }
 
-  const rows = queryAll<AccountRow>("SELECT * FROM accounts")
+  const rows = queryAll<AccountRow>("SELECT * FROM accounts ORDER BY sortOrder ASC, rowid ASC")
   if (!Array.isArray(rows)) return []
 
   return rows.map((row) => normalizeOfflineAccount({
@@ -427,6 +436,7 @@ export async function loadAccounts(): Promise<DbAccount[]> {
     refreshToken: row.refreshToken ?? undefined,
     clientId: row.clientId ?? undefined,
     skinUrl: row.skinUrl ?? undefined,
+    sortOrder: row.sortOrder ?? undefined,
   }))
 }
 
@@ -453,6 +463,7 @@ export async function saveAccount(account: DbAccount): Promise<void> {
     normalizedAccount.refreshToken ?? null,
     normalizedAccount.clientId ?? null,
     normalizedAccount.skinUrl ?? null,
+    normalizedAccount.sortOrder ?? 0,
   ]
   for (let i = 0; i < accountParams.length; i++) {
     const v = accountParams[i]
@@ -462,8 +473,8 @@ export async function saveAccount(account: DbAccount): Promise<void> {
     }
   }
   run(`
-    INSERT OR REPLACE INTO accounts (id, type, username, isActive, uuid, accessToken, refreshToken, clientId, skinUrl)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR REPLACE INTO accounts (id, type, username, isActive, uuid, accessToken, refreshToken, clientId, skinUrl, sortOrder)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, accountParams)
 
   persistDatabase()
@@ -495,6 +506,7 @@ type BuildJson = {
   serverOverride?: boolean
   server?: string
   serverPort?: string
+  group?: string
 }
 
 type BuildRow = {
@@ -523,6 +535,7 @@ type BuildRow = {
   serverOverride: number | null
   server: string | null
   serverPort: string | null
+  group: string | null
 }
 
 export async function loadBuilds(): Promise<BuildJson[]> {
@@ -559,6 +572,7 @@ export async function loadBuilds(): Promise<BuildJson[]> {
     serverOverride: row.serverOverride === 1,
     server: row.server || undefined,
     serverPort: row.serverPort || undefined,
+    group: row.group || undefined,
   }))
 }
 
@@ -601,6 +615,7 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
         build.serverOverride ? 1 : 0,
         build.server ?? "",
         build.serverPort ?? "",
+        build.group ?? "",
       ]
       for (let i = 0; i < params.length; i++) {
         const v = params[i]
@@ -610,8 +625,8 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
         }
       }
       run(`
-        INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax, serverOverride, server, serverPort)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax, serverOverride, server, serverPort, [group])
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, params)
     }
     run("COMMIT")
@@ -649,6 +664,20 @@ export const dbHelpers = {
     }
 
     run("DELETE FROM accounts WHERE id = ?", [id])
+    persistDatabase()
+  },
+  reorderAccounts: async (ids: string[]): Promise<void> => {
+    if (!dbAvailable) {
+      const list = Array.from(inMemoryAccounts.values()).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      for (const account of list) {
+        const index = ids.indexOf(account.id)
+        if (index !== -1) inMemoryAccounts.set(account.id, { ...account, sortOrder: index })
+      }
+      return
+    }
+    for (let i = 0; i < ids.length; i++) {
+      run("UPDATE accounts SET sortOrder = ? WHERE id = ?", [i, ids[i]])
+    }
     persistDatabase()
   },
   loadBuilds,

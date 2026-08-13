@@ -2,6 +2,7 @@ import type {
   ElectronAPIExplicit,
   ImportableLauncherInstance,
   QuickPlayEntry,
+  AuthPayload,
 } from '@xnlc/types'
 
 export {}
@@ -70,6 +71,10 @@ export type LauncherCloudFile = {
 
 export type LauncherExtraApi = {
   getTotalMemory: () => Promise<number>
+  reorderAccounts: (ids: string[]) => Promise<void>
+  getInstancesRoot: () => Promise<string>
+  pickFolder: (title?: string) => Promise<string | null>
+  setInstancesRoot: (newRoot: string) => Promise<{ success: boolean; root?: string; error?: string }>
   cloudListProviders: () => Promise<Array<{ id: string; name: string }>>
   cloudConnect: (providerId: string, authData?: Record<string, string>) => Promise<{ success: boolean; provider?: string; error?: string }>
   cloudIsConnected: (providerId: string) => Promise<boolean>
@@ -96,12 +101,21 @@ export type LauncherExtraApi = {
   listScreenshots: (buildName: string) => Promise<LauncherScreenshotInfo[]>
   getScreenshot: (buildName: string, fileName: string) => Promise<string | null>
   deleteScreenshot: (buildName: string, fileName: string) => Promise<{ success: boolean; error?: string }>
+  renameScreenshot: (buildName: string, fileName: string, newName: string) => Promise<{ success: boolean; error?: string }>
   listServers: (buildName: string) => Promise<Array<{ name: string; ip: string }>>
   writeServersDat: (buildName: string, servers: Array<{ name: string; ip: string }>) => Promise<{ success: boolean; error?: string }>
   pingServer: (address: string) => Promise<LauncherServerStatus>
   quickPlayList: (buildName?: string, gameDir?: string) => Promise<QuickPlayEntry[]>
   quickPlayClear: (buildName?: string, gameDir?: string) => Promise<void>
   quickPlayRemove: (buildName: string | undefined, gameDir: string | undefined, entry: QuickPlayEntry) => Promise<void>
+  copyBuild: (buildName: string, newName: string) => Promise<{ success: boolean; intentPath?: string; error?: string }>
+  renameBuildIntent: (oldName: string, newName: string) => Promise<{ success: boolean; intentPath?: string; error?: string }>
+  exportBuildZip: (buildName: string, label: string, categories?: import('@xnlc/types').BuildExportCategory[]) => Promise<{ success: boolean; path?: string; error?: string }>
+  exportBuildModlist: (buildName: string, label: string, format: "html" | "markdown" | "json" | "csv" | "plaintext") => Promise<{ success: boolean; path?: string; error?: string }>
+  moveBuildIntentToTrash: (dirName: string) => Promise<{ success: boolean; trashName?: string; error?: string }>
+  restoreBuildIntentFromTrash: (dirName: string, trashName: string) => Promise<{ success: boolean; error?: string }>
+  purgeBuildTrash: () => Promise<{ success: boolean; error?: string }>
+  onCliLaunchBuild: (callback: (buildName: string) => void) => () => void
   updateCheck: () => Promise<{ available: boolean; version?: string; error?: string }>
   updateDownload: () => Promise<{ success: boolean; error?: string }>
   updateInstall: () => Promise<void>

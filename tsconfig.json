@@ -27,7 +27,7 @@
     "lib/**/*.tsx",
     "electron/**/*.ts",
     "electron/**/*.d.ts",
-    "vite.config.ts"
+    "vite.config.mts"
   ],
   "exclude": ["node_modules", "dist", "dist-electron"]
 }

@@ -585,4 +585,29 @@ export function registerWorldsHandlers(): void {
       return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
+
+  ipcMain.handle("screenshots:rename", async (_event, buildName: string, fileName: string, newName: string): Promise<OpResult> => {
+    try {
+      const gameDir = await getGameDir(buildName)
+      const shotsDir = path.join(gameDir, "screenshots")
+      const src = resolveChildPath(shotsDir, fileName)
+      if (!src) return { success: false, error: "Некорректное имя файла" }
+
+      let clean = (newName ?? "").trim()
+      if (!clean) return { success: false, error: "Пустое имя файла" }
+      const ext = path.extname(fileName)
+      if (!path.extname(clean)) clean += ext
+
+      const dest = resolveChildPath(shotsDir, clean)
+      if (!dest) return { success: false, error: "Некорректное имя файла" }
+      if (path.normalize(dest) === path.normalize(src)) return { success: true }
+      if (await fs.access(dest).then(() => true).catch(() => false)) {
+        return { success: false, error: "Файл с таким именем уже существует" }
+      }
+      await fs.rename(src, dest)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
 }

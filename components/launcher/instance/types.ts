@@ -36,7 +36,13 @@ export type Build = {
   serverOverride?: boolean
   server?: string
   serverPort?: string
+  preLaunchCommand?: string
+  postLaunchCommand?: string
+  wrapperCommand?: string
+  customEnv?: string
+  defaultAccountId?: string
   playtime: number
+  group?: string
 }
 
 export type BuildMod = {

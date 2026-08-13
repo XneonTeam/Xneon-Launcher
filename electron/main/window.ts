@@ -1,7 +1,8 @@
 import { app, BrowserWindow, ipcMain, Menu, shell } from "electron"
 import path from "path"
-import { isDev, setMainWindow, getMainWindow, logRuntime, logRuntimeDebug, initRuntimePaths } from "./runtime"
+import { isDev, setMainWindow, getMainWindow, logRuntime, logRuntimeDebug, initRuntimePaths, sendToRenderer } from "./runtime"
 import { initDatabase } from "../db"
+import { loadInstancesRoot } from "./builds/helpers"
 
 export function createWindow() {
   logRuntime("[Window] Creating browser window")
@@ -97,8 +98,21 @@ export function registerWindowLifecycle() {
     } catch (error) {
       logRuntime(`[App] database init failed: ${error instanceof Error ? error.stack ?? error.message : String(error)}`)
     }
+    try {
+      await loadInstancesRoot()
+    } catch {}
     Menu.setApplicationMenu(null)
     createWindow()
+
+    // CLI: --launch <buildName> (e.g. from a desktop shortcut) triggers a build launch in the renderer.
+    const launchArgIndex = process.argv.indexOf("--launch")
+    const cliLaunchBuild = launchArgIndex !== -1 && process.argv[launchArgIndex + 1] ? process.argv[launchArgIndex + 1] : undefined
+    if (cliLaunchBuild) {
+      getMainWindow()?.webContents.once("did-finish-load", () => {
+        logRuntime(`[Window] CLI launch requested: ${cliLaunchBuild}`)
+        sendToRenderer("cli:launch-build", cliLaunchBuild)
+      })
+    }
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {

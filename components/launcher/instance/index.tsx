@@ -10,6 +10,8 @@ import { useBuilds } from "./use-builds"
 import { useModSearch } from "./use-mod-search"
 import { useImport } from "./use-import"
 import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
+import { useAccounts } from "@/src/AccountsContext"
+import { useBuildLaunch } from "@/src/hooks/use-build-launch"
 import type { ViewMode, DetailTab, ModSearchResult, ModVersion, ModSort } from "./types"
 
 const MODRINTH_SORT_OPTIONS: ModSort[] = ["relevance", "downloads", "followers", "published", "updated"]
@@ -30,6 +32,9 @@ export function InstancePage() {
   const [view, setView] = useState<ViewMode>("my")
   const [detailTab, setDetailTab] = useState<DetailTab>("general")
   const [createOpen, setCreateOpen] = useState(false)
+
+  const { activeAccount } = useAccounts()
+  const { launchInstance } = useBuildLaunch({ account: activeAccount ?? undefined })
 
   const [mrSearch, setMrSearch] = useState("")
   const [mrResults, setMrResults] = useState<ModSearchResult[]>([])
@@ -56,10 +61,24 @@ export function InstancePage() {
 
   const {
     builds, setBuilds, activeBuildId, setActiveBuildId, activeBuild,
-    fileInputRef, createBuild, deleteBuild, updateBuild, addModToBuild, addLocalModToBuild,
+    fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, collapsedGroups, toggleGroupCollapse, groups,
+    updateBuild, addModToBuild, addLocalModToBuild,
     addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds,
     toggleItemEnabled, updateItemVersion,
   } = useBuilds()
+
+  // CLI launch (--launch <buildName>, e.g. from a desktop shortcut)
+  useEffect(() => {
+    return window.electronAPI?.onCliLaunchBuild?.(async (buildName) => {
+      if (!buildName) return
+      const build = builds.find((b) => b.name === buildName)
+      if (!build) return
+      setActiveBuildId(build.id)
+      setView("detail")
+      setDetailTab("general")
+      await launchInstance(build)
+    })
+  }, [builds, launchInstance])
 
   const {
     modSearch, setModSearch, modResults, setModResults, modLoading,
@@ -258,6 +277,7 @@ export function InstancePage() {
         setDetailTab={setDetailTab}
         goToMyBuilds={goToMyBuilds}
         updateBuild={updateBuild}
+        renameBuild={renameBuild}
         fileInputRef={fileInputRef}
         reloadBuilds={reloadBuilds}
         modSearch={modSearch}
@@ -320,7 +340,18 @@ export function InstancePage() {
           totalBuilds={totalBuilds}
           onCreate={handleOpenCreate}
           onDelete={deleteBuild}
+          onTrash={trashBuild}
+          onUndoTrash={undoTrashBuild}
+          onDuplicate={duplicateBuild}
+          onExportZip={exportBuildZip}
+          onExportModlist={exportBuildModlist}
+          onSetGroup={setBuildGroup}
+          onRenameGroup={renameGroup}
+          onDeleteGroup={deleteGroup}
           onOpen={openBuildDetail}
+          groups={groups}
+          collapsedGroups={collapsedGroups}
+          onToggleGroupCollapse={toggleGroupCollapse}
         />
       )}
 

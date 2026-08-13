@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { MOD_LOADERS } from "./constants"
 import { loadBuilds, pickCompatibleVersion } from "./utils"
 import type { Build, BuildMod, ModSearchResult, ModDependency, ModVersion } from "./types"
+import type { BuildExportCategory } from "@xnlc/types"
 
 async function enrichBuildModNames(items: BuildMod[]): Promise<BuildMod[]> {
   const seen = new Set<string>()
@@ -249,9 +250,142 @@ export function useBuilds() {
     setActiveBuildId(prev => prev === id ? null : prev)
   }, [builds])
 
+  type TrashSnapshot = {
+    build: Build
+    trashName?: string
+  }
+  const trashStackRef = useRef<TrashSnapshot[]>([])
+
+  const trashBuild = useCallback(async (id: string): Promise<boolean> => {
+    const build = builds.find(b => b.id === id)
+    if (!build) return false
+    let trashName: string | undefined
+    try {
+      const result = await window.electronAPI?.moveBuildIntentToTrash?.(build.name)
+      trashName = result?.trashName
+    } catch {}
+    trashStackRef.current.push({ build, trashName })
+    if (trashStackRef.current.length > 30) {
+      trashStackRef.current.shift()
+    }
+    setBuilds(prev => prev.filter(b => b.id !== id))
+    setActiveBuildId(prev => prev === id ? null : prev)
+    return true
+  }, [builds])
+
+  const undoTrashBuild = useCallback(async (): Promise<Build | null> => {
+    const snapshot = trashStackRef.current.pop()
+    if (!snapshot) return null
+    const { build, trashName } = snapshot
+    if (trashName) {
+      try { await window.electronAPI?.restoreBuildIntentFromTrash?.(build.name, trashName) } catch {}
+    }
+    setBuilds(prev => [build, ...prev])
+    setActiveBuildId(build.id)
+    return build
+  }, [])
+
+  const purgeBuildTrash = useCallback(async (): Promise<void> => {
+    trashStackRef.current = []
+    try { await window.electronAPI?.purgeBuildTrash?.() } catch {}
+  }, [])
+
+  const duplicateBuild = useCallback(async (id: string): Promise<Build | null> => {
+    const source = builds.find(b => b.id === id)
+    if (!source) return null
+    const baseName = `${source.name} (копия)`
+    let newName = baseName
+    let counter = 2
+    while (builds.some(b => b.name === newName)) {
+      newName = `${source.name} (копия ${counter})`
+      counter++
+    }
+    const newBuild: Build = {
+      ...source,
+      id: crypto.randomUUID(),
+      name: newName,
+      createdAt: new Date().toISOString(),
+      mods: source.mods.map(m => ({ ...m, id: crypto.randomUUID() })),
+      resourcepacks: source.resourcepacks.map(m => ({ ...m, id: crypto.randomUUID() })),
+      shaders: source.shaders.map(m => ({ ...m, id: crypto.randomUUID() })),
+    }
+    try {
+      const result = await window.electronAPI?.copyBuild?.(source.name, newName)
+      if (result?.success) {
+        newBuild.intentPath = result.intentPath ?? newBuild.intentPath
+      }
+    } catch {}
+    setBuilds(prev => [newBuild, ...prev])
+    return newBuild
+  }, [builds])
+
+  const exportBuildZip = useCallback(async (id: string, categories?: BuildExportCategory[]): Promise<{ success: boolean; path?: string; error?: string }> => {
+    const build = builds.find(b => b.id === id)
+    if (!build) return { success: false, error: "Сборка не найдена" }
+    return await window.electronAPI?.exportBuildZip?.(build.name, build.name, categories) ?? { success: false, error: "Функция недоступна" }
+  }, [builds])
+
+  const exportBuildModlist = useCallback(async (id: string, format: "html" | "markdown" | "json" | "csv" | "plaintext"): Promise<{ success: boolean; path?: string; error?: string }> => {
+    const build = builds.find(b => b.id === id)
+    if (!build) return { success: false, error: "Сборка не найдена" }
+    return await window.electronAPI?.exportBuildModlist?.(build.name, build.name, format) ?? { success: false, error: "Функция недоступна" }
+  }, [builds])
+
+  const renameBuild = useCallback(async (id: string, newName: string): Promise<{ success: boolean; error?: string }> => {
+    const build = builds.find(b => b.id === id)
+    if (!build) return { success: false, error: "Сборка не найдена" }
+    const target = newName.trim()
+    if (!target) return { success: false, error: "Имя сборки не может быть пустым" }
+    if (target === build.name) return { success: true }
+    if (builds.some(b => b.id !== id && b.name === target)) {
+      return { success: false, error: "Сборка с таким именем уже существует" }
+    }
+    try {
+      const result = await window.electronAPI?.renameBuildIntent?.(build.name, target)
+      if (result?.success) {
+        setBuilds(prev => prev.map(b => b.id === id
+          ? { ...b, name: target, intentPath: result.intentPath ?? b.intentPath }
+          : b))
+        return { success: true }
+      }
+      return { success: false, error: result?.error ?? "Не удалось переименовать сборку" }
+    } catch {
+      return { success: false, error: "Не удалось переименовать сборку" }
+    }
+  }, [builds, setBuilds])
+
   const updateBuild = useCallback((id: string, fields: Partial<Build>) => {
     setBuilds(prev => prev.map(b => b.id === id ? { ...b, ...fields } : b))
   }, [])
+
+  const setBuildGroup = useCallback((id: string, group: string) => {
+    setBuilds(prev => prev.map(b => b.id === id ? { ...b, group: group || undefined } : b))
+  }, [])
+
+  const renameGroup = useCallback((oldName: string, newName: string) => {
+    setBuilds(prev => prev.map(b => b.group === oldName ? { ...b, group: newName || undefined } : b))
+  }, [])
+
+  const deleteGroup = useCallback((group: string) => {
+    setBuilds(prev => prev.map(b => b.group === group ? { ...b, group: undefined } : b))
+  }, [])
+
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+
+  const toggleGroupCollapse = useCallback((group: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(group)) next.delete(group)
+      else next.add(group)
+      return next
+    })
+  }, [])
+
+  const groups = useMemo(() => {
+    const set = new Set<string>()
+    for (const b of builds) { if (b.group) set.add(b.group) }
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [builds])
 
   const addModToBuild = useCallback(async (buildId: string, mod: ModSearchResult) => {
     const targetBuild = builds.find(b => b.id === buildId)
@@ -569,5 +703,5 @@ export function useBuilds() {
     }
   }, [builds, reloadBuilds])
 
-  return { builds, setBuilds, activeBuildId, setActiveBuildId, activeBuild, fileInputRef, createBuild, deleteBuild, updateBuild, addModToBuild, addLocalModToBuild, addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds, toggleItemEnabled, updateItemVersion }
+  return { builds, setBuilds, activeBuildId, setActiveBuildId, activeBuild, fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, collapsedGroups, toggleGroupCollapse, groups, updateBuild, addModToBuild, addLocalModToBuild, addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds, toggleItemEnabled, updateItemVersion }
 }

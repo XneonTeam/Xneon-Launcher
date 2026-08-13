@@ -4,8 +4,8 @@ import path from "node:path"
 
 const rootDir = process.cwd()
 const npmCommand = process.platform === "win32"
-  ? { command: "cmd.exe", args: ["/d", "/s", "/c", "npm", "run", "build"] }
-  : { command: "npm", args: ["run", "build"] }
+  ? { command: "cmd.exe", args: ["/d", "/s", "/c", "pnpm", "run", "build"] }
+  : { command: "pnpm", args: ["run", "build"] }
 
 const localPackages = [
   "xnlc-core",

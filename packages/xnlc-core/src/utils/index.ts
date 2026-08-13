@@ -158,6 +158,40 @@ export function generateOfflineUUID(username: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
 }
 
+/**
+ * Strips environment variables that could interfere with a Java/Minecraft
+ * process, mirroring the reference launcher's CleanEnviroment() behavior:
+ * - JAVA_* variables that inject JVM options (e.g. _JAVA_OPTIONS, JAVA_OPTIONS).
+ * - JVM/classpath/home hints (JAVA_ARGS, CLASSPATH, CONFIGPATH, JAVA_HOME, JRE_HOME).
+ * - Launcher-prefixed variables (LAUNCHER_*).
+ * On non-Windows platforms also strips LD_ and QT_ loader hints.
+ */
+export function cleanEnvForGame(base: Record<string, string>): Record<string, string> {
+  const ignored = new Set([
+    "JAVA_ARGS",
+    "CLASSPATH",
+    "CONFIGPATH",
+    "JAVA_HOME",
+    "JRE_HOME",
+    "_JAVA_OPTIONS",
+    "JAVA_OPTIONS",
+    "JAVA_TOOL_OPTIONS",
+  ]);
+  const stripped = process.platform === "win32"
+    ? new Set<string>()
+    : new Set(["LD_LIBRARY_PATH", "LD_PRELOAD", "QT_PLUGIN_PATH", "QT_FONTPATH"]);
+
+  const clean: Record<string, string> = {};
+  for (const key of Object.keys(base)) {
+    if (ignored.has(key)) continue;
+    if (key.startsWith("LAUNCHER_")) continue;
+    if (stripped.has(key)) continue;
+    clean[key] = base[key]!;
+  }
+  return clean;
+}
+
+
 export interface RuleCheck {
   action: "allow" | "disallow";
   os?: { name?: string; arch?: string };

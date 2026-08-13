@@ -8,7 +8,61 @@ import { spawn } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import { LaunchResult } from "../types/index.js";
-import { getLogsDir } from "../utils/index.js";
+import { getLogsDir, cleanEnvForGame } from "../utils/index.js";
+
+/**
+ * Splits a command string into program + arguments, mirroring the
+ * Commandline::splitArgs behavior of the reference launcher: whitespace
+ * separates tokens, single/double quotes group tokens, backslash escapes
+ * the next character inside quotes.
+ */
+function splitCommandLine(input: string): string[] {
+  const argv: string[] = [];
+  let current = "";
+  let escape = false;
+  let inQuotes: string | null = null;
+  for (let i = 0; i < input.length; i++) {
+    const c = input[i];
+    if (escape) {
+      current += c;
+      escape = false;
+    } else if (inQuotes) {
+      if (c === "\\") {
+        escape = true;
+      } else if (c === inQuotes) {
+        inQuotes = null;
+      } else {
+        current += c;
+      }
+    } else {
+      if (c === " ") {
+        if (current.length > 0) {
+          argv.push(current);
+          current = "";
+        }
+      } else if (c === '"' || c === "'") {
+        inQuotes = c;
+      } else {
+        current += c;
+      }
+    }
+  }
+  if (current.length > 0) argv.push(current);
+  return argv;
+}
+
+function isBatchFile(program: string): boolean {
+  return process.platform === "win32" && /\.(bat|cmd)$/i.test(program);
+}
+
+function resolveSpawnTarget(program: string, args: string[]): { cmd: string; args: string[] } {
+  if (!isBatchFile(program)) {
+    return { cmd: program, args };
+  }
+  const comspec = process.env.ComSpec ?? "cmd.exe";
+  const inner = `"${program}"${args.map((a) => ` "${a.replace(/"/g, '""')}"`).join("")}`;
+  return { cmd: comspec, args: ["/d", "/s", "/c", `"${inner}"`] };
+}
 
 export class JavaRunner {
   private currentProcess: import("child_process").ChildProcess | null = null;
@@ -18,9 +72,18 @@ export class JavaRunner {
     this.pipeOutputToConsole = enabled;
   }
 
-  launch(fullCommand: string[], gameDir: string): LaunchResult {
+  launch(
+    fullCommand: string[],
+    gameDir: string,
+    options?: {
+      env?: Record<string, string>;
+      wrapperCommand?: string;
+      cwd?: string;
+    },
+  ): LaunchResult {
     const javaPath = fullCommand[0];
     const allArgs = fullCommand.slice(1);
+    const wrapperCommand = options?.wrapperCommand?.trim();
 
     if (!javaPath) throw new Error("No Java path provided in launch command");
 
@@ -55,7 +118,8 @@ export class JavaRunner {
 
     const platform = process.platform;
     const env: Record<string, string> = {
-      ...process.env,
+      ...cleanEnvForGame(process.env as Record<string, string>),
+      ...(options?.env ?? {}),
       APPDATA: process.env.APPDATA ?? gameDir,
     };
 
@@ -64,8 +128,23 @@ export class JavaRunner {
       env.GLFW_PLATFORM = process.env.GLFW_PLATFORM ?? "x11";
     }
 
-    const child = spawn(javaPath, allArgs, {
-      cwd: gameDir,
+    // Wrapper command (e.g. optirun, flatpak run org.app) is prepended to the java invocation.
+    const commandParts = wrapperCommand
+      ? [...splitCommandLine(wrapperCommand), javaPath, ...allArgs]
+      : [javaPath, ...allArgs];
+    const program = commandParts[0];
+    const programArgs = commandParts.slice(1);
+
+    if (wrapperCommand && !fs.existsSync(program) && !program.includes("/") && !program.includes("\\")) {
+      const onPath = (process.env.PATH ?? "").split(path.delimiter).some((dir) => fs.existsSync(path.join(dir, program)));
+      if (!onPath) {
+        throw new Error(`Wrapper command not found: ${program}. Please check the wrapper path.`);
+      }
+    }
+
+    const target = resolveSpawnTarget(program, programArgs);
+    const child = spawn(target.cmd, target.args, {
+      cwd: options?.cwd ?? gameDir,
       stdio: ["pipe", "pipe", "pipe"],
       env,
     });
