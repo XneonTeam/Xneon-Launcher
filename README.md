@@ -7,10 +7,10 @@
 <h1 align="center">Xneon Launcher</h1>
 
 <p align="center">
-  <a href="https://github.com/MAINER4IK/xnlauncher/releases/latest">
+  <a href="https://github.com/XneonTeam/Xneon-Launcher/releases/latest">
     <img src="https://img.shields.io/github/v/release/MAINER4IK/xnlauncher?style=flat-square&color=f97316" alt="Version">
   </a>
-  <a href="https://github.com/MAINER4IK/xnlauncher/blob/main/LICENSE">
+  <a href="https://github.com/XneonTeam/Xneon-Launcher/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License">
   </a>
   <img src="https://img.shields.io/badge/Electron-35-47848F?style=flat-square&logo=electron" alt="Electron">
