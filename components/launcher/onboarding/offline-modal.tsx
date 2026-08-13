@@ -1,15 +1,30 @@
 import { IconArrowLeft, IconUser, IconX } from "@tabler/icons-react"
+import { Checkbox } from "@/components/ui/checkbox"
 import type { OnboardingCopy } from "./translations"
 
 type OfflineModalProps = {
   copy: OnboardingCopy
   offlineUsername: string
+  allowInvalidUsername: boolean
   onUsernameChange: (value: string) => void
+  onAllowInvalidChange: (value: boolean) => void
   onAdd: () => void
   onClose: () => void
 }
 
-export function OfflineModal({ copy, offlineUsername, onUsernameChange, onAdd, onClose }: OfflineModalProps) {
+const OFFLINE_USERNAME_REGEX = /^[A-Za-z0-9_]{3,16}$/
+
+export function OfflineModal({
+  copy,
+  offlineUsername,
+  allowInvalidUsername,
+  onUsernameChange,
+  onAllowInvalidChange,
+  onAdd,
+  onClose,
+}: OfflineModalProps) {
+  const isValidUsername = OFFLINE_USERNAME_REGEX.test(offlineUsername.trim())
+  const canAdd = Boolean(offlineUsername.trim()) && (isValidUsername || allowInvalidUsername)
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 px-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
@@ -35,10 +50,21 @@ export function OfflineModal({ copy, offlineUsername, onUsernameChange, onAdd, o
               className="w-full rounded-xl border border-border bg-input px-4 py-3 text-foreground outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary"
               autoFocus
               onKeyDown={(event) => {
-                if (event.key === "Enter") onAdd()
+                if (event.key === "Enter" && canAdd) onAdd()
               }}
             />
+            {!isValidUsername && offlineUsername.trim() && !allowInvalidUsername && (
+              <p className="text-xs text-destructive">{copy.accountOfflineInvalidHint}</p>
+            )}
           </div>
+
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+            <Checkbox
+              checked={allowInvalidUsername}
+              onCheckedChange={(v) => onAllowInvalidChange(!!v)}
+            />
+            {copy.accountOfflineAllowInvalid}
+          </label>
 
           <div className="flex gap-3 pt-2">
             <button
@@ -52,7 +78,7 @@ export function OfflineModal({ copy, offlineUsername, onUsernameChange, onAdd, o
             <button
               type="button"
               onClick={onAdd}
-              disabled={!offlineUsername.trim()}
+              disabled={!canAdd}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <IconUser className="h-4 w-4" strokeWidth={1.75} />

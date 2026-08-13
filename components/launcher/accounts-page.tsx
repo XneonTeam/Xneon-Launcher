@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import { IconUser, IconPuzzle, IconUserMinus, IconLoader2, IconCirclePlus, IconTrash, IconX, IconCheck, IconLogin, IconArrowLeft, IconPlus, IconBrandWindows } from "@tabler/icons-react"
+import {   IconUser, IconPuzzle, IconUserMinus, IconLoader2, IconCirclePlus, IconTrash, IconX, IconCheck, IconLogin, IconArrowLeft, IconPlus, IconBrandWindows, IconChevronUp, IconChevronDown } from "@tabler/icons-react"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useAccounts } from "@/src/AccountsContext"
 import { cn } from "@/lib/utils"
 
@@ -71,10 +72,11 @@ case "microsoft":
 export function AccountsPage() {
   const { t } = useTranslation()
   const accountTypeInfo = getAccountTypeInfo(t)
-  const { accounts, addAccount, removeAccount, setActiveAccount } = useAccounts()
+  const { accounts, addAccount, removeAccount, setActiveAccount, moveAccount } = useAccounts()
   const [showAddModal, setShowAddModal] = useState(false)
   const [selectedAccountType, setSelectedAccountType] = useState<AccountType | null>(null)
   const [offlineUsername, setOfflineUsername] = useState("")
+  const [allowInvalidUsername, setAllowInvalidUsername] = useState(false)
   const [elybyAuthLoading, setElybyAuthLoading] = useState(false)
   const [xnskinsAuthLoading, setXnSkinsAuthLoading] = useState(false)
   const [microsoftAuthLoading, setMicrosoftAuthLoading] = useState(false)
@@ -179,14 +181,20 @@ export function AccountsPage() {
   }, [addAccount, accounts.length])
 
   const handleAddOfflineAccount = () => {
-    if (!offlineUsername.trim()) return
+    const username = offlineUsername.trim()
+    if (!username) return
+    if (!/^[A-Za-z0-9_]{3,16}$/.test(username) && !allowInvalidUsername) {
+      setAuthError(t("accounts.offlineInvalidHint"))
+      return
+    }
     addAccount({
       id: Date.now().toString(),
       type: "offline",
-      username: offlineUsername.trim(),
+      username,
       isActive: accounts.length === 0,
     })
     setOfflineUsername("")
+    setAllowInvalidUsername(false)
     setSelectedAccountType(null)
     setShowAddModal(false)
   }
@@ -254,6 +262,24 @@ export function AccountsPage() {
                   </div>
 
                   <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        onClick={() => moveAccount(account.id, -1)}
+                        disabled={accounts.findIndex(a => a.id === account.id) === 0}
+                        title={t("accounts.moveUp")}
+                        className="w-7 h-6 rounded-md bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <IconChevronUp className="w-4 h-4" strokeWidth={1.75} />
+                      </button>
+                      <button
+                        onClick={() => moveAccount(account.id, 1)}
+                        disabled={accounts.findIndex(a => a.id === account.id) === accounts.length - 1}
+                        title={t("accounts.moveDown")}
+                        className="w-7 h-6 rounded-md bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <IconChevronDown className="w-4 h-4" strokeWidth={1.75} />
+                      </button>
+                    </div>
                     {!account.isActive && (
                       <button
                         onClick={() => setActiveAccount(account.id)}
@@ -346,7 +372,18 @@ export function AccountsPage() {
                   autoFocus
                   onKeyDown={(e) => e.key === "Enter" && handleAddOfflineAccount()}
                 />
+                {!allowInvalidUsername && offlineUsername.trim() && !/^[A-Za-z0-9_]{3,16}$/.test(offlineUsername.trim()) && (
+                  <p className="text-xs text-destructive">{t("accounts.offlineInvalidHint")}</p>
+                )}
               </div>
+
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+                <Checkbox
+                  checked={allowInvalidUsername}
+                  onCheckedChange={(v) => setAllowInvalidUsername(!!v)}
+                />
+                {t("accounts.offlineAllowInvalid")}
+              </label>
 
               <div className="flex gap-3 pt-2">
                 <button
@@ -358,7 +395,7 @@ export function AccountsPage() {
               </button>
                 <button
                   onClick={handleAddOfflineAccount}
-                  disabled={!offlineUsername.trim()}
+                  disabled={!offlineUsername.trim() || (!allowInvalidUsername && !/^[A-Za-z0-9_]{3,16}$/.test(offlineUsername.trim()))}
                   className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <IconPlus className="w-4 h-4" strokeWidth={1.75} />

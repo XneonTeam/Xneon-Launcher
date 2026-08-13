@@ -59,10 +59,14 @@ export function HomePage() {
     let mcVersion = selectedVersion
     let modLoader = selectedModLoader
     let loaderVersion: string | undefined
+    let build: {
+      name: string; version: string; modLoader: string; loaderVersion?: string
+      preLaunchCommand?: string; postLaunchCommand?: string; wrapperCommand?: string; customEnv?: string
+    } | undefined
 
     if (isInstance && buildName) {
       const builds = await window.electronAPI.loadBuilds() ?? []
-      const build = builds.find(b => b.name === buildName)
+      build = builds.find(b => b.name === buildName)
       if (!build) return
       mcVersion = build.version
       modLoader = build.modLoader
@@ -70,6 +74,14 @@ export function HomePage() {
     }
 
     const intentPath = buildName ? await window.electronAPI.getBuildIntentPath(buildName) : undefined
+
+    const envRecord: Record<string, string> = {}
+    for (const line of (build?.customEnv ?? "").split(/\r?\n/)) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith("#")) continue
+      const eq = trimmed.indexOf("=")
+      if (eq > 0) envRecord[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim()
+    }
 
     const result = await window.electronAPI.launchMinecraft({
       version: mcVersion,
@@ -82,6 +94,10 @@ export function HomePage() {
       buildName,
       gameDir: intentPath,
       ...quickPlayParams,
+      ...(build?.preLaunchCommand ? { preLaunchCommand: build.preLaunchCommand } : {}),
+      ...(build?.postLaunchCommand ? { postLaunchCommand: build.postLaunchCommand } : {}),
+      ...(build?.wrapperCommand ? { wrapperCommand: build.wrapperCommand } : {}),
+      ...(Object.keys(envRecord).length > 0 ? { customEnv: envRecord } : {}),
     })
 
     if (result.success) {

@@ -440,14 +440,16 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
   const connectToServer = async (server: ServerEntry) => {
     const status = server.status
     if (!status?.online || !status.ip || !activeAccount) return
+    const api = window.electronAPI
+    if (!api) return
     setConnectingIp(server.ip)
     try {
       const settings = await loadLaunchSettings()
       const { width, height } = resolveLaunchDimensions(settings)
 
-      const intentPath = build.name ? await window.electronAPI.getBuildIntentPath(build.name) : undefined
+      const intentPath = build.name ? await api.getBuildIntentPath(build.name) : undefined
 
-      await window.electronAPI.launchMinecraft({
+      await api.launchMinecraft({
         version: build.version,
         modLoader: build.modLoader as "vanilla" | "forge" | "fabric" | "quilt" | "liteloader" | "optifine" | "neoforge",
         ...(build.loaderVersion ? { loaderVersion: build.loaderVersion } : {}),
@@ -460,6 +462,18 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
         buildName: build.name,
         gameDir: intentPath,
         quickPlayMultiplayer: `${status.ip}:${status.port || 25565}`,
+        ...(build.preLaunchCommand ? { preLaunchCommand: build.preLaunchCommand } : {}),
+        ...(build.postLaunchCommand ? { postLaunchCommand: build.postLaunchCommand } : {}),
+        ...(build.wrapperCommand ? { wrapperCommand: build.wrapperCommand } : {}),
+        ...(build.customEnv ? {
+          customEnv: Object.fromEntries(
+            build.customEnv.split(/\r?\n/)
+              .map(l => l.trim())
+              .filter(l => l && !l.startsWith("#"))
+              .map(l => { const eq = l.indexOf("="); return eq > 0 ? [l.slice(0, eq).trim(), l.slice(eq + 1).trim()] : null })
+              .filter((p): p is [string, string] => p !== null)
+          ),
+        } : {}),
       })
     } finally {
       setConnectingIp(null)

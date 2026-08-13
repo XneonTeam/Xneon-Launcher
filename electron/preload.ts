@@ -35,6 +35,7 @@ import type {
   P2PRoomOpResult,
   P2PChatMessage,
   QuickPlayEntry,
+  BuildExportCategory,
 } from '@xnlc/types' with { 'resolution-mode': 'import' }
 
 // World/screenshot types are defined locally (not imported from @xnlc/types)
@@ -132,12 +133,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadBuilds: invoke<DbBuild[]>('db:load-builds'),
   saveBuilds: (builds: DbBuild[]) => ipcRenderer.invoke('db:save-builds', builds) as Promise<void>,
   dbIsFallbackStorage: invoke<{ isFallback: boolean }>('db:is-fallback-storage'),
+  reorderAccounts: (ids: string[]) => ipcRenderer.invoke('db:reorder-accounts', ids) as Promise<void>,
 
   // ── Build / Intent ─────────────────────────────────────
   scanBuildIntentContent: (buildName: string) => ipcRenderer.invoke('build:scan-intent-content', buildName) as Promise<BuildIntentScanResult>,
   discoverImportableInstances: invoke<ImportableLauncherInstance[]>('launcher:discover-importable-instances'),
   importGdLauncherInstances: (ids: string[]) => ipcRenderer.invoke('launcher:import-gdlauncher-instances', ids) as Promise<{ success: boolean; imported: number; error?: string }>,
   importLauncherInstances: (ids: string[]) => ipcRenderer.invoke('launcher:import-instances', ids) as Promise<{ success: boolean; imported: number; error?: string }>,
+  copyBuild: (buildName: string, newName: string) => ipcRenderer.invoke('build:copy', buildName, newName) as Promise<{ success: boolean; intentPath?: string; error?: string }>,
+  renameBuildIntent: (oldName: string, newName: string) => ipcRenderer.invoke('build:rename-intent', oldName, newName) as Promise<{ success: boolean; intentPath?: string; error?: string }>,
+  exportBuildZip: (buildName: string, label: string, categories?: BuildExportCategory[]) => ipcRenderer.invoke('build:export-zip', buildName, label, categories) as Promise<{ success: boolean; path?: string; error?: string }>,
+  exportBuildModlist: (buildName: string, label: string, format: "html" | "markdown" | "json" | "csv" | "plaintext") => ipcRenderer.invoke('build:export-modlist', buildName, label, format) as Promise<{ success: boolean; path?: string; error?: string }>,
+  moveBuildIntentToTrash: (dirName: string) => ipcRenderer.invoke('build:move-intent-to-trash', dirName) as Promise<{ success: boolean; trashName?: string; error?: string }>,
+  restoreBuildIntentFromTrash: (dirName: string, trashName: string) => ipcRenderer.invoke('build:restore-intent-from-trash', dirName, trashName) as Promise<{ success: boolean; error?: string }>,
+  purgeBuildTrash: () => ipcRenderer.invoke('build:purge-trash') as Promise<{ success: boolean; error?: string }>,
+  onCliLaunchBuild: (callback: (buildName: string) => void) => subscribe('cli:launch-build', callback),
 
   // ── Unified Mods API (via xnlc/mods) ──────────────────
   modsModrinthSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, category?: string) =>
@@ -205,6 +215,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Build Intent Operations ────────────────────────────
   getBuildIntentPath: (buildId: string) => ipcRenderer.invoke('build:get-intent-path', buildId) as Promise<string>,
+  getInstancesRoot: () => ipcRenderer.invoke('build:get-instances-root') as Promise<string>,
+  pickFolder: (title?: string) => ipcRenderer.invoke('common:pick-folder', title) as Promise<string | null>,
+  setInstancesRoot: (newRoot: string) => ipcRenderer.invoke('build:set-instances-root', newRoot) as Promise<{ success: boolean; root?: string; error?: string }>,
   saveModToIntent: (buildId: string, url: string, fileName: string) => ipcRenderer.invoke('build:save-mod-to-intent', buildId, url, fileName) as Promise<string | null>,
   saveLocalModToIntent: (buildId: string, localFilePath: string) => ipcRenderer.invoke('build:save-local-mod-to-intent', buildId, localFilePath) as Promise<string | null>,
   saveContentToIntent: (buildId: string, contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string) => ipcRenderer.invoke('build:save-content-to-intent', buildId, contentType, url, fileName) as Promise<string | null>,
@@ -248,6 +261,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listScreenshots: (buildName: string) => ipcRenderer.invoke('screenshots:list', buildName) as Promise<ScreenshotInfo[]>,
   getScreenshot: (buildName: string, fileName: string) => ipcRenderer.invoke('screenshots:get', buildName, fileName) as Promise<string | null>,
   deleteScreenshot: (buildName: string, fileName: string) => ipcRenderer.invoke('screenshots:delete', buildName, fileName) as Promise<{ success: boolean; error?: string }>,
+  renameScreenshot: (buildName: string, fileName: string, newName: string) => ipcRenderer.invoke('screenshots:rename', buildName, fileName, newName) as Promise<{ success: boolean; error?: string }>,
 
   // ── Cloud (Third-party providers) ──────────────────────
   cloudListProviders: invoke<Array<{ id: string; name: string }>>('cloud:list-providers'),

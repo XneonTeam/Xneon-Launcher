@@ -24,12 +24,23 @@ export type MinecraftLaunchParams = {
   authlibInjectorEnabled?: boolean
   retroauthInjectorEnabled?: boolean
   buildName?: string
+  buildId?: string
   server?: string
   serverPort?: string
   /** Quick Play: launch directly into a singleplayer world */
   quickPlaySingleplayer?: string
   /** Quick Play: launch directly into a multiplayer server */
   quickPlayMultiplayer?: string
+  /** Pre-launch command executed before the game starts (supports $INST_* placeholders) */
+  preLaunchCommand?: string
+  /** Post-launch command executed after the game exits (supports $INST_* placeholders) */
+  postLaunchCommand?: string
+  /** Wrapper command prepended to the java invocation (e.g. optirun, primusrun) */
+  wrapperCommand?: string
+  /** Custom environment variables for the game process */
+  customEnv?: Record<string, string>
+  /** Offline username override (launch as offline with a specific nickname) */
+  offlineUsername?: string
 }
 
 export type MinecraftProgress = {

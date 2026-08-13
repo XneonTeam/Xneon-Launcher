@@ -88,7 +88,7 @@ export async function resolveLaunchAccount(requestAccount?: LaunchAccountPayload
 
 export async function runLaunchWorker(
   launchAccount: DbAccount,
-  request: ResolvedLaunchRequest & { buildName?: string; gameDir?: string },
+  request: ResolvedLaunchRequest & { buildName?: string; buildId?: string; gameDir?: string },
 ): Promise<LaunchResultPayload> {
   return getLaunchOrchestrator().runLaunch(launchAccount, request)
 }

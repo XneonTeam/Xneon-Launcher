@@ -48,6 +48,9 @@ export function SettingsUpdate() {
     if (result.available) {
       setStatus("available")
       setRemoteVersion(result.version ?? null)
+    } else if (result.error) {
+      setStatus("error")
+      setErrorMsg(result.error)
     } else {
       setStatus("not-available")
     }
@@ -59,6 +62,8 @@ export function SettingsUpdate() {
     if (!result?.success) {
       setStatus("error")
       setErrorMsg(result?.error ?? "Download failed")
+    } else {
+      setProgress(100)
     }
   }, [])
 

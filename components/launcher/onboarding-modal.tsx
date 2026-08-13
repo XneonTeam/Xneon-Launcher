@@ -51,6 +51,7 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
     return stored && stored in ONBOARDING_COPY ? stored as OnboardingLanguage : "ru"
   })
   const [offlineUsername, setOfflineUsername] = useState("")
+  const [allowInvalidUsername, setAllowInvalidUsername] = useState(false)
   const [showOfflineAccountModal, setShowOfflineAccountModal] = useState(false)
   const [memoryMin, setMemoryMin] = useState("512M")
   const [memoryMax, setMemoryMax] = useState("4G")
@@ -128,8 +129,10 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
   const addOfflineAccount = () => {
     const username = offlineUsername.trim()
     if (!username) { setError(copy.errors.offlineUsername); return }
+    if (!/^[A-Za-z0-9_]{3,16}$/.test(username) && !allowInvalidUsername) { setError(copy.errors.offlineUsernameInvalid); return }
     addAccount({ id: `${Date.now()}`, type: "offline", username, isActive: accounts.length === 0 })
     setOfflineUsername("")
+    setAllowInvalidUsername(false)
     setShowOfflineAccountModal(false)
     setError("")
   }
@@ -166,6 +169,9 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
       const result = await importFn.call(api, selectedImportIds)
       if (!result.success) { setError(result.error || copy.errors.importFailed); return }
       setImportedCount(result.imported)
+      if (result.imported > 0) {
+        window.dispatchEvent(new CustomEvent("cloud:imported", { detail: { type: "build" } }))
+      }
     } catch (e) { setError(e instanceof Error ? e.message : copy.errors.importFailed) }
     finally { setImportingInstances(false) }
   }
@@ -249,7 +255,7 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
         </div>
 
         {showOfflineAccountModal && (
-          <OfflineModal copy={copy} offlineUsername={offlineUsername} onUsernameChange={setOfflineUsername} onAdd={addOfflineAccount} onClose={() => setShowOfflineAccountModal(false)} />
+          <OfflineModal copy={copy} offlineUsername={offlineUsername} allowInvalidUsername={allowInvalidUsername} onUsernameChange={setOfflineUsername} onAllowInvalidChange={setAllowInvalidUsername} onAdd={addOfflineAccount} onClose={() => setShowOfflineAccountModal(false)} />
         )}
 
         <div className="flex items-center justify-between gap-3 border-t border-border px-5 py-4">

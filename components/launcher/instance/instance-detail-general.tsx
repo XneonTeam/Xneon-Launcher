@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
 import { IconCamera, IconTrash, IconExternalLink, IconFolderOpen } from "@tabler/icons-react"
@@ -24,11 +24,13 @@ function formatPlaytime(seconds: number): string {
 interface InstanceDetailGeneralProps {
   activeBuild: Build
   updateBuild: (id: string, fields: Partial<Build>) => void
+  renameBuild: (id: string, newName: string) => Promise<{ success: boolean; error?: string }>
   fileInputRef: React.RefObject<HTMLInputElement | null>
 }
 
-export function InstanceDetailGeneral({ activeBuild, updateBuild, fileInputRef }: InstanceDetailGeneralProps) {
+export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, fileInputRef }: InstanceDetailGeneralProps) {
   const { t } = useTranslation()
+  const savedNameRef = useRef(activeBuild.name)
   const { visibleVersions, versionsLoaded } = useMinecraftVersionOptions()
   const { loaderVersions, loaderVersionsLoaded, recommendedLoaderVersion } = useLoaderVersionOptions(activeBuild.modLoader, activeBuild.version)
   const buildHasImage = !!(activeBuild.icon && (activeBuild.icon.startsWith("data:") || activeBuild.icon.startsWith("http")))
@@ -37,6 +39,20 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, fileInputRef }
     : [activeBuild.version, ...visibleVersions.filter((item) => item !== activeBuild.version)]
   const formattedCreatedAt = new Date(activeBuild.createdAt).toLocaleDateString()
   const showLoaderVersionSelect = activeBuild.modLoader !== "vanilla" && activeBuild.modLoader !== "instance"
+
+  const handleNameBlur = async () => {
+    const current = activeBuild.name.trim()
+    const saved = savedNameRef.current
+    if (current === saved) return
+    const result = await renameBuild(activeBuild.id, current)
+    if (result.success) {
+      savedNameRef.current = current
+    } else {
+      // Revert to the last saved name if the folder could not be renamed.
+      updateBuild(activeBuild.id, { name: saved })
+      alert(result.error ?? "Не удалось переименовать сборку")
+    }
+  }
 
   useEffect(() => {
     if (!showLoaderVersionSelect) {
@@ -131,6 +147,8 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, fileInputRef }
                 type="text"
                 value={activeBuild.name}
                 onChange={e => updateBuild(activeBuild.id, { name: e.target.value })}
+                onBlur={handleNameBlur}
+                onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur() }}
                 className="h-12 w-full rounded-2xl border border-border bg-muted/40 px-4 text-sm text-foreground focus:outline-none focus:border-primary"
               />
             </div>

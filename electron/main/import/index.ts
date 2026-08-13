@@ -1,5 +1,4 @@
 import { randomUUID } from "crypto"
-import path from "path"
 import { dbHelpers } from "../../db"
 import { ensureBuildIntentDir, scanIntentDir } from "../builds"
 import { discoverGdLauncherInstances } from "./gdlauncher"
@@ -8,7 +7,7 @@ import { discoverAstralRinthInstances } from "./astralrinth"
 import { discoverXLauncherInstances } from "./xlauncher"
 import { discoverModrinthAppInstances } from "./modrinthapp"
 import type { LauncherInstance } from "./helpers"
-import { fileExists, getInstanceContentDirs, copyDirContents, readIconAsDataUrl, resolveMcDir } from "./helpers"
+import { fileExists, copyDirContents, readIconAsDataUrl, resolveMcDir } from "./helpers"
 
 export type { LauncherInstance }
 export { discoverGdLauncherInstances }
@@ -39,20 +38,9 @@ export async function importLauncherInstance(instance: LauncherInstance) {
   try {
     const intentPath = await ensureBuildIntentDir(instance.name)
 
-    // Copy mods
-    const srcMods = await getInstanceContentDirs(instance.path, "mods")
-    const destMods = path.join(intentPath, "mods")
-    await copyDirContents(srcMods, destMods)
-
-    // Copy resourcepacks
-    const srcRp = await getInstanceContentDirs(instance.path, "resourcepacks")
-    const destRp = path.join(intentPath, "resourcepacks")
-    await copyDirContents(srcRp, destRp)
-
-    // Copy shaderpacks
-    const srcSp = await getInstanceContentDirs(instance.path, "shaderpacks")
-    const destSp = path.join(intentPath, "shaderpacks")
-    await copyDirContents(srcSp, destSp)
+    // Copy the entire minecraft directory contents into the intent (like Ctrl+C / Ctrl+V).
+    const srcRoot = await resolveMcDir(instance.path)
+    await copyDirContents([srcRoot], intentPath)
     const scanned = await scanIntentDir(intentPath)
 
     // Read icon

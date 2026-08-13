@@ -27,6 +27,15 @@ export type WorkerLaunchPayload = {
     useBmclapi?: boolean
     server?: string
     serverPort?: string
+    preLaunchCommand?: string
+    postLaunchCommand?: string
+    wrapperCommand?: string
+    customEnv?: Record<string, string>
+    offlineUsername?: string
+    buildName?: string
+    buildId?: string
+    quickPlaySingleplayer?: string
+    quickPlayMultiplayer?: string
   }
 }
 

@@ -146,12 +146,18 @@ const launchHandlers: IpcHandlerDef[] = [
       const extendedRequest = {
         ...request,
         buildName: options.buildName,
+        buildId: (options as { buildId?: string }).buildId,
         gameDir: options.gameDir,
         javaArgs: (options as { javaArgs?: string }).javaArgs,
         server: (options as { server?: string }).server,
         serverPort: (options as { serverPort?: string }).serverPort,
         quickPlaySingleplayer: (options as { quickPlaySingleplayer?: string }).quickPlaySingleplayer,
         quickPlayMultiplayer: (options as { quickPlayMultiplayer?: string }).quickPlayMultiplayer,
+        preLaunchCommand: (options as { preLaunchCommand?: string }).preLaunchCommand,
+        postLaunchCommand: (options as { postLaunchCommand?: string }).postLaunchCommand,
+        wrapperCommand: (options as { wrapperCommand?: string }).wrapperCommand,
+        customEnv: (options as { customEnv?: Record<string, string> }).customEnv,
+        offlineUsername: (options as { offlineUsername?: string }).offlineUsername,
       }
 
       return await runLaunchWorker(launchAccount, extendedRequest)

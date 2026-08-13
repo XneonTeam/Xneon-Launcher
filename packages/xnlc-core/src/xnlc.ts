@@ -222,6 +222,8 @@ export class Xnlc {
       memoryMax?: string;
       width?: number;
       height?: number;
+      env?: Record<string, string>;
+      wrapperCommand?: string;
     } = {},
     onProgress?: DownloadProgressCallback,
   ): Promise<LaunchResult> {

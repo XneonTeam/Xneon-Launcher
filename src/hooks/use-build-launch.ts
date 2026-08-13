@@ -4,6 +4,7 @@ import type { Account } from "@/src/AccountsContext"
 import { useLaunchControls } from "@/src/LaunchLogsContext"
 
 export type BuildLaunchParams = {
+  id: string
   name: string
   version: string
   modLoader: string
@@ -20,6 +21,11 @@ export type BuildLaunchParams = {
   serverOverride?: boolean
   server?: string
   serverPort?: string
+  preLaunchCommand?: string
+  postLaunchCommand?: string
+  wrapperCommand?: string
+  customEnv?: string
+  defaultAccountId?: string
 }
 
 export function saveLastLaunchedPrefs(version: string, modLoader: string, loaderVersion?: string) {
@@ -114,13 +120,23 @@ export function useBuildLaunch({ account }: { account?: Account }) {
   const launchInstance = useCallback(async (build: BuildLaunchParams) => {
     if (!account || !window.electronAPI) return
 
-    const usesSkinInjector = account.type === "xnskins" || account.type === "elyby"
     const settings = await loadLaunchSettings()
     const buildWindow = build.windowOverride === true && build.windowWidth && build.windowHeight
     const { width, height } = buildWindow
       ? { width: build.windowWidth, height: build.windowHeight }
       : resolveLaunchDimensions(settings)
     const intentPath = await window.electronAPI.getBuildIntentPath(build.name) ?? ""
+
+    // Custom environment variables (KEY=VALUE per line) → Record<string,string>.
+    const envRecord: Record<string, string> = {}
+    for (const line of (build.customEnv ?? "").split(/\r?\n/)) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith("#")) continue
+      const eq = trimmed.indexOf("=")
+      if (eq > 0) envRecord[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim()
+    }
+
+    const usesSkinInjector = account.type === "xnskins" || account.type === "elyby"
 
     // Per-build auto-join server override (falls back to global launcher settings)
     const useBuildServer = build.serverOverride === true
@@ -167,10 +183,15 @@ export function useBuildLaunch({ account }: { account?: Account }) {
       authlibInjectorEnabled: usesSkinInjector && settings.authlibEnabled !== "false",
       retroauthInjectorEnabled: usesSkinInjector,
       buildName: build.name,
+      buildId: build.id,
       gameDir: intentPath,
       ...(normalizedJavaPath ? { javaPath: normalizedJavaPath } : {}),
       ...(javaArgs ? { javaArgs } : {}),
       ...(serverEnabled ? { quickPlayMultiplayer: `${server.trim()}:${serverPort.trim() || "25565"}` } : {}),
+      ...(build.preLaunchCommand ? { preLaunchCommand: build.preLaunchCommand } : {}),
+      ...(build.postLaunchCommand ? { postLaunchCommand: build.postLaunchCommand } : {}),
+      ...(build.wrapperCommand ? { wrapperCommand: build.wrapperCommand } : {}),
+      ...(Object.keys(envRecord).length > 0 ? { customEnv: envRecord } : {}),
     })
 
     patchLaunchUi(result.success

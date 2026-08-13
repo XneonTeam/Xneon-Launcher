@@ -16,6 +16,8 @@ import type {
   MinecraftVersionInfo,
   ImportableLauncherInstance,
 
+  BuildExportCategory,
+
   JavaDetectResult,
   BuildIntentScanResult,
   ModpackImportResult,
@@ -63,6 +65,21 @@ export interface IpcInvokeMap {
   "auth:elyby-login": { args: []; return: AuthPayload }
   "auth:xnskins-login": { args: []; return: AuthPayload }
   "auth:microsoft-login": { args: []; return: AuthPayload }
+  "auth:microsoft-device-start": {
+    args: []
+    return: {
+      deviceCode: string
+      userCode: string
+      verificationUri: string
+      verificationUriComplete: string
+      expiresIn: number
+      interval: number
+    }
+  }
+  "auth:microsoft-device-poll": {
+    args: [deviceCode: string]
+    return: { status: "pending"; slowDown?: boolean } | { status: "expired" } | { status: "complete"; account: AuthPayload } | { status: "error"; message: string; retryable?: boolean }
+  }
 
   // ── Fetch ──
   "fetch:minecraft-news": { args: []; return: MinecraftNewsEntry[] }
@@ -74,10 +91,14 @@ export interface IpcInvokeMap {
   "db:load-builds": { args: []; return: DbBuild[] }
   "db:save-builds": { args: [builds: DbBuild[]]; return: void }
   "db:is-fallback-storage": { args: []; return: { isFallback: boolean } }
+  "db:reorder-accounts": { args: [ids: string[]]; return: void }
 
   // ── Build / Intent ──
   "build:scan-intent-content": { args: [buildName: string]; return: BuildIntentScanResult }
   "build:get-intent-path": { args: [buildId: string]; return: string }
+  "build:get-instances-root": { args: []; return: string }
+  "common:pick-folder": { args: [title?: string]; return: string | null }
+  "build:set-instances-root": { args: [newRoot: string]; return: { success: boolean; root?: string; error?: string } }
   "build:save-mod-to-intent": { args: [buildId: string, url: string, fileName: string]; return: string | null }
   "build:save-local-mod-to-intent": { args: [buildId: string, localFilePath: string]; return: string | null }
   "build:save-content-to-intent": { args: [buildId: string, contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string]; return: string | null }
@@ -90,6 +111,13 @@ export interface IpcInvokeMap {
   "build:open-and-import": { args: []; return: ModpackImportResult & { name?: string; description?: string; icon?: string; source?: "modrinth" | "curseforge"; intentPath?: string } }
   "build:cancel-import": { args: []; return: { success: boolean } }
   "build:upload-to-cloud": { args: [buildName: string, cloudToken: string, category?: string]; return: { success: boolean; error?: string } }
+  "build:copy": { args: [buildName: string, newName: string]; return: { success: boolean; intentPath?: string; error?: string } }
+  "build:rename-intent": { args: [oldName: string, newName: string]; return: { success: boolean; intentPath?: string; error?: string } }
+  "build:export-zip": { args: [buildName: string, buildNameLabel: string, categories?: BuildExportCategory[]]; return: { success: boolean; path?: string; error?: string } }
+  "build:export-modlist": { args: [buildName: string, buildNameLabel: string, format: "html" | "markdown" | "json" | "csv" | "plaintext"]; return: { success: boolean; path?: string; error?: string } }
+  "build:move-intent-to-trash": { args: [dirName: string]; return: { success: boolean; trashName?: string; error?: string } }
+  "build:restore-intent-from-trash": { args: [dirName: string, trashName: string]; return: { success: boolean; error?: string } }
+  "build:purge-trash": { args: []; return: { success: boolean; error?: string } }
 
   // ── Launcher Import ──
   "launcher:discover-importable-instances": { args: []; return: ImportableLauncherInstance[] }
@@ -161,6 +189,7 @@ export interface IpcInvokeMap {
   "screenshots:list": { args: [buildName: string]; return: ScreenshotInfo[] }
   "screenshots:get": { args: [buildName: string, fileName: string]; return: string | null }
   "screenshots:delete": { args: [buildName: string, fileName: string]; return: { success: boolean; error?: string } }
+  "screenshots:rename": { args: [buildName: string, fileName: string, newName: string]; return: { success: boolean; error?: string } }
 
   // ── Shell ──
   "shell:open-external": { args: [url: string]; return: void }
@@ -241,6 +270,15 @@ export interface ElectronAPIExplicit {
   loginElyBy: () => Promise<AuthPayload>
   loginXnSkins: () => Promise<AuthPayload>
   loginMicrosoft: () => Promise<AuthPayload>
+  startMicrosoftDeviceCode: () => Promise<{
+    deviceCode: string
+    userCode: string
+    verificationUri: string
+    verificationUriComplete: string
+    expiresIn: number
+    interval: number
+  }>
+  pollMicrosoftDeviceCode: (deviceCode: string) => Promise<{ status: "pending"; slowDown?: boolean } | { status: "expired" } | { status: "complete"; account: AuthPayload } | { status: "error"; message: string; retryable?: boolean }>
   fetchMinecraftNews: () => Promise<MinecraftNewsEntry[]>
   loadAccounts: () => Promise<DbAccount[]>
   saveAccount: (account: DbAccount) => Promise<void>
@@ -248,6 +286,7 @@ export interface ElectronAPIExplicit {
   loadBuilds: () => Promise<DbBuild[]>
   saveBuilds: (builds: DbBuild[]) => Promise<void>
   dbIsFallbackStorage: () => Promise<{ isFallback: boolean }>
+  reorderAccounts: (ids: string[]) => Promise<void>
   scanBuildIntentContent: (buildName: string) => Promise<BuildIntentScanResult>
   discoverImportableInstances: () => Promise<ImportableLauncherInstance[]>
   importGdLauncherInstances: (ids: string[]) => Promise<{ success: boolean; imported: number; error?: string }>
@@ -297,9 +336,13 @@ export interface ElectronAPIExplicit {
   onMinecraftDownloadStatus: (callback: (progress: MinecraftProgress) => void) => CleanupFn
   onMinecraftClose: (callback: (code: number) => void) => CleanupFn
   onAuthProgress: (callback: (msg: string) => void) => CleanupFn
+  onCliLaunchBuild: (callback: (buildName: string) => void) => CleanupFn
   getSetting: (key: string) => Promise<string | undefined>
   setSetting: (key: string, value: string) => Promise<void>
   getBuildIntentPath: (buildId: string) => Promise<string>
+  getInstancesRoot: () => Promise<string>
+  pickFolder: (title?: string) => Promise<string | null>
+  setInstancesRoot: (newRoot: string) => Promise<{ success: boolean; root?: string; error?: string }>
   saveModToIntent: (buildId: string, url: string, fileName: string) => Promise<string | null>
   saveLocalModToIntent: (buildId: string, localFilePath: string) => Promise<string | null>
   saveContentToIntent: (buildId: string, contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string) => Promise<string | null>
@@ -330,9 +373,16 @@ export interface ElectronAPIExplicit {
   listScreenshots: (buildName: string) => Promise<ScreenshotInfo[]>
   getScreenshot: (buildName: string, fileName: string) => Promise<string | null>
   deleteScreenshot: (buildName: string, fileName: string) => Promise<{ success: boolean; error?: string }>
+  renameScreenshot: (buildName: string, fileName: string, newName: string) => Promise<{ success: boolean; error?: string }>
   listServers: (buildName: string) => Promise<Array<{ name: string; ip: string }>>
   writeServersDat: (buildName: string, servers: Array<{ name: string; ip: string }>) => Promise<{ success: boolean; error?: string }>
   uploadBuildToCloud: (buildName: string, cloudToken: string, category?: string) => Promise<{ success: boolean; error?: string }>
+  copyBuild: (buildName: string, newName: string) => Promise<{ success: boolean; intentPath?: string; error?: string }>
+  exportBuildZip: (buildName: string, label: string, categories?: BuildExportCategory[]) => Promise<{ success: boolean; path?: string; error?: string }>
+  exportBuildModlist: (buildName: string, label: string, format: "html" | "markdown" | "json" | "csv" | "plaintext") => Promise<{ success: boolean; path?: string; error?: string }>
+  moveBuildIntentToTrash: (dirName: string) => Promise<{ success: boolean; trashName?: string; error?: string }>
+  restoreBuildIntentFromTrash: (dirName: string, trashName: string) => Promise<{ success: boolean; error?: string }>
+  purgeBuildTrash: () => Promise<{ success: boolean; error?: string }>
   cloudLogin: (username: string, password: string) => Promise<{ success: boolean; token?: string; error?: string }>
   cloudRegister: (username: string, password: string, email?: string) => Promise<{ success: boolean; error?: string }>
   cloudGetUser: (token: string) => Promise<{ success: boolean; user?: CloudUser; error?: string }>

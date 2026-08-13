@@ -25,10 +25,79 @@ async function getJavaVersion(javaExe: string): Promise<string | null> {
   }
 }
 
+type JavaInfo = {
+  version: string
+  fullVersion?: string
+  vendor?: string
+  arch?: string
+}
+
+async function getJavaInstallationInfo(javaExe: string): Promise<JavaInfo | null> {
+  const enc = process.platform === "win32" ? "cp866" : undefined
+  try {
+    const { stdout } = await execAsync(`"${javaExe}" -XshowSettings:properties -version 2>&1`, { timeout: 6000, encoding: enc })
+    const props: Record<string, string> = {}
+    for (const line of stdout.split("\n")) {
+      const idx = line.indexOf("=")
+      if (idx === -1) continue
+      const key = line.slice(0, idx).trim()
+      const value = line.slice(idx + 1).trim()
+      if (key && value) props[key] = value
+    }
+    const version = props["java.version"]
+    if (!version) {
+      const fallback = await getJavaVersion(javaExe)
+      return fallback ? { version: fallback } : null
+    }
+    return {
+      version,
+      fullVersion: props["java.runtime.version"] || props["java.fullversion"] || version,
+      vendor: props["java.vendor"] || props["java.vm.vendor"],
+      arch: props["sun.arch.data.model"] || undefined,
+    }
+  } catch {
+    const fallback = await getJavaVersion(javaExe)
+    return fallback ? { version: fallback } : null
+  }
+}
+
 function makeJavaLabel(version: string): string {
   const parts = version.split(".")
   const major = parts[0] === "1" ? parseInt(parts[1]) : parseInt(parts[0])
   return `Java ${major} (${version})`
+}
+
+/** Scans Windows registry (both 64-bit and 32-bit views) for Java installations. */
+async function findJavaInWindowsRegistry(): Promise<string[]> {
+  const found: string[] = []
+  const seen = new Set<string>()
+  const keys = [
+    "HKLM\\SOFTWARE\\JavaSoft\\Java Runtime Environment",
+    "HKLM\\SOFTWARE\\JavaSoft\\Java Development Kit",
+    "HKLM\\SOFTWARE\\JavaSoft\\JRE",
+    "HKLM\\SOFTWARE\\JavaSoft\\JDK",
+    "HKLM\\SOFTWARE\\WOW6432Node\\JavaSoft\\Java Runtime Environment",
+    "HKLM\\SOFTWARE\\WOW6432Node\\JavaSoft\\Java Development Kit",
+    "HKLM\\SOFTWARE\\WOW6432Node\\JavaSoft\\JRE",
+    "HKLM\\SOFTWARE\\WOW6432Node\\JavaSoft\\JDK",
+  ]
+  for (const key of keys) {
+    try {
+      const { stdout } = await execAsync(`reg query "${key}" /s`, { timeout: 5000, encoding: "cp866" })
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim()
+        const idx = trimmed.indexOf("\\JavaHome")
+        if (idx === -1) continue
+        const eq = trimmed.indexOf("REG_SZ", idx)
+        if (eq === -1) continue
+        const value = trimmed.slice(eq + "REG_SZ".length).trim()
+        if (!value || seen.has(value)) continue
+        seen.add(value)
+        found.push(value)
+      }
+    } catch {}
+  }
+  return found
 }
 
 export function registerSystemHandlers() {
@@ -52,6 +121,7 @@ export function registerSystemHandlers() {
   ipcMain.handle("db:load-accounts", async () => dbHelpers.loadAccounts())
   ipcMain.handle("db:save-account", async (_event, account) => dbHelpers.saveAccount(account))
   ipcMain.handle("db:remove-account", async (_event, id: string) => dbHelpers.removeAccount(id))
+  ipcMain.handle("db:reorder-accounts", async (_event, ids: string[]) => dbHelpers.reorderAccounts(ids))
   ipcMain.handle("db:load-builds", async () => dbHelpers.loadBuilds())
   ipcMain.handle("db:save-builds", async (_event, builds) => dbHelpers.saveAllBuilds(builds))
   ipcMain.handle("db:is-fallback-storage", async () => ({ isFallback: isUsingFallbackStorage() }))
@@ -113,20 +183,34 @@ export function registerSystemHandlers() {
     await shell.openPath(dirPath)
   })
 
-  ipcMain.handle("java:detect", async (): Promise<{ path: string; version: string; label: string }[]> => {
-    const found: { path: string; version: string; label: string }[] = []
+  ipcMain.handle("java:detect", async (): Promise<{ path: string; version: string; label: string; fullVersion?: string; vendor?: string; arch?: string }[]> => {
+    const found: { path: string; version: string; label: string; fullVersion?: string; vendor?: string; arch?: string }[] = []
     const visited = new Set<string>()
     const tryJava = async (javaExe: string) => {
       const normalized = path.normalize(javaExe)
       if (visited.has(normalized)) return
       visited.add(normalized)
       if (!(await fileExists(normalized))) return
-      const version = await getJavaVersion(normalized)
-      if (!version) return
-      found.push({ path: normalized, version, label: makeJavaLabel(version) })
+      const info = await getJavaInstallationInfo(normalized)
+      if (!info) return
+      const labelParts = [makeJavaLabel(info.version)]
+      if (info.arch) labelParts.push(`${info.arch}-бит`)
+      if (info.vendor) labelParts.push(info.vendor)
+      found.push({
+        path: normalized,
+        version: info.version,
+        label: labelParts.join(" · "),
+        fullVersion: info.fullVersion,
+        vendor: info.vendor,
+        arch: info.arch,
+      })
     }
 
     if (process.platform === "win32") {
+      for (const home of await findJavaInWindowsRegistry()) {
+        await tryJava(path.join(home, "bin", "java.exe"))
+        await tryJava(path.join(home, "bin", "javaw.exe"))
+      }
       const bases = [
         "C:\\Program Files\\Java",
         "C:\\Program Files\\Eclipse Adoptium",
@@ -176,6 +260,17 @@ export function registerSystemHandlers() {
     }
 
     return found
+  })
+
+  ipcMain.handle("common:pick-folder", async (_event, title?: string): Promise<string | null> => {
+    const win = getMainWindow()
+    if (!win) return null
+    const result = await dialog.showOpenDialog(win, {
+      title: title || "Выбрать папку",
+      properties: ["openDirectory", "createDirectory"],
+    })
+    if (result.canceled || !result.filePaths.length) return null
+    return result.filePaths[0]
   })
 
   ipcMain.handle("java:pick-file", async (): Promise<string | null> => {

@@ -1,6 +1,7 @@
 import { InstanceBuildJava } from "./instance-build-java"
 import { InstanceBuildWindow } from "./instance-build-window"
 import { InstanceBuildServer } from "./instance-build-server"
+import { InstanceBuildLaunch } from "./instance-build-launch"
 import type { Build } from "./types"
 
 interface InstanceBuildSettingsProps {
@@ -15,6 +16,7 @@ export function InstanceBuildSettings({ build, updateBuild }: InstanceBuildSetti
         <InstanceBuildJava build={build} updateBuild={updateBuild} />
         <InstanceBuildWindow build={build} updateBuild={updateBuild} />
         <InstanceBuildServer build={build} updateBuild={updateBuild} />
+        <InstanceBuildLaunch build={build} updateBuild={updateBuild} />
       </div>
     </div>
   )

@@ -20,6 +20,7 @@ export type {
   VersionEntry,
   MinecraftNewsEntry,
   ImportableLauncherInstance,
+  BuildExportCategory,
   JavaDetectResult,
   CleanupFn,
   CloudUser,

@@ -47,6 +47,7 @@ interface InstanceDetailProps {
   setDetailTab: (tab: DetailTab) => void
   goToMyBuilds: () => void
   updateBuild: (id: string, fields: Partial<Build>) => void
+  renameBuild: (id: string, newName: string) => Promise<{ success: boolean; error?: string }>
   fileInputRef: React.RefObject<HTMLInputElement | null>
   modSearch: string
   setModSearch: (value: string) => void
@@ -87,9 +88,10 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     activeBuild,
     detailTab,
     setDetailTab,
-    goToMyBuilds,
-    updateBuild,
-    fileInputRef,
+  goToMyBuilds,
+  updateBuild,
+  renameBuild,
+  fileInputRef,
     modSearch,
     setModSearch,
     modSource,
@@ -441,7 +443,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       )}
 
       {detailTab === "general" && (
-        <InstanceDetailGeneral activeBuild={activeBuild} updateBuild={updateBuild} fileInputRef={fileInputRef} />
+        <InstanceDetailGeneral activeBuild={activeBuild} updateBuild={updateBuild} renameBuild={renameBuild} fileInputRef={fileInputRef} />
       )}
 
       {detailTab === "mods" && (

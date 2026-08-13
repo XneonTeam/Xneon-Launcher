@@ -23,6 +23,8 @@ export type OnboardingCopy = {
   accountNicknameLabel: string
   accountOfflinePlaceholder: string
   accountOfflineAdd: string
+  accountOfflineInvalidHint: string
+  accountOfflineAllowInvalid: string
   accountSelected: string
   accountSelect: string
   accountMissing: string
@@ -33,6 +35,7 @@ export type OnboardingCopy = {
   sourcePaths: Record<string, string>
   errors: {
     offlineUsername: string
+    offlineUsernameInvalid: string
     loginFailed: string
     importFailed: string
     settingsFailed: string
@@ -68,6 +71,8 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     accountNicknameLabel: "Никнейм",
     accountOfflinePlaceholder: "Введите ник",
     accountOfflineAdd: "Добавить",
+    accountOfflineInvalidHint: "Ник должен содержать 3–16 символов и только буквы, цифры или «_».",
+    accountOfflineAllowInvalid: "Разрешить недопустимый ник",
     accountSelected: "Выбранный аккаунт",
     accountSelect: "Выбрать",
     accountMissing: "Аккаунт пока не добавлен",
@@ -84,6 +89,7 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     },
     errors: {
       offlineUsername: "Введи ник для оффлайн-аккаунта.",
+      offlineUsernameInvalid: "Ник должен содержать 3–16 символов и только буквы, цифры или «_».",
       loginFailed: "Не удалось выполнить вход.",
       importFailed: "Не удалось импортировать сборки.",
       settingsFailed: "Не удалось сохранить настройки.",
@@ -117,6 +123,8 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     accountNicknameLabel: "Nickname",
     accountOfflinePlaceholder: "Enter username",
     accountOfflineAdd: "Add",
+    accountOfflineInvalidHint: "The username must be 3–16 characters and contain only letters, numbers or «_».",
+    accountOfflineAllowInvalid: "Allow invalid username",
     accountSelected: "Selected account",
     accountSelect: "Select",
     accountMissing: "No account added yet",
@@ -133,6 +141,7 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     },
     errors: {
       offlineUsername: "Enter a username for the offline account.",
+      offlineUsernameInvalid: "The username must be 3–16 characters and contain only letters, numbers or «_».",
       loginFailed: "Sign-in failed.",
       importFailed: "Failed to import instances.",
       settingsFailed: "Failed to save settings.",
@@ -166,6 +175,8 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     accountNicknameLabel: "Нікнейм",
     accountOfflinePlaceholder: "Введіть нік",
     accountOfflineAdd: "Додати",
+    accountOfflineInvalidHint: "Нік має містити 3–16 символів і лише літери, цифри або «_».",
+    accountOfflineAllowInvalid: "Дозволити недопустимий нік",
     accountSelected: "Вибраний акаунт",
     accountSelect: "Обрати",
     accountMissing: "Акаунт ще не додано",
@@ -182,6 +193,7 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     },
     errors: {
       offlineUsername: "Введи нік для офлайн-акаунта.",
+      offlineUsernameInvalid: "Нік має містити 3–16 символів і лише літери, цифри або «_».",
       loginFailed: "Не вдалося виконати вхід.",
       importFailed: "Не вдалося імпортувати збірки.",
       settingsFailed: "Не вдалося зберегти налаштування.",
@@ -215,6 +227,8 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     accountNicknameLabel: "Nickname",
     accountOfflinePlaceholder: "Namen eingeben",
     accountOfflineAdd: "Hinzufügen",
+    accountOfflineInvalidHint: "Der Name muss 3–16 Zeichen lang sein und nur Buchstaben, Ziffern oder «_» enthalten.",
+    accountOfflineAllowInvalid: "Ungültigen Namen zulassen",
     accountSelected: "Ausgewähltes Konto",
     accountSelect: "Auswählen",
     accountMissing: "Noch kein Konto hinzugefügt",
@@ -231,6 +245,7 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     },
     errors: {
       offlineUsername: "Gib einen Namen für das Offline-Konto ein.",
+      offlineUsernameInvalid: "Der Name muss 3–16 Zeichen lang sein und nur Buchstaben, Ziffern oder «_» enthalten.",
       loginFailed: "Anmeldung fehlgeschlagen.",
       importFailed: "Instanzen konnten nicht importiert werden.",
       settingsFailed: "Einstellungen konnten nicht gespeichert werden.",
@@ -264,6 +279,8 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     accountNicknameLabel: "Apodo",
     accountOfflinePlaceholder: "Introduce un nombre",
     accountOfflineAdd: "Añadir",
+    accountOfflineInvalidHint: "El nombre debe tener de 3 a 16 caracteres y contener solo letras, números o «_».",
+    accountOfflineAllowInvalid: "Permitir nombre no válido",
     accountSelected: "Cuenta seleccionada",
     accountSelect: "Seleccionar",
     accountMissing: "Todavía no se ha añadido una cuenta",
@@ -280,6 +297,7 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     },
     errors: {
       offlineUsername: "Introduce un nombre para la cuenta offline.",
+      offlineUsernameInvalid: "El nombre debe tener de 3 a 16 caracteres y contener solo letras, números o «_».",
       loginFailed: "No se pudo iniciar sesión.",
       importFailed: "No se pudieron importar las instancias.",
       settingsFailed: "No se pudieron guardar los ajustes.",

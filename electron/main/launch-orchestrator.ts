@@ -99,7 +99,7 @@ export class LaunchOrchestrator {
 
   async runLaunch(
     launchAccount: DbAccount,
-    request: ResolvedLaunchRequest & { buildName?: string; gameDir?: string },
+    request: ResolvedLaunchRequest & { buildName?: string; buildId?: string; gameDir?: string },
   ): Promise<LaunchResultPayload> {
     let gameDir = request.gameDir ?? await getDefaultGameDir()
     if (request.buildName && !request.gameDir) {
