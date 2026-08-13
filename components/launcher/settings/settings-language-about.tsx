@@ -143,7 +143,7 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
       <section className="space-y-4">
         <h3 className="text-lg font-medium text-foreground">{t("settings.about.social")}</h3>
         <div className="grid grid-cols-2 gap-4">
-          <a href="https://github.com/MAINER4IK/Xneon-Launcher" target="_blank" rel="noopener noreferrer"
+          <a href="https://github.com/XneonTeam/Xneon-Launcher" target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary hover:bg-primary/5 transition-all duration-200 group"
           >
             <div className="w-12 h-12 rounded-xl bg-foreground/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">

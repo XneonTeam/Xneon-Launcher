@@ -1,6 +1,6 @@
 {
   "name": "xneon-launcher",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Xneon Launcher desktop application",
   "author": {
     "name": "Xneon Launcher",
@@ -9,7 +9,7 @@
   "homepage": "https://launcher.xneon.org",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MAINER4IK/xnlauncher.git"
+    "url": "git+https://github.com/XneonTeam/Xneon-Launcher.git"
   },
   "private": true,
   "main": "dist-electron/main/index.js",
@@ -102,8 +102,8 @@
     "forceCodeSigning": false,
     "publish": {
       "provider": "github",
-      "owner": "MAINER4IK",
-      "repo": "xnlauncher"
+      "owner": "XneonTeam",
+      "repo": "Xneon-Launcher"
     },
     "win": {
       "target": [
