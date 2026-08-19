@@ -4,7 +4,7 @@ import {
   IconPackage, IconPlus, IconCopy, IconTrash, IconDownload, IconUpload, IconTag,
   IconRotateClockwise, IconX, IconChevronDown, IconChevronRight,
   IconPencil, IconTrashFilled, IconBox, IconPalette, IconWallpaper, IconWorldUpload,
-  IconSettings, IconBug,
+  IconSettings, IconBug, IconFolder,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -228,6 +228,11 @@ export const InstanceList = memo(function InstanceList({
                                 </svg>
                               </div>
                             )}
+                            {build.source === "ftb" && (
+                              <div className="absolute top-2 left-2 p-1 rounded-md bg-sky-500/20">
+                                <span className="text-[8px] font-bold text-sky-400 uppercase tracking-wide px-0.5">FTB</span>
+                              </div>
+                            )}
                           </div>
                           <div className="px-3 py-2.5 bg-card border-t border-border/50">
                             <p className="text-sm font-semibold text-foreground truncate leading-tight">{build.name}</p>
@@ -351,6 +356,15 @@ export const InstanceList = memo(function InstanceList({
         <div className="fixed z-50 min-w-[180px] rounded-xl border border-border bg-card shadow-2xl p-1"
           style={{ left: buildContextMenu.x, top: buildContextMenu.y }}
           onClick={e => e.stopPropagation()}>
+          <button type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
+            onClick={() => {
+              const build = builds.find(b => b.id === buildContextMenu.id)
+              if (build) void window.electronAPI?.getBuildIntentPath(build.name).then(p => { if (p) window.electronAPI?.openPath(p) })
+              setBuildContextMenu(null)
+            }}>
+            <IconFolder className="w-4 h-4 text-muted-foreground" />
+            Открыть папку сборки
+          </button>
           <button type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
             onClick={() => { void onDuplicate(buildContextMenu.id); setBuildContextMenu(null) }}>
             <IconCopy className="w-4 h-4 text-muted-foreground" />

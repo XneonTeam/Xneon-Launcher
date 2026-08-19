@@ -13,18 +13,21 @@ import { InstanceScreenshotsTab } from "./instance-screenshots-tab"
 import { InstanceServersTab } from "./instance-servers-tab"
 import { InstanceModal } from "./instance-modal"
 import { DepInstallDialog } from "@/components/launcher/dep-install-dialog"
+import type { SelectedModCategory } from "./use-mod-search"
 import type {
   Build,
   BuildMod,
   DetailTab,
   ModSearchResult,
   Source,
+  SearchSource,
   ModSort,
   ModalTab,
   ModVersion,
   ModDetails,
   ModDependency,
 } from "./types"
+import type { ModCategory } from "@xnlc/types"
 
 function normalizeContentIdentity(value?: string): string {
   return String(value ?? "")
@@ -51,10 +54,13 @@ interface InstanceDetailProps {
   fileInputRef: React.RefObject<HTMLInputElement | null>
   modSearch: string
   setModSearch: (value: string) => void
-  modSource: Source
-  setModSource: (value: Source) => void
+  modSource: SearchSource
+  setModSource: (value: SearchSource) => void
   modSortBy: ModSort
   setModSortBy: (value: ModSort) => void
+  modCategories: SelectedModCategory[]
+  setModCategories: (value: SelectedModCategory[]) => void
+  categories: ModCategory[]
   modFileInputRef: React.RefObject<HTMLInputElement | null>
   addLocalModToBuild: (buildId: string, file: File) => void
   addLocalContentToBuild: (buildId: string, type: "resourcepacks" | "shaders", file: File) => void | Promise<void>
@@ -62,11 +68,11 @@ interface InstanceDetailProps {
   reloadBuilds: () => Promise<void>
   modLoading: boolean
   modTotalHits: number
+  modTotalPages: number
   modPage: number
-  setModPrevResults: React.Dispatch<React.SetStateAction<ModSearchResult[]>>
-  modResults: ModSearchResult[]
   setModPage: (page: number) => void
   displayResults: ModSearchResult[]
+  isInstalledFn: (project: ModSearchResult) => boolean
   openProjectModal: (item: ModSearchResult) => void
   installingModSlug: string | null
   setInstallingModSlug: (slug: string | null) => void
@@ -98,6 +104,9 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     setModSource,
     modSortBy,
     setModSortBy,
+    modCategories,
+    setModCategories,
+    categories,
     modFileInputRef,
     addLocalModToBuild,
     addLocalContentToBuild,
@@ -105,11 +114,11 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     reloadBuilds,
     modLoading,
     modTotalHits,
+    modTotalPages,
     modPage,
-    setModPrevResults,
-    modResults,
     setModPage,
     displayResults,
+    isInstalledFn,
     openProjectModal,
     installingModSlug,
     setInstallingModSlug,
@@ -266,7 +275,10 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     } catch { /* skip failed dep */ }
   }, [doDownloadMod])
 
-  const installVersionWithDeps = useCallback(async (version: ModVersion, source: "modrinth" | "curseforge", selectedDeps: ModDependency[]) => {
+  const installVersionWithDeps = useCallback(async (version: ModVersion, source: Source, selectedDeps: ModDependency[]) => {
+    if (source === "ftb") {
+      return
+    }
     if (source === "modrinth") {
       const file = version.files?.[0]
       if (file?.url) {
@@ -338,20 +350,25 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
   const handleInstallVersion = useCallback(async (version: ModVersion) => {
     if (!selectedDetails) return
 
+    if (selectedDetails.source === "ftb") {
+      return
+    }
+
+    const source = selectedDetails.source
     const resolvedDeps = await window.electronAPI?.modsResolveDependencies(version, selectedDetails.source) ?? []
     const missingRequiredDeps = resolvedDeps.filter(dep => {
       if (dep.dependencyType !== "required") return false
       return !activeBuild.mods.some(mod => isInstalledBuildMod(
         mod,
-        selectedDetails.source,
+        source,
         dep.projectId,
-        selectedDetails.source === "curseforge" ? Number(dep.projectId) : undefined,
+        source === "curseforge" ? Number(dep.projectId) : undefined,
         dep.slug || dep.projectId,
       ))
     })
 
     if (missingRequiredDeps.length === 0) {
-      await installVersionWithDeps(version, selectedDetails.source, [])
+      await installVersionWithDeps(version, source, [])
       return
     }
 
@@ -359,7 +376,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       version,
       modName: selectedDetails.name,
       modIcon: selectedDetails.iconUrl,
-      source: selectedDetails.source,
+      source,
       resolvedDeps: missingRequiredDeps,
     })
   }, [selectedDetails, activeBuild.mods, installVersionWithDeps, isInstalledBuildMod])
@@ -374,6 +391,11 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     }
   }, [depInstallState, installVersionWithDeps])
 
+  const handleUpdateModpack = useCallback(async (version: ModVersion) => {
+    if (!selectedDetails || selectedDetails.source === "ftb") return
+    await installVersionWithDeps(version, selectedDetails.source, [])
+  }, [selectedDetails, installVersionWithDeps])
+
   return (
     <div className="h-full flex flex-col animate-in fade-in-0 duration-300">
       <div className="flex items-center justify-between gap-4 mb-5">
@@ -385,56 +407,70 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
           >
             <IconArrowLeft className="w-5 h-5" />
           </button>
-          {buildHasImage && (
-            <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
-              <img src={activeBuild.icon} alt="" className="w-full h-full object-cover" />
-            </div>
-          )}
-          <div>
-            <h1 className="text-xl font-bold text-foreground">{activeBuild.name}</h1>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <LoaderIcon loaderId={activeBuild.modLoader} className="w-4 h-4 text-muted-foreground inline-block flex-shrink-0" />
-              <span>{loader.name} · MC {activeBuild.version}</span>
+          <div className="flex items-center gap-3 rounded-2xl bg-muted/50 px-4 py-2.5">
+            {buildHasImage && (
+              <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
+                <img src={activeBuild.icon} alt="" className="w-full h-full object-cover" />
+              </div>
+            )}
+            <div className="flex flex-col">
+              <h1 className="text-xl font-bold text-foreground">{activeBuild.name}</h1>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <LoaderIcon loaderId={activeBuild.modLoader} className="w-4 h-4 text-muted-foreground inline-block flex-shrink-0" />
+                <span>{loader.name} · MC {activeBuild.version}</span>
+              </div>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 p-1 rounded-lg bg-muted/40 flex-wrap">
-          <button type="button" onClick={() => setDetailTab("general")} className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all border", detailTab === "general" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
-            <IconInfoCircle className="w-4 h-4" strokeWidth={1.75} />
-            {t("builds.tab.general")}
-          </button>
-          <button type="button" onClick={() => setDetailTab("settings")} className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all border", detailTab === "settings" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
-            <IconSettings className="w-4 h-4" strokeWidth={1.75} />
-            {t("builds.tab.settings")}
-          </button>
-          {!isVanilla && (
-            <>
-              <button type="button" onClick={() => setDetailTab("mods")} className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all border", detailTab === "mods" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
-                <IconPuzzle className="w-4 h-4" strokeWidth={1.75} />
-                {t("builds.tab.mods")}
+        <div className="flex flex-col gap-1">
+          <div className="flex gap-0.5 p-1 rounded-xl bg-muted/30 border border-border/50">
+            {([
+              { tab: "general" as const, icon: IconInfoCircle, label: t("builds.tab.general") },
+              { tab: "settings" as const, icon: IconSettings, label: t("builds.tab.settings") },
+              ...(!isVanilla ? [
+                { tab: "mods" as const, icon: IconPuzzle, label: t("builds.tab.mods") },
+                { tab: "resourcepacks" as const, icon: IconPhoto, label: t("builds.tab.resourcepacks") },
+                { tab: "shaders" as const, icon: IconSparkles, label: t("builds.tab.shaders") },
+              ] : []),
+            ]).map(({ tab, icon: Icon, label }) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setDetailTab(tab)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-200",
+                  detailTab === tab
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                )}
+              >
+                <Icon className="w-4 h-4" strokeWidth={1.75} />
+                {label}
               </button>
-              <button type="button" onClick={() => setDetailTab("resourcepacks")} className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all border", detailTab === "resourcepacks" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
-                <IconPhoto className="w-4 h-4" strokeWidth={1.75} />
-                {t("builds.tab.resourcepacks")}
+            ))}
+          </div>
+          <div className="flex gap-0.5 p-1 rounded-xl bg-muted/30 border border-border/50">
+            {([
+              { tab: "servers" as const, icon: IconServer, label: t("builds.tab.servers") },
+              { tab: "worlds" as const, icon: IconWorld, label: t("builds.tab.worlds") },
+              { tab: "screenshots" as const, icon: IconCamera, label: t("builds.tab.screenshots") },
+            ]).map(({ tab, icon: Icon, label }) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setDetailTab(tab)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-200",
+                  detailTab === tab
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                )}
+              >
+                <Icon className="w-4 h-4" strokeWidth={1.75} />
+                {label}
               </button>
-              <button type="button" onClick={() => setDetailTab("shaders")} className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all border", detailTab === "shaders" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
-                <IconSparkles className="w-4 h-4" strokeWidth={1.75} />
-                {t("builds.tab.shaders")}
-              </button>
-            </>
-          )}
-          <button type="button" onClick={() => setDetailTab("servers")} className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all border", detailTab === "servers" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
-            <IconServer className="w-4 h-4" strokeWidth={1.75} />
-            {t("builds.tab.servers")}
-          </button>
-          <button type="button" onClick={() => setDetailTab("worlds")} className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all border", detailTab === "worlds" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
-            <IconWorld className="w-4 h-4" strokeWidth={1.75} />
-            {t("builds.tab.worlds")}
-          </button>
-          <button type="button" onClick={() => setDetailTab("screenshots")} className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all border", detailTab === "screenshots" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
-            <IconCamera className="w-4 h-4" strokeWidth={1.75} />
-            {t("builds.tab.screenshots")}
-          </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -459,15 +495,18 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
           setModSource={setModSource}
           modSortBy={modSortBy}
           setModSortBy={setModSortBy}
+          modCategories={modCategories}
+          setModCategories={setModCategories}
+          categories={categories}
           modFileInputRef={modFileInputRef}
           onUploadFile={handleUploadModFile}
           modLoading={modLoading}
           modTotalHits={modTotalHits}
+          modTotalPages={modTotalPages}
           modPage={modPage}
-          setModPrevResults={setModPrevResults}
-          modResults={modResults}
           setModPage={setModPage}
           displayResults={displayResults}
+          isInstalledFn={isInstalledFn}
           openProjectModal={openProjectModal}
           installingModSlug={installingModSlug}
           setInstallingModSlug={setInstallingModSlug}
@@ -494,15 +533,18 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
           setModSource={setModSource}
           modSortBy={modSortBy}
           setModSortBy={setModSortBy}
+          modCategories={modCategories}
+          setModCategories={setModCategories}
+          categories={categories}
           modFileInputRef={modFileInputRef}
           onUploadFile={handleUploadResourcepackFile}
           modLoading={modLoading}
           modTotalHits={modTotalHits}
+          modTotalPages={modTotalPages}
           modPage={modPage}
-          setModPrevResults={setModPrevResults}
-          modResults={modResults}
           setModPage={setModPage}
           displayResults={displayResults}
+          isInstalledFn={isInstalledFn}
           openProjectModal={openProjectModal}
           installingModSlug={installingModSlug}
           setInstallingModSlug={setInstallingModSlug}
@@ -529,15 +571,18 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
           setModSource={setModSource}
           modSortBy={modSortBy}
           setModSortBy={setModSortBy}
+          modCategories={modCategories}
+          setModCategories={setModCategories}
+          categories={categories}
           modFileInputRef={modFileInputRef}
           onUploadFile={handleUploadShaderFile}
           modLoading={modLoading}
           modTotalHits={modTotalHits}
+          modTotalPages={modTotalPages}
           modPage={modPage}
-          setModPrevResults={setModPrevResults}
-          modResults={modResults}
           setModPage={setModPage}
           displayResults={displayResults}
+          isInstalledFn={isInstalledFn}
           openProjectModal={openProjectModal}
           installingModSlug={installingModSlug}
           setInstallingModSlug={setInstallingModSlug}
@@ -571,6 +616,8 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
         displayedModalVersions={displayedModalVersions}
         onInstallVersion={handleInstallVersion}
         onClose={closeModal}
+        activeBuild={activeBuild}
+        onUpdateModpack={handleUpdateModpack}
       />
 
       {depInstallState && (

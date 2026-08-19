@@ -7,7 +7,7 @@ export interface ImportProgressState {
   current: number
   total: number
   message: string
-  source: "modrinth" | "curseforge" | "local"
+  source: "modrinth" | "curseforge" | "ftb" | "local"
   itemName?: string
 }
 
@@ -20,6 +20,7 @@ async function persistImportedBuild(build: Build) {
 function getImportSourceLabel(source: ImportProgressState["source"]): string {
   if (source === "modrinth") return "Импорт с Modrinth"
   if (source === "curseforge") return "Импорт с CurseForge"
+  if (source === "ftb") return "Импорт с FTB"
   return "Импорт из файла"
 }
 
@@ -30,6 +31,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
   const [isCancellingImport, setIsCancellingImport] = useState(false)
   const [downloadingSlug, setDownloadingSlug] = useState<string | null>(null)
   const [cfDownloadingId, setCfDownloadingId] = useState<number | null>(null)
+  const [ftbDownloadingId, setFtbDownloadingId] = useState<number | null>(null)
   const isMountedRef = useRef(true)
   const activeImportSourceRef = useRef<ImportProgressState["source"] | null>(null)
 
@@ -129,6 +131,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
       if (isMountedRef.current) {
         setDownloadingSlug(null)
         setCfDownloadingId(null)
+        setFtbDownloadingId(null)
       }
     } finally {
       if (isMountedRef.current) {
@@ -262,6 +265,77 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
     }
   }, [applyImportedBuild, beginImportSession, clearProgressLater, finishImportSession, safeSetImportError, safeSetImportProgress])
 
+  const importFtbProject = useCallback(async (pack: ModSearchResult, versionId?: number) => {
+    beginImportSession("ftb")
+    const modpackId = Number(pack.projectId)
+    if (!modpackId) {
+      safeSetImportError("У модпака FTB нет данных для скачивания")
+      return
+    }
+    setFtbDownloadingId(modpackId)
+    safeSetImportProgress({ current: 0, total: 1, message: "Подготовка к импорту...", source: "ftb" })
+    try {
+      let targetVersionId = versionId
+      if (!targetVersionId) {
+        const details = await window.electronAPI?.modsFtbDetails(modpackId)
+        const release = details?.versions?.find(v => v.versionType === "release")
+        if (!release) {
+          throw new Error("Не найдена версия модпака FTB для скачивания")
+        }
+        targetVersionId = Number(release.id.replace("ftb-", ""))
+      }
+
+      const id = crypto.randomUUID()
+      let intentPath = ""
+      try {
+        intentPath = await window.electronAPI?.getBuildIntentPath(pack.name) ?? ""
+      } catch {
+        // ignore lookup error, import will fail clearly if needed
+      }
+
+      const importResult = await window.electronAPI?.importFtbModpack(pack.name, modpackId, targetVersionId)
+      if (importResult?.cancelled) {
+        finishImportSession()
+        safeSetImportError(null)
+        safeSetImportProgress(null)
+        return
+      }
+      if (importResult && !importResult.success) throw new Error(importResult.error ?? "Ошибка импорта")
+
+      await applyImportedBuild({
+        id,
+        name: pack.name,
+        description: pack.summary,
+        version: importResult?.version ?? "",
+        modLoader: importResult?.modLoader ?? "vanilla",
+        loaderVersion: importResult?.loaderVersion,
+        icon: pack.iconUrl ?? "",
+        coverImage: pack.iconUrl ?? undefined,
+        mods: importResult?.mods ?? [],
+        resourcepacks: importResult?.resourcepacks ?? [],
+        shaders: importResult?.shaders ?? [],
+        createdAt: new Date().toISOString(),
+        source: "ftb",
+        intentPath,
+        installedMods: importResult?.installedMods ?? {},
+        playtime: 0,
+      })
+    } catch (error) {
+      safeSetImportError(error instanceof Error ? error.message : "Ошибка импорта")
+      safeSetImportProgress({
+        current: 0,
+        total: 1,
+        message: error instanceof Error ? error.message : "Ошибка импорта",
+        source: "ftb",
+      })
+    } finally {
+      if (isMountedRef.current) {
+        setFtbDownloadingId(null)
+      }
+      clearProgressLater(1800)
+    }
+  }, [applyImportedBuild, beginImportSession, clearProgressLater, finishImportSession, safeSetImportError, safeSetImportProgress])
+
   const downloadFromModrinth = useCallback(async (project: ModSearchResult) => {
     await importModrinthProject(project)
   }, [importModrinthProject])
@@ -277,6 +351,14 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
   const downloadVersionFromCurseforge = useCallback(async (pack: ModSearchResult, fileId: number) => {
     await importCurseforgeProject(pack, fileId)
   }, [importCurseforgeProject])
+
+  const downloadFromFtb = useCallback(async (pack: ModSearchResult) => {
+    await importFtbProject(pack)
+  }, [importFtbProject])
+
+  const downloadVersionFromFtb = useCallback(async (pack: ModSearchResult, versionId: number) => {
+    await importFtbProject(pack, versionId)
+  }, [importFtbProject])
 
   const handleImportFile = useCallback(async () => {
     beginImportSession("local")
@@ -333,11 +415,14 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
     isCancellingImport,
     downloadingSlug,
     cfDownloadingId,
+    ftbDownloadingId,
     cancelImport,
     downloadFromModrinth,
     downloadVersionFromModrinth,
     downloadFromCurseforge,
     downloadVersionFromCurseforge,
+    downloadFromFtb,
+    downloadVersionFromFtb,
     handleImportFile,
   }
 }

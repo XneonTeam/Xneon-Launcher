@@ -8,6 +8,7 @@ import { callbackSuccessPage, callbackErrorPage } from "../callback-page"
 import { getCloudCredentials } from "../credentials"
 import { generatePkcePair } from "../pkce"
 import { dbHelpers } from "../../../db"
+import { fetchWithRetry } from "@xnlc/core/retry"
 
 const REDIRECT_PORT = 18936
 const REDIRECT_URI = `http://localhost:${REDIRECT_PORT}`
@@ -74,11 +75,11 @@ async function getValidConfig(): Promise<OneDriveConfig | null> {
 
 async function graphFetch(url: string, config: OneDriveConfig, init?: RequestInit): Promise<Response> {
   const headers = { Authorization: `Bearer ${config.access_token}`, ...init?.headers }
-  let res = await fetch(url, { ...init, headers })
+  let res = await fetchWithRetry(url, { ...init, headers })
   if (res.status === 401 && config.refresh_token) {
     try {
       const fresh = await refreshAccessToken(config)
-      res = await fetch(url, { ...init, headers: { ...init?.headers, Authorization: `Bearer ${fresh.access_token}` } })
+      res = await fetchWithRetry(url, { ...init, headers: { ...init?.headers, Authorization: `Bearer ${fresh.access_token}` } })
     } catch { /* keep original 401 */ }
   }
   return res
@@ -200,7 +201,7 @@ export class OneDriveProvider implements CloudProvider {
     } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
   }
 
-  async uploadFile(localPath: string, remotePath: string): Promise<CloudUploadResult> {
+  async uploadFile(localPath: string, remotePath: string, onProgress?: (percent: number) => void): Promise<CloudUploadResult> {
     const config = await getValidConfig()
     if (!config) return { success: false, error: "Not authenticated" }
     try {
@@ -208,12 +209,37 @@ export class OneDriveProvider implements CloudProvider {
       const parent = remotePath.split("/").slice(0, -1).filter(Boolean).join("/")
       await ensureRemoteFolder(config, parent)
       const full = parent ? `${BASE_FOLDER}/${parent}/${fileName}` : `${BASE_FOLDER}/${fileName}`
-      const fileBuffer = await fs.readFile(localPath)
-      const res = await graphFetch(`${GRAPH_API}/me/drive/root:/${encodeGraphPath(full)}:/content`, config, {
+      const { uploadWithProgress } = await import("../upload-with-progress.js")
+      const res = await uploadWithProgress({
+        url: `${GRAPH_API}/me/drive/root:/${encodeGraphPath(full)}:/content`,
         method: "PUT",
-        headers: { "Content-Type": "application/octet-stream" },
-        body: fileBuffer,
+        headers: {
+          Authorization: `Bearer ${config.access_token}`,
+          "Content-Type": "application/octet-stream",
+        },
+        filePath: localPath,
+        onProgress,
       })
+      if (res.status === 401 && config.refresh_token) {
+        try {
+          const fresh = await refreshAccessToken(config)
+          const res2 = await uploadWithProgress({
+            url: `${GRAPH_API}/me/drive/root:/${encodeGraphPath(full)}:/content`,
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${fresh.access_token}`,
+              "Content-Type": "application/octet-stream",
+            },
+            filePath: localPath,
+            onProgress,
+          })
+          if (!res2.ok) throw new Error(`Upload failed: ${res2.status}`)
+          return { success: true, id: full, name: fileName }
+        } catch (e) {
+          if (e instanceof Error && e.message.startsWith("Upload failed")) throw e
+          throw new Error(`Upload failed: 401`)
+        }
+      }
       if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
       return { success: true, id: full, name: fileName }
     } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }

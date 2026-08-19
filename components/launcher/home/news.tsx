@@ -1,9 +1,41 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { CSSProperties } from "react"
 import { useTranslation } from "react-i18next"
-import { IconCoffee, IconInfoCircle, IconLayoutGrid, IconNews, IconPhoto } from "@tabler/icons-react"
+import { IconCoffee, IconInfoCircle, IconLayoutGrid, IconNews, IconPhoto, IconRefresh } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { formatDate, NEWS_CARD_STYLE, NEWS_CARD_TEXT_HEIGHT, NEWS_GRID_GAP, NEWS_GRID_OVERSCAN_ROWS, NEWS_SCROLL_STYLE, type NewsEntry } from "@/lib/home-page-shared"
+
+const REFRESH_INTERVAL = 30 * 60 * 1000
+const NEWS_STORAGE_KEY = "xnlc:news-cache:v1"
+const NEWS_CACHE_MAX_AGE = 12 * 60 * 60 * 1000
+
+type NewsCacheRecord = { ts: number; entries: NewsEntry[] }
+
+let persistedNews: NewsCacheRecord | null = null
+
+function readNewsCache(): NewsEntry[] | null {
+  if (persistedNews) return persistedNews.entries
+  try {
+    const raw = localStorage.getItem(NEWS_STORAGE_KEY)
+    if (raw) persistedNews = JSON.parse(raw) as NewsCacheRecord
+  } catch {
+    persistedNews = null
+  }
+  return persistedNews?.entries ?? null
+}
+
+function isNewsCacheFresh() {
+  return persistedNews !== null && Date.now() - persistedNews.ts < NEWS_CACHE_MAX_AGE
+}
+
+function writeNewsCache(entries: NewsEntry[]) {
+  persistedNews = { ts: Date.now(), entries }
+  try {
+    localStorage.setItem(NEWS_STORAGE_KEY, JSON.stringify(persistedNews))
+  } catch {
+    // storage full — keep memory copy
+  }
+}
 
 const NewsCard = memo(function NewsCard({ entry, height }: { entry: NewsEntry; height?: number }) {
   const imgUrl = entry.playPageImage?.url ?? entry.newsPageImage?.url
@@ -75,29 +107,49 @@ const VirtualNewsGrid = memo(function VirtualNewsGrid({ entries }: { entries: Ne
   )
 })
 
-let cachedNews: NewsEntry[] | null = null
+let cachedNews: NewsEntry[] | null = readNewsCache()
 let cachedNewsPromise: Promise<NewsEntry[]> | null = null
+
+function fetchNewsDirect(): Promise<NewsEntry[]> {
+  cachedNewsPromise = window.electronAPI?.fetchMinecraftNews().then((entries) => { cachedNews = entries; writeNewsCache(entries); return entries }) ?? Promise.resolve([])
+  return cachedNewsPromise
+}
 
 function fetchNewsCached(): Promise<NewsEntry[]> {
   if (cachedNews) return Promise.resolve(cachedNews)
   if (cachedNewsPromise) return cachedNewsPromise
-  cachedNewsPromise = window.electronAPI?.fetchMinecraftNews().then((entries) => { cachedNews = entries; return entries }) ?? Promise.resolve([])
-  return cachedNewsPromise
+  return fetchNewsDirect()
 }
 
 export const NewsSection = memo(function NewsSection() {
   const { t } = useTranslation()
   const [news, setNews] = useState<NewsEntry[]>(() => cachedNews ?? [])
   const [loading, setLoading] = useState(!cachedNews)
+  const [refreshing, setRefreshing] = useState(false)
   const [filter, setFilter] = useState<"all" | "java">("java")
 
   useEffect(() => {
-    if (cachedNews) { setNews(cachedNews); setLoading(false); return }
+    if (cachedNews) { setNews(cachedNews); setLoading(false); if (!isNewsCacheFresh()) { fetchNewsDirect().then(setNews).catch(() => {}) }; return }
     setLoading(true)
     fetchNewsCached().then((entries) => { setNews(entries); setLoading(false) }).catch(() => setLoading(false))
   }, [])
 
-  const filtered = useMemo(() => filter === "java" ? news.filter(e => !e.newsType || e.newsType.includes("Java") || e.newsType.includes("java_edition")) : news, [filter, news])
+  useEffect(() => {
+    const timer = setInterval(() => {
+      fetchNewsDirect().then(setNews).catch(() => {})
+    }, REFRESH_INTERVAL)
+    return () => clearInterval(timer)
+  }, [])
+
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true)
+    fetchNewsDirect()
+      .then((entries) => { setNews(entries) })
+      .catch(() => {})
+      .finally(() => { setRefreshing(false) })
+  }, [])
+
+  const filtered = useMemo(() => filter === "java" ? news.filter(e => !e.newsType || e.newsType.includes("Java") || e.newsType.includes("java_edition")) : news, [news, filter])
   const filters = useMemo(() => [
     { id: "all" as const, label: t("home.news.all"), icon: IconLayoutGrid },
     { id: "java" as const, label: t("home.news.java"), icon: IconCoffee },
@@ -112,13 +164,23 @@ export const NewsSection = memo(function NewsSection() {
               <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center"><IconNews className="w-4 h-4 text-primary" strokeWidth={2} /></div>
               <h2 className="text-base font-semibold text-foreground">{t("home.news.title")}</h2>
             </div>
-            <div className="flex gap-1 p-1 rounded-lg bg-muted/40">
-              {filters.map(({ id, label, icon: Icon }) => (
-                <button key={id} type="button" onClick={() => setFilter(prev => prev === id ? prev : id)} className={cn("flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all border", filter === id ? "border-transparent bg-primary text-primary-foreground shadow-sm" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
-                  <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />
-                  {label}
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              >
+                <IconRefresh className={cn("w-4 h-4", refreshing && "animate-spin")} strokeWidth={1.75} />
+              </button>
+              <div className="flex gap-1 p-1 rounded-lg bg-muted/40">
+                {filters.map(({ id, label, icon: Icon }) => (
+                  <button key={id} type="button" onClick={() => setFilter(prev => prev === id ? prev : id)} className={cn("flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all border", filter === id ? "border-transparent bg-primary text-primary-foreground shadow-sm" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
+                    <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

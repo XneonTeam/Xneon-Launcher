@@ -37,7 +37,7 @@ export function HomePage() {
   const [selectedModLoader, setSelectedModLoader] = useState(saved.modLoader ?? "vanilla")
   const [selectedLoaderVersion, setSelectedLoaderVersion] = useState(saved.loaderVersion ?? "")
   const [accountComboOpen, setAccountComboOpen] = useState(false)
-  const { versions, versionsLoaded, selectedVersion, setSelectedVersion } = useHomeVersions(selectedModLoader, saved.version)
+  const { versions, versionsLoaded, selectedVersion, setSelectedVersion, buildIcons } = useHomeVersions(selectedModLoader, saved.version)
   const { loaderVersions, loaderVersionsLoaded, recommendedLoaderVersion } = useLoaderVersionOptions(selectedModLoader, selectedVersion)
   const account = activeAccount ?? accounts[0]
   const activeAvatarUrl = useMemo(() => account ? getAvatarUrl(account, account.username) : "", [account])
@@ -132,6 +132,7 @@ export function HomePage() {
         versionsLoaded={versionsLoaded}
         selectedVersion={selectedVersion}
         setSelectedVersion={setSelectedVersion}
+        buildIcons={buildIcons}
         selectedModLoader={selectedModLoader}
         setSelectedModLoader={setSelectedModLoader}
         loaderVersions={loaderVersions}

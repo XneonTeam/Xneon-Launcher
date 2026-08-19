@@ -105,7 +105,7 @@ export class WebDavProvider implements CloudProvider {
     } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
   }
 
-  async uploadFile(localPath: string, remotePath: string): Promise<CloudUploadResult> {
+  async uploadFile(localPath: string, remotePath: string, onProgress?: (percent: number) => void): Promise<CloudUploadResult> {
     const client = await getClient()
     if (!client) return { success: false, error: "Not configured" }
     try {
@@ -114,8 +114,23 @@ export class WebDavProvider implements CloudProvider {
       const targetDir = dirParts.length > 0 ? `/${BASE_FOLDER}/${dirParts.join("/")}` : `/${BASE_FOLDER}`
       await ensureFolder(client, targetDir)
       const destPath = `${targetDir}/${fileName}`
-      const fileBuffer = await fs.readFile(localPath)
-      await client.putFileContents(destPath, fileBuffer, { overwrite: true })
+      const { uploadWithProgress } = await import("../upload-with-progress.js")
+
+      // WebDAV requires proper auth headers; build them from the cached config.
+      const config = await readConfig()
+      if (!config) throw new Error("WebDAV не настроен")
+      const authHeader = "Basic " + Buffer.from(`${config.username}:${config.password}`).toString("base64")
+      const res = await uploadWithProgress({
+        url: `${config.url}${encodeURI(destPath)}`,
+        method: "PUT",
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/octet-stream",
+        },
+        filePath: localPath,
+        onProgress,
+      })
+      if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
       return { success: true, id: destPath, name: fileName }
     } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
   }

@@ -16,9 +16,6 @@ interface InstanceBrowseToolbarProps {
   versionOptions: string[]
   selectedModLoader: string
   setSelectedModLoader: (value: string) => void
-  selectedCategory: string
-  setSelectedCategory: (value: string) => void
-  categoryOptions: string[]
 }
 
 const MOD_LOADER_OPTIONS = [
@@ -27,10 +24,6 @@ const MOD_LOADER_OPTIONS = [
   { id: "fabric", label: "Fabric" },
   { id: "quilt", label: "Quilt" },
 ] as const
-
-function formatCategoryLabel(category: string) {
-  return category.replace(/-/g, " ")
-}
 
 export function InstanceBrowseToolbar({
   search,
@@ -45,9 +38,6 @@ export function InstanceBrowseToolbar({
   versionOptions,
   selectedModLoader,
   setSelectedModLoader,
-  selectedCategory,
-  setSelectedCategory,
-  categoryOptions,
 }: InstanceBrowseToolbarProps) {
   const { t } = useTranslation()
 
@@ -96,18 +86,6 @@ export function InstanceBrowseToolbar({
             <SelectItem key={loader.id} value={loader.id}>
               {loader.id === "all" ? t("builds.allLoaders") : loader.label}
             </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select value={selectedCategory} onValueChange={setSelectedCategory} disabled={categoryOptions.length === 0}>
-        <SelectTrigger className="w-[190px] h-10 rounded-xl bg-muted/50 border-border text-foreground">
-          <SelectValue placeholder={t("builds.category")} />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">{t("builds.allCategories")}</SelectItem>
-          {categoryOptions.map(category => (
-            <SelectItem key={category} value={category}>{formatCategoryLabel(category)}</SelectItem>
           ))}
         </SelectContent>
       </Select>

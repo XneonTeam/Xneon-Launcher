@@ -1,6 +1,6 @@
 {
   "name": "@xnlc/core",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "XNLC Core - Minecraft launcher library: version resolution, loader installation (Fabric, Quilt, NeoForge, Forge, LiteLoader, OptiFine), asset management, and game launching",
   "type": "module",
   "author": "MAINER4IK",
@@ -34,6 +34,10 @@
     "./microsoft": {
       "types": "./lib/microsoft.d.ts",
       "default": "./lib/microsoft.js"
+    },
+    "./retry": {
+      "types": "./lib/retry.d.ts",
+      "default": "./lib/retry.js"
     }
   },
   "dependencies": {

@@ -18,6 +18,21 @@ export class NativesExtractor {
 
   async extractNatives(versionJson: VersionJson, gameDir: string): Promise<string> {
     const nativesDir = getNativesDir(gameDir);
+    const markerPath = path.join(nativesDir, ".xnlc-natives-version");
+    const markerId = this.getNativeMarkerId(versionJson);
+
+    // Reuse previously extracted natives when the version (and its native
+    // libraries) haven't changed — avoids re-writing ~50 files on every launch.
+    if (fs.existsSync(markerPath)) {
+      try {
+        if (fs.readFileSync(markerPath, "utf-8") === markerId) {
+          return nativesDir;
+        }
+      } catch {
+        // fall through to re-extract
+      }
+    }
+
     console.log(`[NativesExtractor] Preparing natives dir ${nativesDir}`);
 
     // Clean natives directory
@@ -63,7 +78,22 @@ export class NativesExtractor {
       }
     }
 
+    try {
+      fs.writeFileSync(markerPath, markerId, "utf-8");
+    } catch {
+      // ignore marker write failures
+    }
+
     return nativesDir;
+  }
+
+  private getNativeMarkerId(versionJson: VersionJson): string {
+    const nativeLibs = this.librariesManager
+      .resolveLibraries(versionJson)
+      .filter(l => l.isNative)
+      .map(l => `${l.name}:${l.sha1}`)
+      .join("|");
+    return `${versionJson.id}:${versionJson.jar ?? ""}:${nativeLibs}`;
   }
 
   private shouldExtractEntry(lib: VersionJsonLibrary, entryName: string): boolean {

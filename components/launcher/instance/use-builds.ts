@@ -3,39 +3,7 @@ import { MOD_LOADERS } from "./constants"
 import { loadBuilds, pickCompatibleVersion } from "./utils"
 import type { Build, BuildMod, ModSearchResult, ModDependency, ModVersion } from "./types"
 import type { BuildExportCategory } from "@xnlc/types"
-
-async function enrichBuildModNames(items: BuildMod[]): Promise<BuildMod[]> {
-  const seen = new Set<string>()
-  const cache = new Map<string, { name: string; author?: string }>()
-  const enriched = await Promise.all(items.map(async (item) => {
-    if (item.source !== "modrinth" || !item.projectId) return item
-    if (seen.has(item.projectId)) {
-      const cached = cache.get(item.projectId)
-      return cached ? { ...item, name: cached.name, author: cached.author || item.author } : item
-    }
-    seen.add(item.projectId)
-    try {
-      const abort = new AbortController()
-      const timer = setTimeout(() => abort.abort(), 3000)
-      const res = await fetch(`https://api.modrinth.com/v2/project/${encodeURIComponent(item.projectId)}`, {
-        headers: { "User-Agent": "XNeon-Launcher/1.0" },
-        signal: abort.signal,
-      })
-      clearTimeout(timer)
-      if (!res.ok) return item
-      const data = await res.json() as Record<string, unknown>
-      const name = (data.title as string) ?? item.name
-      const author = data.author as string ?? (Array.isArray(data.authors)
-        ? data.authors.map((a: Record<string, unknown>) => ((a.user as Record<string, unknown>)?.username as string) ?? (a.name as string)).filter(Boolean).join(", ")
-        : undefined)
-      cache.set(item.projectId, { name, author })
-      return { ...item, name, author: author || item.author }
-    } catch {
-      return item
-    }
-  }))
-  return enriched
-}
+import { enrichBuildModNames } from "@/lib/modrinth-metadata"
 
 type BuildContentListKey = "mods" | "resourcepacks" | "shaders"
 type BuildContentKind = "mod" | "resourcepack" | "shader"
@@ -68,8 +36,9 @@ export function useBuilds() {
 
   const syncBuildContent = useCallback(async (build: Build): Promise<Build> => {
     try {
-      await window.electronAPI?.getBuildIntentPath(build.name)
-      const scanned = await window.electronAPI?.scanBuildIntentContent?.(build.name)
+      const targetPath = build.intentPath?.trim() || build.name
+      await window.electronAPI?.getBuildIntentPath(targetPath)
+      const scanned = await window.electronAPI?.scanBuildIntentContent?.(targetPath)
       if (!scanned) return build
 
       const mergeContent = (existing: BuildMod[], incoming: BuildMod[]) => {
@@ -98,9 +67,9 @@ export function useBuilds() {
             name: item.name && item.name.length > 1 ? item.name : matched.name || item.name,
             description: matched.description || item.description,
             icon_url: matched.icon_url || item.icon_url,
-            source: matched.source ?? item.source,
-            projectId: matched.projectId ?? item.projectId,
-            modId: matched.modId ?? item.modId,
+            source: item.source && item.source !== "local" ? item.source : matched.source ?? item.source,
+            projectId: item.projectId ?? matched.projectId,
+            modId: item.modId ?? matched.modId,
             author: matched.author || item.author,
             version: item.version && item.version !== "local"
               ? item.version
@@ -140,7 +109,7 @@ export function useBuilds() {
         return
       }
 
-      const processed = await Promise.all(dbBuilds.map(async build => {
+      const processed = dbBuilds.map(build => {
         const b = build as Build
         const inMemoryBuild = buildsRef.current.find(existing => existing.id === build.id || existing.name === build.name)
         const normalized = {
@@ -160,20 +129,58 @@ export function useBuilds() {
           normalized.installedMods = inMemoryBuild.installedMods ?? normalized.installedMods
         }
 
-        const synced = await syncBuildContent(normalized)
+        return normalized
+      })
 
-        // Enrich authors for mods loaded from DB that weren't enriched inside syncBuildContent
-        const [mods, rp, sh] = await Promise.all([
-          enrichBuildModNames(synced.mods),
-          enrichBuildModNames(synced.resourcepacks),
-          enrichBuildModNames(synced.shaders),
-        ])
-        return { ...synced, mods, resourcepacks: rp, shaders: sh }
-      }))
+      // Устанавливаем сборки сразу — UI отрисовывается без ожидания сканирования
       setBuilds(processed)
+
+      // Синхронизация контента в фоне — обновляет сборки по мере готовности
+      void Promise.all(processed.map(async (normalized) => {
+        const synced = await syncBuildContent(normalized)
+        setBuilds(prev => prev.map(b => b.id === synced.id ? synced : b))
+      })).then(() => {
+        // Сигнализируем что первичная загрузка завершена — splash можно убрать
+        setBuildsHydrated(true)
+        window.dispatchEvent(new Event("app:hydrated"))
+      })
+
+      // Enrich Modrinth names/authors in the background — don't block the
+      // initial render with network requests. Results are cached module-wide
+      // and batched, so repeat reloads are cheap or hit the cache entirely.
+      void (async () => {
+        const enriched = await Promise.all(processed.map(async build => {
+          const [mods, rp, sh] = await Promise.all([
+            enrichBuildModNames(build.mods),
+            enrichBuildModNames(build.resourcepacks),
+            enrichBuildModNames(build.shaders),
+          ])
+          return { ...build, mods, resourcepacks: rp, shaders: sh }
+        }))
+
+        const enrichedById = new Map(enriched.map(build => [build.id, build]))
+        setBuilds(prev => prev.map(current => {
+          const rich = enrichedById.get(current.id)
+          if (!rich) return current
+          const patchList = (list: BuildMod[], richList: BuildMod[]) => {
+            const richBySlug = new Map(richList.map(item => [item.slug.toLowerCase(), item]))
+            return list.map(item => {
+              const enrichedItem = richBySlug.get(item.slug.toLowerCase())
+              return enrichedItem
+                ? { ...item, name: enrichedItem.name || item.name, author: enrichedItem.author || item.author }
+                : item
+            })
+          }
+          return {
+            ...current,
+            mods: patchList(current.mods, rich.mods),
+            resourcepacks: patchList(current.resourcepacks, rich.resourcepacks),
+            shaders: patchList(current.shaders, rich.shaders),
+          }
+        }))
+      })()
     } finally {
       isReloadingRef.current = false
-      setBuildsHydrated(true)
     }
   }, [syncBuildContent])
 
@@ -528,7 +535,7 @@ export function useBuilds() {
 
   const addLocalModToBuild = useCallback(async (buildId: string, file: File) => {
     const modName = file.name.replace(/\.jar$|\.zip$/i, "").replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase())
-    const localPath = (file as File & { path?: string }).path
+    const localPath = window.electronAPI?.getFilePath(file)
     let savedPath = ""
     const buildName = builds.find(b => b.id === buildId)?.name
     if (localPath && buildName) {
@@ -602,7 +609,7 @@ export function useBuilds() {
 
   const addLocalContentToBuild = useCallback(async (buildId: string, type: Exclude<BuildContentListKey, "mods">, file: File) => {
     const build = builds.find(b => b.id === buildId)
-    const localPath = (file as File & { path?: string }).path
+    const localPath = window.electronAPI?.getFilePath(file)
     if (!build?.name || !localPath) return
 
     const savedPath = await window.electronAPI?.saveLocalContentToIntent?.(build.name, CONTENT_KIND_BY_KEY[type], localPath)

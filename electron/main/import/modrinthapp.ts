@@ -13,7 +13,12 @@ type ModrinthProfileRow = {
   mod_loader_version: string | null
 }
 
-async function getModrinthAppProfilesDir(): Promise<string> {
+async function getModrinthAppProfilesDir(customPath?: string): Promise<string> {
+  if (customPath) {
+    const profiles = path.join(customPath, "profiles")
+    if (await fileExists(profiles)) return profiles
+    if (await fileExists(customPath)) return customPath
+  }
   const home = app.getPath("home")
   const isWindows = process.platform === "win32"
   const appData = isWindows ? (process.env.APPDATA || "C:\\Windows\\System32\\config\\systemprofile\\AppData\\Roaming") : ""
@@ -31,7 +36,11 @@ async function getModrinthAppProfilesDir(): Promise<string> {
   return ""
 }
 
-async function getModrinthAppDbPath(): Promise<string> {
+async function getModrinthAppDbPath(customPath?: string): Promise<string> {
+  if (customPath) {
+    const dbPath = path.join(customPath, "app.db")
+    if (await fileExists(dbPath)) return dbPath
+  }
   const home = app.getPath("home")
   const isWindows = process.platform === "win32"
   const appData = isWindows ? (process.env.APPDATA || "C:\\Windows\\System32\\config\\systemprofile\\AppData\\Roaming") : ""
@@ -66,9 +75,9 @@ async function readModrinthDbProfiles(dbPath: string): Promise<ModrinthProfileRo
   )
 }
 
-export async function discoverModrinthAppInstances(): Promise<LauncherInstance[]> {
-  const profilesDir = await getModrinthAppProfilesDir()
-  const dbPath = await getModrinthAppDbPath()
+export async function discoverModrinthAppInstances(customPath?: string): Promise<LauncherInstance[]> {
+  const profilesDir = await getModrinthAppProfilesDir(customPath)
+  const dbPath = await getModrinthAppDbPath(customPath)
   if (!profilesDir) return []
 
   const profileMap = new Map<string, ModrinthProfileRow>()

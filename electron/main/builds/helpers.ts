@@ -3,6 +3,8 @@ import path from "path"
 import fs from "fs/promises"
 import { sendToRenderer } from "../runtime"
 import { dbHelpers } from "../../db"
+import { ensureSharedGameLinksSync } from "../shared-game-cache"
+import { fetchWithRetry } from "@xnlc/core/retry"
 
 export function getBaseDataRoot(): string {
   if (process.platform === "win32") return path.join(app.getPath("appData"), "xneonlauncher")
@@ -51,11 +53,12 @@ export async function ensureBuildIntentDir(dirName: string): Promise<string> {
   await fs.mkdir(resourcepacksPath, { recursive: true }).catch(() => {})
   const shaderpacksPath = path.join(intentPath, "shaderpacks")
   await fs.mkdir(shaderpacksPath, { recursive: true }).catch(() => {})
+  ensureSharedGameLinksSync(intentPath)
   return intentPath
 }
 
 export async function downloadBuffer(url: string, signal?: AbortSignal): Promise<Buffer> {
-  const res = await fetch(url, { signal })
+  const res = await fetchWithRetry(url, { signal })
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`)
   return Buffer.from(await res.arrayBuffer())
 }
@@ -260,6 +263,7 @@ export type ImportModEntry = {
   projectId?: string
   modId?: number
   author?: string
+  enabled?: boolean
 }
 
 export type ScannedBuildContent = {

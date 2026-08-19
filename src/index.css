@@ -148,6 +148,11 @@
   }
 }
 
+@keyframes indeterminate-bar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -165,6 +170,14 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary);
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
 
 .select-viewport {

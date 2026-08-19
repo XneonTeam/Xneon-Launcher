@@ -1,20 +1,31 @@
 import { useCallback, useEffect, useState } from "react"
 import { AccountsPage } from "./accounts-page"
+import { HomePage } from "./home-page"
 import { InstancePage } from "./instance"
+import { LogsPage } from "./logs-page"
+import { SettingsPage } from "./settings"
 import { CloudPage } from "./cloud"
 import { NetworkPage } from "./network-page"
-import { HomePage } from "./home-page"
-import { LogsPage } from "./logs-page"
 import { OnboardingModal } from "./onboarding-modal"
-import { SettingsPage } from "./settings"
 import { Sidebar, type TabId } from "./sidebar"
 import { applyTheme, presetThemes } from "./settings/data"
 
-export function Launcher() {
+interface LauncherProps {
+  onReady?: () => void
+}
+
+export function Launcher({ onReady }: LauncherProps) {
   const [activeTab, setActiveTab] = useState<TabId>("home")
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [selectedTheme, setSelectedTheme] = useState(() => localStorage.getItem("theme") || "orange")
   const [showDbFallbackBanner, setShowDbFallbackBanner] = useState(false)
+
+  useEffect(() => {
+    // Every page is mounted in this render; notify the parent once the frame
+    // has committed so the loading overlay can fade out.
+    const id = window.setTimeout(() => onReady?.(), 0)
+    return () => window.clearTimeout(id)
+  }, [onReady])
 
   useEffect(() => {
     const theme = presetThemes.find((item) => item.id === selectedTheme)
@@ -64,19 +75,32 @@ export function Launcher() {
     void window.electronAPI?.setSetting("onboardingCompleted", "true")
   }, [])
 
+  useEffect(() => {
+    onReady?.()
+  }, [onReady])
+
+  const renderPage = () => {
+    switch (activeTab) {
+      case "home": return <HomePage />
+      case "builds": return <InstancePage />
+      case "logs": return <LogsPage />
+      case "settings": return <SettingsPage />
+      case "accounts": return <AccountsPage />
+      case "cloud": return <CloudPage />
+      case "network": return <NetworkPage />
+      default: return null
+    }
+  }
+
   return (
     <div className="flex h-full w-full overflow-hidden bg-background">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
 
       <main className="flex-1 min-h-0 overflow-hidden">
         <div className="h-full p-4 overflow-hidden flex flex-col">
-          <div className={activeTab === "home" ? "h-full flex flex-col" : "hidden"}><HomePage /></div>
-          <div className={activeTab === "builds" ? "h-full flex flex-col" : "hidden"}><InstancePage /></div>
-          <div className={activeTab === "logs" ? "h-full flex flex-col" : "hidden"}><LogsPage /></div>
-          <div className={activeTab === "settings" ? "h-full flex flex-col" : "hidden"}><SettingsPage /></div>
-          <div className={activeTab === "accounts" ? "h-full flex flex-col" : "hidden"}><AccountsPage /></div>
-          <div className={activeTab === "cloud" ? "h-full flex flex-col" : "hidden"}><CloudPage /></div>
-          <div className={activeTab === "network" ? "h-full flex flex-col" : "hidden"}><NetworkPage /></div>
+          <div className="h-full w-full flex flex-col">
+            {renderPage()}
+          </div>
         </div>
       </main>
 

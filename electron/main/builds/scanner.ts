@@ -1,13 +1,14 @@
 import path from "path"
 import fs from "fs/promises"
-import crypto from "crypto"
-import { readModMetadataFromArchive } from "./metadata"
 import { formatDisplayNameFromFileName } from "./helpers"
+import { resolveContentEntries } from "./content-resolver"
 import type { ImportModEntry, ScannedBuildContent } from "./helpers"
 
 type IntentContentFile = {
   slug: string
   filePath: string
+  name: string
+  enabled: boolean
 }
 
 async function listIntentContentFiles(dir: string, parentPath = ""): Promise<IntentContentFile[]> {
@@ -28,7 +29,12 @@ async function listIntentContentFiles(dir: string, parentPath = ""): Promise<Int
 
     if (!entry.isFile()) continue
     if (!entry.name.endsWith(".jar") && !entry.name.endsWith(".zip")) continue
-    files.push({ slug: nextRelativePath, filePath })
+
+    const name = entry.name.endsWith(".disabled")
+      ? entry.name.slice(0, -".disabled".length)
+      : entry.name
+
+    files.push({ slug: nextRelativePath, filePath, name, enabled: !entry.name.endsWith(".disabled") })
   }
 
   return files
@@ -41,25 +47,30 @@ export async function scanIntentDir(intentPath: string): Promise<ScannedBuildCon
   const installedMods: Record<string, string> = {}
 
   const scanDir = async (dir: string, targetArray: ImportModEntry[], targetMap: Record<string, string> | null) => {
-    for (const { slug, filePath } of await listIntentContentFiles(dir)) {
-      try {
-        const metadata = await readModMetadataFromArchive(filePath)
-        const fileName = path.basename(slug)
-        const entry: ImportModEntry = {
-          id: crypto.randomUUID(),
-          slug,
-          name: metadata.name || formatDisplayNameFromFileName(fileName),
-          description: metadata.description || "",
-          icon_url: metadata.icon_url,
-          version: metadata.version || "local",
-          source: "local",
-          author: metadata.author,
-        }
-        targetArray.push(entry)
-        if (targetMap !== null) {
-          targetMap[slug] = filePath
-        }
-      } catch { /* skip */ }
+    const files = await listIntentContentFiles(dir)
+    const resolved = await resolveContentEntries(files.map((file) => file.filePath))
+
+    for (const { slug, filePath, name, enabled } of files) {
+      const entry = resolved[filePath]
+      if (!entry) continue
+      const fileName = path.basename(name)
+      const modEntry: ImportModEntry = {
+        id: entry.sha1,
+        slug,
+        name: entry.name || formatDisplayNameFromFileName(fileName),
+        description: entry.description || "",
+        icon_url: entry.icon_url,
+        version: entry.version || "local",
+        source: entry.source,
+        projectId: entry.projectId,
+        modId: entry.modId,
+        author: entry.author,
+        enabled,
+      }
+      targetArray.push(modEntry)
+      if (targetMap !== null) {
+        targetMap[slug] = filePath
+      }
     }
   }
 

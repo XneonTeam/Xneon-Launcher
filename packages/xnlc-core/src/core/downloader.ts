@@ -65,16 +65,11 @@ export class DownloadTask {
         fsSync.rmSync(dest, { recursive: true, force: true });
       } else {
         let isValid = true;
-        
-        if (expectedSha1) {
-          let actualSha1: string;
-          try {
-            actualSha1 = sha1Hash(fsSync.readFileSync(dest));
-          } catch {
-            isValid = false;
-          }
-          if (actualSha1! !== expectedSha1) isValid = false;
-        } else if (typeof expectedSize === "number" && expectedSize > 0 && stats.size !== expectedSize) {
+
+        // Fast path: compare only the size. Hashing every installed file on
+        // every launch (libraries + ~1600 assets) made launches feel like a
+        // full re-download even when nothing was missing.
+        if (typeof expectedSize === "number" && expectedSize > 0 && stats.size !== expectedSize) {
           isValid = false;
         }
 

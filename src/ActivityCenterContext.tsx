@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 export type ActivityNotificationKind = "info" | "success" | "error" | "progress"
 export type ActivityNotificationSource = "launch" | "import"
-export type ImportSessionSource = "modrinth" | "curseforge" | "local"
+export type ImportSessionSource = "modrinth" | "curseforge" | "ftb" | "local"
 
 export interface ActivityNotification {
   id: string
@@ -65,6 +65,7 @@ function createNotification(input: ActivityNotificationInput, read: boolean, liv
 function getImportTitle(source: ImportSessionSource | null): string {
   if (source === "modrinth") return "Импорт с Modrinth"
   if (source === "curseforge") return "Импорт с CurseForge"
+  if (source === "ftb") return "Импорт с FTB"
   return "Импорт из файла"
 }
 

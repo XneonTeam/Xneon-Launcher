@@ -200,6 +200,45 @@ async function parseForgeModsToml(zip: AdmZipType): Promise<ModMetadata | null> 
   return parseModsToml(zip, "META-INF/mods.toml")
 }
 
+function parsePackMcmeta(zip: AdmZipType): ModMetadata | null {
+  const content = readArchiveText(zip, "pack.mcmeta")
+  if (!content) return null
+  try {
+    const parsed = JSON.parse(content) as { pack?: { pack_format?: number; description?: string | { text?: string; translate?: string } } }
+    const pack = parsed.pack
+    if (!pack) return null
+    const descRaw = pack.description
+    let description: string | undefined
+    if (typeof descRaw === "string") {
+      description = descRaw
+    } else if (descRaw && typeof descRaw === "object") {
+      description = descRaw.text ?? descRaw.translate ?? undefined
+    }
+    const icon = readArchiveEntryAsDataUrl(zip, "pack.png")
+    return {
+      name: undefined,
+      version: pack.pack_format != null ? String(pack.pack_format) : undefined,
+      description,
+      icon_url: icon,
+      author: undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
+function parseShaderProperties(zip: AdmZipType): ModMetadata | null {
+  const content = readArchiveText(zip, "shaders/shaders.properties")
+  if (!content) return null
+  return {
+    name: undefined,
+    version: undefined,
+    description: undefined,
+    icon_url: undefined,
+    author: undefined,
+  }
+}
+
 export async function readModMetadataFromArchive(filePath: string): Promise<ModMetadata> {
   try {
     const AdmZip = await loadAdmZip()
@@ -212,6 +251,8 @@ export async function readModMetadataFromArchive(filePath: string): Promise<ModM
       parseQuiltModJson,
       parseFabricModJson,
       parseLiteModJson,
+      parsePackMcmeta,
+      parseShaderProperties,
     ]
     for (const parser of parsers) {
       const result = await parser(zip)

@@ -84,7 +84,9 @@ export type LauncherExtraApi = {
   cloudDownloadFile: (providerId: string, remotePath: string, localPath: string) => Promise<{ success: boolean; localPath?: string; error?: string }>
   cloudDeleteFile: (providerId: string, remotePath: string) => Promise<{ success: boolean; error?: string }>
   cloudGetQuota: (providerId: string) => Promise<{ used: number; total: number } | null>
-  cloudUploadBuild: (providerId: string, buildName: string) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
+  cloudUploadBuild: (providerId: string, buildName: string, uploadId?: string) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
+  onCloudUploadProgress: (callback: (data: { id: string; percent: number; stage: "zip" | "upload" }) => void) => () => void
+  getFilePath: (file: File) => string
   cloudUploadAccount: (providerId: string, account: { id: string; type: string; username: string; uuid?: string }) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
   cloudDownloadAndImport: (providerId: string, remotePath: string, fileType: string) => Promise<{ success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } }>
   listWorlds: (buildName: string) => Promise<LauncherWorldInfo[]>
@@ -115,6 +117,8 @@ export type LauncherExtraApi = {
   moveBuildIntentToTrash: (dirName: string) => Promise<{ success: boolean; trashName?: string; error?: string }>
   restoreBuildIntentFromTrash: (dirName: string, trashName: string) => Promise<{ success: boolean; error?: string }>
   purgeBuildTrash: () => Promise<{ success: boolean; error?: string }>
+  listTrashBuilds: () => Promise<Array<{ trashName: string; originalName: string; trashedAt: number }>>
+  deleteTrashItem: (trashName: string) => Promise<{ success: boolean; error?: string }>
   onCliLaunchBuild: (callback: (buildName: string) => void) => () => void
   updateCheck: () => Promise<{ available: boolean; version?: string; error?: string }>
   updateDownload: () => Promise<{ success: boolean; error?: string }>
@@ -122,6 +126,9 @@ export type LauncherExtraApi = {
   updateInfo: () => Promise<{ version: string | null; downloaded: boolean }>
   onUpdateStatus: (callback: (status: { status: string; version?: string; releaseDate?: string; releaseNotes?: string; error?: string }) => void) => () => void
   onUpdateProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void
+  readDir: (dirPath: string) => Promise<Array<{ name: string; isDir: boolean; size: number; modifiedAt: number }>>
+  readFile: (filePath: string) => Promise<{ success: boolean; content?: string; encoding?: string; error?: string }>
+  writeFile: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>
 }
 
 declare global {

@@ -6,12 +6,20 @@ import { fileExists, getInstanceContentDirs, countFilesInDirs, isSupportedImport
 
 type MmcLikeType = "multimc" | "polymc" | "prism"
 
-async function getMmcLikeInstancesDirs(): Promise<{ type: MmcLikeType; dirs: string[] }[]> {
+async function getMmcLikeInstancesDirs(customPath?: string): Promise<{ type: MmcLikeType; dirs: string[] }[]> {
   const home = app.getPath("home")
   const isWindows = process.platform === "win32"
   const isMacOS = process.platform === "darwin"
   const appData = isWindows ? (process.env.APPDATA || "C:\\Windows\\System32\\config\\systemprofile\\AppData\\Roaming") : ""
   const result: { type: MmcLikeType; dirs: string[] }[] = []
+
+  if (customPath) {
+    const instancesDir = path.join(customPath, "instances")
+    if (await fileExists(instancesDir)) {
+      result.push({ type: "prism", dirs: [instancesDir] })
+      return result
+    }
+  }
 
   // MultiMC
   const mmcDirs: string[] = []
@@ -161,9 +169,9 @@ async function readMmcLikeInstance(instanceDir: string, type: MmcLikeType): Prom
   }
 }
 
-export async function discoverMmcLikeInstances(): Promise<LauncherInstance[]> {
+export async function discoverMmcLikeInstances(customPath?: string): Promise<LauncherInstance[]> {
   const instances: LauncherInstance[] = []
-  const mmcLikeConfigs = await getMmcLikeInstancesDirs()
+  const mmcLikeConfigs = await getMmcLikeInstancesDirs(customPath)
 
   console.log('[MultiMC/PolyMC/Prism] Found configs:', mmcLikeConfigs)
 

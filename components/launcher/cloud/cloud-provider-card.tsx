@@ -1,4 +1,5 @@
-import { IconLoader2, IconBrandGoogleDrive, IconBrandDropbox, IconServer, IconCloud } from "@tabler/icons-react"
+import { useTranslation } from "react-i18next"
+import { IconLoader2, IconBrandGoogleDrive, IconBrandDropbox, IconServer, IconCloud, IconDatabase } from "@tabler/icons-react"
 
 function YandexDiskIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
   return (
@@ -26,6 +27,7 @@ const PROVIDER_ICONS: Record<string, { icon?: React.FC<{ className?: string; str
   "yandex-disk": { svg: YandexDiskIcon, color: "#FC3F1D" },
   "webdav": { icon: IconServer, color: "#8b5cf6" },
   "onedrive": { svg: OneDriveIcon, color: "#0078D4" },
+  "s3": { icon: IconDatabase, color: "#FF9900" },
 }
 
 type Props = {
@@ -33,9 +35,11 @@ type Props = {
   name: string
   onConnect: (id: string) => void
   connecting: boolean
+  isConnected?: boolean
 }
 
-export function CloudProviderCard({ id, name, onConnect, connecting }: Props) {
+export function CloudProviderCard({ id, name, onConnect, connecting, isConnected }: Props) {
+  const { t } = useTranslation()
   const info = PROVIDER_ICONS[id] || PROVIDER_ICONS["webdav"]
   const TablerIcon = info.icon
   const SvgIcon = info.svg
@@ -61,7 +65,7 @@ export function CloudProviderCard({ id, name, onConnect, connecting }: Props) {
       <div>
         <p className="font-semibold text-foreground">{name}</p>
         <p className="text-xs text-muted-foreground mt-1">
-          {connecting ? "Подключение..." : "Нажмите для подключения"}
+          {connecting ? t("cloud.connecting") : isConnected ? t("cloud.openFiles") : t("cloud.connectHint")}
         </p>
       </div>
     </button>

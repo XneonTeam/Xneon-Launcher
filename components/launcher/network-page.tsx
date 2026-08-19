@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
+import { CachedAvatar } from "@/components/ui/cached-avatar"
 import Picker from "@emoji-mart/react"
 import data from "@emoji-mart/data"
 import {
@@ -197,8 +198,8 @@ export function NetworkPage() {
   // ═══════════════════════════════════════════
   if (!user) {
     return (
-      <div className="flex-1 min-h-0 flex flex-col gap-4">
-        <div className="flex-1 min-h-0 relative overflow-hidden rounded-2xl bg-card border border-border flex flex-col items-center justify-center gap-6">
+      <div className="flex-1 flex flex-col gap-4">
+        <div className="flex-1 relative overflow-hidden rounded-2xl bg-card border border-border flex flex-col items-center justify-center gap-6">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,oklch(0.65_0.22_40/0.06)_0%,transparent_70%)]" />
           <div className="relative z-10 flex flex-col items-center text-center px-4">
             <div className="relative mb-2">
@@ -338,9 +339,8 @@ export function NetworkPage() {
                               className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-muted/30 transition-all group">
                               <div className="relative shrink-0">
                                 <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center border border-primary/30 overflow-hidden">
-                                  <img src={`${MC_SKIN_API}/avatar/${encodeURIComponent(m.login)}`} alt="" className="w-full h-full object-cover"
-                                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).nextElementSibling?.removeAttribute("hidden") }} />
-                                  <span className="text-[11px] font-bold text-primary" hidden>{m.login[0]?.toUpperCase()}</span>
+                                  <CachedAvatar src={`${MC_SKIN_API}/avatar/${encodeURIComponent(m.login)}`} alt="" className="w-full h-full object-cover" />
+                                  <span className="text-[11px] font-bold text-primary">{m.login[0]?.toUpperCase()}</span>
                                 </div>
                                 <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-orange-500 border-[1.5px] border-card" />
                               </div>
@@ -385,9 +385,8 @@ export function NetworkPage() {
                         return (
                           <div key={i} className="flex items-start gap-2.5 group">
                             <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center border border-primary/30 shrink-0 mt-0.5 overflow-hidden">
-                              <img src={avatarUrl} alt="" className="w-full h-full object-cover"
-                                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).nextElementSibling?.removeAttribute("hidden") }} />
-                              <span className="text-[11px] font-bold text-primary" hidden>{msg.sender[0]?.toUpperCase()}</span>
+                              <CachedAvatar src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                              <span className="text-[11px] font-bold text-primary">{msg.sender[0]?.toUpperCase()}</span>
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-baseline gap-2 mb-1">

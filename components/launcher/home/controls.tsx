@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ACCOUNT_TYPE_LABELS, MOD_LOADERS, type LaunchUiState } from "@/lib/home-page-shared"
 import { IconBolt, IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconFolder, IconLoader2, IconMap, IconPlayerPlay, IconPlayerStop, IconServer, IconWorld, IconX } from "@tabler/icons-react"
 import { LoaderIcon } from "@/components/launcher/instance/loader-icon"
+import { CachedAvatar } from "@/components/ui/cached-avatar"
 import type { LoaderVersionOption } from "@/src/hooks/use-loader-version-options"
 
 type HomeControlsProps = {
@@ -22,6 +23,7 @@ type HomeControlsProps = {
   versionsLoaded: boolean
   selectedVersion: string
   setSelectedVersion: (value: string) => void
+  buildIcons: Record<string, string>
   selectedModLoader: string
   setSelectedModLoader: (value: string) => void
   loaderVersions: LoaderVersionOption[]
@@ -211,7 +213,7 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
   const handleOpenLauncherFolder = useCallback(() => { void window.electronAPI?.openLauncherFolder() }, [])
   const {
     accounts, account, accountComboOpen, setAccountComboOpen, setActiveAccount,
-    versions, versionsLoaded, selectedVersion, setSelectedVersion,
+    versions, versionsLoaded, selectedVersion, setSelectedVersion, buildIcons,
     selectedModLoader, setSelectedModLoader, loaderVersions, loaderVersionsLoaded, selectedLoaderVersion, setSelectedLoaderVersion,
     activeAvatarUrl, accountAvatarUrls,
     launchUi, launchDetails, isRunning, onPlay, onQuickPlayLaunch,
@@ -231,7 +233,7 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
             </div>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 ring-2 ring-primary/30">
-                {account ? <img src={activeAvatarUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-muted flex items-center justify-center"><span className="text-sm font-bold text-muted-foreground">P</span></div>}
+                {account ? <CachedAvatar src={activeAvatarUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-muted flex items-center justify-center"><span className="text-sm font-bold text-muted-foreground">P</span></div>}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-foreground text-sm truncate">{account?.username ?? "Player"}</p>
@@ -250,7 +252,7 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
                   const isActive = acc.id === account?.id
                   return (
                     <button key={acc.id} type="button" onClick={() => { setActiveAccount(acc.id); setAccountComboOpen(false) }} className={cn("flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-colors duration-150 text-left", isActive ? "bg-primary/15 border border-primary/25" : "hover:bg-muted/60 border border-transparent")}>
-                      <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0"><img src={accountAvatarUrls[acc.id]} alt="" className="w-full h-full object-cover" /></div>
+                      <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0"><CachedAvatar src={accountAvatarUrls[acc.id]} alt="" className="w-full h-full object-cover" /></div>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm text-foreground truncate">{acc.username}</p>
                         <p className="text-[11px] text-muted-foreground">{ACCOUNT_TYPE_LABELS[acc.type] ?? acc.type}</p>
@@ -276,7 +278,14 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
             <SelectContent>
               {!versionsLoaded ? <div className="px-3 py-2 text-sm text-muted-foreground">Loading...</div>
                 : versions.length === 0 ? <div className="px-3 py-2 text-sm text-muted-foreground">Failed to load versions</div>
-                : versions.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                : versions.map(v => <SelectItem key={v} value={v}>
+                    <span className="flex items-center gap-2">
+                      {buildIcons[v] ? (
+                        <img src={buildIcons[v]} alt="" className="w-4 h-4 rounded-sm object-cover shrink-0" />
+                      ) : null}
+                      {v}
+                    </span>
+                  </SelectItem>)}
             </SelectContent>
           </Select>
         </div>

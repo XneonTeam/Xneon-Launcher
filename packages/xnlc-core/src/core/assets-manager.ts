@@ -8,7 +8,7 @@ import * as path from "path";
 import * as fs from "fs";
 import { VersionJson, AssetIndex, DownloadProgressCallback } from "../types/index.js";
 import { Downloader } from "./downloader.js";
-import { getAssetIndexDir, getAssetObjectsDir, ensureDirSync, sha1HashSync } from "../utils/index.js";
+import { getAssetIndexDir, getAssetObjectsDir, ensureDirSync } from "../utils/index.js";
 import { URLS } from "../constants/urls.js";
 import { gunzipSync } from "zlib";
 
@@ -147,7 +147,7 @@ export class AssetsManager {
       return false;
     }
 
-    return sha1HashSync(dest) === entry.hash;
+    return true;
   }
 
   private restoreCompressedAsset(gameDir: string, entry: AssetIndex["objects"][string]): boolean {

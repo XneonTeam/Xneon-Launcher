@@ -5,9 +5,65 @@ import {
   type MinecraftVersionOption,
 } from "@/lib/home-page-shared"
 
+// Shared module-level cache so that Home and Builds pages never issue
+// duplicate Mojang manifest fetches — the first caller starts one request,
+// every subsequent caller reuses the result (stale-while-revalidate within
+// the session; cross-session freshness is handled by the main-process disk cache).
+let cachedVersions: MinecraftVersionOption[] | null = null
+let versionsPromise: Promise<MinecraftVersionOption[] | null> | null = null
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T | null> {
+  let lastError: unknown
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)))
+      }
+    }
+  }
+  console.error("Retries exhausted", lastError)
+  return null
+}
+
+async function loadMinecraftVersions(): Promise<MinecraftVersionOption[] | null> {
+  const fromMain = await withRetry(async () => {
+    const versions = await window.electronAPI?.getMinecraftVersions()
+    if (Array.isArray(versions) && versions.length > 0) {
+      return versions
+    }
+    return null
+  })
+  if (fromMain && fromMain.length > 0) {
+    return fromMain
+  }
+
+  const fromRenderer = await withRetry(() => fetchVersionsFromRenderer())
+  if (fromRenderer && fromRenderer.length > 0) {
+    return fromRenderer
+  }
+
+  return fromMain ?? null
+}
+
+function getMinecraftVersions(): Promise<MinecraftVersionOption[] | null> {
+  if (cachedVersions) return Promise.resolve(cachedVersions)
+  if (versionsPromise) return versionsPromise
+  versionsPromise = loadMinecraftVersions().then((versions) => {
+    versionsPromise = null
+    if (versions && versions.length > 0) {
+      cachedVersions = versions
+    }
+    return versions
+  })
+  return versionsPromise
+}
+
 export function useMinecraftVersionOptions() {
-  const [allMinecraftVersions, setAllMinecraftVersions] = useState<MinecraftVersionOption[]>([])
-  const [versionsLoaded, setVersionsLoaded] = useState(false)
+  const [allMinecraftVersions, setAllMinecraftVersions] = useState<MinecraftVersionOption[]>(() => cachedVersions ?? [])
+  const [versionsLoaded, setVersionsLoaded] = useState(() => cachedVersions !== null)
   const [showSnapshot, setShowSnapshot] = useState(false)
   const [showBeta, setShowBeta] = useState(false)
   const [showAlpha, setShowAlpha] = useState(false)
@@ -33,29 +89,14 @@ export function useMinecraftVersionOptions() {
     }
 
     const loadVersions = async () => {
-      let success = false
-      try {
-        const versions = await window.electronAPI?.getMinecraftVersions()
-        if (!cancelled && Array.isArray(versions) && versions.length > 0) {
+      const versions = await getMinecraftVersions()
+      if (!cancelled) {
+        if (versions && versions.length > 0) {
           setAllMinecraftVersions(versions)
-          success = true
           setVersionsLoaded(true)
-          return
+        } else {
+          setVersionsLoaded(true)
         }
-      } catch (error) {
-        console.error("Failed to load Minecraft versions from electron API", error)
-      }
-
-      try {
-        const fallbackVersions = await fetchVersionsFromRenderer()
-        if (!cancelled) {
-          setAllMinecraftVersions(fallbackVersions)
-          success = true
-        }
-      } catch (error) {
-        console.error("Failed to load Minecraft versions from renderer fallback", error)
-      } finally {
-        if (!cancelled) setVersionsLoaded(success)
       }
     }
 

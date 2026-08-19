@@ -5,6 +5,8 @@ import type {
   ModrinthVersionDetail,
   ModrinthManifestFile,
   CurseForgeManifestFile,
+  FTBModpackVersionManifest,
+  FTBFile,
 } from "@xnlc/mods" with { "resolution-mode": "import" }
 import type { BuildExportCategory } from "@xnlc/types" with { "resolution-mode": "import" }
 import { getMainWindow } from "../runtime"
@@ -104,7 +106,13 @@ export function registerBuildHandlers() {
     return { success: cancelImport() }
   })
 
-  ipcMain.handle("build:get-intent-path", async (_event, dirName: string): Promise<string> => ensureBuildIntentDir(dirName))
+  ipcMain.handle("build:get-intent-path", async (_event, dirNameOrPath: string): Promise<string> => {
+    if (path.isAbsolute(dirNameOrPath)) {
+      await fs.mkdir(dirNameOrPath, { recursive: true }).catch(() => {})
+      return dirNameOrPath
+    }
+    return ensureBuildIntentDir(dirNameOrPath)
+  })
 
   ipcMain.handle("build:get-instances-root", async (): Promise<string> => getInstancesRoot())
 
@@ -159,6 +167,56 @@ export function registerBuildHandlers() {
     await ensureBuildIntentDir(dirName)
   })
 
+  ipcMain.handle("build:read-dir", async (_event, dirPath: string): Promise<Array<{ name: string; isDir: boolean; size: number; modifiedAt: number }>> => {
+    try {
+      const entries = await fs.readdir(dirPath, { withFileTypes: true })
+      const result: Array<{ name: string; isDir: boolean; size: number; modifiedAt: number }> = []
+      for (const entry of entries) {
+        if (entry.name.startsWith(".")) continue
+        const fullPath = path.join(dirPath, entry.name)
+        try {
+          const stat = await fs.stat(fullPath)
+          result.push({
+            name: entry.name,
+            isDir: entry.isDirectory(),
+            size: stat.size,
+            modifiedAt: stat.mtimeMs,
+          })
+        } catch {
+          result.push({ name: entry.name, isDir: entry.isDirectory(), size: 0, modifiedAt: 0 })
+        }
+      }
+      return result.sort((a, b) => {
+        if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
+        return a.name.localeCompare(b.name)
+      })
+    } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle("build:read-file", async (_event, filePath: string): Promise<{ success: boolean; content?: string; encoding?: string; error?: string }> => {
+    try {
+      const stat = await fs.stat(filePath)
+      if (stat.size > 2 * 1024 * 1024) {
+        return { success: false, error: "Файл слишком большой (>2 МБ)" }
+      }
+      const content = await fs.readFile(filePath, "utf-8")
+      return { success: true, content, encoding: "utf-8" }
+    } catch (e) {
+      return { success: false, error: String(e) }
+    }
+  })
+
+  ipcMain.handle("build:write-file", async (_event, filePath: string, content: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      await fs.writeFile(filePath, content, "utf-8")
+      return { success: true }
+    } catch (e) {
+      return { success: false, error: String(e) }
+    }
+  })
+
   ipcMain.handle("build:rename-intent", async (_event, oldName: string, newName: string): Promise<{ success: boolean; intentPath?: string; error?: string }> => {
     try {
       const baseDataRoot = getInstancesRoot()
@@ -173,7 +231,7 @@ export function registerBuildHandlers() {
       const dstExists = await fs.access(newIntentPath).then(() => true).catch(() => false)
       if (dstExists) return { success: false, error: "Папка сборки с таким именем уже существует" }
       await fs.rename(oldIntentPath, newIntentPath).catch(async () => {
-        await fs.cp(oldIntentPath, newIntentPath, { recursive: true })
+        await fs.cp(oldIntentPath, newIntentPath, { recursive: true, verbatimSymlinks: true })
         await fs.rm(oldIntentPath, { recursive: true, force: true })
       })
       return { success: true, intentPath: newIntentPath }
@@ -204,7 +262,7 @@ export function registerBuildHandlers() {
       await fs.mkdir(trashRoot, { recursive: true })
       const trashName = `${Date.now()}-${safeName}`
       await fs.rename(intentPath, path.join(trashRoot, trashName)).catch(async () => {
-        await fs.cp(intentPath, path.join(trashRoot, trashName), { recursive: true })
+        await fs.cp(intentPath, path.join(trashRoot, trashName), { recursive: true, verbatimSymlinks: true })
         await fs.rm(intentPath, { recursive: true, force: true })
       })
       return { success: true, trashName }
@@ -223,7 +281,7 @@ export function registerBuildHandlers() {
       const intentPath = path.join(baseDataRoot, "intents", safeName)
       await fs.mkdir(path.dirname(intentPath), { recursive: true })
       await fs.rename(trashPath, intentPath).catch(async () => {
-        await fs.cp(trashPath, intentPath, { recursive: true })
+        await fs.cp(trashPath, intentPath, { recursive: true, verbatimSymlinks: true })
         await fs.rm(trashPath, { recursive: true, force: true })
       })
       return { success: true }
@@ -245,13 +303,41 @@ export function registerBuildHandlers() {
     }
   })
 
+  ipcMain.handle("build:list-trash", async (): Promise<Array<{ trashName: string; originalName: string; trashedAt: number }>> => {
+    try {
+      const trashRoot = path.join(getInstancesRoot(), "intents", ".trash")
+      const entries = await fs.readdir(trashRoot, { withFileTypes: true }).catch(() => [])
+      const items: Array<{ trashName: string; originalName: string; trashedAt: number }> = []
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue
+        const match = entry.name.match(/^(\d+)-(.+)$/)
+        if (match) {
+          items.push({ trashName: entry.name, originalName: match[2], trashedAt: Number(match[1]) })
+        }
+      }
+      return items
+    } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle("build:delete-trash-item", async (_event, trashName: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const trashPath = path.join(getInstancesRoot(), "intents", ".trash", trashName)
+      await fs.rm(trashPath, { recursive: true, force: true })
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
   ipcMain.handle("build:copy", async (_event, dirName: string, newName: string): Promise<{ success: boolean; intentPath?: string; error?: string }> => {
     try {
       const srcIntentPath = await ensureBuildIntentDir(dirName)
       const newIntentPath = await ensureBuildIntentDir(newName)
       // Remove any pre-existing (empty) target dirs first, then deep-copy the source.
       await fs.rm(newIntentPath, { recursive: true, force: true }).catch(() => {})
-      await fs.cp(srcIntentPath, newIntentPath, { recursive: true })
+      await fs.cp(srcIntentPath, newIntentPath, { recursive: true, verbatimSymlinks: true })
       return { success: true, intentPath: newIntentPath }
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) }
@@ -275,15 +361,19 @@ export function registerBuildHandlers() {
 
       // Prism Launcher excludes logs, crash-reports and caches when exporting (ExportInstanceDialog.cpp).
       const LOG_ENTRIES = new Set(["logs", "crash-reports", ".cache", ".fabric", ".quilt"])
+      // Shared game files are reconstructed from the build's version metadata on
+      // import — and they're junctions to a shared cache, so they must never be zipped.
+      const SHARED_GAME_ENTRIES = new Set(["versions", "libraries", "assets"])
       const includeLogs = categories == null || categories.includes("logs")
 
       // `addLocalFolder` passes full zip paths like `<build>/<relative path>`; we need the
       // top-level entry name (the first segment after the build folder) to decide inclusion.
       zip.addLocalFolder(intentPath, path.basename(intentPath), (filename: string) => {
+        const topName = entryTopName(filename, path.basename(intentPath))
         if (categories == null) {
-          return !LOG_ENTRIES.has(entryTopName(filename, path.basename(intentPath)))
+          return !LOG_ENTRIES.has(topName) && !SHARED_GAME_ENTRIES.has(topName)
         }
-        return matchExportCategory(filename, path.basename(intentPath), categories)
+        return matchExportCategory(filename, path.basename(intentPath), categories) && !SHARED_GAME_ENTRIES.has(topName)
       })
       await fs.writeFile(picked.filePath, zip.toBuffer())
       return { success: true, path: picked.filePath }
@@ -340,9 +430,11 @@ export function registerBuildHandlers() {
     }
   })
 
-  ipcMain.handle("build:scan-intent-content", async (_event, dirName: string): Promise<ScannedBuildContent> => {
+  ipcMain.handle("build:scan-intent-content", async (_event, dirNameOrPath: string): Promise<ScannedBuildContent> => {
     try {
-      const intentPath = await ensureBuildIntentDir(dirName)
+      const intentPath = path.isAbsolute(dirNameOrPath)
+        ? dirNameOrPath
+        : await ensureBuildIntentDir(dirNameOrPath)
       return await scanIntentDir(intentPath)
     } catch {
       return { mods: [], resourcepacks: [], shaders: [], installedMods: {} }
@@ -514,6 +606,85 @@ export function registerBuildHandlers() {
       const scanned = await scanIntentDir(intentPath)
       sendImportProgress(totalFiles, totalFiles, "Готово!")
       return { success: true, version: mcVersion, modLoader, loaderVersion, ...scanned }
+    } catch (e) {
+      if (isImportCancelledError(e)) {
+        return { success: false, cancelled: true, error: "Импорт отменен" }
+      }
+      return { success: false, error: e instanceof Error ? e.message : String(e) }
+    } finally {
+      finishImportSession(signal)
+    }
+  })
+
+  ipcMain.handle("build:import-ftb", async (_event, buildName: string, modpackId: number, versionId: number): Promise<ImportResult> => {
+    const signal = startImportSession()
+    try {
+      const intentPath = await ensureBuildIntentDir(buildName)
+      sendImportProgress(0, 100, "Получение манифеста версии...")
+      const mods = await loadModsModule()
+      const manifest = await mods.ftbGetModpackVersion(modpackId, versionId) as FTBModpackVersionManifest | null
+      throwIfImportCancelled(signal)
+      if (!manifest) throw new Error("Манифест версии не найден")
+
+      const target = (name: string) => manifest.targets?.find((t: { name: string }) => t.name === name)?.version ?? ""
+      const version = target("minecraft")
+      let modLoader = ""
+      let loaderVersion = ""
+      const loaderMap: Array<[string, string]> = [
+        ["forge", "forge"],
+        ["neoforge", "neoforge"],
+        ["fabric", "fabric"],
+        ["quilt", "quilt"],
+      ]
+      for (const [targetName, loader] of loaderMap) {
+        const v = target(targetName)
+        if (v) {
+          modLoader = loader
+          loaderVersion = v
+          break
+        }
+      }
+
+      const files = (manifest.files ?? []).filter((f: FTBFile) => !f.serveronly)
+      const totalFiles = files.length
+      let downloaded = 0
+      sendImportProgress(0, totalFiles, `Скачивание ${totalFiles} файлов...`)
+      const tasks = files.map((f: FTBFile) => async () => {
+        const filePath = mods.getFTBPath(f)
+        const fileName = filePath.split("/").pop() ?? "file"
+        try {
+          throwIfImportCancelled(signal)
+          const targetPath = path.join(intentPath, filePath)
+          try { await fs.access(targetPath) } catch {
+            let url = f.url ?? ""
+            if (!url && f.curseforge) {
+              url = await mods.curseforgeGetDownloadUrl(f.curseforge.project, f.curseforge.file) ?? ""
+            }
+            if (!url) {
+              console.warn(`[ftb] Нет ссылки для ${fileName}, пропускаю`)
+              return
+            }
+            await fs.mkdir(path.dirname(targetPath), { recursive: true }).catch(() => {})
+            sendImportProgress(downloaded, totalFiles, "Скачивание файла...", fileName)
+            await fs.writeFile(targetPath, await downloadBuffer(url, signal))
+          }
+        } catch (error) {
+          if (isImportCancelledError(error)) {
+            throw error
+          }
+          const message = error instanceof Error ? error.message : String(error)
+          sendImportProgress(downloaded, totalFiles, `Ошибка загрузки ${fileName}`, fileName)
+          throw new Error(`Не удалось скачать ${fileName}: ${message}`)
+        } finally {
+          downloaded++
+          sendImportProgress(downloaded, totalFiles, `${downloaded}/${totalFiles} файлов`, fileName)
+        }
+      })
+      await runConcurrent(tasks, 5, signal)
+      throwIfImportCancelled(signal)
+      const scanned = await scanIntentDir(intentPath)
+      sendImportProgress(totalFiles, totalFiles, "Готово!")
+      return { success: true, version, modLoader, loaderVersion, ...scanned }
     } catch (e) {
       if (isImportCancelledError(e)) {
         return { success: false, cancelled: true, error: "Импорт отменен" }

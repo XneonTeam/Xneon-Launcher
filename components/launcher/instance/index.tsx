@@ -3,7 +3,9 @@ import { InstanceDetail } from "./instance-detail"
 import { InstanceList } from "./instance-list"
 import { InstanceModrinth } from "./instance-modrinth"
 import { InstanceCurseForge } from "./instance-curseforge"
+import { InstanceFtb } from "./instance-ftb"
 import { InstanceHeader } from "./instance-header"
+import { InstanceTrashView } from "./instance-trash-view"
 import { InstanceImportOverlay } from "./instance-import-overlay"
 import { InstanceModal } from "./instance-modal"
 import { useBuilds } from "./use-builds"
@@ -14,19 +16,8 @@ import { useAccounts } from "@/src/AccountsContext"
 import { useBuildLaunch } from "@/src/hooks/use-build-launch"
 import type { ViewMode, DetailTab, ModSearchResult, ModVersion, ModSort } from "./types"
 
-const MODRINTH_SORT_OPTIONS: ModSort[] = ["relevance", "downloads", "followers", "published", "updated"]
-const CURSEFORGE_SORT_OPTIONS: ModSort[] = ["downloads", "popular", "published", "updated"]
-
-function mergeCategories(current: string[], nextResults: ModSearchResult[]) {
-  const merged = new Set(current)
-  for (const result of nextResults) {
-    for (const category of result.categories ?? []) {
-      const trimmed = category.trim()
-      if (trimmed) merged.add(trimmed)
-    }
-  }
-  return Array.from(merged).sort((a, b) => a.localeCompare(b))
-}
+const MODRINTH_SORT_OPTIONS: ModSort[] = ["relevance", "downloads", "follows", "newest", "updated"]
+const CURSEFORGE_SORT_OPTIONS: ModSort[] = ["downloads", "newest", "updated", "featured", "rating"]
 
 export function InstancePage() {
   const [view, setView] = useState<ViewMode>("my")
@@ -43,21 +34,20 @@ export function InstancePage() {
   const [cfSearch, setCfSearch] = useState("")
   const [cfResults, setCfResults] = useState<ModSearchResult[]>([])
   const [cfLoading, setCfLoading] = useState(false)
+  const [ftbSearch, setFtbSearch] = useState("")
+  const [ftbResults, setFtbResults] = useState<ModSearchResult[]>([])
+  const [ftbLoading, setFtbLoading] = useState(false)
   const [mrSortBy, setMrSortBy] = useState<ModSort>("downloads")
   const [cfSortBy, setCfSortBy] = useState<ModSort>("downloads")
   const { visibleVersions, versionsLoaded } = useMinecraftVersionOptions()
   const [selectedVersion, setSelectedVersion] = useState("all")
   const [selectedModLoader, setSelectedModLoader] = useState("all")
-  const [mrSelectedCategory, setMrSelectedCategory] = useState("all")
-  const [cfSelectedCategory, setCfSelectedCategory] = useState("all")
   const [mrPage, setMrPage] = useState(0)
   const [cfPage, setCfPage] = useState(0)
+  const [ftbPage, setFtbPage] = useState(0)
   const [mrTotalHits, setMrTotalHits] = useState(0)
   const [cfTotalHits, setCfTotalHits] = useState(0)
-  const [mrCategoryOptions, setMrCategoryOptions] = useState<string[]>([])
-  const [cfCategoryOptions, setCfCategoryOptions] = useState<string[]>([])
-  const [mrCategoriesLoaded, setMrCategoriesLoaded] = useState(false)
-  const [cfCategoriesLoaded, setCfCategoriesLoaded] = useState(false)
+  const [ftbTotalHits, setFtbTotalHits] = useState(0)
 
   const {
     builds, setBuilds, activeBuildId, setActiveBuildId, activeBuild,
@@ -81,18 +71,21 @@ export function InstancePage() {
   }, [builds, launchInstance])
 
   const {
-    modSearch, setModSearch, modResults, setModResults, modLoading,
-    modPrevResults, setModPrevResults, installingModSlug, setInstallingModSlug,
+    modSearch, setModSearch, modLoading,
+    installingModSlug, setInstallingModSlug,
     modSource, setModSource, modSortBy, setModSortBy,
-    modPage, setModPage, modTotalHits,
+    modCategories, setModCategories,
+    modPage, setModPage, modTotalHits, modTotalPages,
+    categories,
     selectedDetails, modalTab, setModalTab,
     loadingModal, displayedModalVersions, displayResults,
-    modFileInputRef, openProjectModal, openCFModal, closeModal, resetModSearch,
+    modFileInputRef, openProjectModal, closeModal, resetModSearch,
+    isInstalledFn,
   } = useModSearch(activeBuild, detailTab, view, activeBuildId)
 
   const {
-    importProgress, importError, isCancellingImport, downloadingSlug, cfDownloadingId,
-    cancelImport, downloadFromModrinth, downloadVersionFromModrinth, downloadFromCurseforge, downloadVersionFromCurseforge, handleImportFile,
+    importProgress, importError, isCancellingImport, downloadingSlug, cfDownloadingId, ftbDownloadingId,
+    cancelImport, downloadFromModrinth, downloadVersionFromModrinth, downloadFromCurseforge, downloadVersionFromCurseforge, downloadFromFtb, downloadVersionFromFtb, handleImportFile,
   } = useImport(setBuilds, () => setView("my"))
 
   const fetchMrModpacks = useCallback(async (query: string, currentPage: number) => {
@@ -106,18 +99,16 @@ export function InstancePage() {
         selectedModLoader === "all" ? undefined : selectedModLoader as "vanilla" | "fabric" | "quilt" | "neoforge",
         mrSortBy,
         currentPage,
-        mrSelectedCategory === "all" ? undefined : mrSelectedCategory,
       )
       const nextResults = resp?.results ?? []
       setMrResults(nextResults)
       setMrTotalHits(resp?.totalCount ?? 0)
-      setMrCategoryOptions((current) => mergeCategories(current, nextResults))
     } catch {
       setMrResults([])
       setMrTotalHits(0)
     }
     finally { setMrLoading(false) }
-  }, [mrSelectedCategory, mrSortBy, selectedModLoader, selectedVersion])
+  }, [mrSortBy, selectedModLoader, selectedVersion])
 
   const fetchCfModpacks = useCallback(async (query: string, currentPage: number) => {
     setCfLoading(true)
@@ -130,78 +121,22 @@ export function InstancePage() {
         selectedModLoader === "all" ? undefined : selectedModLoader,
         cfSortBy,
         currentPage,
-        cfSelectedCategory === "all" ? undefined : cfSelectedCategory,
       )
       const nextResults = resp?.results ?? []
       setCfResults(nextResults)
       setCfTotalHits(resp?.totalCount ?? 0)
-      setCfCategoryOptions((current) => mergeCategories(current, nextResults))
     } catch {
       setCfResults([])
       setCfTotalHits(0)
     }
     finally { setCfLoading(false) }
-  }, [cfSelectedCategory, cfSortBy, selectedModLoader, selectedVersion])
-
-  useEffect(() => {
-    if (view !== "modrinth" || mrCategoriesLoaded) return
-
-    let cancelled = false
-
-    const loadCategories = async () => {
-      try {
-        const categories = await window.electronAPI?.modsModrinthCategories?.("modpack") ?? []
-        if (!cancelled) {
-          setMrCategoryOptions(categories.map((category) => category.slug).filter(Boolean))
-          setMrCategoriesLoaded(true)
-        }
-      } catch {
-        if (!cancelled) {
-          setMrCategoryOptions([])
-          setMrCategoriesLoaded(true)
-        }
-      }
-    }
-
-    void loadCategories()
-
-    return () => {
-      cancelled = true
-    }
-  }, [mrCategoriesLoaded, view])
-
-  useEffect(() => {
-    if (view !== "curseforge" || cfCategoriesLoaded) return
-
-    let cancelled = false
-
-    const loadCategories = async () => {
-      try {
-        const categories = await window.electronAPI?.modsCurseforgeCategories?.("modpack") ?? []
-        if (!cancelled) {
-          setCfCategoryOptions(categories.map((category) => category.name || category.slug).filter(Boolean))
-          setCfCategoriesLoaded(true)
-        }
-      } catch {
-        if (!cancelled) {
-          setCfCategoryOptions([])
-          setCfCategoriesLoaded(true)
-        }
-      }
-    }
-
-    void loadCategories()
-
-    return () => {
-      cancelled = true
-    }
-  }, [cfCategoriesLoaded, view])
+  }, [cfSortBy, selectedModLoader, selectedVersion])
 
   useEffect(() => {
     if (view !== "modrinth") return
     const t = setTimeout(() => void fetchMrModpacks(mrSearch, mrPage), 350)
     return () => clearTimeout(t)
-  }, [fetchMrModpacks, mrSearch, mrPage, mrSelectedCategory, mrSortBy, selectedModLoader, selectedVersion, view])
+  }, [fetchMrModpacks, mrSearch, mrPage, mrSortBy, selectedModLoader, selectedVersion, view])
 
   useEffect(() => {
     if (view === "modrinth" && !mrSearch.trim()) {
@@ -209,13 +144,13 @@ export function InstancePage() {
     }
   }, [view, mrPage])
 
-  useEffect(() => { setMrPage(0) }, [mrSearch, mrSelectedCategory, mrSortBy, selectedModLoader, selectedVersion])
+  useEffect(() => { setMrPage(0) }, [mrSearch, mrSortBy, selectedModLoader, selectedVersion])
 
   useEffect(() => {
     if (view !== "curseforge") return
     const t = setTimeout(() => void fetchCfModpacks(cfSearch, cfPage), 350)
     return () => clearTimeout(t)
-  }, [cfSearch, cfPage, cfSelectedCategory, cfSortBy, fetchCfModpacks, selectedModLoader, selectedVersion, view])
+  }, [cfSearch, cfPage, cfSortBy, fetchCfModpacks, selectedModLoader, selectedVersion, view])
 
   useEffect(() => {
     if (view === "curseforge" && !cfSearch.trim()) {
@@ -223,7 +158,35 @@ export function InstancePage() {
     }
   }, [view, cfPage])
 
-  useEffect(() => { setCfPage(0) }, [cfSearch, cfSelectedCategory, cfSortBy, selectedModLoader, selectedVersion])
+  useEffect(() => { setCfPage(0) }, [cfSearch, cfSortBy, selectedModLoader, selectedVersion])
+
+  const fetchFtbModpacks = useCallback(async (query: string, currentPage: number) => {
+    setFtbLoading(true)
+    try {
+      const resp = await window.electronAPI?.modsFtbSearch(query.trim(), currentPage)
+      const nextResults = resp?.results ?? []
+      setFtbResults(nextResults)
+      setFtbTotalHits(resp?.totalCount ?? 0)
+    } catch {
+      setFtbResults([])
+      setFtbTotalHits(0)
+    }
+    finally { setFtbLoading(false) }
+  }, [])
+
+  useEffect(() => {
+    if (view !== "ftb") return
+    const t = setTimeout(() => void fetchFtbModpacks(ftbSearch, ftbPage), 350)
+    return () => clearTimeout(t)
+  }, [fetchFtbModpacks, ftbSearch, ftbPage, view])
+
+  useEffect(() => {
+    if (view === "ftb" && !ftbSearch.trim()) {
+      fetchFtbModpacks("", ftbPage)
+    }
+  }, [view, ftbPage])
+
+  useEffect(() => { setFtbPage(0) }, [ftbSearch])
 
   const openBuildDetail = useCallback((id: string) => {
     setActiveBuildId(id)
@@ -237,8 +200,9 @@ export function InstancePage() {
 
   const handleOpenCreate = useCallback(() => setCreateOpen(true), [])
   const totalBuilds = builds.length
-  const mrTotalPages = Math.max(1, Math.ceil(mrTotalHits / 10))
-  const cfTotalPages = Math.max(1, Math.ceil(cfTotalHits / 10))
+  const mrTotalPages = Math.max(1, Math.ceil(mrTotalHits / 20))
+  const cfTotalPages = Math.max(1, Math.ceil(cfTotalHits / 20))
+  const ftbTotalPages = Math.max(1, Math.ceil(ftbTotalHits / 20))
 
   const handleInstallModalVersion = useCallback(async (version: ModVersion) => {
     if (!selectedDetails) return
@@ -264,10 +228,15 @@ export function InstancePage() {
       return
     }
 
+    if (selectedDetails.source === "ftb") {
+      await downloadVersionFromFtb(modalItem, Number(version.id.replace("ftb-", "")))
+      return
+    }
+
     if (selectedDetails.modId) {
       await downloadVersionFromCurseforge(modalItem, Number(version.id))
     }
-  }, [closeModal, downloadVersionFromCurseforge, downloadVersionFromModrinth, selectedDetails])
+  }, [closeModal, downloadVersionFromCurseforge, downloadVersionFromFtb, downloadVersionFromModrinth, selectedDetails])
 
   if (view === "detail" && activeBuild) {
     return (
@@ -286,17 +255,20 @@ export function InstancePage() {
         setModSource={setModSource}
         modSortBy={modSortBy}
         setModSortBy={setModSortBy}
+        modCategories={modCategories}
+        setModCategories={setModCategories}
+        categories={categories}
         modFileInputRef={modFileInputRef}
         addLocalModToBuild={addLocalModToBuild}
         addLocalContentToBuild={addLocalContentToBuild}
         removeContentFromBuild={removeContentFromBuild}
         modLoading={modLoading}
         modTotalHits={modTotalHits}
+        modTotalPages={modTotalPages}
         modPage={modPage}
-        setModPrevResults={setModPrevResults}
-        modResults={modResults}
         setModPage={setModPage}
         displayResults={displayResults}
+        isInstalledFn={isInstalledFn}
         openProjectModal={openProjectModal}
         installingModSlug={installingModSlug}
         setInstallingModSlug={setInstallingModSlug}
@@ -371,9 +343,6 @@ export function InstancePage() {
           versionOptions={visibleVersions}
           selectedModLoader={selectedModLoader}
           setSelectedModLoader={setSelectedModLoader}
-          selectedCategory={mrSelectedCategory}
-          setSelectedCategory={setMrSelectedCategory}
-          categoryOptions={mrCategoryOptions}
           page={mrPage}
           totalPages={mrTotalPages}
           onPageChange={setMrPage}
@@ -398,14 +367,32 @@ export function InstancePage() {
           versionOptions={visibleVersions}
           selectedModLoader={selectedModLoader}
           setSelectedModLoader={setSelectedModLoader}
-          selectedCategory={cfSelectedCategory}
-          setSelectedCategory={setCfSelectedCategory}
-          categoryOptions={cfCategoryOptions}
           page={cfPage}
           totalPages={cfTotalPages}
           onPageChange={setCfPage}
-          onOpenDetails={openCFModal}
+          onOpenDetails={openProjectModal}
           onDownload={downloadFromCurseforge}
+        />
+      )}
+
+      {view === "trash" && (
+        <InstanceTrashView
+          goToMyBuilds={goToMyBuilds}
+        />
+      )}
+
+      {view === "ftb" && (
+        <InstanceFtb
+          ftbSearch={ftbSearch}
+          setFtbSearch={setFtbSearch}
+          ftbLoading={ftbLoading}
+          ftbResults={ftbResults}
+          ftbDownloadingId={ftbDownloadingId}
+          page={ftbPage}
+          totalPages={ftbTotalPages}
+          onPageChange={setFtbPage}
+          onOpenDetails={openProjectModal}
+          onDownload={downloadFromFtb}
         />
       )}
 

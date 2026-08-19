@@ -152,3 +152,7 @@ export { applyBmclapiEnv } from "./config.js";
 
 // Errors
 export { LaunchError } from "./errors/launch-error.js";
+
+// Retry / Backoff
+export { withRetry, fetchWithRetry, isRetryableError } from "./retry.js";
+export type { RetryOptions } from "./retry.js";

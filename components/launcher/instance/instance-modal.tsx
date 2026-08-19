@@ -1,10 +1,11 @@
 import ReactMarkdown from "react-markdown"
 import rehypeRaw from "rehype-raw"
 import rehypeSanitize from "rehype-sanitize"
+import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { IconX, IconFileText, IconPhoto, IconHistory, IconDownload } from "@tabler/icons-react"
+import { IconX, IconFileText, IconPhoto, IconHistory, IconDownload, IconRefresh, IconCheck, IconArrowRight } from "@tabler/icons-react"
 import { Spinner } from "./spinner"
-import type { ModDetails, ModalTab, ModVersion } from "./types"
+import type { Build, ModDetails, ModalTab, ModVersion } from "./types"
 
 const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
   h1: ({ children }) => <h1 className="text-2xl font-bold text-foreground mt-6 mb-3 pb-2 border-b border-border">{children}</h1>,
@@ -31,6 +32,8 @@ interface InstanceModalProps {
   displayedModalVersions: ModVersion[]
   onInstallVersion: (version: ModVersion) => void
   onClose: () => void
+  activeBuild?: Build
+  onUpdateModpack?: (version: ModVersion) => void
 }
 
 export function InstanceModal({
@@ -41,7 +44,12 @@ export function InstanceModal({
   displayedModalVersions,
   onInstallVersion,
   onClose,
+  activeBuild,
+  onUpdateModpack,
 }: InstanceModalProps) {
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false)
+  const [selectedUpdateVersion, setSelectedUpdateVersion] = useState<ModVersion | null>(null)
+
   if (!selectedDetails) return null
 
   const title = selectedDetails.name
@@ -49,6 +57,18 @@ export function InstanceModal({
   const iconUrl = selectedDetails.iconUrl
   const body = selectedDetails.body
   const gallery = selectedDetails.gallery
+
+  const isInstalled = activeBuild && (
+    activeBuild.mods.some(m => m.projectId === selectedDetails.projectId || m.projectId === selectedDetails.id)
+    || activeBuild.resourcepacks.some(m => m.projectId === selectedDetails.projectId || m.projectId === selectedDetails.id)
+    || activeBuild.shaders.some(m => m.projectId === selectedDetails.projectId || m.projectId === selectedDetails.id)
+  )
+
+  const installedVersion = activeBuild && selectedDetails.projectId
+    ? activeBuild.mods.find(m => m.projectId === selectedDetails.projectId)?.version
+      ?? activeBuild.resourcepacks.find(m => m.projectId === selectedDetails.projectId)?.version
+      ?? activeBuild.shaders.find(m => m.projectId === selectedDetails.projectId)?.version
+    : null
 
   return (
     <div
@@ -74,9 +94,20 @@ export function InstanceModal({
                   <h2 className="text-xl font-bold text-foreground">{title}</h2>
                   <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{description}</p>
                 </div>
-                <button onClick={onClose} className="p-2 rounded-lg border border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                  <IconX className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {isInstalled && installedVersion && onUpdateModpack && (
+                    <button
+                      onClick={() => setShowUpdateDialog(true)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition-colors"
+                    >
+                      <IconRefresh className="w-4 h-4" strokeWidth={1.75} />
+                      Обновить
+                    </button>
+                  )}
+                  <button onClick={onClose} className="p-2 rounded-lg border border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                    <IconX className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -183,6 +214,144 @@ export function InstanceModal({
           )}
         </div>
       </div>
+
+      {showUpdateDialog && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm"
+          onClick={() => { setShowUpdateDialog(false); setSelectedUpdateVersion(null) }}
+        >
+          <div
+            className="w-full max-w-2xl max-h-[80vh] mx-4 rounded-2xl bg-card border border-border shadow-2xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-border flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-foreground">Обновить модпак</h3>
+                  <p className="text-sm text-muted-foreground mt-1">Текущая версия: {installedVersion}</p>
+                </div>
+                <button
+                  onClick={() => { setShowUpdateDialog(false); setSelectedUpdateVersion(null) }}
+                  className="p-2 rounded-lg border border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                >
+                  <IconX className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5">
+              <div className="space-y-2">
+                {displayedModalVersions.map((ver) => {
+                  const isCurrent = installedVersion === ver.name || installedVersion === ver.id
+                  const isSelected = selectedUpdateVersion?.id === ver.id
+                  const isOlder = installedVersion && ver.name < installedVersion
+
+                  return (
+                    <button
+                      key={ver.id}
+                      type="button"
+                      onClick={() => setSelectedUpdateVersion(isSelected ? null : ver)}
+                      className={cn(
+                        "w-full text-left p-4 rounded-xl border transition-colors",
+                        isSelected
+                          ? "border-primary bg-primary/5"
+                          : isCurrent
+                            ? "border-primary/40 bg-primary/5"
+                            : "border-border bg-muted/20 hover:bg-muted/30"
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-foreground">{ver.name}</span>
+                            {isCurrent && (
+                              <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                                <IconCheck className="w-3 h-3" />
+                                Текущая
+                              </span>
+                            )}
+                            {isOlder && !isCurrent && (
+                              <span className="text-xs text-muted-foreground">Старая</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 mt-1">
+                            <span className="text-xs text-muted-foreground">{ver.gameVersion ?? ""}</span>
+                            {ver.loaders && (
+                              <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                                {Array.isArray(ver.loaders) ? ver.loaders.join(", ") : ""}
+                              </span>
+                            )}
+                            {ver.datePublished && (
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(ver.datePublished).toLocaleDateString()}
+                              </span>
+                            )}
+                            {ver.versionType && (
+                              <span className={cn(
+                                "rounded px-1.5 py-0.5 text-[10px] font-medium uppercase",
+                                ver.versionType === "release" ? "bg-green-500/10 text-green-500"
+                                  : ver.versionType === "beta" ? "bg-yellow-500/10 text-yellow-500"
+                                    : "bg-red-500/10 text-red-500"
+                              )}>
+                                {ver.versionType}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <IconArrowRight className={cn(
+                          "w-4 h-4 transition-transform",
+                          isSelected ? "rotate-90 text-primary" : "text-muted-foreground"
+                        )} />
+                      </div>
+
+                      {isSelected && (
+                        <div className="mt-4 pt-4 border-t border-border">
+                          {ver.changelog ? (
+                            <div className="text-sm text-muted-foreground">
+                              <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Что изменилось</div>
+                              <ReactMarkdown rehypePlugins={[rehypeRaw, rehypeSanitize]} components={mdComponents}>{ver.changelog}</ReactMarkdown>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Нет описания изменений</p>
+                          )}
+
+                          <div className="flex items-center gap-3 mt-4">
+                            {ver.files && ver.files.length > 0 && (
+                              <span className="text-xs text-muted-foreground">
+                                Файлов: {ver.files.length}
+                              </span>
+                            )}
+                            {ver.downloadCount !== undefined && (
+                              <span className="text-xs text-muted-foreground">
+                                Загрузок: {ver.downloadCount.toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+
+                          {!isCurrent && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onUpdateModpack?.(ver)
+                                setShowUpdateDialog(false)
+                                setSelectedUpdateVersion(null)
+                              }}
+                              className="mt-4 flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+                            >
+                              <IconDownload className="w-4 h-4" strokeWidth={1.75} />
+                              Обновить до этой версии
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

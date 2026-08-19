@@ -4,8 +4,8 @@ import type { LauncherSource } from "./translations"
 const LAUNCHER_SOURCE_ICON_SRC: Record<LauncherSource, string> = {
   prism: "./launcher-icons/prism.png",
   gdlauncher: "./launcher-icons/gdlauncher.png",
-  multimc: "./launcher-icons/multimc.svg",
-  polymc: "./launcher-icons/polymc.svg",
+  multimc: "./launcher-icons/multimc.png",
+  polymc: "./launcher-icons/polymc.png",
   xlauncher: "./launcher-icons/xlauncher.svg",
   astralrinth: "./launcher-icons/astralrinth.webp",
   modrinthapp: "./launcher-icons/modrinthapp.png",

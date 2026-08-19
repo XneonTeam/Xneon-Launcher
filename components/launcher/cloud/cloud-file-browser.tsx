@@ -8,6 +8,7 @@ import {
 } from "@tabler/icons-react"
 import { formatBytes, timeAgo } from "./utils"
 import { useAccounts, type Account } from "@/src/AccountsContext"
+import { CachedAvatar } from "@/components/ui/cached-avatar"
 import { getAvatarUrl, getAccountTypeInfo, type AccountType } from "../accounts-page"
 
 const AVATAR_API = "https://mcskinapi-three.vercel.app/avatar"
@@ -84,6 +85,13 @@ export function CloudFileBrowser({ providerId }: Props) {
   const [quota, setQuota] = useState<{ used: number; total: number } | null>(null)
   const [showUploadChoice, setShowUploadChoice] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<Record<string, { percent: number; stage: "zip" | "upload" }>>({})
+
+  useEffect(() => {
+    return window.electronAPI?.onCloudUploadProgress?.((data) => {
+      setUploadProgress(prev => ({ ...prev, [data.id]: { percent: data.percent, stage: data.stage } }))
+    })
+  }, [])
 
   const fetchFiles = useCallback(async () => {
     if (!api) return
@@ -180,8 +188,9 @@ export function CloudFileBrowser({ providerId }: Props) {
   const handleUploadBuild = useCallback(async (buildId: string, buildName: string) => {
     if (!api) return
     setUploadingId(buildId)
+    setUploadProgress({})
     try {
-      const result = await api.cloudUploadBuild(providerId, buildName)
+      const result = await api.cloudUploadBuild(providerId, buildName, buildId)
       if (!result.success) throw new Error(result.error || "Ошибка загрузки")
       fetchFiles()
       fetchQuota()
@@ -193,6 +202,7 @@ export function CloudFileBrowser({ providerId }: Props) {
   const handleUploadAccount = useCallback(async (account: { id: string; type: string; username: string; uuid?: string }) => {
     if (!api) return
     setUploadingId(account.id)
+    setUploadProgress({})
     try {
       const result = await api.cloudUploadAccount(providerId, account)
       if (!result.success) throw new Error(result.error || "Ошибка загрузки")
@@ -247,6 +257,7 @@ export function CloudFileBrowser({ providerId }: Props) {
           onUploadBuild={handleUploadBuild}
           onUploadAccount={handleUploadAccount}
           uploading={uploadingId}
+          progress={uploadProgress}
         />
       )}
 
@@ -350,7 +361,7 @@ export function CloudFileBrowser({ providerId }: Props) {
         <div className="mt-3 pt-3 border-t border-border">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>{t("cloud.storageStatus")}</span>
-            <span>{formatBytes(quota.used)} / {formatBytes(quota.total)}</span>
+            <span>{formatBytes(quota.used)}{quota.total != null ? ` / ${formatBytes(quota.total)}` : ""}</span>
           </div>
           <div className="w-full h-1.5 rounded-full bg-muted mt-2 overflow-hidden">
             <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${usedPercent}%` }} />
@@ -361,12 +372,13 @@ export function CloudFileBrowser({ providerId }: Props) {
   )
 }
 
-function UploadChoiceModal({ providerId, onClose, onUploadBuild, onUploadAccount, uploading }: {
+function UploadChoiceModal({ providerId, onClose, onUploadBuild, onUploadAccount, uploading, progress }: {
   providerId: string
   onClose: () => void
   onUploadBuild: (id: string, name: string) => void
   onUploadAccount: (account: { id: string; type: string; username: string; uuid?: string }) => void
   uploading: string | null
+  progress: Record<string, { percent: number; stage: "zip" | "upload" }>
 }) {
   const { t } = useTranslation()
   const accountTypeInfo = getAccountTypeInfo(t)
@@ -414,21 +426,36 @@ function UploadChoiceModal({ providerId, onClose, onUploadBuild, onUploadAccount
               <p className="text-sm text-muted-foreground text-center py-8">{t("cloud.noBuilds") || "Нет сборок"}</p>
             ) : (
               <div className="space-y-2">
-                {localBuilds.map(b => (
-                  <div key={b.id} className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary/50 transition-all">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-primary/10">
-                      <BuildThumbIcon icon={b.icon} />
+                {localBuilds.map(b => {
+                  const isUploading = uploading === b.id
+                  const prog = progress[b.id]
+                  const pct = prog?.percent ?? 0
+                  return (
+                    <div key={b.id} className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary/50 transition-all">
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-primary/10">
+                        <BuildThumbIcon icon={b.icon} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium text-foreground truncate block">{b.name}</span>
+                        {b.version && <span className="text-sm text-muted-foreground">{b.version}</span>}
+                        {isUploading && prog && (
+                          <div className="mt-2">
+                            <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                              <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
+                            </div>
+                            <p className="text-[11px] text-muted-foreground mt-1">
+                              {prog.stage === "zip" ? "Упаковка..." : "Загрузка..."} · {pct}%
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <button onClick={() => onUploadBuild(b.id, b.name)} disabled={isUploading}
+                        className="px-3 py-2 rounded-lg bg-muted/50 hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors text-sm flex-shrink-0 disabled:opacity-50">
+                        {isUploading ? <IconLoader2 className="w-4 h-4 animate-spin" /> : "Загрузить"}
+                      </button>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="font-medium text-foreground truncate block">{b.name}</span>
-                      {b.version && <span className="text-sm text-muted-foreground">{b.version}</span>}
-                    </div>
-                    <button onClick={() => onUploadBuild(b.id, b.name)} disabled={uploading === b.id}
-                      className="px-3 py-2 rounded-lg bg-muted/50 hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors text-sm flex-shrink-0 disabled:opacity-50">
-                      {uploading === b.id ? <IconLoader2 className="w-4 h-4 animate-spin" /> : "Загрузить"}
-                    </button>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )
           ) : (
@@ -438,23 +465,29 @@ function UploadChoiceModal({ providerId, onClose, onUploadBuild, onUploadAccount
               <div className="space-y-2">
                 {localAccounts.map(a => {
                   const info = accountTypeInfo[a.type as AccountType] || accountTypeInfo.offline
+                  const isUploading = uploading === a.id
+                  const prog = progress[a.id]
+                  const pct = prog?.percent ?? 0
                   return (
                     <div key={a.id} className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary/50 transition-all">
                       <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ backgroundColor: `${info.color}20` }}>
-                        <img src={getAvatarUrl(a, a.username)} alt="" className="w-full h-full object-cover"
-                          onError={(e) => {
-                            const img = e.currentTarget
-                            if (!img.dataset.retried) { img.dataset.retried = "1"; img.src = "https://mcskinapi-three.vercel.app/avatar/Steve?skin_type=microsoft" }
-                            else { img.style.display = "none" }
-                          }} />
+                        <CachedAvatar src={getAvatarUrl(a, a.username)} alt="" className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <span className="font-medium text-foreground truncate block">{a.username}</span>
                         <span className="text-sm text-muted-foreground">{info.name}</span>
+                        {isUploading && prog && (
+                          <div className="mt-2">
+                            <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                              <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
+                            </div>
+                            <p className="text-[11px] text-muted-foreground mt-1">Загрузка... · {pct}%</p>
+                          </div>
+                        )}
                       </div>
-                      <button onClick={() => onUploadAccount(a)} disabled={uploading === a.id}
+                      <button onClick={() => onUploadAccount(a)} disabled={isUploading}
                         className="px-3 py-2 rounded-lg bg-muted/50 hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors text-sm flex-shrink-0 disabled:opacity-50">
-                        {uploading === a.id ? <IconLoader2 className="w-4 h-4 animate-spin" /> : "Загрузить"}
+                        {isUploading ? <IconLoader2 className="w-4 h-4 animate-spin" /> : "Загрузить"}
                       </button>
                     </div>
                   )

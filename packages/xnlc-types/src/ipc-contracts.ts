@@ -46,6 +46,7 @@ import type {
   ModVersion,
   ModDependency,
   ModSearchResult,
+  FTBVersionManifest,
 } from "./mod-types.js"
 
 import type {
@@ -63,7 +64,37 @@ export interface IpcInvokeMap {
 
   // ── Auth ──
   "auth:elyby-login": { args: []; return: AuthPayload }
+  "auth:elyby-device-start": {
+    args: []
+    return: {
+      deviceCode: string
+      userCode: string
+      verificationUri: string
+      verificationUriComplete: string
+      expiresIn: number
+      interval: number
+    }
+  }
+  "auth:elyby-device-poll": {
+    args: [deviceCode: string]
+    return: { status: "pending"; slowDown?: boolean } | { status: "expired" } | { status: "complete"; account: AuthPayload } | { status: "error"; message: string; retryable?: boolean }
+  }
   "auth:xnskins-login": { args: []; return: AuthPayload }
+  "auth:xnskins-device-start": {
+    args: []
+    return: {
+      deviceCode: string
+      userCode: string
+      verificationUri: string
+      verificationUriComplete: string
+      expiresIn: number
+      interval: number
+    }
+  }
+  "auth:xnskins-device-poll": {
+    args: [deviceCode: string]
+    return: { status: "pending"; slowDown?: boolean } | { status: "expired" } | { status: "complete"; account: AuthPayload } | { status: "error"; message: string; retryable?: boolean }
+  }
   "auth:microsoft-login": { args: []; return: AuthPayload }
   "auth:microsoft-device-start": {
     args: []
@@ -108,6 +139,7 @@ export interface IpcInvokeMap {
   "build:delete-intent": { args: [buildName: string]; return: { success: boolean; error?: string } }
   "build:import-modrinth": { args: [buildName: string, projectSlug: string, versionId?: string]; return: ModpackImportResult }
   "build:import-curseforge": { args: [buildName: string, modId: number, fileId: number]; return: ModpackImportResult }
+  "build:import-ftb": { args: [buildName: string, modpackId: number, versionId: number]; return: ModpackImportResult }
   "build:open-and-import": { args: []; return: ModpackImportResult & { name?: string; description?: string; icon?: string; source?: "modrinth" | "curseforge"; intentPath?: string } }
   "build:cancel-import": { args: []; return: { success: boolean } }
   "build:upload-to-cloud": { args: [buildName: string, cloudToken: string, category?: string]; return: { success: boolean; error?: string } }
@@ -118,6 +150,8 @@ export interface IpcInvokeMap {
   "build:move-intent-to-trash": { args: [dirName: string]; return: { success: boolean; trashName?: string; error?: string } }
   "build:restore-intent-from-trash": { args: [dirName: string, trashName: string]; return: { success: boolean; error?: string } }
   "build:purge-trash": { args: []; return: { success: boolean; error?: string } }
+  "build:list-trash": { args: []; return: Array<{ trashName: string; originalName: string; trashedAt: number }> }
+  "build:delete-trash-item": { args: [trashName: string]; return: { success: boolean; error?: string } }
 
   // ── Launcher Import ──
   "launcher:discover-importable-instances": { args: []; return: ImportableLauncherInstance[] }
@@ -125,18 +159,28 @@ export interface IpcInvokeMap {
   "launcher:import-instances": { args: [ids: string[]]; return: { success: boolean; imported: number; error?: string } }
 
   // ── Mods (Modrinth) ──
-  "mods:modrinth-search": { args: [query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, category?: string]; return: ModSearchResponse }
+  "mods:modrinth-search": { args: [query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, categories?: string[]]; return: ModSearchResponse }
   "mods:modrinth-details": { args: [slug: string]; return: ModDetails | null }
   "mods:modrinth-versions": { args: [slug: string]; return: ModVersion[] }
-  "mods:modrinth-categories": { args: [contentType?: ModContentType]; return: Array<{ slug: string; name: string }> }
 
   // ── Mods (CurseForge) ──
-  "mods:curseforge-search": { args: [query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, category?: string]; return: ModSearchResponse }
+  "mods:curseforge-search": { args: [query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, categories?: string[]]; return: ModSearchResponse }
   "mods:curseforge-details": { args: [modId: number]; return: ModDetails | null }
   "mods:curseforge-download-url": { args: [fileId: number, modId: number]; return: string | null }
-  "mods:curseforge-categories": { args: [contentType?: ModContentType]; return: Array<{ id: number; slug: string; name: string }> }
   "mods:curseforge-featured": { args: [gameVersion?: string]; return: { popular: ModSearchResult[]; trending: ModSearchResult[] } }
   "mods:resolve-dependencies": { args: [version: ModVersion, source: "modrinth" | "curseforge"]; return: ModDependency[] }
+
+  // ── Mods (FTB / Feed The Beast) ──
+  "mods:ftb-search": { args: [query: string, page?: number]; return: ModSearchResponse }
+  "mods:ftb-details": { args: [id: number]; return: ModDetails | null }
+  "mods:ftb-version": { args: [id: number, versionId: number]; return: FTBVersionManifest | null }
+  "mods:ftb-changelog": { args: [id: number, versionId: number]; return: string }
+
+  // ── Mods (Categories & Tags) ──
+  "mods:modrinth-categories": { args: []; return: any[] }
+  "mods:curseforge-categories": { args: []; return: (import("./mod-types.js").ModCategory)[] }
+  "mods:modrinth-loaders": { args: []; return: string[] }
+  "mods:modrinth-game-versions": { args: []; return: string[] }
 
   // ── Minecraft ──
   "minecraft:get-versions": { args: []; return: MinecraftVersionInfo[] }
@@ -220,6 +264,20 @@ export interface IpcInvokeMap {
   "cloud:upload-file": { args: [filePath: string, token: string, category: string]; return: { success: boolean; id?: string; name?: string; size?: number; error?: string } }
   "cloud:upload-account-data": { args: [token: string, account: { id: string; type: string; username: string; uuid?: string }]; return: { success: boolean; id?: string; name?: string; size?: number; error?: string } }
 
+  // ── Cloud (third-party providers) ──
+  "cloud:list-providers": { args: []; return: Array<{ id: string; name: string }> }
+  "cloud:connect": { args: [providerId: string, authData?: Record<string, string>]; return: { success: boolean; provider?: string; error?: string } }
+  "cloud:is-connected": { args: [providerId: string]; return: boolean }
+  "cloud:disconnect": { args: [providerId: string]; return: { success: boolean; error?: string } }
+  "cloud:list-files": { args: [providerId: string, folderPath?: string]; return: { success: boolean; files?: CloudFile[]; error?: string } }
+  "cloud:upload-file-provider": { args: [providerId: string, localPath: string, remotePath: string]; return: { success: boolean; id?: string; name?: string; error?: string } }
+  "cloud:download-file-provider": { args: [providerId: string, remotePath: string, localPath: string]; return: { success: boolean; localPath?: string; error?: string } }
+  "cloud:delete-file-provider": { args: [providerId: string, remotePath: string]; return: { success: boolean; error?: string } }
+  "cloud:get-quota": { args: [providerId: string]; return: { used: number; total: number } | null }
+  "cloud:upload-build": { args: [providerId: string, buildName: string, uploadId?: string]; return: { success: boolean; id?: string; name?: string; error?: string } }
+  "cloud:upload-account": { args: [providerId: string, account: { id: string; type: string; username: string; uuid?: string }]; return: { success: boolean; id?: string; name?: string; error?: string } }
+  "cloud:download-and-import-provider": { args: [providerId: string, remotePath: string, fileType: string]; return: { success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } } }
+
   // ── P2P Multiplayer ──
   "p2p:register": { args: [login: string, password: string]; return: P2PAuthResult }
   "p2p:login": { args: [login: string, password: string]; return: P2PAuthResult }
@@ -250,6 +308,7 @@ export interface IpcEventMap {
   "minecraft:close": number
   "auth:progress": string
   "import:progress": ImportProgress
+  "cloud:upload-progress": { id: string; percent: number; stage: "zip" | "upload" }
   "p2p:log": P2PLogEntry
   "p2p:state": P2PConnState
   "p2p:members": P2PRoomMember[]
@@ -270,6 +329,24 @@ export interface ElectronAPIExplicit {
   loginElyBy: () => Promise<AuthPayload>
   loginXnSkins: () => Promise<AuthPayload>
   loginMicrosoft: () => Promise<AuthPayload>
+  startXnSkinsDeviceCode: () => Promise<{
+    deviceCode: string
+    userCode: string
+    verificationUri: string
+    verificationUriComplete: string
+    expiresIn: number
+    interval: number
+  }>
+  pollXnSkinsDeviceCode: (deviceCode: string) => Promise<{ status: "pending"; slowDown?: boolean } | { status: "expired" } | { status: "complete"; account: AuthPayload } | { status: "error"; message: string; retryable?: boolean }>
+  startElyByDeviceCode: () => Promise<{
+    deviceCode: string
+    userCode: string
+    verificationUri: string
+    verificationUriComplete: string
+    expiresIn: number
+    interval: number
+  }>
+  pollElyByDeviceCode: (deviceCode: string) => Promise<{ status: "pending"; slowDown?: boolean } | { status: "expired" } | { status: "complete"; account: AuthPayload } | { status: "error"; message: string; retryable?: boolean }>
   startMicrosoftDeviceCode: () => Promise<{
     deviceCode: string
     userCode: string
@@ -289,18 +366,25 @@ export interface ElectronAPIExplicit {
   reorderAccounts: (ids: string[]) => Promise<void>
   scanBuildIntentContent: (buildName: string) => Promise<BuildIntentScanResult>
   discoverImportableInstances: () => Promise<ImportableLauncherInstance[]>
+  discoverFromPath: (source: string, customPath: string) => Promise<ImportableLauncherInstance[]>
   importGdLauncherInstances: (ids: string[]) => Promise<{ success: boolean; imported: number; error?: string }>
   importLauncherInstances: (ids: string[]) => Promise<{ success: boolean; imported: number; error?: string }>
-  modsModrinthSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, category?: string) => Promise<ModSearchResponse>
+  modsModrinthSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, categories?: string[]) => Promise<ModSearchResponse>
   modsModrinthDetails: (slug: string) => Promise<ModDetails | null>
   modsModrinthVersions: (slug: string) => Promise<ModVersion[]>
-  modsModrinthCategories: (contentType?: ModContentType) => Promise<Array<{ slug: string; name: string }>>
-  modsCurseforgeSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, category?: string) => Promise<ModSearchResponse>
+  modsCurseforgeSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, categories?: string[]) => Promise<ModSearchResponse>
   modsCurseforgeDetails: (modId: number) => Promise<ModDetails | null>
   modsCurseforgeDownloadUrl: (fileId: number, modId: number) => Promise<string | null>
-  modsCurseforgeCategories: (contentType?: ModContentType) => Promise<Array<{ id: number; slug: string; name: string }>>
   modsCurseforgeFeatured: (gameVersion?: string) => Promise<{ popular: ModSearchResult[]; trending: ModSearchResult[] }>
   modsResolveDependencies: (version: ModVersion, source: "modrinth" | "curseforge") => Promise<ModDependency[]>
+  modsFtbSearch: (query: string, page?: number) => Promise<ModSearchResponse>
+  modsFtbDetails: (id: number) => Promise<ModDetails | null>
+  modsFtbVersion: (id: number, versionId: number) => Promise<FTBVersionManifest | null>
+  modsFtbChangelog: (id: number, versionId: number) => Promise<string>
+  modsModrinthCategories: () => Promise<any[]>
+  modsCurseforgeCategories: () => Promise<any[]>
+  modsModrinthLoaders: () => Promise<string[]>
+  modsModrinthGameVersions: () => Promise<string[]>
   getMinecraftVersions: () => Promise<MinecraftVersionInfo[]>
   getLatestRelease: () => Promise<string | null>
   getLatestSnapshot: () => Promise<string | null>
@@ -353,6 +437,7 @@ export interface ElectronAPIExplicit {
   installContentFile: (contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string) => Promise<{ success: boolean; filePath?: string; error?: string }>
   importModrinthModpack: (buildName: string, projectSlug: string, versionId?: string) => Promise<ModpackImportResult>
   importCurseforgeModpack: (buildName: string, modId: number, fileId: number) => Promise<ModpackImportResult>
+  importFtbModpack: (buildName: string, modpackId: number, versionId: number) => Promise<ModpackImportResult>
   openAndImportModpack: () => Promise<ModpackImportResult & { name?: string; description?: string; icon?: string; source?: "modrinth" | "curseforge"; intentPath?: string }>
   cancelImportModpack: () => Promise<{ success: boolean }>
   onImportProgress: (callback: (progress: ImportProgress) => void) => CleanupFn
@@ -383,6 +468,8 @@ export interface ElectronAPIExplicit {
   moveBuildIntentToTrash: (dirName: string) => Promise<{ success: boolean; trashName?: string; error?: string }>
   restoreBuildIntentFromTrash: (dirName: string, trashName: string) => Promise<{ success: boolean; error?: string }>
   purgeBuildTrash: () => Promise<{ success: boolean; error?: string }>
+  listTrashBuilds: () => Promise<Array<{ trashName: string; originalName: string; trashedAt: number }>>
+  deleteTrashItem: (trashName: string) => Promise<{ success: boolean; error?: string }>
   cloudLogin: (username: string, password: string) => Promise<{ success: boolean; token?: string; error?: string }>
   cloudRegister: (username: string, password: string, email?: string) => Promise<{ success: boolean; error?: string }>
   cloudGetUser: (token: string) => Promise<{ success: boolean; user?: CloudUser; error?: string }>

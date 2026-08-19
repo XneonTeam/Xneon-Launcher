@@ -4,7 +4,8 @@
 // ============================================================
 
 export type ContentType = "mod" | "modpack" | "resourcepack" | "shader" | "datapack";
-export type ModSort = "relevance" | "downloads" | "popular" | "followers" | "updated" | "published";
+export type ModSort = "relevance" | "downloads" | "follows" | "newest" | "updated" | "featured" | "rating";
+export type ModSource = "modrinth" | "curseforge" | "ftb";
 
 export interface ModSearchResult {
   id: string;
@@ -14,7 +15,7 @@ export interface ModSearchResult {
   iconUrl: string;
   downloadCount: number;
   categories: string[];
-  source: "modrinth" | "curseforge";
+  source: ModSource;
   author?: string;
   /** Modrinth-specific */
   projectId?: string;
@@ -71,7 +72,7 @@ export interface ModDetails {
   categories: string[];
   versions: ModVersion[];
   gallery: { url: string; title?: string }[];
-  source: "modrinth" | "curseforge";
+  source: ModSource;
   body?: string;
   /** CurseForge-specific numeric mod ID */
   modId?: number;
@@ -88,10 +89,11 @@ export interface ModSortOption {
 export const MOD_SORT_OPTIONS: ModSortOption[] = [
   { id: "relevance", modrinthIndex: "relevance", cfSortField: 2 },
   { id: "downloads", modrinthIndex: "downloads", cfSortField: 6 },
-  { id: "popular", modrinthIndex: "follows", cfSortField: 2 },
-  { id: "followers", modrinthIndex: "follows", cfSortField: 2 },
+  { id: "follows", modrinthIndex: "follows", cfSortField: 2 },
+  { id: "newest", modrinthIndex: "newest", cfSortField: 3 },
   { id: "updated", modrinthIndex: "updated", cfSortField: 3 },
-  { id: "published", modrinthIndex: "newest", cfSortField: 11 },
+  { id: "featured", modrinthIndex: "relevance", cfSortField: 1 },
+  { id: "rating", modrinthIndex: "relevance", cfSortField: 2 },
 ];
 
 export const CONTENT_TYPE_FACETS: Record<ContentType, { facet: string; cfClassId: number }> = {
@@ -101,6 +103,24 @@ export const CONTENT_TYPE_FACETS: Record<ContentType, { facet: string; cfClassId
   shader: { facet: "shader", cfClassId: 6552 },
   datapack: { facet: "datapack", cfClassId: 6945 },
 };
+
+export interface ModCategory {
+  name: string;
+  icon: string;
+  header: string;
+  projectType: ContentType;
+  cfCategoryId?: number;
+}
+
+export interface CurseForgeCategory {
+  id: number;
+  name: string;
+  slug: string;
+  classId: number;
+  parentId: number;
+  url: string;
+  iconUrl: string;
+}
 
 // ── Modpack Import Types ────────────────────────────────────
 

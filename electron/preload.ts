@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
   AuthPayload,
   AuthSession,
@@ -24,6 +24,7 @@ import type {
   ModVersion,
   ModDependency,
   ModSearchResult,
+  FTBVersionManifest,
   CleanupFn,
   P2PRole,
   P2PRoom,
@@ -115,8 +116,35 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Auth ───────────────────────────────────────────────
   loginElyBy: invoke<AuthPayload>('auth:elyby-login'),
+  startElyByDeviceCode: invoke<{
+    deviceCode: string
+    userCode: string
+    verificationUri: string
+    verificationUriComplete: string
+    expiresIn: number
+    interval: number
+  }>('auth:elyby-device-start'),
+  pollElyByDeviceCode: (deviceCode: string) => ipcRenderer.invoke('auth:elyby-device-poll', deviceCode) as Promise<{ status: "pending"; slowDown?: boolean } | { status: "expired" } | { status: "complete"; account: AuthPayload } | { status: "error"; message: string; retryable?: boolean }>,
   loginXnSkins: invoke<AuthPayload>('auth:xnskins-login'),
+  startXnSkinsDeviceCode: invoke<{
+    deviceCode: string
+    userCode: string
+    verificationUri: string
+    verificationUriComplete: string
+    expiresIn: number
+    interval: number
+  }>('auth:xnskins-device-start'),
+  pollXnSkinsDeviceCode: (deviceCode: string) => ipcRenderer.invoke('auth:xnskins-device-poll', deviceCode) as Promise<{ status: "pending"; slowDown?: boolean } | { status: "expired" } | { status: "complete"; account: AuthPayload } | { status: "error"; message: string; retryable?: boolean }>,
   loginMicrosoft: invoke<AuthPayload>('auth:microsoft-login'),
+  startMicrosoftDeviceCode: invoke<{
+    deviceCode: string
+    userCode: string
+    verificationUri: string
+    verificationUriComplete: string
+    expiresIn: number
+    interval: number
+  }>('auth:microsoft-device-start'),
+  pollMicrosoftDeviceCode: (deviceCode: string) => ipcRenderer.invoke('auth:microsoft-device-poll', deviceCode) as Promise<{ status: "pending"; slowDown?: boolean } | { status: "expired" } | { status: "complete"; account: AuthPayload } | { status: "error"; message: string; retryable?: boolean }>,
   onAuthProgress: (callback: (msg: string) => void) => {
     const handler = (_: Electron.IpcRendererEvent, msg: string) => callback(msg)
     ipcRenderer.on('auth:progress', handler)
@@ -147,21 +175,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
   moveBuildIntentToTrash: (dirName: string) => ipcRenderer.invoke('build:move-intent-to-trash', dirName) as Promise<{ success: boolean; trashName?: string; error?: string }>,
   restoreBuildIntentFromTrash: (dirName: string, trashName: string) => ipcRenderer.invoke('build:restore-intent-from-trash', dirName, trashName) as Promise<{ success: boolean; error?: string }>,
   purgeBuildTrash: () => ipcRenderer.invoke('build:purge-trash') as Promise<{ success: boolean; error?: string }>,
+  listTrashBuilds: () => ipcRenderer.invoke('build:list-trash') as Promise<Array<{ trashName: string; originalName: string; trashedAt: number }>>,
+  deleteTrashItem: (trashName: string) => ipcRenderer.invoke('build:delete-trash-item', trashName) as Promise<{ success: boolean; error?: string }>,
   onCliLaunchBuild: (callback: (buildName: string) => void) => subscribe('cli:launch-build', callback),
 
   // ── Unified Mods API (via xnlc/mods) ──────────────────
-  modsModrinthSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, category?: string) =>
-    ipcRenderer.invoke('mods:modrinth-search', query, contentType, gameVersion, modLoader, sortBy, page, category) as Promise<ModSearchResponse>,
+  modsModrinthSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, categories?: string[]) =>
+    ipcRenderer.invoke('mods:modrinth-search', query, contentType, gameVersion, modLoader, sortBy, page, categories) as Promise<ModSearchResponse>,
   modsModrinthDetails: (slug: string) => ipcRenderer.invoke('mods:modrinth-details', slug) as Promise<ModDetails | null>,
   modsModrinthVersions: (slug: string) => ipcRenderer.invoke('mods:modrinth-versions', slug) as Promise<ModVersion[]>,
-  modsModrinthCategories: (contentType?: ModContentType) => ipcRenderer.invoke('mods:modrinth-categories', contentType) as Promise<Array<{ slug: string; name: string }>>,
-  modsCurseforgeSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, category?: string) =>
-    ipcRenderer.invoke('mods:curseforge-search', query, contentType, gameVersion, modLoader, sortBy, page, category) as Promise<ModSearchResponse>,
+  modsCurseforgeSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, categories?: string[]) =>
+    ipcRenderer.invoke('mods:curseforge-search', query, contentType, gameVersion, modLoader, sortBy, page, categories) as Promise<ModSearchResponse>,
   modsCurseforgeDetails: (modId: number) => ipcRenderer.invoke('mods:curseforge-details', modId) as Promise<ModDetails | null>,
   modsCurseforgeDownloadUrl: (fileId: number, modId: number) => ipcRenderer.invoke('mods:curseforge-download-url', fileId, modId) as Promise<string | null>,
-  modsCurseforgeCategories: (contentType?: ModContentType) => ipcRenderer.invoke('mods:curseforge-categories', contentType) as Promise<Array<{ id: number; slug: string; name: string }>>,
   modsCurseforgeFeatured: (gameVersion?: string) => ipcRenderer.invoke('mods:curseforge-featured', gameVersion) as Promise<{ popular: ModSearchResult[]; trending: ModSearchResult[] }>,
   modsResolveDependencies: (version: ModVersion, source: "modrinth" | "curseforge") => ipcRenderer.invoke('mods:resolve-dependencies', version, source) as Promise<ModDependency[]>,
+  modsFtbSearch: (query: string, page?: number) => ipcRenderer.invoke('mods:ftb-search', query, page) as Promise<ModSearchResponse>,
+  modsFtbDetails: (id: number) => ipcRenderer.invoke('mods:ftb-details', id) as Promise<ModDetails | null>,
+  modsFtbVersion: (id: number, versionId: number) => ipcRenderer.invoke('mods:ftb-version', id, versionId) as Promise<FTBVersionManifest | null>,
+  modsFtbChangelog: (id: number, versionId: number) => ipcRenderer.invoke('mods:ftb-changelog', id, versionId) as Promise<string>,
+  modsModrinthCategories: () => ipcRenderer.invoke('mods:modrinth-categories') as Promise<any[]>,
+  modsCurseforgeCategories: () => ipcRenderer.invoke('mods:curseforge-categories') as Promise<any[]>,
+  modsModrinthLoaders: () => ipcRenderer.invoke('mods:modrinth-loaders') as Promise<string[]>,
+  modsModrinthGameVersions: () => ipcRenderer.invoke('mods:modrinth-game-versions') as Promise<string[]>,
 
   // ── Minecraft Versions ─────────────────────────────────
   getMinecraftVersions: invoke<MinecraftVersionInfo[]>('minecraft:get-versions'),
@@ -223,11 +259,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveContentToIntent: (buildId: string, contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string) => ipcRenderer.invoke('build:save-content-to-intent', buildId, contentType, url, fileName) as Promise<string | null>,
   saveLocalContentToIntent: (buildId: string, contentType: "mod" | "resourcepack" | "shader", localFilePath: string) => ipcRenderer.invoke('build:save-local-content-to-intent', buildId, contentType, localFilePath) as Promise<string | null>,
   deleteContentFromIntent: (buildId: string, contentType: "mod" | "resourcepack" | "shader", fileName: string) => ipcRenderer.invoke('build:delete-content-from-intent', buildId, contentType, fileName) as Promise<{ success: boolean; error?: string }>,
+  readDir: (dirPath: string) => ipcRenderer.invoke('build:read-dir', dirPath) as Promise<Array<{ name: string; isDir: boolean; size: number; modifiedAt: number }>>,
+  readFile: (filePath: string) => ipcRenderer.invoke('build:read-file', filePath) as Promise<{ success: boolean; content?: string; encoding?: string; error?: string }>,
+  writeFile: (filePath: string, content: string) => ipcRenderer.invoke('build:write-file', filePath, content) as Promise<{ success: boolean; error?: string }>,
   setBuildIntentPath: (buildId: string, intentPath: string) => ipcRenderer.invoke('build:set-intent-path', buildId, intentPath) as Promise<void>,
   deleteBuildIntent: (buildName: string) => ipcRenderer.invoke('build:delete-intent', buildName) as Promise<{ success: boolean; error?: string }>,
   installContentFile: (contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string) => ipcRenderer.invoke('content:install-remote', contentType, url, fileName) as Promise<{ success: boolean; filePath?: string; error?: string }>,
   importModrinthModpack: (buildName: string, projectSlug: string, versionId?: string) => ipcRenderer.invoke('build:import-modrinth', buildName, projectSlug, versionId) as Promise<ModpackImportResult>,
   importCurseforgeModpack: (buildName: string, modId: number, fileId: number) => ipcRenderer.invoke('build:import-curseforge', buildName, modId, fileId) as Promise<ModpackImportResult>,
+  importFtbModpack: (buildName: string, modpackId: number, versionId: number) => ipcRenderer.invoke('build:import-ftb', buildName, modpackId, versionId) as Promise<ModpackImportResult>,
   openAndImportModpack: invoke<ModpackImportResult & { name?: string; description?: string; icon?: string; source?: 'modrinth' | 'curseforge'; intentPath?: string }>('build:open-and-import'),
   cancelImportModpack: invoke<{ success: boolean }>('build:cancel-import'),
   onImportProgress: (callback: (progress: ImportProgress) => void) => subscribe('import:progress', callback),
@@ -273,7 +313,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cloudDownloadFile: (providerId: string, remotePath: string, localPath: string) => ipcRenderer.invoke('cloud:download-file', providerId, remotePath, localPath) as Promise<{ success: boolean; localPath?: string; error?: string }>,
   cloudDeleteFile: (providerId: string, remotePath: string) => ipcRenderer.invoke('cloud:delete-file', providerId, remotePath) as Promise<{ success: boolean; error?: string }>,
   cloudGetQuota: (providerId: string) => ipcRenderer.invoke('cloud:get-quota', providerId) as Promise<{ used: number; total: number } | null>,
-  cloudUploadBuild: (providerId: string, buildName: string) => ipcRenderer.invoke('cloud:upload-build', providerId, buildName) as Promise<{ success: boolean; id?: string; name?: string; error?: string }>,
+  cloudUploadBuild: (providerId: string, buildName: string, uploadId?: string) => ipcRenderer.invoke('cloud:upload-build', providerId, buildName, uploadId) as Promise<{ success: boolean; id?: string; name?: string; error?: string }>,
+  onCloudUploadProgress: (callback: (data: { id: string; percent: number; stage: "zip" | "upload" }) => void) => subscribe('cloud:upload-progress', callback),
+  getFilePath: (file: File) => webUtils.getPathForFile(file),
   cloudUploadAccount: (providerId: string, account: { id: string; type: string; username: string; uuid?: string }) => ipcRenderer.invoke('cloud:upload-account', providerId, account) as Promise<{ success: boolean; id?: string; name?: string; error?: string }>,
   cloudDownloadAndImport: (providerId: string, remotePath: string, fileType: string) => ipcRenderer.invoke('cloud:download-and-import', providerId, remotePath, fileType) as Promise<{ success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } }>,
 

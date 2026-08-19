@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto"
 import { dbHelpers } from "../../db"
 import { ensureBuildIntentDir, scanIntentDir } from "../builds"
+import { unlinkSharedGameLinksSync } from "../shared-game-cache"
 import { discoverGdLauncherInstances } from "./gdlauncher"
 import { discoverMmcLikeInstances } from "./mmc-like"
 import { discoverAstralRinthInstances } from "./astralrinth"
@@ -34,9 +35,49 @@ export async function discoverAllInstances(): Promise<LauncherInstance[]> {
   return hydrated
 }
 
+export type ImportSource = "gdlauncher" | "prism" | "multimc" | "polymc" | "astralrinth" | "xlauncher" | "modrinthapp"
+
+export async function discoverInstancesFromPath(source: ImportSource, customPath: string): Promise<LauncherInstance[]> {
+  let instances: LauncherInstance[] = []
+
+  switch (source) {
+    case "gdlauncher":
+      instances = await discoverGdLauncherInstances(customPath)
+      break
+    case "prism":
+    case "multimc":
+    case "polymc":
+      instances = await discoverMmcLikeInstances(customPath)
+      break
+    case "astralrinth":
+      instances = await discoverAstralRinthInstances(customPath)
+      break
+    case "xlauncher":
+      instances = await discoverXLauncherInstances(customPath)
+      break
+    case "modrinthapp":
+      instances = await discoverModrinthAppInstances(customPath)
+      break
+  }
+
+  const hydrated = await Promise.all(
+    instances.map(async (instance) => ({
+      ...instance,
+      icon: await readIconAsDataUrl(instance.icon),
+    }))
+  )
+
+  return hydrated
+}
+
 export async function importLauncherInstance(instance: LauncherInstance) {
   try {
     const intentPath = await ensureBuildIntentDir(instance.name)
+
+    // Imported instances keep their own versions/libraries/assets — drop any
+    // shared-cache links created by ensureBuildIntentDir so the copy lands
+    // inside the per-instance layout.
+    unlinkSharedGameLinksSync(intentPath)
 
     // Copy the entire minecraft directory contents into the intent (like Ctrl+C / Ctrl+V).
     const srcRoot = await resolveMcDir(instance.path)

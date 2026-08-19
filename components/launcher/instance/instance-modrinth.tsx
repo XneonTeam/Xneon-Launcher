@@ -21,9 +21,6 @@ interface InstanceModrinthProps {
   versionOptions: string[]
   selectedModLoader: string
   setSelectedModLoader: (value: string) => void
-  selectedCategory: string
-  setSelectedCategory: (value: string) => void
-  categoryOptions: string[]
   page: number
   totalPages: number
   onPageChange: (page: number) => void
@@ -46,9 +43,6 @@ export function InstanceModrinth({
   versionOptions,
   selectedModLoader,
   setSelectedModLoader,
-  selectedCategory,
-  setSelectedCategory,
-  categoryOptions,
   page,
   totalPages,
   onPageChange,
@@ -72,9 +66,6 @@ export function InstanceModrinth({
         versionOptions={versionOptions}
         selectedModLoader={selectedModLoader}
         setSelectedModLoader={setSelectedModLoader}
-        selectedCategory={selectedCategory}
-        setSelectedCategory={setSelectedCategory}
-        categoryOptions={categoryOptions}
       />
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden">

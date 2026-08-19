@@ -6,6 +6,7 @@ export function useHomeVersions(selectedModLoader: string, initialVersion?: stri
   const [versionsLoaded, setVersionsLoaded] = useState(false)
   const [selectedVersion, setSelectedVersion] = useState(initialVersion ?? "")
   const [latestRelease, setLatestRelease] = useState<string | null>(null)
+  const [buildIcons, setBuildIcons] = useState<Record<string, string>>({})
   const { allMinecraftVersions, visibleVersions, versionsLoaded: minecraftVersionsLoaded } = useMinecraftVersionOptions()
   const supportedVersionsCacheRef = useRef(new Map<string, string[]>())
 
@@ -44,6 +45,9 @@ export function useHomeVersions(selectedModLoader: string, initialVersion?: stri
         try {
           const builds = await window.electronAPI?.loadBuilds() ?? []
           const buildNames = builds.map(b => b.name)
+          const icons: Record<string, string> = {}
+          for (const b of builds) { if (b.icon) icons[b.name] = b.icon }
+          setBuildIcons(icons)
           setVersions(buildNames)
           setVersionsLoaded(true)
           setSelectedVersion(prev => buildNames.includes(prev) ? prev : buildNames[0] ?? "")
@@ -56,6 +60,8 @@ export function useHomeVersions(selectedModLoader: string, initialVersion?: stri
       void loadBuilds()
       return
     }
+
+    setBuildIcons(prev => Object.keys(prev).length === 0 ? prev : {})
 
     if (allMinecraftVersions.length === 0) return
     let cancelled = false
@@ -105,5 +111,5 @@ export function useHomeVersions(selectedModLoader: string, initialVersion?: stri
     }
   }, [allMinecraftVersions, latestRelease, selectedModLoader, visibleVersions])
 
-  return { versions, versionsLoaded, selectedVersion, setSelectedVersion }
+  return { versions, versionsLoaded, selectedVersion, setSelectedVersion, buildIcons }
 }
