@@ -27,3 +27,5 @@ registerP2PHandlers()
 registerQuickPlayHandlers()
 registerUpdater()
 
+import("@xnlc/mods").catch(() => {})
+

@@ -5,6 +5,7 @@ import { IconCloud, IconLogout, IconLoader2, IconArrowLeft } from "@tabler/icons
 import { CloudProviderCard } from "./cloud-provider-card"
 import { CloudFileBrowser } from "./cloud-file-browser"
 import { WebDavSetupModal } from "./cloud-webdav-setup"
+import { S3SetupModal } from "./cloud-s3-setup"
 import { ErrorBoundary } from "./error-boundary"
 
 const api = typeof window !== "undefined" ? window.electronAPI : undefined
@@ -16,8 +17,10 @@ export function CloudPage() {
   const { t } = useTranslation()
   const [providers, setProviders] = useState<ProviderInfo[]>([])
   const [connected, setConnected] = useState<ConnectedProvider | null>(null)
+  const [connectedIds, setConnectedIds] = useState<Set<string>>(new Set())
   const [checking, setChecking] = useState(true)
   const [showWebdav, setShowWebdav] = useState(false)
+  const [showS3, setShowS3] = useState(false)
   const [connecting, setConnecting] = useState<string | null>(null)
 
   useEffect(() => {
@@ -30,10 +33,12 @@ export function CloudPage() {
     if (!api) { setChecking(false); return }
     try {
       const provs = await api.cloudListProviders()
+      const ids = new Set<string>()
       for (const p of provs) {
         const ok = await api.cloudIsConnected(p.id)
-        if (ok) { setConnected({ id: p.id, name: p.name }); setChecking(false); return }
+        if (ok) ids.add(p.id)
       }
+      setConnectedIds(ids)
     } catch { /* noop */ }
     setChecking(false)
   }, [])
@@ -41,10 +46,21 @@ export function CloudPage() {
   const handleConnect = useCallback(async (providerId: string) => {
     if (!api) return
     if (providerId === "webdav") { setShowWebdav(true); return }
+    if (providerId === "s3") { setShowS3(true); return }
+
+    const alreadyConnected = await api.cloudIsConnected(providerId).catch(() => false)
+    if (alreadyConnected) {
+      const provs = await api.cloudListProviders().catch(() => [])
+      const prov = provs.find(p => p.id === providerId)
+      setConnected({ id: providerId, name: prov?.name ?? providerId })
+      return
+    }
+
     setConnecting(providerId)
     try {
       const result = await api.cloudConnect(providerId)
       if (result.success) {
+        setConnectedIds(prev => new Set(prev).add(providerId))
         setConnected({ id: providerId, name: providers.find(p => p.id === providerId)?.name || providerId })
       }
     } catch (e) {
@@ -68,9 +84,26 @@ export function CloudPage() {
     } finally { setConnecting(null) }
   }, [])
 
+  const handleS3Connect = useCallback(async (data: { endpoint: string; bucket: string; accessKeyId: string; secretAccessKey: string; region: string; forcePathStyle: string }) => {
+    if (!api) return
+    setConnecting("s3")
+    try {
+      const result = await api.cloudConnect("s3", data)
+      if (result.success) {
+        setConnected({ id: "s3", name: "S3" })
+        setShowS3(false)
+      } else {
+        alert(result.error || "Ошибка подключения")
+      }
+    } catch (e) {
+      alert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`)
+    } finally { setConnecting(null) }
+  }, [])
+
   const handleDisconnect = useCallback(async () => {
     if (!api || !connected) return
     await api.cloudDisconnect(connected.id)
+    setConnectedIds(prev => { const next = new Set(prev); next.delete(connected.id); return next })
     setConnected(null)
   }, [connected])
 
@@ -82,7 +115,7 @@ export function CloudPage() {
         <div className="relative z-10 p-4 flex flex-col h-full">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <button onClick={handleDisconnect}
+              <button onClick={() => setConnected(null)}
                 className="w-9 h-9 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center">
                 <IconArrowLeft className="w-5 h-5" strokeWidth={1.5} />
               </button>
@@ -118,6 +151,14 @@ export function CloudPage() {
         />
       )}
 
+      {showS3 && (
+        <S3SetupModal
+          onClose={() => setShowS3(false)}
+          onConnect={handleS3Connect}
+          connecting={connecting === "s3"}
+        />
+      )}
+
       <div className="relative z-10 p-4 flex flex-col h-full">
         <div className="mb-6">
           <h2 className="text-xl font-semibold text-foreground">{t("cloud.title")}</h2>
@@ -137,6 +178,7 @@ export function CloudPage() {
                 name={p.name}
                 onConnect={handleConnect}
                 connecting={connecting === p.id}
+                isConnected={connectedIds.has(p.id)}
               />
             ))}
           </div>

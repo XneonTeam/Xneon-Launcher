@@ -38,7 +38,8 @@ export function loadXnlcModule(): Promise<XnlcModule> {
 
 export async function getHandler(): Promise<XnlcHandler> {
   if (!handler) {
-    const { createDefaultHandler } = await loadXnlcModule()
+    const { createDefaultHandler, getDefaultMinecraftRootFromEnv } = await loadXnlcModule()
+    process.env.XNLC_GAME_DIR = getDefaultMinecraftRootFromEnv()
     handler = createDefaultHandler({
       memoryMax: "4G",
       memoryMin: "512M",

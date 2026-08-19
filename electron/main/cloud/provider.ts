@@ -1,4 +1,4 @@
-export type CloudProviderId = "google-drive" | "dropbox" | "yandex-disk" | "webdav" | "onedrive"
+export type CloudProviderId = "google-drive" | "dropbox" | "yandex-disk" | "webdav" | "onedrive" | "s3"
 
 export type CloudFileInfo = {
   id: string
@@ -52,7 +52,7 @@ export interface CloudProvider {
   ensureBaseFolder(): Promise<void>
 
   listFiles(folderPath?: string): Promise<CloudFileListResult>
-  uploadFile(localPath: string, remotePath: string): Promise<CloudUploadResult>
+  uploadFile(localPath: string, remotePath: string, onProgress?: (percent: number) => void): Promise<CloudUploadResult>
   downloadFile(remotePath: string, localPath: string): Promise<CloudDownloadResult>
   deleteFile(remotePath: string): Promise<{ success: boolean; error?: string }>
 

@@ -1,5 +1,7 @@
 import type { AuthSession, VersionInfo } from "@xnlc/core" with { "resolution-mode": "import" }
 import type { MinecraftLaunchParams } from "@xnlc/types" with { "resolution-mode": "import" }
+import * as fs from "fs/promises"
+import * as path from "path"
 import {
   clearLaunchState,
   getGameDir,
@@ -18,16 +20,46 @@ type LaunchResultPayload = {
   error?: string
 }
 
+async function listInstalledVersions(): Promise<Array<{ version: string; stable: boolean; type: string }>> {
+  try {
+    const gameDir = await getGameDir()
+    const versionsDir = path.join(gameDir, "versions")
+    const entries = await fs.readdir(versionsDir, { withFileTypes: true })
+    const result: Array<{ version: string; stable: boolean; type: string }> = []
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      try {
+        await fs.access(path.join(versionsDir, entry.name, `${entry.name}.jar`))
+      } catch {
+        continue
+      }
+      result.push({ version: entry.name, stable: false, type: "installed" })
+    }
+    return result.sort((a, b) => b.version.localeCompare(a.version, undefined, { numeric: true }))
+  } catch {
+    return []
+  }
+}
+
 // ---------- Version Handlers ----------
 
 const versionHandlers: IpcHandlerDef[] = [
   ctxHandler("minecraft:get-versions", "get versions", [], async (handler) => {
-    const versions = await handler.getVersions()
-    return versions.map((version: VersionInfo) => ({
-      version: version.id,
-      stable: version.type === "release",
-      type: version.type,
-    }))
+    try {
+      const versions = await handler.getVersions()
+      const mapped = versions.map((version: VersionInfo) => ({
+        version: version.id,
+        stable: version.type === "release",
+        type: version.type,
+      }))
+      if (mapped.length > 0) {
+        return mapped
+      }
+      console.warn("[Minecraft] Empty version list from network, falling back to installed versions")
+    } catch (error) {
+      console.error("[Minecraft] Network unavailable, falling back to installed versions:", error)
+    }
+    return listInstalledVersions()
   }),
 
   ctxHandler("minecraft:get-latest-release", "get latest release", null,

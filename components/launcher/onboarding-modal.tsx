@@ -72,6 +72,15 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
   }, [])
 
   useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail) addAccount({ ...detail, isActive: accounts.length === 0 })
+    }
+    window.addEventListener("onboarding:add-account", handler)
+    return () => window.removeEventListener("onboarding:add-account", handler)
+  }, [accounts.length, addAccount])
+
+  useEffect(() => {
     let cancelled = false
     const loadSettings = async () => {
       const api = window.electronAPI

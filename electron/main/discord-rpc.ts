@@ -167,7 +167,7 @@ function applyActivity(activity: DiscordActivity): void {
     largeImageKey,
     largeImageText,
     buttons: [
-      { label: "Сайт Лаунчера", url: "https://launcher.xneon.fun" },
+      { label: "Сайт Лаунчера", url: "https://launcher.xneon.org" },
       { label: "Discord Сервер", url: "https://discord.gg/a9mDjtqcbQ" },
     ],
   }

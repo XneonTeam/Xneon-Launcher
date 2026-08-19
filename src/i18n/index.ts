@@ -12,22 +12,29 @@ const localeMap: Record<string, () => Promise<Record<string, string>>> = {
   es: () => import("./locales/es/translation.json").then(m => m.default || m),
 }
 
-async function initI18n() {
-  const translation = await (localeMap[lang] || localeMap.ru)()
+let initPromise: Promise<void> | null = null
 
-  await i18n.use(initReactI18next).init({
-    resources: {
-      [lang]: { translation },
-    },
-    lng: lang,
-    fallbackLng: "ru",
-    interpolation: {
-      escapeValue: false,
-    },
-  })
+function initI18n(): Promise<void> {
+  if (!initPromise) {
+    initPromise = (async () => {
+      const translation = await (localeMap[lang] || localeMap.ru)()
+
+      await i18n.use(initReactI18next).init({
+        resources: {
+          [lang]: { translation },
+        },
+        lng: lang,
+        fallbackLng: "ru",
+        interpolation: {
+          escapeValue: false,
+        },
+      })
+    })()
+  }
+  return initPromise
 }
 
-initI18n()
+export { initI18n }
 
 export async function changeLanguage(lng: string) {
   const translation = await (localeMap[lng] || localeMap.ru)()

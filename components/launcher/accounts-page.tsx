@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import {   IconUser, IconPuzzle, IconUserMinus, IconLoader2, IconCirclePlus, IconTrash, IconX, IconCheck, IconLogin, IconArrowLeft, IconPlus, IconBrandWindows, IconChevronUp, IconChevronDown } from "@tabler/icons-react"
+import {   IconUser, IconPuzzle, IconUserMinus, IconLoader2, IconCirclePlus, IconTrash, IconX, IconCheck, IconLogin, IconArrowLeft, IconPlus, IconBrandWindows, IconChevronUp, IconChevronDown, IconExternalLink, IconRefresh, IconCopy } from "@tabler/icons-react"
 import { Checkbox } from "@/components/ui/checkbox"
+import { CachedAvatar } from "@/components/ui/cached-avatar"
 import { useAccounts } from "@/src/AccountsContext"
 import { cn } from "@/lib/utils"
 
@@ -82,7 +83,25 @@ export function AccountsPage() {
   const [microsoftAuthLoading, setMicrosoftAuthLoading] = useState(false)
   const [authProgressMessage, setAuthProgressMessage] = useState("")
   const [authError, setAuthError] = useState("")
+  const [microsoftMethod, setMicrosoftMethod] = useState<"choose" | "oauth" | "device">("choose")
+  const [elybyMethod, setElybyMethod] = useState<"choose" | "oauth" | "device">("choose")
+  const [xnskinsMethod, setXnskinsMethod] = useState<"choose" | "oauth" | "device">("choose")
+  const [deviceCodeInfo, setDeviceCodeInfo] = useState<{
+    deviceCode: string
+    userCode: string
+    verificationUriComplete: string
+    interval: number
+  } | null>(null)
+  const [devicePolling, setDevicePolling] = useState(false)
+  const [deviceStatus, setDeviceStatus] = useState<"waiting" | "expired" | "done">("waiting")
+  const [copied, setCopied] = useState(false)
   const cleanupRef = useRef<(() => void) | null>(null)
+
+  const handleCopyCode = useCallback((code: string) => {
+    navigator.clipboard?.writeText(code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }, [])
 
   useEffect(() => {
     const unsubscribe = window.electronAPI?.onAuthProgress?.((msg) => {
@@ -122,6 +141,49 @@ export function AccountsPage() {
     }
   }, [addAccount, accounts.length])
 
+  const handleEnableElyDeviceCode = useCallback(async () => {
+    setElybyAuthLoading(true)
+    setAuthError("")
+    setDeviceStatus("waiting")
+    setDeviceCodeInfo(null)
+    setElybyMethod("device")
+    try {
+      const info = await window.electronAPI?.startElyByDeviceCode()
+      if (info) {
+        setDeviceCodeInfo({
+          deviceCode: info.deviceCode,
+          userCode: info.userCode,
+          verificationUriComplete: info.verificationUriComplete,
+          interval: info.interval,
+        })
+        setDevicePolling(true)
+      }
+    } catch (err: unknown) {
+      setAuthError(err instanceof Error ? err.message : t("accounts.unknownError"))
+      setElybyMethod("device")
+    } finally {
+      setElybyAuthLoading(false)
+    }
+  }, [t])
+
+  const finishElyDeviceLogin = useCallback((result: { id: string; username: string; uuid?: string; accessToken: string; refreshToken?: string }) => {
+    addAccount({
+      id: result.id,
+      type: "elyby",
+      username: result.username,
+      uuid: result.uuid,
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      isActive: accounts.length === 0,
+    })
+    setDeviceStatus("done")
+    setDevicePolling(false)
+    setDeviceCodeInfo(null)
+    setElybyMethod("choose")
+    setSelectedAccountType(null)
+    setShowAddModal(false)
+  }, [addAccount, accounts.length])
+
   const handleXnSkinsLogin = useCallback(async () => {
     setXnSkinsAuthLoading(true)
     setAuthError("")
@@ -149,6 +211,49 @@ export function AccountsPage() {
     } finally {
       setXnSkinsAuthLoading(false)
     }
+  }, [addAccount, accounts.length])
+
+  const handleEnableXnSkinsDeviceCode = useCallback(async () => {
+    setXnSkinsAuthLoading(true)
+    setAuthError("")
+    setDeviceStatus("waiting")
+    setDeviceCodeInfo(null)
+    setXnskinsMethod("device")
+    try {
+      const info = await window.electronAPI?.startXnSkinsDeviceCode()
+      if (info) {
+        setDeviceCodeInfo({
+          deviceCode: info.deviceCode,
+          userCode: info.userCode,
+          verificationUriComplete: info.verificationUriComplete,
+          interval: info.interval,
+        })
+        setDevicePolling(true)
+      }
+    } catch (err: unknown) {
+      setAuthError(err instanceof Error ? err.message : t("accounts.unknownError"))
+      setXnskinsMethod("device")
+    } finally {
+      setXnSkinsAuthLoading(false)
+    }
+  }, [t])
+
+  const finishXnSkinsDeviceLogin = useCallback((result: { id: string; username: string; uuid?: string; accessToken: string; refreshToken?: string }) => {
+    addAccount({
+      id: result.id,
+      type: "xnskins",
+      username: result.username,
+      uuid: result.uuid,
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      isActive: accounts.length === 0,
+    })
+    setDeviceStatus("done")
+    setDevicePolling(false)
+    setDeviceCodeInfo(null)
+    setXnskinsMethod("choose")
+    setSelectedAccountType(null)
+    setShowAddModal(false)
   }, [addAccount, accounts.length])
 
   const handleMicrosoftLogin = useCallback(async () => {
@@ -179,6 +284,103 @@ export function AccountsPage() {
       setMicrosoftAuthLoading(false)
     }
   }, [addAccount, accounts.length])
+
+  const handleEnableDeviceCode = useCallback(async () => {
+    setMicrosoftAuthLoading(true)
+    setAuthError("")
+    setDeviceStatus("waiting")
+    setDeviceCodeInfo(null)
+    setMicrosoftMethod("device")
+    try {
+      const info = await window.electronAPI?.startMicrosoftDeviceCode()
+      if (info) {
+        setDeviceCodeInfo({
+          deviceCode: info.deviceCode,
+          userCode: info.userCode,
+          verificationUriComplete: info.verificationUriComplete,
+          interval: info.interval,
+        })
+        setDevicePolling(true)
+      }
+    } catch (err: unknown) {
+      setAuthError(err instanceof Error ? err.message : t("accounts.unknownError"))
+      setMicrosoftMethod("device")
+    } finally {
+      setMicrosoftAuthLoading(false)
+    }
+  }, [t])
+
+  const finishDeviceLogin = useCallback((result: { id: string; username: string; uuid?: string; accessToken: string; refreshToken?: string }) => {
+    addAccount({
+      id: result.id,
+      type: "microsoft",
+      username: result.username,
+      uuid: result.uuid,
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      isActive: accounts.length === 0,
+    })
+    setDeviceStatus("done")
+    setDevicePolling(false)
+    setDeviceCodeInfo(null)
+    setMicrosoftMethod("choose")
+    setSelectedAccountType(null)
+    setShowAddModal(false)
+  }, [addAccount, accounts.length])
+
+  useEffect(() => {
+    if (!deviceCodeInfo || !devicePolling || deviceStatus !== "waiting") return
+
+    const activeMethod = selectedAccountType === "elyby" ? "elyby" : selectedAccountType === "xnskins" ? "xnskins" : "microsoft"
+    let cancelled = false
+    let pollTimer: ReturnType<typeof setTimeout> | null = null
+
+    const poll = async () => {
+      if (cancelled) return
+      try {
+        const result = activeMethod === "elyby"
+          ? await window.electronAPI?.pollElyByDeviceCode(deviceCodeInfo.deviceCode)
+          : activeMethod === "xnskins"
+            ? await window.electronAPI?.pollXnSkinsDeviceCode(deviceCodeInfo.deviceCode)
+            : await window.electronAPI?.pollMicrosoftDeviceCode(deviceCodeInfo.deviceCode)
+        if (cancelled) return
+        if (!result) return
+        if (result.status === "complete" && result.account) {
+          if (activeMethod === "elyby") finishElyDeviceLogin(result.account)
+          else if (activeMethod === "xnskins") finishXnSkinsDeviceLogin(result.account)
+          else finishDeviceLogin(result.account)
+          return
+        }
+        if (result.status === "expired") {
+          setDevicePolling(false)
+          setDeviceStatus("expired")
+          setAuthError(t("accounts.deviceExpired"))
+          return
+        }
+        if (result.status === "error" && !result.retryable) {
+          setDevicePolling(false)
+          setDeviceStatus("expired")
+          setAuthError(result.message)
+          return
+        }
+        if (result.status === "error" && result.retryable) {
+          setAuthError(result.message)
+        }
+        const delayMs = (result.status === "pending" && result.slowDown ? deviceCodeInfo.interval + 5 : deviceCodeInfo.interval) * 1000
+        pollTimer = setTimeout(poll, Math.max(delayMs, 5000))
+      } catch (err: unknown) {
+        if (cancelled) return
+        setAuthError(err instanceof Error ? err.message : t("accounts.unknownError"))
+        pollTimer = setTimeout(poll, deviceCodeInfo.interval * 1000)
+      }
+    }
+
+    pollTimer = setTimeout(poll, deviceCodeInfo.interval * 1000)
+    return () => {
+      cancelled = true
+      if (pollTimer) clearTimeout(pollTimer)
+    }
+  }, [deviceCodeInfo, devicePolling, deviceStatus, selectedAccountType, finishDeviceLogin, finishElyDeviceLogin, finishXnSkinsDeviceLogin, t])
 
   const handleAddOfflineAccount = () => {
     const username = offlineUsername.trim()
@@ -241,12 +443,7 @@ export function AccountsPage() {
                     className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"
                     style={{ backgroundColor: `${accountTypeInfo[account.type].color}20` }}
                   >
-                    <img src={getAvatarUrl(account, account.username)} alt="" className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const t = e.currentTarget
-                        if (!t.dataset.retried) { t.dataset.retried = "1"; t.src = "https://mcskinapi-three.vercel.app/avatar/Steve?skin_type=microsoft" }
-                        else { t.style.display = "none" }
-                      }} />
+                    <CachedAvatar src={getAvatarUrl(account, account.username)} alt="" className="w-full h-full object-cover" />
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -321,7 +518,26 @@ export function AccountsPage() {
                 <button
                   key={type}
                   onClick={() => { 
-                    setAuthError(""); setSelectedAccountType(type) 
+                    setAuthError("")
+                    if (type === "microsoft") {
+                      setMicrosoftMethod("choose")
+                      setDeviceCodeInfo(null)
+                      setDevicePolling(false)
+                      setDeviceStatus("waiting")
+                    }
+                    if (type === "elyby") {
+                      setElybyMethod("choose")
+                      setDeviceCodeInfo(null)
+                      setDevicePolling(false)
+                      setDeviceStatus("waiting")
+                    }
+                    if (type === "xnskins") {
+                      setXnskinsMethod("choose")
+                      setDeviceCodeInfo(null)
+                      setDevicePolling(false)
+                      setDeviceStatus("waiting")
+                    }
+                    setSelectedAccountType(type) 
                   }}
                   className={cn(
                     "p-4 rounded-xl border border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50 transition-all text-left",
@@ -415,9 +631,13 @@ export function AccountsPage() {
               <button
                 onClick={() => {
                   setElybyAuthLoading(false)
+                  setElybyMethod("choose")
+                  setDeviceCodeInfo(null)
+                  setDevicePolling(false)
+                  setDeviceStatus("waiting")
                   setSelectedAccountType(null)
                 }}
-                disabled={elybyAuthLoading}
+                disabled={elybyAuthLoading || devicePolling}
                 className="w-8 h-8 rounded-lg border border-border bg-muted/60 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
               >
                 <IconX className="w-5 h-5" />
@@ -433,44 +653,229 @@ export function AccountsPage() {
                   {getAccountIcon("elyby")}
                 </div>
               </div>
-
-              {elybyAuthLoading ? (
-                <div>
-                  <IconLoader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-primary" />
-                  <p className="text-sm text-muted-foreground">{t("accounts.connectElyBy")}</p>
-                </div>
-              ) : authError ? (
-                <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20">
-                  <p className="text-sm text-destructive-foreground">{authError}</p>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground mb-4">
-                  {t("accounts.connectElyByDesc")}
-                </p>
-              )}
             </div>
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setElybyAuthLoading(false)
-                  setSelectedAccountType(null)
-                }}
-                className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
-              >
-                <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
-                {t("accounts.back")}
-              </button>
-              {!elybyAuthLoading && (
-                <button
-                  onClick={handleElyByLogin}
-                  className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-[#4CAF50] hover:bg-[#43a047] text-white font-medium transition-colors"
-                >
-                  <IconLogin className="w-4 h-4" strokeWidth={1.75} />
-                  {t("accounts.login")}
-                </button>
-              )}
-            </div>
+            {elybyMethod === "choose" && (
+              <>
+                <div className="grid grid-cols-1 gap-3">
+                  <button
+                    onClick={() => setElybyMethod("oauth")}
+                    className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-emerald-500/60 hover:bg-muted/50 transition-all text-left"
+                  >
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: `${accountTypeInfo.elyby.color}20`, color: accountTypeInfo.elyby.color }}
+                    >
+                      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="4" y="10" width="16" height="10" rx="2" stroke="currentColor" strokeWidth="1.8" />
+                        <path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" strokeWidth="1.8" />
+                        <circle cx="12" cy="15" r="1.4" fill="currentColor" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="font-medium text-foreground">{t("accounts.microsoftMethodOAuth")}</div>
+                      <div className="text-sm text-muted-foreground mt-1">{t("accounts.elyMethodOAuthDesc")}</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => void handleEnableElyDeviceCode()}
+                    disabled={elybyAuthLoading}
+                    className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-emerald-500/60 hover:bg-muted/50 transition-all text-left disabled:opacity-60"
+                  >
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: `${accountTypeInfo.elyby.color}20`, color: accountTypeInfo.elyby.color }}
+                    >
+                      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+                        <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+                        <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+                        <path d="M14 14h4v4h-4z" fill="currentColor" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="font-medium text-foreground">{t("accounts.microsoftMethodDevice")}</div>
+                      <div className="text-sm text-muted-foreground mt-1">{t("accounts.elyMethodDeviceDesc")}</div>
+                    </div>
+                  </button>
+                </div>
+                <div className="flex gap-3 mt-5">
+                  <button
+                    onClick={() => {
+                      setElybyMethod("choose")
+                      setSelectedAccountType(null)
+                    }}
+                    className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
+                  >
+                    <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                    {t("accounts.back")}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {elybyMethod === "oauth" && (
+              <>
+                <div className="text-center mb-4">
+                  {elybyAuthLoading ? (
+                    <div>
+                      <IconLoader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-primary" />
+                      <p className="text-sm text-muted-foreground">{t("accounts.connectElyBy")}</p>
+                    </div>
+                  ) : authError ? (
+                    <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20">
+                      <p className="text-sm text-destructive-foreground">{authError}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {t("accounts.connectElyByDesc")}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setElybyAuthLoading(false)
+                      setElybyMethod("choose")
+                    }}
+                    className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
+                  >
+                    <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                    {t("accounts.back")}
+                  </button>
+                  {!elybyAuthLoading && (
+                    <button
+                      onClick={handleElyByLogin}
+                      className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-[#4CAF50] hover:bg-[#43a047] text-white font-medium transition-colors"
+                    >
+                      <IconLogin className="w-4 h-4" strokeWidth={1.75} />
+                      {t("accounts.login")}
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
+            {elybyMethod === "device" && (
+              <>
+                {!deviceCodeInfo ? (
+                  <div>
+                    <div className="flex flex-col items-center justify-center py-6 text-center">
+                      <IconLoader2 className="w-8 h-8 animate-spin mb-3 text-primary" />
+                      <p className="text-sm text-muted-foreground">{t("accounts.generatingDeviceCode")}</p>
+                    </div>
+                    {authError && !devicePolling && (
+                      <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 mb-4">
+                        <p className="text-sm text-destructive-foreground">{authError}</p>
+                      </div>
+                    )}
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          setElybyAuthLoading(false)
+                          setElybyMethod("choose")
+                        }}
+                        className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
+                      >
+                        <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                        {t("accounts.back")}
+                      </button>
+                      {!elybyAuthLoading && !deviceCodeInfo && authError && (
+                        <button
+                          onClick={handleEnableElyDeviceCode}
+                          className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-[#4CAF50] hover:bg-[#43a047] text-white font-medium transition-colors"
+                        >
+                          <IconRefresh className="w-4 h-4" strokeWidth={1.75} />
+                          {t("accounts.restartDeviceCode")}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : deviceStatus === "expired" ? (
+                  <div>
+                    <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 mb-4">
+                      <p className="text-sm text-destructive-foreground">{t("accounts.deviceExpired")}</p>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setElybyMethod("choose")}
+                        className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
+                      >
+                        <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                        {t("accounts.back")}
+                      </button>
+                      <button
+                        onClick={handleEnableElyDeviceCode}
+                        className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-[#4CAF50] hover:bg-[#43a047] text-white font-medium transition-colors"
+                      >
+                        <IconRefresh className="w-4 h-4" strokeWidth={1.75} />
+                        {t("accounts.restartDeviceCode")}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="p-5 rounded-2xl bg-muted/40 border border-border">
+                      <div className="text-center">
+                        <p className="text-sm text-muted-foreground mb-2">{t("accounts.enterCodeAtLink")}</p>
+                        <button
+                          onClick={() => window.electronAPI?.openExternal(deviceCodeInfo.verificationUriComplete)}
+                          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#4CAF50] hover:bg-[#43a047] text-white text-sm font-medium transition-colors"
+                        >
+                          <IconExternalLink className="w-4 h-4" strokeWidth={1.75} />
+                          {t("accounts.openDeviceCodeLink")}
+                        </button>
+                        <div className="my-4 text-xs uppercase tracking-widest text-muted-foreground/70">{t("accounts.enterCodeLabel")}</div>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="text-3xl font-bold tracking-[0.35em] text-foreground select-all flex-1 px-3 py-2 rounded-xl border border-border bg-background"
+                            style={{ color: "#217e5c" }}
+                          >
+                            {deviceCodeInfo.userCode}
+                          </div>
+                          <button
+                            onClick={() => handleCopyCode(deviceCodeInfo.userCode)}
+                            className="flex items-center justify-center w-10 h-10 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+                            title={t("accounts.clickToCopy")}
+                          >
+                            {copied
+                              ? <IconCheck className="w-4 h-4 text-emerald-500" strokeWidth={2} />
+                              : <IconCopy className="w-4 h-4" strokeWidth={1.75} />}
+                          </button>
+                        </div>
+                        {devicePolling && (
+                          <div className="flex items-center justify-center gap-2 mt-4 text-sm text-muted-foreground">
+                            <IconLoader2 className="w-4 h-4 animate-spin text-primary" />
+                            {authError || t("accounts.deviceWaiting")}
+                          </div>
+                        )}
+                        {!devicePolling && authError && (
+                          <div className="mt-4 p-3 rounded-xl bg-destructive/10 border border-destructive/20">
+                            <p className="text-sm text-destructive-foreground">{authError}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          setDevicePolling(false)
+                          setDeviceStatus("waiting")
+                          setDeviceCodeInfo(null)
+                          setAuthError("")
+                          setElybyMethod("choose")
+                        }}
+                        className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
+                      >
+                        <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                        {t("accounts.back")}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
@@ -483,9 +888,13 @@ export function AccountsPage() {
               <button
                 onClick={() => {
                   setXnSkinsAuthLoading(false)
+                  setXnskinsMethod("choose")
+                  setDeviceCodeInfo(null)
+                  setDevicePolling(false)
+                  setDeviceStatus("waiting")
                   setSelectedAccountType(null)
                 }}
-                disabled={xnskinsAuthLoading}
+                disabled={xnskinsAuthLoading || devicePolling}
                 className="w-8 h-8 rounded-lg border border-border bg-muted/60 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
               >
                 <IconX className="w-5 h-5" />
@@ -501,44 +910,229 @@ export function AccountsPage() {
                   {getAccountIcon("xnskins")}
                 </div>
               </div>
-
-              {xnskinsAuthLoading ? (
-                <div>
-                  <IconLoader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-primary" />
-                  <p className="text-sm text-muted-foreground">{t("accounts.connectXnSkins")}</p>
-                </div>
-              ) : authError ? (
-                <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20">
-                  <p className="text-sm text-destructive-foreground">{authError}</p>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground mb-4">
-                  {t("accounts.connectXnSkinsDesc")}
-                </p>
-              )}
             </div>
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setXnSkinsAuthLoading(false)
-                  setSelectedAccountType(null)
-                }}
-                className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
-              >
-                <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
-                {t("accounts.back")}
-              </button>
-              {!xnskinsAuthLoading && (
-                <button
-                  onClick={handleXnSkinsLogin}
-                  className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-[#f97316] hover:bg-[#ea580c] text-white font-medium transition-colors"
-                >
-                  <IconLogin className="w-4 h-4" strokeWidth={1.75} />
-                  {t("accounts.login")}
-                </button>
-              )}
-            </div>
+            {xnskinsMethod === "choose" && (
+              <>
+                <div className="grid grid-cols-1 gap-3">
+                  <button
+                    onClick={() => setXnskinsMethod("oauth")}
+                    className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-orange-500/60 hover:bg-muted/50 transition-all text-left"
+                  >
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: `${accountTypeInfo.xnskins.color}20`, color: accountTypeInfo.xnskins.color }}
+                    >
+                      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="4" y="10" width="16" height="10" rx="2" stroke="currentColor" strokeWidth="1.8" />
+                        <path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" strokeWidth="1.8" />
+                        <circle cx="12" cy="15" r="1.4" fill="currentColor" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="font-medium text-foreground">{t("accounts.microsoftMethodOAuth")}</div>
+                      <div className="text-sm text-muted-foreground mt-1">{t("accounts.connectXnSkinsDesc")}</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => void handleEnableXnSkinsDeviceCode()}
+                    disabled={xnskinsAuthLoading}
+                    className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-orange-500/60 hover:bg-muted/50 transition-all text-left disabled:opacity-60"
+                  >
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: `${accountTypeInfo.xnskins.color}20`, color: accountTypeInfo.xnskins.color }}
+                    >
+                      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+                        <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+                        <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+                        <path d="M14 14h4v4h-4z" fill="currentColor" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="font-medium text-foreground">{t("accounts.microsoftMethodDevice")}</div>
+                      <div className="text-sm text-muted-foreground mt-1">{t("accounts.xnskinsMethodDeviceDesc")}</div>
+                    </div>
+                  </button>
+                </div>
+                <div className="flex gap-3 mt-5">
+                  <button
+                    onClick={() => {
+                      setXnskinsMethod("choose")
+                      setSelectedAccountType(null)
+                    }}
+                    className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
+                  >
+                    <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                    {t("accounts.back")}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {xnskinsMethod === "oauth" && (
+              <>
+                <div className="text-center mb-4">
+                  {xnskinsAuthLoading ? (
+                    <div>
+                      <IconLoader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-primary" />
+                      <p className="text-sm text-muted-foreground">{t("accounts.connectXnSkins")}</p>
+                    </div>
+                  ) : authError ? (
+                    <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20">
+                      <p className="text-sm text-destructive-foreground">{authError}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {t("accounts.connectXnSkinsDesc")}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setXnSkinsAuthLoading(false)
+                      setXnskinsMethod("choose")
+                    }}
+                    className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
+                  >
+                    <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                    {t("accounts.back")}
+                  </button>
+                  {!xnskinsAuthLoading && (
+                    <button
+                      onClick={handleXnSkinsLogin}
+                      className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-[#f97316] hover:bg-[#ea580c] text-white font-medium transition-colors"
+                    >
+                      <IconLogin className="w-4 h-4" strokeWidth={1.75} />
+                      {t("accounts.login")}
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
+            {xnskinsMethod === "device" && (
+              <>
+                {!deviceCodeInfo ? (
+                  <div>
+                    <div className="flex flex-col items-center justify-center py-6 text-center">
+                      <IconLoader2 className="w-8 h-8 animate-spin mb-3 text-primary" />
+                      <p className="text-sm text-muted-foreground">{t("accounts.generatingDeviceCode")}</p>
+                    </div>
+                    {authError && !devicePolling && (
+                      <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 mb-4">
+                        <p className="text-sm text-destructive-foreground">{authError}</p>
+                      </div>
+                    )}
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          setXnSkinsAuthLoading(false)
+                          setXnskinsMethod("choose")
+                        }}
+                        className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
+                      >
+                        <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                        {t("accounts.back")}
+                      </button>
+                      {!xnskinsAuthLoading && !deviceCodeInfo && authError && (
+                        <button
+                          onClick={handleEnableXnSkinsDeviceCode}
+                          className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-[#f97316] hover:bg-[#ea580c] text-white font-medium transition-colors"
+                        >
+                          <IconRefresh className="w-4 h-4" strokeWidth={1.75} />
+                          {t("accounts.restartDeviceCode")}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : deviceStatus === "expired" ? (
+                  <div>
+                    <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 mb-4">
+                      <p className="text-sm text-destructive-foreground">{t("accounts.deviceExpired")}</p>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setXnskinsMethod("choose")}
+                        className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
+                      >
+                        <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                        {t("accounts.back")}
+                      </button>
+                      <button
+                        onClick={handleEnableXnSkinsDeviceCode}
+                        className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-[#f97316] hover:bg-[#ea580c] text-white font-medium transition-colors"
+                      >
+                        <IconRefresh className="w-4 h-4" strokeWidth={1.75} />
+                        {t("accounts.restartDeviceCode")}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="p-5 rounded-2xl bg-muted/40 border border-border">
+                      <div className="text-center">
+                        <p className="text-sm text-muted-foreground mb-2">{t("accounts.enterCodeAtLink")}</p>
+                        <button
+                          onClick={() => window.electronAPI?.openExternal(deviceCodeInfo.verificationUriComplete)}
+                          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#f97316] hover:bg-[#ea580c] text-white text-sm font-medium transition-colors"
+                        >
+                          <IconExternalLink className="w-4 h-4" strokeWidth={1.75} />
+                          {t("accounts.openDeviceCodeLink")}
+                        </button>
+                        <div className="my-4 text-xs uppercase tracking-widest text-muted-foreground/70">{t("accounts.enterCodeLabel")}</div>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="text-3xl font-bold tracking-[0.35em] text-foreground select-all flex-1 px-3 py-2 rounded-xl border border-border bg-background"
+                            style={{ color: "#f97316" }}
+                          >
+                            {deviceCodeInfo.userCode}
+                          </div>
+                          <button
+                            onClick={() => handleCopyCode(deviceCodeInfo.userCode)}
+                            className="flex items-center justify-center w-10 h-10 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+                            title={t("accounts.clickToCopy")}
+                          >
+                            {copied
+                              ? <IconCheck className="w-4 h-4 text-emerald-500" strokeWidth={2} />
+                              : <IconCopy className="w-4 h-4" strokeWidth={1.75} />}
+                          </button>
+                        </div>
+                        {devicePolling && (
+                          <div className="flex items-center justify-center gap-2 mt-4 text-sm text-muted-foreground">
+                            <IconLoader2 className="w-4 h-4 animate-spin text-primary" />
+                            {authError || t("accounts.deviceWaiting")}
+                          </div>
+                        )}
+                        {!devicePolling && authError && (
+                          <div className="mt-4 p-3 rounded-xl bg-destructive/10 border border-destructive/20">
+                            <p className="text-sm text-destructive-foreground">{authError}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          setDevicePolling(false)
+                          setDeviceStatus("waiting")
+                          setDeviceCodeInfo(null)
+                          setAuthError("")
+                          setXnskinsMethod("choose")
+                        }}
+                        className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
+                      >
+                        <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                        {t("accounts.back")}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
@@ -551,9 +1145,13 @@ export function AccountsPage() {
               <button
                 onClick={() => {
                   setMicrosoftAuthLoading(false)
+                  setMicrosoftMethod("choose")
+                  setDeviceCodeInfo(null)
+                  setDevicePolling(false)
+                  setDeviceStatus("waiting")
                   setSelectedAccountType(null)
                 }}
-                disabled={microsoftAuthLoading}
+                disabled={microsoftAuthLoading || devicePolling}
                 className="w-8 h-8 rounded-lg border border-border bg-muted/60 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
               >
                 <IconX className="w-5 h-5" />
@@ -569,44 +1167,229 @@ export function AccountsPage() {
                   {getAccountIcon("microsoft")}
                 </div>
               </div>
-
-              {microsoftAuthLoading ? (
-                <div>
-                  <IconLoader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-primary" />
-                  <p className="text-sm text-muted-foreground">{t("accounts.connectMicrosoft")}</p>
-                </div>
-              ) : authError ? (
-                <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20">
-                  <p className="text-sm text-destructive-foreground">{authError}</p>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground mb-4">
-                  {t("accounts.connectMicrosoftDesc")}
-                </p>
-              )}
             </div>
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setMicrosoftAuthLoading(false)
-                  setSelectedAccountType(null)
-                }}
-                className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
-              >
-                <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
-                {t("accounts.back")}
-              </button>
-              {!microsoftAuthLoading && (
-                <button
-                  onClick={handleMicrosoftLogin}
-                  className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-medium transition-colors"
-                >
-                  <IconLogin className="w-4 h-4" strokeWidth={1.75} />
-                  {t("accounts.login")}
-                </button>
-              )}
-            </div>
+            {microsoftMethod === "choose" && (
+              <>
+                <div className="grid grid-cols-1 gap-3">
+                  <button
+                    onClick={() => setMicrosoftMethod("oauth")}
+                    className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-blue-500/60 hover:bg-muted/50 transition-all text-left"
+                  >
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: `${accountTypeInfo.microsoft.color}20`, color: accountTypeInfo.microsoft.color }}
+                    >
+                      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="4" y="10" width="16" height="10" rx="2" stroke="currentColor" strokeWidth="1.8" />
+                        <path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" strokeWidth="1.8" />
+                        <circle cx="12" cy="15" r="1.4" fill="currentColor" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="font-medium text-foreground">{t("accounts.microsoftMethodOAuth")}</div>
+                      <div className="text-sm text-muted-foreground mt-1">{t("accounts.microsoftMethodOAuthDesc")}</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => void handleEnableDeviceCode()}
+                    className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-blue-500/60 hover:bg-muted/50 transition-all text-left disabled:opacity-60"
+                    disabled={microsoftAuthLoading}
+                  >
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: `${accountTypeInfo.microsoft.color}20`, color: accountTypeInfo.microsoft.color }}
+                    >
+                      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+                        <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+                        <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+                        <path d="M14 14h4v4h-4z" fill="currentColor" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="font-medium text-foreground">{t("accounts.microsoftMethodDevice")}</div>
+                      <div className="text-sm text-muted-foreground mt-1">{t("accounts.microsoftMethodDeviceDesc")}</div>
+                    </div>
+                  </button>
+                </div>
+                <div className="flex gap-3 mt-5">
+                  <button
+                    onClick={() => {
+                      setMicrosoftMethod("choose")
+                      setSelectedAccountType(null)
+                    }}
+                    className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
+                  >
+                    <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                    {t("accounts.back")}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {microsoftMethod === "oauth" && (
+              <>
+                <div className="text-center mb-4">
+                  {microsoftAuthLoading ? (
+                    <div>
+                      <IconLoader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-primary" />
+                      <p className="text-sm text-muted-foreground">{t("accounts.connectMicrosoft")}</p>
+                    </div>
+                  ) : authError ? (
+                    <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20">
+                      <p className="text-sm text-destructive-foreground">{authError}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {t("accounts.connectMicrosoftDesc")}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setMicrosoftAuthLoading(false)
+                      setMicrosoftMethod("choose")
+                    }}
+                    className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
+                  >
+                    <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                    {t("accounts.back")}
+                  </button>
+                  {!microsoftAuthLoading && (
+                    <button
+                      onClick={handleMicrosoftLogin}
+                      className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-medium transition-colors"
+                    >
+                      <IconLogin className="w-4 h-4" strokeWidth={1.75} />
+                      {t("accounts.login")}
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
+            {microsoftMethod === "device" && (
+              <>
+                {!deviceCodeInfo ? (
+                  <div>
+                    <div className="flex flex-col items-center justify-center py-6 text-center">
+                      <IconLoader2 className="w-8 h-8 animate-spin mb-3 text-primary" />
+                      <p className="text-sm text-muted-foreground">{t("accounts.generatingDeviceCode")}</p>
+                    </div>
+                    {authError && !devicePolling && (
+                      <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 mb-4">
+                        <p className="text-sm text-destructive-foreground">{authError}</p>
+                      </div>
+                    )}
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          setMicrosoftAuthLoading(false)
+                          setMicrosoftMethod("choose")
+                        }}
+                        className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
+                      >
+                        <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                        {t("accounts.back")}
+                      </button>
+                      {!microsoftAuthLoading && !deviceCodeInfo && authError && (
+                        <button
+                          onClick={handleEnableDeviceCode}
+                          className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-medium transition-colors"
+                        >
+                          <IconRefresh className="w-4 h-4" strokeWidth={1.75} />
+                          {t("accounts.restartDeviceCode")}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : deviceStatus === "expired" ? (
+                  <div>
+                    <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 mb-4">
+                      <p className="text-sm text-destructive-foreground">{t("accounts.deviceExpired")}</p>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setMicrosoftMethod("choose")}
+                        className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
+                      >
+                        <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                        {t("accounts.back")}
+                      </button>
+                      <button
+                        onClick={handleEnableDeviceCode}
+                        className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-medium transition-colors"
+                      >
+                        <IconRefresh className="w-4 h-4" strokeWidth={1.75} />
+                        {t("accounts.restartDeviceCode")}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="p-5 rounded-2xl bg-muted/40 border border-border">
+                      <div className="text-center">
+                        <p className="text-sm text-muted-foreground mb-2">{t("accounts.enterCodeAtLink")}</p>
+                        <button
+                          onClick={() => window.electronAPI?.openExternal(deviceCodeInfo.verificationUriComplete)}
+                          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-sm font-medium transition-colors"
+                        >
+                          <IconExternalLink className="w-4 h-4" strokeWidth={1.75} />
+                          {t("accounts.openDeviceCodeLink")}
+                        </button>
+                        <div className="my-4 text-xs uppercase tracking-widest text-muted-foreground/70">{t("accounts.enterCodeLabel")}</div>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="text-3xl font-bold tracking-[0.35em] text-foreground select-all flex-1 px-3 py-2 rounded-xl border border-border bg-background"
+                            style={{ color: "#2563EB" }}
+                          >
+                            {deviceCodeInfo.userCode}
+                          </div>
+                          <button
+                            onClick={() => handleCopyCode(deviceCodeInfo.userCode)}
+                            className="flex items-center justify-center w-10 h-10 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+                            title={t("accounts.clickToCopy")}
+                          >
+                            {copied
+                              ? <IconCheck className="w-4 h-4 text-emerald-500" strokeWidth={2} />
+                              : <IconCopy className="w-4 h-4" strokeWidth={1.75} />}
+                          </button>
+                        </div>
+                        {devicePolling && (
+                          <div className="flex items-center justify-center gap-2 mt-4 text-sm text-muted-foreground">
+                            <IconLoader2 className="w-4 h-4 animate-spin text-primary" />
+                            {authError || t("accounts.deviceWaiting")}
+                          </div>
+                        )}
+                        {!devicePolling && authError && (
+                          <div className="mt-4 p-3 rounded-xl bg-destructive/10 border border-destructive/20">
+                            <p className="text-sm text-destructive-foreground">{authError}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          setDevicePolling(false)
+                          setDeviceStatus("waiting")
+                          setDeviceCodeInfo(null)
+                          setAuthError("")
+                          setMicrosoftMethod("choose")
+                        }}
+                        className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors"
+                      >
+                        <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                        {t("accounts.back")}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}

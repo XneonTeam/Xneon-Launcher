@@ -1,4 +1,5 @@
-export function formatBytes(bytes: number): string {
+export function formatBytes(bytes: number | undefined | null): string {
+  if (bytes == null || isNaN(bytes)) return "—"
   if (bytes === 0) return "0 B"
   const k = 1024
   const sizes = ["B", "KB", "MB", "GB"]

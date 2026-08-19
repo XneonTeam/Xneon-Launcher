@@ -17,12 +17,14 @@ function formatItemName(itemName?: string): string | null {
 
 function formatProgressLabel(message: string, source: ImportProgressState["source"]): string {
   const trimmed = message.trim()
+  const isCurseforge = source === "curseforge"
+  const isFtb = source === "ftb"
   if (!trimmed) {
-    return source === "curseforge" ? "Загрузка модов" : "Загрузка файлов"
+    return isCurseforge || isFtb ? "Загрузка модпака" : "Загрузка файлов"
   }
 
   if (/^\d+\s*\/\s*\d+/.test(trimmed)) {
-    return source === "curseforge" ? "Загрузка модов" : "Загрузка файлов"
+    return isCurseforge || isFtb ? "Загрузка модпака" : "Загрузка файлов"
   }
 
   return trimmed

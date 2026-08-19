@@ -1,6 +1,6 @@
 {
   "name": "@xnlc/types",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "XNLC Shared Type Definitions — single source of truth for IPC contracts, domain types, worker messages, and launch configs",
   "type": "module",
   "author": "MAINER4IK",

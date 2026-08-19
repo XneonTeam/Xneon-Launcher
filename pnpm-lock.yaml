@@ -26,11 +26,11 @@ importers:
         specifier: ^5.3.0
         version: 5.3.0
       '@xnlc/core':
-        specifier: ^1.0.3
-        version: 1.0.3
+        specifier: ^1.0.4
+        version: 1.0.4
       '@xnlc/mods':
-        specifier: ^1.0.0
-        version: 1.0.0
+        specifier: ^1.0.1
+        version: 1.0.1
       '@xnlc/nbt':
         specifier: ^1.0.0
         version: 1.0.0
@@ -38,8 +38,8 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       '@xnlc/types':
-        specifier: ^1.0.5
-        version: 1.0.5
+        specifier: ^1.0.6
+        version: 1.0.6
       adm-zip:
         specifier: ^0.6.0
         version: 0.6.0
@@ -64,6 +64,9 @@ importers:
       iconv-lite:
         specifier: ^0.7.3
         version: 0.7.3
+      node-datachannel:
+        specifier: ^0.26.0
+        version: 0.26.0
       sql.js:
         specifier: ^1.14.1
         version: 1.14.1
@@ -1116,11 +1119,11 @@ packages:
     engines: {node: '>=10.0.0'}
     deprecated: this version has critical issues, please update to the latest version
 
-  '@xnlc/core@1.0.3':
-    resolution: {integrity: sha512-kgjje128+V+785IcdCNOr71YeBSPssDFt4TDOUpNcVKhi/8HDolMTLmvc0noy4J2kAazkbBC3OAKYF1Ux3nc8g==, tarball: https://git.xneon.org/api/packages/MAINER4IK/npm/%40xnlc%2Fcore/-/1.0.3/core-1.0.3.tgz}
+  '@xnlc/core@1.0.4':
+    resolution: {integrity: sha512-9Aiwwcg3BB/9cq2Tlr31Y2c/dhH5Mbrk5AHGvgl16v0EsqLhDRAfCdt5IrOF10PmdBc4RbrP2Fwom9IgotaHoA==, tarball: https://git.xneon.org/api/packages/MAINER4IK/npm/%40xnlc%2Fcore/-/1.0.4/core-1.0.4.tgz}
 
-  '@xnlc/mods@1.0.0':
-    resolution: {integrity: sha512-xZePDQnAILcq/Y8Ymb89H32xFgDz8YCcU+oJsQsuhIQHn5ZXCd0KrDzKwuYtMckGup8zNtqZ75vbpXbEtLaUBA==, tarball: https://git.xneon.org/api/packages/MAINER4IK/npm/%40xnlc%2Fmods/-/1.0.0/mods-1.0.0.tgz}
+  '@xnlc/mods@1.0.1':
+    resolution: {integrity: sha512-seIwtgO2ptD35mmrhWPRfIfgPOFo0nx0yn8bpTc4sjYN+hDsnphwkzXpLV/7G5p9x0lsQfUK+yTwuBppQuImZg==, tarball: https://git.xneon.org/api/packages/MAINER4IK/npm/%40xnlc%2Fmods/-/1.0.1/mods-1.0.1.tgz}
 
   '@xnlc/nbt@1.0.0':
     resolution: {integrity: sha512-CkGmy/MjBvmG7pyUxAR1aTLO3pvJu+LIXRFfiSdE8ta1ejj2EOCZVbVAAC4g53X5jAUk+8UcO6LbpOxmOLNLJg==, tarball: https://git.xneon.org/api/packages/MAINER4IK/npm/%40xnlc%2Fnbt/-/1.0.0/nbt-1.0.0.tgz}
@@ -1133,6 +1136,9 @@ packages:
 
   '@xnlc/types@1.0.5':
     resolution: {integrity: sha512-Y0f9xFQ6LBT560eK47CBR7lvJwBOaYMEEpyVyGnQ6JIXanNx+KYOPqtI5Kfg7JP9igjXsaRvX925ESlUuHU88g==, tarball: https://git.xneon.org/api/packages/MAINER4IK/npm/%40xnlc%2Ftypes/-/1.0.5/types-1.0.5.tgz}
+
+  '@xnlc/types@1.0.6':
+    resolution: {integrity: sha512-P/iEnMy9ZevvTVT/2iPimXe16YFXRab0pQVv7RcGfySIy/sJJPfhGWliRTX2wyqSFxF5Hz1ENS8gjsmyPh+TDA==, tarball: https://git.xneon.org/api/packages/MAINER4IK/npm/%40xnlc%2Ftypes/-/1.0.6/types-1.0.6.tgz}
 
   abbrev@4.0.0:
     resolution: {integrity: sha512-a1wflyaL0tHtJSmLSOVybYhy22vRih4eduhhrkcjgrWGnRfrZtovJ2FRjxuTtkkj47O/baf0R86QU5OuYpz8fA==}
@@ -2744,7 +2750,7 @@ packages:
     engines: {node: '>=8.10.0'}
 
   register-scheme@https://codeload.github.com/devsnek/node-register-scheme/tar.gz/e7cc9a63a1f512565da44cb57316d9fb10750e17:
-    resolution: {gitHosted: true, tarball: https://codeload.github.com/devsnek/node-register-scheme/tar.gz/e7cc9a63a1f512565da44cb57316d9fb10750e17}
+    resolution: {gitHosted: true, integrity: sha512-M3LicGeo6qpH4f/dIOpKD68LK8XnjAzy+hdFH/6doSg50XaU5Pc7dJv3Xs15HPNJyI2EHIQe1JsRgxMvguQeZQ==, tarball: https://codeload.github.com/devsnek/node-register-scheme/tar.gz/e7cc9a63a1f512565da44cb57316d9fb10750e17}
     version: 0.0.2
 
   rehype-raw@7.0.0:
@@ -4158,18 +4164,18 @@ snapshots:
 
   '@xmldom/xmldom@0.8.13': {}
 
-  '@xnlc/core@1.0.3':
+  '@xnlc/core@1.0.4':
     dependencies:
-      '@xnlc/types': 1.0.4
+      '@xnlc/types': 1.0.5
       adm-zip: 0.6.0
 
-  '@xnlc/mods@1.0.0': {}
+  '@xnlc/mods@1.0.1': {}
 
   '@xnlc/nbt@1.0.0': {}
 
   '@xnlc/p2p@1.0.2':
     dependencies:
-      '@xnlc/types': 1.0.4
+      '@xnlc/types': 1.0.6
       node-datachannel: 0.26.0
       ws: 8.21.3
     transitivePeerDependencies:
@@ -4179,6 +4185,8 @@ snapshots:
   '@xnlc/types@1.0.4': {}
 
   '@xnlc/types@1.0.5': {}
+
+  '@xnlc/types@1.0.6': {}
 
   abbrev@4.0.0: {}
 

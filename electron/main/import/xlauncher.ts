@@ -19,7 +19,10 @@ type XLauncherInstanceJson = {
   }
 }
 
-async function getXLauncherInstancesDirs(): Promise<string[]> {
+async function getXLauncherInstancesDirs(customPath?: string): Promise<string[]> {
+  if (customPath) {
+    if (await fileExists(customPath)) return [customPath]
+  }
   const home = app.getPath("home")
   const isMacOS = process.platform === "darwin"
   const candidates = uniqPaths([
@@ -95,9 +98,9 @@ async function readXLauncherInstance(instanceDir: string): Promise<LauncherInsta
   }
 }
 
-export async function discoverXLauncherInstances(): Promise<LauncherInstance[]> {
+export async function discoverXLauncherInstances(customPath?: string): Promise<LauncherInstance[]> {
   const instances: LauncherInstance[] = []
-  for (const instancesDir of await getXLauncherInstancesDirs()) {
+  for (const instancesDir of await getXLauncherInstancesDirs(customPath)) {
     let entries
     try { entries = await fs.readdir(instancesDir, { withFileTypes: true }) } catch { continue }
     const dirs = entries.filter(e => e.isDirectory()).map(e => path.join(instancesDir, e.name))

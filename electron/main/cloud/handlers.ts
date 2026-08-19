@@ -1,9 +1,35 @@
 import { ipcMain, shell, app } from "electron"
 import path from "path"
 import fs from "fs/promises"
+import { Worker } from "worker_threads"
 import { getProvider, listProviders, type CloudProviderId } from "./registry"
 import { ensureBuildIntentDir, getBuildIntentDirName } from "../builds"
 import { dbHelpers } from "../../db"
+import { sendToRenderer } from "../runtime"
+
+function sendUploadProgress(id: string, percent: number, stage: "zip" | "upload") {
+  sendToRenderer("cloud:upload-progress", { id, percent, stage })
+}
+
+async function createBuildZipInWorker(intentPath: string, archivePath: string, id: string): Promise<void> {
+  const workerPath = path.join(__dirname, "upload-worker.js")
+  const worker = new Worker(workerPath, { workerData: { intentPath, archivePath } })
+  return new Promise((resolve, reject) => {
+    worker.on("message", (msg) => {
+      if (msg?.type === "zip-progress") {
+        sendUploadProgress(id, msg.percent, "zip")
+      } else if (msg?.type === "zip-done") {
+        if (msg.result?.ok) resolve()
+        else reject(new Error(msg.result?.error ?? "Zip failed"))
+      }
+    })
+    worker.on("error", reject)
+    worker.on("exit", (code) => {
+      if (code !== 0) reject(new Error(`Zip worker exited with code ${code}`))
+      else resolve()
+    })
+  })
+}
 
 export function registerCloudHandlers() {
   ipcMain.handle("cloud:list-providers", () => {
@@ -53,7 +79,13 @@ export function registerCloudHandlers() {
   ipcMain.handle("cloud:upload-file", async (_event, providerId: CloudProviderId, localPath: string, remotePath: string) => {
     try {
       const provider = getProvider(providerId)
-      return await provider.uploadFile(localPath, remotePath)
+      const id = `file-${path.basename(localPath)}`
+      sendUploadProgress(id, 0, "upload")
+      const result = await provider.uploadFile(localPath, remotePath, (percent) => {
+        sendUploadProgress(id, percent, "upload")
+      })
+      sendUploadProgress(id, 100, "upload")
+      return result
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : String(e) }
     }
@@ -84,22 +116,25 @@ export function registerCloudHandlers() {
     } catch { return null }
   })
 
-  ipcMain.handle("cloud:upload-build", async (_event, providerId: CloudProviderId, buildName: string) => {
+  ipcMain.handle("cloud:upload-build", async (_event, providerId: CloudProviderId, buildName: string, uploadId?: string) => {
     try {
       const intentPath = await ensureBuildIntentDir(buildName)
       try { await fs.access(intentPath) } catch { return { success: false, error: "Сборка не найдена" } }
 
-      const AdmZip = (await import("adm-zip")).default
-      const zip = new AdmZip()
-      zip.addLocalFolder(intentPath)
       const safeName = getBuildIntentDirName(buildName)
       const archivePath = path.join(app.getPath("temp"), `${safeName}.zip`)
-      zip.writeZip(archivePath)
+      const id = uploadId ?? `build-${safeName}`
+
+      sendUploadProgress(id, 0, "zip")
+      await createBuildZipInWorker(intentPath, archivePath, id)
 
       const provider = getProvider(providerId)
-      const result = await provider.uploadFile(archivePath, `builds/${safeName}.zip`)
+      const result = await provider.uploadFile(archivePath, `builds/${safeName}.zip`, (percent) => {
+        sendUploadProgress(id, percent, "upload")
+      })
 
       try { await fs.unlink(archivePath) } catch { /* noop */ }
+      sendUploadProgress(id, 100, "upload")
       return result
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : String(e) }
@@ -111,8 +146,13 @@ export function registerCloudHandlers() {
       const jsonPath = path.join(app.getPath("temp"), `${account.username}.json`)
       await fs.writeFile(jsonPath, JSON.stringify(account, null, 2))
       const provider = getProvider(providerId)
-      const result = await provider.uploadFile(jsonPath, `accounts/${account.username}.json`)
+      const id = account.id
+      sendUploadProgress(id, 0, "upload")
+      const result = await provider.uploadFile(jsonPath, `accounts/${account.username}.json`, (percent) => {
+        sendUploadProgress(id, percent, "upload")
+      })
       try { await fs.unlink(jsonPath) } catch { /* noop */ }
+      sendUploadProgress(id, 100, "upload")
       return result
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : String(e) }

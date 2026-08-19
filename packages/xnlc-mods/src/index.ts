@@ -1,6 +1,7 @@
 export type {
   ContentType,
   ModSort,
+  ModSource,
   ModLoaderFilter,
   ModSearchResult,
   ModSearchResponse,
@@ -14,6 +15,8 @@ export type {
   ModrinthManifestFile,
   ModrinthManifest,
   CurseForgeManifestFile,
+  ModCategory,
+  CurseForgeCategory,
 } from "./types.js"
 
 export {
@@ -25,9 +28,13 @@ export {
   modrinthSearch,
   modrinthGetDetails,
   modrinthGetVersions,
-  modrinthCategories,
   modrinthGetProjectInfo,
   modrinthGetRawVersions,
+  modrinthGetFileByHash,
+  modrinthGetFilesByHash,
+  modrinthGetCategories,
+  modrinthGetLoaders,
+  modrinthGetGameVersions,
 } from "./modrinth-client.js"
 
 export {
@@ -35,8 +42,38 @@ export {
   curseforgeSearch,
   curseforgeGetDetails,
   curseforgeGetFileDownloadUrl,
-  curseforgeCategories,
   curseforgeFeatured,
   curseforgeGetDownloadUrl,
   curseforgeGetProjectInfo,
+  curseforgeGetFingerprintsMatches,
+  curseforgeGetCategories,
 } from "./curseforge-client.js"
+
+export type {
+  CurseforgeFingerprintMatch,
+  CurseforgeFingerprintsResult,
+} from "./curseforge-client.js"
+
+export {
+  ftbSearch,
+  ftbGetDetails,
+  ftbGetDetailsVersion,
+  ftbSearchModpacks,
+  ftbFeaturedModpacks,
+  ftbGetModpack,
+  ftbGetModpackVersion,
+  ftbGetModpackChangelog,
+  getFTBPath,
+} from "./ftb-client.js"
+
+export type {
+  FTBModpacksResult,
+  FTBArt,
+  FTBAuthor,
+  FTBSpecs,
+  FTBVersion,
+  FTBModpackManifest,
+  FTBFile,
+  FTBTarget,
+  FTBModpackVersionManifest,
+} from "./ftb-types.js"

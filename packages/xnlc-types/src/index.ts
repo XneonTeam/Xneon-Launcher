@@ -48,11 +48,15 @@ export type {
   ModContentType,
   ModSort,
   ModLoaderFilter,
+  ModSource,
   ModSearchResult,
   ModSearchResponse,
   ModDependency,
   ModVersion,
   ModDetails,
+  ModCategory,
+  CurseForgeCategory,
+  FTBVersionManifest,
 } from "./mod-types.js"
 
 // IPC contracts

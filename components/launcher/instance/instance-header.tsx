@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { IconPackage, IconStack2 } from "@tabler/icons-react"
+import { IconPackage, IconStack2, IconTrash } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { InstanceCreateDialog } from "./instance-create-dialog"
 import type { ViewMode } from "./types"
@@ -35,6 +35,12 @@ export function InstanceHeader({ view, setView, createOpen, setCreateOpen, onCre
           <IconStack2 className="w-3.5 h-3.5" strokeWidth={1.75} />
           {t("builds.myBuilds")}
         </button>
+        <button key="trash" type="button" onClick={() => setView("trash")}
+          className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+            view === "trash" ? "bg-red-500/20 text-red-400" : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground")}>
+          <IconTrash className="w-3.5 h-3.5" strokeWidth={1.75} />
+          Корзина
+        </button>
         <div className="w-px h-6 bg-border mx-1" />
         <button key="modrinth" type="button" onClick={() => setView("modrinth")}
           className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
@@ -49,6 +55,12 @@ export function InstanceHeader({ view, setView, createOpen, setCreateOpen, onCre
           <svg className="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
             <path fill="currentColor" d="M18.326 9.215s4.9-.773 5.674-3.027h-7.507V4.4H0l2.032 2.358v2.415s5.127-.266 7.11 1.237c2.714 2.516-3.053 5.917-3.053 5.917l-.99 3.273c1.547-1.473 4.494-3.377 9.899-3.286c-2.057.65-4.125 1.665-5.735 3.286h10.925l-1.029-3.273s-7.918-4.668-.833-7.112"/>
           </svg>CurseForge
+        </button>
+        <button key="ftb" type="button" onClick={() => setView("ftb")}
+          className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+            view === "ftb" ? "bg-sky-500/20 text-sky-400" : "bg-muted/50 text-muted-foreground")}>
+          <IconStack2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+          FTB
         </button>
         {view === "my" && (
           <InstanceCreateDialog

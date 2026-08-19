@@ -8,6 +8,7 @@ import { callbackSuccessPage, callbackErrorPage } from "../callback-page"
 import { getCloudCredentials } from "../credentials"
 import { generatePkcePair } from "../pkce"
 import { dbHelpers } from "../../../db"
+import { fetchWithRetry } from "@xnlc/core/retry"
 
 const credentials = getCloudCredentials()
 const YANDEX_CLIENT_ID = credentials.yandex.clientId
@@ -62,7 +63,7 @@ async function getValidToken(): Promise<string | null> {
 
 async function yandexFetch(url: string, token: string, init?: RequestInit): Promise<Response> {
   const headers = { Authorization: `OAuth ${token}`, ...init?.headers }
-  const res = await fetch(url, { ...init, headers })
+  const res = await fetchWithRetry(url, { ...init, headers })
   if (res.status === 401) throw new Error("Unauthorized")
   return res
 }
@@ -163,7 +164,7 @@ export class YandexDiskProvider implements CloudProvider {
     } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
   }
 
-  async uploadFile(localPath: string, remotePath: string): Promise<CloudUploadResult> {
+  async uploadFile(localPath: string, remotePath: string, onProgress?: (percent: number) => void): Promise<CloudUploadResult> {
     const token = await getValidToken()
     if (!token) return { success: false, error: "Not authenticated" }
     try {
@@ -172,8 +173,14 @@ export class YandexDiskProvider implements CloudProvider {
       const hrefRes = await yandexFetch(`${YANDEX_API}/disk/resources/upload?path=${encodeURIComponent(ydDest)}&overwrite=true`, token)
       if (!hrefRes.ok) throw new Error(`Upload URL failed: ${hrefRes.status}`)
       const hrefData = await hrefRes.json() as { href: string; method: string }
-      const fileBuffer = await fs.readFile(localPath)
-      const uploadRes = await fetch(hrefData.href, { method: hrefData.method || "PUT", body: fileBuffer })
+      const { uploadWithProgress } = await import("../upload-with-progress.js")
+      const uploadRes = await uploadWithProgress({
+        url: hrefData.href,
+        method: hrefData.method || "PUT",
+        headers: {},
+        filePath: localPath,
+        onProgress,
+      })
       if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.status}`)
       return { success: true, id: ydDest, name: fileName }
     } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }

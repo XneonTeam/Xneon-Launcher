@@ -34,12 +34,25 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     chunkSizeWarningLimit: 2000,
+    // Lazy tabs (instance, network, cloud, settings) pull heavy chunks like
+    // emoji-mart/react-markdown. Don't let the entry eagerly preload them —
+    // they should download only when the tab is opened.
+    modulePreload: false,
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return
-          const match = id.match(/node_modules\/((?:@[^/]+\/)?[^/]+)/)
-          const pkg = match?.[1] ?? ''
+
+          // Extract the real package name. pnpm store paths look like
+          // `node_modules/.pnpm/@emoji-mart+data@1.6.0/node_modules/@emoji-mart/data/...`,
+          // so we must take the segments AFTER the last `node_modules` occurrence.
+          const segments = id.split(/[\\/]/)
+          const idx = segments.lastIndexOf('node_modules')
+          if (idx < 0 || idx + 1 >= segments.length) return 'vendor'
+          let pkg = segments[idx + 1]
+          if (pkg.startsWith('@') && idx + 2 < segments.length) {
+            pkg = `${pkg}/${segments[idx + 2]}`
+          }
 
           if (pkg === 'react' || pkg === 'react-dom' || pkg === 'scheduler') return 'react'
           if (pkg.startsWith('@radix-ui/')) return 'radix'

@@ -89,7 +89,9 @@ export function formatDate(raw: string) {
 }
 
 export async function fetchVersionsFromRenderer(): Promise<MinecraftVersionOption[]> {
-  const response = await fetch(MOJANG_VERSION_MANIFEST_URL, { cache: "no-store" })
+  // force-cache lets Chromium serve the manifest from its HTTP cache instead of
+  // re-downloading it on every start when the IPC fallback path is used.
+  const response = await fetch(MOJANG_VERSION_MANIFEST_URL, { cache: "force-cache" })
   if (!response.ok) throw new Error(`Failed to fetch Mojang manifest: ${response.status}`)
   const data = await response.json() as MojangManifestResponse
   return (data.versions ?? []).map((version) => ({

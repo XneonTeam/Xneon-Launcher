@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils"
 import { APP_NAME, APP_VERSION } from "@/lib/app-meta"
-import { IconCheck, IconBrandGithub, IconBrandDiscord, IconInfoCircle, IconLanguage } from "@tabler/icons-react"
+import { IconCheck, IconBrandGithub, IconBrandDiscord, IconInfoCircle, IconLanguage, IconRotate } from "@tabler/icons-react"
 import type { Language } from "./types"
 
 const FLAG_RU = (
@@ -201,8 +201,9 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
               void window.electronAPI?.setSetting("onboardingCompleted", "false")
               window.dispatchEvent(new CustomEvent("launcher:onboarding-reset"))
             }}
-            className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
           >
+            <IconRotate className="h-4 w-4" strokeWidth={2} />
             {t("settings.about.onboarding.button")}
           </button>
         </div>

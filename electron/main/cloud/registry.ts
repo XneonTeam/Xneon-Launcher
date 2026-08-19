@@ -4,6 +4,7 @@ import { DropboxProvider } from "./providers/dropbox"
 import { YandexDiskProvider } from "./providers/yandex-disk"
 import { WebDavProvider } from "./providers/webdav"
 import { OneDriveProvider } from "./providers/onedrive"
+import { S3Provider } from "./providers/s3"
 
 const providers: Record<CloudProviderId, CloudProvider> = {
   "google-drive": new GoogleDriveProvider(),
@@ -11,6 +12,7 @@ const providers: Record<CloudProviderId, CloudProvider> = {
   "dropbox": new DropboxProvider(),
   "yandex-disk": new YandexDiskProvider(),
   "webdav": new WebDavProvider(),
+  "s3": new S3Provider(),
 }
 
 export function getProvider(id: CloudProviderId): CloudProvider {

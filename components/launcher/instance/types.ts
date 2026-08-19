@@ -1,7 +1,8 @@
-export type ViewMode = "my" | "detail" | "modrinth" | "curseforge"
+export type ViewMode = "my" | "detail" | "modrinth" | "curseforge" | "ftb" | "trash"
 export type DetailTab = "settings" | "general" | "mods" | "resourcepacks" | "shaders" | "worlds" | "screenshots" | "servers"
-export type ModSort = "relevance" | "downloads" | "popular" | "followers" | "updated" | "published"
-export type Source = "modrinth" | "curseforge"
+export type ModSort = "relevance" | "downloads" | "follows" | "newest" | "updated" | "featured" | "rating"
+export type Source = "modrinth" | "curseforge" | "ftb"
+export type SearchSource = "both" | Source
 export type ContentType = "mod" | "modpack" | "resourcepack" | "shader"
 export type ModalTab = "description" | "gallery" | "changelog" | "versions"
 
@@ -20,7 +21,7 @@ export type Build = {
   resourcepacks: BuildMod[]
   shaders: BuildMod[]
   createdAt: string
-  source: "local" | "modrinth" | "curseforge"
+  source: "local" | Source
   projectSlug?: string
   intentPath?: string
   installedMods?: Record<string, string>

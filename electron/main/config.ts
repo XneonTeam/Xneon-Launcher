@@ -22,11 +22,23 @@ export async function getXnClientSecret(): Promise<string> {
 export async function getElyClientId(): Promise<string> {
   const stored = await dbHelpers.getSetting("elyClientId")
   if (stored) return stored
-  return getCloudCredentials().elyby.clientId || "xneon-launcher-client"
+  return getCloudCredentials().elyby.clientId || "xneon-launcher5"
 }
 
 export async function getElyClientSecret(): Promise<string> {
   const stored = await dbHelpers.getSetting("elyClientSecret")
   if (stored) return stored
   return getCloudCredentials().elyby.clientSecret
+}
+
+export async function getMicrosoftClientId(): Promise<string> {
+  const stored = await dbHelpers.getSetting("microsoftClientId")
+  if (stored) return stored
+  return getCloudCredentials().microsoft.clientId
+}
+
+export async function getMicrosoftDeviceClientId(): Promise<string> {
+  const stored = await dbHelpers.getSetting("microsoftDeviceClientId")
+  if (stored) return stored
+  return getCloudCredentials().microsoftDevice.clientId
 }

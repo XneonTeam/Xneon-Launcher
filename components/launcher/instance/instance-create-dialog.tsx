@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import { IconArrowLeft, IconCamera, IconCheck, IconDownload, IconLoader2, IconPlus, IconTrash } from "@tabler/icons-react"
+import { IconArrowLeft, IconCamera, IconCheck, IconDownload, IconFolder, IconLoader2, IconPlus, IconRefresh, IconSettings, IconTrash } from "@tabler/icons-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
@@ -8,6 +8,7 @@ import { MOD_LOADERS } from "./constants"
 import { LoaderIcon } from "./loader-icon"
 import { useHomeVersions } from "@/src/hooks/use-home-versions"
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
+import type { ImportProgress } from "@xnlc/types"
 
 interface InstanceCreateDialogProps {
   open: boolean
@@ -41,6 +42,10 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
   const [selectedImportSource, setSelectedImportSource] = useState<ImportSource | null>(null)
   const [selectedImportIds, setSelectedImportIds] = useState<string[]>([])
   const [importing, setImporting] = useState(false)
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null)
+  const [customPaths, setCustomPaths] = useState<Record<ImportSource, string>>({
+    gdlauncher: "", prism: "", multimc: "", polymc: "", astralrinth: "", xlauncher: "", modrinthapp: "",
+  })
   const { versions, versionsLoaded, selectedVersion: version, setSelectedVersion: setVersion } = useHomeVersions(modLoader)
   const { loaderVersions, loaderVersionsLoaded, recommendedLoaderVersion } = useLoaderVersionOptions(modLoader, version)
   const formFileInputRef = useRef<HTMLInputElement>(null)
@@ -51,12 +56,21 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
       setSelectedImportSource(null)
       setModLoader(MOD_LOADERS[0].id)
       setLoaderVersion("")
+      setImportProgress(null)
       void window.electronAPI?.discoverImportableInstances?.().then((instances) => {
         const next = instances ?? []
       setImportableInstances(next)
       setSelectedImportIds([])
       })
     }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) { setImportProgress(null); return }
+    const off = window.electronAPI?.onImportProgress?.((progress) => {
+      setImportProgress(progress)
+    })
+    return () => { off?.() }
   }, [open])
 
   const reset = () => {
@@ -134,6 +148,20 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
     setOpen(false)
     reset()
   }
+
+  const handlePickCustomPath = useCallback(async (source: ImportSource) => {
+    const pickedPath = await window.electronAPI?.pickFolder(`Выбери папку ${sourceNames[source]}`)
+    if (!pickedPath) return
+    setCustomPaths((prev) => ({ ...prev, [source]: pickedPath }))
+    const instances = await window.electronAPI?.discoverFromPath(source, pickedPath)
+    if (instances) {
+      setImportableInstances((prev) => {
+        const withoutSource = prev.filter((item) => item.source !== source)
+        return [...withoutSource, ...instances]
+      })
+      setSelectedImportIds([])
+    }
+  }, [])
 
   return (
     <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) reset() }}>
@@ -277,6 +305,45 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                     </button>
                   </div>
 
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <IconFolder className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <input
+                        type="text"
+                        readOnly
+                        value={customPaths[selectedImportSource] || `Авто-определение`}
+                        className="w-full pl-9 pr-3 py-2 rounded-xl bg-muted/30 border border-border text-xs text-muted-foreground cursor-default"
+                        title={customPaths[selectedImportSource] || "Путь определяется автоматически"}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handlePickCustomPath(selectedImportSource)}
+                      className="flex h-[38px] shrink-0 items-center gap-1.5 px-3 rounded-xl border border-border bg-muted/30 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                    >
+                      <IconFolder className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      Обзор
+                    </button>
+                  </div>
+
+                  {importing && importProgress && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span className="truncate">{importProgress.message}</span>
+                        <span className="shrink-0 ml-2">{importProgress.total > 0 ? Math.round((importProgress.current / importProgress.total) * 100) : 0}%</span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/50">
+                        <div
+                          className="h-full rounded-full bg-primary transition-all duration-300"
+                          style={{ width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%` }}
+                        />
+                      </div>
+                      {importProgress.itemName && (
+                        <div className="text-[10px] text-muted-foreground truncate">{importProgress.itemName}</div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
                     {filteredImportableInstances.length === 0 && (
                       <div className="rounded-xl border border-dashed border-border px-4 py-6 text-sm text-center text-muted-foreground">
@@ -367,7 +434,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                           key={source}
                           type="button"
                           onClick={() => setSelectedImportSource(source)}
-                          className="flex min-h-[112px] items-center justify-center rounded-2xl border border-border bg-muted/20 p-2.5 text-center transition-colors hover:border-primary/40 hover:bg-muted/30"
+                          className="flex min-h-[112px] w-full items-center justify-center rounded-2xl border border-border bg-muted/20 p-2.5 text-center transition-colors hover:border-primary/40 hover:bg-muted/30"
                         >
                           <div className="flex flex-col items-center justify-center gap-2.5">
                             <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-border bg-background">

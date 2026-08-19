@@ -5,6 +5,8 @@ export type CloudCredentials = {
   onedrive: { clientId: string }
   elyby: { clientId: string; clientSecret: string }
   xnskins: { clientId: string; clientSecret: string }
+  microsoft: { clientId: string }
+  microsoftDevice: { clientId: string }
 }
 
 const EMPTY: CloudCredentials = {
@@ -14,6 +16,8 @@ const EMPTY: CloudCredentials = {
   onedrive: { clientId: "" },
   elyby: { clientId: "", clientSecret: "" },
   xnskins: { clientId: "", clientSecret: "" },
+  microsoft: { clientId: "" },
+  microsoftDevice: { clientId: "" },
 }
 
 let cached: CloudCredentials | null = null

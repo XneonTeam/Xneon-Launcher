@@ -17,7 +17,8 @@ type GdLauncherInstanceJson = {
   }
 }
 
-function getGdLauncherInstancesDir() {
+function getGdLauncherInstancesDir(customPath?: string) {
+  if (customPath) return customPath
   const home = app.getPath("home")
   if (process.platform === "win32") {
     const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming")
@@ -70,8 +71,8 @@ async function readGdLauncherInstance(instanceDir: string): Promise<LauncherInst
   }
 }
 
-export async function discoverGdLauncherInstances(): Promise<LauncherInstance[]> {
-  const instancesDir = getGdLauncherInstancesDir()
+export async function discoverGdLauncherInstances(customPath?: string): Promise<LauncherInstance[]> {
+  const instancesDir = getGdLauncherInstancesDir(customPath)
   if (!(await fileExists(instancesDir))) return []
 
   let entries

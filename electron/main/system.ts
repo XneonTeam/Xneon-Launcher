@@ -4,8 +4,9 @@ import path from "path"
 import fs from "fs/promises"
 import { dbHelpers, isUsingFallbackStorage } from "../db"
 import { getMainWindow } from "./runtime"
-import { discoverAllInstances, discoverGdLauncherInstances, importLauncherInstance } from "./import"
+import { discoverAllInstances, discoverGdLauncherInstances, discoverInstancesFromPath, importLauncherInstance } from "./import"
 import { execAsync, fileExists } from "./import/helpers"
+import { fetchWithRetry } from "@xnlc/core/retry"
 
 const MOJANG_BASE = "https://launchercontent.mojang.com"
 
@@ -105,7 +106,7 @@ export function registerSystemHandlers() {
 
   ipcMain.handle("fetch:minecraft-news", async () => {
     try {
-      const res = await fetch(`${MOJANG_BASE}/v2/news.json`)
+      const res = await fetchWithRetry(`${MOJANG_BASE}/v2/news.json`, undefined, { retries: 2 })
       const data = await res.json() as { entries?: Record<string, unknown>[] }
       const entries = data.entries ?? []
       return entries.map(e => ({
@@ -126,6 +127,9 @@ export function registerSystemHandlers() {
   ipcMain.handle("db:save-builds", async (_event, builds) => dbHelpers.saveAllBuilds(builds))
   ipcMain.handle("db:is-fallback-storage", async () => ({ isFallback: isUsingFallbackStorage() }))
   ipcMain.handle("launcher:discover-importable-instances", async () => discoverAllInstances())
+  ipcMain.handle("launcher:discover-from-path", async (_event, source: string, customPath: string) => {
+    return discoverInstancesFromPath(source as any, customPath)
+  })
   ipcMain.handle("launcher:import-gdlauncher-instances", async (_event, ids: string[]) => {
     const selectedIds = Array.isArray(ids) ? new Set(ids) : new Set<string>()
     const sourceInstances = (await discoverGdLauncherInstances()).filter((entry) => selectedIds.has(entry.id))
@@ -287,11 +291,11 @@ export function registerSystemHandlers() {
 
   ipcMain.handle("logs:share-to-mclogs", async (_event, content: string): Promise<{ success: boolean; url?: string; error?: string }> => {
     try {
-      const res = await fetch("https://api.mclo.gs/1/log", {
+      const res = await fetchWithRetry("https://api.mclo.gs/1/log", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content, source: "Xneon Launcher" }),
-      })
+      }, { retries: 2 })
       if (!res.ok) return { success: false, error: `HTTP ${res.status}` }
       const data = await res.json() as { success: boolean; url?: string; error?: string }
       if (!data.success) return { success: false, error: data.error ?? "Ошибка mclo.gs" }

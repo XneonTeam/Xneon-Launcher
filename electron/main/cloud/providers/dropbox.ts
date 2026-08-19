@@ -8,6 +8,7 @@ import { callbackSuccessPage, callbackErrorPage } from "../callback-page"
 import { getCloudCredentials } from "../credentials"
 import { generatePkcePair } from "../pkce"
 import { dbHelpers } from "../../../db"
+import { fetchWithRetry } from "@xnlc/core/retry"
 
 const credentials = getCloudCredentials()
 const DBX_CLIENT_ID = credentials.dropbox.clientId
@@ -38,7 +39,7 @@ async function getAccessToken(): Promise<string | null> {
 
 async function dbxFetch(url: string, token: string, init?: RequestInit): Promise<Response> {
   const headers = { Authorization: `Bearer ${token}`, ...init?.headers }
-  return fetch(url, { ...init, headers })
+  return fetchWithRetry(url, { ...init, headers })
 }
 
 async function ensureFolderOnDropbox(token: string, folderPath: string): Promise<void> {
@@ -134,24 +135,27 @@ export class DropboxProvider implements CloudProvider {
     } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
   }
 
-  async uploadFile(localPath: string, remotePath: string): Promise<CloudUploadResult> {
+  async uploadFile(localPath: string, remotePath: string, onProgress?: (percent: number) => void): Promise<CloudUploadResult> {
     const token = await getAccessToken()
     if (!token) return { success: false, error: "Not authenticated" }
     try {
       const fileName = path.basename(localPath)
       const dirParts = remotePath.split("/").slice(0, -1).filter(Boolean)
       const dbxDest = `${BASE_FOLDER}/${dirParts.join("/")}/${fileName}`
-      const fileBuffer = await fs.readFile(localPath)
-      const res = await dbxFetch("https://content.dropboxapi.com/2/files/upload", token, {
+      const { uploadWithProgress } = await import("../upload-with-progress.js")
+      const res = await uploadWithProgress({
+        url: "https://content.dropboxapi.com/2/files/upload",
         method: "POST",
         headers: {
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/octet-stream",
           "Dropbox-API-Arg": JSON.stringify({ path: dbxDest, mode: "overwrite", autorename: false }),
         },
-        body: fileBuffer,
+        filePath: localPath,
+        onProgress,
       })
       if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
-      const created = await res.json() as { id: string; name: string; path_display: string }
+      const created = res.json as { id: string; name: string; path_display: string }
       return { success: true, id: created.id, name: created.name }
     } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
   }

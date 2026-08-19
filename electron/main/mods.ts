@@ -58,11 +58,11 @@ export function registerModsHandlers(): void {
       modLoader?: ModLoaderFilter,
       sortBy?: ModSort,
       page?: number,
-      category?: string,
+      categories?: string[],
     ): Promise<ModSearchResponse> => {
       try {
         const mods = await loadModsModule()
-        return await mods.modrinthSearch(query, { contentType: contentType ?? "mod", gameVersion, modLoader, category, sortBy, page }) as ModSearchResponse
+        return await mods.modrinthSearch(query, { contentType: contentType ?? "mod", gameVersion, modLoader, categories, sortBy, page }) as ModSearchResponse
       } catch (err) {
         console.error("Modrinth search error:", err)
         return { results: [], totalCount: 0 }
@@ -86,14 +86,6 @@ export function registerModsHandlers(): void {
     },
   )
 
-  ipcMain.handle(
-    "mods:modrinth-categories",
-    async (_event, contentType?: ContentType): Promise<Array<{ slug: string; name: string }>> => {
-      const mods = await loadModsModule()
-      return await mods.modrinthCategories({ contentType })
-    },
-  )
-
   // ── CurseForge ────────────────────────────────────────────
   ipcMain.handle(
     "mods:curseforge-search",
@@ -105,11 +97,11 @@ export function registerModsHandlers(): void {
       modLoader?: string,
       sortBy?: ModSort,
       page?: number,
-      category?: string,
+      categories?: string[],
     ): Promise<ModSearchResponse> => {
       try {
         const mods = await loadModsModule()
-        return await mods.curseforgeSearch(query, { contentType: contentType ?? "mod", gameVersion, modLoader, category, sortBy, page }) as ModSearchResponse
+        return await mods.curseforgeSearch(query, { contentType: contentType ?? "mod", gameVersion, modLoader, categories, sortBy, page }) as ModSearchResponse
       } catch (err) {
         console.error("CF search error:", err)
         return { results: [], totalCount: 0 }
@@ -134,14 +126,6 @@ export function registerModsHandlers(): void {
   )
 
   ipcMain.handle(
-    "mods:curseforge-categories",
-    async (_event, contentType?: ContentType): Promise<Array<{ id: number; slug: string; name: string }>> => {
-      const mods = await loadModsModule()
-      return await mods.curseforgeCategories(contentType)
-    },
-  )
-
-  ipcMain.handle(
     "mods:curseforge-featured",
     async (
       _event,
@@ -149,6 +133,58 @@ export function registerModsHandlers(): void {
     ): Promise<{ popular: ModSearchResponse["results"]; trending: ModSearchResponse["results"] }> => {
       const mods = await loadModsModule()
       return await mods.curseforgeFeatured(gameVersion) as { popular: ModSearchResponse["results"]; trending: ModSearchResponse["results"] }
+    },
+  )
+
+  // ── FTB (Feed The Beast) ──────────────────────────────────
+  ipcMain.handle(
+    "mods:ftb-search",
+    async (event, query: string, page?: number): Promise<ModSearchResponse> => {
+      try {
+        const mods = await loadModsModule()
+        return await mods.ftbSearch(query, { page: page ?? 0 }) as ModSearchResponse
+      } catch (err) {
+        console.error("FTB search error:", err)
+        return { results: [], totalCount: 0 }
+      }
+    },
+  )
+
+  ipcMain.handle(
+    "mods:ftb-details",
+    async (event, id: number): Promise<ModDetails | null> => {
+      try {
+        const mods = await loadModsModule()
+        return await mods.ftbGetDetails(id) as ModDetails | null
+      } catch (err) {
+        console.error("FTB details error:", err)
+        return null
+      }
+    },
+  )
+
+  ipcMain.handle(
+    "mods:ftb-version",
+    async (event, id: number, versionId: number): Promise<unknown | null> => {
+      try {
+        const mods = await loadModsModule()
+        return await mods.ftbGetModpackVersion(id, versionId)
+      } catch (err) {
+        console.error("FTB version error:", err)
+        return null
+      }
+    },
+  )
+
+  ipcMain.handle(
+    "mods:ftb-changelog",
+    async (event, id: number, versionId: number): Promise<string> => {
+      try {
+        const mods = await loadModsModule()
+        return await mods.ftbGetModpackChangelog(id, versionId)
+      } catch {
+        return ""
+      }
     },
   )
 
@@ -181,4 +217,47 @@ export function registerModsHandlers(): void {
       }
     },
   )
+
+  // ── Categories & Tags ────────────────────────────────────
+  ipcMain.handle("mods:modrinth-categories", async (): Promise<any[]> => {
+    try {
+      const mods = await loadModsModule()
+      const cats = await mods.modrinthGetCategories()
+      console.log(`[mods] Loaded ${cats.length} Modrinth categories`)
+      return cats
+    } catch (err) {
+      console.error("[mods] Failed to load Modrinth categories:", err)
+      return []
+    }
+  })
+
+  ipcMain.handle("mods:curseforge-categories", async (): Promise<any[]> => {
+    try {
+      const mods = await loadModsModule()
+      const cats = await mods.curseforgeGetCategories()
+      console.log(`[mods] Loaded ${cats.length} CurseForge categories`)
+      return cats
+    } catch (err) {
+      console.error("[mods] Failed to load CurseForge categories:", err)
+      return []
+    }
+  })
+
+  ipcMain.handle("mods:modrinth-loaders", async (): Promise<string[]> => {
+    try {
+      const mods = await loadModsModule()
+      return await mods.modrinthGetLoaders()
+    } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle("mods:modrinth-game-versions", async (): Promise<string[]> => {
+    try {
+      const mods = await loadModsModule()
+      return await mods.modrinthGetGameVersions()
+    } catch {
+      return []
+    }
+  })
 }

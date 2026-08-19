@@ -248,10 +248,50 @@ function initializeSchema() {
     )
   `)
 
+  run(`
+    CREATE TABLE IF NOT EXISTS resources (
+      sha1 TEXT PRIMARY KEY,
+      name TEXT NOT NULL DEFAULT '',
+      version TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      icon TEXT NOT NULL DEFAULT '',
+      author TEXT NOT NULL DEFAULT '',
+      source TEXT NOT NULL DEFAULT 'local',
+      projectId TEXT,
+      versionId TEXT,
+      modId INTEGER,
+      fileId INTEGER,
+      cfChecked INTEGER NOT NULL DEFAULT 0,
+      updatedAt INTEGER NOT NULL DEFAULT 0
+    )
+  `)
+
+  run(`
+    CREATE TABLE IF NOT EXISTS file_snapshots (
+      path TEXT PRIMARY KEY,
+      size INTEGER NOT NULL DEFAULT 0,
+      mtime INTEGER NOT NULL DEFAULT 0,
+      sha1 TEXT NOT NULL DEFAULT ''
+    )
+  `)
+
   const accountColumns = queryAll<{ name: string }>("PRAGMA table_info(accounts)")
 
   if (Array.isArray(accountColumns) && !accountColumns.some((column) => column.name === "refreshToken")) {
     run("ALTER TABLE accounts ADD COLUMN refreshToken TEXT")
+  }
+
+  const resourceColumns = queryAll<{ name: string }>("PRAGMA table_info(resources)")
+
+  if (Array.isArray(resourceColumns)) {
+    const addColumn = (column: string, ddl: string) => {
+      if (!resourceColumns.some((entry) => entry.name === column)) {
+        run(`ALTER TABLE resources ADD COLUMN ${ddl}`)
+      }
+    }
+    addColumn("modId", "modId INTEGER")
+    addColumn("fileId", "fileId INTEGER")
+    addColumn("cfChecked", "cfChecked INTEGER NOT NULL DEFAULT 0")
   }
 
   if (Array.isArray(accountColumns) && !accountColumns.some((column) => column.name === "clientId")) {
@@ -538,6 +578,29 @@ type BuildRow = {
   group: string | null
 }
 
+type ResourceRow = {
+  sha1: string
+  name: string
+  version: string
+  description: string
+  icon: string
+  author: string
+  source: string
+  projectId: string | null
+  versionId: string | null
+  modId: number | null
+  fileId: number | null
+  cfChecked: number
+  updatedAt: number
+}
+
+type FileSnapshotRow = {
+  path: string
+  size: number
+  mtime: number
+  sha1: string
+}
+
 export async function loadBuilds(): Promise<BuildJson[]> {
   if (!dbAvailable) {
     return Array.from(inMemoryBuilds.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -720,6 +783,43 @@ export const dbHelpers = {
     if (!dbAvailable) return
 
     run("DELETE FROM cloud_configs WHERE provider = ?", [provider])
+    persistDatabase()
+  },
+  getResources: async (sha1s: string[]): Promise<ResourceRow[]> => {
+    if (!dbAvailable || sha1s.length === 0) return []
+    const placeholders = sha1s.map(() => "?").join(",")
+    return queryAll<ResourceRow>(`SELECT * FROM resources WHERE sha1 IN (${placeholders})`, sha1s)
+  },
+  upsertResource: async (resource: Omit<ResourceRow, "updatedAt">): Promise<void> => {
+    if (!dbAvailable) return
+    run(`
+      INSERT OR REPLACE INTO resources (sha1, name, version, description, icon, author, source, projectId, versionId, modId, fileId, cfChecked, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [resource.sha1, resource.name, resource.version, resource.description, resource.icon, resource.author, resource.source, resource.projectId, resource.versionId, resource.modId, resource.fileId, resource.cfChecked ?? 0, Date.now()])
+    persistDatabase()
+  },
+  setResourceCurseforge: async (sha1: string, modId: number, fileId: number): Promise<void> => {
+    if (!dbAvailable) return
+    run("UPDATE resources SET modId = ?, fileId = ?, cfChecked = 1, updatedAt = ? WHERE sha1 = ?", [modId, fileId, Date.now(), sha1])
+    persistDatabase()
+  },
+  markResourcesCurseforgeChecked: async (sha1s: string[]): Promise<void> => {
+    if (!dbAvailable || sha1s.length === 0) return
+    const placeholders = sha1s.map(() => "?").join(",")
+    run(`UPDATE resources SET cfChecked = 1, updatedAt = ? WHERE modId IS NULL AND sha1 IN (${placeholders})`, [Date.now(), ...sha1s])
+    persistDatabase()
+  },
+  getFileSnapshots: async (paths: string[]): Promise<FileSnapshotRow[]> => {
+    if (!dbAvailable || paths.length === 0) return []
+    const placeholders = paths.map(() => "?").join(",")
+    return queryAll<FileSnapshotRow>(`SELECT * FROM file_snapshots WHERE path IN (${placeholders})`, paths)
+  },
+  upsertFileSnapshot: async (snapshot: FileSnapshotRow): Promise<void> => {
+    if (!dbAvailable) return
+    run(`
+      INSERT OR REPLACE INTO file_snapshots (path, size, mtime, sha1)
+      VALUES (?, ?, ?, ?)
+    `, [snapshot.path, snapshot.size, snapshot.mtime, snapshot.sha1])
     persistDatabase()
   },
 }

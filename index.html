@@ -6,6 +6,66 @@
     <title>Xneon Launcher</title>
   </head>
   <body class="h-full">
+    <script>
+      ;(function(){
+        var themes = {
+          orange:  { bg:"0.08 0.01 260", primary:"0.65 0.22 40",  accent:"0.75 0.18 75",  hex:"#f97316", hex2:"#fbbf24" },
+          neon:    { bg:"0.10 0.02 270", primary:"0.52 0.27 300", accent:"0.62 0.3 310",  hex:"#9C27B0", hex2:"#E040FB" },
+          fire:    { bg:"0.11 0.02 30",  primary:"0.58 0.24 25",  accent:"0.72 0.19 55",  hex:"#F44336", hex2:"#FF9800" },
+          minecraft:{ bg:"0.12 0.01 260", primary:"0.65 0.2 145",  accent:"0.72 0.18 130", hex:"#4CAF50", hex2:"#8BC34A" },
+          ocean:   { bg:"0.09 0.015 250",primary:"0.62 0.18 245", accent:"0.80 0.12 240", hex:"#4A8FE7", hex2:"#80CAFF" },
+          gold:    { bg:"0.12 0.02 80",  primary:"0.80 0.17 85",  accent:"0.72 0.19 55",  hex:"#FFC107", hex2:"#FF9800" },
+          rose:    { bg:"0.11 0.02 340", primary:"0.55 0.27 355", accent:"0.65 0.28 350", hex:"#E91E63", hex2:"#FF4081" },
+          arctic:  { bg:"0.09 0.01 240", primary:"0.58 0.04 230", accent:"0.78 0.02 230", hex:"#78909C", hex2:"#B0BEC5" }
+        }
+        var id = localStorage.getItem("theme") || "orange"
+        var t = themes[id] || themes.orange
+        var r = document.documentElement.style
+        r.setProperty("--background", "oklch(" + t.bg + ")")
+        r.setProperty("--primary",    "oklch(" + t.primary + ")")
+        r.setProperty("--accent",     "oklch(" + t.accent + ")")
+        r.setProperty("--border",     "oklch(0.17 0.01 260)")
+        r.setProperty("--splash-hex", t.hex)
+        r.setProperty("--splash-hex2",t.hex2)
+        r.setProperty("--splash-glow","oklch(" + t.primary + " / 0.4)")
+        r.setProperty("--splash-glow2","oklch(" + t.primary + " / 0.12)")
+        r.setProperty("--splash-glow3","oklch(" + t.primary + " / 0.06)")
+      })()
+    </script>
+    <div id="splash">
+      <style>
+        #splash{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;background:var(--background);color:var(--foreground);font-family:'Plus Jakarta Sans',system-ui,sans-serif;overflow:hidden}
+        #splash::before{content:'';position:absolute;top:-140px;left:50%;transform:translateX(-50%);width:480px;height:480px;border-radius:50%;background:radial-gradient(circle,var(--splash-glow2) 0%,transparent 70%);pointer-events:none}
+        #splash::after{content:'';position:absolute;bottom:-100px;right:-60px;width:320px;height:320px;border-radius:50%;background:radial-gradient(circle,var(--splash-glow3) 0%,transparent 70%);pointer-events:none}
+        #splash .logo-wrap{position:relative;display:flex;align-items:center;justify-content:center;width:176px;height:176px}
+        #splash .logo-wrap svg{width:144px;height:144px;overflow:visible}
+        #splash .logo-wrap #stroke-path{fill:none;stroke:var(--splash-hex);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 12px var(--splash-glow));animation:draw 2.4s ease-in-out forwards}
+        #splash .logo-wrap #fill-path{fill:var(--splash-hex);opacity:0;filter:drop-shadow(0 0 20px var(--splash-glow)) drop-shadow(0 0 40px var(--splash-glow2));animation:reveal .6s ease-out forwards;animation-delay:2.2s}
+        @keyframes draw{to{stroke-dashoffset:0}}
+        @keyframes reveal{to{opacity:1}}
+        #splash .title{font-size:30px;font-weight:700;letter-spacing:.3px;background:linear-gradient(135deg,var(--splash-hex) 0%,var(--splash-hex2) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;opacity:0;animation:fadeUp .6s ease-out forwards;animation-delay:2.4s}
+        #splash .bar-track{width:400px;height:6px;border-radius:3px;background:var(--border);overflow:hidden;opacity:0;animation:fadeUp .6s ease-out forwards;animation-delay:2.6s}
+        #splash .bar-fill{width:40%;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--splash-hex),var(--splash-hex2));animation:splash-slide 1.4s ease-in-out infinite}
+        @keyframes splash-slide{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}
+        #splash .hint{font-size:22px;color:oklch(0.45 0 0);letter-spacing:.2px;opacity:0;animation:fadeUp .6s ease-out forwards;animation-delay:2.8s}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+      </style>
+      <div class="logo-wrap">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+          <path id="fill-path" d="M 121.270 53.270 L 93 81.539 93 86.387 C 93 90.685, 93.440 91.676, 96.882 95.118 C 100.594 98.829, 102.357 99.451, 108 99.039 C 109.813 98.907, 117.168 92.210, 134.750 74.686 L 159 50.515 159 88.493 L 159 126.471 146.236 113.736 L 133.472 101 126.244 101 L 119.016 101 111.008 108.754 L 103 116.508 103 126.876 C 103 138.904, 103.732 138.905, 92.871 126.857 L 85.778 118.988 89.363 115.019 C 93.760 110.153, 94.655 106.955, 92.869 102.487 C 92.037 100.404, 80.782 88.072, 64.162 71.030 L 36.823 43 19.709 43 L 2.595 43 16.024 56.750 C 35.123 76.307, 55.993 97.939, 59.465 101.779 L 62.430 105.058 33.215 134.285 C 17.147 150.360, 4 163.847, 4 164.256 C 4 164.665, 11.982 165, 21.739 165 L 39.477 165 55.296 149.250 L 71.114 133.500 86.307 149.285 L 101.500 165.071 109.827 165.035 C 117.581 165.002, 118.346 164.808, 120.939 162.215 C 123.315 159.838, 123.831 158.300, 124.445 151.746 C 124.841 147.520, 124.845 139.549, 124.454 134.031 C 124.062 128.514, 123.997 124, 124.308 124 C 124.619 124, 133.974 133.225, 145.097 144.500 L 165.320 165 171.144 165 C 176.166 165, 177.418 164.598, 180.234 162.083 L 183.500 159.165 183.774 103.301 L 184.048 47.437 172.678 36.218 L 161.307 25 155.423 25 L 149.539 25 121.270 53.270" fill-rule="evenodd"/>
+          <path id="stroke-path" d="M 121.270 53.270 L 93 81.539 93 86.387 C 93 90.685, 93.440 91.676, 96.882 95.118 C 100.594 98.829, 102.357 99.451, 108 99.039 C 109.813 98.907, 117.168 92.210, 134.750 74.686 L 159 50.515 159 88.493 L 159 126.471 146.236 113.736 L 133.472 101 126.244 101 L 119.016 101 111.008 108.754 L 103 116.508 103 126.876 C 103 138.904, 103.732 138.905, 92.871 126.857 L 85.778 118.988 89.363 115.019 C 93.760 110.153, 94.655 106.955, 92.869 102.487 C 92.037 100.404, 80.782 88.072, 64.162 71.030 L 36.823 43 19.709 43 L 2.595 43 16.024 56.750 C 35.123 76.307, 55.993 97.939, 59.465 101.779 L 62.430 105.058 33.215 134.285 C 17.147 150.360, 4 163.847, 4 164.256 C 4 164.665, 11.982 165, 21.739 165 L 39.477 165 55.296 149.250 L 71.114 133.500 86.307 149.285 L 101.500 165.071 109.827 165.035 C 117.581 165.002, 118.346 164.808, 120.939 162.215 C 123.315 159.838, 123.831 158.300, 124.445 151.746 C 124.841 147.520, 124.845 139.549, 124.454 134.031 C 124.062 128.514, 123.997 124, 124.308 124 C 124.619 124, 133.974 133.225, 145.097 144.500 L 165.320 165 171.144 165 C 176.166 165, 177.418 164.598, 180.234 162.083 L 183.500 159.165 183.774 103.301 L 184.048 47.437 172.678 36.218 L 161.307 25 155.423 25 L 149.539 25 121.270 53.270" fill-rule="evenodd"/>
+        </svg>
+      </div>
+      <div class="title">Xneon Launcher</div>
+      <div class="bar-track"><div class="bar-fill"></div></div>
+      <div class="hint">Загрузка...</div>
+      <script>
+        var s=document.getElementById('stroke-path');
+        var l=s.getTotalLength();
+        s.style.strokeDasharray=l;
+        s.style.strokeDashoffset=l;
+      </script>
+    </div>
     <div id="root" class="h-full"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

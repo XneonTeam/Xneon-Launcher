@@ -8,10 +8,52 @@ import { MojangVersionManifest, MojangVersionEntry, VersionJson } from "../types
 import { URLS } from "../constants/urls.js";
 import type { LoaderMetaClient } from "./loader-meta-client.js";
 import { getLoaderMetaClient } from "./loader-meta-client-singleton.js";
+import { withRetry } from "../retry.js";
+import * as path from "path";
+import * as fs from "fs/promises";
 
 declare const fetch: typeof globalThis.fetch;
 
 const VERSION_MANIFEST_V2_URL = URLS.official.mojang.versionManifestV2;
+
+// Disk TTL cache for the version manifest, so the full Mojang manifest isn't
+// re-downloaded on every app start. Directory is provided by the host app via
+// the XNLC_META_CACHE_DIR env var (set by the Electron main process).
+const MANIFEST_TTL_MS = 24 * 60 * 60 * 1000;
+
+function getManifestCacheFile(): string | null {
+  const dir = process.env.XNLC_META_CACHE_DIR;
+  if (!dir) return null;
+  return path.join(dir, "version_manifest_v2.json");
+}
+
+async function persistManifest(data: MojangVersionManifest): Promise<void> {
+  const file = getManifestCacheFile();
+  if (!file) return;
+  try {
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, JSON.stringify(data), "utf-8");
+  } catch {
+    // ignore cache write failures
+  }
+}
+
+interface CachedManifest {
+  data: MojangVersionManifest;
+  fresh: boolean;
+}
+
+async function loadCachedManifest(): Promise<CachedManifest | null> {
+  const file = getManifestCacheFile();
+  if (!file) return null;
+  try {
+    const stat = await fs.stat(file);
+    const data = JSON.parse(await fs.readFile(file, "utf-8")) as MojangVersionManifest;
+    return { data, fresh: Date.now() - stat.mtimeMs <= MANIFEST_TTL_MS };
+  } catch {
+    return null;
+  }
+}
 
 export class MetaClient {
   private cache: Map<string, VersionJson> = new Map();
@@ -25,14 +67,32 @@ export class MetaClient {
   async fetchManifest(): Promise<MojangVersionManifest> {
     if (this.manifestCache) return this.manifestCache;
 
-    const res = await fetch(VERSION_MANIFEST_V2_URL);
-    if (!res.ok) {
-      throw new Error(`Failed to fetch version manifest: ${res.status} ${res.statusText}`);
+    const cached = await loadCachedManifest();
+    if (cached?.fresh) {
+      this.manifestCache = cached.data;
+      return cached.data;
     }
 
-    const data = (await res.json()) as MojangVersionManifest;
-    this.manifestCache = data;
-    return data;
+    try {
+      const res = await withRetry(async () => fetch(VERSION_MANIFEST_V2_URL));
+      if (!res.ok) {
+        throw new Error(`Failed to fetch version manifest: ${res.status} ${res.statusText}`);
+      }
+
+      const data = (await res.json()) as MojangVersionManifest;
+      this.manifestCache = data;
+      await persistManifest(data);
+      return data;
+    } catch (err) {
+      // Network is unavailable but we have an older cached manifest — use it
+      // as a fallback so installed versions can still be shown and launched offline.
+      if (cached?.data) {
+        console.warn("[MetaClient] Network unavailable — using stale cached version manifest");
+        this.manifestCache = cached.data;
+        return cached.data;
+      }
+      throw err;
+    }
   }
 
   async getVersionEntry(versionId: string): Promise<MojangVersionEntry | undefined> {
@@ -45,17 +105,34 @@ export class MetaClient {
       return this.cache.get(versionId)!;
     }
 
+    const installedJson = await this.readInstalledVersionJson(versionId);
+    if (installedJson) {
+      this.cache.set(versionId, installedJson);
+      return installedJson;
+    }
+
     const entry = await this.getVersionEntry(versionId);
     if (!entry) {
       throw new Error(`Version "${versionId}" not found in manifest`);
     }
 
-    const res = await fetch(entry.url);
-    if (!res.ok) {
-      throw new Error(`Failed to fetch version JSON for "${versionId}": ${res.status} ${res.statusText}`);
+    let data: VersionJson;
+    try {
+      const res = await withRetry(async () => fetch(entry.url));
+      if (!res.ok) {
+        throw new Error(`Failed to fetch version JSON for "${versionId}": ${res.status} ${res.statusText}`);
+      }
+      data = (await res.json()) as VersionJson;
+    } catch (err) {
+      // Offline: fall back to the locally installed version JSON, if present,
+      // so already-downloaded versions can still be launched without a network.
+      const fallback = await this.readInstalledVersionJson(versionId);
+      if (fallback) {
+        this.cache.set(versionId, fallback);
+        return fallback;
+      }
+      throw err;
     }
-
-    let data = (await res.json()) as VersionJson;
 
     // Try to enrich version data with loader meta for better stability
     try {
@@ -131,6 +208,17 @@ export class MetaClient {
   async getLatestSnapshot(): Promise<string> {
     const manifest = await this.fetchManifest();
     return manifest.latest.snapshot;
+  }
+
+  private async readInstalledVersionJson(versionId: string): Promise<VersionJson | null> {
+    const root = process.env.XNLC_GAME_DIR;
+    if (!root) return null;
+    const file = path.join(root, "versions", versionId, `${versionId}.json`);
+    try {
+      return JSON.parse(await fs.readFile(file, "utf-8")) as VersionJson;
+    } catch {
+      return null;
+    }
   }
 
   async getVersionsByType(type: string): Promise<MojangVersionEntry[]> {

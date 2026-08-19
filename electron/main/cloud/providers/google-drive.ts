@@ -1,5 +1,7 @@
 import { BrowserWindow, shell } from "electron"
 import http from "http"
+import https from "https"
+import { createReadStream } from "fs"
 import { URL } from "url"
 import fs from "fs/promises"
 import path from "path"
@@ -8,6 +10,7 @@ import { callbackSuccessPage, callbackErrorPage } from "../callback-page"
 import { getCloudCredentials } from "../credentials"
 import { generatePkcePair } from "../pkce"
 import { dbHelpers } from "../../../db"
+import { fetchWithRetry } from "@xnlc/core/retry"
 
 const credentials = getCloudCredentials()
 const GOOGLE_CLIENT_ID = credentials.googleDrive.clientId
@@ -85,7 +88,7 @@ async function getValidToken(): Promise<string | null> {
 
 async function googleFetch(url: string, token: string, init?: RequestInit): Promise<Response> {
   const headers = { Authorization: `Bearer ${token}`, ...init?.headers }
-  const res = await fetch(url, { ...init, headers })
+  const res = await fetchWithRetry(url, { ...init, headers })
   if (res.status === 401) throw new Error("Unauthorized")
   return res
 }
@@ -263,11 +266,11 @@ export class GoogleDriveProvider implements CloudProvider {
     }
   }
 
-  async uploadFile(localPath: string, remotePath: string): Promise<CloudUploadResult> {
+  async uploadFile(localPath: string, remotePath: string, onProgress?: (percent: number) => void): Promise<CloudUploadResult> {
     const token = await getValidToken()
     if (!token) return { success: false, error: "Not authenticated" }
     try {
-      const fileBuffer = await fs.readFile(localPath)
+      const fileStats = await fs.stat(localPath)
       const fileName = path.basename(localPath)
       const dirParts = remotePath.split("/").slice(0, -1).filter(Boolean)
       const baseId = await findOrCreateBaseFolder(token)
@@ -277,17 +280,44 @@ export class GoogleDriveProvider implements CloudProvider {
       }
       const metadata = { name: fileName, parents: [parentId] }
       const boundary = `----XneonBoundary${Date.now()}`
-      const parts: (string | Buffer)[] = []
-      parts.push(Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`))
-      parts.push(Buffer.from(`--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n`))
-      parts.push(fileBuffer)
-      parts.push(Buffer.from(`\r\n--${boundary}--\r\n`))
-      const body = Buffer.concat(parts.map(p => typeof p === "string" ? Buffer.from(p) : p))
+      const prefix = Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n`)
+      const suffix = Buffer.from(`\r\n--${boundary}--\r\n`)
+      const totalBytes = prefix.length + fileStats.size + suffix.length
 
-      const res = await fetch(`${GOOGLE_UPLOAD_API}/files?uploadType=multipart&fields=id,name`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": `multipart/related; boundary=${boundary}`, "Content-Length": String(body.length) },
-        body,
+      let sentBytes = 0
+      const reportProgress = (chunkBytes: number) => {
+        sentBytes += chunkBytes
+        if (onProgress && totalBytes > 0) {
+          onProgress(Math.min(100, Math.round((sentBytes / totalBytes) * 100)))
+        }
+      }
+
+      const res = await new Promise<Response>((resolve, reject) => {
+        const request = https.request(new URL(`${GOOGLE_UPLOAD_API}/files?uploadType=multipart&fields=id,name`), {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": `multipart/related; boundary=${boundary}`,
+            "Content-Length": String(totalBytes),
+          },
+        }, (response) => {
+          const chunks: Buffer[] = []
+          response.on("data", (c: Buffer) => chunks.push(c))
+          response.on("end", () => resolve(new Response(Buffer.concat(chunks).toString("utf-8"), {
+            status: response.statusCode ?? 500,
+            headers: { "content-type": response.headers["content-type"] ?? "" },
+          })))
+        })
+        request.on("error", reject)
+        reportProgress(prefix.length)
+        request.write(prefix)
+        const stream = createReadStream(localPath)
+        stream.on("data", (c: Buffer) => reportProgress(c.length))
+        stream.on("error", (err) => { request.destroy(err); reject(err) })
+        stream.on("end", () => {
+          request.end(suffix)
+        })
+        stream.pipe(request, { end: false })
       })
       if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
       const created = await res.json() as { id: string; name: string }
