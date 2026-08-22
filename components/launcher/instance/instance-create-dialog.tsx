@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils"
 import { MOD_LOADERS } from "./constants"
 import { LoaderIcon } from "./loader-icon"
+import { IconPickerModal } from "./icon-picker-modal"
 import { useHomeVersions } from "@/src/hooks/use-home-versions"
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
 import type { ImportProgress } from "@xnlc/types"
@@ -46,6 +47,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
   const [customPaths, setCustomPaths] = useState<Record<ImportSource, string>>({
     gdlauncher: "", prism: "", multimc: "", polymc: "", astralrinth: "", xlauncher: "", modrinthapp: "",
   })
+  const [showIconPicker, setShowIconPicker] = useState(false)
   const { versions, versionsLoaded, selectedVersion: version, setSelectedVersion: setVersion } = useHomeVersions(modLoader)
   const { loaderVersions, loaderVersionsLoaded, recommendedLoaderVersion } = useLoaderVersionOptions(modLoader, version)
   const formFileInputRef = useRef<HTMLInputElement>(null)
@@ -97,7 +99,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
     setOpen(false)
   }
 
-  const iconHasImage = icon && (icon.startsWith("data:") || icon.startsWith("http"))
+  const iconHasImage = !!icon
   const requiresLoaderVersion = modLoader !== "vanilla" && modLoader !== "instance"
   const createDisabled = !name.trim() || (requiresLoaderVersion && (!loaderVersionsLoaded || !loaderVersion))
   const groupedSources = useMemo(() => {
@@ -204,23 +206,9 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
               <div className="flex items-center justify-center gap-4">
                 <div
                   className="w-16 h-16 rounded-xl bg-muted/70 overflow-hidden border border-border cursor-pointer hover:border-primary/50 transition-colors flex-shrink-0 flex items-center justify-center"
-                  onClick={() => formFileInputRef.current?.click()}
+                  onClick={() => setShowIconPicker(true)}
                 >
                   {iconHasImage ? <img src={icon} alt="" className="w-full h-full object-cover" /> : <IconCamera className="w-6 h-6 text-muted-foreground" />}
-                  <input
-                    ref={formFileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={e => {
-                      const file = e.target.files?.[0]
-                      if (file) {
-                        const reader = new FileReader()
-                        reader.onloadend = () => { if (typeof reader.result === "string") setIcon(reader.result) }
-                        reader.readAsDataURL(file)
-                      }
-                    }}
-                  />
                 </div>
                 {iconHasImage && (
                   <button type="button" onClick={() => setIcon("")} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
@@ -469,6 +457,8 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
           )}
         </div>
       </DialogContent>
+
+      <IconPickerModal open={showIconPicker} onOpenChange={setShowIconPicker} value={icon} onChange={setIcon} />
     </Dialog>
   )
 }

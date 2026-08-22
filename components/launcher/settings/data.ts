@@ -56,6 +56,7 @@ export const settingsTabs: { id: import("./types").SettingsTab; labelKey: string
   { id: "java", labelKey: "settings.tab.java", icon: "IconCoffee" },
   { id: "themes", labelKey: "settings.tab.themes", icon: "IconPalette" },
   { id: "language", labelKey: "settings.tab.language", icon: "IconLanguage" },
+  { id: "ai", labelKey: "settings.tab.ai", icon: "IconBrain" },
   { id: "about", labelKey: "settings.tab.about", icon: "IconInfoCircle" },
 ]
 

@@ -5,8 +5,9 @@ import { useTranslation } from "react-i18next"
 import {
   IconFileText, IconCopy, IconCheck, IconRefresh, IconTrash,
   IconSearch, IconArrowDown, IconShare, IconDeviceGamepad2,
-  IconBug, IconAlertTriangle, IconCircleX, IconTerminal2,
+  IconBug, IconAlertTriangle, IconCircleX, IconTerminal2, IconBrain,
 } from "@tabler/icons-react"
+import { AiAnalysisDialog } from "./ai-analysis-dialog"
 
 // --- Syntax Highlight Patterns for Minecraft Logs ---
 
@@ -120,20 +121,16 @@ function tokenizeLog(text: string, level: LogLevel): Token[] {
     if (text) tokens.push({ type, text, color })
   }
 
-  // 1. Match Minecraft prefix format [HH:MM:SS] [Thread/LEVEL]:
   const mcMatch = MC_RE.exec(text)
   if (mcMatch && mcMatch.index === 0) {
     const fullPrefix = mcMatch[0]
     const levelStr = mcMatch[2]
     const levelColor = LEVEL_COLORS[levelStr] ?? PFX_CLR[levelStr] ?? pfxColor(level)
 
-    // Extract timestamp and thread parts
     const tsMatch = fullPrefix.match(new RegExp(String.raw`\\[(\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?)\\]`))
     const threadMatch = fullPrefix.match(new RegExp(String.raw`\\[([^\\/\\]]*)\\/(INFO|ERROR|WARN|WARNING|DEBUG|TRACE)\\]`))
 
-    if (tsMatch) {
-      push("timestamp", "#6272a4", tsMatch[0])
-    }
+    if (tsMatch) push("timestamp", "#6272a4", tsMatch[0])
     if (threadMatch) {
       const beforeThread = fullPrefix.substring(tsMatch ? tsMatch[0].length : 0, threadMatch.index)
       if (beforeThread) push("text", undefined, beforeThread)
@@ -149,7 +146,6 @@ function tokenizeLog(text: string, level: LogLevel): Token[] {
     remaining = text.substring(offset)
   }
 
-  // 2. Caused by / Suppressed
   if (CAUSED_BY.test(remaining)) {
     const cbMatch = remaining.match(CAUSED_BY)
     if (cbMatch) {
@@ -160,7 +156,6 @@ function tokenizeLog(text: string, level: LogLevel): Token[] {
     }
   }
 
-  // 3. Stack trace lines
   if (STACK_TRACE_PATTERN.test(remaining)) {
     const parts = remaining.split(STACK_TRACE_PATTERN)
     for (let i = 0; i < parts.length; i++) {
@@ -168,7 +163,6 @@ function tokenizeLog(text: string, level: LogLevel): Token[] {
         if (parts[i]) push("text", undefined, parts[i])
       } else {
         const frame = parts[i]
-        // at class.method(file:line)
         const classMatch = frame.match(/^(.+?)(\.)([a-zA-Z_$][\w$]*)(\(.*\))?(\s+\(.*\))?/)
         if (classMatch) {
           const className = classMatch[1]
@@ -184,7 +178,6 @@ function tokenizeLog(text: string, level: LogLevel): Token[] {
     remaining = ""
   }
 
-  // 4. Exception names
   if (EXCEPTION_PATTERN.test(remaining)) {
     const parts = remaining.split(EXCEPTION_PATTERN)
     for (let i = 0; i < parts.length; i++) {
@@ -198,7 +191,6 @@ function tokenizeLog(text: string, level: LogLevel): Token[] {
   }
 
   if (remaining) {
-    // 5. Remaining tokenization for URLs, numbers, UUIDs, classes, etc.
     const patterns: Array<{ re: RegExp; type: string; color?: string }> = [
       { re: URL_PATTERN, type: "url", color: "#8be9fd" },
       { re: UUID_PATTERN, type: "uuid", color: "#ffb86c" },
@@ -230,7 +222,6 @@ function tokenizeLog(text: string, level: LogLevel): Token[] {
 
     result.sort((a, b) => a.start - b.start)
 
-    // Remove overlapping
     const cleaned: typeof result = []
     for (const r of result) {
       if (cleaned.length === 0 || r.start >= cleaned[cleaned.length - 1].end) {
@@ -286,8 +277,8 @@ function renderMcLog(text: string, level: LogLevel) {
     last = m.index + m[1].length
   }
   if (last < text.length) {
-  parts.push(<span key={`tail-${last}`} className={tc}>{text.slice(last)}</span>)
-}
+    parts.push(<span key={`tail-${last}`} className={tc}>{text.slice(last)}</span>)
+  }
   return parts.length ? <>{parts}</> : <span className={tc}>{text}</span>
 }
 
@@ -333,6 +324,7 @@ export function LogsPage() {
   const [search, setSearch] = useState("")
   const deferredSearch = useDeferredValue(search)
   const [autoScroll, setAutoScroll] = useState(true)
+  const [aiDialogOpen, setAiDialogOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
 
@@ -448,6 +440,13 @@ export function LogsPage() {
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-muted/50 hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors">
             <IconTrash className="w-4 h-4" />{t("logs.clear")}
           </button>
+
+          {logs.length > 0 && (
+            <button type="button" onClick={() => setAiDialogOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-primary/10 hover:bg-primary/20 text-primary transition-colors">
+              <IconBrain className="w-4 h-4" />{t("ai.analyze")}
+            </button>
+          )}
         </div>
       </div>
 
@@ -491,11 +490,8 @@ export function LogsPage() {
           </div>
         )}
       </div>
+
+      <AiAnalysisDialog open={aiDialogOpen} onOpenChange={setAiDialogOpen} />
     </div>
   )
 }
-
-
-
-
-

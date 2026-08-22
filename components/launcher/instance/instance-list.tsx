@@ -4,8 +4,9 @@ import {
   IconPackage, IconPlus, IconCopy, IconTrash, IconDownload, IconUpload, IconTag,
   IconRotateClockwise, IconX, IconChevronDown, IconChevronRight,
   IconPencil, IconTrashFilled, IconBox, IconPalette, IconWallpaper, IconWorldUpload,
-  IconSettings, IconBug, IconFolder,
+  IconSettings, IconBug, IconFolder, IconCheck,
 } from "@tabler/icons-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MOD_LOADERS } from "./constants"
@@ -196,7 +197,7 @@ export const InstanceList = memo(function InstanceList({
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3 px-3 pb-4">
                     {groupBuilds.map(build => {
                       const loader = MOD_LOADERS.find(item => item.id === build.modLoader) ?? MOD_LOADERS[0]
-                      const hasImage = build.icon && (build.icon.startsWith("data:") || build.icon.startsWith("http"))
+                      const hasImage = !!build.icon
                       return (
                         <div
                           key={build.id}
@@ -230,7 +231,11 @@ export const InstanceList = memo(function InstanceList({
                             )}
                             {build.source === "ftb" && (
                               <div className="absolute top-2 left-2 p-1 rounded-md bg-sky-500/20">
-                                <span className="text-[8px] font-bold text-sky-400 uppercase tracking-wide px-0.5">FTB</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 1544.031 1112.211">
+                                  <path fill="#0ea5e9" d="M456.147 246.012C470.315 163.992 483.696 81.758 499.344 0c30.976 9.746 63.159 15.542 95.61 16.596 77.388 2.528 154.771.841 232.157 1.316 65.324-.37 132.279 2.686 195.284-17.753 13.694 82.126 30.552 163.988 41.562 246.484-10.798 1.157-21.596 2.476-32.343 3.846-25.764-59.054-55.581-120.636-109.469-159.038-30.814-21.494-68.271-29.975-105.255-31.713-.686 238.267-.418 476.585-.896 714.853 22.809 3.057 45.728 5.269 68.589 8.112-.159 14.173-.159 28.392-.106 42.622-82.76-.318-165.518-.059-248.225-.165.16-13.797 0-27.601-.576-41.401 22.703-4.744 45.986-5.742 68.957-9.009.104-238.215-.051-476.482-.211-714.695-46.409.896-93.769 16.278-127.223 49.36-40.826 38.402-64.794 90.241-87.023 140.705-11.378-.895-22.757-2.158-34.029-4.108z"/>
+                                  <path fill="#0ea5e9" d="M405.68 305.171c38.929-.316 77.861-5.479 115.103-17.121 18.756 86.236 38.46 172.261 56.157 258.706-13.381 1.95-26.763 3.794-40.143 5.69-34.875-78.598-89.766-156.404-173.944-186.327-56.893-22.598-118.847-16.856-178.636-15.961-2.108 108.729-.581 217.669-1.105 326.453 44.196-1.316 95.244 7.32 132.381-22.491 27.657-27.766 35.929-68.276 44.829-105.047a1685.8 1685.8 0 0 1 40.039-.157c.052 99.196-.16 198.338-.262 297.533-13.016-.107-26.026-.052-39.037.053-10.854-37.931-17.439-82.285-49.782-108.682-38.455-25.389-87.291-17.486-130.854-19.015-.051 114.577-.211 229.204-.051 343.833 22.806 3.106 45.883 4.794 68.586 8.746a1749.451 1749.451 0 0 0-.16 40.621-82.81.152-165.619-.319-248.435.205.211-13.905.268-27.813.159-41.67 22.548-3.9 46.988-2.367 68.271-9.848-.16-234.844.211-469.737-.946-704.529-22.707-1.95-45.25-4.85-67.851-7.641v-43.303c135.228-.1 270.455-.048 405.681-.048z"/>
+                                  <path fill="#0ea5e9" d="M942.955 305.277c87.765-.055 175.523-.055 263.286-.055 67.537-.262 137.388.528 200.813 26.551 45.408 16.964 84.656 53.894 97.193 101.513 13.117 50.678 11.692 108.625-17.121 153.823-33.607 49.048-91.926 75.223-148.817 86.129 63.374 15.752 126.69 44.776 167.466 97.615 33.82 44.617 42.776 103.458 36.295 157.928-4.161 50.104-28.289 98.883-68.375 129.806-48.784 37.93-112.204 50.569-172.632 53.102-119.212.524-238.424-.318-357.636.422.262-13.859.313-27.76.211-41.619 23.021-2.787 46.195-4.054 68.956-8.693-1.632-235.208-.159-470.474-1.79-705.685-22.651-2.107-45.251-4.898-67.851-7.587.002-14.434.002-28.87.002-43.25m183.904 44.987c-1.797 100.828-.269 201.708-1.056 302.59 67.167-1.214 137.964 2.737 200.494-26.134 39.406-17.542 67.063-56.731 72.012-99.402 4.48-38.876 1.898-80.969-19.332-114.945-15.485-25.707-43.671-40.036-71.482-48.623-58.426-17.91-120.323-15.698-180.636-13.486m-3.586 347.996c.106 122.005-.211 244.011.056 366.017 58.997 10.164 120.21 9.431 178.42-5.166 39.298-10.375 78.653-32.233 97.563-69.748 22.019-42.821 24.971-92.976 19.597-140.071-5.583-49.094-34.242-94.978-77.28-119.737-65.115-39.67-145.028-37.829-218.356-31.295z"/>
+                                </svg>
                               </div>
                             )}
                           </div>
@@ -314,26 +319,53 @@ export const InstanceList = memo(function InstanceList({
         </div>
       )}
 
-      {groupEditFor && (
-        <div className="absolute inset-0 z-30 bg-background/60 backdrop-blur-sm flex items-center justify-center"
-          onClick={() => setGroupEditFor(null)}>
-          <div className="w-72 rounded-2xl border border-border bg-card p-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <p className="text-sm font-semibold mb-3">Группа сборки</p>
+      <Dialog open={!!groupEditFor} onOpenChange={(v) => { if (!v) setGroupEditFor(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <IconTag className="w-5 h-5 text-primary" />
+              Категория сборки
+            </DialogTitle>
+            <DialogDescription>Выберите существующую группу или введите новую</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {groups.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {groups.map(g => (
+                  <button key={g} type="button"
+                    onClick={() => setGroupDraft(g)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors",
+                      groupDraft === g
+                        ? "bg-primary/15 border-primary text-primary"
+                        : "bg-muted/50 border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
+                    )}>
+                    {groupDraft === g && <IconCheck className="w-3 h-3" />}
+                    {g}
+                  </button>
+                ))}
+              </div>
+            )}
             <input autoFocus value={groupDraft} onChange={e => setGroupDraft(e.target.value)}
               placeholder="Название группы (пусто — без группы)"
               onKeyDown={e => {
-                if (e.key === "Enter") { onSetGroup(groupEditFor, groupDraft.trim()); setGroupEditFor(null) }
+                if (e.key === "Enter" && groupEditFor) { onSetGroup(groupEditFor, groupDraft.trim()); setGroupEditFor(null) }
                 if (e.key === "Escape") setGroupEditFor(null)
               }}
-              className="w-full rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm outline-none focus:border-primary mb-3" />
+              className="w-full rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm outline-none focus:border-primary" />
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setGroupEditFor(null)} className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-muted text-muted-foreground">Отмена</button>
-              <button type="button" onClick={() => { onSetGroup(groupEditFor, groupDraft.trim()); setGroupEditFor(null) }}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground">Сохранить</button>
+              <button type="button" onClick={() => setGroupEditFor(null)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-muted text-muted-foreground">
+                Отмена
+              </button>
+              <button type="button" onClick={() => { if (groupEditFor) { onSetGroup(groupEditFor, groupDraft.trim()); setGroupEditFor(null) } }}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground">
+                Сохранить
+              </button>
             </div>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {groupContextMenu && (
         <div className="fixed z-50 min-w-[160px] rounded-xl border border-border bg-card shadow-2xl p-1"
@@ -380,11 +412,6 @@ export const InstanceList = memo(function InstanceList({
             <IconUpload className="w-4 h-4 text-muted-foreground" />
             Экспорт модлиста
           </button>
-          <button type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
-            onClick={() => { setModlistMenuFor(prev => prev === buildContextMenu.id ? null : buildContextMenu.id) }}>
-            <IconUpload className="w-4 h-4 text-muted-foreground" />
-            Экспорт модлиста
-          </button>
           {buildContextMenu && modlistMenuFor === buildContextMenu.id && (
             <div className="mx-1 mb-1 rounded-lg bg-muted/50 border border-border p-1 grid grid-cols-3 gap-1">
               {MODLIST_FORMATS.map(format => (
@@ -396,6 +423,11 @@ export const InstanceList = memo(function InstanceList({
               ))}
             </div>
           )}
+          <button type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
+            onClick={() => { const build = builds.find(b => b.id === buildContextMenu.id); if (build) { setGroupEditFor(buildContextMenu.id); setGroupDraft(build.group ?? "") } setBuildContextMenu(null) }}>
+            <IconTag className="w-4 h-4 text-muted-foreground" />
+            Изменить категорию
+          </button>
           <div className="mx-2 my-1 border-t border-border" />
           <button type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-destructive/15 text-destructive"
             onClick={() => { void handleTrash(buildContextMenu.id); setBuildContextMenu(null) }}>

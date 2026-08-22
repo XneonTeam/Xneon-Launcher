@@ -50,6 +50,7 @@ export type DbBuild = {
   createdAt: string
   source: "local" | "modrinth" | "curseforge"
   projectSlug?: string
+  modpackVersion?: string
   intentPath?: string
   installedMods?: Record<string, string>
   playtime: number
@@ -256,6 +257,7 @@ export type ModpackImportResult = {
   version?: string
   modLoader?: string
   loaderVersion?: string
+  modpackVersion?: string
   mods?: ModpackImportMod[]
   resourcepacks?: ModpackImportMod[]
   shaders?: ModpackImportMod[]
@@ -269,6 +271,12 @@ export type ImportProgress = {
   total: number
   message: string
   itemName?: string
+}
+
+export type ContentDownloadProgress = {
+  fileName: string
+  current: number
+  total: number
 }
 
 // ── P2P Multiplayer Types ───────────────────────────────────
