@@ -5,6 +5,7 @@
 
 import { URLS } from "../constants/urls.js";
 import { LoaderMetaIndex, LoaderMetaVersion } from "../types/index.js";
+import { withRetry } from "../retry.js";
 
 declare const fetch: typeof globalThis.fetch;
 
@@ -12,15 +13,19 @@ export class LoaderMetaClient {
   private baseUrl: string = URLS.official.loader.meta;
 
   async getIndex(uid: string): Promise<LoaderMetaIndex> {
-    const res = await fetch(`${this.baseUrl}/${uid}/index.json`);
-    if (!res.ok) throw new Error(`Failed to fetch component index for ${uid}: ${res.status}`);
-    return res.json() as Promise<LoaderMetaIndex>;
+    return withRetry(async () => {
+      const res = await fetch(`${this.baseUrl}/${uid}/index.json`);
+      if (!res.ok) throw new Error(`Failed to fetch component index for ${uid}: ${res.status}`);
+      return res.json() as Promise<LoaderMetaIndex>;
+    });
   }
 
   async getVersion(uid: string, version: string): Promise<LoaderMetaVersion> {
-    const res = await fetch(`${this.baseUrl}/${uid}/${version}.json`);
-    if (!res.ok) throw new Error(`Failed to fetch component version ${uid}:${version}: ${res.status}`);
-    return res.json() as Promise<LoaderMetaVersion>;
+    return withRetry(async () => {
+      const res = await fetch(`${this.baseUrl}/${uid}/${version}.json`);
+      if (!res.ok) throw new Error(`Failed to fetch component version ${uid}:${version}: ${res.status}`);
+      return res.json() as Promise<LoaderMetaVersion>;
+    });
   }
 
   async resolveLwjgl3Version(mcVersion: string): Promise<string | null> {

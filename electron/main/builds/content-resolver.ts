@@ -179,9 +179,14 @@ export async function resolveContentEntry(filePath: string): Promise<ResolvedCon
   }
 }
 
-export async function resolveContentEntries(filePaths: string[]): Promise<Record<string, ResolvedContentEntry>> {
+export async function resolveContentEntries(filePaths: string[], onProgress?: (processed: number, total: number) => void): Promise<Record<string, ResolvedContentEntry>> {
   const result: Record<string, ResolvedContentEntry> = {}
   if (filePaths.length === 0) return result
+
+  const report = (processed: number, total: number) => {
+    try { onProgress?.(Math.max(0, Math.min(processed, total)), total) } catch {}
+  }
+  let processed = 0
 
   const stats = await Promise.all(filePaths.map(async (filePath) => {
     try {
@@ -192,6 +197,8 @@ export async function resolveContentEntries(filePaths: string[]): Promise<Record
     }
   }))
   const valid = stats.filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+  const totalFiles = valid.length
+  if (totalFiles === 0) return result
 
   const snapshots = await dbHelpers.getFileSnapshots(valid.map((entry) => entry.filePath))
   const snapshotByPath = new Map(snapshots.map((snapshot) => [snapshot.path, snapshot]))
@@ -291,39 +298,47 @@ export async function resolveContentEntries(filePaths: string[]): Promise<Record
     }
   }
 
-  const parsed = await Promise.all(toParse.map(async ({ filePath, sha1 }) => {
-    const metadata = await readModMetadataFromArchive(filePath)
-    const found = mrMap[sha1]
-    const mrIcon = found?.projectId ? projectIconMap[found.projectId] : undefined
-    const entry: ResolvedContentEntry = {
-      sha1,
-      name: metadata.name || "",
-      description: metadata.description || "",
-      version: metadata.version || "local",
-      icon_url: metadata.icon_url || mrIcon,
-      author: metadata.author,
-      source: found ? "modrinth" : "local",
-      projectId: found?.projectId,
-      versionId: found?.versionId,
-    }
-    if (metadata.name) {
-      await dbHelpers.upsertResource({
+  const parsed: Array<{ filePath: string; entry: ResolvedContentEntry }> = []
+  const PARSE_CHUNK = 8
+  for (let i = 0; i < toParse.length; i += PARSE_CHUNK) {
+    const chunk = toParse.slice(i, i + PARSE_CHUNK)
+    const chunkResults = await Promise.all(chunk.map(async ({ filePath, sha1 }) => {
+      const metadata = await readModMetadataFromArchive(filePath)
+      const found = mrMap[sha1]
+      const mrIcon = found?.projectId ? projectIconMap[found.projectId] : undefined
+      const entry: ResolvedContentEntry = {
         sha1,
-        name: entry.name,
-        description: entry.description,
-        version: entry.version,
-        icon: entry.icon_url ?? "",
-        author: entry.author ?? "",
-        source: entry.source,
-        projectId: entry.projectId ?? null,
-        versionId: entry.versionId ?? null,
-        modId: null,
-        fileId: null,
-        cfChecked: 0,
-      })
-    }
-    return { filePath, entry }
-  }))
+        name: metadata.name || "",
+        description: metadata.description || "",
+        version: metadata.version || "local",
+        icon_url: metadata.icon_url || mrIcon,
+        author: metadata.author,
+        source: found ? "modrinth" : "local",
+        projectId: found?.projectId,
+        versionId: found?.versionId,
+      }
+      if (metadata.name) {
+        await dbHelpers.upsertResource({
+          sha1,
+          name: entry.name,
+          description: entry.description,
+          version: entry.version,
+          icon: entry.icon_url ?? "",
+          author: entry.author ?? "",
+          source: entry.source,
+          projectId: entry.projectId ?? null,
+          versionId: entry.versionId ?? null,
+          modId: null,
+          fileId: null,
+          cfChecked: 0,
+        })
+      }
+      return { filePath, entry }
+    }))
+    parsed.push(...chunkResults)
+    processed += chunk.length
+    report(processed, totalFiles)
+  }
 
   for (const { filePath, entry } of parsed) {
     result[filePath] = entry

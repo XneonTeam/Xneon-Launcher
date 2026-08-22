@@ -1,16 +1,37 @@
-import { memo, useMemo, useState, useDeferredValue } from "react"
+import { memo, useEffect, useMemo, useState, useDeferredValue } from "react"
 import { useTranslation } from "react-i18next"
-import { IconSearch, IconUpload, IconInfoCircle, IconPlus, IconTrash, IconRefresh, IconList, IconPower, IconCheck, IconChevronDown, IconChevronRight } from "@tabler/icons-react"
+import { IconSearch, IconUpload, IconInfoCircle, IconPlus, IconTrash, IconRefresh, IconList, IconPower, IconCheck, IconChevronDown, IconChevronRight, IconDownload, IconArrowRight, IconX } from "@tabler/icons-react"
+import ReactMarkdown from "react-markdown"
+import rehypeRaw from "rehype-raw"
+import rehypeSanitize from "rehype-sanitize"
+import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Spinner } from "./spinner"
 import { Pagination } from "./pagination"
-import { formatDownloads } from "./utils"
+import { formatDownloads, matchesBuildVersion } from "./utils"
 import type { Build, BuildMod, ModSearchResult, ModSort, SearchSource, ModVersion } from "./types"
 import type { ModCategory } from "@xnlc/types"
 import type { SelectedModCategory } from "./use-mod-search"
 import { SORT_LABELS, SORT_OPTIONS_BY_SOURCE } from "./sort-options"
+
+const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
+  h1: ({ children }) => <h1 className="text-2xl font-bold text-foreground mt-6 mb-3 pb-2 border-b border-border">{children}</h1>,
+  h2: ({ children }) => <h2 className="text-xl font-bold text-foreground mt-5 mb-2">{children}</h2>,
+  h3: ({ children }) => <h3 className="text-lg font-semibold text-foreground mt-4 mb-2">{children}</h3>,
+  p: ({ children }) => <p className="text-muted-foreground mb-3 leading-relaxed">{children}</p>,
+  li: ({ children }) => <li className="text-muted-foreground ml-4 mb-1">{children}</li>,
+  ul: ({ children }) => <ul className="list-disc mb-4 space-y-1">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal mb-4 space-y-1">{children}</ol>,
+  code: ({ children }) => <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono text-foreground">{children}</code>,
+  pre: ({ children }) => <pre className="bg-muted p-4 rounded-lg text-sm font-mono overflow-x-auto mb-4">{children}</pre>,
+  a: ({ href, children }) => <a href={href} className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+  strong: ({ children }) => <strong className="text-foreground font-semibold">{children}</strong>,
+  blockquote: ({ children }) => <blockquote className="border-l-4 border-primary/50 pl-4 my-4 text-muted-foreground italic">{children}</blockquote>,
+  hr: () => <hr className="border-border my-6" />,
+  img: ({ src, alt }) => <img src={src} alt={alt || ""} className="rounded-lg max-w-full my-4" />,
+}
 
 function normalizeContentIdentity(value?: string): string {
   return String(value ?? "")
@@ -122,13 +143,26 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   const [versionPickerItem, setVersionPickerItem] = useState<BuildMod | null>(null)
   const [versionPickerVersions, setVersionPickerVersions] = useState<ModVersion[]>([])
   const [versionPickerLoading, setVersionPickerLoading] = useState(false)
+  const [selectedPickerVersion, setSelectedPickerVersion] = useState<ModVersion | null>(null)
   const [updatingSlug, setUpdatingSlug] = useState<string | null>(null)
+  const [downloadProgress, setDownloadProgress] = useState<{ fileName: string; current: number; total: number } | null>(null)
   const [catDialogOpen, setCatDialogOpen] = useState(false)
   const [draftCats, setDraftCats] = useState<SelectedModCategory[]>([])
   const contentType = type === "mods" ? "mod" : type === "resourcepacks" ? "resourcepack" : "shader"
   type ContentCategory = ModCategory & { source?: "modrinth" | "curseforge" }
   const filteredCategories = useMemo(() => (categories ?? []).filter(c => c.projectType === contentType) as ContentCategory[], [categories, contentType])
   const [collapsedSourceGroups, setCollapsedSourceGroups] = useState<Set<string>>(() => new Set())
+
+  useEffect(() => {
+    const off = window.electronAPI?.onContentDownloadProgress?.((progress) => {
+      setDownloadProgress(progress)
+    })
+    return () => off?.()
+  }, [])
+
+  useEffect(() => {
+    if (updatingSlug === null) setDownloadProgress(null)
+  }, [updatingSlug])
 
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-4">
@@ -362,31 +396,8 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                     <div className="flex shrink-0 items-center gap-1">
                       <button
                         type="button"
-                        disabled={updatingSlug === item.slug}
                         onClick={() => {
-                          setUpdatingSlug(item.slug)
-                          const fetchPromise = item.source === "modrinth" && item.projectId
-                            ? window.electronAPI?.modsModrinthVersions(item.projectId)
-                            : item.source === "curseforge" && item.modId
-                              ? window.electronAPI?.modsCurseforgeDetails(item.modId).then(r => r?.versions ?? [])
-                              : Promise.resolve([])
-                          void Promise.resolve(fetchPromise).then(async (versions) => {
-                            if (!(versions as ModVersion[])?.length) return
-                            const latest = (versions as ModVersion[]).find(v => v.files?.[0]?.url)
-                            if (latest && latest.name !== item.version && latest.id !== item.version) {
-                              await updateItemVersion(activeBuild.id, type, item.id, latest)
-                            }
-                          }).finally(() => setUpdatingSlug(null))
-                        }}
-                        className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
-                        aria-label="Обновить"
-                        title="Обновить"
-                      >
-                        <IconRefresh className={`h-4 w-4 ${updatingSlug === item.slug ? 'animate-spin' : ''}`} strokeWidth={1.75} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
+                          setSelectedPickerVersion(null)
                           setVersionPickerItem(item)
                           setVersionPickerVersions([])
                           setVersionPickerLoading(true)
@@ -396,15 +407,22 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                               ? window.electronAPI?.modsCurseforgeDetails(item.modId).then(r => r?.versions ?? [])
                               : Promise.resolve([])
                           void Promise.resolve(fetchPromise).then((versions) => {
-                            setVersionPickerVersions((versions ?? []) as ModVersion[])
+                            const list = (versions ?? []) as ModVersion[]
+                            // Для модов фильтруем по загрузчику сборки (fabric/neoforge/...)
+                            // и версии Minecraft, чтобы не показывать несовместимые.
+                            const requireLoader = type === "mods"
+                            const compatible = list.filter(v => matchesBuildVersion(v, activeBuild, requireLoader))
+                            const gameOnly = list.filter(v => matchesBuildVersion(v, activeBuild, false))
+                            const shown = compatible.length > 0 ? compatible : (gameOnly.length > 0 ? gameOnly : list)
+                            setVersionPickerVersions(shown)
                             setVersionPickerLoading(false)
                           })
                         }}
-                        className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-accent/80 hover:text-accent-foreground"
-                        aria-label="Версии"
-                        title="Выбрать версию"
+                        className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                        aria-label="Обновить"
+                        title="Обновить"
                       >
-                        <IconList className="h-4 w-4" strokeWidth={1.75} />
+                        <IconRefresh className="h-4 w-4" strokeWidth={1.75} />
                       </button>
                       <button
                         type="button"
@@ -531,47 +549,174 @@ export const InstanceContentTab = memo(function InstanceContentTab({
         </div>
       </div>
 
-      <Dialog open={versionPickerItem !== null} onOpenChange={(open) => { if (!open) setVersionPickerItem(null) }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{versionPickerItem?.name} — выбор версии</DialogTitle>
-          </DialogHeader>
-          <div className="max-h-64 space-y-1.5 overflow-y-auto">
-            {versionPickerLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <IconRefresh className="h-5 w-5 animate-spin text-muted-foreground" strokeWidth={1.75} />
+      {versionPickerItem !== null && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm"
+          onClick={() => { setVersionPickerItem(null); setSelectedPickerVersion(null) }}
+        >
+          <div
+            className="w-full max-w-2xl max-h-[80vh] mx-4 rounded-2xl bg-card border border-border shadow-2xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-border flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-foreground">Обновить {versionPickerItem?.name}</h3>
+                  <p className="text-sm text-muted-foreground mt-1">Текущая версия: {versionPickerItem?.version}</p>
+                </div>
+                <button
+                  onClick={() => { setVersionPickerItem(null); setSelectedPickerVersion(null) }}
+                  className="p-2 rounded-lg border border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                >
+                  <IconX className="w-5 h-5" />
+                </button>
               </div>
-            ) : versionPickerVersions.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">Нет доступных версий</p>
-            ) : (
-              versionPickerVersions.map((v) => {
-                const isCurrent = v.name === versionPickerItem?.version || v.id === versionPickerItem?.version
-                return (
-                  <button
-                    key={v.id}
-                    type="button"
-                    disabled={isCurrent}
-                    onClick={() => {
-                      const item = versionPickerItem
-                      if (!item) return
-                      setVersionPickerItem(null)
-                      void updateItemVersion(activeBuild.id, type, item.id, v)
-                    }}
-                    className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${isCurrent ? 'border-primary/40 bg-primary/5 text-foreground' : 'border-border bg-muted/20 hover:bg-muted/40'}`}
-                  >
-                    <span className="flex-1 truncate font-medium">{v.name}</span>
-                    <span className="text-xs text-muted-foreground">{v.gameVersion}</span>
-                    {v.versionType && (
-                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${v.versionType === 'release' ? 'bg-green-500/10 text-green-500' : v.versionType === 'beta' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-red-500/10 text-red-500'}`}>{v.versionType}</span>
-                    )}
-                    {isCurrent && <span className="text-xs text-primary">текущая</span>}
-                  </button>
-                )
-              })
-            )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5">
+              {versionPickerLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <IconRefresh className="h-5 w-5 animate-spin text-muted-foreground" strokeWidth={1.75} />
+                </div>
+              ) : versionPickerVersions.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">Нет доступных версий</p>
+              ) : (
+                <div className="space-y-2">
+                  {versionPickerVersions.map((ver) => {
+                    const isCurrent = versionPickerItem && (ver.name === versionPickerItem.version || ver.id === versionPickerItem.version)
+                    const isSelected = selectedPickerVersion?.id === ver.id
+                    const isOlder = versionPickerItem?.version && ver.name < versionPickerItem.version
+
+                    return (
+                      <button
+                        key={ver.id}
+                        type="button"
+                        disabled={!!isCurrent && !isSelected}
+                        onClick={() => setSelectedPickerVersion(isSelected ? null : ver)}
+                        className={cn(
+                          "w-full text-left p-4 rounded-xl border transition-colors disabled:cursor-not-allowed",
+                          isSelected
+                            ? "border-primary bg-primary/5"
+                            : isCurrent
+                              ? "border-primary/40 bg-primary/5"
+                              : "border-border bg-muted/20 hover:bg-muted/30"
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-foreground">{ver.name}</span>
+                              {isCurrent && (
+                                <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                                  <IconCheck className="w-3 h-3" />
+                                  Текущая
+                                </span>
+                              )}
+                              {isOlder && !isCurrent && (
+                                <span className="text-xs text-muted-foreground">Старая</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 mt-1">
+                              <span className="text-xs text-muted-foreground">{ver.gameVersion ?? ""}</span>
+                              {ver.loaders && (
+                                <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                                  {Array.isArray(ver.loaders) ? ver.loaders.join(", ") : ""}
+                                </span>
+                              )}
+                              {ver.datePublished && (
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(ver.datePublished).toLocaleDateString()}
+                                </span>
+                              )}
+                              {ver.versionType && (
+                                <span className={cn(
+                                  "rounded px-1.5 py-0.5 text-[10px] font-medium uppercase",
+                                  ver.versionType === "release" ? "bg-green-500/10 text-green-500"
+                                    : ver.versionType === "beta" ? "bg-yellow-500/10 text-yellow-500"
+                                      : "bg-red-500/10 text-red-500"
+                                )}>
+                                  {ver.versionType}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <IconArrowRight className={cn(
+                            "w-4 h-4 transition-transform",
+                            isSelected ? "rotate-90 text-primary" : "text-muted-foreground"
+                          )} />
+                        </div>
+
+                        {isSelected && (
+                          <div className="mt-4 pt-4 border-t border-border">
+                            {ver.changelog ? (
+                              <div className="text-sm text-muted-foreground">
+                                <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Что изменилось</div>
+                                <ReactMarkdown rehypePlugins={[rehypeRaw, rehypeSanitize]} components={mdComponents}>{ver.changelog}</ReactMarkdown>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">Нет описания изменений</p>
+                            )}
+
+                            <div className="flex items-center gap-3 mt-4">
+                              {ver.files && ver.files.length > 0 && (
+                                <span className="text-xs text-muted-foreground">
+                                  Файлов: {ver.files.length}
+                                </span>
+                              )}
+                              {ver.downloadCount !== undefined && (
+                                <span className="text-xs text-muted-foreground">
+                                  Загрузок: {ver.downloadCount.toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+
+                            {!isCurrent && (
+                              <button
+                                type="button"
+                                disabled={updatingSlug === versionPickerItem?.id}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  const item = versionPickerItem
+                                  if (!item) return
+                                  setUpdatingSlug(item.id)
+                                  void updateItemVersion(activeBuild.id, type, item.id, ver).finally(() => {
+                                    setUpdatingSlug(null)
+                                    setSelectedPickerVersion(null)
+                                    setVersionPickerItem(null)
+                                  })
+                                }}
+                                className="mt-4 flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                <IconDownload className="w-4 h-4" strokeWidth={1.75} />
+                                Обновить до этой версии
+                              </button>
+                            )}
+
+                            {updatingSlug === versionPickerItem?.id && downloadProgress && downloadProgress.total > 0 && (
+                              <div className="mt-4">
+                                <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                                  <span className="truncate">{downloadProgress.fileName}</span>
+                                  <span className="shrink-0 ml-2">{Math.round((downloadProgress.current / downloadProgress.total) * 100)}%</span>
+                                </div>
+                                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                                  <div
+                                    className="h-full rounded-full bg-primary transition-[width] duration-200"
+                                    style={{ width: `${Math.min(100, (downloadProgress.current / downloadProgress.total) * 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </div>
   )
 })

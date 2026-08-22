@@ -40,15 +40,38 @@ async function listIntentContentFiles(dir: string, parentPath = ""): Promise<Int
   return files
 }
 
-export async function scanIntentDir(intentPath: string): Promise<ScannedBuildContent> {
+export async function scanIntentDir(intentPath: string, onProgress?: (processed: number, total: number) => void): Promise<ScannedBuildContent> {
   const mods: ImportModEntry[] = []
   const resourcepacks: ImportModEntry[] = []
   const shaders: ImportModEntry[] = []
   const installedMods: Record<string, string> = {}
 
-  const scanDir = async (dir: string, targetArray: ImportModEntry[], targetMap: Record<string, string> | null) => {
+  const dirs = [
+    { dir: path.join(intentPath, "mods"), target: mods, map: installedMods },
+    { dir: path.join(intentPath, "resourcepacks"), target: resourcepacks, map: null },
+    { dir: path.join(intentPath, "shaderpacks"), target: shaders, map: null },
+  ]
+
+  const filesByDir = new Map<string, Awaited<ReturnType<typeof listIntentContentFiles>>>()
+  let total = 0
+  for (const { dir } of dirs) {
     const files = await listIntentContentFiles(dir)
-    const resolved = await resolveContentEntries(files.map((file) => file.filePath))
+    filesByDir.set(dir, files)
+    total += files.length
+  }
+
+  let processed = 0
+  const report = () => {
+    try { onProgress?.(processed, total) } catch {}
+  }
+
+  for (const { dir, target, map } of dirs) {
+    const files = filesByDir.get(dir) ?? []
+    const dirStart = processed
+    const resolved = await resolveContentEntries(
+      files.map((file) => file.filePath),
+      (done) => { processed = Math.min(total, dirStart + done); report() },
+    )
 
     for (const { slug, filePath, name, enabled } of files) {
       const entry = resolved[filePath]
@@ -67,16 +90,13 @@ export async function scanIntentDir(intentPath: string): Promise<ScannedBuildCon
         author: entry.author,
         enabled,
       }
-      targetArray.push(modEntry)
-      if (targetMap !== null) {
-        targetMap[slug] = filePath
+      target.push(modEntry)
+      if (map !== null) {
+        map[slug] = filePath
       }
     }
   }
 
-  await scanDir(path.join(intentPath, "mods"), mods, installedMods)
-  await scanDir(path.join(intentPath, "resourcepacks"), resourcepacks, null)
-  await scanDir(path.join(intentPath, "shaderpacks"), shaders, null)
-
+  onProgress?.(total, total)
   return { mods, resourcepacks, shaders, installedMods }
 }

@@ -6,6 +6,7 @@ import { dbHelpers, isUsingFallbackStorage } from "../db"
 import { getMainWindow } from "./runtime"
 import { discoverAllInstances, discoverGdLauncherInstances, discoverInstancesFromPath, importLauncherInstance } from "./import"
 import { execAsync, fileExists } from "./import/helpers"
+import { sendImportProgress } from "./builds/helpers"
 import { fetchWithRetry } from "@xnlc/core/retry"
 
 const MOJANG_BASE = "https://launchercontent.mojang.com"
@@ -141,6 +142,7 @@ export function registerSystemHandlers() {
     const importedBuilds = []
     for (const entry of sourceInstances) {
       if (existingNames.has(entry.name.trim().toLowerCase())) continue
+      sendImportProgress(0, 100, `Импорт «${entry.name}»...`, entry.name)
       const result = await importLauncherInstance(entry)
       if (result) importedBuilds.push(result)
     }
@@ -161,10 +163,14 @@ export function registerSystemHandlers() {
     const existingNames = new Set(existingBuilds.map((build) => build.name.trim().toLowerCase()))
 
     const importedBuilds = []
+    let current = 0
     for (const entry of allInstances) {
+      current++
       if (existingNames.has(entry.name.trim().toLowerCase())) continue
+      sendImportProgress(current, allInstances.length, `Импорт «${entry.name}»...`, entry.name)
       const result = await importLauncherInstance(entry)
       if (result) importedBuilds.push(result)
+      sendImportProgress(current, allInstances.length, `Импортировано ${current} из ${allInstances.length}`, entry.name)
     }
 
     if (importedBuilds.length === 0) {

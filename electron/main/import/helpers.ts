@@ -102,7 +102,7 @@ export async function countFilesInDirs(dirs: string[]): Promise<number> {
   return entries.size
 }
 
-export async function copyEntryRecursive(srcPath: string, destPath: string): Promise<number> {
+export async function copyEntryRecursive(srcPath: string, destPath: string, onCopy?: (copied: number) => void): Promise<number> {
   try {
     const stat = await fs.stat(srcPath)
     if (stat.isDirectory()) {
@@ -111,7 +111,7 @@ export async function copyEntryRecursive(srcPath: string, destPath: string): Pro
       let entries
       try { entries = await fs.readdir(srcPath) } catch { return copied }
       for (const entry of entries) {
-        copied += await copyEntryRecursive(path.join(srcPath, entry), path.join(destPath, entry))
+        copied += await copyEntryRecursive(path.join(srcPath, entry), path.join(destPath, entry), onCopy)
       }
       return copied
     }
@@ -119,21 +119,30 @@ export async function copyEntryRecursive(srcPath: string, destPath: string): Pro
     try { await fs.access(destPath); return 0 } catch {}
     await fs.mkdir(path.dirname(destPath), { recursive: true }).catch(() => {})
     await fs.copyFile(srcPath, destPath)
+    onCopy?.(1)
     return 1
   } catch {
     return 0
   }
 }
 
-export async function copyDirContents(srcDirs: string[], destDir: string): Promise<number> {
+export async function copyDirContents(srcDirs: string[], destDir: string, onCopy?: (copied: number, total: number) => void): Promise<number> {
   if (!srcDirs.length) return 0
   await fs.mkdir(destDir, { recursive: true }).catch(() => {})
+  let total = 0
   let copied = 0
+  for (const srcDir of srcDirs) {
+    if (!(await fileExists(srcDir))) continue
+    total += await countFilesInDirs([srcDir])
+  }
   for (const srcDir of srcDirs) {
     let entries
     try { entries = await fs.readdir(srcDir) } catch { continue }
     for (const entry of entries) {
-      copied += await copyEntryRecursive(path.join(srcDir, entry), path.join(destDir, entry))
+      await copyEntryRecursive(path.join(srcDir, entry), path.join(destDir, entry), () => {
+        copied++
+        try { onCopy?.(copied, total) } catch {}
+      })
     }
   }
   return copied

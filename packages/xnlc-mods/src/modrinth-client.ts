@@ -36,7 +36,7 @@ async function mrFetch(endpoint: string): Promise<unknown> {
       });
       if (res.status === 429) {
         clearTimeout(timer);
-        const retryAfter = Number(res.headers.get("retry-after") ?? "3");
+        const retryAfter = Math.min(Number(res.headers.get("retry-after") ?? "3") || 3, 8);
         await new Promise(r => setTimeout(r, retryAfter * 1000));
         continue;
       }
@@ -237,7 +237,7 @@ export async function modrinthGetFilesByHash(sha1s: string[]): Promise<Record<st
           body: JSON.stringify({ hashes: batch, algorithm: "sha1" }),
         })
         if (res.status === 429) {
-          const retryAfter = Number(res.headers.get("retry-after") ?? "5")
+          const retryAfter = Math.min(Number(res.headers.get("retry-after") ?? "5") || 5, 8)
           await new Promise(r => setTimeout(r, retryAfter * 1000))
           continue
         }

@@ -13,6 +13,7 @@ import { registerWorldsHandlers } from "./worlds"
 import { registerServerHandlers } from "./servers"
 import { registerQuickPlayHandlers } from "./quick-play"
 import { registerUpdater } from "./updater"
+import { registerAiAgent } from "./ai-agent"
 
 registerWindowLifecycle()
 registerSystemHandlers()
@@ -26,6 +27,7 @@ registerServerHandlers()
 registerP2PHandlers()
 registerQuickPlayHandlers()
 registerUpdater()
+registerAiAgent()
 
 import("@xnlc/mods").catch(() => {})
 

@@ -22,6 +22,7 @@ export function useBuilds() {
   const saveTimeoutRef = useRef<number | null>(null)
   const buildsRef = useRef<Build[]>(buildsState)
   const isReloadingRef = useRef(false)
+  const reloadSeqRef = useRef(0)
   const lastSavedSnapshotRef = useRef("")
 
   const setBuilds = useCallback<React.Dispatch<React.SetStateAction<Build[]>>>((value) => {
@@ -102,6 +103,7 @@ export function useBuilds() {
     }
 
     isReloadingRef.current = true
+    const seq = ++reloadSeqRef.current
     try {
       const dbBuilds = await window.electronAPI?.loadBuilds()
       if (!dbBuilds?.length) {
@@ -135,11 +137,16 @@ export function useBuilds() {
       // Устанавливаем сборки сразу — UI отрисовывается без ожидания сканирования
       setBuilds(processed)
 
-      // Синхронизация контента в фоне — обновляет сборки по мере готовности
+      // Синхронизация контента в фоне — обновляет сборки по мере готовности.
+      // Гвардия поколений: если с момента старта был запущен новый reload,
+      // результат устаревшего скана отбрасываем — иначе зависший на 429 платформы
+      // скан может «воскресить» только что удалённый мод.
       void Promise.all(processed.map(async (normalized) => {
         const synced = await syncBuildContent(normalized)
+        if (seq !== reloadSeqRef.current) return
         setBuilds(prev => prev.map(b => b.id === synced.id ? synced : b))
       })).then(() => {
+        if (seq !== reloadSeqRef.current) return
         // Сигнализируем что первичная загрузка завершена — splash можно убрать
         setBuildsHydrated(true)
         window.dispatchEvent(new Event("app:hydrated"))
@@ -157,6 +164,8 @@ export function useBuilds() {
           ])
           return { ...build, mods, resourcepacks: rp, shaders: sh }
         }))
+
+        if (seq !== reloadSeqRef.current) return
 
         const enrichedById = new Map(enriched.map(build => [build.id, build]))
         setBuilds(prev => prev.map(current => {
@@ -677,19 +686,28 @@ export function useBuilds() {
     const file = newVersion.files?.[0]
     if (!file?.url) return false
 
+    const newFileName = file.filename || `${newVersion.id}.jar`
+    const oldItem = build[type].find(m => m.id === itemId)
+
     try {
       const savedPath = type === "mods"
-        ? await window.electronAPI?.saveModToIntent?.(build.name, file.url, file.filename || `${newVersion.id}.jar`)
-        : await window.electronAPI?.saveContentToIntent?.(build.name, CONTENT_KIND_BY_KEY[type], file.url, file.filename || `${newVersion.id}.jar`)
+        ? await window.electronAPI?.saveModToIntent?.(build.name, file.url, newFileName)
+        : await window.electronAPI?.saveContentToIntent?.(build.name, CONTENT_KIND_BY_KEY[type], file.url, newFileName)
 
       if (!savedPath) return false
 
+      // Удаляем старую версию файла, иначе в папке останется дубликат
+      if (oldItem && oldItem.slug !== newFileName) {
+        try {
+          await window.electronAPI?.deleteContentFromIntent?.(build.name, CONTENT_KIND_BY_KEY[type], oldItem.slug)
+        } catch {}
+      }
+
       setBuilds(prev => prev.map(b => {
         if (b.id !== buildId) return b
-        const oldItem = b[type].find(m => m.id === itemId)
         const nextInstalledMods = { ...(b.installedMods ?? {}) }
         if (oldItem) delete nextInstalledMods[oldItem.slug]
-        nextInstalledMods[file.filename] = savedPath
+        nextInstalledMods[newFileName] = savedPath
 
         return {
           ...b,
@@ -697,7 +715,7 @@ export function useBuilds() {
           [type]: b[type].map(m =>
             m.id === itemId ? {
               ...m,
-              slug: file.filename,
+              slug: newFileName,
               version: newVersion.name || newVersion.id || m.version,
             } : m
           ),

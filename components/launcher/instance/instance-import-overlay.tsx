@@ -44,6 +44,13 @@ export function InstanceImportOverlay({
   const currentItem = formatItemName(importProgress.itemName)
   const progressLabel = formatProgressLabel(importProgress.message, importProgress.source)
 
+  const fileTotal = importProgress.fileTotal ?? 0
+  const fileCurrent = importProgress.fileCurrent ?? 0
+  const hasFileProgress = fileTotal > 0
+  const filePercent = hasFileProgress
+    ? Math.max(0, Math.min(100, Math.round((fileCurrent / fileTotal) * 100)))
+    : 0
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/78 p-4 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-card shadow-2xl">
@@ -77,6 +84,23 @@ export function InstanceImportOverlay({
               <span>{current}/{total}</span>
             </div>
           </div>
+
+          {hasFileProgress && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                <span className="truncate">
+                  {currentItem ?? "Скачивание файла"} · {filePercent}%
+                </span>
+                <span className="shrink-0 ml-2">{Math.round(fileCurrent / 1024)} / {Math.round(fileTotal / 1024)} КБ</span>
+              </div>
+              <div className="h-1 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary/60 transition-[width] duration-200"
+                  style={{ width: `${filePercent}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           {currentItem && (
             <div className="rounded-xl border border-border bg-muted/30 p-3">

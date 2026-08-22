@@ -9,6 +9,8 @@ export interface ImportProgressState {
   message: string
   source: "modrinth" | "curseforge" | "ftb" | "local"
   itemName?: string
+  fileCurrent?: number
+  fileTotal?: number
 }
 
 async function persistImportedBuild(build: Build) {
@@ -71,6 +73,14 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
         source,
         itemName: progress.itemName,
       })
+    })
+    return () => off?.()
+  }, [safeSetImportProgress])
+
+  useEffect(() => {
+    const off = window.electronAPI?.onContentDownloadProgress?.((progress) => {
+      if (!activeImportSourceRef.current) return
+      safeSetImportProgress(prev => prev ? { ...prev, fileCurrent: progress.current, fileTotal: progress.total } : prev)
     })
     return () => off?.()
   }, [safeSetImportProgress])
@@ -185,6 +195,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
         createdAt: new Date().toISOString(),
         source: "modrinth",
         projectSlug: project.slug,
+        modpackVersion: importResult?.modpackVersion,
         intentPath,
         installedMods: importResult?.installedMods ?? {},
         playtime: 0,

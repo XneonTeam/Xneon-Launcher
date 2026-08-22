@@ -214,23 +214,24 @@ function initializeSchema() {
 
   run(`
     CREATE TABLE IF NOT EXISTS builds (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
-      version TEXT NOT NULL,
-      modLoader TEXT NOT NULL,
-      loaderVersion TEXT,
-      icon TEXT NOT NULL DEFAULT '',
-      coverImage TEXT,
-      mods TEXT NOT NULL DEFAULT '[]',
-      resourcepacks TEXT NOT NULL DEFAULT '[]',
-      shaders TEXT NOT NULL DEFAULT '[]',
-      intentPath TEXT NOT NULL DEFAULT '',
-      installedMods TEXT NOT NULL DEFAULT '{}',
-      createdAt TEXT NOT NULL,
-      source TEXT NOT NULL DEFAULT 'local',
-      projectSlug TEXT,
-      playtime INTEGER NOT NULL DEFAULT 0
+id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  version TEXT NOT NULL,
+  modLoader TEXT NOT NULL,
+  loaderVersion TEXT,
+  icon TEXT NOT NULL DEFAULT '',
+  coverImage TEXT,
+  mods TEXT NOT NULL DEFAULT '[]',
+  resourcepacks TEXT NOT NULL DEFAULT '[]',
+  shaders TEXT NOT NULL DEFAULT '[]',
+  intentPath TEXT NOT NULL DEFAULT '',
+  installedMods TEXT NOT NULL DEFAULT '{}',
+  createdAt TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT 'local',
+  projectSlug TEXT,
+  modpackVersion TEXT,
+  playtime INTEGER NOT NULL DEFAULT 0
     )
   `)
 
@@ -272,6 +273,26 @@ function initializeSchema() {
       size INTEGER NOT NULL DEFAULT 0,
       mtime INTEGER NOT NULL DEFAULT 0,
       sha1 TEXT NOT NULL DEFAULT ''
+    )
+  `)
+
+  run(`
+    CREATE TABLE IF NOT EXISTS ai_sessions (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL DEFAULT 'New chat',
+      createdAt INTEGER NOT NULL,
+      updatedAt INTEGER NOT NULL
+    )
+  `)
+
+  run(`
+    CREATE TABLE IF NOT EXISTS ai_messages (
+      id TEXT PRIMARY KEY,
+      sessionId TEXT NOT NULL,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      createdAt INTEGER NOT NULL,
+      FOREIGN KEY (sessionId) REFERENCES ai_sessions(id) ON DELETE CASCADE
     )
   `)
 
@@ -334,6 +355,10 @@ function initializeSchema() {
 
   if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "projectSlug")) {
     run("ALTER TABLE builds ADD COLUMN projectSlug TEXT")
+  }
+
+  if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "modpackVersion")) {
+    run("ALTER TABLE builds ADD COLUMN modpackVersion TEXT")
   }
 
   if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "javaOverride")) {
@@ -535,6 +560,7 @@ type BuildJson = {
   createdAt: string
   source: "local" | "modrinth" | "curseforge"
   projectSlug?: string
+  modpackVersion?: string
   intentPath?: string
   installedMods?: Record<string, string>
   playtime: number
@@ -566,6 +592,7 @@ type BuildRow = {
   createdAt: string
   source: string
   projectSlug: string | null
+  modpackVersion: string | null
   playtime: number
   javaOverride: number | null
   javaPath: string | null
@@ -624,6 +651,7 @@ export async function loadBuilds(): Promise<BuildJson[]> {
     createdAt: row.createdAt,
     source: row.source as BuildJson["source"],
     projectSlug: row.projectSlug ?? undefined,
+    modpackVersion: row.modpackVersion ?? undefined,
     intentPath: row.intentPath || undefined,
     installedMods: JSON.parse(row.installedMods || "{}"),
     playtime: row.playtime ?? 0,
@@ -669,6 +697,7 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
         build.createdAt,
         build.source,
         build.projectSlug ?? null,
+        build.modpackVersion ?? null,
         build.playtime ?? 0,
         build.javaOverride ? 1 : 0,
         build.javaPath ?? "",
@@ -688,8 +717,8 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
         }
       }
       run(`
-        INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax, serverOverride, server, serverPort, [group])
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, modpackVersion, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax, serverOverride, server, serverPort, [group])
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, params)
     }
     run("COMMIT")
@@ -820,6 +849,44 @@ export const dbHelpers = {
       INSERT OR REPLACE INTO file_snapshots (path, size, mtime, sha1)
       VALUES (?, ?, ?, ?)
     `, [snapshot.path, snapshot.size, snapshot.mtime, snapshot.sha1])
+    persistDatabase()
+  },
+
+  // ── AI Chat Sessions ────────────────────────────────────
+  aiListSessions: async (): Promise<Array<{ id: string; title: string; createdAt: number; updatedAt: number }>> => {
+    if (!dbAvailable) return []
+    return queryAll<{ id: string; title: string; createdAt: number; updatedAt: number }>(
+      "SELECT id, title, createdAt, updatedAt FROM ai_sessions ORDER BY updatedAt DESC"
+    )
+  },
+  aiCreateSession: async (id: string, title: string): Promise<void> => {
+    if (!dbAvailable) return
+    const now = Date.now()
+    run("INSERT INTO ai_sessions (id, title, createdAt, updatedAt) VALUES (?, ?, ?, ?)", [id, title, now, now])
+    persistDatabase()
+  },
+  aiRenameSession: async (id: string, title: string): Promise<void> => {
+    if (!dbAvailable) return
+    run("UPDATE ai_sessions SET title = ?, updatedAt = ? WHERE id = ?", [title, Date.now(), id])
+    persistDatabase()
+  },
+  aiDeleteSession: async (id: string): Promise<void> => {
+    if (!dbAvailable) return
+    run("DELETE FROM ai_messages WHERE sessionId = ?", [id])
+    run("DELETE FROM ai_sessions WHERE id = ?", [id])
+    persistDatabase()
+  },
+  aiListMessages: async (sessionId: string): Promise<Array<{ id: string; role: string; content: string; createdAt: number }>> => {
+    if (!dbAvailable) return []
+    return queryAll<{ id: string; role: string; content: string; createdAt: number }>(
+      "SELECT id, role, content, createdAt FROM ai_messages WHERE sessionId = ? ORDER BY createdAt ASC",
+      [sessionId]
+    )
+  },
+  aiAddMessage: async (id: string, sessionId: string, role: string, content: string): Promise<void> => {
+    if (!dbAvailable) return
+    run("INSERT INTO ai_messages (id, sessionId, role, content, createdAt) VALUES (?, ?, ?, ?, ?)", [id, sessionId, role, content, Date.now()])
+    run("UPDATE ai_sessions SET updatedAt = ? WHERE id = ?", [Date.now(), sessionId])
     persistDatabase()
   },
 }

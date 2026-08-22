@@ -7,10 +7,10 @@ import { loadInstancesRoot } from "./builds/helpers"
 export function createWindow() {
   logRuntime("[Window] Creating browser window")
   const win = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 1024,
-    minHeight: 700,
+    width: 1280,
+    height: 800,
+    minWidth: 960,
+    minHeight: 640,
     frame: false,
     show: false,
     backgroundColor: "#141420",

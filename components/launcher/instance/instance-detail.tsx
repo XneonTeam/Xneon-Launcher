@@ -139,7 +139,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
 
   const { t } = useTranslation()
   const loader = MOD_LOADERS.find(item => item.id === activeBuild.modLoader) ?? MOD_LOADERS[0]
-  const buildHasImage = activeBuild.icon && (activeBuild.icon.startsWith("data:") || activeBuild.icon.startsWith("http"))
+  const buildHasImage = !!activeBuild.icon
   const isVanilla = activeBuild.modLoader === "vanilla"
   const handleUploadModFile = useCallback((file: File) => addLocalModToBuild(activeBuild.id, file), [activeBuild.id, addLocalModToBuild])
   const handleUploadResourcepackFile = useCallback((file: File) => addLocalContentToBuild(activeBuild.id, "resourcepacks", file), [activeBuild.id, addLocalContentToBuild])
@@ -479,7 +479,11 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       )}
 
       {detailTab === "general" && (
-        <InstanceDetailGeneral activeBuild={activeBuild} updateBuild={updateBuild} renameBuild={renameBuild} fileInputRef={fileInputRef} />
+        <InstanceDetailGeneral
+          activeBuild={activeBuild}
+          updateBuild={updateBuild}
+          renameBuild={renameBuild}
+        />
       )}
 
       {detailTab === "mods" && (

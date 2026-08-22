@@ -1,10 +1,11 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
 import { IconCamera, IconTrash, IconExternalLink, IconFolderOpen } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MOD_LOADERS } from "./constants"
 import { LoaderIcon } from "./loader-icon"
+import { IconPickerModal } from "./icon-picker-modal"
 import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
 import type { Build } from "./types"
@@ -25,15 +26,15 @@ interface InstanceDetailGeneralProps {
   activeBuild: Build
   updateBuild: (id: string, fields: Partial<Build>) => void
   renameBuild: (id: string, newName: string) => Promise<{ success: boolean; error?: string }>
-  fileInputRef: React.RefObject<HTMLInputElement | null>
 }
 
-export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, fileInputRef }: InstanceDetailGeneralProps) {
+export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }: InstanceDetailGeneralProps) {
   const { t } = useTranslation()
   const savedNameRef = useRef(activeBuild.name)
+  const [showIconPicker, setShowIconPicker] = useState(false)
   const { visibleVersions, versionsLoaded } = useMinecraftVersionOptions()
   const { loaderVersions, loaderVersionsLoaded, recommendedLoaderVersion } = useLoaderVersionOptions(activeBuild.modLoader, activeBuild.version)
-  const buildHasImage = !!(activeBuild.icon && (activeBuild.icon.startsWith("data:") || activeBuild.icon.startsWith("http")))
+  const buildHasImage = !!activeBuild.icon
   const availableVersions = visibleVersions.includes(activeBuild.version)
     ? visibleVersions
     : [activeBuild.version, ...visibleVersions.filter((item) => item !== activeBuild.version)]
@@ -76,7 +77,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, f
           <div className="flex flex-col items-center text-center">
             <div
               className="relative flex h-32 w-32 cursor-pointer items-center justify-center overflow-hidden rounded-[28px] border border-border bg-muted/70 transition-colors hover:border-primary/50"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => setShowIconPicker(true)}
             >
               {buildHasImage ? (
                 <img src={activeBuild.icon} alt="" className="h-full w-full object-cover" />
@@ -85,24 +86,6 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, f
                   <IconCamera className="h-10 w-10 text-muted-foreground/50" />
                 </div>
               )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={e => {
-                  const file = e.target.files?.[0]
-                  if (file) {
-                    const reader = new FileReader()
-                    reader.onloadend = () => {
-                      if (typeof reader.result === "string") {
-                        updateBuild(activeBuild.id, { icon: reader.result })
-                      }
-                    }
-                    reader.readAsDataURL(file)
-                  }
-                }}
-              />
             </div>
 
             <div className="mt-4 text-sm font-medium text-foreground">{activeBuild.name || "Новая сборка"}</div>
@@ -220,16 +203,18 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, f
 
 
             {activeBuild.projectSlug && (
-              <div className="rounded-2xl border border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
-                <span className="text-muted-foreground/70">{t("builds.source")}: </span>
-                <button
-                  type="button"
-                  onClick={() => window.open(`https://modrinth.com/modpack/${activeBuild.projectSlug}`, "_blank")}
-                  className="inline-flex items-center gap-1.5 text-primary hover:underline"
-                >
-                  <IconExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  Modrinth — {activeBuild.projectSlug}
-                </button>
+              <div className="rounded-2xl border border-border/70 bg-muted/20 p-4 text-sm">
+                <div className="text-muted-foreground">
+                  <span className="text-muted-foreground/70">{t("builds.source")}: </span>
+                  <button
+                    type="button"
+                    onClick={() => window.open(`https://modrinth.com/modpack/${activeBuild.projectSlug}`, "_blank")}
+                    className="inline-flex items-center gap-1.5 text-primary hover:underline"
+                  >
+                    <IconExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    Modrinth — {activeBuild.projectSlug}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -251,6 +236,13 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, f
           </div>
         </div>
       </div>
+
+      <IconPickerModal
+        open={showIconPicker}
+        onOpenChange={setShowIconPicker}
+        value={activeBuild.icon}
+        onChange={(icon) => updateBuild(activeBuild.id, { icon })}
+      />
     </div>
   )
 }

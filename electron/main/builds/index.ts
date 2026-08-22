@@ -87,6 +87,7 @@ type ImportResult = {
   version?: string
   modLoader?: string
   loaderVersion?: string
+  modpackVersion?: string
   mods?: ImportModEntry[]
   resourcepacks?: ImportModEntry[]
   shaders?: ImportModEntry[]
@@ -477,7 +478,7 @@ export function registerBuildHandlers() {
       if (!mrpackFile?.url) throw new Error("URL для .mrpack файла не найден")
       sendImportProgress(0, 100, "Скачивание пакета...")
       const AdmZip = await loadAdmZip()
-      const zip = new AdmZip(await downloadBuffer(mrpackFile.url, signal))
+      const zip = new AdmZip(await downloadBuffer(mrpackFile.url, signal, mrpackFile.filename || "modpack.mrpack"))
       const indexEntry = zip.getEntry("modrinth.index.json")
       if (!indexEntry) throw new Error("modrinth.index.json не найден")
       const index = JSON.parse(indexEntry.getData().toString("utf-8"))
@@ -511,7 +512,7 @@ export function registerBuildHandlers() {
             const url = f.downloads?.[0]
             if (!url) throw new Error(`Не найдена ссылка для ${currentFileName}`)
             sendImportProgress(downloaded, totalFiles, "Скачивание файла...", currentFileName)
-            await fs.writeFile(filePath, await downloadBuffer(url, signal))
+            await fs.writeFile(filePath, await downloadBuffer(url, signal, currentFileName))
           }
         } catch (error) {
           if (isImportCancelledError(error)) {
@@ -530,7 +531,7 @@ export function registerBuildHandlers() {
       await copyOverrideEntries(zip, intentPath)
       const scanned = await scanIntentDir(intentPath)
       sendImportProgress(totalFiles, totalFiles, "Готово!")
-      return { success: true, version: gameVersion, modLoader, loaderVersion, ...scanned }
+      return { success: true, version: gameVersion, modLoader, loaderVersion, modpackVersion: version.name ?? version.version_number ?? version.id, ...scanned }
     } catch (e) {
       if (isImportCancelledError(e)) {
         return { success: false, cancelled: true, error: "Импорт отменен" }
@@ -553,7 +554,7 @@ export function registerBuildHandlers() {
 
       sendImportProgress(0, 100, "Скачивание пакета...")
       const AdmZip = await loadAdmZip()
-      const zip = new AdmZip(await downloadBuffer(zipUrl, signal))
+      const zip = new AdmZip(await downloadBuffer(zipUrl, signal, "curseforge-modpack.zip"))
       const manifestEntry = zip.getEntry("manifest.json")
       if (!manifestEntry) throw new Error("manifest.json не найден")
       const manifest = JSON.parse(manifestEntry.getData().toString("utf-8"))
@@ -587,7 +588,7 @@ export function registerBuildHandlers() {
           sendImportProgress(downloaded, totalFiles, "Скачивание мода...", fileName)
           const filePath = path.join(modsDir, fileName)
           try { await fs.access(filePath) } catch {
-            await fs.writeFile(filePath, await downloadBuffer(fileUrl, signal))
+            await fs.writeFile(filePath, await downloadBuffer(fileUrl, signal, fileName))
           }
         } catch (error) {
           if (isImportCancelledError(error)) {
@@ -666,7 +667,7 @@ export function registerBuildHandlers() {
             }
             await fs.mkdir(path.dirname(targetPath), { recursive: true }).catch(() => {})
             sendImportProgress(downloaded, totalFiles, "Скачивание файла...", fileName)
-            await fs.writeFile(targetPath, await downloadBuffer(url, signal))
+            await fs.writeFile(targetPath, await downloadBuffer(url, signal, fileName))
           }
         } catch (error) {
           if (isImportCancelledError(error)) {
@@ -747,7 +748,7 @@ export function registerBuildHandlers() {
               const url = f.downloads?.[0]
               if (!url) throw new Error(`Не найдена ссылка для ${currentFileName}`)
               sendImportProgress(downloaded, totalFiles, "Скачивание файла...", currentFileName)
-              await fs.writeFile(filePath, await downloadBuffer(url, signal))
+              await fs.writeFile(filePath, await downloadBuffer(url, signal, currentFileName))
             }
           } catch (error) {
             if (isImportCancelledError(error)) {
@@ -822,7 +823,7 @@ export function registerBuildHandlers() {
             sendImportProgress(downloaded, totalFiles, "Скачивание мода...", fileName)
             const filePath = path.join(modsDir, fileName)
             try { await fs.access(filePath) } catch {
-              await fs.writeFile(filePath, await downloadBuffer(fileUrl, signal))
+              await fs.writeFile(filePath, await downloadBuffer(fileUrl, signal, fileName))
             }
           } catch (error) {
             if (isImportCancelledError(error)) {

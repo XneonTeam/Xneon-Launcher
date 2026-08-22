@@ -57,9 +57,29 @@ export async function ensureBuildIntentDir(dirName: string): Promise<string> {
   return intentPath
 }
 
-export async function downloadBuffer(url: string, signal?: AbortSignal): Promise<Buffer> {
+export async function downloadBuffer(url: string, signal?: AbortSignal, progressFileName?: string): Promise<Buffer> {
   const res = await fetchWithRetry(url, { signal })
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`)
+
+  if (progressFileName && res.body) {
+    const totalHeader = Number(res.headers.get("content-length") || 0)
+    const reader = res.body.getReader()
+    const chunks: Buffer[] = []
+    let received = 0
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value) {
+        received += value.length
+        chunks.push(Buffer.from(value))
+        if (totalHeader > 0) {
+          sendToRenderer("content:download-progress", { fileName: progressFileName, current: received, total: totalHeader })
+        }
+      }
+    }
+    return Buffer.concat(chunks)
+  }
+
   return Buffer.from(await res.arrayBuffer())
 }
 
@@ -94,7 +114,7 @@ export async function saveRemoteContentToIntent(dirName: string, contentType: "m
     await fs.mkdir(targetDir, { recursive: true }).catch(() => {})
     const safeFileName = sanitizeFileName(fileName)
     const filePath = path.join(targetDir, safeFileName)
-    await fs.writeFile(filePath, await downloadBuffer(url))
+    await fs.writeFile(filePath, await downloadBuffer(url, undefined, safeFileName))
     return filePath
   } catch {
     return null
@@ -117,24 +137,82 @@ export async function saveLocalContentToIntent(dirName: string, contentType: "mo
 }
 
 export async function deleteContentFromIntent(dirName: string, contentType: "mod" | "resourcepack" | "shader", fileName: string): Promise<{ success: boolean; error?: string }> {
+  const normalizePath = (p: string) => path.resolve(p).toLowerCase()
+
   try {
     const intentPath = await ensureBuildIntentDir(dirName)
     const targetDir = path.join(intentPath, getContentDirectoryName(contentType))
-    const targetPath = path.resolve(targetDir, sanitizeRelativeContentPath(fileName))
-    const normalizedTargetDir = `${path.resolve(targetDir)}${path.sep}`
+    const relPath = sanitizeRelativeContentPath(fileName)
+    const relBase = path.basename(relPath)
+    const normalizedTargetDir = normalizePath(targetDir)
 
-    if (!targetPath.startsWith(normalizedTargetDir) && targetPath !== path.resolve(targetDir)) {
-      return { success: false, error: "Invalid target path" }
+    const isInside = (p: string) => {
+      const n = normalizePath(p)
+      return n === normalizedTargetDir || n.startsWith(`${normalizedTargetDir}${path.sep}`)
     }
 
-    const rmFile = async (fp: string) => {
-      try { await fs.rm(fp, { force: true, recursive: true }) } catch {}
+    const candidates = new Set<string>()
+
+    const addTarget = (p: string) => {
+      if (isInside(p)) candidates.add(path.resolve(p))
+    }
+    addTarget(path.join(targetDir, relPath))
+    addTarget(path.join(targetDir, relBase))
+
+    // Иногда slug в БД не совпадает с реальным путём файла (например, мод лежит
+    // в подпапке или имя файла отличается). Поэтому дополнительно ищем файл по
+    // относительному пути и по имени в поддереве папки контента.
+    const wantedRel = relPath.toLowerCase().replace(/\\/g, "/")
+    const wantedBase = relBase.toLowerCase()
+    const walk = async (dir: string): Promise<void> => {
+      if (!isInside(dir)) return
+      let entries
+      try { entries = await fs.readdir(dir, { withFileTypes: true }) } catch { return }
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name)
+        if (!isInside(full)) continue
+        if (entry.isDirectory()) {
+          await walk(full)
+          continue
+        }
+        if (!entry.isFile()) continue
+        if (!entry.name.endsWith(".jar") && !entry.name.endsWith(".zip") && !entry.name.endsWith(".disabled")) continue
+        const entryRel = path.relative(targetDir, full).toLowerCase().replace(/\\/g, "/")
+        if (entryRel === wantedRel || path.basename(entryRel).toLowerCase() === wantedBase) {
+          candidates.add(full)
+          return
+        }
+      }
+    }
+    await walk(targetDir)
+
+    let removed = 0
+    for (const candidate of candidates) {
+      let existsHere = false
+      try { await fs.access(candidate); existsHere = true } catch {}
+      if (!existsHere) continue
+
+      let attempts = 0
+      for (;;) {
+        attempts++
+        try {
+          await fs.rm(candidate, { force: true, recursive: true })
+        } catch {}
+        let stillExists = false
+        try { await fs.access(candidate); stillExists = true } catch {}
+        if (!stillExists) {
+          removed++
+          break
+        }
+        if (attempts >= 3) {
+          return { success: false, error: `Не удалось удалить файл (возможно, он заблокирован): ${candidate}` }
+        }
+        await new Promise(r => setTimeout(r, 150 * attempts))
+      }
     }
 
-    try { await fs.access(targetPath); await rmFile(targetPath) } catch {
-      const fallbackPath = path.join(targetDir, sanitizeFileName(fileName))
-      try { await fs.access(fallbackPath); await rmFile(fallbackPath) } catch {}
-    }
+    // Файла на диске уже нет (запись осталась в БД) — тоже считаем удаление
+    // успешным, иначе такой мод нельзя будет убрать из списка.
     return { success: true }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }

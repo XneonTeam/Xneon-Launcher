@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto"
 import { dbHelpers } from "../../db"
 import { ensureBuildIntentDir, scanIntentDir } from "../builds"
+import { sendImportProgress } from "../builds/helpers"
 import { unlinkSharedGameLinksSync } from "../shared-game-cache"
 import { discoverGdLauncherInstances } from "./gdlauncher"
 import { discoverMmcLikeInstances } from "./mmc-like"
@@ -81,8 +82,17 @@ export async function importLauncherInstance(instance: LauncherInstance) {
 
     // Copy the entire minecraft directory contents into the intent (like Ctrl+C / Ctrl+V).
     const srcRoot = await resolveMcDir(instance.path)
-    await copyDirContents([srcRoot], intentPath)
-    const scanned = await scanIntentDir(intentPath)
+    sendImportProgress(0, 100, "Копирование файлов...", instance.name)
+    await copyDirContents([srcRoot], intentPath, (copied, total) => {
+      const percent = total > 0 ? Math.round((copied / total) * 100) : 90
+      sendImportProgress(percent, 100, `Копирование файлов (${copied}/${total})...`, instance.name)
+    })
+    sendImportProgress(90, 100, "Сканирование сборки...", instance.name)
+    const scanned = await scanIntentDir(intentPath, (done, total) => {
+      const fraction = total > 0 ? done / total : 0
+      const percent = Math.round(90 + fraction * 10)
+      sendImportProgress(percent, 100, `Сканирование сборки (${done}/${total})...`, instance.name)
+    })
 
     // Read icon
     const iconDataUrl = await readIconAsDataUrl(instance.icon)

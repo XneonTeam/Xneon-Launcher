@@ -21,6 +21,7 @@ export function loadBuilds(): Build[] {
         createdAt: build.createdAt ?? new Date().toISOString(),
         source: (build.source === "modrinth" ? "modrinth" : build.source === "curseforge" ? "curseforge" : "local") as "local" | "modrinth" | "curseforge",
         projectSlug: build.projectSlug,
+        modpackVersion: build.modpackVersion,
         playtime: 0,
       }))
       void window.electronAPI?.saveBuilds(migrated as never)

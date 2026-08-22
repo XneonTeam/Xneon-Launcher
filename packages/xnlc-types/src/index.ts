@@ -30,6 +30,7 @@ export type {
   ModpackImportMod,
   ModpackImportResult,
   ImportProgress,
+  ContentDownloadProgress,
   P2PRoom,
   P2PRoomMember,
   P2PLogLevel,
