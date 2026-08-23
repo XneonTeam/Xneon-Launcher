@@ -26,6 +26,7 @@ import {
   saveRemoteContentToIntent,
   saveLocalContentToIntent,
   deleteContentFromIntent,
+  setContentEnabledInIntent,
   sendImportProgress,
   runConcurrent,
   copyOverrideEntries,
@@ -164,58 +165,12 @@ export function registerBuildHandlers() {
     return deleteContentFromIntent(dirName, contentType, fileName)
   })
 
+  ipcMain.handle("build:set-content-enabled", async (_event, dirName: string, contentType: "mod" | "resourcepack" | "shader", fileName: string, enabled: boolean): Promise<{ success: boolean; fileName?: string; error?: string }> => {
+    return setContentEnabledInIntent(dirName, contentType, fileName, enabled)
+  })
+
   ipcMain.handle("build:set-intent-path", async (_event, dirName: string): Promise<void> => {
     await ensureBuildIntentDir(dirName)
-  })
-
-  ipcMain.handle("build:read-dir", async (_event, dirPath: string): Promise<Array<{ name: string; isDir: boolean; size: number; modifiedAt: number }>> => {
-    try {
-      const entries = await fs.readdir(dirPath, { withFileTypes: true })
-      const result: Array<{ name: string; isDir: boolean; size: number; modifiedAt: number }> = []
-      for (const entry of entries) {
-        if (entry.name.startsWith(".")) continue
-        const fullPath = path.join(dirPath, entry.name)
-        try {
-          const stat = await fs.stat(fullPath)
-          result.push({
-            name: entry.name,
-            isDir: entry.isDirectory(),
-            size: stat.size,
-            modifiedAt: stat.mtimeMs,
-          })
-        } catch {
-          result.push({ name: entry.name, isDir: entry.isDirectory(), size: 0, modifiedAt: 0 })
-        }
-      }
-      return result.sort((a, b) => {
-        if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
-        return a.name.localeCompare(b.name)
-      })
-    } catch {
-      return []
-    }
-  })
-
-  ipcMain.handle("build:read-file", async (_event, filePath: string): Promise<{ success: boolean; content?: string; encoding?: string; error?: string }> => {
-    try {
-      const stat = await fs.stat(filePath)
-      if (stat.size > 2 * 1024 * 1024) {
-        return { success: false, error: "Файл слишком большой (>2 МБ)" }
-      }
-      const content = await fs.readFile(filePath, "utf-8")
-      return { success: true, content, encoding: "utf-8" }
-    } catch (e) {
-      return { success: false, error: String(e) }
-    }
-  })
-
-  ipcMain.handle("build:write-file", async (_event, filePath: string, content: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      await fs.writeFile(filePath, content, "utf-8")
-      return { success: true }
-    } catch (e) {
-      return { success: false, error: String(e) }
-    }
   })
 
   ipcMain.handle("build:rename-intent", async (_event, oldName: string, newName: string): Promise<{ success: boolean; intentPath?: string; error?: string }> => {

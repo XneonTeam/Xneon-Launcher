@@ -28,13 +28,14 @@ async function listIntentContentFiles(dir: string, parentPath = ""): Promise<Int
     }
 
     if (!entry.isFile()) continue
-    if (!entry.name.endsWith(".jar") && !entry.name.endsWith(".zip")) continue
+    if (!/\.(jar|zip)(\.disabled)?$/i.test(entry.name)) continue
 
     const name = entry.name.endsWith(".disabled")
       ? entry.name.slice(0, -".disabled".length)
       : entry.name
+    const slug = parentPath ? path.posix.join(parentPath, name) : name
 
-    files.push({ slug: nextRelativePath, filePath, name, enabled: !entry.name.endsWith(".disabled") })
+    files.push({ slug, filePath, name, enabled: !entry.name.endsWith(".disabled") })
   }
 
   return files
