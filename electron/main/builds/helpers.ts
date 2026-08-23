@@ -219,6 +219,45 @@ export async function deleteContentFromIntent(dirName: string, contentType: "mod
   }
 }
 
+/** Renames a content file on disk so Minecraft actually enables or disables it. */
+export async function setContentEnabledInIntent(
+  dirName: string,
+  contentType: "mod" | "resourcepack" | "shader",
+  fileName: string,
+  enabled: boolean,
+): Promise<{ success: boolean; fileName?: string; error?: string }> {
+  try {
+    const intentPath = await ensureBuildIntentDir(dirName)
+    const targetDir = path.resolve(intentPath, getContentDirectoryName(contentType))
+    const relPath = sanitizeRelativeContentPath(fileName)
+    const requested = path.resolve(targetDir, relPath)
+    const isInside = requested.startsWith(`${targetDir}${path.sep}`)
+    if (!isInside) return { success: false, error: "Недопустимый путь файла" }
+
+    const disabledSuffix = ".disabled"
+    const isDisabledName = requested.toLowerCase().endsWith(disabledSuffix)
+    const source = enabled && isDisabledName
+      ? requested.slice(0, -disabledSuffix.length)
+      : !enabled && !isDisabledName
+        ? requested
+        : requested
+    const destination = enabled
+      ? (isDisabledName ? requested.slice(0, -disabledSuffix.length) : requested)
+      : (isDisabledName ? requested : `${requested}${disabledSuffix}`)
+
+    try {
+      await fs.access(source)
+    } catch {
+      return { success: false, error: "Файл контента не найден" }
+    }
+
+    if (source !== destination) await fs.rename(source, destination)
+    return { success: true, fileName: path.relative(targetDir, destination).replace(/\\/g, "/") }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
 export type ImportProgressPayload = {
   current: number
   total: number
