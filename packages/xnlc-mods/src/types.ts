@@ -138,6 +138,8 @@ export interface ModrinthVersionFile {
 
 export interface ModrinthVersionDetail {
   id: string;
+  name?: string;
+  version_number?: string;
   version_type?: string;
   game_versions?: string[];
   files?: ModrinthVersionFile[];

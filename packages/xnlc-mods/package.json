@@ -1,6 +1,6 @@
 {
   "name": "@xnlc/mods",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "XNLC Mods — Modrinth and CurseForge API client for Minecraft mod search and management",
   "type": "module",
   "author": "MAINER4IK",
