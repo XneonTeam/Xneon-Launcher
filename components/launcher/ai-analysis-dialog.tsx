@@ -17,11 +17,13 @@ export function AiAnalysisDialog({ open, onOpenChange }: AiAnalysisDialogProps) 
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const unsubRef = useRef<(() => void) | null>(null)
+  const activeSessionIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     const api = window.electronAPI
     if (!api?.onAiStreamChunk) return
     const unsub = api.onAiStreamChunk((chunk) => {
+      if (chunk.sessionId !== activeSessionIdRef.current) return
       if (chunk.delta) {
         setStreamText((prev) => prev + chunk.delta)
       }
@@ -41,8 +43,10 @@ export function AiAnalysisDialog({ open, onOpenChange }: AiAnalysisDialogProps) 
     setError(null)
     try {
       const logText = logs.map((e) => e.text).join("\n")
-      const response = await api.analyzeCrash(logText)
-      if (!response.success && response.error && !streamText) {
+      activeSessionIdRef.current = crypto.randomUUID()
+      const response = await api.analyzeCrash(logText, activeSessionIdRef.current)
+      if (response.analysis) setStreamText(response.analysis)
+      if (!response.success && response.error) {
         setError(response.error || t("ai.analysisError"))
       }
     } catch (err) {
@@ -50,7 +54,7 @@ export function AiAnalysisDialog({ open, onOpenChange }: AiAnalysisDialogProps) 
     } finally {
       setAnalyzing(false)
     }
-  }, [logs, t, streamText])
+  }, [logs, t])
 
   const handleCopy = useCallback(() => {
     if (streamText) {
@@ -65,6 +69,7 @@ export function AiAnalysisDialog({ open, onOpenChange }: AiAnalysisDialogProps) 
     setStreamText("")
     setError(null)
     setCopied(false)
+    activeSessionIdRef.current = null
     onOpenChange(false)
   }, [onOpenChange])
 
