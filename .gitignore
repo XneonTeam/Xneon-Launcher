@@ -57,6 +57,9 @@ all-icons_old_no_delete_noedit.json
 # Electron builder output artifacts
 *.blockmap
 
+# npm pack artifacts
+packages/*/*.tgz
+
 # Cloud server (separate project)
 cloud-server/
 

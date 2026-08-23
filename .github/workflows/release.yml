@@ -64,8 +64,11 @@ jobs:
           ONEDRIVE_CLIENT_ID: ${{ secrets.ONEDRIVE_CLIENT_ID }}
           ELY_CLIENT_ID: ${{ secrets.ELY_CLIENT_ID }}
           ELY_CLIENT_SECRET: ${{ secrets.ELY_CLIENT_SECRET }}
+          ELY_DEVICE_CLIENT_ID: ${{ secrets.ELY_DEVICE_CLIENT_ID }}
           XN_CLIENT_ID: ${{ secrets.XN_CLIENT_ID }}
           XN_CLIENT_SECRET: ${{ secrets.XN_CLIENT_SECRET }}
+          MICROSOFT_CLIENT_ID: ${{ secrets.MICROSOFT_CLIENT_ID }}
+          MICROSOFT_DEVICE_CLIENT_ID: ${{ secrets.MICROSOFT_DEVICE_CLIENT_ID }}
         run: pnpm run build
 
       - name: Package
