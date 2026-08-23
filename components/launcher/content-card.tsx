@@ -1,4 +1,4 @@
-import { IconHome, IconLayoutBoard, IconFileText, IconCloud, IconNetwork, IconUserPlus, IconSettings, IconColorSwatch } from "@tabler/icons-react"
+import { IconHome, IconLayoutBoard, IconFileText, IconCloud, IconNetwork, IconUserPlus, IconSettings, IconColorSwatch, IconShirt } from "@tabler/icons-react"
 import type { TabId } from "./sidebar"
 
 interface ContentCardProps {
@@ -45,6 +45,11 @@ const tabContent: Record<TabId, { title: string; message: string; icon: React.Re
     title: "Темы",
     message: "Настройки тем находятся в разработке",
     icon: <IconColorSwatch className="w-12 h-12" strokeWidth={1.5} />,
+  },
+  skins: {
+    title: "Скины",
+    message: "Управление скинами находится в разработке",
+    icon: <IconShirt className="w-12 h-12" strokeWidth={1.5} />,
   },
 
 }

@@ -667,17 +667,23 @@ export function useBuilds() {
     return true
   }, [builds, reloadBuilds])
 
-  const toggleItemEnabled = useCallback((buildId: string, type: BuildContentListKey, itemId: string) => {
-    setBuilds(prev => prev.map(b => {
-      if (b.id !== buildId) return b
-      return {
-        ...b,
-        [type]: b[type].map(m =>
-          m.id === itemId ? { ...m, enabled: !(m.enabled ?? true) } : m
-        ),
-      }
-    }))
-  }, [])
+  const toggleItemEnabled = useCallback(async (buildId: string, type: BuildContentListKey, itemId: string) => {
+    const build = builds.find(b => b.id === buildId)
+    const item = build?.[type].find(entry => entry.id === itemId)
+    if (!build || !item) return false
+
+    const enabled = !(item.enabled ?? true)
+    const result = await window.electronAPI?.setContentEnabled?.(build.name, CONTENT_KIND_BY_KEY[type], item.slug, enabled)
+    if (!result?.success) return false
+
+    setBuilds(prev => prev.map(b => b.id !== buildId ? b : {
+      ...b,
+      [type]: b[type].map(entry => entry.id === itemId
+        ? { ...entry, enabled }
+        : entry),
+    }) as Build[])
+    return true
+  }, [builds])
 
   const updateItemVersion = useCallback(async (buildId: string, type: BuildContentListKey, itemId: string, newVersion: ModVersion): Promise<boolean> => {
     const build = builds.find(b => b.id === buildId)

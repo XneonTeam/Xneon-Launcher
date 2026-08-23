@@ -42,6 +42,7 @@ interface DepInstallState {
   modIcon: string
   source: "modrinth" | "curseforge"
   resolvedDeps?: ModDependency[]
+  overrideMetadata?: { name?: string; description?: string; iconUrl?: string; projectId?: string; modId?: number }
 }
 
 interface InstanceDetailProps {
@@ -79,7 +80,7 @@ interface InstanceDetailProps {
   addModToBuild: (buildId: string, mod: ModSearchResult) => void
   addContentToBuild: (buildId: string, type: "resourcepacks" | "shaders", mod: ModSearchResult) => void | Promise<void>
   setBuilds: React.Dispatch<React.SetStateAction<Build[]>>
-  toggleItemEnabled: (buildId: string, type: "mods" | "resourcepacks" | "shaders", itemId: string) => void
+  toggleItemEnabled: (buildId: string, type: "mods" | "resourcepacks" | "shaders", itemId: string) => void | Promise<boolean>
   updateItemVersion: (buildId: string, type: "mods" | "resourcepacks" | "shaders", itemId: string, newVersion: ModVersion) => Promise<boolean>
   selectedDetails: ModDetails | null
   modalTab: ModalTab
@@ -275,36 +276,37 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     } catch { /* skip failed dep */ }
   }, [doDownloadMod])
 
-  const installVersionWithDeps = useCallback(async (version: ModVersion, source: Source, selectedDeps: ModDependency[]) => {
+  const installVersionWithDeps = useCallback(async (version: ModVersion, source: Source, selectedDeps: ModDependency[], overrideMetadata?: { name?: string; description?: string; iconUrl?: string; projectId?: string; modId?: number }) => {
     if (source === "ftb") {
       return
+    }
+    const meta = {
+      name: overrideMetadata?.name || selectedDetails?.name,
+      description: overrideMetadata?.description || selectedDetails?.summary,
+      iconUrl: overrideMetadata?.iconUrl || selectedDetails?.iconUrl,
     }
     if (source === "modrinth") {
       const file = version.files?.[0]
       if (file?.url) {
         await doDownloadMod(file.url, file.filename || version.fileName || `${version.id}.jar`, {
-          name: selectedDetails?.name,
-          description: selectedDetails?.summary,
-          iconUrl: selectedDetails?.iconUrl,
+          ...meta,
           version: version.name || version.id,
           source: "modrinth",
-          projectId: selectedDetails?.projectId || selectedDetails?.id,
-          matchSlug: selectedDetails?.slug || selectedDetails?.projectId,
+          projectId: overrideMetadata?.projectId || selectedDetails?.projectId || selectedDetails?.id,
+          matchSlug: selectedDetails?.slug || overrideMetadata?.projectId,
         })
       }
     } else {
-      const modId = selectedDetails?.modId
+      const modId = overrideMetadata?.modId || selectedDetails?.modId
       if (modId) {
         const url = await window.electronAPI?.modsCurseforgeDownloadUrl(Number(version.id), modId)
         if (url) {
           const fileName = version.fileName || url.split("/").pop()?.split("?")[0] || `mod-${version.id}.jar`
           await doDownloadMod(url, fileName, {
-            name: selectedDetails?.name,
-            description: selectedDetails?.summary,
-            iconUrl: selectedDetails?.iconUrl,
+            ...meta,
             version: version.name || version.id,
             source: "curseforge",
-            projectId: selectedDetails?.projectId,
+            projectId: overrideMetadata?.projectId || selectedDetails?.projectId,
             modId,
             matchSlug: selectedDetails?.slug || String(modId),
           })
@@ -318,23 +320,31 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
   }, [selectedDetails, doDownloadMod, doDownloadDep])
 
   const installModToBuild = useCallback(async (mod: ModSearchResult) => {
-    if (mod.source !== "modrinth") {
-      addModToBuild(activeBuild.id, mod)
-      return
+    const source = mod.source as "modrinth" | "curseforge"
+
+    let selectedVersion: ModVersion | undefined
+    if (source === "modrinth") {
+      const versions = await window.electronAPI?.modsModrinthVersions(mod.slug)
+      selectedVersion = pickCompatibleVersion(versions, activeBuild)
+    } else if (source === "curseforge" && mod.modId) {
+      const details = await window.electronAPI?.modsCurseforgeDetails(mod.modId)
+      selectedVersion = pickCompatibleVersion(details?.versions ?? [], activeBuild)
     }
 
-    const versions = await window.electronAPI?.modsModrinthVersions(mod.slug)
-    const selectedVersion = pickCompatibleVersion(versions, activeBuild)
     if (!selectedVersion) return
 
-    const resolvedDeps = await window.electronAPI?.modsResolveDependencies(selectedVersion, "modrinth") ?? []
+    const overrideMeta = { name: mod.name, description: mod.summary, iconUrl: mod.iconUrl, projectId: mod.projectId, modId: mod.modId }
+
+    const resolvedDeps = await window.electronAPI?.modsResolveDependencies(selectedVersion, source) ?? []
     const missingRequiredDeps = resolvedDeps.filter(dep => {
       if (dep.dependencyType !== "required") return false
-      return !activeBuild.mods.some(installedMod => isInstalledBuildMod(installedMod, "modrinth", dep.projectId, undefined, dep.slug || dep.projectId))
+      return !activeBuild.mods.some(installedMod =>
+        isInstalledBuildMod(installedMod, source, dep.projectId, source === "curseforge" ? Number(dep.projectId) : undefined, dep.slug || dep.projectId),
+      )
     })
 
     if (missingRequiredDeps.length === 0) {
-      await installVersionWithDeps(selectedVersion, "modrinth", [])
+      await installVersionWithDeps(selectedVersion, source, [], overrideMeta)
       return
     }
 
@@ -342,10 +352,11 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       version: selectedVersion,
       modName: mod.name,
       modIcon: mod.iconUrl,
-      source: "modrinth",
+      source,
       resolvedDeps: missingRequiredDeps,
+      overrideMetadata: overrideMeta,
     })
-  }, [activeBuild, activeBuild.id, activeBuild.mods, addModToBuild, installVersionWithDeps, isInstalledBuildMod])
+  }, [activeBuild, activeBuild.id, activeBuild.mods, installVersionWithDeps, isInstalledBuildMod])
 
   const handleInstallVersion = useCallback(async (version: ModVersion) => {
     if (!selectedDetails) return
@@ -383,9 +394,9 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
 
   const handleDepInstallConfirm = useCallback(async (selectedDeps: ModDependency[]) => {
     if (!depInstallState) return
-    const { version, source } = depInstallState
+    const { version, source, overrideMetadata } = depInstallState
     try {
-      await installVersionWithDeps(version, source, selectedDeps)
+      await installVersionWithDeps(version, source, selectedDeps, overrideMetadata)
     } finally {
       setDepInstallState(null)
     }

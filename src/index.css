@@ -273,7 +273,7 @@ em-emoji-picker {
   --category-icon-size: 18px;
   --rgb-background: 9, 9, 12;
   --rgb-color: 255, 255, 255;
-  --rgb-input: 25, 25, 30;
+  --rgb-input: 25, 30;
   --rgb-accent: 249, 115, 22;
   --color-border: rgba(255, 255, 255, 0.06);
   --color-border-over: rgba(255, 255, 255, 0.1);
@@ -281,3 +281,5 @@ em-emoji-picker {
   --font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-size: 14px;
 }
+
+

@@ -23,6 +23,7 @@ export type Build = {
   createdAt: string
   source: "local" | Source
   projectSlug?: string
+  modpackVersion?: string
   intentPath?: string
   installedMods?: Record<string, string>
   memoryMin?: string

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { IconX, IconLoader2, IconDownload } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface ModDependency {
   projectId: string
@@ -132,12 +133,10 @@ export function DepInstallDialog({ version, modName, modIcon, source, resolvedDe
                       </p>
                     </div>
                     {!isEmbedded && (
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={isChecked}
                         disabled={isRequired}
-                        onChange={() => toggle(dep.projectId, dep.dependencyType)}
-                        className="w-4 h-4 rounded accent-primary"
+                        onCheckedChange={() => toggle(dep.projectId, dep.dependencyType)}
                       />
                     )}
                   </label>
