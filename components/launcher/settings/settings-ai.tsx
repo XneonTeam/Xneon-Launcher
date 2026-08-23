@@ -16,9 +16,11 @@ export function SettingsAi() {
   useEffect(() => {
     const api = window.electronAPI
     if (!api) return
-    api.getSetting("aiApiKey").then((v) => { if (v) setApiKey(v) })
-    api.getSetting("aiEndpoint").then((v) => { if (v) setEndpoint(v) })
-    api.getSetting("aiModel").then((v) => { if (v) setModel(v) })
+    api.getAiConfig().then((config) => {
+      setApiKey(config.apiKey)
+      setEndpoint(config.endpoint)
+      setModel(config.model)
+    }).catch(() => {})
   }, [])
 
   const handleSave = async () => {
@@ -27,9 +29,7 @@ export function SettingsAi() {
     setSaving(true)
     setSaved(false)
     try {
-      await api.setSetting("aiApiKey", apiKey)
-      await api.setSetting("aiEndpoint", endpoint)
-      await api.setSetting("aiModel", model)
+      await api.saveAiConfig({ apiKey, endpoint, model })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } finally {
@@ -44,7 +44,7 @@ export function SettingsAi() {
     setTestResult(null)
     setTestMessage("")
     try {
-      const result = await api.analyzeCrash("[Test] java.lang.OutOfMemoryError: Java heap space\n\tat net.minecraft.client.main.Main.main(Main.java:100)")
+      const result = await api.analyzeCrash("[Test] java.lang.OutOfMemoryError: Java heap space\n\tat net.minecraft.client.main.Main.main(Main.java:100)", crypto.randomUUID())
       if (result.success) {
         setTestResult("ok")
         setTestMessage("API connected successfully!")

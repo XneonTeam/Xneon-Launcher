@@ -1,10 +1,33 @@
-import { ipcMain } from "electron"
+import { ipcMain, safeStorage } from "electron"
 import { dbHelpers } from "../db"
 
 export type AiAnalysisResult = {
   success: boolean
   analysis?: string
   error?: string
+}
+
+export type AiStreamChunk = { sessionId: string; delta?: string; done?: boolean }
+export type AiConfig = { apiKey: string; endpoint: string; model: string }
+
+const AI_KEY_PREFIX = "encrypted:"
+
+function decryptApiKey(value: string | undefined): string {
+  if (!value) return ""
+  if (!value.startsWith(AI_KEY_PREFIX)) return value
+  try {
+    return safeStorage.decryptString(Buffer.from(value.slice(AI_KEY_PREFIX.length), "base64"))
+  } catch {
+    return ""
+  }
+}
+
+function encryptApiKey(value: string): string {
+  if (!value) return ""
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error("Безопасное хранилище операционной системы недоступно")
+  }
+  return `${AI_KEY_PREFIX}${safeStorage.encryptString(value).toString("base64")}`
 }
 
 const LANG_MAP: Record<string, string> = {
@@ -66,7 +89,8 @@ function truncateLog(content: string, maxChars = 8000): string {
 }
 
 async function getApiConfig() {
-  const apiKey = await dbHelpers.getSetting("aiApiKey")
+  const storedApiKey = await dbHelpers.getSetting("aiApiKey")
+  const apiKey = decryptApiKey(storedApiKey)
   const endpoint = await dbHelpers.getSetting("aiEndpoint")
   const model = await dbHelpers.getSetting("aiModel")
   if (!apiKey) return null
@@ -204,11 +228,23 @@ async function streamAiApi(
 }
 
 export function registerAiAgent(): void {
+  ipcMain.handle("ai:get-config", async (): Promise<AiConfig> => ({
+    apiKey: decryptApiKey(await dbHelpers.getSetting("aiApiKey")),
+    endpoint: await dbHelpers.getSetting("aiEndpoint") || "https://api.openai.com/v1",
+    model: await dbHelpers.getSetting("aiModel") || "gpt-4o-mini",
+  }))
+
+  ipcMain.handle("ai:save-config", async (_event, config: AiConfig): Promise<void> => {
+    await dbHelpers.setSetting("aiApiKey", encryptApiKey(config.apiKey.trim()))
+    await dbHelpers.setSetting("aiEndpoint", config.endpoint.trim())
+    await dbHelpers.setSetting("aiModel", config.model.trim())
+  })
+
   // ── Crash Analysis (streaming) ──────────────────────────
-  ipcMain.handle("ai:analyze-crash", async (event, logContent: string): Promise<AiAnalysisResult> => {
+  ipcMain.handle("ai:analyze-crash", async (event, logContent: string, requestedSessionId?: string): Promise<AiAnalysisResult> => {
     const truncated = truncateLog(logContent)
     const prompt = CRASH_ANALYSIS_PROMPT + truncated
-    const sessionId = crypto.randomUUID()
+    const sessionId = requestedSessionId || crypto.randomUUID()
     const language = await dbHelpers.getSetting("language") || "ru"
 
     return streamAiApi(
