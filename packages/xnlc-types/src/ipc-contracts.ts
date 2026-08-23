@@ -35,6 +35,8 @@ import type {
   P2PAuthResult,
   P2PRoomOpResult,
   P2PChatMessage,
+  McProfile,
+  LibrarySkin,
 } from "./domain-types.js"
 
 import type {
@@ -135,6 +137,7 @@ export interface IpcInvokeMap {
   "build:save-content-to-intent": { args: [buildId: string, contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string]; return: string | null }
   "build:save-local-content-to-intent": { args: [buildId: string, contentType: "mod" | "resourcepack" | "shader", localFilePath: string]; return: string | null }
   "build:delete-content-from-intent": { args: [buildId: string, contentType: "mod" | "resourcepack" | "shader", fileName: string]; return: { success: boolean; error?: string } }
+  "build:set-content-enabled": { args: [buildId: string, contentType: "mod" | "resourcepack" | "shader", fileName: string, enabled: boolean]; return: { success: boolean; fileName?: string; error?: string } }
   "build:set-intent-path": { args: [buildId: string, intentPath: string]; return: void }
   "build:delete-intent": { args: [buildName: string]; return: { success: boolean; error?: string } }
   "build:import-modrinth": { args: [buildName: string, projectSlug: string, versionId?: string]; return: ModpackImportResult }
@@ -152,6 +155,17 @@ export interface IpcInvokeMap {
   "build:purge-trash": { args: []; return: { success: boolean; error?: string } }
   "build:list-trash": { args: []; return: Array<{ trashName: string; originalName: string; trashedAt: number }> }
   "build:delete-trash-item": { args: [trashName: string]; return: { success: boolean; error?: string } }
+
+  // ── AI ──
+  "ai:get-config": { args: []; return: { apiKey: string; endpoint: string; model: string } }
+  "ai:save-config": { args: [config: { apiKey: string; endpoint: string; model: string }]; return: void }
+  "ai:analyze-crash": { args: [logContent: string, sessionId?: string]; return: { success: boolean; analysis?: string; error?: string } }
+  "ai:chat-send": { args: [sessionId: string, userMessage: string]; return: { success: boolean; analysis?: string; error?: string } }
+  "ai:sessions-list": { args: []; return: Array<{ id: string; title: string; createdAt: number; updatedAt: number }> }
+  "ai:sessions-create": { args: [id: string, title: string]; return: void }
+  "ai:sessions-rename": { args: [id: string, title: string]; return: void }
+  "ai:sessions-delete": { args: [id: string]; return: void }
+  "ai:messages-list": { args: [sessionId: string]; return: Array<{ id: string; role: string; content: string; createdAt: number }> }
 
   // ── Launcher Import ──
   "launcher:discover-importable-instances": { args: []; return: ImportableLauncherInstance[] }
@@ -246,6 +260,18 @@ export interface IpcInvokeMap {
 
   // ── Logs ──
   "logs:share-to-mclogs": { args: [content: string]; return: { success: boolean; url?: string; error?: string } }
+
+  // ── Skins ──
+  "skins:get-profile": { args: [accountId?: string]; return: McProfile | null }
+  "skins:upload-skin": { args: [params: { filePath: string; variant: "classic" | "slim"; accountId?: string }]; return: boolean }
+  "skins:delete-skin": { args: [accountId?: string]; return: boolean }
+  "skins:set-cape": { args: [params: { capeId: string | null; accountId?: string }]; return: boolean }
+  "skins:list-library": { args: [accountId: string]; return: LibrarySkin[] }
+  "skins:save-to-library": { args: [params: { filePath: string; name: string; variant: "classic" | "slim"; accountId: string; capeId?: string | null }]; return: LibrarySkin }
+  "skins:delete-from-library": { args: [id: string]; return: boolean }
+  "skins:update-variant": { args: [params: { id: string; variant: "classic" | "slim"; capeId?: string | null; name?: string }]; return: boolean }
+  "skins:apply-library-skin": { args: [params: { skinId: string; accountId: string }]; return: boolean }
+  "skins:import-from-url": { args: [params: { url: string; name: string; variant: "classic" | "slim"; accountId: string }]; return: LibrarySkin | null }
 
   // ── Java ──
   "java:detect": { args: []; return: JavaDetectResult[] }
@@ -441,6 +467,7 @@ export interface ElectronAPIExplicit {
   openAndImportModpack: () => Promise<ModpackImportResult & { name?: string; description?: string; icon?: string; source?: "modrinth" | "curseforge"; intentPath?: string }>
   cancelImportModpack: () => Promise<{ success: boolean }>
   onImportProgress: (callback: (progress: ImportProgress) => void) => CleanupFn
+  onContentDownloadProgress: (callback: (progress: { fileName: string; current: number; total: number }) => void) => CleanupFn
   openExternal: (url: string) => Promise<void>
   openLauncherFolder: () => Promise<void>
   openPath: (dirPath: string) => Promise<void>
@@ -497,6 +524,10 @@ export interface ElectronAPIExplicit {
   p2pStop: () => Promise<{ success: boolean }>
   p2pSendChat: (message: string) => Promise<{ success: boolean; error?: string }>
   p2pGetState: () => Promise<{ state: P2PConnState; role?: P2PRole; groupName?: string; playerName?: string; groupId?: string }>
+  skinsGetProfile: (accountId?: string) => Promise<McProfile | null>
+  skinsUploadSkin: (filePath: string, variant: "classic" | "slim", accountId?: string) => Promise<boolean>
+  skinsDeleteSkin: (accountId?: string) => Promise<boolean>
+  skinsSetCape: (capeId: string | null, accountId?: string) => Promise<boolean>
   onP2PLog: (callback: (entry: P2PLogEntry) => void) => CleanupFn
   onP2PState: (callback: (state: P2PConnState) => void) => CleanupFn
   onP2PMembers: (callback: (members: P2PRoomMember[]) => void) => CleanupFn
