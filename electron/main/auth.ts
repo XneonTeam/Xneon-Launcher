@@ -3,7 +3,7 @@ import path from "path"
 import crypto from "node:crypto"
 import { getMainWindow } from "./runtime"
 import { ensureRuntimeTempDir } from "./runtime"
-import { getMicrosoftClientId, getMicrosoftDeviceClientId } from "./config"
+import { getMicrosoftClientId, getMicrosoftDeviceClientId, getElyClientId, getElyDeviceClientId } from "./config"
 import { fetchWithRetry } from "@xnlc/core/retry"
 
 const MICROSOFT_DEVICE_CODE_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode"
@@ -67,7 +67,6 @@ function pickFirstString(...values: unknown[]): string {
 import { getElyClientSecret } from "./config"
 
 const ELY_REDIRECT_URI = "http://localhost:51234/elyby/callback"
-const ELY_CLIENT_ID = "xneon-launcher"
 const ELY_SCOPE = "account_info minecraft_server_session offline_access"
 const ELY_DEVICE_CODE_URL = "https://account.ely.by/api/oauth2/v1/devicecode"
 const ELY_DEVICE_TOKEN_URL = "https://account.ely.by/api/oauth2/v1/token"
@@ -221,19 +220,21 @@ async function makeOAuthWindow(title: string) {
 }
 
 ipcMain.handle("auth:elyby-login", async (): Promise<ElyByAccountPayload> => {
-  const clientId = ELY_CLIENT_ID
+  const clientId = await getElyClientId()
+  const state = crypto.randomBytes(16).toString("hex")
   const authUrl = new URL("https://account.ely.by/oauth2/v1")
   authUrl.searchParams.set("client_id", clientId)
   authUrl.searchParams.set("redirect_uri", ELY_REDIRECT_URI)
   authUrl.searchParams.set("response_type", "code")
   authUrl.searchParams.set("scope", ELY_SCOPE)
+  authUrl.searchParams.set("state", state)
 
   const authWindow = await makeOAuthWindow("elyby")
   authWindow.show()
   authWindow.focus()
 
   const code = await new Promise<string>((resolve, reject) => {
-    createAuthCallbackHandler(authWindow, "auth:elyby-callback", ELY_REDIRECT_URI, resolve, reject, undefined)
+    createAuthCallbackHandler(authWindow, "auth:elyby-callback", ELY_REDIRECT_URI, resolve, reject, state)
     authWindow.loadURL(authUrl.toString())
   })
 
@@ -310,10 +311,8 @@ async function exchangeElyByCode(code: string): Promise<ElyByAccountPayload> {
   })
 
   try {
-    const [clientId, clientSecret] = await Promise.all([
-      ELY_CLIENT_ID,
-      getElyClientSecretResolved(),
-    ])
+    const clientId = await getElyClientId()
+    const clientSecret = await getElyClientSecretResolved()
 
     const tokenRes = await Promise.race([
       fetch("https://account.ely.by/api/oauth2/v1/token", {
@@ -703,11 +702,13 @@ async function exchangeElyDeviceAccessToken(accessToken: string, refreshToken: s
 }
 
 ipcMain.handle("auth:elyby-device-start", async (): Promise<DeviceStartResult> => {
-  return requestDeviceCode(ELY_CLIENT_ID, ELY_SCOPE, ELY_DEVICE_CODE_URL)
+  const clientId = await getElyDeviceClientId()
+  return requestDeviceCode(clientId, ELY_SCOPE, ELY_DEVICE_CODE_URL)
 })
 
 ipcMain.handle("auth:elyby-device-poll", async (_event, deviceCode: string) => {
-  const result = await pollDeviceToken(ELY_CLIENT_ID, deviceCode, ELY_DEVICE_TOKEN_URL)
+  const clientId = await getElyDeviceClientId()
+  const result = await pollDeviceToken(clientId, deviceCode, ELY_DEVICE_TOKEN_URL)
 
   if (result.status === "pending") {
     return { status: "pending" as const, slowDown: result.slowDown }
