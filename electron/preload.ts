@@ -37,6 +37,8 @@ import type {
   P2PChatMessage,
   QuickPlayEntry,
   BuildExportCategory,
+  McProfile,
+  LibrarySkin,
 } from '@xnlc/types' with { 'resolution-mode': 'import' }
 
 // World/screenshot types are defined locally (not imported from @xnlc/types)
@@ -259,9 +261,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveContentToIntent: (buildId: string, contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string) => ipcRenderer.invoke('build:save-content-to-intent', buildId, contentType, url, fileName) as Promise<string | null>,
   saveLocalContentToIntent: (buildId: string, contentType: "mod" | "resourcepack" | "shader", localFilePath: string) => ipcRenderer.invoke('build:save-local-content-to-intent', buildId, contentType, localFilePath) as Promise<string | null>,
   deleteContentFromIntent: (buildId: string, contentType: "mod" | "resourcepack" | "shader", fileName: string) => ipcRenderer.invoke('build:delete-content-from-intent', buildId, contentType, fileName) as Promise<{ success: boolean; error?: string }>,
-  readDir: (dirPath: string) => ipcRenderer.invoke('build:read-dir', dirPath) as Promise<Array<{ name: string; isDir: boolean; size: number; modifiedAt: number }>>,
-  readFile: (filePath: string) => ipcRenderer.invoke('build:read-file', filePath) as Promise<{ success: boolean; content?: string; encoding?: string; error?: string }>,
-  writeFile: (filePath: string, content: string) => ipcRenderer.invoke('build:write-file', filePath, content) as Promise<{ success: boolean; error?: string }>,
+  setContentEnabled: (buildId: string, contentType: "mod" | "resourcepack" | "shader", fileName: string, enabled: boolean) => ipcRenderer.invoke('build:set-content-enabled', buildId, contentType, fileName, enabled) as Promise<{ success: boolean; fileName?: string; error?: string }>,
   setBuildIntentPath: (buildId: string, intentPath: string) => ipcRenderer.invoke('build:set-intent-path', buildId, intentPath) as Promise<void>,
   deleteBuildIntent: (buildName: string) => ipcRenderer.invoke('build:delete-intent', buildName) as Promise<{ success: boolean; error?: string }>,
   installContentFile: (contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string) => ipcRenderer.invoke('content:install-remote', contentType, url, fileName) as Promise<{ success: boolean; filePath?: string; error?: string }>,
@@ -271,6 +271,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openAndImportModpack: invoke<ModpackImportResult & { name?: string; description?: string; icon?: string; source?: 'modrinth' | 'curseforge'; intentPath?: string }>('build:open-and-import'),
   cancelImportModpack: invoke<{ success: boolean }>('build:cancel-import'),
   onImportProgress: (callback: (progress: ImportProgress) => void) => subscribe('import:progress', callback),
+  onContentDownloadProgress: (callback: (progress: { fileName: string; current: number; total: number }) => void) => subscribe('content:download-progress', callback),
 
   // ── Shell ──────────────────────────────────────────────
   openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url) as Promise<void>,
@@ -283,6 +284,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Java ───────────────────────────────────────────────
   detectJavaInstallations: invoke<JavaDetectResult[]>('java:detect'),
   pickJavaFile: invoke<string | null>('java:pick-file'),
+
+  // ── AI ─────────────────────────────────────────────────
+  getAiConfig: invoke<{ apiKey: string; endpoint: string; model: string }>('ai:get-config'),
+  saveAiConfig: (config: { apiKey: string; endpoint: string; model: string }) => ipcRenderer.invoke('ai:save-config', config) as Promise<void>,
+  analyzeCrash: (logContent: string, sessionId: string) => ipcRenderer.invoke('ai:analyze-crash', logContent, sessionId) as Promise<{ success: boolean; analysis?: string; error?: string }>,
+  onAiStreamChunk: (callback: (chunk: { sessionId: string; delta?: string; done?: boolean }) => void) => subscribe('ai:stream-chunk', callback),
+  aiChatSend: (sessionId: string, userMessage: string) => ipcRenderer.invoke('ai:chat-send', sessionId, userMessage) as Promise<{ success: boolean; analysis?: string; error?: string }>,
+  aiListSessions: invoke<Array<{ id: string; title: string; createdAt: number; updatedAt: number }>>('ai:sessions-list'),
+  aiCreateSession: (id: string, title: string) => ipcRenderer.invoke('ai:sessions-create', id, title) as Promise<void>,
+  aiRenameSession: (id: string, title: string) => ipcRenderer.invoke('ai:sessions-rename', id, title) as Promise<void>,
+  aiDeleteSession: (id: string) => ipcRenderer.invoke('ai:sessions-delete', id) as Promise<void>,
+  aiListMessages: (sessionId: string) => ipcRenderer.invoke('ai:messages-list', sessionId) as Promise<Array<{ id: string; role: string; content: string; createdAt: number }>>,
 
   // ── Worlds ─────────────────────────────────────────────
   listWorlds: (buildName: string) => ipcRenderer.invoke('worlds:list', buildName) as Promise<WorldInfo[]>,
@@ -318,6 +331,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getFilePath: (file: File) => webUtils.getPathForFile(file),
   cloudUploadAccount: (providerId: string, account: { id: string; type: string; username: string; uuid?: string }) => ipcRenderer.invoke('cloud:upload-account', providerId, account) as Promise<{ success: boolean; id?: string; name?: string; error?: string }>,
   cloudDownloadAndImport: (providerId: string, remotePath: string, fileType: string) => ipcRenderer.invoke('cloud:download-and-import', providerId, remotePath, fileType) as Promise<{ success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } }>,
+
+  // ── Skins ──────────────────────────────────────────────
+  skinsGetProfile: (accountId?: string) => ipcRenderer.invoke('skins:get-profile', accountId) as Promise<McProfile | null>,
+  skinsUploadSkin: (filePath: string, variant: "classic" | "slim", accountId?: string) => ipcRenderer.invoke('skins:upload-skin', { filePath, variant, accountId }) as Promise<boolean>,
+  skinsDeleteSkin: (accountId?: string) => ipcRenderer.invoke('skins:delete-skin', accountId) as Promise<boolean>,
+  skinsSetCape: (capeId: string | null, accountId?: string) => ipcRenderer.invoke('skins:set-cape', { capeId, accountId }) as Promise<boolean>,
+  skinsListLibrary: (accountId: string) => ipcRenderer.invoke('skins:list-library', accountId) as Promise<LibrarySkin[]>,
+  skinsSaveToLibrary: (filePath: string, name: string, variant: "classic" | "slim", accountId: string, capeId?: string | null) => ipcRenderer.invoke('skins:save-to-library', { filePath, name, variant, accountId, capeId }) as Promise<LibrarySkin | null>,
+  skinsDeleteFromLibrary: (id: string) => ipcRenderer.invoke('skins:delete-from-library', id) as Promise<boolean>,
+  skinsUpdateVariant: (id: string, variant: "classic" | "slim", capeId?: string | null, name?: string) => ipcRenderer.invoke('skins:update-variant', { id, variant, capeId, name }) as Promise<boolean>,
+  skinsApplyLibrarySkin: (skinId: string, accountId: string) => ipcRenderer.invoke('skins:apply-library-skin', { skinId, accountId }) as Promise<boolean>,
+  skinsImportFromUrl: (url: string, name: string, variant: "classic" | "slim", accountId: string) => ipcRenderer.invoke('skins:import-from-url', { url, name, variant, accountId }) as Promise<LibrarySkin | null>,
+
+  readLocalFile: (filePath: string) => ipcRenderer.invoke('read-local-file', filePath) as Promise<string | null>,
 
   // ── P2P Multiplayer ────────────────────────────────────
   p2pRegister: (login: string, password: string) => ipcRenderer.invoke('p2p:register', login, password) as Promise<P2PAuthResult>,

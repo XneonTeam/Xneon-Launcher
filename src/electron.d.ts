@@ -3,6 +3,8 @@ import type {
   ImportableLauncherInstance,
   QuickPlayEntry,
   AuthPayload,
+  McProfile,
+  LibrarySkin,
 } from '@xnlc/types'
 
 export {}
@@ -70,6 +72,16 @@ export type LauncherCloudFile = {
 }
 
 export type LauncherExtraApi = {
+  getAiConfig: () => Promise<{ apiKey: string; endpoint: string; model: string }>
+  saveAiConfig: (config: { apiKey: string; endpoint: string; model: string }) => Promise<void>
+  analyzeCrash: (logContent: string, sessionId: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
+  onAiStreamChunk: (callback: (chunk: { sessionId: string; delta?: string; done?: boolean }) => void) => () => void
+  aiChatSend: (sessionId: string, userMessage: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
+  aiListSessions: () => Promise<Array<{ id: string; title: string; createdAt: number; updatedAt: number }>>
+  aiCreateSession: (id: string, title: string) => Promise<void>
+  aiRenameSession: (id: string, title: string) => Promise<void>
+  aiDeleteSession: (id: string) => Promise<void>
+  aiListMessages: (sessionId: string) => Promise<Array<{ id: string; role: string; content: string; createdAt: number }>>
   getTotalMemory: () => Promise<number>
   reorderAccounts: (ids: string[]) => Promise<void>
   getInstancesRoot: () => Promise<string>
@@ -84,8 +96,9 @@ export type LauncherExtraApi = {
   cloudDownloadFile: (providerId: string, remotePath: string, localPath: string) => Promise<{ success: boolean; localPath?: string; error?: string }>
   cloudDeleteFile: (providerId: string, remotePath: string) => Promise<{ success: boolean; error?: string }>
   cloudGetQuota: (providerId: string) => Promise<{ used: number; total: number } | null>
-  cloudUploadBuild: (providerId: string, buildName: string, uploadId?: string) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
-  onCloudUploadProgress: (callback: (data: { id: string; percent: number; stage: "zip" | "upload" }) => void) => () => void
+   cloudUploadBuild: (providerId: string, buildName: string, uploadId?: string) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
+   onContentDownloadProgress: (callback: (progress: { fileName: string; current: number; total: number }) => void) => () => void
+   onCloudUploadProgress: (callback: (data: { id: string; percent: number; stage: "zip" | "upload" }) => void) => () => void
   getFilePath: (file: File) => string
   cloudUploadAccount: (providerId: string, account: { id: string; type: string; username: string; uuid?: string }) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
   cloudDownloadAndImport: (providerId: string, remotePath: string, fileType: string) => Promise<{ success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } }>
@@ -119,6 +132,7 @@ export type LauncherExtraApi = {
   purgeBuildTrash: () => Promise<{ success: boolean; error?: string }>
   listTrashBuilds: () => Promise<Array<{ trashName: string; originalName: string; trashedAt: number }>>
   deleteTrashItem: (trashName: string) => Promise<{ success: boolean; error?: string }>
+  setContentEnabled: (buildName: string, contentType: "mod" | "resourcepack" | "shader", fileName: string, enabled: boolean) => Promise<{ success: boolean; fileName?: string; error?: string }>
   onCliLaunchBuild: (callback: (buildName: string) => void) => () => void
   updateCheck: () => Promise<{ available: boolean; version?: string; error?: string }>
   updateDownload: () => Promise<{ success: boolean; error?: string }>
@@ -126,9 +140,17 @@ export type LauncherExtraApi = {
   updateInfo: () => Promise<{ version: string | null; downloaded: boolean }>
   onUpdateStatus: (callback: (status: { status: string; version?: string; releaseDate?: string; releaseNotes?: string; error?: string }) => void) => () => void
   onUpdateProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void
-  readDir: (dirPath: string) => Promise<Array<{ name: string; isDir: boolean; size: number; modifiedAt: number }>>
-  readFile: (filePath: string) => Promise<{ success: boolean; content?: string; encoding?: string; error?: string }>
-  writeFile: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>
+  skinsGetProfile: (accountId?: string) => Promise<McProfile | null>
+  skinsUploadSkin: (filePath: string, variant: "classic" | "slim", accountId?: string) => Promise<boolean>
+  skinsDeleteSkin: (accountId?: string) => Promise<boolean>
+  skinsSetCape: (capeId: string | null, accountId?: string) => Promise<boolean>
+  skinsListLibrary: (accountId: string) => Promise<LibrarySkin[]>
+  skinsSaveToLibrary: (filePath: string, name: string, variant: "classic" | "slim", accountId: string, capeId?: string | null) => Promise<LibrarySkin | null>
+  skinsDeleteFromLibrary: (id: string) => Promise<boolean>
+  skinsUpdateVariant: (id: string, variant: "classic" | "slim", capeId?: string | null, name?: string) => Promise<boolean>
+  skinsApplyLibrarySkin: (skinId: string, accountId: string) => Promise<boolean>
+  skinsImportFromUrl: (url: string, name: string, variant: "classic" | "slim", accountId: string) => Promise<LibrarySkin | null>
+  readLocalFile: (filePath: string) => Promise<string | null>
 }
 
 declare global {
