@@ -94,7 +94,7 @@ interface InstanceContentTabProps {
   removeContentFromBuild: (buildId: string, type: "mods" | "resourcepacks" | "shaders", item: Build["mods"][number]) => Promise<boolean>
   installModToBuild: (mod: ModSearchResult) => void | Promise<void>
   setBuilds: React.Dispatch<React.SetStateAction<Build[]>>
-  toggleItemEnabled: (buildId: string, type: "mods" | "resourcepacks" | "shaders", itemId: string) => void
+  toggleItemEnabled: (buildId: string, type: "mods" | "resourcepacks" | "shaders", itemId: string) => void | Promise<boolean>
   updateItemVersion: (buildId: string, type: "mods" | "resourcepacks" | "shaders", itemId: string, newVersion: ModVersion) => Promise<boolean>
 }
 

@@ -11,9 +11,10 @@ import {
   IconChevronRight,
   IconColorSwatch,
   IconNetwork,
+  IconShirt,
 } from "@tabler/icons-react";
 
-type TabId = "home" | "builds" | "logs" | "cloud" | "network" | "accounts" | "settings" | "themes";
+type TabId = "home" | "builds" | "logs" | "cloud" | "network" | "accounts" | "settings" | "themes" | "skins";
 
 interface SidebarItem {
   id: TabId;
@@ -38,6 +39,16 @@ const sidebarItems: SidebarItem[] = [
     icon: <IconColorSwatch className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
   },
   {
+    id: "accounts",
+    labelKey: "sidebar.accounts",
+    icon: <IconUserCircle className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
+  },
+  {
+    id: "skins",
+    labelKey: "sidebar.skins",
+    icon: <IconShirt className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
+  },
+  {
     id: "logs",
     labelKey: "sidebar.logs",
     icon: <IconFileText className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
@@ -51,11 +62,6 @@ const sidebarItems: SidebarItem[] = [
     id: "network",
     labelKey: "sidebar.network",
     icon: <IconNetwork className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
-  },
-  {
-    id: "accounts",
-    labelKey: "sidebar.accounts",
-    icon: <IconUserCircle className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
   },
   {
     id: "settings",

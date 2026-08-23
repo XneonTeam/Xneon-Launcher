@@ -6,6 +6,7 @@ import { LogsPage } from "./logs-page"
 import { SettingsPage } from "./settings"
 import { CloudPage } from "./cloud"
 import { NetworkPage } from "./network-page"
+import { SkinsPage } from "./skins-page"
 import { OnboardingModal } from "./onboarding-modal"
 import { Sidebar, type TabId } from "./sidebar"
 import { applyTheme, presetThemes } from "./settings/data"
@@ -88,6 +89,7 @@ export function Launcher({ onReady }: LauncherProps) {
       case "accounts": return <AccountsPage />
       case "cloud": return <CloudPage />
       case "network": return <NetworkPage />
+      case "skins": return <SkinsPage />
       default: return null
     }
   }
