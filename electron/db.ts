@@ -277,6 +277,18 @@ id TEXT PRIMARY KEY,
   `)
 
   run(`
+    CREATE TABLE IF NOT EXISTS skin_library (
+      id TEXT PRIMARY KEY,
+      accountId TEXT NOT NULL,
+      name TEXT NOT NULL,
+      filePath TEXT NOT NULL,
+      variant TEXT NOT NULL DEFAULT 'classic',
+      capeId TEXT DEFAULT NULL,
+      createdAt TEXT NOT NULL
+    )
+  `)
+
+  run(`
     CREATE TABLE IF NOT EXISTS ai_sessions (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL DEFAULT 'New chat',
@@ -395,6 +407,12 @@ id TEXT PRIMARY KEY,
 
   if (Array.isArray(buildColumns) && !buildColumns.some((column) => column.name === "group")) {
     run("ALTER TABLE builds ADD COLUMN [group] TEXT")
+  }
+
+  // ── skin_library migrations ──
+  const skinLibColumns = queryAll<{ name: string }>("PRAGMA table_info(skin_library)")
+  if (Array.isArray(skinLibColumns) && !skinLibColumns.some((column) => column.name === "capeId")) {
+    run("ALTER TABLE skin_library ADD COLUMN capeId TEXT DEFAULT NULL")
   }
 
   for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
@@ -543,6 +561,16 @@ export async function saveAccount(account: DbAccount): Promise<void> {
   `, accountParams)
 
   persistDatabase()
+}
+
+export type SkinLibraryRow = {
+  id: string
+  accountId: string
+  name: string
+  filePath: string
+  variant: string
+  capeId: string | null
+  createdAt: string
 }
 
 type BuildJson = {
@@ -849,6 +877,43 @@ export const dbHelpers = {
       INSERT OR REPLACE INTO file_snapshots (path, size, mtime, sha1)
       VALUES (?, ?, ?, ?)
     `, [snapshot.path, snapshot.size, snapshot.mtime, snapshot.sha1])
+    persistDatabase()
+  },
+
+  // ── Skin Library ────────────────────────────────────────
+  loadSkinLibrary: async (accountId: string): Promise<SkinLibraryRow[]> => {
+    if (!dbAvailable) return []
+    return queryAll<SkinLibraryRow>(
+      "SELECT * FROM skin_library WHERE accountId = ? ORDER BY createdAt DESC",
+      [accountId]
+    )
+  },
+  saveSkinToLibrary: async (skin: SkinLibraryRow): Promise<void> => {
+    if (!dbAvailable) return
+    run(
+      "INSERT OR REPLACE INTO skin_library (id, accountId, name, filePath, variant, capeId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [skin.id, skin.accountId, skin.name, skin.filePath, skin.variant, skin.capeId ?? null, skin.createdAt]
+    )
+    persistDatabase()
+  },
+  deleteSkinFromLibrary: async (id: string): Promise<void> => {
+    if (!dbAvailable) return
+    run("DELETE FROM skin_library WHERE id = ?", [id])
+    persistDatabase()
+  },
+  updateSkinVariant: async (id: string, variant: "classic" | "slim"): Promise<void> => {
+    if (!dbAvailable) return
+    run("UPDATE skin_library SET variant = ? WHERE id = ?", [variant, id])
+    persistDatabase()
+  },
+  updateSkinCapeId: async (id: string, capeId: string | null): Promise<void> => {
+    if (!dbAvailable) return
+    run("UPDATE skin_library SET capeId = ? WHERE id = ?", [capeId, id])
+    persistDatabase()
+  },
+  updateSkinName: async (id: string, name: string): Promise<void> => {
+    if (!dbAvailable) return
+    run("UPDATE skin_library SET name = ? WHERE id = ?", [name, id])
     persistDatabase()
   },
 

@@ -336,6 +336,22 @@ export type P2PChatMessage = {
   ts: number
 }
 
+// ── Skins ─────────────────────────────────────────────────
+
+export type MinecraftSkin = { id: string; state: string; url: string; variant: "CLASSIC" | "SLIM" }
+export type MinecraftCape = { id: string; state: string; url: string; alias?: string }
+export type McProfile = { id: string; name: string; skins: MinecraftSkin[]; capes: MinecraftCape[] }
+
+export type LibrarySkin = {
+  id: string
+  accountId: string
+  name: string
+  filePath: string
+  variant: "classic" | "slim"
+  capeId: string | null
+  createdAt: string
+}
+
 // ── Quick Play ─────────────────────────────────────────────
 
 export type QuickPlayEntry = {

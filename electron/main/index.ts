@@ -14,6 +14,7 @@ import { registerServerHandlers } from "./servers"
 import { registerQuickPlayHandlers } from "./quick-play"
 import { registerUpdater } from "./updater"
 import { registerAiAgent } from "./ai-agent"
+import { registerSkinsHandlers } from "./skins"
 
 registerWindowLifecycle()
 registerSystemHandlers()
@@ -28,6 +29,7 @@ registerP2PHandlers()
 registerQuickPlayHandlers()
 registerUpdater()
 registerAiAgent()
+registerSkinsHandlers()
 
 import("@xnlc/mods").catch(() => {})
 

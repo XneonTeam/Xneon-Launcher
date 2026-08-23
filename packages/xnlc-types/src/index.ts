@@ -42,6 +42,10 @@ export type {
   P2PRoomOpResult,
   P2PChatMessage,
   QuickPlayEntry,
+  McProfile,
+  MinecraftSkin,
+  MinecraftCape,
+  LibrarySkin,
 } from "./domain-types.js"
 
 // Mod types
