@@ -114,6 +114,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   minimize: () => ipcRenderer.send('window:minimize'),
   maximize: () => ipcRenderer.send('window:maximize'),
   close: () => ipcRenderer.send('window:close'),
+  restore: () => ipcRenderer.send('window:restore'),
   isMaximized: invoke<boolean>('window:is-maximized'),
 
   // ── Auth ───────────────────────────────────────────────
@@ -289,13 +290,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAiConfig: invoke<{ apiKey: string; endpoint: string; model: string }>('ai:get-config'),
   saveAiConfig: (config: { apiKey: string; endpoint: string; model: string }) => ipcRenderer.invoke('ai:save-config', config) as Promise<void>,
   analyzeCrash: (logContent: string, sessionId: string) => ipcRenderer.invoke('ai:analyze-crash', logContent, sessionId) as Promise<{ success: boolean; analysis?: string; error?: string }>,
-  onAiStreamChunk: (callback: (chunk: { sessionId: string; delta?: string; done?: boolean }) => void) => subscribe('ai:stream-chunk', callback),
+  analyzeCrashStream: (requestId: string, logContent: string) => ipcRenderer.invoke('ai:analyze-crash-stream', requestId, logContent) as Promise<{ success: boolean; analysis?: string; error?: string }>,
   aiChatSend: (sessionId: string, userMessage: string) => ipcRenderer.invoke('ai:chat-send', sessionId, userMessage) as Promise<{ success: boolean; analysis?: string; error?: string }>,
+  aiChatSendStream: (requestId: string, sessionId: string, userMessage: string) => ipcRenderer.invoke('ai:chat-send-stream', requestId, sessionId, userMessage) as Promise<{ success: boolean; analysis?: string; error?: string }>,
   aiListSessions: invoke<Array<{ id: string; title: string; createdAt: number; updatedAt: number }>>('ai:sessions-list'),
   aiCreateSession: (id: string, title: string) => ipcRenderer.invoke('ai:sessions-create', id, title) as Promise<void>,
   aiRenameSession: (id: string, title: string) => ipcRenderer.invoke('ai:sessions-rename', id, title) as Promise<void>,
   aiDeleteSession: (id: string) => ipcRenderer.invoke('ai:sessions-delete', id) as Promise<void>,
   aiListMessages: (sessionId: string) => ipcRenderer.invoke('ai:messages-list', sessionId) as Promise<Array<{ id: string; role: string; content: string; createdAt: number }>>,
+  onAiStreamChunk: (callback: (data: { requestId: string; content: string }) => void) => subscribe<{ requestId: string; content: string }>('ai:stream-chunk', callback),
+  onAiStreamDone: (callback: (data: { requestId: string; fullText: string }) => void) => subscribe<{ requestId: string; fullText: string }>('ai:stream-done', callback),
+  onAiStreamError: (callback: (data: { requestId: string; error: string }) => void) => subscribe<{ requestId: string; error: string }>('ai:stream-error', callback),
 
   // ── Worlds ─────────────────────────────────────────────
   listWorlds: (buildName: string) => ipcRenderer.invoke('worlds:list', buildName) as Promise<WorldInfo[]>,

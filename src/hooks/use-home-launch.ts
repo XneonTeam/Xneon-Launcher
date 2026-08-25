@@ -62,6 +62,9 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
     if (result.success) {
       setIsRunning(true)
       saveLastLaunchedPrefs(selectedVersion, selectedModLoader, selectedLoaderVersion)
+      const afterLaunch = await window.electronAPI?.getSetting("afterLaunch")
+      if (afterLaunch === "minimize") window.electronAPI?.minimize()
+      else if (afterLaunch === "close") window.electronAPI?.close()
     }
   }, [account, addLog, clearLogs, patchLaunchUi, selectedLoaderVersion, selectedModLoader, selectedVersion, setIsRunning, t])
 

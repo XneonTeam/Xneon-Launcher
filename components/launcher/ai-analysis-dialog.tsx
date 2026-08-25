@@ -1,6 +1,8 @@
-import { useState, useCallback, useEffect, useRef } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { IconBrain, IconLoader2, IconCopy, IconCheck } from "@tabler/icons-react"
+import ReactMarkdown from "react-markdown"
+import rehypeRaw from "rehype-raw"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useLaunchLogs } from "@/src/LaunchLogsContext"
 
@@ -16,24 +18,40 @@ export function AiAnalysisDialog({ open, onOpenChange }: AiAnalysisDialogProps) 
   const [streamText, setStreamText] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const unsubRef = useRef<(() => void) | null>(null)
-  const activeSessionIdRef = useRef<string | null>(null)
+  const requestIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     const api = window.electronAPI
-    if (!api?.onAiStreamChunk) return
-    const unsub = api.onAiStreamChunk((chunk) => {
-      if (chunk.sessionId !== activeSessionIdRef.current) return
-      if (chunk.delta) {
-        setStreamText((prev) => prev + chunk.delta)
-      }
-      if (chunk.done) {
-        setAnalyzing(false)
+    if (!api) return
+
+    const cleanupChunk = api.onAiStreamChunk((data) => {
+      if (data.requestId === requestIdRef.current) {
+        setStreamText((prev) => prev + data.content)
       }
     })
-    unsubRef.current = unsub
-    return () => { unsub(); unsubRef.current = null }
-  }, [])
+
+    const cleanupDone = api.onAiStreamDone((data) => {
+      if (data.requestId === requestIdRef.current) {
+        setStreamText(data.fullText)
+        setAnalyzing(false)
+        requestIdRef.current = null
+      }
+    })
+
+    const cleanupError = api.onAiStreamError((data) => {
+      if (data.requestId === requestIdRef.current) {
+        setError(data.error || t("ai.analysisError"))
+        setAnalyzing(false)
+        requestIdRef.current = null
+      }
+    })
+
+    return () => {
+      cleanupChunk()
+      cleanupDone()
+      cleanupError()
+    }
+  }, [t])
 
   const handleAnalyze = useCallback(async () => {
     const api = window.electronAPI
@@ -41,18 +59,17 @@ export function AiAnalysisDialog({ open, onOpenChange }: AiAnalysisDialogProps) 
     setAnalyzing(true)
     setStreamText("")
     setError(null)
+
+    const requestId = crypto.randomUUID()
+    requestIdRef.current = requestId
+
     try {
       const logText = logs.map((e) => e.text).join("\n")
-      activeSessionIdRef.current = crypto.randomUUID()
-      const response = await api.analyzeCrash(logText, activeSessionIdRef.current)
-      if (response.analysis) setStreamText(response.analysis)
-      if (!response.success && response.error) {
-        setError(response.error || t("ai.analysisError"))
-      }
+      await api.analyzeCrashStream(requestId, logText)
     } catch (err) {
       setError(err instanceof Error ? err.message : t("ai.analysisError"))
-    } finally {
       setAnalyzing(false)
+      requestIdRef.current = null
     }
   }, [logs, t])
 
@@ -65,11 +82,11 @@ export function AiAnalysisDialog({ open, onOpenChange }: AiAnalysisDialogProps) 
   }, [streamText])
 
   const handleClose = useCallback(() => {
-    if (unsubRef.current) { unsubRef.current(); unsubRef.current = null }
+    requestIdRef.current = null
     setStreamText("")
     setError(null)
     setCopied(false)
-    activeSessionIdRef.current = null
+    setAnalyzing(false)
     onOpenChange(false)
   }, [onOpenChange])
 
@@ -104,10 +121,27 @@ export function AiAnalysisDialog({ open, onOpenChange }: AiAnalysisDialogProps) 
           {hasContent && (
             <div className="space-y-3">
               <div className="p-4 rounded-xl bg-muted/50 border border-border min-h-[80px]">
-                <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                <ReactMarkdown
+                  rehypePlugins={[rehypeRaw]}
+                  components={{
+                    p: ({ children }) => <p className="text-sm text-foreground leading-relaxed mb-2 last:mb-0">{children}</p>,
+                    ul: ({ children }) => <ul className="list-disc text-sm text-foreground ml-4 mb-2 space-y-1">{children}</ul>,
+                    ol: ({ children }) => <ol className="list-decimal text-sm text-foreground ml-4 mb-2 space-y-1">{children}</ol>,
+                    li: ({ children }) => <li className="text-foreground">{children}</li>,
+                    h1: ({ children }) => <h1 className="text-lg font-bold text-foreground mt-3 mb-2">{children}</h1>,
+                    h2: ({ children }) => <h2 className="text-base font-bold text-foreground mt-3 mb-2">{children}</h2>,
+                    h3: ({ children }) => <h3 className="text-sm font-semibold text-foreground mt-2 mb-1">{children}</h3>,
+                    code: ({ children }) => <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono text-foreground">{children}</code>,
+                    pre: ({ children }) => <pre className="bg-muted p-3 rounded-lg text-xs font-mono overflow-x-auto mb-2">{children}</pre>,
+                    strong: ({ children }) => <strong className="text-foreground font-semibold">{children}</strong>,
+                    em: ({ children }) => <em className="text-foreground italic">{children}</em>,
+                    a: ({ href, children }) => <a href={href} className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                    blockquote: ({ children }) => <blockquote className="border-l-2 border-primary pl-3 text-muted-foreground italic mb-2">{children}</blockquote>,
+                  }}
+                >
                   {streamText}
-                  {analyzing && <span className="inline-block w-1.5 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />}
-                </p>
+                </ReactMarkdown>
+                {analyzing && <span className="inline-block w-1.5 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />}
               </div>
               {!analyzing && (
                 <button

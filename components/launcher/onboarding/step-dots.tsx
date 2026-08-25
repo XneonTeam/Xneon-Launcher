@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils"
 import { IconCheck } from "@tabler/icons-react"
-import { IconLanguage, IconPalette, IconDownload, IconUser, IconCpu, IconShieldCheck, IconRocket } from "@tabler/icons-react"
+import { IconLanguage, IconPalette, IconDownload, IconUser, IconCpu, IconShieldCheck, IconPlayerPlay } from "@tabler/icons-react"
 import type { OnboardingCopy } from "./translations"
 
 const STEP_ICONS = [IconLanguage, IconPalette, IconDownload, IconUser, IconCpu, IconShieldCheck]
@@ -21,7 +21,7 @@ export function StepDots({ steps, stepIndex, onSelectStep }: StepDotsProps) {
   return (
     <div className="flex gap-2">
       {steps.map((step, index) => {
-        const StepIcon = STEP_ICONS[index] ?? IconRocket
+        const StepIcon = STEP_ICONS[index] ?? IconPlayerPlay
         const state = getStepState(index, stepIndex)
 
         return (

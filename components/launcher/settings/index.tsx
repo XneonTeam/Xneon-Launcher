@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { changeLanguage } from "@/src/i18n"
 import { cn } from "@/lib/utils"
-import { IconCpu, IconDeviceDesktop, IconShield, IconCloud, IconFolder } from "@tabler/icons-react"
+import { IconCpu, IconDeviceDesktop, IconShield, IconCloud, IconFolder, IconPlayerPlay } from "@tabler/icons-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MemorySlider } from "@/components/ui/memory-slider"
 import { useMemoryOptions } from "@/src/hooks/use-memory-options"
 import { memoryToMb, mbToMemory } from "@/lib/memory"
@@ -49,6 +50,7 @@ export function SettingsPage() {
   const [autoJoinServer, setAutoJoinServer] = useState(false)
   const [serverAddress, setServerAddress] = useState("")
   const [serverPort, setServerPort] = useState("25565")
+  const [afterLaunch, setAfterLaunch] = useState<"nothing" | "minimize" | "close">("nothing")
   const [selectedLanguage, setSelectedLanguage] = useState(() => {
     const stored = typeof window !== "undefined" ? localStorage.getItem("language") : null
     return stored || "ru"
@@ -100,6 +102,7 @@ export function SettingsPage() {
         autoJoinServerSetting,
         serverSetting,
         serverPortSetting,
+        afterLaunchSetting,
       ] = await Promise.all([
         api.getSetting("authlibInjectorEnabled"),
         api.getSetting("retroauthInjectorEnabled"),
@@ -118,6 +121,7 @@ export function SettingsPage() {
         api.getSetting("autoJoinServer"),
         api.getSetting("server"),
         api.getSetting("serverPort"),
+        api.getSetting("afterLaunch"),
       ])
 
       if (cancelled) return
@@ -146,6 +150,7 @@ export function SettingsPage() {
       if (serverSetting) setServerAddress(serverSetting)
       if (serverPortSetting) setServerPort(serverPortSetting)
       if (selectedResolutionSetting) setSelectedResolution(selectedResolutionSetting)
+      if (afterLaunchSetting === "minimize" || afterLaunchSetting === "close") setAfterLaunch(afterLaunchSetting)
       if (customWidthSetting) setCustomWidth(customWidthSetting)
       if (customHeightSetting) setCustomHeight(customHeightSetting)
       setUseCustomResolution(useCustomResolutionSetting === "true")
@@ -210,6 +215,7 @@ export function SettingsPage() {
   useEffect(() => { persistSetting("customWidth", customWidth) }, [customWidth, persistSetting])
   useEffect(() => { persistSetting("customHeight", customHeight) }, [customHeight, persistSetting])
   useEffect(() => { persistSetting("useCustomResolution", String(useCustomResolution)) }, [persistSetting, useCustomResolution])
+  useEffect(() => { persistSetting("afterLaunch", afterLaunch) }, [afterLaunch, persistSetting])
 
   useEffect(() => {
     if (!showJavaModal) return
@@ -339,6 +345,26 @@ export function SettingsPage() {
                     </div>
                   </div>
                 )}
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+                <IconPlayerPlay className="w-5 h-5 text-primary" strokeWidth={1.5} />
+                {t("settings.afterLaunch.title")}
+              </h3>
+              <div className="p-4 rounded-xl border border-border bg-muted/30">
+                <p className="text-sm text-muted-foreground mb-3">{t("settings.afterLaunch.desc")}</p>
+                <Select value={afterLaunch} onValueChange={(v) => setAfterLaunch(v as "nothing" | "minimize" | "close")}>
+                  <SelectTrigger className="w-full max-w-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nothing">{t("settings.afterLaunch.nothing")}</SelectItem>
+                    <SelectItem value="minimize">{t("settings.afterLaunch.minimize")}</SelectItem>
+                    <SelectItem value="close">{t("settings.afterLaunch.close")}</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </section>
 

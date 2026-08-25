@@ -201,6 +201,9 @@ export function useBuildLaunch({ account }: { account?: Account }) {
     if (result.success) {
       setIsRunning(true)
       saveLastLaunchedPrefs(build.name, "instance")
+      const afterLaunch = await window.electronAPI?.getSetting("afterLaunch")
+      if (afterLaunch === "minimize") window.electronAPI?.minimize()
+      else if (afterLaunch === "close") window.electronAPI?.close()
     }
   }, [account, addLog, clearLogs, patchLaunchUi, setIsRunning, t])
 

@@ -4,13 +4,15 @@ import { InstanceList } from "./instance-list"
 import { InstanceModrinth } from "./instance-modrinth"
 import { InstanceCurseForge } from "./instance-curseforge"
 import { InstanceFtb } from "./instance-ftb"
+import { InstanceBrowseToolbar } from "./instance-browse-toolbar"
+import { useImport } from "./use-import"
+import { dataCache, MOD_SEARCH_CACHE_TTL } from "@/lib/swr"
 import { InstanceHeader } from "./instance-header"
 import { InstanceTrashView } from "./instance-trash-view"
 import { InstanceImportOverlay } from "./instance-import-overlay"
 import { InstanceModal } from "./instance-modal"
 import { useBuilds } from "./use-builds"
 import { useModSearch } from "./use-mod-search"
-import { useImport } from "./use-import"
 import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
 import { useAccounts } from "@/src/AccountsContext"
 import { useBuildLaunch } from "@/src/hooks/use-build-launch"
@@ -92,13 +94,18 @@ export function InstancePage() {
     setMrLoading(true)
     try {
       const searchQuery = query.trim()
-      const resp = await window.electronAPI?.modsModrinthSearch(
-        searchQuery,
-        "modpack",
-        selectedVersion === "all" ? undefined : selectedVersion,
-        selectedModLoader === "all" ? undefined : selectedModLoader as "vanilla" | "fabric" | "quilt" | "neoforge",
-        mrSortBy,
-        currentPage,
+      const key = `modrinth:search:modpack:${searchQuery}:${selectedVersion === "all" ? "" : selectedVersion}:${selectedModLoader === "all" ? "" : selectedModLoader}:${mrSortBy}:${currentPage}`
+      const resp = await dataCache.getOrFetch(
+        key,
+        () => window.electronAPI?.modsModrinthSearch(
+          searchQuery,
+          "modpack",
+          selectedVersion === "all" ? undefined : selectedVersion,
+          selectedModLoader === "all" ? undefined : selectedModLoader as "vanilla" | "fabric" | "quilt" | "neoforge",
+          mrSortBy,
+          currentPage,
+        ) ?? null,
+        { ttl: MOD_SEARCH_CACHE_TTL, persist: true },
       )
       const nextResults = resp?.results ?? []
       setMrResults(nextResults)
@@ -114,13 +121,18 @@ export function InstancePage() {
     setCfLoading(true)
     try {
       const searchQuery = query.trim()
-      const resp = await window.electronAPI?.modsCurseforgeSearch(
-        searchQuery,
-        "modpack",
-        selectedVersion === "all" ? undefined : selectedVersion,
-        selectedModLoader === "all" ? undefined : selectedModLoader,
-        cfSortBy,
-        currentPage,
+      const key = `curseforge:search:modpack:${searchQuery}:${selectedVersion === "all" ? "" : selectedVersion}:${selectedModLoader === "all" ? "" : selectedModLoader}:${cfSortBy}:${currentPage}`
+      const resp = await dataCache.getOrFetch(
+        key,
+        () => window.electronAPI?.modsCurseforgeSearch(
+          searchQuery,
+          "modpack",
+          selectedVersion === "all" ? undefined : selectedVersion,
+          selectedModLoader === "all" ? undefined : selectedModLoader,
+          cfSortBy,
+          currentPage,
+        ) ?? null,
+        { ttl: MOD_SEARCH_CACHE_TTL, persist: true },
       )
       const nextResults = resp?.results ?? []
       setCfResults(nextResults)
@@ -163,7 +175,13 @@ export function InstancePage() {
   const fetchFtbModpacks = useCallback(async (query: string, currentPage: number) => {
     setFtbLoading(true)
     try {
-      const resp = await window.electronAPI?.modsFtbSearch(query.trim(), currentPage)
+      const searchQuery = query.trim()
+      const key = `ftb:search:${searchQuery}:${currentPage}`
+      const resp = await dataCache.getOrFetch(
+        key,
+        () => window.electronAPI?.modsFtbSearch(searchQuery, currentPage) ?? null,
+        { ttl: MOD_SEARCH_CACHE_TTL, persist: true },
+      )
       const nextResults = resp?.results ?? []
       setFtbResults(nextResults)
       setFtbTotalHits(resp?.totalCount ?? 0)

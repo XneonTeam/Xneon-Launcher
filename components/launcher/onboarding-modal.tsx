@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom"
 import { useEffect, useMemo, useState } from "react"
-import { IconArrowLeft, IconArrowRight, IconCheck, IconLoader2, IconRocket, IconX } from "@tabler/icons-react"
+import { IconArrowLeft, IconArrowRight, IconCheck, IconLoader2, IconPlayerPlay, IconX } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { useAccounts } from "@/src/AccountsContext"
 import { changeLanguage } from "@/src/i18n"
@@ -105,8 +105,8 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
   const anyLoginLoading = elyByLoading || xnSkinsLoading || microsoftLoading
   const isLastStep = stepIndex === steps.length - 1
   const currentStep = steps[stepIndex]
-  const STEP_ICONS = [IconRocket, IconRocket, IconRocket, IconRocket, IconRocket]
-  const CurrentStepIcon = STEP_ICONS[stepIndex] ?? IconRocket
+  const STEP_ICONS = [IconPlayerPlay, IconPlayerPlay, IconPlayerPlay, IconPlayerPlay, IconPlayerPlay]
+  const CurrentStepIcon = STEP_ICONS[stepIndex] ?? IconPlayerPlay
 
   const canProceed = useMemo(() => {
     if (stepIndex === 0) return Boolean(selectedLanguage)
