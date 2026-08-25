@@ -160,7 +160,9 @@ export interface IpcInvokeMap {
   "ai:get-config": { args: []; return: { apiKey: string; endpoint: string; model: string } }
   "ai:save-config": { args: [config: { apiKey: string; endpoint: string; model: string }]; return: void }
   "ai:analyze-crash": { args: [logContent: string, sessionId?: string]; return: { success: boolean; analysis?: string; error?: string } }
+  "ai:analyze-crash-stream": { args: [requestId: string, logContent: string]; return: { success: boolean; analysis?: string; error?: string } }
   "ai:chat-send": { args: [sessionId: string, userMessage: string]; return: { success: boolean; analysis?: string; error?: string } }
+  "ai:chat-send-stream": { args: [requestId: string, sessionId: string, userMessage: string]; return: { success: boolean; analysis?: string; error?: string } }
   "ai:sessions-list": { args: []; return: Array<{ id: string; title: string; createdAt: number; updatedAt: number }> }
   "ai:sessions-create": { args: [id: string, title: string]; return: void }
   "ai:sessions-rename": { args: [id: string, title: string]; return: void }
@@ -351,6 +353,7 @@ export interface ElectronAPIExplicit {
   minimize: () => void
   maximize: () => void
   close: () => void
+  restore: () => void
   isMaximized: () => Promise<boolean>
   loginElyBy: () => Promise<AuthPayload>
   loginXnSkins: () => Promise<AuthPayload>

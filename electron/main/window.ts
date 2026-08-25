@@ -76,6 +76,14 @@ export function registerWindowLifecycle() {
 
   ipcMain.on("window:minimize", () => getMainWindow()?.minimize())
 
+  ipcMain.on("window:restore", () => {
+    const win = getMainWindow()
+    if (!win) return
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+  })
+
   ipcMain.on("window:maximize", () => {
     const win = getMainWindow()
     if (!win) return

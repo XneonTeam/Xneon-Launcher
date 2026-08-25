@@ -153,7 +153,6 @@ export interface VersionJson {
   javaVersion?: VersionJsonJavaVersion;
   logging?: VersionJsonLogging;
   minimumLauncherVersion?: number;
-  tlauncherVersion?: number;
   complianceLevel?: number;
   releaseType?: string;
   xnlcBaseVersion?: string;

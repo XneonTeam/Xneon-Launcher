@@ -112,7 +112,7 @@ export function HomePage() {
     }
 
     if (!loaderVersionsLoaded) return
-    if (loaderVersions.some(option => option.value === selectedLoaderVersion)) return
+    if (selectedLoaderVersion && loaderVersions.some(option => option.value === selectedLoaderVersion)) return
     setSelectedLoaderVersion(recommendedLoaderVersion ?? "")
   }, [loaderVersions, loaderVersionsLoaded, recommendedLoaderVersion, selectedLoaderVersion, selectedModLoader])
 

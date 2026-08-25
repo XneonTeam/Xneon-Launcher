@@ -75,13 +75,17 @@ export type LauncherExtraApi = {
   getAiConfig: () => Promise<{ apiKey: string; endpoint: string; model: string }>
   saveAiConfig: (config: { apiKey: string; endpoint: string; model: string }) => Promise<void>
   analyzeCrash: (logContent: string, sessionId: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
-  onAiStreamChunk: (callback: (chunk: { sessionId: string; delta?: string; done?: boolean }) => void) => () => void
+  analyzeCrashStream: (requestId: string, logContent: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
   aiChatSend: (sessionId: string, userMessage: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
+  aiChatSendStream: (requestId: string, sessionId: string, userMessage: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
   aiListSessions: () => Promise<Array<{ id: string; title: string; createdAt: number; updatedAt: number }>>
   aiCreateSession: (id: string, title: string) => Promise<void>
   aiRenameSession: (id: string, title: string) => Promise<void>
   aiDeleteSession: (id: string) => Promise<void>
   aiListMessages: (sessionId: string) => Promise<Array<{ id: string; role: string; content: string; createdAt: number }>>
+  onAiStreamChunk: (callback: (data: { requestId: string; content: string }) => void) => () => void
+  onAiStreamDone: (callback: (data: { requestId: string; fullText: string }) => void) => () => void
+  onAiStreamError: (callback: (data: { requestId: string; error: string }) => void) => () => void
   getTotalMemory: () => Promise<number>
   reorderAccounts: (ids: string[]) => Promise<void>
   getInstancesRoot: () => Promise<string>

@@ -1,5 +1,6 @@
 import { ipcMain, safeStorage } from "electron"
 import { dbHelpers } from "../db"
+import { sendToRenderer, getMainWindow } from "./runtime"
 
 export type AiAnalysisResult = {
   success: boolean
@@ -7,7 +8,6 @@ export type AiAnalysisResult = {
   error?: string
 }
 
-export type AiStreamChunk = { sessionId: string; delta?: string; done?: boolean }
 export type AiConfig = { apiKey: string; endpoint: string; model: string }
 
 const AI_KEY_PREFIX = "encrypted:"
@@ -110,7 +110,7 @@ function buildSystemPrompt(language?: string) {
 async function callAiApi(
   messages: Array<{ role: string; content: string }>,
   opts: { maxTokens?: number; temperature?: number; language?: string } = {},
-): Promise<{ success: boolean; content?: string; error?: string }> {
+): Promise<{ success: boolean; analysis?: string; error?: string }> {
   const config = await getApiConfig()
   if (!config) return { success: false, error: "AI API key not configured. Go to Settings → AI." }
 
@@ -137,22 +137,23 @@ async function callAiApi(
     }
 
     const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> }
-    const content = data.choices?.[0]?.message?.content?.trim()
-    if (!content) return { success: false, error: "Empty response from AI model." }
-    return { success: true, content }
+    const analysis = data.choices?.[0]?.message?.content?.trim()
+    if (!analysis) return { success: false, error: "Empty response from AI model." }
+    return { success: true, analysis }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)
     return { success: false, error: `AI request failed: ${message}` }
   }
 }
 
-// Streaming API call — sends chunks via IPC events
-async function streamAiApi(
-  sessionId: string,
+// ── Streaming API call (SSE) ────────────────────────────────
+// Sends chunks to renderer via ai:stream-chunk / ai:stream-done / ai:stream-error.
+// Returns the accumulated full text for storage.
+async function callAiApiStream(
+  requestId: string,
   messages: Array<{ role: string; content: string }>,
-  webContents: Electron.WebContents,
   opts: { maxTokens?: number; temperature?: number; language?: string } = {},
-): Promise<{ success: boolean; content?: string; error?: string }> {
+): Promise<{ success: boolean; fullText?: string; error?: string }> {
   const config = await getApiConfig()
   if (!config) return { success: false, error: "AI API key not configured. Go to Settings → AI." }
 
@@ -177,18 +178,22 @@ async function streamAiApi(
     if (!res.ok) {
       const body = await res.text().catch(() => "")
       const error = `API error ${res.status}: ${body.slice(0, 300)}`
-      webContents.send("ai:stream-chunk", { sessionId, delta: `⚠️ ${error}`, done: true })
+      sendToRenderer("ai:stream-error", { requestId, error })
       return { success: false, error }
     }
 
-    const reader = res.body?.getReader()
-    if (!reader) return { success: false, error: "No response body" }
+    if (!res.body) {
+      const error = "Response body is null — streaming not supported by this endpoint."
+      sendToRenderer("ai:stream-error", { requestId, error })
+      return { success: false, error }
+    }
 
+    const reader = res.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ""
-    let fullContent = ""
+    let fullText = ""
 
-    while (true) {
+    for (;;) {
       const { done, value } = await reader.read()
       if (done) break
 
@@ -198,31 +203,42 @@ async function streamAiApi(
 
       for (const line of lines) {
         const trimmed = line.trim()
-        if (!trimmed || !trimmed.startsWith("data: ")) continue
-        const data = trimmed.slice(6)
-        if (data === "[DONE]") continue
-
+        if (!trimmed || !trimmed.startsWith("data:")) continue
+        const data = trimmed.slice(5).trim()
+        if (data === "[DONE]") {
+          sendToRenderer("ai:stream-done", { requestId, fullText })
+          return { success: true, fullText }
+        }
         try {
           const parsed = JSON.parse(data) as {
-            choices?: Array<{ delta?: { content?: string } }>
+            choices?: Array<{ delta?: { content?: string }; finish_reason?: string }>
           }
           const delta = parsed.choices?.[0]?.delta?.content
           if (delta) {
-            fullContent += delta
-            webContents.send("ai:stream-chunk", { sessionId, delta })
+            fullText += delta
+            sendToRenderer("ai:stream-chunk", { requestId, content: delta })
           }
         } catch {
-          // skip malformed chunks
+          // ignore unparseable SSE lines
         }
       }
     }
 
-    webContents.send("ai:stream-chunk", { sessionId, done: true })
-    return { success: true, content: fullContent }
+    // Flush remaining buffer
+    if (buffer.trim().startsWith("data:")) {
+      const data = buffer.trim().slice(5).trim()
+      if (data === "[DONE]") {
+        sendToRenderer("ai:stream-done", { requestId, fullText })
+        return { success: true, fullText }
+      }
+    }
+
+    sendToRenderer("ai:stream-done", { requestId, fullText })
+    return { success: true, fullText }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)
     const error = `AI request failed: ${message}`
-    webContents.send("ai:stream-chunk", { sessionId, delta: `⚠️ ${error}`, done: true })
+    sendToRenderer("ai:stream-error", { requestId, error })
     return { success: false, error }
   }
 }
@@ -240,19 +256,22 @@ export function registerAiAgent(): void {
     await dbHelpers.setSetting("aiModel", config.model.trim())
   })
 
-  // ── Crash Analysis (streaming) ──────────────────────────
-  ipcMain.handle("ai:analyze-crash", async (event, logContent: string, requestedSessionId?: string): Promise<AiAnalysisResult> => {
+  // ── Crash Analysis ───────────────────────────────────────
+  ipcMain.handle("ai:analyze-crash", async (_event, logContent: string, _requestedSessionId?: string): Promise<AiAnalysisResult> => {
     const truncated = truncateLog(logContent)
     const prompt = CRASH_ANALYSIS_PROMPT + truncated
-    const sessionId = requestedSessionId || crypto.randomUUID()
     const language = await dbHelpers.getSetting("language") || "ru"
 
-    return streamAiApi(
-      sessionId,
-      [{ role: "user", content: prompt }],
-      event.sender,
-      { maxTokens: 512, temperature: 0.3, language },
-    )
+    return callAiApi([{ role: "user", content: prompt }], { maxTokens: 512, temperature: 0.3, language })
+  })
+
+  // ── Crash Analysis (streaming) ──────────────────────────
+  ipcMain.handle("ai:analyze-crash-stream", async (_event, requestId: string, logContent: string): Promise<AiAnalysisResult> => {
+    const truncated = truncateLog(logContent)
+    const prompt = CRASH_ANALYSIS_PROMPT + truncated
+    const language = await dbHelpers.getSetting("language") || "ru"
+
+    return callAiApiStream(requestId, [{ role: "user", content: prompt }], { maxTokens: 512, temperature: 0.3, language })
   })
 
   // ── Chat Send Message ───────────────────────────────────
@@ -267,10 +286,35 @@ export function registerAiAgent(): void {
       const language = await dbHelpers.getSetting("language") || "ru"
       const result = await callAiApi(chatMessages, { language })
 
-      if (result.success && result.content) {
+      if (result.success && result.analysis) {
         const assistantMsgId = crypto.randomUUID()
-        await dbHelpers.aiAddMessage(assistantMsgId, sessionId, "assistant", result.content)
-        return { success: true, analysis: result.content }
+        await dbHelpers.aiAddMessage(assistantMsgId, sessionId, "assistant", result.analysis)
+        return { success: true, analysis: result.analysis }
+      }
+
+      return { success: false, error: result.error }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      return { success: false, error: `Chat error: ${message}` }
+    }
+  })
+
+  // ── Chat Send Message (streaming) ──────────────────────
+  ipcMain.handle("ai:chat-send-stream", async (_event, requestId: string, sessionId: string, userMessage: string): Promise<AiAnalysisResult> => {
+    try {
+      const userMsgId = crypto.randomUUID()
+      await dbHelpers.aiAddMessage(userMsgId, sessionId, "user", userMessage)
+
+      const history = await dbHelpers.aiListMessages(sessionId)
+      const chatMessages = history.map((m) => ({ role: m.role, content: m.content }))
+
+      const language = await dbHelpers.getSetting("language") || "ru"
+      const result = await callAiApiStream(requestId, chatMessages, { language })
+
+      if (result.success && result.fullText) {
+        const assistantMsgId = crypto.randomUUID()
+        await dbHelpers.aiAddMessage(assistantMsgId, sessionId, "assistant", result.fullText)
+        return { success: true, analysis: result.fullText }
       }
 
       return { success: false, error: result.error }

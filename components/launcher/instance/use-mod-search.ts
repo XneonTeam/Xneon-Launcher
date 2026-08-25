@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { MODS_PER_PAGE } from "./constants"
 import type { Source, SearchSource, ModSort, ContentType, ModalTab, ModSearchResult, ModVersion, ModDetails, Build, DetailTab } from "./types"
 import type { ModLoaderFilter, ModCategory } from "@xnlc/types"
-import { dataCache, STALE_SEARCH_MS } from "@/lib/swr"
+import { dataCache, STALE_SEARCH_MS, MOD_SEARCH_CACHE_TTL } from "@/lib/swr"
 import { SORT_OPTIONS_BY_SOURCE } from "./sort-options"
 
 export type SelectedModCategory = { name: string; source?: "modrinth" | "curseforge" }
@@ -95,7 +95,7 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
     return dataCache.getOrFetch(
       key,
       () => window.electronAPI?.modsModrinthSearch(query, type, version, loader, sort, page, cats) ?? null,
-      { ttl: STALE_SEARCH_MS },
+      { ttl: MOD_SEARCH_CACHE_TTL, persist: true },
     )
   }, [])
 
@@ -108,7 +108,7 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
     return dataCache.getOrFetch(
       key,
       () => window.electronAPI?.modsCurseforgeSearch(query, type, version, loader, sort, page, cats) ?? null,
-      { ttl: STALE_SEARCH_MS },
+      { ttl: MOD_SEARCH_CACHE_TTL, persist: true },
     )
   }, [])
 
