@@ -177,7 +177,7 @@ export class XnlcLoaderService {
     }
 
     const fallbackVersion = await this.resolveDefaultLoaderVersion(selection.mcVersion, "quilt");
-    console.log(`[XNLC] Quilt loader ${selection.loaderVersion} is incompatible with Minecraft ${selection.mcVersion} on Java ${requiredJavaVersion}; using ${fallbackVersion} instead`);
+    console.log(`Quilt loader ${selection.loaderVersion} is incompatible with Minecraft ${selection.mcVersion} on Java ${requiredJavaVersion}; using ${fallbackVersion} instead`);
     return {
       ...selection,
       loaderVersion: fallbackVersion,

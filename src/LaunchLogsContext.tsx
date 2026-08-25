@@ -324,9 +324,7 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
         message: code === 0 ? "Game process finished normally." : `Exit code: ${code}`,
       })
       resetLaunchUi()
-      window.electronAPI?.getSetting("afterLaunch").then((v) => {
-        if (v === "minimize") window.electronAPI?.restore()
-      })
+      window.electronAPI?.restore()
     })
 
     return () => {
