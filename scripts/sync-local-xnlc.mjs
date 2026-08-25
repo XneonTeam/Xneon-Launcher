@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process"
-import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync } from "node:fs"
+import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, rmSync, symlinkSync } from "node:fs"
 import path from "node:path"
 
 const rootDir = process.cwd()
@@ -53,19 +53,23 @@ for (const packageDirName of localPackages) {
   try {
     if (existsSync(targetDir)) {
       const stat = lstatSync(targetDir)
-      if (!stat.isSymbolicLink()) {
-        rmSync(targetDir, { recursive: true, force: true })
-      } else {
-        throw new Error("skip")
+      if (stat.isSymbolicLink()) {
+        const currentTarget = readlinkSync(targetDir)
+        const normalizedCurrent = path.resolve(path.dirname(targetDir), currentTarget)
+        const normalizedExpected = path.resolve(packageDir)
+        if (normalizedCurrent === normalizedExpected || normalizedCurrent === path.normalize(packageDir)) {
+          console.log(`[sync-local-xnlc] ${packageName} symlink already points to local package, skipping`)
+          continue
+        }
+        console.log(`[sync-local-xnlc] ${packageName} symlink points to ${currentTarget}, replacing with local package`)
       }
+      rmSync(targetDir, { recursive: true, force: true })
     } else {
       mkdirSync(path.dirname(targetDir), { recursive: true })
     }
     symlinkSync(relativeTarget, targetDir, linkType)
   } catch (err) {
-    if (err.message !== "skip") {
-      console.warn(`[sync-local-xnlc] Could not link ${packageName}:`, err)
-    }
+    console.warn(`[sync-local-xnlc] Could not link ${packageName}:`, err)
   }
 
   console.log(`[sync-local-xnlc] Synced ${packageName}`)

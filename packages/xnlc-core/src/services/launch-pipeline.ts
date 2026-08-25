@@ -70,7 +70,7 @@ export class XnlcLaunchPipeline {
     onProgress?: DownloadProgressCallback,
   ): Promise<LaunchResult> {
     this.ensureLauncherProfiles();
-    console.log(`[XNLC] Launch requested selection=${JSON.stringify(selection)} config=${JSON.stringify({
+    console.log(`Launch requested selection=${JSON.stringify(selection)} config=${JSON.stringify({
       javaPath: config.javaPath ?? "",
       memoryMin: config.memoryMin ?? "",
       memoryMax: config.memoryMax ?? "",
@@ -88,9 +88,9 @@ export class XnlcLaunchPipeline {
     // For non-custom launches we can resolve required Java from base vanilla metadata first.
     if (!customVersionPath && loaderType !== "custom") {
       const baseVersionJson = await this.versionResolver.resolveVersion(resolvedSelection.mcVersion, this.osInfo);
-      console.log(`[XNLC] Base version metadata resolved id=${baseVersionJson.id} javaComponent=${baseVersionJson.javaVersion?.majorVersion ?? "unknown"} ${formatLibrarySummary(baseVersionJson)}`);
+      console.log(`Base version metadata resolved id=${baseVersionJson.id} javaComponent=${baseVersionJson.javaVersion?.majorVersion ?? "unknown"} ${formatLibrarySummary(baseVersionJson)}`);
       const requiredJavaVersion = resolveJavaVersion(baseVersionJson);
-      console.log(`[XNLC] Required Java version before install: ${requiredJavaVersion}`);
+      console.log(`Required Java version before install: ${requiredJavaVersion}`);
       javaRuntime = await this.javaManager.findOrDownloadJava(
         requiredJavaVersion,
         config.javaPath ?? this.options.javaPath,
@@ -101,7 +101,7 @@ export class XnlcLaunchPipeline {
     }
 
     const versionJson = await this.resolveLaunchVersion(resolvedSelection, onProgress);
-    console.log(`[XNLC] Launch version resolved id=${versionJson.id} inheritsFrom=${versionJson.inheritsFrom ?? ""} mainClass=${versionJson.mainClass} ${formatLibrarySummary(versionJson)}`);
+    console.log(`Launch version resolved id=${versionJson.id} inheritsFrom=${versionJson.inheritsFrom ?? ""} mainClass=${versionJson.mainClass} ${formatLibrarySummary(versionJson)}`);
     
     // For custom versions with inheritsFrom, resolve inheritance to get base Minecraft libraries
     // Otherwise use the resolved versionJson directly
@@ -112,14 +112,14 @@ export class XnlcLaunchPipeline {
       : loaderType === "vanilla"
         ? await this.versionResolver.resolveVersion(versionJson.id, this.osInfo)
         : await this.versionResolver.resolveVersionFromJson(versionJson, this.osInfo);
-    console.log(`[XNLC] Final resolved JSON id=${resolvedJson.id} inheritsFrom=${resolvedJson.inheritsFrom ?? ""} mainClass=${resolvedJson.mainClass} assetIndex=${resolvedJson.assetIndex?.id ?? ""} ${formatLibrarySummary(resolvedJson)}`);
+    console.log(`Final resolved JSON id=${resolvedJson.id} inheritsFrom=${resolvedJson.inheritsFrom ?? ""} mainClass=${resolvedJson.mainClass} assetIndex=${resolvedJson.assetIndex?.id ?? ""} ${formatLibrarySummary(resolvedJson)}`);
 
     const plan = await this.versionService.buildPreparationPlan(resolvedJson);
     const tracker = new ProgressTracker(plan, onProgress);
 
     // Step 4: Ensure the client jar exists for the launch target.
     await this.versionService.ensureClientJar(resolvedJson, withStage("game", tracker.onProgress));
-    console.log(`[XNLC] Client jar ensured for ${resolvedJson.id}`);
+    console.log(`Client jar ensured for ${resolvedJson.id}`);
 
     // Step 5: Download libraries for resolved version
     await this.librariesManager.downloadLibraries(resolvedJson, withStage("libraries", tracker.onProgress));
@@ -127,16 +127,16 @@ export class XnlcLaunchPipeline {
 
     // Step 6: Download assets
     await this.assetsManager.downloadAssets(resolvedJson, this.options.gameDir, withStage("assets", tracker.onProgress));
-    console.log(`[XNLC] Assets download stage completed for assetIndex=${resolvedJson.assetIndex?.id ?? ""}`);
+    console.log(`Assets download stage completed for assetIndex=${resolvedJson.assetIndex?.id ?? ""}`);
 
     // Step 7: Extract natives
     const nativesDir = await this.nativesExtractor.extractNatives(resolvedJson, this.options.gameDir);
-    console.log(`[XNLC] Natives extracted to ${nativesDir}`);
+    console.log(`Natives extracted to ${nativesDir}`);
 
     // Fallback for custom version paths where required Java is unknown before resolving version JSON.
     if (!javaRuntime) {
       const requiredJavaVersion = resolveJavaVersion(resolvedJson);
-      console.log(`[XNLC] Required Java version after full resolve: ${requiredJavaVersion}`);
+      console.log(`Required Java version after full resolve: ${requiredJavaVersion}`);
       javaRuntime = await this.javaManager.findOrDownloadJava(
         requiredJavaVersion,
         config.javaPath ?? this.options.javaPath,
@@ -162,7 +162,7 @@ export class XnlcLaunchPipeline {
         extraGameArgs: config.gameArgs ?? [],
       }
     );
-    console.log(`[XNLC] Launch command built with ${fullCommand.length} segments`);
+    console.log(`Launch command built with ${fullCommand.length} segments`);
 
     // Step 10: Launch
     return this.javaRunner.launch(fullCommand, this.options.gameDir, {
@@ -268,6 +268,6 @@ export class XnlcLaunchPipeline {
   }
 
   private logJavaRuntime(runtime: any): void {
-    console.log(`[XNLC] Resolved Java runtime ready: ${runtime.path} (version ${runtime.version}, vendor ${runtime.vendor})`);
+    console.log(`Resolved Java runtime ready: ${runtime.path} (version ${runtime.version}, vendor ${runtime.vendor})`);
   }
 }

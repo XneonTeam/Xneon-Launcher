@@ -103,7 +103,7 @@ export class XnlcVersionService {
       totalFiles: vanillaMeta.totalFiles + libraries.totalFiles + assets.totalFiles,
       totalBytes: vanillaMeta.totalBytes + libraries.totalBytes + assets.totalBytes,
     };
-    console.log(`[XNLC] Preparation plan for ${resolveVersionId(versionJson, versionIdOverride)}: gameFiles=${vanillaMeta.totalFiles} libraryFiles=${libraries.totalFiles} assetFiles=${assets.totalFiles} totalFiles=${plan.totalFiles} totalBytes=${plan.totalBytes}`);
+    console.log(`Preparation plan for ${resolveVersionId(versionJson, versionIdOverride)}: gameFiles=${vanillaMeta.totalFiles} libraryFiles=${libraries.totalFiles} assetFiles=${assets.totalFiles} totalFiles=${plan.totalFiles} totalBytes=${plan.totalBytes}`);
     return plan;
   }
 
