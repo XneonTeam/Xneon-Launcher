@@ -33,6 +33,7 @@ electron/main/cloud/credentials.generated.ts
 # Cache
 .codex/
 .xneonlauncher/
+.pnpm-store/
 *.tsbuildinfo
 tsconfig.tsbuildinfo
 

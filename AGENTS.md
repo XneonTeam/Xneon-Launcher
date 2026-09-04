@@ -11,7 +11,7 @@ Code, function names, API, terminal commands, and error messages — keep in the
 Xneon Launcher — Electron + React 19 Minecraft launcher.
 - **Renderer** (React): `components/`, `src/`, `lib/`
 - **Electron main**: `electron/main/`, `electron/preload.ts`
-- **Local packages** (`packages/`): `@xnlc/core`, `@xnlc/mods`, `@xnlc/types`, `@xnlc/p2p`, `@xnlc/nbt` — linked via pnpm workspace (`workspace:*` in `package.json`). Registry fallback at `https://git.xneon.org/api/packages/MAINER4IK/npm/`
+- **Local packages** (`packages/`): `@xnlc/core`, `@xnlc/mods`, `@xnlc/types`, `@xnlc/nbt` — linked via pnpm workspace (`workspace:*` in `package.json`). Registry fallback at `https://git.xneon.org/api/packages/MAINER4IK/npm/`
 - **IPC contracts**: `packages/xnlc-types/src/ipc-contracts.ts` — single source of truth for channel signatures
 - **Launch params**: `packages/xnlc-types/src/launch-types.ts` — `MinecraftLaunchParams`
 
