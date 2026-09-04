@@ -94,6 +94,13 @@ type XnConnectState =
   | { status: "auth_required"; authUrl: string }
   | { status: "starting" }
   | { status: "running"; publicAddress: string; tunnelId: string }
+  | { status: "limit_reached"; used: number; max: number; plan: string }
+
+type XnConnectUsage = {
+  used: number
+  max: number
+  plan: string
+}
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): CleanupFn {
   const handler = (_: Electron.IpcRendererEvent, payload: T) => callback(payload)
@@ -422,6 +429,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   xnConnectStart: (serverId: string) => ipcRenderer.invoke('xn-connect:start', serverId) as Promise<XnConnectState>,
   xnConnectStop: (serverId: string) => ipcRenderer.invoke('xn-connect:stop', serverId) as Promise<void>,
   xnConnectStatus: (serverId: string) => ipcRenderer.invoke('xn-connect:status', serverId) as Promise<XnConnectState>,
+  xnConnectUsage: invoke<XnConnectUsage | null>('xn-connect:usage'),
+  onXnConnectUsage: (callback: (usage: XnConnectUsage) => void) => subscribe<XnConnectUsage>('xn-connect:usage-updated', callback),
   onXnConnectState: (callback: (data: { serverId: string; state: XnConnectState }) => void) => subscribe<{ serverId: string; state: XnConnectState }>('xn-connect:state', callback),
   onXnConnectLog: (callback: (data: { serverId: string; line: string }) => void) => subscribe<{ serverId: string; line: string }>('xn-connect:log', callback),
   onXnConnectAuthState: (callback: (data: { state: XnConnectState }) => void) => subscribe<{ state: XnConnectState }>('xn-connect:auth-state', callback),

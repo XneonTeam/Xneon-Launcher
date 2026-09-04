@@ -261,6 +261,29 @@ export async function apiBrowserAuth(apiUrl: string): Promise<string> {
   throw new Error("auth timeout")
 }
 
+export type XnConnectAccount = {
+  username: string
+  plan: string
+  maxTunnels: number
+}
+
+// GET /api/auth/me — returns account info including tunnel limits
+// (e.g. { max_tunnels: 10, plan: "premium", ... }). Verified against
+// https://connect.xneon.org: max_tunnels is the authoritative limit.
+export async function apiGetAccount(token: string, apiUrl: string): Promise<XnConnectAccount | null> {
+  try {
+    const res = await httpRequest("GET", `${apiUrl}/api/auth/me`, token, null)
+    if (res.status !== 200) return null
+    const username = jsonString(res.body, "username") ?? ""
+    const plan = jsonString(res.body, "plan") ?? "free"
+    const maxTunnels = jsonInt(res.body, "max_tunnels", 0)
+    if (!username && maxTunnels === 0) return null
+    return { username, plan, maxTunnels }
+  } catch {
+    return null
+  }
+}
+
 export async function apiGetNodes(token: string, apiUrl: string): Promise<Node[]> {
   const res = await httpRequest("GET", `${apiUrl}/api/v1/nodes/available`, token, null)
   if (res.status !== 200) return []

@@ -70,6 +70,13 @@ export type XnConnectState =
   | { status: "auth_required"; authUrl: string }
   | { status: "starting" }
   | { status: "running"; publicAddress: string; tunnelId: string }
+  | { status: "limit_reached"; used: number; max: number; plan: string }
+
+export type XnConnectUsage = {
+  used: number
+  max: number
+  plan: string
+}
 
 export type LauncherCloudFile = {
   id: string
@@ -218,9 +225,11 @@ export type LauncherExtraApi = {
   xnConnectStart: (serverId: string) => Promise<XnConnectState>
   xnConnectStop: (serverId: string) => Promise<void>
   xnConnectStatus: (serverId: string) => Promise<XnConnectState>
+  xnConnectUsage: () => Promise<XnConnectUsage | null>
   onXnConnectState: (callback: (data: { serverId: string; state: XnConnectState }) => void) => () => void
   onXnConnectLog: (callback: (data: { serverId: string; line: string }) => void) => () => void
   onXnConnectAuthState: (callback: (data: { state: XnConnectState }) => void) => () => void
+  onXnConnectUsage: (callback: (usage: XnConnectUsage) => void) => () => void
 
   onMcServerLog: (callback: (data: { id: string; line: string }) => void) => () => void
   onMcServerStateChange: (callback: (data: { id: string; state: McServerState }) => void) => () => void

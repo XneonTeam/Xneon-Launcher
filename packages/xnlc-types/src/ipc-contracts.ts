@@ -51,6 +51,7 @@ import type {
 
 import type {
   XnConnectState,
+  XnConnectUsage,
   McFsEntry,
   ResolvedPlugin,
   McServerInfo,
@@ -311,6 +312,7 @@ export interface IpcInvokeMap {
   "xn-connect:start": { args: [serverId: string]; return: XnConnectState }
   "xn-connect:stop": { args: [serverId: string]; return: void }
   "xn-connect:status": { args: [serverId: string]; return: XnConnectState }
+  "xn-connect:usage": { args: []; return: XnConnectUsage | null }
 
   // ── Server Files ──
   "mc-server:fs-list": { args: [id: string, relativePath: string]; return: McFsEntry[] }
@@ -342,6 +344,7 @@ export interface IpcEventMap {
   "import:progress": ImportProgress
   "cloud:upload-progress": { id: string; percent: number; stage: "zip" | "upload" }
   "mc-server:download-progress": McServerDownloadProgress
+  "xn-connect:usage-updated": XnConnectUsage
 }
 
 // ── Explicit ElectronAPI ────────────────────────────────────
@@ -514,4 +517,6 @@ export interface ElectronAPIExplicit {
   skinsUploadSkin: (filePath: string, variant: "classic" | "slim", accountId?: string) => Promise<boolean>
   skinsDeleteSkin: (accountId?: string) => Promise<boolean>
   skinsSetCape: (capeId: string | null, accountId?: string) => Promise<boolean>
+  xnConnectUsage: () => Promise<XnConnectUsage | null>
+  onXnConnectUsage: (callback: (usage: XnConnectUsage) => void) => CleanupFn
 }

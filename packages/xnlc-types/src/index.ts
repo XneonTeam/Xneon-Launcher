@@ -87,5 +87,6 @@ export type {
   McFsEntry,
   ResolvedPlugin,
   XnConnectState,
+  XnConnectUsage,
   McServerDownloadProgress,
 } from "./server-types.js"
