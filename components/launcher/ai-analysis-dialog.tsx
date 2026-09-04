@@ -5,15 +5,17 @@ import ReactMarkdown from "react-markdown"
 import rehypeRaw from "rehype-raw"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useLaunchLogs } from "@/src/LaunchLogsContext"
+import { stripAnsi } from "@/lib/ansi"
 
 interface AiAnalysisDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  logsOverride?: string[]
 }
 
-export function AiAnalysisDialog({ open, onOpenChange }: AiAnalysisDialogProps) {
+export function AiAnalysisDialog({ open, onOpenChange, logsOverride }: AiAnalysisDialogProps) {
   const { t } = useTranslation()
-  const { logs } = useLaunchLogs()
+  const { logs: launchLogs } = useLaunchLogs()
   const [analyzing, setAnalyzing] = useState(false)
   const [streamText, setStreamText] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -64,14 +66,16 @@ export function AiAnalysisDialog({ open, onOpenChange }: AiAnalysisDialogProps) 
     requestIdRef.current = requestId
 
     try {
-      const logText = logs.map((e) => e.text).join("\n")
+      const logText = logsOverride
+        ? logsOverride.map(l => stripAnsi(l)).join("\n")
+        : launchLogs.map((e) => e.text).join("\n")
       await api.analyzeCrashStream(requestId, logText)
     } catch (err) {
       setError(err instanceof Error ? err.message : t("ai.analysisError"))
       setAnalyzing(false)
       requestIdRef.current = null
     }
-  }, [logs, t])
+  }, [logsOverride, launchLogs, t])
 
   const handleCopy = useCallback(() => {
     if (streamText) {

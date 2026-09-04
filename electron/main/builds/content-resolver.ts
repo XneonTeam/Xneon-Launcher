@@ -140,6 +140,15 @@ export async function resolveContentEntry(filePath: string): Promise<ResolvedCon
           entry.source = "modrinth"
           entry.projectId = found.projectId
           entry.versionId = found.versionId
+
+          try {
+            const projectInfo = await mods.modrinthGetProjectsByIds([found.projectId])
+            const info = projectInfo[found.projectId]
+            if (info) {
+              entry.icon_url = entry.icon_url || info.iconUrl || undefined
+              entry.author = entry.author || info.author
+            }
+          } catch {}
         }
       } catch {}
 
@@ -151,6 +160,16 @@ export async function resolveContentEntry(filePath: string): Promise<ResolvedCon
           entry.fileId = match.fileId
           if (entry.source !== "modrinth") entry.source = "curseforge"
           cfChecked = 1
+
+          try {
+            const mods = await loadModsModule()
+            const cfInfo = await mods.curseforgeGetProjectsByIds([match.modId])
+            const info = cfInfo[match.modId]
+            if (info) {
+              entry.icon_url = entry.icon_url || info.iconUrl || undefined
+              entry.author = entry.author || info.author
+            }
+          } catch {}
         } else {
           cfChecked = cf.ok ? 1 : 0
         }
@@ -268,26 +287,26 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
     ...Object.values(mrMap).map((m) => m.projectId),
     ...cachedWithoutIcon.map((c) => c.resource.projectId!).filter(Boolean),
   ])]
-  const projectIconMap: Record<string, string> = {}
+  let projectInfoMap: Record<string, { iconUrl: string; author?: string }> = {}
   try {
     const mods = await loadModsModule()
-    await Promise.all(uniqueProjectIds.map(async (pid) => {
-      const info = await mods.modrinthGetProjectInfo(pid)
-      if (info?.iconUrl) projectIconMap[pid] = info.iconUrl
-    }))
+    projectInfoMap = await mods.modrinthGetProjectsByIds(uniqueProjectIds)
   } catch {}
 
   for (const { filePath, resource } of cachedWithoutIcon) {
-    const icon = projectIconMap[resource.projectId!]
-    if (icon) {
-      result[filePath].icon_url = icon
+    const info = projectInfoMap[resource.projectId!]
+    if (info?.iconUrl) {
+      result[filePath].icon_url = info.iconUrl
+      if (info.author && !result[filePath].author) {
+        result[filePath].author = info.author
+      }
       await dbHelpers.upsertResource({
         sha1: resource.sha1,
         name: resource.name,
         description: resource.description,
         version: resource.version,
-        icon,
-        author: resource.author ?? "",
+        icon: info.iconUrl,
+        author: info.author ?? resource.author ?? "",
         source: resource.source,
         projectId: resource.projectId,
         versionId: resource.versionId,
@@ -305,14 +324,14 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
     const chunkResults = await Promise.all(chunk.map(async ({ filePath, sha1 }) => {
       const metadata = await readModMetadataFromArchive(filePath)
       const found = mrMap[sha1]
-      const mrIcon = found?.projectId ? projectIconMap[found.projectId] : undefined
+      const mrInfo = found?.projectId ? projectInfoMap[found.projectId] : undefined
       const entry: ResolvedContentEntry = {
         sha1,
         name: metadata.name || "",
         description: metadata.description || "",
         version: metadata.version || "local",
-        icon_url: metadata.icon_url || mrIcon,
-        author: metadata.author,
+        icon_url: metadata.icon_url || mrInfo?.iconUrl,
+        author: metadata.author || mrInfo?.author,
         source: found ? "modrinth" : "local",
         projectId: found?.projectId,
         versionId: found?.versionId,
@@ -357,6 +376,16 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
   if (cfCandidates.length > 0) {
     const cfResolution = await resolveCurseforgeMatches(cfCandidates)
     const cfMap = cfResolution.matches
+
+    const cfModIds = [...new Set(Object.values(cfMap).map(m => m.modId))]
+    let cfProjectInfoMap: Record<number, { name: string; iconUrl: string; author?: string }> = {}
+    if (cfModIds.length > 0) {
+      try {
+        const mods = await loadModsModule()
+        cfProjectInfoMap = await mods.curseforgeGetProjectsByIds(cfModIds)
+      } catch {}
+    }
+
     for (const { filePath, sha1 } of cfCandidates) {
       const match = cfMap[sha1]
       if (match) {
@@ -365,8 +394,31 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
           entry.modId = match.modId
           entry.fileId = match.fileId
           if (entry.source !== "modrinth") entry.source = "curseforge"
+
+          const cfInfo = cfProjectInfoMap[match.modId]
+          if (cfInfo) {
+            entry.icon_url = entry.icon_url || cfInfo.iconUrl || undefined
+            entry.author = entry.author || cfInfo.author
+          }
         }
+        const cfInfo = cfProjectInfoMap[match.modId]
         await dbHelpers.setResourceCurseforge(sha1, match.modId, match.fileId)
+        if (cfInfo) {
+          await dbHelpers.upsertResource({
+            sha1,
+            name: cfInfo.name,
+            description: "",
+            version: "",
+            icon: cfInfo.iconUrl ?? "",
+            author: cfInfo.author ?? "",
+            source: "curseforge",
+            projectId: null,
+            versionId: null,
+            modId: match.modId,
+            fileId: match.fileId,
+            cfChecked: 1,
+          })
+        }
       } else if (cfResolution.ok) {
         await dbHelpers.markResourcesCurseforgeChecked([sha1])
       }

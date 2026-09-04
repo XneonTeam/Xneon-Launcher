@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from "react"
 
 export type ActivityNotificationKind = "info" | "success" | "error" | "progress"
-export type ActivityNotificationSource = "launch" | "import"
+export type ActivityNotificationSource = "launch" | "import" | "install"
 export type ImportSessionSource = "modrinth" | "curseforge" | "ftb" | "local"
 
 export interface ActivityNotification {
@@ -132,6 +132,27 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
         message: progress.message,
         progress: percent,
         itemName: progress.itemName ?? null,
+        busy: true,
+      })
+    })
+
+    return () => off?.()
+  }, [upsertLiveNotification])
+
+  useEffect(() => {
+    const off = window.electronAPI?.onContentDownloadProgress?.((progress) => {
+      if (!progress || !progress.fileName) return
+      if (importSessionSourceRef.current) return
+      const total = Math.max(progress.total, 1)
+      const current = Math.max(0, Math.min(progress.current, total))
+      const percent = Math.max(0, Math.min(100, Math.round((current / total) * 100)))
+      upsertLiveNotification("content-download", {
+        kind: "progress",
+        source: "install",
+        title: "Установка контента",
+        message: progress.fileName,
+        progress: percent,
+        itemName: progress.fileName,
         busy: true,
       })
     })

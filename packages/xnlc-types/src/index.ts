@@ -54,6 +54,7 @@ export type {
   ModSort,
   ModLoaderFilter,
   ModSource,
+  ModEnvironment,
   ModSearchResult,
   ModSearchResponse,
   ModDependency,
@@ -86,3 +87,15 @@ export type {
   WorkerLaunchPayload,
   WorkerMessage,
 } from "./worker-types.js"
+
+// MC Server types
+export type {
+  McServerInfo,
+  McServerState,
+  McServerMetrics,
+  McPlayerEntry,
+  McFsEntry,
+  ResolvedPlugin,
+  XnConnectState,
+  McServerDownloadProgress,
+} from "./server-types.js"

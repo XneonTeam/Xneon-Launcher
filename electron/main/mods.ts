@@ -12,6 +12,7 @@ import type {
   ModSearchResponse,
   ModSort,
   ModVersion,
+  ModEnvironment,
 } from "@xnlc/mods" with { "resolution-mode": "import" }
 import type * as ModsApi from "@xnlc/mods" with { "resolution-mode": "import" }
 
@@ -59,10 +60,11 @@ export function registerModsHandlers(): void {
       sortBy?: ModSort,
       page?: number,
       categories?: string[],
+      environment?: ModEnvironment,
     ): Promise<ModSearchResponse> => {
       try {
         const mods = await loadModsModule()
-        return await mods.modrinthSearch(query, { contentType: contentType ?? "mod", gameVersion, modLoader, categories, sortBy, page }) as ModSearchResponse
+        return await mods.modrinthSearch(query, { contentType: contentType ?? "mod", gameVersion, modLoader, categories, sortBy, page, environment }) as ModSearchResponse
       } catch (err) {
         console.error("Modrinth search error:", err)
         return { results: [], totalCount: 0 }
@@ -98,10 +100,11 @@ export function registerModsHandlers(): void {
       sortBy?: ModSort,
       page?: number,
       categories?: string[],
+      environment?: ModEnvironment,
     ): Promise<ModSearchResponse> => {
       try {
         const mods = await loadModsModule()
-        return await mods.curseforgeSearch(query, { contentType: contentType ?? "mod", gameVersion, modLoader, categories, sortBy, page }) as ModSearchResponse
+        return await mods.curseforgeSearch(query, { contentType: contentType ?? "mod", gameVersion, modLoader, categories, sortBy, page, environment }) as ModSearchResponse
       } catch (err) {
         console.error("CF search error:", err)
         return { results: [], totalCount: 0 }

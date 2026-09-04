@@ -58,10 +58,14 @@ export function SettingsPage() {
   const [instancesRoot, setInstancesRoot] = useState("")
 
   useEffect(() => {
-    const stored = localStorage.getItem("theme")
-    const id = stored || "orange"
-    const theme = presetThemes.find(t => t.id === id)
-    if (theme) { setSelectedTheme(id); applyTheme(theme) }
+    const loadTheme = async () => {
+      const dbTheme = await window.electronAPI?.getSetting("theme")
+      const stored = dbTheme || localStorage.getItem("theme")
+      const id = stored || "orange"
+      const theme = presetThemes.find(t => t.id === id)
+      if (theme) { setSelectedTheme(id); applyTheme(theme) }
+    }
+    void loadTheme()
   }, [])
 
   useEffect(() => {

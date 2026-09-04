@@ -7,9 +7,12 @@ import { SettingsPage } from "./settings"
 import { CloudPage } from "./cloud"
 import { NetworkPage } from "./network-page"
 import { SkinsPage } from "./skins-page"
+import { ServersPage } from "./servers-page"
+import { ServerDetailPage } from "./server-detail-page"
 import { OnboardingModal } from "./onboarding-modal"
 import { Sidebar, type TabId } from "./sidebar"
 import { applyTheme, presetThemes } from "./settings/data"
+import type { McServerInfo } from "@xnlc/types"
 
 interface LauncherProps {
   onReady?: () => void
@@ -20,6 +23,7 @@ export function Launcher({ onReady }: LauncherProps) {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [selectedTheme, setSelectedTheme] = useState(() => localStorage.getItem("theme") || "orange")
   const [showDbFallbackBanner, setShowDbFallbackBanner] = useState(false)
+  const [selectedMcServer, setSelectedMcServer] = useState<McServerInfo | null>(null)
 
   useEffect(() => {
     // Every page is mounted in this render; notify the parent once the frame
@@ -32,6 +36,19 @@ export function Launcher({ onReady }: LauncherProps) {
     const theme = presetThemes.find((item) => item.id === selectedTheme)
     if (theme) applyTheme(theme)
   }, [selectedTheme])
+
+  useEffect(() => {
+    let cancelled = false
+    window.electronAPI?.getSetting("theme").then((dbTheme) => {
+      if (cancelled || !dbTheme) return
+      const theme = presetThemes.find((t) => t.id === dbTheme)
+      if (theme) {
+        setSelectedTheme(dbTheme)
+        applyTheme(theme)
+      }
+    })
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -65,6 +82,7 @@ export function Launcher({ onReady }: LauncherProps) {
     const handleResetOnboarding = () => {
       setShowOnboarding(true)
       setActiveTab("home")
+      setSelectedMcServer(null)
     }
 
     window.addEventListener("launcher:onboarding-reset", handleResetOnboarding)
@@ -89,6 +107,11 @@ export function Launcher({ onReady }: LauncherProps) {
       case "accounts": return <AccountsPage />
       case "cloud": return <CloudPage />
       case "network": return <NetworkPage />
+      case "servers":
+        if (selectedMcServer) {
+          return <ServerDetailPage server={selectedMcServer} onBack={() => setSelectedMcServer(null)} />
+        }
+        return <ServersPage onSelectServer={setSelectedMcServer} />
       case "skins": return <SkinsPage />
       default: return null
     }

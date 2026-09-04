@@ -1,6 +1,5 @@
 try { require("dotenv/config") } catch {}
 import "./auth"
-import "./discord-rpc"
 
 import { registerModsHandlers } from "./mods"
 import { registerBuildHandlers } from "./builds"
@@ -15,6 +14,7 @@ import { registerQuickPlayHandlers } from "./quick-play"
 import { registerUpdater } from "./updater"
 import { registerAiAgent } from "./ai-agent"
 import { registerSkinsHandlers } from "./skins"
+import { registerMcServerHandlers } from "./mc-server-handlers"
 
 registerWindowLifecycle()
 registerSystemHandlers()
@@ -30,6 +30,8 @@ registerQuickPlayHandlers()
 registerUpdater()
 registerAiAgent()
 registerSkinsHandlers()
+registerMcServerHandlers()
 
 import("@xnlc/mods").catch(() => {})
+import("./discord-rpc.js").catch(() => {})
 

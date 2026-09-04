@@ -33,7 +33,7 @@ export function getInstancesRoot(): string {
 }
 
 export function getBuildIntentDirName(rawName: string): string {
-  return rawName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ _-]/g, "_") || "unnamed-build"
+  return rawName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ ._-]/g, "_") || "unnamed-build"
 }
 
 export function getBuildIntentPath(dirName: string): string {

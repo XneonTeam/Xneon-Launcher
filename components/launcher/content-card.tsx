@@ -1,4 +1,4 @@
-import { IconHome, IconLayoutBoard, IconFileText, IconCloud, IconNetwork, IconUserPlus, IconSettings, IconColorSwatch, IconShirt } from "@tabler/icons-react"
+import { IconHome, IconLayoutBoard, IconFileText, IconCloud, IconNetwork, IconUserPlus, IconSettings, IconColorSwatch, IconShirt, IconServer } from "@tabler/icons-react"
 import type { TabId } from "./sidebar"
 
 interface ContentCardProps {
@@ -30,6 +30,11 @@ const tabContent: Record<TabId, { title: string; message: string; icon: React.Re
     title: "Серверы",
     message: "Браузер серверов находится в разработке",
     icon: <IconNetwork className="w-12 h-12" strokeWidth={1.5} />,
+  },
+  servers: {
+    title: "Серверы",
+    message: "Список серверов находится в разработке",
+    icon: <IconServer className="w-12 h-12" strokeWidth={1.5} />,
   },
   accounts: {
     title: "Аккаунты",

@@ -158,7 +158,7 @@ export class XnlcLaunchPipeline {
         memoryMax: config.memoryMax,
         width: config.width,
         height: config.height,
-        extraJvmArgs: config.jvmArgs ?? this.options.defaultJvmArgs ?? [],
+        extraJvmArgs: [...(this.options.defaultJvmArgs ?? []), ...(config.jvmArgs ?? [])],
         extraGameArgs: config.gameArgs ?? [],
       }
     );

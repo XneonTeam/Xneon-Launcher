@@ -28,6 +28,7 @@ export function SkinsPage() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editModalSkin, setEditModalSkin] = useState<LibrarySkin | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [skinVersion, setSkinVersion] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const initializedRef = useRef(false)
   // Аккаунт, для которого сейчас идёт/выполнилась загрузка — защита от гонки при смене аккаунта
@@ -211,6 +212,7 @@ export function SkinsPage() {
         await fetchProfile()
         setEquippedId(selectedSkin.id)
         setSelectedId(selectedSkin.id)
+        setSkinVersion(v => v + 1)
         pushNotification({ kind: "success", source: "launch", title: "Скин применён", message: "" })
       }
     } catch (err) {
@@ -229,6 +231,7 @@ export function SkinsPage() {
       const apiSkinId = activeSkinUrl ? "__api__" : null
       setEquippedId(apiSkinId)
       setSelectedId(apiSkinId)
+      setSkinVersion(v => v + 1)
       pushNotification({ kind: "success", source: "launch", title: "Скин сброшен", message: "Возвращён стандартный скин" })
     } catch (err) {
       pushNotification({ kind: "error", source: "launch", title: "Ошибка", message: String(err) })
@@ -324,6 +327,7 @@ export function SkinsPage() {
             isApplying={false}
             loading={false}
             profile={null}
+            skinVersion={0}
             onApply={() => {}}
             onReset={() => {}}
             onEdit={() => {}}
@@ -375,6 +379,7 @@ export function SkinsPage() {
           isApplying={isApplying}
           loading={loading}
           profile={profile}
+          skinVersion={skinVersion}
           onApply={handleApply}
           onReset={handleReset}
           onEdit={() => handleEditClick(selectedSkin)}

@@ -130,6 +130,7 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
   const persistTheme = (themeId: string) => {
     onSelectTheme(themeId)
     localStorage.setItem("theme", themeId)
+    window.electronAPI?.setSetting("theme", themeId)
     const theme = presetThemes.find((t) => t.id === themeId)
     if (theme) applyTheme(theme)
     setError("")

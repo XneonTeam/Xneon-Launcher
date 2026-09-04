@@ -4,7 +4,7 @@ import {
   IconPackage, IconPlus, IconCopy, IconTrash, IconDownload, IconUpload, IconTag,
   IconRotateClockwise, IconX, IconChevronDown, IconChevronRight,
   IconPencil, IconTrashFilled, IconBox, IconPalette, IconWallpaper, IconWorldUpload,
-  IconSettings, IconBug, IconFolder, IconCheck,
+  IconSettings, IconBug, IconFolder, IconCheck, IconLayoutGrid, IconLayoutList,
 } from "@tabler/icons-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
@@ -68,6 +68,7 @@ export const InstanceList = memo(function InstanceList({
   const [buildContextMenu, setBuildContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [renameGroupFor, setRenameGroupFor] = useState<string | null>(null)
   const [renameGroupDraft, setRenameGroupDraft] = useState("")
+  const [layoutMode, setLayoutMode] = useState<"grid" | "list">("grid")
 
   const groupedBuilds = useMemo(() => {
     const map = new Map<string, Build[]>()
@@ -148,6 +149,34 @@ export const InstanceList = memo(function InstanceList({
         </div>
       ) : (
         <div className="flex flex-col gap-1">
+          {totalBuilds > 0 && (
+            <div className="flex items-center justify-end px-3 pb-2">
+              <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-muted border border-border">
+                <button
+                  type="button"
+                  onClick={() => setLayoutMode("grid")}
+                  className={cn(
+                    "p-1.5 rounded-md transition-colors",
+                    layoutMode === "grid" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80",
+                  )}
+                  title="Карточки"
+                >
+                  <IconLayoutGrid className="w-3.5 h-3.5" strokeWidth={1.75} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLayoutMode("list")}
+                  className={cn(
+                    "p-1.5 rounded-md transition-colors",
+                    layoutMode === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80",
+                  )}
+                  title="Список"
+                >
+                  <IconLayoutList className="w-3.5 h-3.5" strokeWidth={1.75} />
+                </button>
+              </div>
+            </div>
+          )}
           {sortedGroupKeys.map(groupKey => {
             const groupBuilds = groupedBuilds.get(groupKey) ?? []
             const isCollapsed = groupKey !== "" && collapsedGroups.has(groupKey)
@@ -193,7 +222,7 @@ export const InstanceList = memo(function InstanceList({
                   )}
                 </div>
 
-                {!isCollapsed && (
+                {!isCollapsed && layoutMode === "grid" && (
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3 px-3 pb-4">
                     {groupBuilds.map(build => {
                       const loader = MOD_LOADERS.find(item => item.id === build.modLoader) ?? MOD_LOADERS[0]
@@ -246,6 +275,51 @@ export const InstanceList = memo(function InstanceList({
                               <span className="text-[11px] text-muted-foreground truncate">{loader.name} · {build.version}</span>
                             </div>
                           </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {!isCollapsed && layoutMode === "list" && (
+                  <div className="flex flex-col gap-1 px-3 pb-4">
+                    {groupBuilds.map(build => {
+                      const loader = MOD_LOADERS.find(item => item.id === build.modLoader) ?? MOD_LOADERS[0]
+                      const hasImage = !!build.icon
+                      const sourceLabel = build.source === "modrinth" ? "Modrinth" : build.source === "curseforge" ? "CurseForge" : build.source === "ftb" ? "FTB" : null
+                      return (
+                        <div
+                          key={build.id}
+                          className="group flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 hover:border-primary/50 hover:bg-muted/30 transition-colors cursor-pointer"
+                          onClick={() => onOpen(build.id)}
+                          onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setBuildContextMenu({ id: build.id, x: e.clientX, y: e.clientY }) }}
+                        >
+                          <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
+                            {hasImage ? (
+                              <img src={build.icon} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10 flex items-center justify-center">
+                                <IconPackage className="w-5 h-5 text-primary/40" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-foreground truncate">{build.name}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <LoaderIcon loaderId={build.modLoader} className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                              <span className="text-[11px] text-muted-foreground truncate">{loader.name} · {build.version}</span>
+                            </div>
+                          </div>
+                          {sourceLabel && (
+                            <span className={cn(
+                              "shrink-0 px-2 py-0.5 rounded-md text-[10px] font-medium",
+                              build.source === "modrinth" && "bg-green-500/15 text-green-500",
+                              build.source === "curseforge" && "bg-orange-500/15 text-orange-500",
+                              build.source === "ftb" && "bg-sky-500/15 text-sky-500",
+                            )}>
+                              {sourceLabel}
+                            </span>
+                          )}
                         </div>
                       )
                     })}

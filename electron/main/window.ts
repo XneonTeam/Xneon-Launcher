@@ -98,19 +98,20 @@ export function registerWindowLifecycle() {
 
   app.whenReady().then(async () => {
     logRuntime("[App] whenReady")
-    // Initialize runtime paths lazily, not at module load time
-    await initRuntimePaths()
-    try {
-      await initDatabase()
-      logRuntime("[App] database initialized")
-    } catch (error) {
-      logRuntime(`[App] database init failed: ${error instanceof Error ? error.stack ?? error.message : String(error)}`)
-    }
-    try {
-      await loadInstancesRoot()
-    } catch {}
+
     Menu.setApplicationMenu(null)
     createWindow()
+
+    const [,] = await Promise.all([
+      initRuntimePaths(),
+      initDatabase().then(() => {
+        logRuntime("[App] database initialized")
+      }).catch((error) => {
+        logRuntime(`[App] database init failed: ${error instanceof Error ? error.stack ?? error.message : String(error)}`)
+      }),
+    ])
+
+    loadInstancesRoot().catch(() => {})
 
     // CLI: --launch <buildName> (e.g. from a desktop shortcut) triggers a build launch in the renderer.
     const launchArgIndex = process.argv.indexOf("--launch")

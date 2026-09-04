@@ -5,6 +5,10 @@ import type {
   AuthPayload,
   McProfile,
   LibrarySkin,
+  McServerInfo,
+  McServerState,
+  McServerMetrics,
+  McFsEntry,
 } from '@xnlc/types'
 
 export {}
@@ -60,6 +64,12 @@ export type LauncherServerStatus = {
   icon?: string
   error?: string
 }
+
+export type XnConnectState =
+  | { status: "stopped" }
+  | { status: "auth_required"; authUrl: string }
+  | { status: "starting" }
+  | { status: "running"; publicAddress: string; tunnelId: string }
 
 export type LauncherCloudFile = {
   id: string
@@ -155,6 +165,76 @@ export type LauncherExtraApi = {
   skinsApplyLibrarySkin: (skinId: string, accountId: string) => Promise<boolean>
   skinsImportFromUrl: (url: string, name: string, variant: "classic" | "slim", accountId: string) => Promise<LibrarySkin | null>
   readLocalFile: (filePath: string) => Promise<string | null>
+  mcServerList: () => Promise<McServerInfo[]>
+  mcServerGet: (id: string) => Promise<McServerInfo | null>
+  mcServerCreate: (data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string }) => Promise<McServerInfo>
+  mcServerInstallPack: (params: { source: "modrinth" | "curseforge"; projectSlug?: string; versionId?: string; modId?: number; fileId?: number; name?: string; icon?: string; port?: number; xmx?: number; xms?: number; extraJavaArgs?: string; javaPath?: string; relayEnabled?: boolean; onlineMode?: boolean; maxPlayers?: number }) => Promise<McServerInfo>
+  mcServerAnalyzeJar: (jarPath: string) => Promise<{ minecraftVersion: string | null; loaderId: string | null; loaderLabel: string | null; modId: string | null; mainClass: string | null; error?: string }>
+  mcServerUpdate: (id: string, update: Record<string, unknown>) => Promise<void>
+  mcServerDelete: (id: string) => Promise<void>
+  mcServerRestore: (id: string) => Promise<void>
+  mcServerListTrash: () => Promise<McServerInfo[]>
+  mcServerPurgeTrash: () => Promise<void>
+  mcServerPermanentDelete: (id: string) => Promise<void>
+  mcServerStart: (id: string) => Promise<void>
+  mcServerStop: (id: string) => Promise<void>
+  mcServerKill: (id: string) => Promise<void>
+  mcServerSendCommand: (id: string, command: string) => Promise<void>
+  mcServerStatus: (id: string) => Promise<McServerState>
+  mcServerMetrics: (id: string) => Promise<McServerMetrics>
+  mcServerLogs: (id: string) => Promise<string[]>
+  mcServerOpenFolder: (id: string) => Promise<void>
+  mcServerReadProperties: (id: string) => Promise<Record<string, string> | null>
+  mcServerWriteProperties: (id: string, properties: Record<string, string>) => Promise<void>
+  mcServerGetWhitelist: (id: string) => Promise<import('@xnlc/types').McPlayerEntry[]>
+  mcServerAddWhitelist: (id: string, username: string) => Promise<void>
+  mcServerRemoveWhitelist: (id: string, uuid: string) => Promise<void>
+  mcServerGetOps: (id: string) => Promise<import('@xnlc/types').McPlayerEntry[]>
+  mcServerAddOp: (id: string, username: string) => Promise<void>
+  mcServerRemoveOp: (id: string, uuid: string) => Promise<void>
+  mcServerGetBanned: (id: string) => Promise<import('@xnlc/types').McPlayerEntry[]>
+  mcServerBanPlayer: (id: string, username: string) => Promise<void>
+  mcServerUnbanPlayer: (id: string, uuid: string) => Promise<void>
+  mcServerGetBannedIps: (id: string) => Promise<import('@xnlc/types').McPlayerEntry[]>
+  mcServerBanIp: (id: string, ip: string) => Promise<void>
+  mcServerUnbanIp: (id: string, ip: string) => Promise<void>
+  mcServerGetAddresses: (id: string) => Promise<{ local: string; public: string | null; custom: string } | null>
+  mcServerCheckEula: (id: string) => Promise<boolean>
+  mcServerAcceptEula: (id: string) => Promise<void>
+
+  // ── Server Files ──
+  mcServerFsList: (id: string, relativePath: string) => Promise<McFsEntry[]>
+  mcServerFsRead: (id: string, relativePath: string) => Promise<string | null>
+  mcServerFsWrite: (id: string, relativePath: string, content: string) => Promise<void>
+  mcServerFsDelete: (id: string, relativePath: string) => Promise<void>
+  mcServerFsRename: (id: string, oldPath: string, newPath: string) => Promise<void>
+  mcServerFsMkdir: (id: string, relativePath: string) => Promise<void>
+  mcServerFsStat: (id: string, relativePath: string) => Promise<McFsEntry | null>
+  mcServerFsDownload: (id: string, relativePath: string, url: string, fileName: string) => Promise<{ success: boolean; filePath?: string; error?: string }>
+  mcServerResolveInstalled: (id: string, relativePath: string) => Promise<Array<{ name: string; sha1: string; projectId?: string; versionId?: string }>>
+
+  // ── XN-Connect Relay ──────────────────────────────────
+  xnConnectAuthorize: () => Promise<boolean>
+  xnConnectStart: (serverId: string) => Promise<XnConnectState>
+  xnConnectStop: (serverId: string) => Promise<void>
+  xnConnectStatus: (serverId: string) => Promise<XnConnectState>
+  onXnConnectState: (callback: (data: { serverId: string; state: XnConnectState }) => void) => () => void
+  onXnConnectLog: (callback: (data: { serverId: string; line: string }) => void) => () => void
+  onXnConnectAuthState: (callback: (data: { state: XnConnectState }) => void) => () => void
+
+  onMcServerLog: (callback: (data: { id: string; line: string }) => void) => () => void
+  onMcServerStateChange: (callback: (data: { id: string; state: McServerState }) => void) => () => void
+  onMcServerDownloadProgress: (callback: (data: { id: string; progress: { phase: string; percent?: number; bytesTotal?: number; bytesDownloaded?: number; message: string } }) => void) => () => void
+  getPaperVersions: (mcVersion: string) => Promise<{ value: string; label: string; stable?: boolean; recommended?: boolean }[]>
+  getPurpurVersions: (mcVersion: string) => Promise<{ value: string; label: string; stable?: boolean; recommended?: boolean }[]>
+  getFoliaVersions: (mcVersion: string) => Promise<{ value: string; label: string; stable?: boolean; recommended?: boolean }[]>
+  getPaperSupported: () => Promise<string[]>
+  getPurpurSupported: () => Promise<string[]>
+  getFoliaSupported: () => Promise<string[]>
+  getVelocitySupported: () => Promise<string[]>
+  getVelocityVersions: (velocityVersion: string) => Promise<{ value: string; label: string; stable?: boolean; recommended?: boolean }[]>
+  getWaterfallSupported: () => Promise<string[]>
+  getWaterfallVersions: (mcVersion: string) => Promise<{ value: string; label: string; stable?: boolean; recommended?: boolean }[]>
 }
 
 declare global {

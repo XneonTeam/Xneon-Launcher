@@ -20,6 +20,7 @@ interface SkinPreviewPanelProps {
   isApplying: boolean
   loading: boolean
   profile: McProfile | null
+  skinVersion?: number
   onApply: () => void
   onReset: () => void
   onEdit: () => void
@@ -32,6 +33,8 @@ export function SkinPreviewPanel({
   hasPendingChange,
   isApplying,
   loading,
+  profile,
+  skinVersion,
   onApply,
   onReset,
   onEdit,
@@ -45,8 +48,8 @@ export function SkinPreviewPanel({
   // Пока скины поддерживаются только для аккаунтов Microsoft
   const skinAccounts = useMemo(() => accounts.filter((a) => a.type === "microsoft"), [accounts])
   const activeAvatarUrl = useMemo(
-    () => (account ? getAvatarUrl(account, account.username) : ""),
-    [account]
+    () => account ? `${getAvatarUrl(account, account.username)}${skinVersion ? `&_v=${skinVersion}` : ""}` : "",
+    [account, skinVersion]
   )
   const accountAvatarUrls = useMemo(
     () => Object.fromEntries(skinAccounts.map((a) => [a.id, getAvatarUrl(a, a.username)])),

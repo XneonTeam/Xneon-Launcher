@@ -13,6 +13,7 @@ import {
 } from "./minecraft-core"
 import { logRuntimeDebug } from "./runtime"
 import { registerIpcHandlers, ctxHandler, rawHandler, type IpcHandlerDef } from "./ipc-router"
+import { getPaperVersions, getPurpurVersions, getFoliaVersions, getPaperBuilds, getPurpurBuilds, getFoliaBuilds, getVelocityVersions, getVelocityBuilds, getWaterfallVersions, getWaterfallBuilds } from "@xnlc/servers"
 
 type LaunchResultPayload = {
   success: boolean
@@ -136,6 +137,60 @@ const versionHandlers: IpcHandlerDef[] = [
   ctxHandler("minecraft:get-optifine-supported", "get supported OptiFine versions", [],
     (handler) => handler.getOptifineSupportedVersions()),
 
+  // Paper / Purpur / Folia — MC version queries (no loader version needed)
+  rawHandler("minecraft:get-paper-supported", async () => {
+    const versions = await getPaperVersions()
+    return versions.map(v => v.version)
+  }),
+
+  rawHandler("minecraft:get-purpur-supported", async () => {
+    const versions = await getPurpurVersions()
+    return versions.map(v => v.version)
+  }),
+
+  rawHandler("minecraft:get-folia-supported", async () => {
+    const versions = await getFoliaVersions()
+    return versions.map(v => v.version)
+  }),
+
+  // Paper / Purpur / Folia — loader version queries (builds for a specific MC version)
+  rawHandler("minecraft:get-paper-versions", async (...args: unknown[]) => {
+    const mcVersion = args[0] as string
+    return await getPaperBuilds(mcVersion)
+  }),
+
+  rawHandler("minecraft:get-purpur-versions", async (...args: unknown[]) => {
+    const mcVersion = args[0] as string
+    return await getPurpurBuilds(mcVersion)
+  }),
+
+  rawHandler("minecraft:get-folia-versions", async (...args: unknown[]) => {
+    const mcVersion = args[0] as string
+    return await getFoliaBuilds(mcVersion)
+  }),
+
+  // Velocity — proxy, NOT tied to MC
+  rawHandler("minecraft:get-velocity-supported", async () => {
+    const versions = await getVelocityVersions()
+    return versions.map(v => v.version)
+  }),
+
+  rawHandler("minecraft:get-velocity-versions", async (...args: unknown[]) => {
+    const velocityVersion = args[0] as string
+    return await getVelocityBuilds(velocityVersion)
+  }),
+
+  // Waterfall — proxy, tied to MC
+  rawHandler("minecraft:get-waterfall-supported", async () => {
+    const versions = await getWaterfallVersions()
+    return versions.map(v => v.version)
+  }),
+
+  rawHandler("minecraft:get-waterfall-versions", async (...args: unknown[]) => {
+    const mcVersion = args[0] as string
+    return await getWaterfallBuilds(mcVersion)
+  }),
+
   // Auth
   ctxHandler("minecraft:set-offline-auth", "set offline auth", null,
     async (handler, username) => {
@@ -171,7 +226,7 @@ const launchHandlers: IpcHandlerDef[] = [
 
       logRuntimeDebug(`[Minecraft] Using account ${launchAccount.type}:${launchAccount.username}`)
       if (!launchAccount.isActive) {
-        const { dbHelpers } = await import("../db.js")
+        const { dbHelpers } = await import("../db/index.js")
         await dbHelpers.saveAccount({ ...launchAccount, isActive: true })
       }
 
