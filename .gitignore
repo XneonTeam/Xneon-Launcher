@@ -69,6 +69,7 @@ cloud-server/
 .playwright-mcp/
 .codex/
 .roo/
+.dsh-vision-router/
 plans/
 
 # Cloud server data
