@@ -26,15 +26,6 @@ import type {
   CloudFile,
   CloudStorageInfo,
   CleanupFn,
-  P2PRoom,
-  P2PRoomMember,
-  P2PLogEntry,
-  P2PConnState,
-  P2PLanServer,
-  P2PRole,
-  P2PAuthResult,
-  P2PRoomOpResult,
-  P2PChatMessage,
   McProfile,
   LibrarySkin,
 } from "./domain-types.js"
@@ -315,23 +306,6 @@ export interface IpcInvokeMap {
   "cloud:upload-account": { args: [providerId: string, account: { id: string; type: string; username: string; uuid?: string }]; return: { success: boolean; id?: string; name?: string; error?: string } }
   "cloud:download-and-import-provider": { args: [providerId: string, remotePath: string, fileType: string]; return: { success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } } }
 
-  // ── P2P Multiplayer ──
-  "p2p:register": { args: [login: string, password: string]; return: P2PAuthResult }
-  "p2p:login": { args: [login: string, password: string]; return: P2PAuthResult }
-  "p2p:get-me": { args: []; return: { success: boolean; login?: string; userId?: string; error?: string } }
-  "p2p:logout": { args: []; return: { success: boolean } }
-  "p2p:list-rooms": { args: []; return: { success: boolean; rooms?: P2PRoom[]; error?: string } }
-  "p2p:create-room": { args: [name: string, password?: string]; return: P2PRoomOpResult }
-  "p2p:join-room": { args: [name: string, password?: string]; return: P2PRoomOpResult }
-  "p2p:list-members": { args: [groupId: string]; return: { success: boolean; members?: P2PRoomMember[]; error?: string } }
-  "p2p:delete-room": { args: [groupId: string]; return: { success: boolean; error?: string } }
-  "p2p:transfer-host": { args: [groupId: string, targetUserId: string]; return: { success: boolean; error?: string } }
-  "p2p:kick-member": { args: [groupId: string, userId: string]; return: { success: boolean; error?: string } }
-  "p2p:start": { args: [role: P2PRole, groupId: string, groupName: string, playerName: string]; return: { success: boolean; error?: string } }
-  "p2p:stop": { args: []; return: { success: boolean } }
-  "p2p:send-chat": { args: [message: string]; return: { success: boolean; error?: string } }
-  "p2p:get-state": { args: []; return: { state: P2PConnState; role?: P2PRole; groupName?: string; playerName?: string; groupId?: string } }
-
   // ── XN-Connect Relay ──
   "xn-connect:authorize": { args: []; return: boolean }
   "xn-connect:start": { args: [serverId: string]; return: XnConnectState }
@@ -367,12 +341,6 @@ export interface IpcEventMap {
   "auth:progress": string
   "import:progress": ImportProgress
   "cloud:upload-progress": { id: string; percent: number; stage: "zip" | "upload" }
-  "p2p:log": P2PLogEntry
-  "p2p:state": P2PConnState
-  "p2p:members": P2PRoomMember[]
-  "p2p:lan": P2PLanServer
-  "p2p:lan_remove": { port: number }
-  "p2p:chat": P2PChatMessage
   "mc-server:download-progress": McServerDownloadProgress
 }
 
@@ -542,29 +510,8 @@ export interface ElectronAPIExplicit {
   cloudGetCategories: (token: string) => Promise<{ success: boolean; categories?: Record<string, { count: number; size: number }>; error?: string }>
   cloudUploadFile: (filePath: string, token: string, category: string) => Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }>
   uploadAccountToCloud: (token: string, account: { id: string; type: string; username: string; uuid?: string }) => Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }>
-  p2pRegister: (login: string, password: string) => Promise<P2PAuthResult>
-  p2pLogin: (login: string, password: string) => Promise<P2PAuthResult>
-  p2pGetMe: () => Promise<{ success: boolean; login?: string; userId?: string; error?: string }>
-  p2pLogout: () => Promise<{ success: boolean }>
-  p2pListRooms: () => Promise<{ success: boolean; rooms?: P2PRoom[]; error?: string }>
-  p2pCreateRoom: (name: string, password?: string) => Promise<P2PRoomOpResult>
-  p2pJoinRoom: (name: string, password?: string) => Promise<P2PRoomOpResult>
-  p2pListMembers: (groupId: string) => Promise<{ success: boolean; members?: P2PRoomMember[]; error?: string }>
-  p2pDeleteRoom: (groupId: string) => Promise<{ success: boolean; error?: string }>
-  p2pTransferHost: (groupId: string, targetUserId: string) => Promise<{ success: boolean; error?: string }>
-  p2pKickMember: (groupId: string, userId: string) => Promise<{ success: boolean; error?: string }>
-  p2pLeaveRoom: (groupId: string) => Promise<{ success: boolean; error?: string }>
-  p2pStart: (role: P2PRole, groupId: string, groupName: string, playerName: string) => Promise<{ success: boolean; error?: string }>
-  p2pStop: () => Promise<{ success: boolean }>
-  p2pSendChat: (message: string) => Promise<{ success: boolean; error?: string }>
-  p2pGetState: () => Promise<{ state: P2PConnState; role?: P2PRole; groupName?: string; playerName?: string; groupId?: string }>
   skinsGetProfile: (accountId?: string) => Promise<McProfile | null>
   skinsUploadSkin: (filePath: string, variant: "classic" | "slim", accountId?: string) => Promise<boolean>
   skinsDeleteSkin: (accountId?: string) => Promise<boolean>
   skinsSetCape: (capeId: string | null, accountId?: string) => Promise<boolean>
-  onP2PLog: (callback: (entry: P2PLogEntry) => void) => CleanupFn
-  onP2PState: (callback: (state: P2PConnState) => void) => CleanupFn
-  onP2PMembers: (callback: (members: P2PRoomMember[]) => void) => CleanupFn
-  onP2PLan: (callback: (server: P2PLanServer) => void) => CleanupFn
-  onP2PChat: (callback: (message: P2PChatMessage) => void) => CleanupFn
 }

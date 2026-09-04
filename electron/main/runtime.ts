@@ -101,9 +101,6 @@ export function setMainWindow(window: BrowserWindow | null) {
 
 export function sendToRenderer(channel: string, data: unknown) {
   if (!mainWindow) {
-    if (channel.startsWith("p2p:")) {
-      console.warn(`[Runtime] sendToRenderer(${channel}): mainWindow is null — log dropped`)
-    }
     return
   }
   mainWindow.webContents.send(channel, data)

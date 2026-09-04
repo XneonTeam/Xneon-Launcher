@@ -6,7 +6,6 @@ import { InstancePage } from "./instance"
 import { LogsPage } from "./logs-page"
 import { SettingsPage } from "./settings"
 import { CloudPage } from "./cloud"
-import { NetworkPage } from "./network-page"
 import { SkinsPage } from "./skins-page"
 import { ServersPage } from "./servers-page"
 import { ServerDetailPage } from "./server-detail-page"
@@ -108,7 +107,6 @@ export function Launcher({ onReady }: LauncherProps) {
       case "settings": return <SettingsPage />
       case "accounts": return <AccountsPage />
       case "cloud": return <CloudPage />
-      case "network": return <NetworkPage />
       case "servers":
         if (selectedMcServer) {
           return <ServerDetailPage server={selectedMcServer} onBack={() => setSelectedMcServer(null)} />

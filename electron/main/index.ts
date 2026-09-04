@@ -4,7 +4,6 @@ import "./auth"
 import { registerModsHandlers } from "./mods"
 import { registerBuildHandlers } from "./builds"
 import { registerCloudHandlers } from "./cloud/handlers"
-import { registerP2PHandlers } from "./p2p"
 import { registerSystemHandlers } from "./system"
 import { registerWindowLifecycle } from "./window"
 import { registerMinecraftHandlers } from "./minecraft"
@@ -25,7 +24,6 @@ registerMinecraftHandlers()
 registerWorldsHandlers()
 registerServerHandlers()
 
-registerP2PHandlers()
 registerQuickPlayHandlers()
 registerUpdater()
 registerAiAgent()

@@ -11,7 +11,6 @@ const localPackages = [
   "xnlc-core",
   "xnlc-mods",
   "xnlc-nbt",
-  "xnlc-p2p",
   "xnlc-types",
   "xnlc-servers",
 ]

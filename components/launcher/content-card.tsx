@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { IconHome, IconLayoutBoard, IconFileText, IconCloud, IconNetwork, IconUserPlus, IconSettings, IconColorSwatch, IconShirt, IconServer } from "@tabler/icons-react"
+import { IconHome, IconLayoutBoard, IconFileText, IconCloud, IconUserPlus, IconSettings, IconColorSwatch, IconShirt, IconServer } from "@tabler/icons-react"
 import type { TabId } from "./sidebar"
 
 interface ContentCardProps {
@@ -26,11 +26,6 @@ const tabKeys: Record<TabId, { titleKey: string; messageKey: string; icon: React
     titleKey: "content.cloud.title",
     messageKey: "content.cloud.message",
     icon: <IconCloud className="w-12 h-12" strokeWidth={1.5} />,
-  },
-  network: {
-    titleKey: "content.network.title",
-    messageKey: "content.network.message",
-    icon: <IconNetwork className="w-12 h-12" strokeWidth={1.5} />,
   },
   servers: {
     titleKey: "content.servers.title",
