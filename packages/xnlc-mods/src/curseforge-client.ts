@@ -6,6 +6,7 @@
 import type {
   ContentType,
   ModSort,
+  ModEnvironment,
   ModSearchResult,
   ModSearchResponse,
   ModDetails,
@@ -26,6 +27,7 @@ let cfCategoriesCache: Array<{ id: number; slug: string; name: string; classId: 
 const CF_CLASSID_TO_PROJECTTYPE: Record<number, ContentType> = {
   6: "mod",
   12: "resourcepack",
+  17: "plugin",
   6552: "shader",
   4471: "modpack",
 };
@@ -204,6 +206,7 @@ export async function curseforgeSearch(
     categories?: string[];
     sortBy?: ModSort;
     page?: number;
+    environment?: ModEnvironment;
   },
 ): Promise<ModSearchResponse> {
   const contentType = options?.contentType ?? "mod";
@@ -394,14 +397,51 @@ export async function curseforgeGetProjectInfo(modId: number | string): Promise<
     const d = data.data;
     const logo = d.logo as Record<string, unknown> | undefined;
     const links = d.links as Record<string, unknown> | undefined;
+    const authors = d.authors as Array<Record<string, unknown>> | undefined;
     return {
       name: (d.name as string) ?? String(modId),
       iconUrl: (logo?.thumbnailUrl as string) ?? (links?.iconUrl as string) ?? "",
       slug: (d.slug as string) ?? `mod-${modId}`,
+      author: Array.isArray(authors) ? authors.map(a => a.name).filter(Boolean).join(", ") : undefined,
     };
   } catch {
     return null;
   }
+}
+
+export async function curseforgeGetProjectsByIds(modIds: number[]): Promise<Record<number, ModProjectInfo>> {
+  const result: Record<number, ModProjectInfo> = {};
+  if (!modIds.length) return result;
+
+  const uniqueIds = [...new Set(modIds.filter(n => Number.isFinite(n) && n > 0))];
+  if (uniqueIds.length === 0) return result;
+
+  const CHUNK = 50;
+  for (let i = 0; i < uniqueIds.length; i += CHUNK) {
+    const chunk = uniqueIds.slice(i, i + CHUNK);
+    try {
+      const data = await cfFetch("/mods", {
+        modIds: JSON.stringify(chunk),
+        gameId: String(CF_GAME_ID_MINECRAFT),
+      }) as { data?: Array<Record<string, unknown>> };
+      for (const mod of (data.data ?? [])) {
+        const id = mod.id as number | undefined;
+        if (!id) continue;
+        const logo = mod.logo as Record<string, unknown> | undefined;
+        const links = mod.links as Record<string, unknown> | undefined;
+        const authors = mod.authors as Array<Record<string, unknown>> | undefined;
+        result[id] = {
+          name: (mod.name as string) ?? String(id),
+          iconUrl: (logo?.thumbnailUrl as string) ?? (links?.iconUrl as string) ?? "",
+          slug: (mod.slug as string) ?? `mod-${id}`,
+          author: Array.isArray(authors) ? authors.map(a => a.name).filter(Boolean).join(", ") : undefined,
+        };
+      }
+    } catch {
+      // skip batch on error
+    }
+  }
+  return result;
 }
 
 export async function curseforgeGetCategories(): Promise<ModCategory[]> {

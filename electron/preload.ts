@@ -19,6 +19,7 @@ import type {
   ModContentType,
   ModSort,
   ModLoaderFilter,
+  ModEnvironment,
   ModSearchResponse,
   ModDetails,
   ModVersion,
@@ -39,6 +40,10 @@ import type {
   BuildExportCategory,
   McProfile,
   LibrarySkin,
+  McServerInfo,
+  McPlayerEntry,
+  McServerState,
+  McServerMetrics,
 } from '@xnlc/types' with { 'resolution-mode': 'import' }
 
 // World/screenshot types are defined locally (not imported from @xnlc/types)
@@ -92,6 +97,12 @@ type ServerStatusResult = {
   icon?: string
   error?: string
 }
+
+type XnConnectState =
+  | { status: "stopped" }
+  | { status: "auth_required"; authUrl: string }
+  | { status: "starting" }
+  | { status: "running"; publicAddress: string; tunnelId: string }
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): CleanupFn {
   const handler = (_: Electron.IpcRendererEvent, payload: T) => callback(payload)
@@ -183,12 +194,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onCliLaunchBuild: (callback: (buildName: string) => void) => subscribe('cli:launch-build', callback),
 
   // ── Unified Mods API (via xnlc/mods) ──────────────────
-  modsModrinthSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, categories?: string[]) =>
-    ipcRenderer.invoke('mods:modrinth-search', query, contentType, gameVersion, modLoader, sortBy, page, categories) as Promise<ModSearchResponse>,
+  modsModrinthSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, categories?: string[], environment?: ModEnvironment) =>
+    ipcRenderer.invoke('mods:modrinth-search', query, contentType, gameVersion, modLoader, sortBy, page, categories, environment) as Promise<ModSearchResponse>,
   modsModrinthDetails: (slug: string) => ipcRenderer.invoke('mods:modrinth-details', slug) as Promise<ModDetails | null>,
   modsModrinthVersions: (slug: string) => ipcRenderer.invoke('mods:modrinth-versions', slug) as Promise<ModVersion[]>,
-  modsCurseforgeSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, categories?: string[]) =>
-    ipcRenderer.invoke('mods:curseforge-search', query, contentType, gameVersion, modLoader, sortBy, page, categories) as Promise<ModSearchResponse>,
+  modsCurseforgeSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, categories?: string[], environment?: ModEnvironment) =>
+    ipcRenderer.invoke('mods:curseforge-search', query, contentType, gameVersion, modLoader, sortBy, page, categories, environment) as Promise<ModSearchResponse>,
   modsCurseforgeDetails: (modId: number) => ipcRenderer.invoke('mods:curseforge-details', modId) as Promise<ModDetails | null>,
   modsCurseforgeDownloadUrl: (fileId: number, modId: number) => ipcRenderer.invoke('mods:curseforge-download-url', fileId, modId) as Promise<string | null>,
   modsCurseforgeFeatured: (gameVersion?: string) => ipcRenderer.invoke('mods:curseforge-featured', gameVersion) as Promise<{ popular: ModSearchResult[]; trending: ModSearchResult[] }>,
@@ -224,6 +235,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getForgeVersions: (mcVersion: string) => ipcRenderer.invoke('minecraft:get-forge-versions', mcVersion) as Promise<{ version: string; stable: boolean }[]>,
   getForgeRecommended: (mcVersion: string) => ipcRenderer.invoke('minecraft:get-forge-recommended', mcVersion) as Promise<string | null>,
   getForgeSupported: invoke<string[]>('minecraft:get-forge-supported'),
+  getPaperVersions: (mcVersion: string) => ipcRenderer.invoke('minecraft:get-paper-versions', mcVersion) as Promise<{ value: string; label: string; stable?: boolean; recommended?: boolean }[]>,
+  getPurpurVersions: (mcVersion: string) => ipcRenderer.invoke('minecraft:get-purpur-versions', mcVersion) as Promise<{ value: string; label: string; stable?: boolean; recommended?: boolean }[]>,
+  getFoliaVersions: (mcVersion: string) => ipcRenderer.invoke('minecraft:get-folia-versions', mcVersion) as Promise<{ value: string; label: string; stable?: boolean; recommended?: boolean }[]>,
+  getPaperSupported: invoke<string[]>('minecraft:get-paper-supported'),
+  getPurpurSupported: invoke<string[]>('minecraft:get-purpur-supported'),
+  getFoliaSupported: invoke<string[]>('minecraft:get-folia-supported'),
+  getVelocitySupported: invoke<string[]>('minecraft:get-velocity-supported'),
+  getVelocityVersions: (velocityVersion: string) => ipcRenderer.invoke('minecraft:get-velocity-versions', velocityVersion) as Promise<{ value: string; label: string; stable?: boolean; recommended?: boolean }[]>,
+  getWaterfallSupported: invoke<string[]>('minecraft:get-waterfall-supported'),
+  getWaterfallVersions: (mcVersion: string) => ipcRenderer.invoke('minecraft:get-waterfall-versions', mcVersion) as Promise<{ value: string; label: string; stable?: boolean; recommended?: boolean }[]>,
   getCustomVersions: invoke<string[]>('minecraft:get-custom-versions'),
 
   // ── Minecraft Auth & Launch ────────────────────────────
@@ -379,6 +400,68 @@ contextBridge.exposeInMainWorld('electronAPI', {
   quickPlayList: (buildName?: string, gameDir?: string) => ipcRenderer.invoke('quickplay:list', buildName, gameDir) as Promise<QuickPlayEntry[]>,
   quickPlayClear: (buildName?: string, gameDir?: string) => ipcRenderer.invoke('quickplay:clear', buildName, gameDir) as Promise<void>,
   quickPlayRemove: (buildName: string | undefined, gameDir: string | undefined, entry: QuickPlayEntry) => ipcRenderer.invoke('quickplay:remove', buildName, gameDir, entry) as Promise<void>,
+
+  // ── MC Server Management ───────────────────────────────
+  mcServerList: invoke<McServerInfo[]>('mc-server:list'),
+  mcServerGet: (id: string) => ipcRenderer.invoke('mc-server:get', id) as Promise<McServerInfo | null>,
+  mcServerCreate: (data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string }) => ipcRenderer.invoke('mc-server:create', data) as Promise<McServerInfo>,
+  mcServerInstallPack: (params: { source: "modrinth" | "curseforge"; projectSlug?: string; versionId?: string; modId?: number; fileId?: number; name?: string; icon?: string; port?: number; xmx?: number; xms?: number; extraJavaArgs?: string; javaPath?: string; relayEnabled?: boolean; onlineMode?: boolean; maxPlayers?: number }) => ipcRenderer.invoke('mc-server:install-pack', params) as Promise<McServerInfo>,
+  mcServerAnalyzeJar: (jarPath: string) => ipcRenderer.invoke('mc-server:analyze-jar', jarPath) as Promise<{ minecraftVersion: string | null; loaderId: string | null; loaderLabel: string | null; modId: string | null; mainClass: string | null; error?: string }>,
+  mcServerUpdate: (id: string, update: Record<string, unknown>) => ipcRenderer.invoke('mc-server:update', id, update) as Promise<void>,
+  mcServerDelete: (id: string) => ipcRenderer.invoke('mc-server:delete', id) as Promise<void>,
+  mcServerRestore: (id: string) => ipcRenderer.invoke('mc-server:restore', id) as Promise<void>,
+  mcServerListTrash: invoke<McServerInfo[]>('mc-server:list-trash'),
+  mcServerPurgeTrash: () => ipcRenderer.invoke('mc-server:purge-trash') as Promise<void>,
+  mcServerPermanentDelete: (id: string) => ipcRenderer.invoke('mc-server:permanent-delete', id) as Promise<void>,
+  mcServerStart: (id: string) => ipcRenderer.invoke('mc-server:start', id) as Promise<void>,
+  mcServerStop: (id: string) => ipcRenderer.invoke('mc-server:stop', id) as Promise<void>,
+  mcServerKill: (id: string) => ipcRenderer.invoke('mc-server:kill', id) as Promise<void>,
+  mcServerSendCommand: (id: string, command: string) => ipcRenderer.invoke('mc-server:send-command', id, command) as Promise<void>,
+  mcServerStatus: (id: string) => ipcRenderer.invoke('mc-server:status', id) as Promise<McServerState>,
+  mcServerMetrics: (id: string) => ipcRenderer.invoke('mc-server:metrics', id) as Promise<McServerMetrics>,
+  mcServerLogs: (id: string) => ipcRenderer.invoke('mc-server:logs', id) as Promise<string[]>,
+  mcServerOpenFolder: (id: string) => ipcRenderer.invoke('mc-server:open-folder', id) as Promise<void>,
+  mcServerReadProperties: (id: string) => ipcRenderer.invoke('mc-server:read-properties', id) as Promise<Record<string, string> | null>,
+  mcServerWriteProperties: (id: string, properties: Record<string, string>) => ipcRenderer.invoke('mc-server:write-properties', id, properties) as Promise<void>,
+  mcServerGetWhitelist: (id: string) => ipcRenderer.invoke('mc-server:get-whitelist', id) as Promise<McPlayerEntry[]>,
+  mcServerAddWhitelist: (id: string, username: string) => ipcRenderer.invoke('mc-server:add-whitelist', id, username) as Promise<void>,
+  mcServerRemoveWhitelist: (id: string, uuid: string) => ipcRenderer.invoke('mc-server:remove-whitelist', id, uuid) as Promise<void>,
+  mcServerGetOps: (id: string) => ipcRenderer.invoke('mc-server:get-ops', id) as Promise<McPlayerEntry[]>,
+  mcServerAddOp: (id: string, username: string) => ipcRenderer.invoke('mc-server:add-op', id, username) as Promise<void>,
+  mcServerRemoveOp: (id: string, uuid: string) => ipcRenderer.invoke('mc-server:remove-op', id, uuid) as Promise<void>,
+  mcServerGetBanned: (id: string) => ipcRenderer.invoke('mc-server:get-banned', id) as Promise<McPlayerEntry[]>,
+  mcServerBanPlayer: (id: string, username: string) => ipcRenderer.invoke('mc-server:ban-player', id, username) as Promise<void>,
+  mcServerUnbanPlayer: (id: string, uuid: string) => ipcRenderer.invoke('mc-server:unban-player', id, uuid) as Promise<void>,
+  mcServerGetBannedIps: (id: string) => ipcRenderer.invoke('mc-server:get-banned-ips', id) as Promise<McPlayerEntry[]>,
+  mcServerBanIp: (id: string, ip: string) => ipcRenderer.invoke('mc-server:ban-ip', id, ip) as Promise<void>,
+  mcServerUnbanIp: (id: string, ip: string) => ipcRenderer.invoke('mc-server:unban-ip', id, ip) as Promise<void>,
+  mcServerGetAddresses: (id: string) => ipcRenderer.invoke('mc-server:get-addresses', id) as Promise<{ local: string; public: string | null; custom: string } | null>,
+  mcServerCheckEula: (id: string) => ipcRenderer.invoke('mc-server:check-eula', id) as Promise<boolean>,
+  mcServerAcceptEula: (id: string) => ipcRenderer.invoke('mc-server:accept-eula', id) as Promise<void>,
+
+  // ── Server Files ──────────────────────────────────────────
+  mcServerFsList: (id: string, relativePath: string) => ipcRenderer.invoke('mc-server:fs-list', id, relativePath) as Promise<Array<{ name: string; isDir: boolean; size: number; lastModified: number }>>,
+  mcServerFsRead: (id: string, relativePath: string) => ipcRenderer.invoke('mc-server:fs-read', id, relativePath) as Promise<string | null>,
+  mcServerFsWrite: (id: string, relativePath: string, content: string) => ipcRenderer.invoke('mc-server:fs-write', id, relativePath, content) as Promise<void>,
+  mcServerFsDelete: (id: string, relativePath: string) => ipcRenderer.invoke('mc-server:fs-delete', id, relativePath) as Promise<void>,
+  mcServerFsRename: (id: string, oldPath: string, newPath: string) => ipcRenderer.invoke('mc-server:fs-rename', id, oldPath, newPath) as Promise<void>,
+  mcServerFsMkdir: (id: string, relativePath: string) => ipcRenderer.invoke('mc-server:fs-mkdir', id, relativePath) as Promise<void>,
+  mcServerFsStat: (id: string, relativePath: string) => ipcRenderer.invoke('mc-server:fs-stat', id, relativePath) as Promise<{ name: string; isDir: boolean; size: number; lastModified: number } | null>,
+  mcServerFsDownload: (id: string, relativePath: string, url: string, fileName: string) => ipcRenderer.invoke('mc-server:fs-download', id, relativePath, url, fileName) as Promise<{ success: boolean; filePath?: string; error?: string }>,
+  mcServerResolveInstalled: (id: string, relativePath: string) => ipcRenderer.invoke('mc-server:resolve-installed', id, relativePath) as Promise<Array<{ name: string; sha1: string; projectId?: string; versionId?: string }>>,
+
+  // ── XN-Connect Relay ──────────────────────────────────
+  xnConnectAuthorize: () => ipcRenderer.invoke('xn-connect:authorize') as Promise<boolean>,
+  xnConnectStart: (serverId: string) => ipcRenderer.invoke('xn-connect:start', serverId) as Promise<XnConnectState>,
+  xnConnectStop: (serverId: string) => ipcRenderer.invoke('xn-connect:stop', serverId) as Promise<void>,
+  xnConnectStatus: (serverId: string) => ipcRenderer.invoke('xn-connect:status', serverId) as Promise<XnConnectState>,
+  onXnConnectState: (callback: (data: { serverId: string; state: XnConnectState }) => void) => subscribe<{ serverId: string; state: XnConnectState }>('xn-connect:state', callback),
+  onXnConnectLog: (callback: (data: { serverId: string; line: string }) => void) => subscribe<{ serverId: string; line: string }>('xn-connect:log', callback),
+  onXnConnectAuthState: (callback: (data: { state: XnConnectState }) => void) => subscribe<{ state: XnConnectState }>('xn-connect:auth-state', callback),
+
+  onMcServerLog: (callback: (data: { id: string; line: string }) => void) => subscribe<{ id: string; line: string }>('mc-server:log', callback),
+  onMcServerStateChange: (callback: (data: { id: string; state: McServerState }) => void) => subscribe<{ id: string; state: McServerState }>('mc-server:state-change', callback),
+  onMcServerDownloadProgress: (callback: (data: { id: string; progress: { phase: string; percent?: number; bytesTotal?: number; bytesDownloaded?: number; message: string } }) => void) => subscribe('mc-server:download-progress', callback),
 
   // ── Updater ─────────────────────────────────────────────
   updateCheck: invoke<{ available: boolean; version?: string; error?: string }>('update:check'),

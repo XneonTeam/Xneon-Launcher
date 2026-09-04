@@ -146,7 +146,7 @@ export function TitleBar() {
                                   />
                                 </div>
                                 <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
-                                  <span>{notification.source === "launch" ? "Запуск" : "Импорт"}</span>
+                                  <span>{notification.source === "launch" ? "Запуск" : notification.source === "install" ? "Установка" : "Импорт"}</span>
                                   <span>{notification.progress}%</span>
                                 </div>
                               </div>

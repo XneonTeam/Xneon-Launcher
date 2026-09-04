@@ -1,0 +1,32 @@
+{
+  "name": "@xnlc/servers",
+  "version": "1.0.0",
+  "description": "XNLC Minecraft Server management — JAR downloading, process lifecycle, SLP status pinging, and server JAR analysis",
+  "type": "module",
+  "author": "MAINER4IK",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "dependencies": {
+    "@xnlc/types": "*",
+    "adm-zip": "^0.6.0",
+    "iconv-lite": "^0.7.3",
+    "toml": "^5.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf lib"
+  },
+  "publishConfig": {
+    "registry": "https://git.xneon.org/api/packages/MAINER4IK/npm/"
+  }
+}

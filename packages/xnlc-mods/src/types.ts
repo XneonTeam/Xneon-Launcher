@@ -3,9 +3,10 @@
 // Author: MAINER4IK
 // ============================================================
 
-export type ContentType = "mod" | "modpack" | "resourcepack" | "shader" | "datapack";
+export type ContentType = "mod" | "modpack" | "resourcepack" | "shader" | "datapack" | "plugin";
 export type ModSort = "relevance" | "downloads" | "follows" | "newest" | "updated" | "featured" | "rating";
 export type ModSource = "modrinth" | "curseforge" | "ftb";
+export type ModEnvironment = "client" | "server";
 
 export interface ModSearchResult {
   id: string;
@@ -102,6 +103,7 @@ export const CONTENT_TYPE_FACETS: Record<ContentType, { facet: string; cfClassId
   resourcepack: { facet: "resourcepack", cfClassId: 12 },
   shader: { facet: "shader", cfClassId: 6552 },
   datapack: { facet: "datapack", cfClassId: 6945 },
+  plugin: { facet: "plugin", cfClassId: 17 },
 };
 
 export interface ModCategory {
@@ -128,6 +130,7 @@ export interface ModProjectInfo {
   name: string;
   iconUrl: string;
   slug: string;
+  author?: string;
 }
 
 export interface ModrinthVersionFile {
@@ -146,7 +149,7 @@ export interface ModrinthVersionDetail {
 }
 
 export interface ModrinthManifestFile {
-  env?: { client?: string };
+  env?: { client?: string; server?: string };
   path?: string;
   downloads?: string[];
   hashes?: { sha512?: string; sha1?: string };

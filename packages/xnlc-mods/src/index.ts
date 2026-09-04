@@ -2,6 +2,7 @@ export type {
   ContentType,
   ModSort,
   ModSource,
+  ModEnvironment,
   ModLoaderFilter,
   ModSearchResult,
   ModSearchResponse,
@@ -29,6 +30,7 @@ export {
   modrinthGetDetails,
   modrinthGetVersions,
   modrinthGetProjectInfo,
+  modrinthGetProjectsByIds,
   modrinthGetRawVersions,
   modrinthGetFileByHash,
   modrinthGetFilesByHash,
@@ -45,6 +47,7 @@ export {
   curseforgeFeatured,
   curseforgeGetDownloadUrl,
   curseforgeGetProjectInfo,
+  curseforgeGetProjectsByIds,
   curseforgeGetFingerprintsMatches,
   curseforgeGetCategories,
 } from "./curseforge-client.js"

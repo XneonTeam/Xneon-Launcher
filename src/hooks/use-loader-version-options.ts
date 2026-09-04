@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 
-type SupportedLoader = "vanilla" | "forge" | "fabric" | "liteloader" | "quilt" | "neoforge" | "optifine" | "instance"
+type SupportedLoader = "vanilla" | "forge" | "fabric" | "liteloader" | "quilt" | "neoforge" | "optifine" | "instance" | "paper" | "purpur" | "folia" | "velocity" | "waterfall"
 
 export type LoaderVersionOption = {
   value: string
@@ -145,6 +145,46 @@ export function useLoaderVersionOptions(modLoader: string, mcVersion: string) {
                 ? `${version.filename} Preview`
                 : version.filename,
             recommended: recommended === version.filename,
+          }))
+        } else if (normalizedLoader === "paper") {
+          const versions = await window.electronAPI?.getPaperVersions(mcVersion)
+          nextOptions = (versions ?? []).map(v => ({
+            value: v.value,
+            label: v.label,
+            stable: v.stable,
+            recommended: v.recommended,
+          }))
+        } else if (normalizedLoader === "purpur") {
+          const versions = await window.electronAPI?.getPurpurVersions(mcVersion)
+          nextOptions = (versions ?? []).map(v => ({
+            value: v.value,
+            label: v.label,
+            stable: v.stable,
+            recommended: v.recommended,
+          }))
+        } else if (normalizedLoader === "folia") {
+          const versions = await window.electronAPI?.getFoliaVersions(mcVersion)
+          nextOptions = (versions ?? []).map(v => ({
+            value: v.value,
+            label: v.label,
+            stable: v.stable,
+            recommended: v.recommended,
+          }))
+        } else if (normalizedLoader === "velocity") {
+          const versions = await window.electronAPI?.getVelocityVersions(mcVersion)
+          nextOptions = (versions ?? []).map(v => ({
+            value: v.value,
+            label: v.label,
+            stable: v.stable,
+            recommended: v.recommended,
+          }))
+        } else if (normalizedLoader === "waterfall") {
+          const versions = await window.electronAPI?.getWaterfallVersions(mcVersion)
+          nextOptions = (versions ?? []).map(v => ({
+            value: v.value,
+            label: v.label,
+            stable: v.stable,
+            recommended: v.recommended,
           }))
         }
 

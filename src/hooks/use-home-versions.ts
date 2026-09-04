@@ -73,7 +73,16 @@ export function useHomeVersions(selectedModLoader: string, initialVersion?: stri
       quilt: async () => await window.electronAPI?.getQuiltSupported() ?? [],
       neoforge: async () => await window.electronAPI?.getNeoForgeSupported() ?? [],
       optifine: async () => await window.electronAPI?.getOptifineSupported() ?? [],
+      paper: async () => await window.electronAPI?.getPaperSupported() ?? [],
+      purpur: async () => await window.electronAPI?.getPurpurSupported() ?? [],
+      folia: async () => await window.electronAPI?.getFoliaSupported() ?? [],
+      velocity: async () => await window.electronAPI?.getVelocitySupported() ?? [],
+      waterfall: async () => await window.electronAPI?.getWaterfallSupported() ?? [],
+      bungeecord: async () => allMinecraftVersions.map(v => v.version),
     }
+
+    // Loaders whose versions are NOT MC versions (proxy用自己的 версии)
+    const ownVersionLoaders = new Set(["velocity"])
 
     const loadFilteredVersions = async () => {
       try {
@@ -82,6 +91,19 @@ export function useHomeVersions(selectedModLoader: string, initialVersion?: stri
         if (!cached) {
           supportedVersionsCacheRef.current.set(selectedModLoader, supported)
         }
+
+        // Velocity and similar proxy loaders have their own versions, not MC versions
+        if (ownVersionLoaders.has(selectedModLoader)) {
+          if (cancelled) return
+          setVersions(supported)
+          setSelectedVersion((prev) => {
+            if (supported.length === 0) return ""
+            if (prev && supported.includes(prev)) return prev
+            return supported[0] ?? ""
+          })
+          return
+        }
+
         const filtered = visibleVersions.filter((version) =>
           selectedModLoader === "vanilla" || supported.includes(version)
         )

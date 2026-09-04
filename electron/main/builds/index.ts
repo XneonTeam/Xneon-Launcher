@@ -223,7 +223,6 @@ export function registerBuildHandlers() {
       })
       return { success: true, trashName }
     } catch (error) {
-      // Intent dir may not exist yet — still a valid "trash" (nothing to move).
       return { success: true, error: error instanceof Error ? error.message : String(error) }
     }
   })

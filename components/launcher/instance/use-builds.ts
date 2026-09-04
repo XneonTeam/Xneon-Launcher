@@ -4,6 +4,7 @@ import { loadBuilds, pickCompatibleVersion } from "./utils"
 import type { Build, BuildMod, ModSearchResult, ModDependency, ModVersion } from "./types"
 import type { BuildExportCategory } from "@xnlc/types"
 import { enrichBuildModNames } from "@/lib/modrinth-metadata"
+import { useActivityCenter } from "@/src/ActivityCenterContext"
 
 type BuildContentListKey = "mods" | "resourcepacks" | "shaders"
 type BuildContentKind = "mod" | "resourcepack" | "shader"
@@ -15,6 +16,7 @@ const CONTENT_KIND_BY_KEY: Record<BuildContentListKey, BuildContentKind> = {
 }
 
 export function useBuilds() {
+  const { pushNotification, upsertLiveNotification, removeLiveNotification } = useActivityCenter()
   const [buildsState, setBuildsState] = useState<Build[]>(loadBuilds)
   const [activeBuildId, setActiveBuildId] = useState<string | null>(null)
   const [buildsHydrated, setBuildsHydrated] = useState(false)
@@ -107,6 +109,8 @@ export function useBuilds() {
     try {
       const dbBuilds = await window.electronAPI?.loadBuilds()
       if (!dbBuilds?.length) {
+        setBuildsHydrated(true)
+        window.dispatchEvent(new Event("app:hydrated"))
         setBuilds([])
         return
       }
@@ -459,11 +463,25 @@ export function useBuilds() {
     }
 
     void (async () => {
+      const liveKey = `install-mod-${mod.slug}`
       try {
+        upsertLiveNotification(liveKey, {
+          kind: "progress",
+          source: "install",
+          title: "Установка мода",
+          message: `Скачивание ${mod.name}...`,
+          progress: 0,
+          itemName: mod.name,
+          busy: true,
+        })
+
         if (mod.source === "modrinth") {
           const versions = await window.electronAPI?.modsModrinthVersions(mod.slug)
           const selectedVersion = targetBuild ? pickCompatibleVersion(versions, targetBuild) : versions?.find(version => version.files?.[0]?.url)
-          if (!selectedVersion?.files?.[0]?.url) return
+          if (!selectedVersion?.files?.[0]?.url) {
+            removeLiveNotification(liveKey)
+            return
+          }
 
           const file = selectedVersion.files[0]
           const savedFileName = file.filename || `${mod.slug}-${selectedVersion.id}.jar`
@@ -493,15 +511,24 @@ export function useBuilds() {
             await downloadDependency(dep, "modrinth")
           }
         } else {
-          if (!mod.modId) return
+          if (!mod.modId) {
+            removeLiveNotification(liveKey)
+            return
+          }
           const details = await window.electronAPI?.modsCurseforgeDetails(mod.modId)
           const selectedVersion = targetBuild
             ? pickCompatibleVersion(details?.versions ?? [], targetBuild)
             : details?.versions?.find(version => Number(version.id) === mod.primaryFileId) ?? details?.versions?.[0]
-          if (!selectedVersion) return
+          if (!selectedVersion) {
+            removeLiveNotification(liveKey)
+            return
+          }
 
           const url = await window.electronAPI?.modsCurseforgeDownloadUrl(Number(selectedVersion.id), mod.modId)
-          if (!url) return
+          if (!url) {
+            removeLiveNotification(liveKey)
+            return
+          }
 
           const fileName = selectedVersion.fileName || mod.primaryFileName || url.split("/").pop()?.split("?")[0] || `mod-${selectedVersion.id}.jar`
           const savedPath = await saveRemoteFileToBuild(url, fileName)
@@ -537,10 +564,26 @@ export function useBuilds() {
           resourcepacks: bb.resourcepacks,
           shaders: bb.shaders,
         }))
+
+        removeLiveNotification(liveKey)
+        pushNotification({
+          kind: "success",
+          source: "install",
+          title: "Мод установлен",
+          message: mod.name,
+        })
         void reloadBuilds()
-      } catch {}
+      } catch {
+        removeLiveNotification(liveKey)
+        pushNotification({
+          kind: "error",
+          source: "install",
+          title: "Ошибка установки мода",
+          message: mod.name,
+        })
+      }
     })()
-  }, [builds, reloadBuilds])
+  }, [builds, reloadBuilds, upsertLiveNotification, removeLiveNotification, pushNotification])
 
   const addLocalModToBuild = useCallback(async (buildId: string, file: File) => {
     const modName = file.name.replace(/\.jar$|\.zip$/i, "").replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase())
@@ -565,56 +608,99 @@ export function useBuilds() {
     const build = builds.find(b => b.id === buildId)
     if (!build?.name) return
 
-    const versions = mod.source === "modrinth"
-      ? await window.electronAPI?.modsModrinthVersions(mod.slug)
-      : mod.modId
-        ? await window.electronAPI?.modsCurseforgeDetails(mod.modId).then(details => details?.versions ?? [])
-        : []
+    const contentTypeLabel = type === "resourcepacks" ? "ресурс-пак" : "шейдер"
+    const liveKey = `install-content-${mod.slug}`
 
-    const selectedVersion = mod.source === "modrinth"
-      ? versions?.find(version => version.files?.[0]?.url)
-      : versions?.find(version => Number(version.id) === mod.primaryFileId) ?? versions?.[0]
+    upsertLiveNotification(liveKey, {
+      kind: "progress",
+      source: "install",
+      title: `Установка ${contentTypeLabel}`,
+      message: `Скачивание ${mod.name}...`,
+      progress: 0,
+      itemName: mod.name,
+      busy: true,
+    })
 
-    let fileUrl = ""
-    let fileName = ""
+    try {
+      const versions = mod.source === "modrinth"
+        ? await window.electronAPI?.modsModrinthVersions(mod.slug)
+        : mod.modId
+          ? await window.electronAPI?.modsCurseforgeDetails(mod.modId).then(details => details?.versions ?? [])
+          : []
 
-    if (mod.source === "modrinth") {
-      const file = selectedVersion?.files?.[0]
-      fileUrl = file?.url ?? ""
-      fileName = file?.filename || selectedVersion?.fileName || `${mod.slug}.jar`
-    } else if (mod.modId && selectedVersion) {
-      fileUrl = await window.electronAPI?.modsCurseforgeDownloadUrl(Number(selectedVersion.id), mod.modId) ?? ""
-      fileName = selectedVersion.fileName || mod.primaryFileName || fileUrl.split("/").pop()?.split("?")[0] || `${mod.slug}.jar`
-    }
+      const selectedVersion = mod.source === "modrinth"
+        ? versions?.find(version => version.files?.[0]?.url)
+        : versions?.find(version => Number(version.id) === mod.primaryFileId) ?? versions?.[0]
 
-    if (!fileUrl) return
+      let fileUrl = ""
+      let fileName = ""
 
-    const savedPath = await window.electronAPI?.saveContentToIntent?.(build.name, CONTENT_KIND_BY_KEY[type], fileUrl, fileName)
-    if (!savedPath) return
-
-    const fallbackEntry: BuildMod = {
-      id: crypto.randomUUID(),
-      slug: fileName,
-      name: mod.name,
-      description: mod.summary,
-      icon_url: mod.iconUrl,
-      version: "local",
-      source: mod.source,
-      projectId: mod.projectId ?? (mod.source === "modrinth" ? mod.id : undefined),
-      modId: mod.modId,
-      author: mod.author,
-    }
-
-    setBuilds(prev => prev.map(b => {
-      if (b.id !== buildId) return b
-      if (b[type].some(item => item.slug === fileName || item.slug === mod.slug)) return b
-      return {
-        ...b,
-        [type]: [...b[type], fallbackEntry],
+      if (mod.source === "modrinth") {
+        const file = selectedVersion?.files?.[0]
+        fileUrl = file?.url ?? ""
+        fileName = file?.filename || selectedVersion?.fileName || `${mod.slug}.jar`
+      } else if (mod.modId && selectedVersion) {
+        fileUrl = await window.electronAPI?.modsCurseforgeDownloadUrl(Number(selectedVersion.id), mod.modId) ?? ""
+        fileName = selectedVersion.fileName || mod.primaryFileName || fileUrl.split("/").pop()?.split("?")[0] || `${mod.slug}.jar`
       }
-    }) as Build[])
-    void reloadBuilds()
-  }, [builds, reloadBuilds])
+
+      if (!fileUrl) {
+        removeLiveNotification(liveKey)
+        return
+      }
+
+      const savedPath = await window.electronAPI?.saveContentToIntent?.(build.name, CONTENT_KIND_BY_KEY[type], fileUrl, fileName)
+      if (!savedPath) {
+        removeLiveNotification(liveKey)
+        pushNotification({
+          kind: "error",
+          source: "install",
+          title: `Ошибка установки ${contentTypeLabel}`,
+          message: mod.name,
+        })
+        return
+      }
+
+      const fallbackEntry: BuildMod = {
+        id: crypto.randomUUID(),
+        slug: fileName,
+        name: mod.name,
+        description: mod.summary,
+        icon_url: mod.iconUrl,
+        version: "local",
+        source: mod.source,
+        projectId: mod.projectId ?? (mod.source === "modrinth" ? mod.id : undefined),
+        modId: mod.modId,
+        author: mod.author,
+      }
+
+      setBuilds(prev => prev.map(b => {
+        if (b.id !== buildId) return b
+        if (b[type].some(item => item.slug === fileName || item.slug === mod.slug)) return b
+        return {
+          ...b,
+          [type]: [...b[type], fallbackEntry],
+        }
+      }) as Build[])
+
+      removeLiveNotification(liveKey)
+      pushNotification({
+        kind: "success",
+        source: "install",
+        title: `${contentTypeLabel.charAt(0).toUpperCase() + contentTypeLabel.slice(1)} установлен`,
+        message: mod.name,
+      })
+      void reloadBuilds()
+    } catch {
+      removeLiveNotification(liveKey)
+      pushNotification({
+        kind: "error",
+        source: "install",
+        title: `Ошибка установки ${contentTypeLabel}`,
+        message: mod.name,
+      })
+    }
+  }, [builds, reloadBuilds, upsertLiveNotification, removeLiveNotification, pushNotification])
 
   const addLocalContentToBuild = useCallback(async (buildId: string, type: Exclude<BuildContentListKey, "mods">, file: File) => {
     const build = builds.find(b => b.id === buildId)

@@ -43,6 +43,7 @@ import type {
   ModContentType,
   ModSort,
   ModLoaderFilter,
+  ModEnvironment,
   ModSearchResponse,
   ModDetails,
   ModVersion,
@@ -56,6 +57,14 @@ import type {
   MinecraftProgress,
   JavaProgress,
 } from "./launch-types.js"
+
+import type {
+  XnConnectState,
+  McFsEntry,
+  ResolvedPlugin,
+  McServerInfo,
+  McServerDownloadProgress,
+} from "./server-types.js"
 
 // ── IPC Invoke Channel Map ──────────────────────────────────
 // Maps channel name → { args: tuple of arguments, return: return type }
@@ -322,6 +331,27 @@ export interface IpcInvokeMap {
   "p2p:stop": { args: []; return: { success: boolean } }
   "p2p:send-chat": { args: [message: string]; return: { success: boolean; error?: string } }
   "p2p:get-state": { args: []; return: { state: P2PConnState; role?: P2PRole; groupName?: string; playerName?: string; groupId?: string } }
+
+  // ── XN-Connect Relay ──
+  "xn-connect:authorize": { args: []; return: boolean }
+  "xn-connect:start": { args: [serverId: string]; return: XnConnectState }
+  "xn-connect:stop": { args: [serverId: string]; return: void }
+  "xn-connect:status": { args: [serverId: string]; return: XnConnectState }
+
+  // ── Server Files ──
+  "mc-server:fs-list": { args: [id: string, relativePath: string]; return: McFsEntry[] }
+  "mc-server:fs-read": { args: [id: string, relativePath: string]; return: string | null }
+  "mc-server:fs-write": { args: [id: string, relativePath: string, content: string]; return: void }
+  "mc-server:fs-delete": { args: [id: string, relativePath: string]; return: void }
+  "mc-server:fs-rename": { args: [id: string, oldPath: string, newPath: string]; return: void }
+  "mc-server:fs-mkdir": { args: [id: string, relativePath: string]; return: void }
+  "mc-server:fs-stat": { args: [id: string, relativePath: string]; return: McFsEntry | null }
+  "mc-server:fs-download": { args: [id: string, relativePath: string, url: string, fileName: string]; return: { success: boolean; filePath?: string; error?: string } }
+  "mc-server:resolve-installed": { args: [id: string, relativePath: string]; return: ResolvedPlugin[] }
+  "mc-server:install-pack": {
+    args: [params: { source: "modrinth" | "curseforge"; projectSlug?: string; versionId?: string; modId?: number; fileId?: number; name?: string; icon?: string; port?: number; xmx?: number; xms?: number; extraJavaArgs?: string; javaPath?: string; relayEnabled?: boolean; onlineMode?: boolean; maxPlayers?: number }]
+    return: McServerInfo
+  }
 }
 
 // ── IPC Event Channel Map ───────────────────────────────────
@@ -343,6 +373,7 @@ export interface IpcEventMap {
   "p2p:lan": P2PLanServer
   "p2p:lan_remove": { port: number }
   "p2p:chat": P2PChatMessage
+  "mc-server:download-progress": McServerDownloadProgress
 }
 
 // ── Explicit ElectronAPI ────────────────────────────────────
@@ -398,10 +429,10 @@ export interface ElectronAPIExplicit {
   discoverFromPath: (source: string, customPath: string) => Promise<ImportableLauncherInstance[]>
   importGdLauncherInstances: (ids: string[]) => Promise<{ success: boolean; imported: number; error?: string }>
   importLauncherInstances: (ids: string[]) => Promise<{ success: boolean; imported: number; error?: string }>
-  modsModrinthSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, categories?: string[]) => Promise<ModSearchResponse>
+  modsModrinthSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, categories?: string[], environment?: ModEnvironment) => Promise<ModSearchResponse>
   modsModrinthDetails: (slug: string) => Promise<ModDetails | null>
   modsModrinthVersions: (slug: string) => Promise<ModVersion[]>
-  modsCurseforgeSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, categories?: string[]) => Promise<ModSearchResponse>
+  modsCurseforgeSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, categories?: string[], environment?: ModEnvironment) => Promise<ModSearchResponse>
   modsCurseforgeDetails: (modId: number) => Promise<ModDetails | null>
   modsCurseforgeDownloadUrl: (fileId: number, modId: number) => Promise<string | null>
   modsCurseforgeFeatured: (gameVersion?: string) => Promise<{ popular: ModSearchResult[]; trending: ModSearchResult[] }>

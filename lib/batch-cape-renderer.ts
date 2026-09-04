@@ -3,7 +3,14 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     const img = new Image()
     img.crossOrigin = "anonymous"
     img.onload = () => resolve(img)
-    img.onerror = () => reject(new Error(`Failed to load: ${url}`))
+    img.onerror = () => {
+      // Retry via CORS proxy if direct load fails
+      const proxy = new Image()
+      proxy.crossOrigin = "anonymous"
+      proxy.onload = () => resolve(proxy)
+      proxy.onerror = () => reject(new Error(`Failed to load: ${url}`))
+      proxy.src = `https://corsproxy.io/?${encodeURIComponent(url)}`
+    }
     img.src = url
   })
 }
@@ -49,10 +56,10 @@ export async function batchRenderCapes(
   capes: Array<{ id: string; url: string }>,
 ): Promise<Map<string, string>> {
   const results = new Map<string, string>()
-  for (const cape of capes) {
-    if (!cape.url) continue
+  const jobs = capes.filter(c => c.url).map(async (cape) => {
     const dataUrl = await renderCape(cape.url)
     if (dataUrl) results.set(cape.id, dataUrl)
-  }
+  })
+  await Promise.allSettled(jobs)
   return results
 }

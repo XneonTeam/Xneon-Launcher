@@ -68,7 +68,7 @@ export function clearModrinthEnrichCache(): void {
 export async function enrichBuildModNames<T extends EnrichableMod>(items: T[]): Promise<T[]> {
   const uniqueIds = Array.from(new Set(
     items
-      .filter(item => item.source === "modrinth" && item.projectId)
+      .filter(item => item.source === "modrinth" && item.projectId && (!item.name || !item.author))
       .map(item => item.projectId!),
   ))
   const missing = uniqueIds.filter(id => !enrichCache.has(id))

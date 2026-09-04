@@ -3,10 +3,11 @@
 // Unified mod search/detail types for Modrinth & CurseForge
 // ============================================================
 
-export type ModContentType = "mod" | "modpack" | "resourcepack" | "shader" | "datapack"
+export type ModContentType = "mod" | "modpack" | "resourcepack" | "shader" | "datapack" | "plugin"
 export type ModSort = "relevance" | "downloads" | "follows" | "newest" | "updated" | "featured" | "rating"
 export type ModSource = "modrinth" | "curseforge" | "ftb"
 export type ModLoaderFilter = "vanilla" | "fabric" | "quilt" | "neoforge"
+export type ModEnvironment = "client" | "server"
 
 export interface ModSearchResult {
   id: string

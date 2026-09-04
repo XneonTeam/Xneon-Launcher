@@ -11,7 +11,7 @@ import fs from "fs"
 import path from "path"
 import { NBTReader, NBTWriter } from "@xnlc/nbt"
 import { getBuildIntentPath } from "./builds/helpers"
-import { pingServer } from "./server-status"
+import { pingServer } from "@xnlc/servers"
 
 function readServersDat(datPath: string): any {
   const data = fs.readFileSync(datPath)

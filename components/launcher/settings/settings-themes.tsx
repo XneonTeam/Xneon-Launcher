@@ -23,6 +23,7 @@ export function SettingsThemes({ selectedTheme, setSelectedTheme }: SettingsThem
                 setSelectedTheme(theme.id)
                 applyTheme(theme)
                 localStorage.setItem("theme", theme.id)
+                window.electronAPI?.setSetting("theme", theme.id)
               }}
               className={cn(
                 "relative p-4 rounded-xl border transition-all duration-200 text-left overflow-hidden",
