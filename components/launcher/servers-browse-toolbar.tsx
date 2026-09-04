@@ -114,17 +114,17 @@ export function ServersBrowseToolbar({
             }`}
           >
             <IconList className="w-4 h-4" strokeWidth={1.75} />
-            {modCategories.length > 0 ? `${modCategories.length} кат.` : t("servers.categories")}
+            {modCategories.length > 0 ? t("servers.browse.categoryCount", { count: modCategories.length }) : t("servers.categories")}
           </button>
         </DialogTrigger>
         <DialogContent className="max-w-md max-h-[70vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>{t("servers.categories")}</DialogTitle>
-            <DialogDescription>Выбери категории и нажми «Найти»</DialogDescription>
+            <DialogDescription>{t("servers.browse.selectAndFind")}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-1 overflow-y-auto flex-1 min-h-0 pr-1">
             {filteredCategories.length === 0 && (
-              <p className="text-xs text-muted-foreground py-2">Нет категорий для этого типа контента</p>
+              <p className="text-xs text-muted-foreground py-2">{t("servers.browse.noCategories")}</p>
             )}
             {(() => {
               const groups = new Map<string, typeof filteredCategories>()
@@ -134,7 +134,7 @@ export function ServersBrowseToolbar({
                 if (list) list.push(cat)
                 else groups.set(key, [cat])
               }
-              const groupLabels: Record<string, string> = { modrinth: "Modrinth", curseforge: "CurseForge", both: "Обе платформы" }
+              const groupLabels: Record<string, string> = { modrinth: "Modrinth", curseforge: "CurseForge", both: t("servers.browse.bothPlatforms") }
               return [...groups.entries()].map(([key, cats]) => {
                 const collapsed = collapsedSourceGroups.has(key)
                 return (
@@ -212,7 +212,7 @@ export function ServersBrowseToolbar({
               onClick={() => setDraftCats([])}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
             >
-              Сбросить все
+              {t("servers.browse.resetAll")}
             </button>
           )}
           <div className="flex justify-end gap-2 mt-3">
@@ -221,7 +221,7 @@ export function ServersBrowseToolbar({
               onClick={() => setCatDialogOpen(false)}
               className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
-              Отмена
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -232,7 +232,7 @@ export function ServersBrowseToolbar({
               className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               <IconSearch className="h-3.5 w-3.5" strokeWidth={1.75} />
-              Найти
+              {t("servers.browse.find")}
             </button>
           </div>
         </DialogContent>

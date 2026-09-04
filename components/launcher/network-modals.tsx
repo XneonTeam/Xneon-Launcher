@@ -49,7 +49,7 @@ export function NetworkAuthModal({ isOpen, onClose, onSuccess }: {
           </div>
           <div>
             <h3 className="text-xl font-semibold text-foreground">
-              {mode === "login" ? "Вход" : "Регистрация"}
+              {mode === "login" ? t("auth.login") : t("auth.register")}
             </h3>
             <p className="text-sm text-muted-foreground">{t("network.noXnAccountDesc")}</p>
           </div>
@@ -70,13 +70,13 @@ export function NetworkAuthModal({ isOpen, onClose, onSuccess }: {
           {error && <p className="text-sm text-destructive">{error}</p>}
           <button type="submit" disabled={loading}
             className="w-full py-3 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-all disabled:opacity-50">
-            {loading ? <IconLoader2 className="w-5 h-5 animate-spin mx-auto" /> : (mode === "login" ? "Войти" : "Зарегистрироваться")}
+            {loading ? <IconLoader2 className="w-5 h-5 animate-spin mx-auto" /> : (mode === "login" ? t("auth.loginButton") : t("auth.registerButton"))}
           </button>
         </form>
         <p className="mt-4 text-center text-sm text-muted-foreground">
-          {mode === "login" ? "Нет аккаунта? " : "Уже есть аккаунт? "}
+          {mode === "login" ? t("auth.noAccount") : t("auth.hasAccount")}
           <button onClick={() => { setMode(mode === "login" ? "register" : "login"); setError("") }} className="text-primary hover:underline font-medium">
-            {mode === "login" ? "Зарегистрироваться" : "Войти"}
+            {mode === "login" ? t("auth.registerButton") : t("auth.loginButton")}
           </button>
         </p>
       </div>

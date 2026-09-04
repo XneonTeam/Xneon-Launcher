@@ -6,6 +6,8 @@ import type { JavaInstallation } from "@/components/launcher/settings/types"
 import { IconPickerModal } from "@/components/launcher/instance/icon-picker-modal"
 import { LoaderIcon } from "@/components/launcher/instance/loader-icon"
 import { cn } from "@/lib/utils"
+import { MemorySlider } from "@/components/ui/memory-slider"
+import { useMemoryOptions } from "@/src/hooks/use-memory-options"
 
 interface SettingsTabProps {
   server: McServerInfo
@@ -27,6 +29,7 @@ export function SettingsTab({ server }: SettingsTabProps) {
   const [showJavaModal, setShowJavaModal] = useState(false)
   const [relayEnabled, setRelayEnabled] = useState(server.relayEnabled)
   const [relayState, setRelayState] = useState<XnConnectState>({ status: "stopped" })
+  const { maxMb, snapPoints } = useMemoryOptions()
 
   const isAuto = !javaPath || javaPath === "auto"
 
@@ -43,15 +46,6 @@ export function SettingsTab({ server }: SettingsTabProps) {
 
   const handleSaveName = () => {
     if (name.trim() && name !== server.name) save({ name: name.trim() })
-  }
-
-  const handleSaveMemory = () => {
-    const newXmx = parseInt(xmx, 10)
-    const newXms = parseInt(xms, 10)
-    const updates: Record<string, unknown> = {}
-    if (newXmx > 0 && newXmx !== server.xmx) updates.xmx = newXmx
-    if (newXms > 0 && newXms !== server.xms) updates.xms = newXms
-    if (Object.keys(updates).length > 0) save(updates)
   }
 
   const handleSaveArgs = () => {
@@ -95,6 +89,12 @@ export function SettingsTab({ server }: SettingsTabProps) {
   }
 
   useEffect(() => {
+    window.electronAPI?.detectJavaInstallations().then(list => {
+      setDetectedJava(list ?? [])
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
     if (!showJavaModal || detectedJava.length > 0) return
     let cancelled = false
     setLoadingJava(true)
@@ -107,7 +107,7 @@ export function SettingsTab({ server }: SettingsTabProps) {
   }, [showJavaModal, detectedJava.length])
 
   const selectedJavaLabel = isAuto
-    ? "Автоматически"
+    ? t("settings.java.automatic")
     : detectedJava.find(j => j.path === javaPath)?.label || javaPath.split(/[\\/]/).pop() || javaPath
 
   return (
@@ -117,18 +117,18 @@ export function SettingsTab({ server }: SettingsTabProps) {
         {saving ? (
           <span className="flex items-center gap-1.5">
             <IconLoader className="w-3 h-3 animate-spin text-primary" />
-            Saving...
+            {t("servers.settings.saving")}
           </span>
         ) : saved ? (
           <span className="flex items-center gap-1.5">
             <IconCheck className="w-3 h-3 text-green-400" />
-            Saved
+            {t("servers.settings.saved")}
           </span>
         ) : null}
       </div>
 
       {/* Icon */}
-      <SettingGroup label="Иконка">
+      <SettingGroup label={t("servers.settings.icon")}>
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -147,7 +147,7 @@ export function SettingsTab({ server }: SettingsTabProps) {
               onClick={() => setShowIconPicker(true)}
               className="text-sm text-primary hover:underline"
             >
-              {icon ? "Изменить иконку" : "Выбрать иконку"}
+              {icon ? t("servers.settings.iconChange") : t("servers.settings.iconSelect")}
             </button>
             {icon && (
               <button
@@ -155,7 +155,7 @@ export function SettingsTab({ server }: SettingsTabProps) {
                 onClick={() => handleIconChange("")}
                 className="ml-3 text-sm text-destructive hover:underline"
               >
-                Убрать
+                {t("servers.settings.iconRemove")}
               </button>
             )}
           </div>
@@ -175,7 +175,7 @@ export function SettingsTab({ server }: SettingsTabProps) {
       </SettingGroup>
 
       {/* Java */}
-      <SettingGroup label="Java">
+      <SettingGroup label={t("settings.javaPath")}>
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -193,48 +193,50 @@ export function SettingsTab({ server }: SettingsTabProps) {
             className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/20 px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
           >
             <IconFolderPlus className="h-4 w-4" strokeWidth={1.75} />
-            Файл...
+            {t("servers.settings.file")}
           </button>
         </div>
       </SettingGroup>
 
       {/* Memory */}
       <SettingGroup label={`${t("settings.ram")} (MB)`}>
-        <div className="flex gap-3">
-          <div className="flex-1">
+        <div className="space-y-4">
+          <div>
             <label className="text-xs text-muted-foreground mb-1.5 block">Xmx (max)</label>
-            <input
-              value={xmx}
-              onChange={e => setXmx(e.target.value)}
-              onBlur={handleSaveMemory}
-              type="number"
+            <MemorySlider
+              value={parseInt(xmx, 10) || 8192}
+              onChange={(v) => { setXmx(String(v)); save({ xmx: v }) }}
               min={512}
-              step={256}
-              className="w-full px-4 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground text-sm focus:outline-none focus:border-primary transition-colors"
+              max={maxMb}
+              step={64}
+              snapPoints={snapPoints}
+              snapRange={512}
+              unit="MB"
             />
           </div>
-          <div className="flex-1">
+          <div>
             <label className="text-xs text-muted-foreground mb-1.5 block">Xms (start)</label>
-            <input
-              value={xms}
-              onChange={e => setXms(e.target.value)}
-              onBlur={handleSaveMemory}
-              type="number"
+            <MemorySlider
+              value={parseInt(xms, 10) || 1024}
+              onChange={(v) => { setXms(String(v)); save({ xms: v }) }}
               min={256}
-              step={256}
-              className="w-full px-4 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground text-sm focus:outline-none focus:border-primary transition-colors"
+              max={maxMb}
+              step={64}
+              snapPoints={snapPoints}
+              snapRange={512}
+              unit="MB"
             />
           </div>
         </div>
       </SettingGroup>
 
       {/* Extra Java Args */}
-      <SettingGroup label="Extra Java Args">
+      <SettingGroup label={t("settings.java.args")}>
         <input
           value={extraJavaArgs}
           onChange={e => setExtraJavaArgs(e.target.value)}
           onBlur={handleSaveArgs}
-          placeholder="-XX:+UseG1GC -XX:+UnlockExperimentalVMOptions"
+          placeholder={t("settings.java.argsPlaceholder")}
           className="w-full px-4 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
         />
       </SettingGroup>
@@ -243,7 +245,7 @@ export function SettingsTab({ server }: SettingsTabProps) {
       <SettingGroup label="XN-Connect">
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm text-muted-foreground">
-            Доступ через connect.xneon.org
+            {t("servers.settings.xnconnect.desc")}
           </p>
           <button
             onClick={handleToggleRelay}
@@ -261,17 +263,17 @@ export function SettingsTab({ server }: SettingsTabProps) {
         {relayEnabled && (
           <div className="text-xs text-muted-foreground space-y-1">
             {relayState.status === "stopped" && (
-              <span className="text-orange-400">Остановлен</span>
+              <span className="text-orange-400">{t("servers.statusStopped")}</span>
             )}
             {relayState.status === "auth_required" && (
-              <span className="text-yellow-400">Ожидание авторизации...</span>
+              <span className="text-yellow-400">{t("servers.settings.xnconnect.authWaiting")}</span>
             )}
             {relayState.status === "starting" && (
-              <span className="text-blue-400">Запуск...</span>
+              <span className="text-blue-400">{t("servers.statusStarting")}</span>
             )}
             {relayState.status === "running" && (
               <div>
-                <span className="text-green-400">Активен: </span>
+                <span className="text-green-400">{t("servers.settings.xnconnect.active")}</span>
                 <span className="font-mono">{relayState.publicAddress}</span>
               </div>
             )}
@@ -286,7 +288,7 @@ export function SettingsTab({ server }: SettingsTabProps) {
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
                 <IconWorld className="w-5 h-5 text-primary" strokeWidth={1.5} />
-                XN-Connect Авторизация
+                XN-Connect {t("servers.settings.xnconnect.authTitle")}
               </h3>
               <button
                 onClick={() => {
@@ -301,11 +303,11 @@ export function SettingsTab({ server }: SettingsTabProps) {
             </div>
 
             <p className="text-sm text-muted-foreground mb-4">
-              Откройте ссылку в браузере для авторизации через Xneon Account.
+              {t("servers.settings.xnconnect.authDesc")}
             </p>
 
             <div className="p-3 rounded-xl bg-muted/50 border border-border mb-4">
-              <p className="text-xs text-muted-foreground mb-2">Ссылка для авторизации:</p>
+              <p className="text-xs text-muted-foreground mb-2">{t("servers.settings.xnconnect.authLink")}</p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 text-xs text-foreground break-all font-mono leading-relaxed">
                   {relayState.authUrl}
@@ -313,7 +315,7 @@ export function SettingsTab({ server }: SettingsTabProps) {
                 <button
                   onClick={() => navigator.clipboard.writeText(relayState.authUrl)}
                   className="flex-shrink-0 w-8 h-8 rounded-lg bg-muted hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-                  title="Скопировать"
+                  title={t("servers.settings.xnconnect.copy")}
                 >
                   <IconClipboard className="w-4 h-4" strokeWidth={1.5} />
                 </button>
@@ -322,7 +324,7 @@ export function SettingsTab({ server }: SettingsTabProps) {
 
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
               <IconLoader2 className="w-3 h-3 animate-spin text-primary" />
-              Ожидание подтверждения в браузере...
+              {t("servers.settings.xnconnect.authConfirm")}
             </div>
 
             <div className="flex gap-3">
@@ -334,7 +336,7 @@ export function SettingsTab({ server }: SettingsTabProps) {
                 }}
                 className="flex-1 h-10 rounded-xl border border-border bg-muted/30 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
               >
-                Отмена
+                {t("servers.cancel")}
               </button>
               <a
                 href={relayState.authUrl}
@@ -342,7 +344,7 @@ export function SettingsTab({ server }: SettingsTabProps) {
                 rel="noopener noreferrer"
                 className="flex-1 h-10 rounded-xl bg-primary text-primary-foreground text-sm font-medium flex items-center justify-center hover:bg-primary/90 transition-colors"
               >
-                Открыть в браузере
+                {t("servers.settings.xnconnect.openBrowser")}
               </a>
             </div>
           </div>
@@ -374,25 +376,25 @@ export function SettingsTab({ server }: SettingsTabProps) {
                 )}
               >
                 <div className="flex items-center justify-between">
-                  <div className="font-medium text-foreground">Автоматически</div>
+                  <div className="font-medium text-foreground">{t("settings.java.automatic")}</div>
                   <span className={cn(
                     "text-xs px-2 py-1 rounded-md font-medium",
                     isAuto ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
                   )}>
-                    {isAuto ? "Выбрана" : "Выбрать"}
+                    {isAuto ? t("settings.java.selected") : t("settings.java.select")}
                   </span>
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">Использовать Java из глобальных настроек</div>
+                <div className="text-xs text-muted-foreground mt-1">{t("servers.settings.java.autoDesc")}</div>
               </button>
 
               {loadingJava ? (
                 <div className="w-full p-4 rounded-xl border border-border bg-muted/30 flex items-center justify-center gap-2">
                   <IconLoader2 className="w-4 h-4 animate-spin text-primary" strokeWidth={1.5} />
-                  <span className="text-sm text-muted-foreground">Поиск Java...</span>
+                  <span className="text-sm text-muted-foreground">{t("settings.java.searching")}</span>
                 </div>
               ) : detectedJava.length > 0 ? (
                 <div className="space-y-2">
-                  <div className="text-xs font-medium text-muted-foreground px-1">Обнаруженные</div>
+                  <div className="text-xs font-medium text-muted-foreground px-1">{t("settings.java.detected")}</div>
                   <div className="max-h-[304px] space-y-2 overflow-y-auto pr-1">
                     {detectedJava.map((java, index) => (
                       <button
@@ -411,7 +413,7 @@ export function SettingsTab({ server }: SettingsTabProps) {
                             "shrink-0 text-xs px-2 py-1 rounded-md font-medium",
                             javaPath === java.path ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
                           )}>
-                            {javaPath === java.path ? "Выбрана" : "Выбрать"}
+                            {javaPath === java.path ? t("settings.java.selected") : t("settings.java.select")}
                           </span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 truncate">{java.path}</div>
@@ -427,9 +429,9 @@ export function SettingsTab({ server }: SettingsTabProps) {
               >
                 <div className="flex items-center gap-2">
                   <IconFolderPlus className="w-5 h-5" strokeWidth={1.5} />
-                  <span className="text-sm">Выбрать файл...</span>
+                  <span className="text-sm">{t("servers.settings.java.selectFile")}</span>
                 </div>
-                <span className="text-xs px-2 py-1 rounded-md bg-muted/50 font-medium">Обзор</span>
+                <span className="text-xs px-2 py-1 rounded-md bg-muted/50 font-medium">{t("servers.settings.java.browse")}</span>
               </button>
             </div>
 
@@ -438,7 +440,7 @@ export function SettingsTab({ server }: SettingsTabProps) {
               className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground text-sm transition-colors"
             >
               <IconX className="w-4 h-4" strokeWidth={1.75} />
-              Отмена
+              {t("servers.cancel")}
             </button>
           </div>
         </div>

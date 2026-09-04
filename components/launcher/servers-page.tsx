@@ -275,7 +275,7 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
             className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
               view === "trash" ? "bg-red-500/20 text-red-400" : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground")}>
             <IconTrash className="w-3.5 h-3.5" strokeWidth={1.75} />
-            Корзина
+            {t("servers.trash")}
           </button>
           <div className="w-px h-6 bg-border mx-1" />
           <button key="modrinth" type="button" onClick={() => setView("modrinth")}
@@ -304,7 +304,7 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
                     "p-1.5 rounded-md transition-colors",
                     layoutMode === "grid" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80",
                   )}
-                  title="Карточки"
+                  title={t("servers.viewGrid")}
                 >
                   <IconLayoutGrid className="w-3.5 h-3.5" strokeWidth={1.75} />
                 </button>
@@ -315,7 +315,7 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
                     "p-1.5 rounded-md transition-colors",
                     layoutMode === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80",
                   )}
-                  title="Список"
+                  title={t("servers.viewList")}
                 >
                   <IconLayoutList className="w-3.5 h-3.5" strokeWidth={1.75} />
                 </button>
@@ -547,7 +547,7 @@ function ServerListRow({ server, onClick, onDelete }: { server: McServerInfo; on
         <div className="flex items-center gap-1.5 shrink-0">
           {isRunning && (
             <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-green-500/15 text-green-500">
-              Запущен
+              {t("servers.running")}
             </span>
           )}
           <button

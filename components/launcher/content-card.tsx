@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next"
 import { IconHome, IconLayoutBoard, IconFileText, IconCloud, IconNetwork, IconUserPlus, IconSettings, IconColorSwatch, IconShirt, IconServer } from "@tabler/icons-react"
 import type { TabId } from "./sidebar"
 
@@ -5,62 +6,62 @@ interface ContentCardProps {
   activeTab: TabId
 }
 
-const tabContent: Record<TabId, { title: string; message: string; icon: React.ReactNode }> = {
+const tabKeys: Record<TabId, { titleKey: string; messageKey: string; icon: React.ReactNode }> = {
   home: {
-    title: "Главная",
-    message: "Главная страница находится в разработке",
+    titleKey: "content.home.title",
+    messageKey: "content.home.message",
     icon: <IconHome className="w-12 h-12" strokeWidth={1.5} />,
   },
   builds: {
-    title: "Сборки",
-    message: "Управление сборками находится в разработке",
+    titleKey: "content.builds.title",
+    messageKey: "content.builds.message",
     icon: <IconLayoutBoard className="w-12 h-12" strokeWidth={1.5} />,
   },
   logs: {
-    title: "Логи",
-    message: "Просмотр логов запуска Minecraft",
+    titleKey: "content.logs.title",
+    messageKey: "content.logs.message",
     icon: <IconFileText className="w-12 h-12" strokeWidth={1.5} />,
   },
   cloud: {
-    title: "Облако",
-    message: "Облачное хранилище сборок и аккаунтов в разработке",
+    titleKey: "content.cloud.title",
+    messageKey: "content.cloud.message",
     icon: <IconCloud className="w-12 h-12" strokeWidth={1.5} />,
   },
   network: {
-    title: "Серверы",
-    message: "Браузер серверов находится в разработке",
+    titleKey: "content.network.title",
+    messageKey: "content.network.message",
     icon: <IconNetwork className="w-12 h-12" strokeWidth={1.5} />,
   },
   servers: {
-    title: "Серверы",
-    message: "Список серверов находится в разработке",
+    titleKey: "content.servers.title",
+    messageKey: "content.servers.message",
     icon: <IconServer className="w-12 h-12" strokeWidth={1.5} />,
   },
   accounts: {
-    title: "Аккаунты",
-    message: "Управление аккаунтами находится в разработке",
+    titleKey: "content.accounts.title",
+    messageKey: "content.accounts.message",
     icon: <IconUserPlus className="w-12 h-12" strokeWidth={1.5} />,
   },
   settings: {
-    title: "Настройки",
-    message: "Настройки лаунчера находятся в разработке",
+    titleKey: "content.settings.title",
+    messageKey: "content.settings.message",
     icon: <IconSettings className="w-12 h-12" strokeWidth={1.5} />,
   },
   themes: {
-    title: "Темы",
-    message: "Настройки тем находятся в разработке",
+    titleKey: "content.themes.title",
+    messageKey: "content.themes.message",
     icon: <IconColorSwatch className="w-12 h-12" strokeWidth={1.5} />,
   },
   skins: {
-    title: "Скины",
-    message: "Управление скинами находится в разработке",
+    titleKey: "content.skins.title",
+    messageKey: "content.skins.message",
     icon: <IconShirt className="w-12 h-12" strokeWidth={1.5} />,
   },
-
 }
 
 export function ContentCard({ activeTab }: ContentCardProps) {
-  const content = tabContent[activeTab]
+  const { t } = useTranslation()
+  const content = tabKeys[activeTab]
 
   return (
     <div className="relative overflow-hidden rounded-2xl bg-card border border-border transition-all duration-300 animate-in fade-in-0 slide-in-from-bottom-4">
@@ -68,7 +69,7 @@ export function ContentCard({ activeTab }: ContentCardProps) {
       <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
 
       <div className="relative z-10 p-8">
-        <h2 className="text-xl font-semibold text-foreground mb-6">{content.title}</h2>
+        <h2 className="text-xl font-semibold text-foreground mb-6">{t(content.titleKey)}</h2>
 
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="w-24 h-24 rounded-2xl bg-muted/50 flex items-center justify-center mb-6 text-muted-foreground">
@@ -77,7 +78,7 @@ export function ContentCard({ activeTab }: ContentCardProps) {
 
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-accent/10 border border-accent/20 text-accent">
             <IconHome className="w-5 h-5" strokeWidth={1.5} />
-            <span className="font-medium">{content.message}</span>
+            <span className="font-medium">{t(content.messageKey)}</span>
           </div>
         </div>
       </div>

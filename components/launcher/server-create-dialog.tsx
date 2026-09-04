@@ -18,34 +18,34 @@ interface ServerCreateDialogProps {
 }
 
 const MODLOADERS = [
-  { id: "vanilla", label: "Vanilla", desc: "Чистый Minecraft без модов" },
-  { id: "forge", label: "Forge", desc: "Самый популярный загрузчик модов" },
-  { id: "fabric", label: "Fabric", desc: "Лёгкий и быстрый загрузчик" },
-  { id: "quilt", label: "Quilt", desc: "Форк Fabric с дополнениями" },
-  { id: "neoforge", label: "NeoForge", desc: "Новое поколение Forge" },
-  { id: "paper", label: "Paper", desc: "Высокопроизводительный сервер" },
-  { id: "spigot", label: "Spigot", desc: "Оптимизированный Bukkit-сервер" },
-  { id: "bukkit", label: "Bukkit", desc: "Классический API сервера" },
-  { id: "purpur", label: "Purpur", desc: "Форк Paper с настройками" },
-  { id: "folia", label: "Folia", desc: "Многопоточный Paper" },
-  { id: "sponge", label: "Sponge", desc: "Альтернативный API сервера" },
-  { id: "bungeecord", label: "BungeeCord", desc: "Прокси-сервер" },
-  { id: "velocity", label: "Velocity", desc: "Современное прокси" },
-  { id: "waterfall", label: "Waterfall", desc: "Форк BungeeCord" },
+  { id: "vanilla", label: "Vanilla" },
+  { id: "forge", label: "Forge" },
+  { id: "fabric", label: "Fabric" },
+  { id: "quilt", label: "Quilt" },
+  { id: "neoforge", label: "NeoForge" },
+  { id: "paper", label: "Paper" },
+  { id: "spigot", label: "Spigot" },
+  { id: "bukkit", label: "Bukkit" },
+  { id: "purpur", label: "Purpur" },
+  { id: "folia", label: "Folia" },
+  { id: "sponge", label: "Sponge" },
+  { id: "bungeecord", label: "BungeeCord" },
+  { id: "velocity", label: "Velocity" },
+  { id: "waterfall", label: "Waterfall" },
 ]
 
 const STEPS_FULL = ["name", "modloader", "version", "port", "settings", "java", "connect"] as const
 const STEPS_CUSTOM = ["name", "modloader", "port", "settings", "java", "connect"] as const
 type Step = (typeof STEPS_FULL)[number] | (typeof STEPS_CUSTOM)[number]
 
-const STEP_LABELS: Record<(typeof STEPS_FULL)[number], string> = {
-  name: "Название",
-  modloader: "Загрузчик",
-  version: "Версия",
-  port: "Порт",
-  settings: "Настройки",
+const STEP_KEYS: Record<(typeof STEPS_FULL)[number], string> = {
+  name: "servers.create.step.name",
+  modloader: "servers.create.step.modloader",
+  version: "servers.create.step.version",
+  port: "servers.create.step.port",
+  settings: "servers.create.step.settings",
   java: "Java",
-  connect: "Сеть",
+  connect: "servers.create.step.connect",
 }
 
 export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreateDialogProps) {
@@ -82,6 +82,8 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
   const requiresLoaderVersion = !["vanilla", "spigot", "bukkit", "sponge", "bungeecord"].includes(modloader)
 
   const steps = customJarPath ? STEPS_CUSTOM : STEPS_FULL
+
+  const loaderDesc = (id: string) => t(`servers.types.${id}.desc`)
 
   useEffect(() => {
     if (!open) return
@@ -171,7 +173,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
           return
         }
         if (!info?.minecraftVersion) {
-          setJarError("Не удалось определить версию Minecraft из JAR. Выберите загрузчик без своего JAR.")
+          setJarError(t("servers.create.jarErrorDetect"))
           return
         }
         setSelectedVersion(info.minecraftVersion)
@@ -181,7 +183,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
           setModloader(info.loaderId)
         }
       } catch (e: any) {
-        setJarError(e?.message ?? "Ошибка анализа JAR")
+        setJarError(e?.message ?? t("servers.create.jarErrorAnalysis"))
         return
       } finally {
         setAnalyzingJar(false)
@@ -276,7 +278,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                 "text-[10px] font-medium w-7 text-center",
                 s === step ? "text-primary" : "text-muted-foreground",
               )}>
-                {STEP_LABELS[s as (typeof STEPS_FULL)[number]]}
+                {t(STEP_KEYS[s as (typeof STEPS_FULL)[number]])}
               </span>
             ))}
           </div>
@@ -289,8 +291,8 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
           {step === "name" && (
             <div className="flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200">
               <div>
-                <h3 className="text-sm font-semibold text-foreground mb-1">Как назовём сервер?</h3>
-                <p className="text-xs text-muted-foreground">Придумай название, чтобы потом легко найти</p>
+                <h3 className="text-sm font-semibold text-foreground mb-1">{t("servers.create.nameTitle")}</h3>
+                <p className="text-xs text-muted-foreground">{t("servers.create.nameDesc")}</p>
               </div>
               <input
                 value={name}
@@ -306,8 +308,8 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
           {step === "modloader" && (
             <div className="flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200">
               <div>
-                <h3 className="text-sm font-semibold text-foreground mb-1">Выбери загрузчик</h3>
-                <p className="text-xs text-muted-foreground">Определяет какие моды будут доступны</p>
+                <h3 className="text-sm font-semibold text-foreground mb-1">{t("servers.create.modloaderTitle")}</h3>
+                <p className="text-xs text-muted-foreground">{t("servers.create.modloaderDesc")}</p>
               </div>
               <div className="grid grid-cols-2 gap-2.5 max-h-[190px] overflow-y-auto pr-1">
                 {MODLOADERS.map(loader => (
@@ -330,7 +332,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-foreground">{loader.label}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">{loader.desc}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{loaderDesc(loader.id)}</p>
                     </div>
                     {modloader === loader.id && (
                       <div className="ml-auto w-5 h-5 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
@@ -344,7 +346,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
               {/* Custom JAR */}
               <div className="space-y-2">
                 <div className="h-px bg-border" />
-                <label className="text-xs font-medium text-muted-foreground">Свой JAR (опционально)</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("servers.create.customJar")}</label>
                 <input
                   ref={customJarInputRef}
                   type="file"
@@ -379,12 +381,12 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                     {customJarPath ? (
                       <>
                         <p className="text-sm font-medium text-foreground truncate">{customJarPath.split(/[\\/]/).pop()}</p>
-                        <p className="text-[11px] text-primary mt-0.5">JAR выбран — заменит скачивание</p>
+                        <p className="text-[11px] text-primary mt-0.5">{t("servers.create.customJarSelected")}</p>
                       </>
                     ) : (
                       <>
-                        <p className="text-sm font-medium text-foreground">Mohist, Magma и др.</p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">Загрузить свой JAR вместо скачивания</p>
+                        <p className="text-sm font-medium text-foreground">{t("servers.create.customJarExample")}</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">{t("servers.create.customJarDesc")}</p>
                       </>
                     )}
                   </div>
@@ -394,7 +396,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                       onClick={(e) => { e.stopPropagation(); setCustomJarPath("") }}
                       className="text-xs text-muted-foreground hover:text-destructive transition-colors shrink-0"
                     >
-                      Убрать
+                      {t("servers.create.remove")}
                     </button>
                   )}
                 </button>
@@ -411,9 +413,9 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
           {step === "version" && (
             <div className="flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200">
               <div>
-                <h3 className="text-sm font-semibold text-foreground mb-1">Выбери версию</h3>
+                <h3 className="text-sm font-semibold text-foreground mb-1">{t("servers.create.versionTitle")}</h3>
                 <p className="text-xs text-muted-foreground">
-                  {modloader === "velocity" ? "Версия прокси" : "Версия Minecraft и загрузчика"}
+                  {modloader === "velocity" ? t("servers.create.versionProxy") : t("servers.create.versionDesc")}
                 </p>
               </div>
 
@@ -424,7 +426,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                   </label>
                   <Select value={selectedVersion} onValueChange={setSelectedVersion}>
                     <SelectTrigger className="w-full h-[42px] rounded-xl bg-muted/50 border-border text-foreground text-sm">
-                      <SelectValue placeholder={versionsLoaded ? "Выбери версию" : "Загрузка..."} />
+                      <SelectValue placeholder={versionsLoaded ? t("servers.create.versionPlaceholder") : t("servers.create.loading")} />
                     </SelectTrigger>
                     <SelectContent>
                       {!versionsLoaded ? (
@@ -449,7 +451,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                       disabled={!loaderVersionsLoaded || loaderVersions.length === 0}
                     >
                       <SelectTrigger className="w-full h-[42px] rounded-xl bg-muted/50 border-border text-foreground text-sm">
-                        <SelectValue placeholder={loaderVersionsLoaded ? "Выбери версию" : "Загрузка..."} />
+                        <SelectValue placeholder={loaderVersionsLoaded ? t("servers.create.versionPlaceholder") : t("servers.create.loading")} />
                       </SelectTrigger>
                       <SelectContent>
                         {!loaderVersionsLoaded ? (
@@ -477,7 +479,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                     <IconCheck className="w-4 h-4 text-primary" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">Версия определена из JAR</p>
+                    <p className="text-xs text-muted-foreground">{t("servers.create.portDetected")}</p>
                     <p className="text-sm font-semibold text-foreground truncate">
                       Minecraft {detectedVersion}{detectedLoader ? ` · ${detectedLoader}` : ""}
                     </p>
@@ -486,12 +488,12 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
               )}
 
               <div>
-                <h3 className="text-sm font-semibold text-foreground mb-1">Порт сервера</h3>
-                <p className="text-xs text-muted-foreground">Стандартный порт — 25565</p>
+                <h3 className="text-sm font-semibold text-foreground mb-1">{t("servers.create.portTitle")}</h3>
+                <p className="text-xs text-muted-foreground">{t("servers.create.portDesc")}</p>
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Порт</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("servers.create.portLabel")}</label>
                 <input
                   type="number"
                   value={port}
@@ -507,12 +509,12 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
           {step === "settings" && (
             <div className="flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200">
               <div>
-                <h3 className="text-sm font-semibold text-foreground mb-1">Настройки</h3>
-                <p className="text-xs text-muted-foreground">ОЗУ, макс. игроков, online mode</p>
+                <h3 className="text-sm font-semibold text-foreground mb-1">{t("servers.create.settingsTitle")}</h3>
+                <p className="text-xs text-muted-foreground">{t("servers.create.settingsDesc")}</p>
               </div>
 
               <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-2.5">
-                <label className="block text-sm font-medium text-foreground">Выделено памяти (макс. ОЗУ)</label>
+                <label className="block text-sm font-medium text-foreground">{t("servers.create.memoryAllocated")}</label>
                 <MemorySlider
                   value={xmx}
                   min={512}
@@ -528,7 +530,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                 />
               </div>
               <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-2.5">
-                <label className="block text-sm font-medium text-foreground">Начальная память (Xms)</label>
+                <label className="block text-sm font-medium text-foreground">{t("servers.create.memoryInitial")}</label>
                 <MemorySlider
                   value={xms}
                   min={256}
@@ -541,7 +543,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">Макс. игроков</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("servers.create.maxPlayers")}</label>
                   <input
                     type="number"
                     value={maxPlayers}
@@ -552,7 +554,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">Пиратка</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("servers.create.pirateMode")}</label>
                   <button
                     type="button"
                     onClick={() => setOnlineMode(!onlineMode)}
@@ -563,7 +565,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                         : "border-border bg-muted/30"
                     )}
                   >
-                    <span className="text-sm text-foreground">{!onlineMode ? "Вкл" : "Выкл"}</span>
+                    <span className="text-sm text-foreground">{!onlineMode ? t("servers.create.on") : t("servers.create.off")}</span>
                     <div className={cn(
                       "relative w-9 h-5 rounded-full transition-colors",
                       !onlineMode ? "bg-primary" : "bg-muted"
@@ -582,8 +584,8 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
           {step === "java" && (
             <div className="flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200">
               <div>
-                <h3 className="text-sm font-semibold text-foreground mb-1">Java для сервера</h3>
-                <p className="text-xs text-muted-foreground">Выбери Java или оставь глобальную настройку</p>
+                <h3 className="text-sm font-semibold text-foreground mb-1">{t("servers.create.javaTitle")}</h3>
+                <p className="text-xs text-muted-foreground">{t("servers.create.javaDesc")}</p>
               </div>
 
               <div className="space-y-2">
@@ -598,15 +600,15 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="font-medium text-foreground">Автоматически</div>
+                    <div className="font-medium text-foreground">{t("servers.create.autoJava")}</div>
                     <span className={cn(
                       "text-xs px-2 py-1 rounded-md font-medium",
                       javaPath === "auto" ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
                     )}>
-                      {javaPath === "auto" ? "Выбрана" : "Выбрать"}
+                      {javaPath === "auto" ? t("servers.create.selected") : t("servers.create.select")}
                     </span>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1">Скачать при первой установке Minecraft</div>
+                  <div className="text-xs text-muted-foreground mt-1">{t("servers.create.autoJavaDesc")}</div>
                 </button>
 
                 {globalJavaPath && (
@@ -621,12 +623,12 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                     )}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="font-medium text-foreground text-sm">Глобальная Java</div>
+                      <div className="font-medium text-foreground text-sm">{t("servers.create.globalJava")}</div>
                       <span className={cn(
                         "shrink-0 text-xs px-2 py-1 rounded-md font-medium",
                         javaPath === "" ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
                       )}>
-                        {javaPath === "" ? "Выбрана" : "Выбрать"}
+                        {javaPath === "" ? t("servers.create.selected") : t("servers.create.select")}
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground mt-1 truncate">{globalJavaPath}</div>
@@ -636,11 +638,11 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                 {loadingJava ? (
                   <div className="w-full p-4 rounded-xl border border-border bg-muted/30 flex items-center justify-center gap-2">
                     <IconLoader2 className="w-4 h-4 animate-spin text-primary" strokeWidth={1.5} />
-                    <span className="text-sm text-muted-foreground">Поиск Java...</span>
+                    <span className="text-sm text-muted-foreground">{t("servers.create.searchingJava")}</span>
                   </div>
                 ) : detectedJava.length > 0 ? (
                   <div className="space-y-2">
-                    <div className="text-xs font-medium text-muted-foreground px-1">Обнаруженные установки</div>
+                    <div className="text-xs font-medium text-muted-foreground px-1">{t("servers.create.detectedInstalls")}</div>
                     <div className="max-h-[200px] space-y-2 overflow-y-auto pr-1">
                       {detectedJava.map((java, index) => (
                         <button
@@ -660,13 +662,13 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                               "shrink-0 text-xs px-2 py-1 rounded-md font-medium",
                               javaPath === java.path ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
                             )}>
-                              {javaPath === java.path ? "Выбрана" : "Выбрать"}
+                              {javaPath === java.path ? t("servers.create.selected") : t("servers.create.select")}
                             </span>
                           </div>
                           <div className="text-xs text-muted-foreground mt-1 truncate">{java.path}</div>
                           {(java.arch || java.vendor || java.fullVersion) && (
                             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                              {java.arch && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground">{java.arch}-бит</span>}
+                              {java.arch && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground">{java.arch}{t("servers.create.bit")}</span>}
                               {java.vendor && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground">{java.vendor}</span>}
                               {java.fullVersion && java.fullVersion !== java.version && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground">{java.fullVersion}</span>}
                             </div>
@@ -686,9 +688,9 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                 >
                   <div className="flex items-center gap-2">
                     <IconFolderPlus className="w-5 h-5" strokeWidth={1.5} />
-                    <span className="text-sm">Выбрать файл вручную</span>
+                    <span className="text-sm">{t("servers.create.browseFile")}</span>
                   </div>
-                  <span className="text-xs px-2 py-1 rounded-md bg-muted/50 font-medium">Обзор</span>
+                  <span className="text-xs px-2 py-1 rounded-md bg-muted/50 font-medium">{t("servers.create.browse")}</span>
                 </button>
               </div>
             </div>
@@ -697,8 +699,8 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
           {step === "connect" && (
             <div className="flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200">
               <div>
-                <h3 className="text-sm font-semibold text-foreground mb-1">Доступ к серверу</h3>
-                <p className="text-xs text-muted-foreground">Настрой публичный доступ через XN-Connect</p>
+                <h3 className="text-sm font-semibold text-foreground mb-1">{t("servers.create.connectTitle")}</h3>
+                <p className="text-xs text-muted-foreground">{t("servers.create.connectDesc")}</p>
               </div>
 
               <div className="p-4 rounded-xl border border-border bg-gradient-to-br from-primary/5 via-primary/[0.02] to-accent/5">
@@ -708,7 +710,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                   </div>
                   <div>
                     <h4 className="text-sm font-semibold text-foreground">XN-Connect</h4>
-                    <p className="text-xs text-muted-foreground mt-0.5">Бесплатный туннель для Minecraft</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t("servers.create.xnConnectDesc")}</p>
                   </div>
                 </div>
 
@@ -716,14 +718,14 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                   <div className="flex items-start gap-2">
                     <IconRouter className="w-4 h-4 text-primary/60 mt-0.5 flex-shrink-0" strokeWidth={1.5} />
                     <div>
-                      <span className="font-medium text-foreground">Доступ без порта forwarding</span> — твои друзья смогут зайти по адресу
+                      <span className="font-medium text-foreground">{t("servers.create.xnConnectFeature1")}</span> — {t("servers.create.xnConnectFeature1Desc")}
                       <span className="font-mono text-primary ml-1">connect.xneon.org:PORT</span>
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
                     <IconShield className="w-4 h-4 text-primary/60 mt-0.5 flex-shrink-0" strokeWidth={1.5} />
                     <div>
-                      <span className="font-medium text-foreground">Без настройки роутера</span> — не нужно открывать порты или настраивать порт forwarding
+                      <span className="font-medium text-foreground">{t("servers.create.xnConnectFeature2")}</span> — {t("servers.create.xnConnectFeature2Desc")}
                     </div>
                   </div>
                 </div>
@@ -732,8 +734,8 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
               <div className="p-4 rounded-xl border border-border bg-muted/20">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-foreground">Включить XN-Connect</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Создать туннель при запуске сервера</p>
+                    <p className="text-sm font-medium text-foreground">{t("servers.create.enableXnConnect")}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t("servers.create.enableXnConnectDesc")}</p>
                   </div>
                   <button
                     onClick={() => setRelayEnabled(!relayEnabled)}
@@ -753,13 +755,13 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                     {authDone ? (
                       <p className="text-xs text-green-500 flex items-center gap-1.5">
                         <IconCheck className="w-4 h-4" strokeWidth={1.75} />
-                        Вы авторизованы в XN-Connect
+                        {t("servers.create.authDone")}
                       </p>
                     ) : authing ? (
                       <div className="space-y-3">
                         <p className="text-xs text-primary/80 flex items-center gap-1.5">
                           <IconLoader2 className="w-3.5 h-3.5 animate-spin" />
-                          Ожидание подтверждения в браузере...
+                          {t("servers.create.authWaiting")}
                         </p>
                         {authUrl && (
                           <div className="space-y-2">
@@ -772,7 +774,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                                 className="flex-[1] flex items-center justify-center gap-1.5 h-8 rounded-lg border border-border bg-muted/40 text-xs text-muted-foreground hover:text-foreground transition-colors"
                               >
                                 <IconClipboard className="w-3.5 h-3.5" />
-                                Копировать
+                                {t("servers.create.copy")}
                               </button>
                               <a
                                 href={authUrl}
@@ -781,7 +783,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                                 className="flex-[1] flex items-center justify-center gap-1.5 h-8 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
                               >
                                 <IconExternalLink className="w-3.5 h-3.5" />
-                                Открыть в браузере
+                                {t("servers.create.openBrowser")}
                               </a>
                             </div>
                           </div>
@@ -790,14 +792,14 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                     ) : (
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-xs text-primary/80">
-                          Для доступа друзей нужно войти в Xneon Account.
+                          {t("servers.create.authRequired")}
                         </p>
                         <button
                           onClick={handleAuthorize}
                           className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
                         >
                           <IconExternalLink className="w-3.5 h-3.5" />
-                          Авторизоваться
+                          {t("servers.create.authorize")}
                         </button>
                       </div>
                     )}
@@ -824,7 +826,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
             {stepIndex === 0 ? t("servers.cancel") : (
               <>
                 <IconArrowLeft className="w-4 h-4" />
-                Назад
+                {t("servers.create.back")}
               </>
             )}
           </button>
@@ -843,10 +845,10 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
               {analyzingJar ? (
                 <>
                   <IconLoader2 className="w-4 h-4 animate-spin" />
-                  Анализ JAR...
+                  {t("servers.create.analyzing")}
                 </>
               ) : (
-                "Далее"
+                t("servers.create.next")
               )}
             </button>
           ) : (

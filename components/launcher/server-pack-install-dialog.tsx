@@ -5,6 +5,7 @@ import { MemorySlider } from "@/components/ui/memory-slider"
 import { useMemoryOptions } from "@/src/hooks/use-memory-options"
 import { memoryToMb, mbToMemory } from "@/lib/memory"
 import { cn } from "@/lib/utils"
+import { useTranslation } from "react-i18next"
 import type { JavaInstallation } from "./settings/types"
 
 export interface PackInstallTarget {
@@ -27,14 +28,8 @@ interface ServerPackInstallDialogProps {
 const STEPS = ["port", "settings", "java", "connect"] as const
 type Step = (typeof STEPS)[number]
 
-const STEP_LABELS: Record<Step, string> = {
-  port: "Порт",
-  settings: "Настройки",
-  java: "Java",
-  connect: "Сеть",
-}
-
 export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled }: ServerPackInstallDialogProps) {
+  const { t } = useTranslation()
   const [step, setStep] = useState<Step>("port")
   const [port, setPort] = useState("25565")
   const [xmx, setXmx] = useState(2048)
@@ -53,6 +48,13 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
   const [installing, setInstalling] = useState(false)
 
   const { maxMb, snapPoints } = useMemoryOptions()
+
+  const STEP_LABELS: Record<Step, string> = {
+    port: t("servers.packInstall.stepPort"),
+    settings: t("servers.packInstall.stepSettings"),
+    java: t("servers.packInstall.stepJava"),
+    connect: t("servers.packInstall.stepConnect"),
+  }
 
   const reset = useCallback(() => {
     setStep("port")
@@ -183,7 +185,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                 <IconServer className="w-4 h-4 text-primary" />
               </div>
               <span className="flex items-center gap-2">
-                Настройки сервера
+                {t("servers.packInstall.title")}
                 {pack && (
                   <span className="text-xs font-normal text-muted-foreground truncate max-w-[220px]">
                     · {pack.name}
@@ -233,12 +235,12 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
               {step === "port" && (
                 <div className="flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200">
                   <div>
-                    <h3 className="text-sm font-semibold text-foreground mb-1">Порт сервера</h3>
-                    <p className="text-xs text-muted-foreground">Стандартный порт — 25565</p>
+                    <h3 className="text-sm font-semibold text-foreground mb-1">{t("servers.packInstall.portTitle")}</h3>
+                    <p className="text-xs text-muted-foreground">{t("servers.packInstall.portDesc")}</p>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">Порт</label>
+                    <label className="text-xs font-medium text-muted-foreground">{t("servers.packInstall.port")}</label>
                     <input
                       type="number"
                       value={port}
@@ -254,12 +256,12 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
               {step === "settings" && (
                 <div className="flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200">
                   <div>
-                    <h3 className="text-sm font-semibold text-foreground mb-1">Настройки</h3>
-                    <p className="text-xs text-muted-foreground">ОЗУ, макс. игроков, online mode</p>
+                    <h3 className="text-sm font-semibold text-foreground mb-1">{t("servers.packInstall.settingsTitle")}</h3>
+                    <p className="text-xs text-muted-foreground">{t("servers.packInstall.settingsDesc")}</p>
                   </div>
 
                   <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-2.5">
-                    <label className="block text-sm font-medium text-foreground">Выделено памяти (макс. ОЗУ)</label>
+                    <label className="block text-sm font-medium text-foreground">{t("servers.packInstall.ramMax")}</label>
                     <MemorySlider
                       value={xmx}
                       min={512}
@@ -275,7 +277,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                     />
                   </div>
                   <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-2.5">
-                    <label className="block text-sm font-medium text-foreground">Начальная память (Xms)</label>
+                    <label className="block text-sm font-medium text-foreground">{t("servers.packInstall.ramMin")}</label>
                     <MemorySlider
                       value={xms}
                       min={256}
@@ -288,7 +290,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <label className="text-xs font-medium text-muted-foreground">Макс. игроков</label>
+                      <label className="text-xs font-medium text-muted-foreground">{t("servers.packInstall.maxPlayers")}</label>
                       <input
                         type="number"
                         value={maxPlayers}
@@ -299,7 +301,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-medium text-muted-foreground">Пиратка</label>
+                      <label className="text-xs font-medium text-muted-foreground">{t("servers.packInstall.pirate")}</label>
                       <button
                         type="button"
                         onClick={() => setOnlineMode(!onlineMode)}
@@ -310,7 +312,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                             : "border-border bg-muted/30"
                         )}
                       >
-                        <span className="text-sm text-foreground">{!onlineMode ? "Вкл" : "Выкл"}</span>
+                        <span className="text-sm text-foreground">{!onlineMode ? t("servers.packInstall.on") : t("servers.packInstall.off")}</span>
                         <div className={cn(
                           "relative w-9 h-5 rounded-full transition-colors",
                           !onlineMode ? "bg-primary" : "bg-muted"
@@ -325,7 +327,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">Extra Java Args</label>
+                    <label className="text-xs font-medium text-muted-foreground">{t("servers.packInstall.extraJavaArgs")}</label>
                     <input
                       type="text"
                       value={extraJavaArgs}
@@ -340,8 +342,8 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
               {step === "java" && (
                 <div className="flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200">
                   <div>
-                    <h3 className="text-sm font-semibold text-foreground mb-1">Java для сервера</h3>
-                    <p className="text-xs text-muted-foreground">Выбери Java или оставь глобальную настройку</p>
+                    <h3 className="text-sm font-semibold text-foreground mb-1">{t("servers.packInstall.javaTitle")}</h3>
+                    <p className="text-xs text-muted-foreground">{t("servers.packInstall.javaDesc")}</p>
                   </div>
 
                   <div className="space-y-2">
@@ -356,15 +358,15 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                       )}
                     >
                       <div className="flex items-center justify-between">
-                        <div className="font-medium text-foreground">Автоматически</div>
+                        <div className="font-medium text-foreground">{t("servers.packInstall.javaAuto")}</div>
                         <span className={cn(
                           "text-xs px-2 py-1 rounded-md font-medium",
                           javaPath === "auto" ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
                         )}>
-                          {javaPath === "auto" ? "Выбрана" : "Выбрать"}
+                          {javaPath === "auto" ? t("servers.packInstall.javaSelected") : t("servers.packInstall.javaSelect")}
                         </span>
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">Скачать при первой установке Minecraft</div>
+                      <div className="text-xs text-muted-foreground mt-1">{t("servers.packInstall.javaAutoDesc")}</div>
                     </button>
 
                     {globalJavaPath && (
@@ -379,12 +381,12 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                         )}
                       >
                         <div className="flex items-center justify-between">
-                          <div className="font-medium text-foreground text-sm">Глобальная Java</div>
+                          <div className="font-medium text-foreground text-sm">{t("servers.packInstall.javaGlobal")}</div>
                           <span className={cn(
                             "shrink-0 text-xs px-2 py-1 rounded-md font-medium",
                             javaPath === "" ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
                           )}>
-                            {javaPath === "" ? "Выбрана" : "Выбрать"}
+                            {javaPath === "" ? t("servers.packInstall.javaSelected") : t("servers.packInstall.javaSelect")}
                           </span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 truncate">{globalJavaPath}</div>
@@ -394,11 +396,11 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                     {loadingJava ? (
                       <div className="w-full p-4 rounded-xl border border-border bg-muted/30 flex items-center justify-center gap-2">
                         <IconLoader2 className="w-4 h-4 animate-spin text-primary" strokeWidth={1.5} />
-                        <span className="text-sm text-muted-foreground">Поиск Java...</span>
+                        <span className="text-sm text-muted-foreground">{t("servers.packInstall.javaSearching")}</span>
                       </div>
                     ) : detectedJava.length > 0 ? (
                       <div className="space-y-2">
-                        <div className="text-xs font-medium text-muted-foreground px-1">Обнаруженные установки</div>
+                        <div className="text-xs font-medium text-muted-foreground px-1">{t("servers.packInstall.javaDetected")}</div>
                         <div className="max-h-[200px] space-y-2 overflow-y-auto pr-1">
                           {detectedJava.map((java, index) => (
                             <button
@@ -418,7 +420,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                                   "shrink-0 text-xs px-2 py-1 rounded-md font-medium",
                                   javaPath === java.path ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
                                 )}>
-                                  {javaPath === java.path ? "Выбрана" : "Выбрать"}
+                                   {javaPath === java.path ? t("servers.packInstall.javaSelected") : t("servers.packInstall.javaSelect")}
                                 </span>
                               </div>
                               <div className="text-xs text-muted-foreground mt-1 truncate">{java.path}</div>
@@ -437,9 +439,9 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                     >
                       <div className="flex items-center gap-2">
                         <IconFolderPlus className="w-5 h-5" strokeWidth={1.5} />
-                        <span className="text-sm">Выбрать файл вручную</span>
+                        <span className="text-sm">{t("servers.packInstall.javaPickFile")}</span>
                       </div>
-                      <span className="text-xs px-2 py-1 rounded-md bg-muted/50 font-medium">Обзор</span>
+                      <span className="text-xs px-2 py-1 rounded-md bg-muted/50 font-medium">{t("servers.packInstall.javaBrowse")}</span>
                     </button>
                   </div>
                 </div>
@@ -448,8 +450,8 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
               {step === "connect" && (
                 <div className="flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200">
                   <div>
-                    <h3 className="text-sm font-semibold text-foreground mb-1">Доступ к серверу</h3>
-                    <p className="text-xs text-muted-foreground">Настрой публичный доступ через XN-Connect</p>
+                    <h3 className="text-sm font-semibold text-foreground mb-1">{t("servers.packInstall.connectTitle")}</h3>
+                    <p className="text-xs text-muted-foreground">{t("servers.packInstall.connectDesc")}</p>
                   </div>
 
                   <div className="p-4 rounded-xl border border-border bg-gradient-to-br from-primary/5 via-primary/[0.02] to-accent/5">
@@ -458,8 +460,8 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                         <IconWorld className="w-5 h-5 text-primary" strokeWidth={1.5} />
                       </div>
                       <div>
-                        <h4 className="text-sm font-semibold text-foreground">XN-Connect</h4>
-                        <p className="text-xs text-muted-foreground mt-0.5">Бесплатный туннель для Minecraft</p>
+                        <h4 className="text-sm font-semibold text-foreground">{t("servers.packInstall.xnConnect")}</h4>
+                        <p className="text-xs text-muted-foreground mt-0.5">{t("servers.packInstall.xnConnectDesc")}</p>
                       </div>
                     </div>
 
@@ -467,14 +469,14 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                       <div className="flex items-start gap-2">
                         <IconRouter className="w-4 h-4 text-primary/60 mt-0.5 flex-shrink-0" strokeWidth={1.5} />
                         <div>
-                          <span className="font-medium text-foreground">Доступ без порта forwarding</span> — твои друзья смогут зайти по адресу
+                          <span className="font-medium text-foreground">{t("servers.packInstall.xnFeature1Title")}</span> — {t("servers.packInstall.xnFeature1Desc")}
                           <span className="font-mono text-primary ml-1">connect.xneon.org:PORT</span>
                         </div>
                       </div>
                       <div className="flex items-start gap-2">
                         <IconShield className="w-4 h-4 text-primary/60 mt-0.5 flex-shrink-0" strokeWidth={1.5} />
                         <div>
-                          <span className="font-medium text-foreground">Без настройки роутера</span> — не нужно открывать порты или настраивать порт forwarding
+                          <span className="font-medium text-foreground">{t("servers.packInstall.xnFeature2Title")}</span> — {t("servers.packInstall.xnFeature2Desc")}
                         </div>
                       </div>
                     </div>
@@ -483,8 +485,8 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                   <div className="p-4 rounded-xl border border-border bg-muted/20">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-foreground">Включить XN-Connect</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">Создать туннель при запуске сервера</p>
+                        <p className="text-sm font-medium text-foreground">{t("servers.packInstall.xnEnable")}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{t("servers.packInstall.xnEnableDesc")}</p>
                       </div>
                       <button
                         onClick={() => setRelayEnabled(!relayEnabled)}
@@ -504,13 +506,13 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                         {authDone ? (
                           <p className="text-xs text-green-500 flex items-center gap-1.5">
                             <IconCheck className="w-4 h-4" strokeWidth={1.75} />
-                            Вы авторизованы в XN-Connect
+                            {t("servers.packInstall.xnAuthDone")}
                           </p>
                         ) : authing ? (
                           <div className="space-y-3">
                             <p className="text-xs text-primary/80 flex items-center gap-1.5">
                               <IconLoader2 className="w-3.5 h-3.5 animate-spin" />
-                              Ожидание подтверждения в браузере...
+                              {t("servers.packInstall.xnAuthWaiting")}
                             </p>
                             {authUrl && (
                               <div className="space-y-2">
@@ -523,7 +525,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                                     className="flex-[1] flex items-center justify-center gap-1.5 h-8 rounded-lg border border-border bg-muted/40 text-xs text-muted-foreground hover:text-foreground transition-colors"
                                   >
                                     <IconClipboard className="w-3.5 h-3.5" />
-                                    Копировать
+                                     {t("servers.packInstall.copy")}
                                   </button>
                                   <a
                                     href={authUrl}
@@ -532,7 +534,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                                     className="flex-[1] flex items-center justify-center gap-1.5 h-8 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
                                   >
                                     <IconExternalLink className="w-3.5 h-3.5" />
-                                    Открыть в браузере
+                                     {t("servers.packInstall.openBrowser")}
                                   </a>
                                 </div>
                               </div>
@@ -541,14 +543,14 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                         ) : (
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-xs text-primary/80">
-                              Для доступа друзей нужно войти в Xneon Account.
+                              {t("servers.packInstall.xnAuthRequired")}
                             </p>
                             <button
                               onClick={handleAuthorize}
                               className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
                             >
                               <IconExternalLink className="w-3.5 h-3.5" />
-                              Авторизоваться
+                               {t("servers.packInstall.authorize")}
                             </button>
                           </div>
                         )}
@@ -570,10 +572,10 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                   "text-muted-foreground hover:text-foreground hover:bg-muted",
                 )}
               >
-                {stepIndex === 0 ? "Отмена" : (
+                {stepIndex === 0 ? t("servers.packInstall.cancel") : (
                   <>
                     <IconArrowLeft className="w-4 h-4" />
-                    Назад
+                    {t("servers.packInstall.back")}
                   </>
                 )}
               </button>
@@ -589,7 +591,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                     "disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100"
                   )}
                 >
-                  Далее
+                   {t("servers.packInstall.next")}
                 </button>
               ) : (
                 <button
@@ -607,7 +609,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                   ) : (
                     <IconServer className="w-4 h-4" />
                   )}
-                  {installing ? "Установка..." : "Установить"}
+                   {installing ? t("servers.packInstall.installing") : t("servers.packInstall.install")}
                 </button>
               )}
             </div>

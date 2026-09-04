@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { IconX, IconLoader2, IconDownload } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -40,6 +41,7 @@ interface DepInstallDialogProps {
 }
 
 export function DepInstallDialog({ version, modName, modIcon, source, resolvedDeps, onConfirm, onCancel }: DepInstallDialogProps) {
+  const { t } = useTranslation()
   const [deps, setDeps] = useState<ModDependency[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -79,7 +81,7 @@ export function DepInstallDialog({ version, modName, modIcon, source, resolvedDe
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={onCancel}>
       <div className="w-full max-w-lg max-h-[70vh] mx-4 rounded-2xl bg-card border border-border shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0">
-          <h3 className="font-semibold text-foreground">Установка зависимостей</h3>
+          <h3 className="font-semibold text-foreground">{t("mods.install.title")}</h3>
           <button onClick={onCancel} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
             <IconX className="w-4 h-4" />
           </button>
@@ -91,19 +93,19 @@ export function DepInstallDialog({ version, modName, modIcon, source, resolvedDe
           </div>
         ) : !hasDeps ? (
           <div className="p-6 text-center">
-            <p className="text-sm text-muted-foreground mb-4">Нет зависимостей для {modName}</p>
+            <p className="text-sm text-muted-foreground mb-4">{t("mods.install.noDeps", { name: modName })}</p>
             <button
               onClick={() => onConfirm([])}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 mx-auto"
             >
               <IconDownload className="w-4 h-4" />
-              Установить
+              {t("mods.install.install")}
             </button>
           </div>
         ) : (
           <>
             <div className="p-3 border-b border-border bg-muted/20">
-              <p className="text-xs text-muted-foreground">Выбери зависимости для установки вместе с <strong className="text-foreground">{modName}</strong></p>
+              <p className="text-xs text-muted-foreground">{t("mods.install.selectDeps", { name: modName })}</p>
             </div>
             <div className="flex-1 overflow-y-auto p-2 space-y-1">
               {deps.map(dep => {
@@ -129,7 +131,7 @@ export function DepInstallDialog({ version, modName, modIcon, source, resolvedDe
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{dep.name ?? dep.projectId}</p>
                       <p className="text-xs text-muted-foreground capitalize">
-                        {isRequired ? "Обязательная" : isEmbedded ? "Встроенная" : "Опциональная"}
+                        {isRequired ? t("mods.install.required") : isEmbedded ? t("mods.install.embedded") : t("mods.install.optional")}
                       </p>
                     </div>
                     {!isEmbedded && (
@@ -145,14 +147,14 @@ export function DepInstallDialog({ version, modName, modIcon, source, resolvedDe
             </div>
             <div className="p-3 border-t border-border flex justify-end gap-2 flex-shrink-0">
               <button onClick={onCancel} className="px-4 py-2 rounded-xl text-sm font-medium border border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                Отмена
+                {t("common.cancel")}
               </button>
               <button
                 onClick={() => onConfirm(deps.filter(d => selected.has(d.projectId)))}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
               >
                 <IconDownload className="w-4 h-4" />
-                Установить ({selected.size + 1} всего)
+                {t("mods.install.installTotal", { count: selected.size + 1 })}
               </button>
             </div>
           </>

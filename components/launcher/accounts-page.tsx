@@ -133,7 +133,7 @@ export function AccountsPage() {
     } catch (err: unknown) {
       let message = err instanceof Error ? err.message : t("accounts.unknownError")
       if (message === "Авторизация отменена" || message.includes("отменена")) {
-        message = "Авторизация отменена"
+        message = t("accounts.canceled")
       }
       setAuthError(message)
     } finally {
@@ -205,7 +205,7 @@ export function AccountsPage() {
     } catch (err: unknown) {
       let message = err instanceof Error ? err.message : t("accounts.unknownError")
       if (message === "Авторизация отменена" || message.includes("отменена")) {
-        message = "Авторизация отменена"
+        message = t("accounts.canceled")
       }
       setAuthError(message)
     } finally {
@@ -277,7 +277,7 @@ export function AccountsPage() {
     } catch (err: unknown) {
       let message = err instanceof Error ? err.message : t("accounts.unknownError")
       if (message === "Авторизация отменена" || message.includes("отменена")) {
-        message = "Авторизация отменена"
+        message = t("accounts.canceled")
       }
       setAuthError(message)
     } finally {

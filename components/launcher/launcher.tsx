@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { AccountsPage } from "./accounts-page"
 import { HomePage } from "./home-page"
 import { InstancePage } from "./instance"
@@ -19,6 +20,7 @@ interface LauncherProps {
 }
 
 export function Launcher({ onReady }: LauncherProps) {
+  const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<TabId>("home")
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [selectedTheme, setSelectedTheme] = useState(() => localStorage.getItem("theme") || "orange")
@@ -149,7 +151,7 @@ export function Launcher({ onReady }: LauncherProps) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M12 3l9.5 16.5H2.5L12 3z" />
           </svg>
           <span className="text-sm text-yellow-200">
-            Данные хранятся в оперативной памяти и будут потеряны при закрытии. Проверьте подключение к базе данных.
+            {t("launcher.dbFallbackWarning")}
           </span>
           <button
             onClick={() => setShowDbFallbackBanner(false)}
