@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react"
 import { useTranslation } from "react-i18next"
-import { IconCheck, IconClipboard, IconFolderPlus, IconLoader, IconLoader2, IconSettings, IconWorld, IconX } from "@tabler/icons-react"
-import type { McServerInfo, XnConnectState } from "@xnlc/types"
+import { IconCheck, IconClipboard, IconFolderPlus, IconLoader, IconLoader2, IconSettings, IconWorld, IconX, IconGauge } from "@tabler/icons-react"
+import type { McServerInfo, XnConnectState, XnConnectUsage } from "@xnlc/types"
 import type { JavaInstallation } from "@/components/launcher/settings/types"
 import { IconPickerModal } from "@/components/launcher/instance/icon-picker-modal"
 import { LoaderIcon } from "@/components/launcher/instance/loader-icon"
@@ -29,6 +29,7 @@ export function SettingsTab({ server }: SettingsTabProps) {
   const [showJavaModal, setShowJavaModal] = useState(false)
   const [relayEnabled, setRelayEnabled] = useState(server.relayEnabled)
   const [relayState, setRelayState] = useState<XnConnectState>({ status: "stopped" })
+  const [usage, setUsage] = useState<XnConnectUsage | null>(null)
   const { maxMb, snapPoints } = useMemoryOptions()
 
   const isAuto = !javaPath || javaPath === "auto"
@@ -72,9 +73,14 @@ export function SettingsTab({ server }: SettingsTabProps) {
     const unsubState = window.electronAPI?.onXnConnectState((data) => {
       if (data.serverId === server.id) setRelayState(data.state)
     })
-    // Get initial state
+    const unsubUsage = window.electronAPI?.onXnConnectUsage((u) => setUsage(u))
+    // Get initial state + tunnel usage counter
     window.electronAPI?.xnConnectStatus(server.id).then(s => setRelayState(s))
-    return () => unsubState?.()
+    window.electronAPI?.xnConnectUsage().then(u => { if (u) setUsage(u) })
+    return () => {
+      unsubState?.()
+      unsubUsage?.()
+    }
   }, [server.id])
 
   const handlePickJava = (path: string) => {
@@ -243,6 +249,24 @@ export function SettingsTab({ server }: SettingsTabProps) {
 
       {/* XN-Connect Relay */}
       <SettingGroup label="XN-Connect">
+        {usage && (
+          <div className="flex items-center justify-end mb-2 -mt-1">
+            <div
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border",
+                usage.used >= usage.max
+                  ? "border-red-500/30 bg-red-500/10 text-red-400"
+                  : "border-border bg-muted/50 text-muted-foreground"
+              )}
+              title={t("servers.settings.xnconnect.usageHint")}
+            >
+              <IconGauge className="w-3.5 h-3.5" strokeWidth={1.75} />
+              <span className="font-mono">{usage.used}/{usage.max}</span>
+              <span>·</span>
+              <span className="capitalize">{usage.plan}</span>
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm text-muted-foreground">
             {t("servers.settings.xnconnect.desc")}
@@ -277,6 +301,30 @@ export function SettingsTab({ server }: SettingsTabProps) {
                 <span className="font-mono">{relayState.publicAddress}</span>
               </div>
             )}
+          </div>
+        )}
+        {relayState.status === "limit_reached" && (
+          <div className="p-3 rounded-xl border border-red-500/30 bg-red-500/10 space-y-2.5">
+            <p className="text-xs font-medium text-red-400">
+              {t("servers.settings.xnconnect.limitReached", { used: relayState.used, max: relayState.max })}
+            </p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {t("servers.settings.xnconnect.limitReachedDesc")}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => window.electronAPI?.openExternal("https://connect.xneon.org/dashboard")}
+                className="px-3 h-8 rounded-lg border border-border bg-muted/30 text-xs text-foreground hover:bg-muted/60 transition-colors"
+              >
+                {t("servers.settings.xnconnect.openDashboard")}
+              </button>
+              <button
+                onClick={() => window.electronAPI?.openExternal("https://connect.xneon.org/subscribe")}
+                className="px-3 h-8 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+              >
+                {t("servers.settings.xnconnect.subscribe")}
+              </button>
+            </div>
           </div>
         )}
       </SettingGroup>

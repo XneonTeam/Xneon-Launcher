@@ -928,6 +928,11 @@ export function registerMcServerHandlers() {
   ipcMain.handle("xn-connect:status", async (_event, serverId: string) => {
     return xnConnectManager.getState(serverId)
   })
+
+  ipcMain.handle("xn-connect:usage", async () => {
+    // Return cached usage; re-fetch from the API when nothing is cached yet
+    return xnConnectManager.getUsage() ?? (await xnConnectManager.refreshUsage().catch(() => null))
+  })
 }
 
 async function applyServerOverrides(zip: {

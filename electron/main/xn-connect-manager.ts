@@ -4,8 +4,9 @@ import {
   apiLoadToken,
   apiStartDeviceAuth,
   apiPollDeviceAuth,
-  apiGetNodes,
+  apiGetAccount,
   apiGetTunnels,
+  apiGetNodes,
   apiCreateTunnel,
   apiIsTunnelBlocked,
   DEFAULT_API_URL,
@@ -20,6 +21,13 @@ type RelayState =
   | { status: "auth_required"; authUrl: string }
   | { status: "starting" }
   | { status: "running"; publicAddress: string; tunnelId: string }
+  | { status: "limit_reached"; used: number; max: number; plan: string }
+
+export type XnConnectUsage = {
+  used: number
+  max: number
+  plan: string
+}
 
 type RunningRelay = {
   state: RelayState
@@ -40,6 +48,38 @@ function sleep(ms: number): Promise<void> {
 
 export class XnConnectManager {
   private running = new Map<string, RunningRelay>()
+  private usageCache: XnConnectUsage | null = null
+
+  getUsage(): XnConnectUsage | null {
+    return this.usageCache
+  }
+
+  // Refresh tunnel usage (used/max/plan) from the API. Returns null when
+  // unauthorized or the API is unreachable. Result is cached for the UI counter.
+  async refreshUsage(): Promise<XnConnectUsage | null> {
+    const apiUrl = DEFAULT_API_URL
+    const token = await apiLoadToken()
+    if (!token) {
+      this.usageCache = null
+      return null
+    }
+
+    const account = await apiGetAccount(token, apiUrl)
+    if (!account) {
+      this.usageCache = null
+      return null
+    }
+
+    const tunnels = await apiGetTunnels(token, apiUrl)
+    const usage: XnConnectUsage = {
+      used: tunnels.length,
+      max: account.maxTunnels,
+      plan: account.plan,
+    }
+    this.usageCache = usage
+    sendToRenderer("xn-connect:usage-updated", usage)
+    return usage
+  }
 
   getState(serverId: string): RelayState {
     return this.running.get(serverId)?.state ?? { status: "stopped" }
@@ -166,6 +206,22 @@ export class XnConnectManager {
 
       // 4. Create tunnel if needed
       if (!tunnel) {
+        // Enforce the account tunnel limit (max_tunnels comes from /api/auth/me —
+        // 10 on the free plan, 20 with a subscription)
+        const account = await apiGetAccount(token, apiUrl)
+        const maxTunnels = account && account.maxTunnels > 0 ? account.maxTunnels : 10
+        const plan = account?.plan || "free"
+        this.usageCache = { used: tunnels.length, max: maxTunnels, plan }
+        sendToRenderer("xn-connect:usage-updated", this.usageCache)
+
+        if (tunnels.length >= maxTunnels) {
+          logRuntime(`[XN-Connect] Tunnel limit reached: ${tunnels.length}/${maxTunnels} (plan: ${plan})`)
+          this.cleanup(serverId)
+          relay.state = { status: "limit_reached", used: tunnels.length, max: maxTunnels, plan }
+          sendToRenderer("xn-connect:state", { serverId, state: relay.state })
+          return relay.state
+        }
+
         logRuntime(`[XN-Connect] Creating tunnel...`)
         tunnel = await apiCreateTunnel(token, apiUrl, serverName, ip, port, nodes)
         if (!tunnel) {
@@ -299,6 +355,9 @@ export class XnConnectManager {
       onState({ status: "stopped" })
       return false
     }
+
+    // Publish fresh tunnel usage so the UI counter is up to date right after login
+    this.refreshUsage().catch(() => {})
 
     return true
   }

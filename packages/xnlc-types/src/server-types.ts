@@ -60,6 +60,13 @@ export type XnConnectState =
   | { status: "auth_required"; authUrl: string }
   | { status: "starting" }
   | { status: "running"; publicAddress: string; tunnelId: string }
+  | { status: "limit_reached"; used: number; max: number; plan: string }
+
+export type XnConnectUsage = {
+  used: number
+  max: number
+  plan: string
+}
 
 export type McServerDownloadProgress = {
   id: string

@@ -63,6 +63,7 @@ export function ServerDetailPage({ server, onBack }: ServerDetailPageProps) {
   const [showEula, setShowEula] = useState(false)
   const [icon, setIcon] = useState(server.icon ?? "")
   const [showIconPicker, setShowIconPicker] = useState(false)
+  const [limitState, setLimitState] = useState<{ used: number; max: number } | null>(null)
 
   useEffect(() => {
     window.electronAPI?.mcServerGetAddresses(server.id).then(addrs => {
@@ -77,6 +78,8 @@ export function ServerDetailPage({ server, onBack }: ServerDetailPageProps) {
       window.electronAPI?.xnConnectStatus(server.id).then(relayState => {
         if (relayState.status === "stopped") {
           window.electronAPI?.xnConnectStart(server.id)
+        } else if (relayState.status === "limit_reached") {
+          setLimitState({ used: relayState.used, max: relayState.max })
         }
       })
     }
@@ -87,6 +90,11 @@ export function ServerDetailPage({ server, onBack }: ServerDetailPageProps) {
         window.electronAPI?.mcServerGetAddresses(server.id).then(addrs => {
           if (addrs) setAddresses(addrs)
         })
+        if (data.state.status === "limit_reached") {
+          setLimitState({ used: data.state.used, max: data.state.max })
+        } else if (data.state.status === "running" || data.state.status === "stopped") {
+          setLimitState(null)
+        }
       }
     })
     return () => unsubXn?.()
@@ -280,6 +288,29 @@ export function ServerDetailPage({ server, onBack }: ServerDetailPageProps) {
           </button>
         </div>
       </div>
+
+      {/* XN Connect tunnel limit warning */}
+      {limitState && (
+        <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-border bg-red-500/10">
+          <span className="text-xs text-red-400 min-w-0">
+            {t("servers.settings.xnconnect.limitReached", { used: limitState.used, max: limitState.max })}
+          </span>
+          <div className="flex gap-2 flex-shrink-0">
+            <button
+              onClick={() => window.electronAPI?.openExternal("https://connect.xneon.org/dashboard")}
+              className="px-2.5 h-7 rounded-lg border border-border bg-muted/30 text-xs text-foreground hover:bg-muted/60 transition-colors"
+            >
+              {t("servers.settings.xnconnect.openDashboard")}
+            </button>
+            <button
+              onClick={() => window.electronAPI?.openExternal("https://connect.xneon.org/subscribe")}
+              className="px-2.5 h-7 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+            >
+              {t("servers.settings.xnconnect.subscribe")}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Addresses */}
       {addresses && (
