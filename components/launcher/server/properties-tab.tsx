@@ -20,98 +20,98 @@ interface PropDef {
 
 const PROP_DEFS: PropDef[] = [
   // Network
-  { key: "server-ip", type: "string", default: "", description: "IP-адрес сервера. Оставьте пустым для прослушивания на всех интерфейсах.", group: "network" },
-  { key: "server-port", type: "integer", default: "25565", description: "TCP-порт сервера.", group: "network", min: 1, max: 65534 },
-  { key: "enable-query", type: "boolean", default: "false", description: "Включить query — информацию о сервере.", group: "network" },
-  { key: "query.port", type: "integer", default: "25565", description: "UDP-порт для query.", group: "network", min: 1, max: 65534 },
-  { key: "enable-rcon", type: "boolean", default: "false", description: "Включить RCON — удалённый доступ к консоли.", group: "network" },
-  { key: "rcon.port", type: "integer", default: "25575", description: "TCP-порт RCON.", group: "network", min: 1, max: 65534 },
-  { key: "rcon.password", type: "string", default: "", description: "Пароль для RCON.", group: "network" },
-  { key: "network-compression-threshold", type: "integer", default: "256", description: "Порог сжатия пакетов (в байтах). -1 — отключить, 0 — сжимать всё.", group: "network", min: -1, max: 65535 },
-  { key: "rate-limit", type: "integer", default: "0", description: "Макс. количество пакетов от игрока до кика. 0 — без ограничений.", group: "network", min: 0 },
-  { key: "prevent-proxy-connections", type: "boolean", default: "false", description: "Кикать игроков через прокси (если ISP/AS отличается от Mojang).", group: "network" },
-  { key: "use-native-transport", type: "boolean", default: "true", description: "Оптимизированная отправка/получение пакетов на Linux.", group: "network" },
-  { key: "enable-status", type: "boolean", default: "true", description: "Сервер отображается как «онлайн» в списке серверов.", group: "network" },
-  { key: "hide-online-players", type: "boolean", default: "false", description: "Не отправлять список игроков при запросе статуса.", group: "network" },
-  { key: "log-ips", type: "boolean", default: "true", description: "Показывать IP-адреса игроков в логе.", group: "network" },
-  { key: "accepts-transfers", type: "boolean", default: "false", description: "Принимать входящие трансферы.", group: "network" },
+  { key: "server-ip", type: "string", default: "", description: "props.server-ip", group: "network" },
+  { key: "server-port", type: "integer", default: "25565", description: "props.server-port", group: "network", min: 1, max: 65534 },
+  { key: "enable-query", type: "boolean", default: "false", description: "props.enable-query", group: "network" },
+  { key: "query.port", type: "integer", default: "25565", description: "props.query.port", group: "network", min: 1, max: 65534 },
+  { key: "enable-rcon", type: "boolean", default: "false", description: "props.enable-rcon", group: "network" },
+  { key: "rcon.port", type: "integer", default: "25575", description: "props.rcon.port", group: "network", min: 1, max: 65534 },
+  { key: "rcon.password", type: "string", default: "", description: "props.rcon.password", group: "network" },
+  { key: "network-compression-threshold", type: "integer", default: "256", description: "props.network-compression-threshold", group: "network", min: -1, max: 65535 },
+  { key: "rate-limit", type: "integer", default: "0", description: "props.rate-limit", group: "network", min: 0 },
+  { key: "prevent-proxy-connections", type: "boolean", default: "false", description: "props.prevent-proxy-connections", group: "network" },
+  { key: "use-native-transport", type: "boolean", default: "true", description: "props.use-native-transport", group: "network" },
+  { key: "enable-status", type: "boolean", default: "true", description: "props.enable-status", group: "network" },
+  { key: "hide-online-players", type: "boolean", default: "false", description: "props.hide-online-players", group: "network" },
+  { key: "log-ips", type: "boolean", default: "true", description: "props.log-ips", group: "network" },
+  { key: "accepts-transfers", type: "boolean", default: "false", description: "props.accepts-transfers", group: "network" },
 
   // Game
-  { key: "gamemode", type: "enum", default: "survival", description: "Режим игры по умолчанию.", group: "game", options: ["survival", "creative", "adventure", "spectator"] },
-  { key: "difficulty", type: "enum", default: "easy", description: "Сложность мира.", group: "game", options: ["peaceful", "easy", "normal", "hard"] },
-  { key: "hardcore", type: "boolean", default: "false", description: "Режим хардкора.", group: "game" },
-  { key: "force-gamemode", type: "boolean", default: "false", description: "Принудительно ставить режим игры по умолчанию при входе.", group: "game" },
-  { key: "pvp", type: "boolean", default: "true", description: "PvP между игроками.", group: "game" },
-  { key: "max-players", type: "integer", default: "20", description: "Максимальное количество игроков.", group: "game", min: 0 },
-  { key: "player-idle-timeout", type: "integer", default: "0", description: "Время бездействия до кика (минуты). 0 — отключить.", group: "game", min: 0 },
-  { key: "spawn-protection", type: "integer", default: "16", description: "Защита спавна (радиус в блоках). 0 — отключить.", group: "game", min: 0 },
-  { key: "allow-flight", type: "boolean", default: "false", description: "Разрешить полёт в Survival.", group: "game" },
-  { key: "enforce-whitelist", type: "boolean", default: "false", description: "Кикать не whitelisted игроков при перезагрузке.", group: "game" },
-  { key: "white-list", type: "boolean", default: "false", description: "Включить белый список.", group: "game" },
-  { key: "enforce-secure-profile", type: "boolean", default: "true", description: "Только игроки с подписанным Mojang ключом.", group: "game" },
-  { key: "online-mode", type: "boolean", default: "true", description: "Проверка игроков через Mojang. Отключите для крафтского.", group: "game" },
-  { key: "max-tick-time", type: "integer", default: "60000", description: "Макс. время тика (мс). -1 — отключить watchdog.", group: "game", min: -1 },
-  { key: "pause-when-empty-seconds", type: "integer", default: "60", description: "Секунд до паузы при пустом сервере.", group: "game", min: 0 },
-  { key: "op-permission-level", type: "integer", default: "4", description: "Уровень прав OP (1-4).", group: "game", min: 1, max: 4 },
-  { key: "function-permission-level", type: "integer", default: "2", description: "Уровень прав функций (1-4).", group: "game", min: 1, max: 4 },
+  { key: "gamemode", type: "enum", default: "survival", description: "props.gamemode", group: "game", options: ["survival", "creative", "adventure", "spectator"] },
+  { key: "difficulty", type: "enum", default: "easy", description: "props.difficulty", group: "game", options: ["peaceful", "easy", "normal", "hard"] },
+  { key: "hardcore", type: "boolean", default: "false", description: "props.hardcore", group: "game" },
+  { key: "force-gamemode", type: "boolean", default: "false", description: "props.force-gamemode", group: "game" },
+  { key: "pvp", type: "boolean", default: "true", description: "props.pvp", group: "game" },
+  { key: "max-players", type: "integer", default: "20", description: "props.max-players", group: "game", min: 0 },
+  { key: "player-idle-timeout", type: "integer", default: "0", description: "props.player-idle-timeout", group: "game", min: 0 },
+  { key: "spawn-protection", type: "integer", default: "16", description: "props.spawn-protection", group: "game", min: 0 },
+  { key: "allow-flight", type: "boolean", default: "false", description: "props.allow-flight", group: "game" },
+  { key: "enforce-whitelist", type: "boolean", default: "false", description: "props.enforce-whitelist", group: "game" },
+  { key: "white-list", type: "boolean", default: "false", description: "props.white-list", group: "game" },
+  { key: "enforce-secure-profile", type: "boolean", default: "true", description: "props.enforce-secure-profile", group: "game" },
+  { key: "online-mode", type: "boolean", default: "true", description: "props.online-mode", group: "game" },
+  { key: "max-tick-time", type: "integer", default: "60000", description: "props.max-tick-time", group: "game", min: -1 },
+  { key: "pause-when-empty-seconds", type: "integer", default: "60", description: "props.pause-when-empty-seconds", group: "game", min: 0 },
+  { key: "op-permission-level", type: "integer", default: "4", description: "props.op-permission-level", group: "game", min: 1, max: 4 },
+  { key: "function-permission-level", type: "integer", default: "2", description: "props.function-permission-level", group: "game", min: 1, max: 4 },
 
   // World
-  { key: "level-name", type: "string", default: "world", description: "Имя мира и папки.", group: "world" },
-  { key: "level-seed", type: "string", default: "", description: "Зерно мира. Пусто — случайное.", group: "world" },
-  { key: "level-type", type: "enum", default: "minecraft\\:normal", description: "Тип мира.", group: "world", options: ["minecraft\\:normal", "minecraft\\:flat", "minecraft\\:large_biomes", "minecraft\\:amplified", "minecraft\\:single_biome_surface"] },
-  { key: "generator-settings", type: "string", default: "{}", description: "Настройки генератора (JSON).", group: "world" },
-  { key: "max-world-size", type: "integer", default: "29999984", description: "Максимальный размер мира (блоки от центра).", group: "world", min: 1, max: 29999984 },
-  { key: "generate-structures", type: "boolean", default: "true", description: "Генерировать структуры (деревни и т.д.).", group: "world" },
-  { key: "allow-nether", type: "boolean", default: "true", description: "Разрешить доступ в Незер.", group: "world" },
-  { key: "spawn-monsters", type: "boolean", default: "true", description: "Спавн мобов-врагов.", group: "world" },
-  { key: "spawn-animals", type: "boolean", default: "true", description: "Спавн животных.", group: "world" },
-  { key: "spawn-npcs", type: "boolean", default: "true", description: "Спавн жителей (NPC).", group: "world" },
+  { key: "level-name", type: "string", default: "world", description: "props.level-name", group: "world" },
+  { key: "level-seed", type: "string", default: "", description: "props.level-seed", group: "world" },
+  { key: "level-type", type: "enum", default: "minecraft\\:normal", description: "props.level-type", group: "world", options: ["minecraft\\:normal", "minecraft\\:flat", "minecraft\\:large_biomes", "minecraft\\:amplified", "minecraft\\:single_biome_surface"] },
+  { key: "generator-settings", type: "string", default: "{}", description: "props.generator-settings", group: "world" },
+  { key: "max-world-size", type: "integer", default: "29999984", description: "props.max-world-size", group: "world", min: 1, max: 29999984 },
+  { key: "generate-structures", type: "boolean", default: "true", description: "props.generate-structures", group: "world" },
+  { key: "allow-nether", type: "boolean", default: "true", description: "props.allow-nether", group: "world" },
+  { key: "spawn-monsters", type: "boolean", default: "true", description: "props.spawn-monsters", group: "world" },
+  { key: "spawn-animals", type: "boolean", default: "true", description: "props.spawn-animals", group: "world" },
+  { key: "spawn-npcs", type: "boolean", default: "true", description: "props.spawn-npcs", group: "world" },
 
   // Performance
-  { key: "view-distance", type: "integer", default: "10", description: "Дальность прорисовки (чанки).", group: "performance", min: 3, max: 32 },
-  { key: "simulation-distance", type: "integer", default: "10", description: "Дальность симуляции (чанки).", group: "performance", min: 3, max: 32 },
-  { key: "sync-chunk-writes", type: "boolean", default: "true", description: "Синхронная запись чанков (безопаснее, но медленнее).", group: "performance" },
-  { key: "max-chained-neighbor-updates", type: "integer", default: "1000000", description: "Лимит обновлений соседей. -1 — без ограничений.", group: "performance", min: -1 },
-  { key: "region-file-compression", type: "enum", default: "deflate", description: "Алгоритм сжатия чанков.", group: "performance", options: ["deflate", "lz4", "none"] },
-  { key: "entity-broadcast-range-percentage", type: "integer", default: "100", description: "Дальность отрисовки сущностей (%).", group: "performance", min: 10, max: 1000 },
+  { key: "view-distance", type: "integer", default: "10", description: "props.view-distance", group: "performance", min: 3, max: 32 },
+  { key: "simulation-distance", type: "integer", default: "10", description: "props.simulation-distance", group: "performance", min: 3, max: 32 },
+  { key: "sync-chunk-writes", type: "boolean", default: "true", description: "props.sync-chunk-writes", group: "performance" },
+  { key: "max-chained-neighbor-updates", type: "integer", default: "1000000", description: "props.max-chained-neighbor-updates", group: "performance", min: -1 },
+  { key: "region-file-compression", type: "enum", default: "deflate", description: "props.region-file-compression", group: "performance", options: ["deflate", "lz4", "none"] },
+  { key: "entity-broadcast-range-percentage", type: "integer", default: "100", description: "props.entity-broadcast-range-percentage", group: "performance", min: 10, max: 1000 },
 
   // Resource Pack
-  { key: "resource-pack", type: "string", default: "", description: "URL на ресурспак.", group: "resourcepack" },
-  { key: "resource-pack-id", type: "string", default: "", description: "UUID ресурспака.", group: "resourcepack" },
-  { key: "resource-pack-sha1", type: "string", default: "", description: "SHA-1 хеш ресурспака.", group: "resourcepack" },
-  { key: "resource-pack-prompt", type: "string", default: "", description: "Текст запроса ресурспака.", group: "resourcepack" },
-  { key: "require-resource-pack", type: "boolean", default: "false", description: "Отключать игроков, отказавшихся от ресурспака.", group: "resourcepack" },
+  { key: "resource-pack", type: "string", default: "", description: "props.resource-pack", group: "resourcepack" },
+  { key: "resource-pack-id", type: "string", default: "", description: "props.resource-pack-id", group: "resourcepack" },
+  { key: "resource-pack-sha1", type: "string", default: "", description: "props.resource-pack-sha1", group: "resourcepack" },
+  { key: "resource-pack-prompt", type: "string", default: "", description: "props.resource-pack-prompt", group: "resourcepack" },
+  { key: "require-resource-pack", type: "boolean", default: "false", description: "props.require-resource-pack", group: "resourcepack" },
 
   // Misc
-  { key: "motd", type: "string", default: "A Minecraft Server", description: "Сообщение в списке серверов.", group: "misc" },
-  { key: "enable-command-block", type: "boolean", default: "false", description: "Включить командные блоки.", group: "misc" },
-  { key: "enable-code-of-conduct", type: "boolean", default: "false", description: "Включить кодекс поведения.", group: "misc" },
-  { key: "debug", type: "boolean", default: "false", description: "Отладочный режим.", group: "misc" },
-  { key: "enable-jmx-monitoring", type: "boolean", default: "false", description: "Включить JMX-мониторинг.", group: "misc" },
-  { key: "bug-report-link", type: "string", default: "", description: "URL для ссылки на баг-репорт.", group: "misc" },
-  { key: "text-filtering-config", type: "string", default: "", description: "Конфигурация фильтрации чата.", group: "misc" },
-  { key: "text-filtering-version", type: "integer", default: "0", description: "Версия фильтрации текста.", group: "misc", min: 0 },
-  { key: "status-heartbeat-interval", type: "integer", default: "0", description: "Интервал heartbeat-запросов статуса.", group: "misc", min: 0 },
-  { key: "initial-enabled-packs", type: "string", default: "vanilla", description: "Датапаки, включённые по умолчанию.", group: "misc" },
-  { key: "initial-disabled-packs", type: "string", default: "", description: "Датапаки, отключённые по умолчанию.", group: "misc" },
+  { key: "motd", type: "string", default: "A Minecraft Server", description: "props.motd", group: "misc" },
+  { key: "enable-command-block", type: "boolean", default: "false", description: "props.enable-command-block", group: "misc" },
+  { key: "enable-code-of-conduct", type: "boolean", default: "false", description: "props.enable-code-of-conduct", group: "misc" },
+  { key: "debug", type: "boolean", default: "false", description: "props.debug", group: "misc" },
+  { key: "enable-jmx-monitoring", type: "boolean", default: "false", description: "props.enable-jmx-monitoring", group: "misc" },
+  { key: "bug-report-link", type: "string", default: "", description: "props.bug-report-link", group: "misc" },
+  { key: "text-filtering-config", type: "string", default: "", description: "props.text-filtering-config", group: "misc" },
+  { key: "text-filtering-version", type: "integer", default: "0", description: "props.text-filtering-version", group: "misc", min: 0 },
+  { key: "status-heartbeat-interval", type: "integer", default: "0", description: "props.status-heartbeat-interval", group: "misc", min: 0 },
+  { key: "initial-enabled-packs", type: "string", default: "vanilla", description: "props.initial-enabled-packs", group: "misc" },
+  { key: "initial-disabled-packs", type: "string", default: "", description: "props.initial-disabled-packs", group: "misc" },
 
   // Broadcast
-  { key: "broadcast-console-to-ops", type: "boolean", default: "true", description: "Отправлять вывод консоли опам.", group: "broadcast" },
-  { key: "broadcast-rcon-to-ops", type: "boolean", default: "true", description: "Отправлять вывод RCON опам.", group: "broadcast" },
+  { key: "broadcast-console-to-ops", type: "boolean", default: "true", description: "props.broadcast-console-to-ops", group: "broadcast" },
+  { key: "broadcast-rcon-to-ops", type: "boolean", default: "true", description: "props.broadcast-rcon-to-ops", group: "broadcast" },
 
   // Management Server (newer versions)
-  { key: "management-server-enabled", type: "boolean", default: "false", description: "Включить Management Protocol.", group: "management" },
-  { key: "management-server-host", type: "string", default: "localhost", description: "Хост Management Protocol.", group: "management" },
-  { key: "management-server-port", type: "integer", default: "0", description: "Порт Management Protocol.", group: "management", min: 0, max: 65535 },
-  { key: "management-server-secret", type: "string", default: "", description: "Секрет Management Protocol.", group: "management" },
-  { key: "management-server-allowed-origins", type: "string", default: "", description: "Разрешённые origins для Management Protocol.", group: "management" },
-  { key: "management-server-tls-enabled", type: "boolean", default: "true", description: "TLS для Management Protocol.", group: "management" },
-  { key: "management-server-tls-keystore", type: "string", default: "", description: "Путь к keystore для Management Protocol.", group: "management" },
-  { key: "management-server-tls-keystore-password", type: "string", default: "", description: "Пароль keystore Management Protocol.", group: "management" },
+  { key: "management-server-enabled", type: "boolean", default: "false", description: "props.management-server-enabled", group: "management" },
+  { key: "management-server-host", type: "string", default: "localhost", description: "props.management-server-host", group: "management" },
+  { key: "management-server-port", type: "integer", default: "0", description: "props.management-server-port", group: "management", min: 0, max: 65535 },
+  { key: "management-server-secret", type: "string", default: "", description: "props.management-server-secret", group: "management" },
+  { key: "management-server-allowed-origins", type: "string", default: "", description: "props.management-server-allowed-origins", group: "management" },
+  { key: "management-server-tls-enabled", type: "boolean", default: "true", description: "props.management-server-tls-enabled", group: "management" },
+  { key: "management-server-tls-keystore", type: "string", default: "", description: "props.management-server-tls-keystore", group: "management" },
+  { key: "management-server-tls-keystore-password", type: "string", default: "", description: "props.management-server-tls-keystore-password", group: "management" },
 
   // Chat Spam
-  { key: "chat-spam-threshold-seconds", type: "integer", default: "10", description: "Порог спама чатом. 0 — отключить.", group: "misc", min: 0 },
-  { key: "command-spam-threshold-seconds", type: "integer", default: "10", description: "Порог спама командами. 0 — отключить.", group: "misc", min: 0 },
+  { key: "chat-spam-threshold-seconds", type: "integer", default: "10", description: "props.chat-spam-threshold-seconds", group: "misc", min: 0 },
+  { key: "command-spam-threshold-seconds", type: "integer", default: "10", description: "props.command-spam-threshold-seconds", group: "misc", min: 0 },
 ]
 
 const GROUPS: Record<string, { labelKey: string; icon: React.ElementType }> = {
@@ -312,6 +312,7 @@ export function PropertiesTab({ server }: PropertiesTabProps) {
 }
 
 function PropertyRow({ def, value, onChange }: { def: PropDef; value: string; onChange: (key: string, value: string) => void }) {
+  const { t } = useTranslation()
   const isDefault = value === def.default
 
   return (
@@ -325,7 +326,7 @@ function PropertyRow({ def, value, onChange }: { def: PropDef; value: string; on
             </span>
           )}
         </div>
-        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{def.description}</p>
+        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{t(def.description)}</p>
       </div>
 
       <div className="flex-shrink-0">

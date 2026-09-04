@@ -355,19 +355,19 @@ export function AddonsTab({ server }: AddonsTabProps) {
           <IconPlug className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />
         </div>
         <div>
-          <p className="font-medium text-foreground">Нет дополнений</p>
+          <p className="font-medium text-foreground">{t("servers.addons.noAddons")}</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Vanilla-серверы не поддерживают моды или плагины
+            {t("servers.addons.noAddonsDesc")}
           </p>
         </div>
       </div>
     )
   }
 
-  const label = contentType === "plugin" ? "плагинов" : "модов"
-  const emptyStateText = contentType === "plugin" ? "Найти плагины" : "Найти моды"
-  const notFoundText = contentType === "plugin" ? "Плагины не найдены" : "Моды не найдены"
-  const searchTitle = contentType === "plugin" ? "Плагины" : "Моды"
+  const label = contentType === "plugin" ? t("servers.addons.plugins") : t("servers.addons.mods")
+  const emptyStateText = contentType === "plugin" ? t("servers.addons.findPlugins") : t("servers.addons.findMods")
+  const notFoundText = contentType === "plugin" ? t("servers.addons.pluginsNotFound") : t("servers.addons.modsNotFound")
+  const searchTitle = contentType === "plugin" ? t("servers.addons.plugins") : t("servers.addons.mods")
 
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-4">
@@ -389,7 +389,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="both">Обе платформы</SelectItem>
+              <SelectItem value="both">{t("servers.addons.bothPlatforms")}</SelectItem>
               <SelectItem value="modrinth">Modrinth</SelectItem>
               <SelectItem value="curseforge">CurseForge</SelectItem>
             </SelectContent>
@@ -418,20 +418,20 @@ export function AddonsTab({ server }: AddonsTabProps) {
                 }`}
               >
                 <IconList className="w-4 h-4" strokeWidth={1.75} />
-                {(selectedCategories?.length ?? 0) > 0 ? `${selectedCategories!.length} кат.` : "Категории"}
+                {(selectedCategories?.length ?? 0) > 0 ? t("servers.addons.categoriesCount", { count: selectedCategories!.length }) : t("servers.addons.categories")}
               </button>
             </DialogTrigger>
             <DialogContent className="max-w-md max-h-[70vh] flex flex-col">
               <DialogHeader>
-                <DialogTitle>Категории</DialogTitle>
-                <DialogDescription>Выбери категории и нажми «Найти»</DialogDescription>
+                <DialogTitle>{t("servers.addons.categoriesTitle")}</DialogTitle>
+                <DialogDescription>{t("servers.addons.categoriesDesc")}</DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-1 overflow-y-auto flex-1 min-h-0 pr-1">
                 {(() => {
                   type ContentCategory = ModCategory & { source?: "modrinth" | "curseforge" }
                   const filteredCategories = (categories ?? []).filter(c => c.projectType === contentType || (contentType === "plugin" && c.projectType === "mod")) as ContentCategory[]
                   if (filteredCategories.length === 0) {
-                    return <p className="text-xs text-muted-foreground py-2">Нет категорий для этого типа контента</p>
+                    return <p className="text-xs text-muted-foreground py-2">{t("servers.addons.noCategories")}</p>
                   }
                   const groups = new Map<string, ContentCategory[]>()
                   for (const cat of filteredCategories) {
@@ -440,7 +440,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
                     if (list) list.push(cat)
                     else groups.set(key, [cat])
                   }
-                  const groupLabels: Record<string, string> = { modrinth: "Modrinth", curseforge: "CurseForge", both: "Обе платформы" }
+                  const groupLabels: Record<string, string> = { modrinth: "Modrinth", curseforge: "CurseForge", both: t("servers.addons.bothPlatforms") }
                   return [...groups.entries()].map(([key, cats]) => {
                     const collapsed = collapsedSourceGroups.has(key)
                     return (
@@ -508,7 +508,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
                   onClick={() => setDraftCats([])}
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
                 >
-                  Сбросить все
+                  {t("servers.addons.resetAll")}
                 </button>
               )}
               <div className="flex justify-end gap-2 mt-3">
@@ -517,7 +517,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
                   onClick={() => setCatDialogOpen(false)}
                   className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  Отмена
+                  {t("servers.cancel")}
                 </button>
                 <button
                   type="button"
@@ -529,7 +529,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
                   className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
                 >
                   <IconSearch className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  Найти
+                  {t("servers.addons.find")}
                 </button>
               </div>
             </DialogContent>
@@ -540,7 +540,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium bg-muted text-foreground hover:bg-muted/80 transition-colors"
           >
             <IconUpload className="w-4 h-4" strokeWidth={1.75} />
-            Загрузить .jar
+            {t("servers.addons.uploadJar")}
           </button>
           <input
             ref={setFileInputRef}
@@ -563,7 +563,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
         <div className="flex items-center justify-between shrink-0">
           <h3 className="text-sm font-medium text-muted-foreground">{searchTitle}</h3>
           {!loading && results.length > 0 && (
-            <span className="text-xs text-muted-foreground">{formatDownloads(totalHits)} результатов</span>
+            <span className="text-xs text-muted-foreground">{formatDownloads(totalHits)} {t("servers.addons.results")}</span>
           )}
         </div>
 
@@ -621,7 +621,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
                         {installingSlug === project.slug
                           ? <IconLoader2 className="h-3.5 w-3.5 animate-spin" />
                           : <IconDownload className="h-3.5 w-3.5" strokeWidth={1.75} />}
-                        Установить
+                        {t("servers.installModpack")}
                       </button>
                     )}
                   </div>
@@ -639,7 +639,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
           ) : (
             <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-border text-center">
               <IconSearch className="mb-2 h-6 w-6 text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">Начни поиск, чтобы добавить новый контент</p>
+              <p className="text-sm text-muted-foreground">{t("servers.addons.startSearch")}</p>
             </div>
           )}
         </div>
@@ -680,7 +680,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
                       <h2 className="text-xl font-bold text-foreground">{selectedDetails.name}</h2>
                       <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{selectedDetails.summary}</p>
                       <div className="flex items-center gap-2 mt-1.5">
-                        <span className="text-xs text-muted-foreground">{formatDownloads(selectedDetails.downloadCount)} загрузок</span>
+                        <span className="text-xs text-muted-foreground">{formatDownloads(selectedDetails.downloadCount)} {t("servers.addons.downloads")}</span>
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground capitalize">{selectedDetails.source}</span>
                       </div>
                     </div>
@@ -743,7 +743,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
                           <img key={i} src={img.url} alt={img.title || ""} className="rounded-xl w-full hover:scale-[1.02] transition-transform" />
                         ))
                       ) : (
-                        <p className="col-span-2 text-center text-muted-foreground py-12">Нет скриншотов</p>
+                        <p className="col-span-2 text-center text-muted-foreground py-12">{t("servers.addons.noScreenshots")}</p>
                       )}
                     </div>
                   )}
@@ -762,12 +762,12 @@ export function AddonsTab({ server }: AddonsTabProps) {
                                 <ReactMarkdown rehypePlugins={[rehypeRaw, rehypeSanitize]} components={mdComponents}>{ver.changelog}</ReactMarkdown>
                               </div>
                             ) : (
-                              <p className="text-sm text-muted-foreground">Нет changelog</p>
+                              <p className="text-sm text-muted-foreground">{t("servers.addons.noChangelog")}</p>
                             )}
                           </div>
                         ))
                       ) : (
-                        <p className="text-center text-muted-foreground py-12">Нет changelog</p>
+                        <p className="text-center text-muted-foreground py-12">{t("servers.addons.noChangelog")}</p>
                       )}
                     </div>
                   )}
@@ -828,14 +828,14 @@ export function AddonsTab({ server }: AddonsTabProps) {
                                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors shrink-0 ml-3"
                               >
                                 <IconDownload className="w-4 h-4" strokeWidth={1.75} />
-                                Скачать
+                                {t("servers.addons.download")}
                               </button>
                             )}
                           </div>
                           )
                         })
                       ) : (
-                        <p className="text-center text-muted-foreground py-12">Нет версий</p>
+                        <p className="text-center text-muted-foreground py-12">{t("servers.addons.noVersions")}</p>
                       )}
                     </div>
                   )}

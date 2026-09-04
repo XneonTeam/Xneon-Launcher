@@ -34,10 +34,10 @@ const ALL_TABS: Array<{ id: ServerTab; labelKey: string; icon: React.ElementType
 const MODLOADER_MODS = ["forge", "fabric", "quilt", "neoforge"]
 const MODLOADER_PLUGINS = ["paper", "spigot", "bukkit", "purpur", "folia", "sponge", "bungeecord", "velocity", "waterfall"]
 
-function getAddonsLabel(modloader: string): string {
-  if (MODLOADER_PLUGINS.includes(modloader)) return "Плагины"
-  if (MODLOADER_MODS.includes(modloader)) return "Моды"
-  return ""
+function getAddonsLabelKey(modloader: string): string {
+  if (MODLOADER_PLUGINS.includes(modloader)) return "servers.addons.plugins"
+  if (MODLOADER_MODS.includes(modloader)) return "servers.addons.mods"
+  return "servers.tabAddons"
 }
 
 function hasAddons(modloader: string): boolean {
@@ -150,7 +150,7 @@ export function ServerDetailPage({ server, onBack }: ServerDetailPageProps) {
     .filter(tab => tab.id !== "addons" || hasAddons(server.modloader))
     .map(tab =>
       tab.id === "addons"
-        ? { ...tab, label: getAddonsLabel(server.modloader) }
+        ? { ...tab, labelKey: getAddonsLabelKey(server.modloader) }
         : tab
     )
 
@@ -387,11 +387,12 @@ function formatUptime(seconds: number): string {
 }
 
 function AddressChip({ label, value, copied, onCopy }: { label: string; value: string; copied: boolean; onCopy: (addr: string) => void }) {
+  const { t } = useTranslation()
   return (
     <button
       onClick={() => onCopy(value)}
       className="group flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50 hover:bg-muted border border-border/50 transition-colors cursor-pointer"
-      title={`${label}: ${value} — кликни чтобы скопировать`}
+      title={`${label}: ${value} — ${t("servers.clickToCopy")}`}
     >
       <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
       <span className="text-[11px] font-mono text-foreground/80">{value}</span>

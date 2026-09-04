@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom"
 import { useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { IconArrowLeft, IconArrowRight, IconCheck, IconLoader2, IconPlayerPlay, IconX } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { useAccounts } from "@/src/AccountsContext"
@@ -44,6 +45,7 @@ function getAvatarUrl(account: { uuid?: string; type?: string }, username: strin
 
 export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip }: OnboardingModalProps) {
   const { accounts, addAccount, activeAccount, setActiveAccount } = useAccounts()
+  const { t } = useTranslation()
   const [mounted, setMounted] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [selectedLanguage, setSelectedLanguage] = useState<OnboardingLanguage>(() => {
@@ -230,7 +232,7 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
                 <CurrentStepIcon className="h-5 w-5" strokeWidth={1.8} />
               </div>
               <div className="min-w-0">
-                <h2 className="text-xl font-semibold text-foreground">Первоначальная настройка</h2>
+                <h2 className="text-xl font-semibold text-foreground">{t("onboarding.initialSetup")}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">{currentStep.description}</p>
               </div>
             </div>
@@ -245,7 +247,7 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
           </div>
           <div className="mt-3 flex items-center justify-between gap-3">
             <div className="text-sm text-muted-foreground">
-              Шаг {stepIndex + 1} из {steps.length}
+              {t("onboarding.step", { current: stepIndex + 1, total: steps.length })}
             </div>
           </div>
           <div className="mt-4">

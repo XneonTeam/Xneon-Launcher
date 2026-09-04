@@ -90,7 +90,7 @@ export function SkinsPage() {
       loadedForAccountIdRef.current = accountId
     } catch (err) {
       if (activeAccountIdRef.current !== accountId) return
-      pushNotification({ kind: "error", source: "import", title: "Ошибка", message: String(err) })
+      pushNotification({ kind: "error", source: "import", title: t("skins.error"), message: String(err) })
     } finally {
       if (activeAccountIdRef.current === accountId) setLoading(false)
     }
@@ -180,10 +180,10 @@ export function SkinsPage() {
       if (saved) {
         await fetchLibrary()
         setSelectedId(saved.id)
-        pushNotification({ kind: "success", source: "import", title: "Скин добавлен", message: name })
+        pushNotification({ kind: "success", source: "import", title: t("skins.added"), message: name })
       }
     } catch (err) {
-      pushNotification({ kind: "error", source: "import", title: "Ошибка загрузки", message: String(err) })
+      pushNotification({ kind: "error", source: "import", title: t("skins.uploadError"), message: String(err) })
     }
   }, [account?.id, selectedSkin, fetchLibrary, pushNotification])
 
@@ -213,10 +213,10 @@ export function SkinsPage() {
         setEquippedId(selectedSkin.id)
         setSelectedId(selectedSkin.id)
         setSkinVersion(v => v + 1)
-        pushNotification({ kind: "success", source: "launch", title: "Скин применён", message: "" })
+        pushNotification({ kind: "success", source: "launch", title: t("skins.applied"), message: "" })
       }
     } catch (err) {
-      pushNotification({ kind: "error", source: "launch", title: "Ошибка", message: String(err) })
+      pushNotification({ kind: "error", source: "launch", title: t("skins.error"), message: String(err) })
     } finally {
       setIsApplying(false)
     }
@@ -232,9 +232,9 @@ export function SkinsPage() {
       setEquippedId(apiSkinId)
       setSelectedId(apiSkinId)
       setSkinVersion(v => v + 1)
-      pushNotification({ kind: "success", source: "launch", title: "Скин сброшен", message: "Возвращён стандартный скин" })
+      pushNotification({ kind: "success", source: "launch", title: t("skins.reset"), message: t("skins.resetMessage") })
     } catch (err) {
-      pushNotification({ kind: "error", source: "launch", title: "Ошибка", message: String(err) })
+      pushNotification({ kind: "error", source: "launch", title: t("skins.error"), message: String(err) })
     }
   }, [account?.id, activeSkinUrl, fetchProfile, pushNotification])
 
@@ -254,9 +254,9 @@ export function SkinsPage() {
         setEquippedId(null)
       }
       await fetchLibrary()
-      pushNotification({ kind: "success", source: "import", title: "Скин удалён", message: "" })
+      pushNotification({ kind: "success", source: "import", title: t("skins.deleted"), message: "" })
     } catch (err) {
-      pushNotification({ kind: "error", source: "import", title: "Ошибка", message: String(err) })
+      pushNotification({ kind: "error", source: "import", title: t("skins.error"), message: String(err) })
     }
   }, [selectedId, equippedId, account?.id, fetchLibrary, handleReset, pushNotification])
 
@@ -279,9 +279,9 @@ export function SkinsPage() {
       }
       await fetchLibrary()
       await fetchProfile()
-      pushNotification({ kind: "success", source: "import", title: "Скин сохранён", message: "" })
+      pushNotification({ kind: "success", source: "import", title: t("skins.saved"), message: "" })
     } catch (err) {
-      pushNotification({ kind: "error", source: "import", title: "Ошибка", message: String(err) })
+      pushNotification({ kind: "error", source: "import", title: t("skins.error"), message: String(err) })
     }
   }, [account?.id, editModalSkin, fetchLibrary, fetchProfile, pushNotification])
 
