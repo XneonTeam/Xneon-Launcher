@@ -12,9 +12,10 @@ import {
   IconColorSwatch,
   IconNetwork,
   IconShirt,
+  IconServer,
 } from "@tabler/icons-react";
 
-type TabId = "home" | "builds" | "logs" | "cloud" | "network" | "accounts" | "settings" | "themes" | "skins";
+type TabId = "home" | "builds" | "logs" | "cloud" | "network" | "accounts" | "settings" | "themes" | "skins" | "servers";
 
 interface SidebarItem {
   id: TabId;
@@ -37,6 +38,11 @@ const sidebarItems: SidebarItem[] = [
     id: "builds",
     labelKey: "sidebar.builds",
     icon: <IconColorSwatch className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
+  },
+  {
+    id: "servers",
+    labelKey: "sidebar.servers",
+    icon: <IconServer className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
   },
   {
     id: "accounts",
