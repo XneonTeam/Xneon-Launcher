@@ -28,7 +28,7 @@ export function InstanceBuildLaunch({ build, updateBuild }: InstanceBuildLaunchP
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
-              <IconTerminal2 className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
+              <IconTerminal2 className="h-5 w-5 text-primary" strokeWidth={1.75} />
               Команды запуска
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -66,7 +66,7 @@ export function InstanceBuildLaunch({ build, updateBuild }: InstanceBuildLaunchP
 
       <div className="rounded-3xl border border-border bg-card/40 p-6">
         <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
-          <IconCode className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
+          <IconCode className="h-5 w-5 text-primary" strokeWidth={1.75} />
           Wrapper-команда
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -86,7 +86,7 @@ export function InstanceBuildLaunch({ build, updateBuild }: InstanceBuildLaunchP
 
       <div className="rounded-3xl border border-border bg-card/40 p-6">
         <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
-          <IconWorldDownload className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
+          <IconWorldDownload className="h-5 w-5 text-primary" strokeWidth={1.75} />
           Переменные окружения
         </div>
         <p className="mt-1 text-sm text-muted-foreground">

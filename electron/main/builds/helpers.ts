@@ -235,21 +235,30 @@ export async function setContentEnabledInIntent(
     if (!isInside) return { success: false, error: "Недопустимый путь файла" }
 
     const disabledSuffix = ".disabled"
-    const isDisabledName = requested.toLowerCase().endsWith(disabledSuffix)
-    const source = enabled && isDisabledName
+    // The DB stores the slug without the .disabled suffix, so the requested
+    // path may not exist while the "xxx.jar.disabled" variant does (or vice
+    // versa). Resolve whichever variant is actually on disk first — otherwise
+    // re-enabling a disabled mod fails with "file not found".
+    const barePath = requested.toLowerCase().endsWith(disabledSuffix)
       ? requested.slice(0, -disabledSuffix.length)
-      : !enabled && !isDisabledName
-        ? requested
-        : requested
-    const destination = enabled
-      ? (isDisabledName ? requested.slice(0, -disabledSuffix.length) : requested)
-      : (isDisabledName ? requested : `${requested}${disabledSuffix}`)
+      : requested
+    const disabledPath = `${barePath}${disabledSuffix}`
 
-    try {
-      await fs.access(source)
-    } catch {
+    let source = barePath
+    let sourceExists = false
+    try { await fs.access(source); sourceExists = true } catch {}
+    if (!sourceExists) {
+      source = disabledPath
+      try { await fs.access(source); sourceExists = true } catch {}
+    }
+    if (!sourceExists) {
       return { success: false, error: "Файл контента не найден" }
     }
+
+    const sourceIsDisabled = source.toLowerCase().endsWith(disabledSuffix)
+    const destination = enabled
+      ? (sourceIsDisabled ? barePath : source)
+      : (sourceIsDisabled ? source : disabledPath)
 
     if (source !== destination) await fs.rename(source, destination)
     return { success: true, fileName: path.relative(targetDir, destination).replace(/\\/g, "/") }

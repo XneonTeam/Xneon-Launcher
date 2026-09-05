@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { IconTrash, IconRefresh, IconServer } from "@tabler/icons-react"
 import type { McServerInfo } from "@xnlc/types"
+import { cn } from "@/lib/utils"
+import { Checkbox } from "@/components/ui/checkbox"
+import { XnConnectLogo } from "./server/xn-connect-logo"
 
 interface ServerTrashViewProps {
   onBack: () => void
@@ -11,6 +14,9 @@ export function ServerTrashView({ onBack }: ServerTrashViewProps) {
   const { t } = useTranslation()
   const [items, setItems] = useState<McServerInfo[]>([])
   const [loading, setLoading] = useState(true)
+  const [confirmTarget, setConfirmTarget] = useState<"item" | "all" | null>(null)
+  const [confirmItem, setConfirmItem] = useState<McServerInfo | null>(null)
+  const [deleteTunnel, setDeleteTunnel] = useState(true)
 
   const loadTrash = useCallback(async () => {
     setLoading(true)
@@ -35,15 +41,18 @@ export function ServerTrashView({ onBack }: ServerTrashViewProps) {
 
   const handleDeleteForever = useCallback(async (item: McServerInfo) => {
     if (!window.electronAPI) return
-    await window.electronAPI.mcServerPermanentDelete(item.id)
+    await window.electronAPI.mcServerPermanentDelete(item.id, deleteTunnel)
+    setConfirmTarget(null)
+    setConfirmItem(null)
     await loadTrash()
-  }, [loadTrash])
+  }, [loadTrash, deleteTunnel])
 
   const handlePurgeAll = useCallback(async () => {
     if (!window.electronAPI) return
-    await window.electronAPI.mcServerPurgeTrash()
+    await window.electronAPI.mcServerPurgeTrash(deleteTunnel)
+    setConfirmTarget(null)
     setItems([])
-  }, [])
+  }, [deleteTunnel])
 
   if (loading) {
     return (
@@ -65,7 +74,7 @@ export function ServerTrashView({ onBack }: ServerTrashViewProps) {
     <div className="flex-1 space-y-3">
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs text-muted-foreground">{t("servers.trash.itemCount", { count: items.length })}</p>
-        <button type="button" onClick={handlePurgeAll}
+        <button type="button" onClick={() => { setConfirmTarget("all"); setDeleteTunnel(true) }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors">
           <IconTrash className="w-3.5 h-3.5" />
           {t("servers.trash.purgeAll")}
@@ -94,12 +103,54 @@ export function ServerTrashView({ onBack }: ServerTrashViewProps) {
             <IconRefresh className="w-3.5 h-3.5" />
             {t("servers.trash.restore")}
           </button>
-          <button type="button" onClick={() => handleDeleteForever(item)}
+          <button type="button" onClick={() => { setConfirmTarget("item"); setConfirmItem(item); setDeleteTunnel(true) }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors">
             <IconTrash className="w-3.5 h-3.5" />
           </button>
         </div>
       ))}
+
+      {/* Delete-forever confirmation with optional XN Connect tunnel cleanup */}
+      {confirmTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+          <div className="w-full max-w-md p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center flex-shrink-0">
+                <IconTrash className="w-5 h-5 text-destructive" strokeWidth={1.5} />
+              </div>
+              <h3 className="text-base font-semibold text-foreground">
+                {confirmTarget === "all" ? t("servers.trash.purgeAll") : t("servers.trash.deleteForeverTitle")}
+              </h3>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              {confirmTarget === "all"
+                ? t("servers.trash.purgeAllDesc", { count: items.length })
+                : t("servers.trash.deleteForeverDesc", { name: confirmItem?.name ?? "" })}
+            </p>
+            <label className="flex items-center gap-2.5 p-3 rounded-xl border border-border bg-muted/30 cursor-pointer mb-5">
+              <Checkbox checked={deleteTunnel} onCheckedChange={(v) => setDeleteTunnel(!!v)} />
+              <XnConnectLogo className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <span className="text-sm text-foreground">{t("servers.trash.deleteTunnel")}</span>
+            </label>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => { setConfirmTarget(null); setConfirmItem(null) }}
+                className="flex-1 h-10 rounded-xl border border-border bg-muted/30 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+              >
+                {t("servers.cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={() => (confirmTarget === "all" ? handlePurgeAll() : confirmItem && handleDeleteForever(confirmItem))}
+                className="flex-1 h-10 rounded-xl bg-destructive text-white text-sm font-medium hover:bg-destructive/90 transition-colors"
+              >
+                {t("servers.trash.deleteForeverTitle")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

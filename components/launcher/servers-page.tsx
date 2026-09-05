@@ -6,6 +6,7 @@ import { useMcServers, useMcServerState } from "@/src/hooks/use-mc-servers"
 import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
 import { dataCache, MOD_SEARCH_CACHE_TTL } from "@/lib/swr"
 import { ServerTile } from "./server-tile"
+import { ServerContextMenu } from "./server/server-context-menu"
 import { ServerCreateDialog } from "./server-create-dialog"
 import { ServerPackInstallDialog, type PackInstallTarget } from "./server-pack-install-dialog"
 import { ServerTrashView } from "./server-trash-view"
@@ -26,7 +27,7 @@ const PAGE_SIZE = 20
 
 export function ServersPage({ onSelectServer }: ServersPageProps) {
   const { t } = useTranslation()
-  const { servers, loading, createServer, deleteServer, reload } = useMcServers()
+  const { servers, loading, createServer, deleteServer, duplicateServer, reload } = useMcServers()
   const { visibleVersions, versionsLoaded } = useMinecraftVersionOptions()
   const [showCreate, setShowCreate] = useState(false)
   const [view, setView] = useState<"servers" | "trash" | "modrinth" | "curseforge">("servers")
@@ -420,6 +421,7 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
                     server={server}
                     onClick={() => onSelectServer?.(server)}
                     onDelete={() => deleteServer(server.id)}
+                    onDuplicate={() => void duplicateServer(server.id)}
                   />
                 ))}
               </div>
@@ -431,6 +433,7 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
                     server={server}
                     onClick={() => onSelectServer?.(server)}
                     onDelete={() => deleteServer(server.id)}
+                    onDuplicate={() => void duplicateServer(server.id)}
                   />
                 ))}
               </div>
@@ -470,7 +473,7 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
   )
 }
 
-function ServerTileWrapper({ server, onClick, onDelete }: { server: McServerInfo; onClick: () => void; onDelete: () => void }) {
+function ServerTileWrapper({ server, onClick, onDelete, onDuplicate }: { server: McServerInfo; onClick: () => void; onDelete: () => void; onDuplicate: () => void }) {
   const { state, start, stop } = useMcServerState(server.id)
 
   return (
@@ -481,11 +484,12 @@ function ServerTileWrapper({ server, onClick, onDelete }: { server: McServerInfo
       onStart={start}
       onStop={stop}
       onDelete={onDelete}
+      onDuplicate={onDuplicate}
     />
   )
 }
 
-function ServerListRow({ server, onClick, onDelete }: { server: McServerInfo; onClick: () => void; onDelete: () => void }) {
+function ServerListRow({ server, onClick, onDelete, onDuplicate }: { server: McServerInfo; onClick: () => void; onDelete: () => void; onDuplicate: () => void }) {
   const { t } = useTranslation()
   const { state, start, stop } = useMcServerState(server.id)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -571,41 +575,17 @@ function ServerListRow({ server, onClick, onDelete }: { server: McServerInfo; on
       </div>
 
       {menuOpen && (
-        <div
-          className="fixed z-50 w-52 rounded-xl bg-popover border border-border shadow-lg py-1 animate-in fade-in-0 zoom-in-95 duration-150"
-          style={{ top: menuPos.y, left: menuPos.x }}
-          onClick={() => setMenuOpen(false)}
-        >
-          <button
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-accent/50 transition-colors"
-            onClick={() => { onClick(); setMenuOpen(false) }}
-          >
-            <IconTerminal className="w-4 h-4" />
-            {t("servers.contextConnect")}
-          </button>
-          <button
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-accent/50 transition-colors"
-            onClick={() => { handlePlayStop({ stopPropagation: () => {} } as React.MouseEvent); setMenuOpen(false) }}
-          >
-            {isRunning ? <IconPlayerStop className="w-4 h-4" /> : <IconPlayerPlay className="w-4 h-4" />}
-            {isRunning ? t("servers.contextStop") : t("servers.contextStart")}
-          </button>
-          <button
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-accent/50 transition-colors"
-            onClick={() => { window.electronAPI?.mcServerOpenFolder(server.id); setMenuOpen(false) }}
-          >
-            <IconFolder className="w-4 h-4" />
-            {t("servers.contextOpenFolder")}
-          </button>
-          <div className="h-px bg-border my-1" />
-          <button
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
-            onClick={() => { onDelete(); setMenuOpen(false) }}
-          >
-            <IconTrash className="w-4 h-4" />
-            {t("servers.contextDelete")}
-          </button>
-        </div>
+        <ServerContextMenu
+          server={server}
+          position={menuPos}
+          isRunning={isRunning}
+          isBusy={isBusy}
+          onConnect={onClick}
+          onToggleRun={() => { if (isRunning) stop(); else start() }}
+          onDelete={onDelete}
+          onDuplicate={onDuplicate}
+          onClose={() => setMenuOpen(false)}
+        />
       )}
     </>
   )

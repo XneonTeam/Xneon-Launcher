@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
-import { IconPlayerPlay, IconServer, IconArrowLeft, IconCheck, IconFolderPlus, IconLoader2, IconWorld, IconShield, IconRouter, IconUpload, IconClipboard, IconExternalLink } from "@tabler/icons-react"
+import { IconPlayerPlay, IconServer, IconArrowLeft, IconCheck, IconFolderPlus, IconLoader2, IconShield, IconRouter, IconUpload, IconClipboard, IconExternalLink, IconGauge } from "@tabler/icons-react"
+import type { XnConnectUsage } from "@xnlc/types"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MemorySlider } from "@/components/ui/memory-slider"
@@ -9,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { useHomeVersions } from "@/src/hooks/use-home-versions"
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
 import { LoaderIcon } from "./instance/loader-icon"
+import { XnConnectLogo } from "./server/xn-connect-logo"
 import type { JavaInstallation } from "./settings/types"
 
 interface ServerCreateDialogProps {
@@ -51,6 +53,8 @@ const STEP_KEYS: Record<(typeof STEPS_FULL)[number], string> = {
 export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreateDialogProps) {
   const { t } = useTranslation()
   const [step, setStep] = useState<Step>("name")
+  const [usage, setUsage] = useState<XnConnectUsage | null>(null)
+  const [usageLimitShown, setUsageLimitShown] = useState(false)
   const [name, setName] = useState("")
   const [modloader, setModloader] = useState("vanilla")
   const [modloaderVersion, setModloaderVersion] = useState("")
@@ -115,6 +119,13 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
     if (loaderVersions.some(v => v.value === modloaderVersion)) return
     setModloaderVersion(recommendedLoaderVersion ?? "")
   }, [loaderVersions, loaderVersionsLoaded, modloaderVersion, recommendedLoaderVersion, requiresLoaderVersion])
+
+  useEffect(() => {
+    if (!open) return
+    // Tunnel usage counter (used/max/plan) for the XN-Connect step
+    window.electronAPI?.xnConnectUsage().then(u => { if (u) setUsage(u) })
+    return window.electronAPI?.onXnConnectUsage((u) => setUsage(u))
+  }, [open])
 
   useEffect(() => {
     if (!open || step !== "java") return
@@ -706,10 +717,28 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
               <div className="p-4 rounded-xl border border-border bg-gradient-to-br from-primary/5 via-primary/[0.02] to-accent/5">
                 <div className="flex items-start gap-3 mb-3">
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <IconWorld className="w-5 h-5 text-primary" strokeWidth={1.5} />
+                    <XnConnectLogo className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-semibold text-foreground">XN-Connect</h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-semibold text-foreground">XN Connect</h4>
+                      {usage && (
+                        <div
+                          className={cn(
+                            "flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border",
+                            usage.used >= usage.max
+                              ? "border-red-500/30 bg-red-500/10 text-red-400"
+                              : "border-border bg-muted/50 text-muted-foreground"
+                          )}
+                          title={t("servers.settings.xnconnect.usageHint")}
+                        >
+                          <IconGauge className="w-3 h-3" strokeWidth={1.75} />
+                          <span className="font-mono">{usage.used}/{usage.max}</span>
+                          <span>·</span>
+                          <span className="capitalize">{usage.plan}</span>
+                        </div>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground mt-0.5">{t("servers.create.xnConnectDesc")}</p>
                   </div>
                 </div>
@@ -738,7 +767,21 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                     <p className="text-xs text-muted-foreground mt-0.5">{t("servers.create.enableXnConnectDesc")}</p>
                   </div>
                   <button
-                    onClick={() => setRelayEnabled(!relayEnabled)}
+                    onClick={async () => {
+                      if (!relayEnabled) {
+                        // Proactive tunnel-limit check before enabling XN-Connect
+                        try {
+                          const fresh = await window.electronAPI?.xnConnectUsage()
+                          if (fresh) setUsage(fresh)
+                          if (fresh && fresh.used >= fresh.max) {
+                            setUsageLimitShown(true)
+                            return
+                          }
+                        } catch { /* fall through to normal enable */ }
+                        setUsageLimitShown(false)
+                      }
+                      setRelayEnabled(!relayEnabled)
+                    }}
                     className={cn(
                       "relative w-11 h-6 rounded-full transition-colors",
                       relayEnabled ? "bg-primary" : "bg-muted"
@@ -803,6 +846,33 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                         </button>
                       </div>
                     )}
+                  </div>
+                )}
+                {usageLimitShown && (
+                  <div className="mt-3 p-3 rounded-lg border border-red-500/30 bg-red-500/10">
+                    <p className="text-xs font-medium text-red-400">
+                      {t("servers.settings.xnconnect.limitReached", {
+                        used: usage?.used ?? 0,
+                        max: usage?.max ?? 0,
+                      })}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                      {t("servers.settings.xnconnect.limitReachedDesc")}
+                    </p>
+                    <div className="flex gap-2 mt-2.5">
+                      <button
+                        onClick={() => window.electronAPI?.openExternal("https://connect.xneon.org/dashboard")}
+                        className="px-3 h-8 rounded-lg border border-border bg-muted/30 text-xs text-foreground hover:bg-muted/60 transition-colors"
+                      >
+                        {t("servers.settings.xnconnect.openDashboard")}
+                      </button>
+                      <button
+                        onClick={() => window.electronAPI?.openExternal("https://connect.xneon.org/subscribe")}
+                        className="px-3 h-8 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+                      >
+                        {t("servers.settings.xnconnect.subscribe")}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

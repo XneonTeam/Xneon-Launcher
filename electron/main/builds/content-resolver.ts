@@ -47,6 +47,7 @@ type CfCandidate = {
 type CfMatch = {
   modId: number
   fileId: number
+  isAvailable?: boolean
 }
 
 /**
@@ -248,6 +249,39 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
   const resources = await dbHelpers.getResources(sha1s)
   const resourceBySha1 = new Map(resources.map((resource) => [resource.sha1, resource]))
 
+  // Heal cache entries written by the old resolver: it stored CurseForge
+  // project info with version === "" and wiped description, so a file whose
+  // project got hidden by CF moderation shows junk ("now"/"no"). Revalidate
+  // those projects; hidden ones get their cache zeroed so the file re-parses
+  // with its own embedded metadata on this very scan.
+  const suspectCf = resources.filter(r => r.source === "curseforge" && r.version === "" && r.modId)
+  if (suspectCf.length > 0) {
+    try {
+      const mods = await loadModsModule()
+      const ids = [...new Set(suspectCf.map(r => r.modId!).filter(Boolean))]
+      const projects = await mods.curseforgeGetProjectsByIds(ids)
+      const deadIds = new Set(ids.filter(id => projects[id]?.isAvailable === false))
+      for (const r of suspectCf) {
+        if (!r.modId || !deadIds.has(r.modId)) continue
+        await dbHelpers.upsertResource({
+          sha1: r.sha1,
+          name: "",
+          description: "",
+          version: "",
+          icon: "",
+          author: "",
+          source: "local",
+          projectId: null,
+          versionId: null,
+          modId: null,
+          fileId: null,
+          cfChecked: 0,
+        })
+        resourceBySha1.delete(r.sha1)
+      }
+    } catch {}
+  }
+
   const toParse: Array<{ filePath: string; sha1: string }> = []
   const cachedWithoutIcon: Array<{ filePath: string; resource: Awaited<ReturnType<typeof dbHelpers.getResources>>[number] }> = []
   for (const { filePath, stat } of valid) {
@@ -377,7 +411,9 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
     const cfResolution = await resolveCurseforgeMatches(cfCandidates)
     const cfMap = cfResolution.matches
 
-    const cfModIds = [...new Set(Object.values(cfMap).map(m => m.modId))]
+    const cfModIds = [...new Set(Object.values(cfMap)
+      .filter(m => m.isAvailable !== false)
+      .map(m => m.modId))]
     let cfProjectInfoMap: Record<number, { name: string; iconUrl: string; author?: string }> = {}
     if (cfModIds.length > 0) {
       try {
@@ -388,6 +424,14 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
 
     for (const { filePath, sha1 } of cfCandidates) {
       const match = cfMap[sha1]
+      // Skip hidden/removed CurseForge projects entirely: moderation-hidden
+      // projects return placeholder junk ("now"/"no") instead of real data.
+      // The file stays a local mod with its own embedded metadata. Mark the
+      // resource as checked so we don't re-query the API on every scan.
+      if (match && match.isAvailable === false) {
+        await dbHelpers.markResourcesCurseforgeChecked([sha1])
+        continue
+      }
       if (match) {
         const entry = result[filePath]
         if (entry) {
@@ -397,6 +441,8 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
 
           const cfInfo = cfProjectInfoMap[match.modId]
           if (cfInfo) {
+            // Metadata read from the file itself always wins — only fill gaps
+            // with CurseForge data, never overwrite what the jar already told us.
             entry.icon_url = entry.icon_url || cfInfo.iconUrl || undefined
             entry.author = entry.author || cfInfo.author
           }
@@ -404,13 +450,15 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
         const cfInfo = cfProjectInfoMap[match.modId]
         await dbHelpers.setResourceCurseforge(sha1, match.modId, match.fileId)
         if (cfInfo) {
+          // Merge CurseForge project info into the cache without destroying
+          // the local metadata (previous code wiped description/version here).
           await dbHelpers.upsertResource({
             sha1,
-            name: cfInfo.name,
-            description: "",
-            version: "",
-            icon: cfInfo.iconUrl ?? "",
-            author: cfInfo.author ?? "",
+            name: entry?.name || cfInfo.name,
+            description: entry?.description || "",
+            version: entry?.version || "",
+            icon: entry?.icon_url || cfInfo.iconUrl || "",
+            author: entry?.author || cfInfo.author || "",
             source: "curseforge",
             projectId: null,
             versionId: null,

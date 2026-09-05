@@ -435,6 +435,7 @@ export async function curseforgeGetProjectsByIds(modIds: number[]): Promise<Reco
           iconUrl: (logo?.thumbnailUrl as string) ?? (links?.iconUrl as string) ?? "",
           slug: (mod.slug as string) ?? `mod-${id}`,
           author: Array.isArray(authors) ? authors.map(a => a.name).filter(Boolean).join(", ") : undefined,
+          isAvailable: (mod.isAvailable as boolean | undefined) ?? true,
         };
       }
     } catch {

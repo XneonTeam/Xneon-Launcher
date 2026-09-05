@@ -131,6 +131,9 @@ export interface ModProjectInfo {
   iconUrl: string;
   slug: string;
   author?: string;
+  /** false when the project is hidden/removed by CurseForge moderation — its
+   *  API data is unreliable placeholder junk ("now"/"no") and must not be used. */
+  isAvailable?: boolean;
 }
 
 export interface ModrinthVersionFile {

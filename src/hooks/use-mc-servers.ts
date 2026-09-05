@@ -52,7 +52,13 @@ export function useMcServers() {
     await window.electronAPI?.mcServerPermanentDelete(id)
   }, [])
 
-  return { servers, loading, reload, createServer, deleteServer, updateServer, restoreServer, listTrash, purgeTrash, permanentDelete }
+  const duplicateServer = useCallback(async (id: string) => {
+    const copy = await window.electronAPI?.mcServerDuplicate(id)
+    if (copy) setServers(prev => [copy, ...prev])
+    return copy
+  }, [])
+
+  return { servers, loading, reload, createServer, deleteServer, updateServer, restoreServer, listTrash, purgeTrash, permanentDelete, duplicateServer }
 }
 
 export function useMcServerState(id: string | null) {

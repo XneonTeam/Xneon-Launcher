@@ -45,7 +45,7 @@ export function InstanceBuildWindow({ build, updateBuild }: InstanceBuildWindowP
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
-            <IconDeviceDesktop className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
+            <IconDeviceDesktop className="h-5 w-5 text-primary" strokeWidth={1.75} />
             Размер окна
           </div>
           <p className="mt-1 text-sm text-muted-foreground">

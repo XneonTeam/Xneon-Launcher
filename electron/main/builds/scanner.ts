@@ -76,21 +76,33 @@ export async function scanIntentDir(intentPath: string, onProgress?: (processed:
 
     for (const { slug, filePath, name, enabled } of files) {
       const entry = resolved[filePath]
-      if (!entry) continue
       const fileName = path.basename(name)
-      const modEntry: ImportModEntry = {
-        id: entry.sha1,
-        slug,
-        name: entry.name || formatDisplayNameFromFileName(fileName),
-        description: entry.description || "",
-        icon_url: entry.icon_url,
-        version: entry.version || "local",
-        source: entry.source,
-        projectId: entry.projectId,
-        modId: entry.modId,
-        author: entry.author,
-        enabled,
-      }
+      const modEntry: ImportModEntry = entry
+        ? {
+            id: entry.sha1,
+            slug,
+            name: entry.name || formatDisplayNameFromFileName(fileName),
+            description: entry.description || "",
+            icon_url: entry.icon_url,
+            version: entry.version || "local",
+            source: entry.source,
+            projectId: entry.projectId,
+            modId: entry.modId,
+            author: entry.author,
+            enabled,
+          }
+        : {
+            // Resolver failed (broken archive, unreadable metadata, ...) —
+            // keep the file visible as a local mod instead of dropping it
+            // from the list entirely.
+            id: `local:${slug}`,
+            slug,
+            name: formatDisplayNameFromFileName(fileName),
+            description: "",
+            version: "local",
+            source: "local",
+            enabled,
+          }
       target.push(modEntry)
       if (map !== null) {
         map[slug] = filePath

@@ -17,7 +17,7 @@ export function InstanceBuildServer({ build, updateBuild }: InstanceBuildServerP
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
-            <IconServer className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
+            <IconServer className="h-5 w-5 text-primary" strokeWidth={1.75} />
             Автоподключение к серверу
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
