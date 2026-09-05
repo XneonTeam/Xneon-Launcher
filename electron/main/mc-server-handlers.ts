@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow } from "electron"
+import { ipcMain, BrowserWindow, dialog } from "electron"
 import { randomUUID, createHash } from "crypto"
 import path from "path"
 import fs from "fs"
@@ -205,18 +205,126 @@ export function registerMcServerHandlers() {
     await dbHelpers.restoreMcServer(id)
   })
 
+  // ── Export server to zip (like instance export, with category filter) ───
+  ipcMain.handle("mc-server:export-zip", async (_event, id: string, serverName: string, categories?: string[]): Promise<{ success: boolean; path?: string; error?: string }> => {
+    try {
+      const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed())
+      if (!win) return { success: false, error: "Окно недоступно" }
+      const serverDir = getServerDir(id)
+      try { await fs.promises.access(serverDir) } catch {
+        return { success: false, error: "Папка сервера пуста" }
+      }
+      const picked = await dialog.showSaveDialog(win, {
+        title: "Экспорт сервера",
+        defaultPath: `${sanitizeFileName(serverName || id)}.zip`,
+        filters: [{ name: "Zip архив", extensions: ["zip"] }],
+      })
+      if (picked.canceled || !picked.filePath) return { success: false, error: "Экспорт отменён" }
+
+      // Category → top-level entries of a server directory (Prism-style filter).
+      const CATEGORY_ENTRIES: Record<string, Set<string>> = {
+        world: new Set(["world", "world_nether", "world_the_end"]),
+        mods: new Set(["mods"]),
+        plugins: new Set(["plugins"]),
+        configs: new Set(["config", "eula.txt", "server.properties", "whitelist.json", "ops.json", "banned-players.json", "banned-ips.json", "usercache.json"]),
+        logs: new Set(["logs", "crash-reports", "cache", ".cache"]),
+      }
+      const DEFAULT_EXCLUDED = new Set(["logs", "crash-reports", "cache", ".cache", "jars"])
+      const includeLogs = !categories || categories.includes("logs")
+
+      const AdmZip = await loadAdmZip()
+      const zip = new AdmZip()
+      zip.addLocalFolder(serverDir, path.basename(picked.filePath, ".zip"), (filename: string) => {
+        const top = filename.split(/[\\/]/)[1]
+        if (categories == null) return !DEFAULT_EXCLUDED.has(top)
+        // Root-level loose files (server.properties etc.) live in configs;
+        // `top` is undefined only for the folder itself — always included.
+        if (top === undefined) return true
+        for (const [catId, entries] of Object.entries(CATEGORY_ENTRIES)) {
+          if (catId === "logs") continue
+          if (categories.includes(catId) && entries.has(top)) return true
+        }
+        return includeLogs && CATEGORY_ENTRIES.logs.has(top)
+      })
+      await fs.promises.writeFile(picked.filePath, zip.toBuffer())
+      return { success: true, path: picked.filePath }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
+  // ── Duplicate server: copy DB row and files under a new name ────────────
+  ipcMain.handle("mc-server:duplicate", async (_event, id: string): Promise<McServerInfo | null> => {
+    const row = await dbHelpers.getMcServer(id)
+    if (!row) return null
+
+    const newId = randomUUID()
+    const now = new Date().toISOString()
+    // Find a free "Name (copy)" suffix
+    const existing = await dbHelpers.listMcServers()
+    let name = `${row.name} (копия)`
+    let n = 2
+    while (existing.some(s => s.name === name)) {
+      name = `${row.name} (копия ${n})`
+      n++
+    }
+
+    await dbHelpers.createMcServer({
+      ...row,
+      id: newId,
+      name,
+      // Pick a free port so the copy can run alongside the original
+      port: (() => {
+        const taken = new Set(existing.map(s => s.port))
+        let p = row.port
+        while (taken.has(p) && p < 65535) p++
+        return p
+      })(),
+      createdAt: now,
+      trashedAt: null,
+    })
+
+    // Copy server files (world, configs, mods...) when the source dir exists
+    const srcDir = getServerDir(id)
+    try {
+      await fs.promises.access(srcDir)
+      const destDir = getServerDir(newId)
+      await fs.promises.mkdir(destDir, { recursive: true })
+      await fs.promises.cp(srcDir, destDir, { recursive: true, verbatimSymlinks: true })
+    } catch { /* fresh server without files is fine */ }
+
+    return rowToInfo({ ...row, id: newId, name, createdAt: now, trashedAt: null })
+  })
+
   ipcMain.handle("mc-server:list-trash", async () => {
     const rows = await dbHelpers.listTrashedMcServers()
     return rows.map(rowToInfo)
   })
 
-  ipcMain.handle("mc-server:purge-trash", async () => {
+  ipcMain.handle("mc-server:purge-trash", async (_event, deleteTunnel = true) => {
+    // Delete XN Connect tunnels for every server being purged (best-effort)
+    if (deleteTunnel) {
+      try {
+        const rows = await dbHelpers.listTrashedMcServers()
+        for (const row of rows) {
+          xnConnectManager.stop(row.id).catch(() => {})
+          await xnConnectManager.deleteTunnelForServer(row.name, row.port).catch(() => false)
+        }
+      } catch { /* tunnel cleanup is optional */ }
+    }
     await dbHelpers.purgeTrashedMcServers()
   })
 
-  ipcMain.handle("mc-server:permanent-delete", async (_event, id: string) => {
-    xnConnectManager.stop(id).catch(() => {})
+  ipcMain.handle("mc-server:permanent-delete", async (_event, id: string, deleteTunnel = true) => {    xnConnectManager.stop(id).catch(() => {})
     serverManager.kill(id).catch(() => {})
+    // Best-effort: remove the XN Connect tunnel belonging to this server so it
+    // stops consuming the account's tunnel quota. Failures are non-fatal.
+    if (deleteTunnel) {
+      try {
+        const row = await dbHelpers.getMcServer(id)
+        if (row) await xnConnectManager.deleteTunnelForServer(row.name, row.port)
+      } catch { /* tunnel cleanup is optional */ }
+    }
     await dbHelpers.deleteMcServer(id)
   })
 
@@ -930,8 +1038,13 @@ export function registerMcServerHandlers() {
   })
 
   ipcMain.handle("xn-connect:usage", async () => {
-    // Return cached usage; re-fetch from the API when nothing is cached yet
-    return xnConnectManager.getUsage() ?? (await xnConnectManager.refreshUsage().catch(() => null))
+    // Always fetch fresh data from the API so limit checks are accurate;
+    // fall back to cache when the API is unreachable
+    try {
+      return await xnConnectManager.refreshUsage()
+    } catch {
+      return xnConnectManager.getUsage()
+    }
   })
 }
 

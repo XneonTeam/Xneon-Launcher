@@ -1,11 +1,11 @@
-import { useState, useRef, useEffect } from "react"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
-  IconPlayerPlay, IconPlayerStop, IconTrash,
-  IconTerminal, IconFolder,
+  IconPlayerPlay, IconPlayerStop,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { LoaderIcon } from "./instance/loader-icon"
+import { ServerContextMenu } from "./server/server-context-menu"
 import type { McServerInfo, McServerState } from "@xnlc/types"
 
 interface ServerTileProps {
@@ -15,27 +15,16 @@ interface ServerTileProps {
   onStart: () => void
   onStop: () => void
   onDelete: () => void
+  onDuplicate: () => void
 }
 
-export function ServerTile({ server, state, onClick, onStart, onStop, onDelete }: ServerTileProps) {
+export function ServerTile({ server, state, onClick, onStart, onStop, onDelete, onDuplicate }: ServerTileProps) {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
-  const menuRef = useRef<HTMLDivElement>(null)
 
   const isRunning = state.status === "running"
   const isBusy = state.status === "starting" || state.status === "stopping"
-
-  useEffect(() => {
-    if (!menuOpen) return
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false)
-      }
-    }
-    document.addEventListener("mousedown", handler)
-    return () => document.removeEventListener("mousedown", handler)
-  }, [menuOpen])
 
   const handlePlayStop = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -121,43 +110,19 @@ export function ServerTile({ server, state, onClick, onStart, onStop, onDelete }
         </div>
       </div>
 
-      {/* Context menu — portal-style, like instance page */}
+      {/* Context menu — same as instance list */}
       {menuOpen && (
-        <div
-          ref={menuRef}
-          className="fixed z-50 w-52 rounded-xl bg-popover border border-border shadow-lg py-1 animate-in fade-in-0 zoom-in-95 duration-150"
-          style={{ top: menuPos.y, left: menuPos.x }}
-        >
-          <button
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-accent/50 transition-colors"
-            onClick={() => { onClick(); setMenuOpen(false) }}
-          >
-            <IconTerminal className="w-4 h-4" />
-            {t("servers.contextConnect")}
-          </button>
-          <button
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-accent/50 transition-colors"
-            onClick={() => { handlePlayStop({ stopPropagation: () => {} } as React.MouseEvent); setMenuOpen(false) }}
-          >
-            {isRunning ? <IconPlayerStop className="w-4 h-4" /> : <IconPlayerPlay className="w-4 h-4" />}
-            {isRunning ? t("servers.contextStop") : t("servers.contextStart")}
-          </button>
-          <button
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-accent/50 transition-colors"
-            onClick={() => { window.electronAPI?.mcServerOpenFolder(server.id); setMenuOpen(false) }}
-          >
-            <IconFolder className="w-4 h-4" />
-            {t("servers.contextOpenFolder")}
-          </button>
-          <div className="h-px bg-border my-1" />
-          <button
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
-            onClick={() => { onDelete(); setMenuOpen(false) }}
-          >
-            <IconTrash className="w-4 h-4" />
-            {t("servers.contextDelete")}
-          </button>
-        </div>
+        <ServerContextMenu
+          server={server}
+          position={menuPos}
+          isRunning={isRunning}
+          isBusy={isBusy}
+          onConnect={onClick}
+          onToggleRun={() => { if (isRunning) onStop(); else onStart() }}
+          onDelete={onDelete}
+          onDuplicate={onDuplicate}
+          onClose={() => setMenuOpen(false)}
+        />
       )}
     </>
   )

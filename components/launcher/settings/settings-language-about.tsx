@@ -91,7 +91,7 @@ export function SettingsLanguage({ selectedLanguage, setSelectedLanguage, t }: S
     <div className="space-y-8 animate-in fade-in-0 slide-in-from-left-4 duration-300">
       <section className="space-y-4">
         <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
-          <IconLanguage className="w-5 h-5 text-primary" strokeWidth={1.5} />
+          <IconLanguage className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("settings.language.select")}
         </h3>
         <div className="grid grid-cols-1 gap-3">
@@ -169,7 +169,7 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
       </section>
       <section className="space-y-4">
         <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
-          <IconInfoCircle className="w-5 h-5 text-primary" strokeWidth={1.5} />
+          <IconInfoCircle className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("settings.about.info")}
         </h3>
         <div className="p-4 rounded-xl border border-border bg-muted/30 space-y-2">

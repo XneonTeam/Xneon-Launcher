@@ -268,7 +268,7 @@ export function SettingsPage() {
           <div className="min-h-0 flex-1 space-y-8 overflow-y-auto pr-6 animate-in fade-in-0 slide-in-from-left-4 duration-300">
             <section className="space-y-4">
               <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
-                <IconDeviceDesktop className="w-5 h-5 text-primary" strokeWidth={1.5} />
+                <IconDeviceDesktop className="w-5 h-5 text-primary" strokeWidth={1.75} />
                 {t("settings.resolution")}
               </h3>
               <SettingsResolution
@@ -285,7 +285,7 @@ export function SettingsPage() {
 
             <section className="space-y-4">
               <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
-                <IconCpu className="w-5 h-5 text-primary" strokeWidth={1.5} />
+                <IconCpu className="w-5 h-5 text-primary" strokeWidth={1.75} />
                 {t("settings.ram")}
               </h3>
               <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-2.5">
@@ -354,7 +354,7 @@ export function SettingsPage() {
 
             <section className="space-y-4">
               <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
-                <IconPlayerPlay className="w-5 h-5 text-primary" strokeWidth={1.5} />
+                <IconPlayerPlay className="w-5 h-5 text-primary" strokeWidth={1.75} />
                 {t("settings.afterLaunch.title")}
               </h3>
               <div className="p-4 rounded-xl border border-border bg-muted/30">
@@ -388,7 +388,7 @@ export function SettingsPage() {
 
             <section className="space-y-4">
               <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
-                <IconFolder className="w-5 h-5 text-primary" strokeWidth={1.5} />
+                <IconFolder className="w-5 h-5 text-primary" strokeWidth={1.75} />
                 Папка сборок
               </h3>
               <div className="p-4 rounded-xl border border-border bg-muted/30">
@@ -404,7 +404,7 @@ export function SettingsPage() {
 
             <section className="space-y-4">
               <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
-                <IconShield className="w-5 h-5 text-primary" strokeWidth={1.5} />
+                <IconShield className="w-5 h-5 text-primary" strokeWidth={1.75} />
                 {t("settings.authlib")}
               </h3>
               <SettingsAuthlib
@@ -419,7 +419,7 @@ export function SettingsPage() {
 
             <section className="space-y-4">
               <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
-                <IconCloud className="w-5 h-5 text-primary" strokeWidth={1.5} />
+                <IconCloud className="w-5 h-5 text-primary" strokeWidth={1.75} />
                 BMCL API
               </h3>
               <div className="p-4 rounded-xl border border-border bg-muted/30">

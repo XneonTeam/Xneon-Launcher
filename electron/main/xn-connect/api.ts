@@ -324,3 +324,23 @@ export async function apiCreateTunnel(
 export function apiIsTunnelBlocked(t: Tunnel): boolean {
   return t.is_blocked || /blocked|banned|suspended/i.test(t.status)
 }
+
+// DELETE /api/v1/tunnels/{id} — server responds 200 on success, 403/404 on error
+export async function apiDeleteTunnel(token: string, apiUrl: string, tunnelId: string): Promise<boolean> {
+  try {
+    const res = await httpRequest("DELETE", `${apiUrl}/api/v1/tunnels/${tunnelId}`, token, null)
+    return res.status === 200 || res.status === 204
+  } catch {
+    return false
+  }
+}
+
+// Find a tunnel that belongs to a launcher-managed server (matched by the same
+// name + local_port rule the relay uses for reuse). Returns null when no
+// confident match exists — manually created tunnels are never touched.
+export function apiFindServerTunnel(tunnels: Tunnel[], serverName: string, port: number): Tunnel | null {
+  for (const t of tunnels) {
+    if (t.name === serverName && t.local_port === port) return t
+  }
+  return null
+}

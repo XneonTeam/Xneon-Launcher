@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
-import { IconServer, IconArrowLeft, IconCheck, IconFolderPlus, IconLoader2, IconWorld, IconShield, IconRouter, IconClipboard, IconExternalLink } from "@tabler/icons-react"
+import { IconServer, IconArrowLeft, IconCheck, IconFolderPlus, IconLoader2, IconShield, IconRouter, IconClipboard, IconExternalLink } from "@tabler/icons-react"
+import { XnConnectLogo } from "./server/xn-connect-logo"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { MemorySlider } from "@/components/ui/memory-slider"
 import { useMemoryOptions } from "@/src/hooks/use-memory-options"
@@ -457,7 +458,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                   <div className="p-4 rounded-xl border border-border bg-gradient-to-br from-primary/5 via-primary/[0.02] to-accent/5">
                     <div className="flex items-start gap-3 mb-3">
                       <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <IconWorld className="w-5 h-5 text-primary" strokeWidth={1.5} />
+                        <XnConnectLogo className="w-5 h-5 text-primary" />
                       </div>
                       <div>
                         <h4 className="text-sm font-semibold text-foreground">{t("servers.packInstall.xnConnect")}</h4>

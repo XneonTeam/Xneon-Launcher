@@ -8,6 +8,8 @@ import {
   apiGetTunnels,
   apiGetNodes,
   apiCreateTunnel,
+  apiDeleteTunnel,
+  apiFindServerTunnel,
   apiIsTunnelBlocked,
   DEFAULT_API_URL,
   type Tunnel,
@@ -65,7 +67,7 @@ export class XnConnectManager {
     }
 
     const account = await apiGetAccount(token, apiUrl)
-    if (!account) {
+    if (!account || account.maxTunnels <= 0) {
       this.usageCache = null
       return null
     }
@@ -206,20 +208,21 @@ export class XnConnectManager {
 
       // 4. Create tunnel if needed
       if (!tunnel) {
-        // Enforce the account tunnel limit (max_tunnels comes from /api/auth/me —
-        // 10 on the free plan, 20 with a subscription)
+        // Enforce the account tunnel limit — max_tunnels comes from /api/auth/me
+        // and is fully account-specific (admin-settable). No local fallback: if the
+        // API gives no limit we let the server decide (it returns 403 "tunnel limit reached").
         const account = await apiGetAccount(token, apiUrl)
-        const maxTunnels = account && account.maxTunnels > 0 ? account.maxTunnels : 10
-        const plan = account?.plan || "free"
-        this.usageCache = { used: tunnels.length, max: maxTunnels, plan }
-        sendToRenderer("xn-connect:usage-updated", this.usageCache)
+        if (account && account.maxTunnels > 0) {
+          this.usageCache = { used: tunnels.length, max: account.maxTunnels, plan: account.plan }
+          sendToRenderer("xn-connect:usage-updated", this.usageCache)
 
-        if (tunnels.length >= maxTunnels) {
-          logRuntime(`[XN-Connect] Tunnel limit reached: ${tunnels.length}/${maxTunnels} (plan: ${plan})`)
-          this.cleanup(serverId)
-          relay.state = { status: "limit_reached", used: tunnels.length, max: maxTunnels, plan }
-          sendToRenderer("xn-connect:state", { serverId, state: relay.state })
-          return relay.state
+          if (tunnels.length >= account.maxTunnels) {
+            logRuntime(`[XN-Connect] Tunnel limit reached: ${tunnels.length}/${account.maxTunnels} (plan: ${account.plan})`)
+            this.cleanup(serverId)
+            relay.state = { status: "limit_reached", used: tunnels.length, max: account.maxTunnels, plan: account.plan }
+            sendToRenderer("xn-connect:state", { serverId, state: relay.state })
+            return relay.state
+          }
         }
 
         logRuntime(`[XN-Connect] Creating tunnel...`)
@@ -297,6 +300,32 @@ export class XnConnectManager {
   async stopAll(): Promise<void> {
     for (const [id] of this.running) {
       await this.stop(id)
+    }
+  }
+
+  // Best-effort removal of the XN Connect tunnel that belongs to a launcher
+  // server (matched by name + local port). Never throws: returns false when
+  // the tunnel was not found or could not be deleted (no token, offline, ...).
+  async deleteTunnelForServer(serverName: string, port: number): Promise<boolean> {
+    try {
+      const apiUrl = DEFAULT_API_URL
+      const token = await apiLoadToken()
+      if (!token) return false
+
+      const tunnels = await apiGetTunnels(token, apiUrl)
+      const tunnel = apiFindServerTunnel(tunnels, serverName, port)
+      if (!tunnel) return false
+
+      const ok = await apiDeleteTunnel(token, apiUrl, tunnel.id)
+      if (ok) {
+        logRuntime(`[XN-Connect] Tunnel deleted: ${tunnel.id} (server "${serverName}", port ${port})`)
+        // Counter changed — refresh and notify the UI
+        this.refreshUsage().catch(() => {})
+      }
+      return ok
+    } catch (err: any) {
+      logRuntime(`[XN-Connect] Failed to delete tunnel for "${serverName}": ${err.message}`)
+      return false
     }
   }
 

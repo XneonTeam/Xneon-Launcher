@@ -1,13 +1,12 @@
 import { useState, useCallback, useEffect } from "react"
 import { useTranslation } from "react-i18next"
-import { IconCheck, IconClipboard, IconFolderPlus, IconLoader, IconLoader2, IconSettings, IconWorld, IconX, IconGauge } from "@tabler/icons-react"
+import { IconCheck, IconClipboard, IconCoffee, IconCode, IconCpu, IconFolderPlus, IconLoader, IconLoader2, IconServer, IconSettings, IconX, IconGauge } from "@tabler/icons-react"
 import type { McServerInfo, XnConnectState, XnConnectUsage } from "@xnlc/types"
 import type { JavaInstallation } from "@/components/launcher/settings/types"
-import { IconPickerModal } from "@/components/launcher/instance/icon-picker-modal"
-import { LoaderIcon } from "@/components/launcher/instance/loader-icon"
 import { cn } from "@/lib/utils"
 import { MemorySlider } from "@/components/ui/memory-slider"
 import { useMemoryOptions } from "@/src/hooks/use-memory-options"
+import { XnConnectLogo } from "./xn-connect-logo"
 
 interface SettingsTabProps {
   server: McServerInfo
@@ -20,8 +19,6 @@ export function SettingsTab({ server }: SettingsTabProps) {
   const [xms, setXms] = useState(String(server.xms))
   const [extraJavaArgs, setExtraJavaArgs] = useState(server.extraJavaArgs)
   const [javaPath, setJavaPath] = useState(server.javaPath ?? "")
-  const [icon, setIcon] = useState(server.icon ?? "")
-  const [showIconPicker, setShowIconPicker] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [detectedJava, setDetectedJava] = useState<JavaInstallation[]>([])
@@ -53,13 +50,20 @@ export function SettingsTab({ server }: SettingsTabProps) {
     if (extraJavaArgs !== server.extraJavaArgs) save({ extraJavaArgs })
   }
 
-  const handleIconChange = (newIcon: string) => {
-    setIcon(newIcon)
-    save({ icon: newIcon || null })
-  }
-
   const handleToggleRelay = async () => {
     const next = !relayEnabled
+    if (next) {
+      // Proactive limit check: fetch fresh usage before starting the relay
+      // so the limit error shows immediately instead of after a failed start
+      try {
+        const fresh = await window.electronAPI?.xnConnectUsage()
+        if (fresh) setUsage(fresh)
+        if (fresh && fresh.used >= fresh.max) {
+          setRelayState({ status: "limit_reached", used: fresh.used, max: fresh.max, plan: fresh.plan })
+          return
+        }
+      } catch { /* fall through to normal start */ }
+    }
     setRelayEnabled(next)
     save({ relayEnabled: next ? 1 : 0 })
     if (next) {
@@ -133,44 +137,13 @@ export function SettingsTab({ server }: SettingsTabProps) {
         ) : null}
       </div>
 
-      {/* Icon */}
-      <SettingGroup label={t("servers.settings.icon")}>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setShowIconPicker(true)}
-            className="w-16 h-16 rounded-xl border border-border overflow-hidden flex items-center justify-center bg-muted/30 hover:border-primary/50 transition-colors flex-shrink-0"
-          >
-            {icon ? (
-              <img src={icon} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <LoaderIcon loaderId={server.modloader} className="w-8 h-8 text-primary/40" />
-            )}
-          </button>
-          <div className="flex-1 min-w-0">
-            <button
-              type="button"
-              onClick={() => setShowIconPicker(true)}
-              className="text-sm text-primary hover:underline"
-            >
-              {icon ? t("servers.settings.iconChange") : t("servers.settings.iconSelect")}
-            </button>
-            {icon && (
-              <button
-                type="button"
-                onClick={() => handleIconChange("")}
-                className="ml-3 text-sm text-destructive hover:underline"
-              >
-                {t("servers.settings.iconRemove")}
-              </button>
-            )}
-          </div>
-        </div>
-        <IconPickerModal open={showIconPicker} onOpenChange={setShowIconPicker} value={icon} onChange={handleIconChange} />
-      </SettingGroup>
-
       {/* Name */}
-      <SettingGroup label={t("servers.name")}>
+      <SettingGroup label={(
+        <span className="flex items-center gap-2">
+          <IconServer className="w-5 h-5 text-primary" strokeWidth={1.75} />
+          {t("servers.name")}
+        </span>
+      )}>
         <input
           value={name}
           onChange={e => setName(e.target.value)}
@@ -181,7 +154,12 @@ export function SettingsTab({ server }: SettingsTabProps) {
       </SettingGroup>
 
       {/* Java */}
-      <SettingGroup label={t("settings.javaPath")}>
+      <SettingGroup label={(
+        <span className="flex items-center gap-2">
+          <IconCoffee className="w-5 h-5 text-primary" strokeWidth={1.75} />
+          {t("settings.javaPath")}
+        </span>
+      )}>
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -205,7 +183,12 @@ export function SettingsTab({ server }: SettingsTabProps) {
       </SettingGroup>
 
       {/* Memory */}
-      <SettingGroup label={`${t("settings.ram")} (MB)`}>
+      <SettingGroup label={(
+        <span className="flex items-center gap-2">
+          <IconCpu className="w-5 h-5 text-primary" strokeWidth={1.75} />
+          {t("settings.ram")} (MB)
+        </span>
+      )}>
         <div className="space-y-4">
           <div>
             <label className="text-xs text-muted-foreground mb-1.5 block">Xmx (max)</label>
@@ -237,7 +220,12 @@ export function SettingsTab({ server }: SettingsTabProps) {
       </SettingGroup>
 
       {/* Extra Java Args */}
-      <SettingGroup label={t("settings.java.args")}>
+      <SettingGroup label={(
+        <span className="flex items-center gap-2">
+          <IconCode className="w-5 h-5 text-primary" strokeWidth={1.75} />
+          {t("settings.java.args")}
+        </span>
+      )}>
         <input
           value={extraJavaArgs}
           onChange={e => setExtraJavaArgs(e.target.value)}
@@ -247,26 +235,31 @@ export function SettingsTab({ server }: SettingsTabProps) {
         />
       </SettingGroup>
 
-      {/* XN-Connect Relay */}
-      <SettingGroup label="XN-Connect">
-        {usage && (
-          <div className="flex items-center justify-end mb-2 -mt-1">
-            <div
-              className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border",
-                usage.used >= usage.max
-                  ? "border-red-500/30 bg-red-500/10 text-red-400"
-                  : "border-border bg-muted/50 text-muted-foreground"
-              )}
-              title={t("servers.settings.xnconnect.usageHint")}
-            >
-              <IconGauge className="w-3.5 h-3.5" strokeWidth={1.75} />
-              <span className="font-mono">{usage.used}/{usage.max}</span>
-              <span>·</span>
-              <span className="capitalize">{usage.plan}</span>
-            </div>
+      {/* XN Connect Relay */}
+      <SettingGroup
+        label={(
+          <span className="flex items-center gap-2">
+            <XnConnectLogo className="w-5 h-5 text-primary" />
+            XN Connect
+          </span>
+        )}
+        action={usage && (
+          <div
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border",
+              usage.used >= usage.max
+                ? "border-red-500/30 bg-red-500/10 text-red-400"
+                : "border-border bg-muted/50 text-muted-foreground"
+            )}
+            title={t("servers.settings.xnconnect.usageHint")}
+          >
+            <IconGauge className="w-3.5 h-3.5" strokeWidth={1.75} />
+            <span className="font-mono">{usage.used}/{usage.max}</span>
+            <span>·</span>
+            <span className="capitalize">{usage.plan}</span>
           </div>
         )}
+      >
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm text-muted-foreground">
             {t("servers.settings.xnconnect.desc")}
@@ -335,8 +328,8 @@ export function SettingsTab({ server }: SettingsTabProps) {
           <div className="w-full max-w-md p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                <IconWorld className="w-5 h-5 text-primary" strokeWidth={1.5} />
-                XN-Connect {t("servers.settings.xnconnect.authTitle")}
+                <XnConnectLogo className="w-5 h-5 text-primary" />
+                {t("servers.settings.xnconnect.authTitle")}
               </h3>
               <button
                 onClick={() => {
@@ -497,10 +490,13 @@ export function SettingsTab({ server }: SettingsTabProps) {
   )
 }
 
-function SettingGroup({ label, children }: { label: string; children: React.ReactNode }) {
+function SettingGroup({ label, action, children }: { label: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium text-foreground">{label}</label>
+      <div className="flex items-center gap-2">
+        <label className="text-sm font-medium text-foreground">{label}</label>
+        {action}
+      </div>
       {children}
     </div>
   )

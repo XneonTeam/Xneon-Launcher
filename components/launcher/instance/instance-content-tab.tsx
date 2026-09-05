@@ -140,6 +140,17 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   const deferredResults = useDeferredValue(displayResults)
 
   const [removingSlug, setRemovingSlug] = useState<string | null>(null)
+  const [installedSearch, setInstalledSearch] = useState("")
+  const deferredInstalledSearch = useDeferredValue(installedSearch)
+  const filteredInstalled = useMemo(() => {
+    const q = deferredInstalledSearch.trim().toLowerCase()
+    if (!q) return installedItems
+    return installedItems.filter(i =>
+      i.name.toLowerCase().includes(q) ||
+      (i.author ?? "").toLowerCase().includes(q) ||
+      (i.slug ?? "").toLowerCase().includes(q)
+    )
+  }, [installedItems, deferredInstalledSearch])
   const [versionPickerItem, setVersionPickerItem] = useState<BuildMod | null>(null)
   const [versionPickerVersions, setVersionPickerVersions] = useState<ModVersion[]>([])
   const [versionPickerLoading, setVersionPickerLoading] = useState(false)
@@ -360,13 +371,48 @@ export const InstanceContentTab = memo(function InstanceContentTab({
       <div className="flex flex-1 min-h-0 flex-col gap-4">
         <div className="grid gap-3 min-h-0 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
           <div className="flex flex-col min-h-0 rounded-2xl border border-border bg-card/50 p-4">
-            <div className="mb-3 flex items-center justify-between gap-3 shrink-0">
+            <div className="mb-2 flex items-center justify-between gap-3 shrink-0">
               <h3 className="text-sm font-medium text-foreground">Установлено</h3>
-              <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">{installedItems.length}</span>
+              <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+                {installedSearch.trim() ? `${filteredInstalled.length}/${installedItems.length}` : installedItems.length}
+              </span>
             </div>
 
+            {installedItems.length > 0 && (
+              <div className="relative mb-3 shrink-0">
+                <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={installedSearch}
+                  onChange={e => setInstalledSearch(e.target.value)}
+                  placeholder={t("builds.searchInstalled")}
+                  className="w-full pl-10 pr-8 py-2 rounded-xl bg-muted/50 border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary"
+                />
+                {installedSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setInstalledSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label={t("servers.cancel")}
+                  >
+                    <IconX className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1">
-              {installedItems.length > 0 ? installedItems.map((item) => {
+              {installedItems.length === 0 ? (
+                <div className="flex min-h-[180px] flex-col items-center justify-center rounded-2xl border border-dashed border-border text-center">
+                  <IconSearch className="mb-2 h-6 w-6 text-muted-foreground/40" />
+                  <p className="text-sm text-muted-foreground">{emptyStateText}</p>
+                </div>
+              ) : filteredInstalled.length === 0 ? (
+                <div className="flex min-h-[120px] flex-col items-center justify-center rounded-2xl border border-dashed border-border text-center">
+                  <IconSearch className="mb-2 h-5 w-5 text-muted-foreground/40" />
+                  <p className="text-sm text-muted-foreground">{t("builds.searchInstalledNoMatch")}</p>
+                </div>
+              ) : filteredInstalled.map((item) => {
                 const isEnabled = item.enabled ?? true
                 return (
                 <div key={item.id} className={`rounded-xl border p-3 transition-opacity ${isEnabled ? 'border-border bg-muted/20' : 'border-border/50 bg-muted/10 opacity-55'}`}>
@@ -440,12 +486,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                     </div>
                   </div>
                 </div>
-              )}) : (
-                <div className="flex min-h-[180px] flex-col items-center justify-center rounded-2xl border border-dashed border-border text-center">
-                  <IconSearch className="mb-2 h-6 w-6 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">{emptyStateText}</p>
-                </div>
-              )}
+              )})}
             </div>
           </div>
 
