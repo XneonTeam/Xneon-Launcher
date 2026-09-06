@@ -1,3 +1,4 @@
+import { toErrorMessage, opFailure } from "../../errors"
 import { shell } from "electron"
 import http from "http"
 import { URL } from "url"
@@ -156,9 +157,9 @@ export class OneDriveProvider implements CloudProvider {
           resolve({ success: true, provider: "onedrive" })
         } catch (e) {
           res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" })
-          res.end(callbackErrorPage("OneDrive", e instanceof Error ? e.message : String(e)))
+          res.end(callbackErrorPage("OneDrive", toErrorMessage(e)))
           server.close()
-          resolve({ success: false, error: e instanceof Error ? e.message : String(e) })
+          resolve({ success: false, error: toErrorMessage(e) })
         }
       })
       server.listen(REDIRECT_PORT, () => { shell.openExternal(authUrl.toString()) })
@@ -198,7 +199,7 @@ export class OneDriveProvider implements CloudProvider {
         category: f.folder ? undefined : (folderPath || "builds"),
       }))
       return { success: true, files }
-    } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
+    } catch (e) { return opFailure(e) }
   }
 
   async uploadFile(localPath: string, remotePath: string, onProgress?: (percent: number) => void): Promise<CloudUploadResult> {
@@ -242,7 +243,7 @@ export class OneDriveProvider implements CloudProvider {
       }
       if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
       return { success: true, id: full, name: fileName }
-    } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
+    } catch (e) { return opFailure(e) }
   }
 
   async downloadFile(remotePath: string, localPath: string): Promise<CloudDownloadResult> {
@@ -256,7 +257,7 @@ export class OneDriveProvider implements CloudProvider {
       await fs.mkdir(path.dirname(localPath), { recursive: true })
       await fs.writeFile(localPath, Buffer.from(arrayBuffer))
       return { success: true, localPath }
-    } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
+    } catch (e) { return opFailure(e) }
   }
 
   async deleteFile(remotePath: string): Promise<{ success: boolean; error?: string }> {
@@ -267,7 +268,7 @@ export class OneDriveProvider implements CloudProvider {
       const res = await graphFetch(`${GRAPH_API}/me/drive/root:/${encodeGraphPath(full)}:`, config, { method: "DELETE" })
       if (!res.ok && res.status !== 404) throw new Error(`Delete failed: ${res.status}`)
       return { success: true }
-    } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
+    } catch (e) { return opFailure(e) }
   }
 
   async getStorageQuota(): Promise<CloudStorageQuota | null> {

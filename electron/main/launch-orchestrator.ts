@@ -1,3 +1,4 @@
+import { toErrorMessage } from "./errors"
 // ============================================================
 // XNLC — Launch Orchestrator
 // Encapsulates the Minecraft launch worker lifecycle
@@ -110,7 +111,7 @@ export class LaunchOrchestrator {
           logRuntimeDebug(`[Minecraft] Using build intentPath: ${gameDir}`)
         }
       } catch (error) {
-        logRuntime(`[Minecraft] Failed to get build intent path: ${error instanceof Error ? error.message : String(error)}`)
+        logRuntime(`[Minecraft] Failed to get build intent path: ${toErrorMessage(error)}`)
       }
     }
 
@@ -199,7 +200,7 @@ export class LaunchOrchestrator {
       })
 
       worker.once("error", (error: Error) => {
-        const errorMessage = error instanceof Error ? error.message : String(error)
+        const errorMessage = toErrorMessage(error)
         logRuntime(`[Minecraft] Worker process error ${errorMessage}`)
         console.error("Launch worker failed:", errorMessage)
         settle({ success: false, error: errorMessage })
@@ -244,7 +245,7 @@ export class LaunchOrchestrator {
         logRuntimeDebug("[Minecraft] Launch payload sent to worker")
         this.setPresencePlaying(request.mcVersion, request.loaderType, request.buildName)
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
+        const errorMessage = toErrorMessage(error)
         logRuntime(`[Minecraft] Failed to initialize launch worker ${errorMessage}`)
         console.error("Failed to initialize launch worker:", errorMessage)
         settle({ success: false, error: errorMessage })

@@ -1,3 +1,4 @@
+import { toErrorMessage } from "./errors"
 import fs from "fs"
 import path from "path"
 import { spawnSync } from "child_process"
@@ -183,7 +184,7 @@ function runLaunchCommand(
     }
     return { code: 0 }
   } catch (error) {
-    return { code: 1, error: error instanceof Error ? error.message : String(error) }
+    return { code: 1, error: toErrorMessage(error) }
   }
 }
 
@@ -440,7 +441,7 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
         debug("Skipping RetroAuth --add-opens flags for legacy Java runtime")
       }
     } catch (error) {
-      debug(`Failed to ensure RetroAuth: ${error instanceof Error ? error.message : String(error)}`)
+      debug(`Failed to ensure RetroAuth: ${toErrorMessage(error)}`)
     }
   }
 
@@ -605,7 +606,7 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
   })
 
   minecraftProcess.once("error", (error) => {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toErrorMessage(error)
     debug(`Minecraft process error: ${errorMessage}`)
     send({ type: "error", error: errorMessage })
   })
@@ -640,7 +641,7 @@ process.on("message", async (msg: unknown) => {
   try {
     await launchMinecraft(message.payload)
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toErrorMessage(error)
     debug(`Worker launch failed: ${errorMessage}`)
     send({ type: "error", error: errorMessage })
     process.exit(1)

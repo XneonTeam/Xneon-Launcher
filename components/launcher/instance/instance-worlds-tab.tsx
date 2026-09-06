@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
+import { formatBytes, formatDateTime } from "@/lib/format"
 import {
   IconArchive,
   IconCopy,
@@ -20,18 +21,6 @@ import type { Build, DatapackInfo, ModalTab, ModDetails, ModSearchResult, ModVer
 
 interface InstanceWorldsTabProps {
   build: Build
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} Б`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КБ`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} МБ`
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} ГБ`
-}
-
-function formatDate(ms: number): string {
-  if (!ms) return "—"
-  return new Date(ms).toLocaleString("ru-RU", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
 }
 
 function formatPlaytime(seconds: number): string {
@@ -433,7 +422,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                       {world.mcVersion ? ` · ${world.mcVersion}` : ""}
                     </div>
                     <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground/70">
-                      <span>Играл: {formatDate(world.lastPlayed)}</span>
+                      <span>Играл: {formatDateTime(world.lastPlayed)}</span>
                     </div>
                   </div>
                 </button>
@@ -561,11 +550,11 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                 </div>
                 <div>
                   <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Размер</div>
-                  <div className="mt-1 text-sm font-medium text-foreground">{formatBytes(selectedWorld.sizeBytes)}</div>
+                  <div className="mt-1 text-sm font-medium text-foreground">{formatBytes(selectedWorld.sizeBytes, "ru")}</div>
                 </div>
                 <div className="col-span-2 sm:col-span-3">
                   <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Последний вход</div>
-                  <div className="mt-1 text-sm font-medium text-foreground">{formatDate(selectedWorld.lastPlayed)}</div>
+                  <div className="mt-1 text-sm font-medium text-foreground">{formatDateTime(selectedWorld.lastPlayed)}</div>
                 </div>
               </div>
 
@@ -604,7 +593,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                         <IconArchive className="h-4 w-4 flex-shrink-0 text-muted-foreground" strokeWidth={1.75} />
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm text-foreground">{dp.name}</div>
-                          <div className="text-[11px] text-muted-foreground">{formatBytes(dp.sizeBytes)}</div>
+                          <div className="text-[11px] text-muted-foreground">{formatBytes(dp.sizeBytes, "ru")}</div>
                         </div>
                         <button
                           type="button"

@@ -1,3 +1,4 @@
+import { toErrorMessage } from "./errors"
 import type { AuthSession, VersionInfo } from "@xnlc/core" with { "resolution-mode": "import" }
 import type { MinecraftLaunchParams } from "@xnlc/types" with { "resolution-mode": "import" }
 import * as fs from "fs/promises"
@@ -249,7 +250,7 @@ const launchHandlers: IpcHandlerDef[] = [
 
       return await runLaunchWorker(launchAccount, extendedRequest)
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = toErrorMessage(error)
       console.error("Launch failed:", errorMessage)
       clearLaunchState()
       return { success: false, error: errorMessage }

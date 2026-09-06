@@ -1,15 +1,14 @@
-import { app } from "electron"
+import { opFailure } from "../errors"
 import path from "path"
 import fs from "fs/promises"
 import { sendToRenderer } from "../runtime"
 import { dbHelpers } from "../../db"
 import { ensureSharedGameLinksSync } from "../shared-game-cache"
 import { fetchWithRetry } from "@xnlc/core/retry"
+import { getLauncherDataRoot } from "../paths"
 
 export function getBaseDataRoot(): string {
-  if (process.platform === "win32") return path.join(app.getPath("appData"), "xneonlauncher")
-  if (process.platform === "darwin") return path.join(app.getPath("home"), "Library", "Application Support", "xneonlauncher")
-  return path.join(app.getPath("home"), ".xneonlauncher")
+  return getLauncherDataRoot()
 }
 
 let cachedInstancesRoot: string | null = null
@@ -215,7 +214,7 @@ export async function deleteContentFromIntent(dirName: string, contentType: "mod
     // успешным, иначе такой мод нельзя будет убрать из списка.
     return { success: true }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return opFailure(error)
   }
 }
 
@@ -263,7 +262,7 @@ export async function setContentEnabledInIntent(
     if (source !== destination) await fs.rename(source, destination)
     return { success: true, fileName: path.relative(targetDir, destination).replace(/\\/g, "/") }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return opFailure(error)
   }
 }
 

@@ -1,3 +1,4 @@
+import { opFailure } from "./errors"
 import { app, dialog, ipcMain, shell } from "electron"
 import os from "os"
 import path from "path"
@@ -308,7 +309,7 @@ export function registerSystemHandlers() {
       if (data.url) await shell.openExternal(data.url)
       return { success: true, url: data.url }
     } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     }
   })
 }

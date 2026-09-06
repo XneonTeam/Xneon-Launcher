@@ -1,3 +1,4 @@
+import { toErrorMessage, opFailure } from "../errors"
 import { app, dialog, ipcMain } from "electron"
 import path from "path"
 import fs from "fs/promises"
@@ -141,7 +142,7 @@ export function registerBuildHandlers() {
       await loadInstancesRoot()
       return { success: true, root: getInstancesRoot() }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -192,7 +193,7 @@ export function registerBuildHandlers() {
       })
       return { success: true, intentPath: newIntentPath }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -204,7 +205,7 @@ export function registerBuildHandlers() {
       try { await fs.access(intentPath); await fs.rm(intentPath, { recursive: true, force: true }) } catch {}
       return { success: true }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -223,7 +224,7 @@ export function registerBuildHandlers() {
       })
       return { success: true, trashName }
     } catch (error) {
-      return { success: true, error: error instanceof Error ? error.message : String(error) }
+      return { success: true, error: toErrorMessage(error) }
     }
   })
 
@@ -244,7 +245,7 @@ export function registerBuildHandlers() {
       if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") {
         return { success: true }
       }
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -254,7 +255,7 @@ export function registerBuildHandlers() {
       await fs.rm(trashPath, { recursive: true, force: true }).catch(() => {})
       return { success: true }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -282,7 +283,7 @@ export function registerBuildHandlers() {
       await fs.rm(trashPath, { recursive: true, force: true })
       return { success: true }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -295,7 +296,7 @@ export function registerBuildHandlers() {
       await fs.cp(srcIntentPath, newIntentPath, { recursive: true, verbatimSymlinks: true })
       return { success: true, intentPath: newIntentPath }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -333,7 +334,7 @@ export function registerBuildHandlers() {
       await fs.writeFile(picked.filePath, zip.toBuffer())
       return { success: true, path: picked.filePath }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -381,7 +382,7 @@ export function registerBuildHandlers() {
       await fs.writeFile(picked.filePath, content, "utf-8")
       return { success: true, path: picked.filePath }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -408,7 +409,7 @@ export function registerBuildHandlers() {
         await fs.writeFile(filePath, await downloadBuffer(url))
         return { success: true, filePath }
       } catch (error) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) }
+        return opFailure(error)
       }
     },
   )
@@ -472,7 +473,7 @@ export function registerBuildHandlers() {
           if (isImportCancelledError(error)) {
             throw error
           }
-          const message = error instanceof Error ? error.message : String(error)
+          const message = toErrorMessage(error)
           sendImportProgress(downloaded, totalFiles, `Ошибка загрузки ${currentFileName}`, currentFileName)
           throw new Error(`Не удалось скачать ${currentFileName}: ${message}`)
         } finally {
@@ -490,7 +491,7 @@ export function registerBuildHandlers() {
       if (isImportCancelledError(e)) {
         return { success: false, cancelled: true, error: "Импорт отменен" }
       }
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     } finally {
       finishImportSession(signal)
     }
@@ -548,7 +549,7 @@ export function registerBuildHandlers() {
           if (isImportCancelledError(error)) {
             throw error
           }
-          const message = error instanceof Error ? error.message : String(error)
+          const message = toErrorMessage(error)
           sendImportProgress(downloaded, totalFiles, `Ошибка загрузки ${fileName}`, fileName)
           throw new Error(`Не удалось скачать ${fileName}: ${message}`)
         }
@@ -565,7 +566,7 @@ export function registerBuildHandlers() {
       if (isImportCancelledError(e)) {
         return { success: false, cancelled: true, error: "Импорт отменен" }
       }
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     } finally {
       finishImportSession(signal)
     }
@@ -627,7 +628,7 @@ export function registerBuildHandlers() {
           if (isImportCancelledError(error)) {
             throw error
           }
-          const message = error instanceof Error ? error.message : String(error)
+          const message = toErrorMessage(error)
           sendImportProgress(downloaded, totalFiles, `Ошибка загрузки ${fileName}`, fileName)
           throw new Error(`Не удалось скачать ${fileName}: ${message}`)
         } finally {
@@ -644,7 +645,7 @@ export function registerBuildHandlers() {
       if (isImportCancelledError(e)) {
         return { success: false, cancelled: true, error: "Импорт отменен" }
       }
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     } finally {
       finishImportSession(signal)
     }
@@ -708,7 +709,7 @@ export function registerBuildHandlers() {
             if (isImportCancelledError(error)) {
               throw error
             }
-            const message = error instanceof Error ? error.message : String(error)
+            const message = toErrorMessage(error)
             sendImportProgress(downloaded, totalFiles, `Ошибка загрузки ${currentFileName}`, currentFileName)
             throw new Error(`Не удалось скачать ${currentFileName}: ${message}`)
           } finally {
@@ -783,7 +784,7 @@ export function registerBuildHandlers() {
             if (isImportCancelledError(error)) {
               throw error
             }
-            const message = error instanceof Error ? error.message : String(error)
+            const message = toErrorMessage(error)
             sendImportProgress(downloaded, totalFiles, `Ошибка загрузки ${fileName}`, fileName)
             throw new Error(`Не удалось скачать ${fileName}: ${message}`)
           }
@@ -821,7 +822,7 @@ export function registerBuildHandlers() {
       if (isImportCancelledError(e)) {
         return { success: false, cancelled: true, error: "Импорт отменен" }
       }
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     } finally {
       finishImportSession(signal)
     }

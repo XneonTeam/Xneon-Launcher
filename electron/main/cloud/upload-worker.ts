@@ -1,3 +1,4 @@
+import { toErrorMessage } from "../errors"
 import { parentPort, workerData } from "worker_threads"
 import path from "path"
 import fs from "fs/promises"
@@ -40,7 +41,7 @@ async function run(): Promise<void> {
     const result: ZipWorkerResult = { ok: true, archivePath }
     parentPort?.postMessage({ type: "zip-done", result } satisfies ZipDoneMessage)
   } catch (e) {
-    const result: ZipWorkerResult = { ok: false, error: e instanceof Error ? e.message : String(e) }
+    const result: ZipWorkerResult = { ok: false, error: toErrorMessage(e) }
     parentPort?.postMessage({ type: "zip-done", result } satisfies ZipDoneMessage)
   }
 }

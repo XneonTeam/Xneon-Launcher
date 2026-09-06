@@ -137,6 +137,21 @@ export type AuthSession = {
   profileName?: string
 }
 
+export type DeviceCodeStart = {
+  deviceCode: string
+  userCode: string
+  verificationUri: string
+  verificationUriComplete: string
+  expiresIn: number
+  interval: number
+}
+
+export type DeviceCodePoll =
+  | { status: "pending"; slowDown?: boolean }
+  | { status: "expired" }
+  | { status: "complete"; account: AuthPayload }
+  | { status: "error"; message: string; retryable?: boolean }
+
 // ── Minecraft Types ─────────────────────────────────────────
 
 export type MinecraftVersionInfo = {

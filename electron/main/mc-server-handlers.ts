@@ -1,3 +1,4 @@
+import { opFailure } from "./errors"
 import { ipcMain, BrowserWindow, dialog } from "electron"
 import { randomUUID, createHash } from "crypto"
 import path from "path"
@@ -249,7 +250,7 @@ export function registerMcServerHandlers() {
       await fs.promises.writeFile(picked.filePath, zip.toBuffer())
       return { success: true, path: picked.filePath }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 

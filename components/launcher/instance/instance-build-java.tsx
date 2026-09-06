@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
+import { memoryToMb, mbToMemory } from "@/lib/memory"
 import { IconFolderPlus, IconLoader2, IconSettings, IconX } from "@tabler/icons-react"
 import { MemorySlider } from "@/components/ui/memory-slider"
 import { useMemoryOptions } from "@/src/hooks/use-memory-options"
@@ -10,19 +11,6 @@ import type { Build } from "./types"
 interface InstanceBuildJavaProps {
   build: Build
   updateBuild: (id: string, fields: Partial<Build>) => void
-}
-
-function memoryToMb(val?: string): number {
-  if (!val) return 2048
-  const s = val.trim().toUpperCase()
-  if (s.endsWith("G")) return parseInt(s, 10) * 1024
-  if (s.endsWith("M")) return parseInt(s, 10)
-  return parseInt(s, 10) || 2048
-}
-
-function mbToMemory(mb: number): string {
-  if (mb >= 1024 && mb % 1024 === 0) return `${mb / 1024}G`
-  return `${mb}M`
 }
 
 export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps) {

@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from "react"
 import { useTranslation } from "react-i18next"
 import type { Account } from "@/src/AccountsContext"
 import type { QuickPlayEntry } from "@xnlc/types"
-import type { LauncherWorldInfo } from "@/src/electron.d"
+import type { WorldInfo } from "@xnlc/types"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -41,7 +41,7 @@ type HomeControlsProps = {
 
 const QUICK_PLAY_MAX = 10
 
-function WorldCarousel({ worlds, buildName, onPlay }: { worlds: LauncherWorldInfo[]; buildName?: string; onPlay: (folder: string) => void }) {
+function WorldCarousel({ worlds, buildName, onPlay }: { worlds: WorldInfo[]; buildName?: string; onPlay: (folder: string) => void }) {
   const [index, setIndex] = useState(0)
   const world = worlds[index]
 
@@ -116,7 +116,7 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
   onQuickPlayLaunch?: (type: "singleplayer" | "multiplayer", address: string) => void
 }) {
   const { t } = useTranslation()
-  const [worlds, setWorlds] = useState<LauncherWorldInfo[]>([])
+  const [worlds, setWorlds] = useState<WorldInfo[]>([])
   const [entries, setEntries] = useState<QuickPlayEntry[]>([])
   const [loading, setLoading] = useState(false)
 
