@@ -1,3 +1,4 @@
+import { toErrorMessage, opFailure } from "./errors"
 // ============================================================
 // Servers IPC Handlers
 // - "servers:list": read servers from a build's servers.dat
@@ -73,7 +74,7 @@ export function registerServerHandlers() {
         writeServersDatFile(datPath, nbt)
         return { success: true }
       } catch (e) {
-        return { success: false, error: e instanceof Error ? e.message : String(e) }
+        return opFailure(e)
       }
     }
   )
@@ -90,7 +91,7 @@ export function registerServerHandlers() {
         players_max: 0,
         version: "",
         latency_ms: 0,
-        error: e instanceof Error ? e.message : String(e),
+        error: toErrorMessage(e),
       }
     }
   })

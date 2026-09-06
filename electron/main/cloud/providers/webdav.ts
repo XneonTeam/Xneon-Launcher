@@ -1,3 +1,4 @@
+import { toErrorMessage, opFailure } from "../../errors"
 import fs from "fs/promises"
 import path from "path"
 import type { CloudProvider, CloudAuthResult, CloudFileListResult, CloudUploadResult, CloudDownloadResult, CloudStorageQuota, CloudFileInfo } from "../provider"
@@ -64,7 +65,7 @@ export class WebDavProvider implements CloudProvider {
       cachedConfig = config
       return { success: true, provider: "webdav" }
     } catch (e) {
-      return { success: false, error: `Не удалось подключиться: ${e instanceof Error ? e.message : String(e)}` }
+      return { success: false, error: `Не удалось подключиться: ${toErrorMessage(e)}` }
     }
   }
 
@@ -102,7 +103,7 @@ export class WebDavProvider implements CloudProvider {
         category: f.type === "directory" ? undefined : (folderPath || "builds"),
       }))
       return { success: true, files }
-    } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
+    } catch (e) { return opFailure(e) }
   }
 
   async uploadFile(localPath: string, remotePath: string, onProgress?: (percent: number) => void): Promise<CloudUploadResult> {
@@ -132,7 +133,7 @@ export class WebDavProvider implements CloudProvider {
       })
       if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
       return { success: true, id: destPath, name: fileName }
-    } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
+    } catch (e) { return opFailure(e) }
   }
 
   async downloadFile(remotePath: string, localPath: string): Promise<CloudDownloadResult> {
@@ -144,7 +145,7 @@ export class WebDavProvider implements CloudProvider {
       await fs.mkdir(path.dirname(localPath), { recursive: true })
       await fs.writeFile(localPath, Buffer.from(content))
       return { success: true, localPath }
-    } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
+    } catch (e) { return opFailure(e) }
   }
 
   async deleteFile(remotePath: string): Promise<{ success: boolean; error?: string }> {
@@ -154,7 +155,7 @@ export class WebDavProvider implements CloudProvider {
       const srcPath = `/${BASE_FOLDER}/${remotePath}`
       await client.deleteFile(srcPath)
       return { success: true }
-    } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
+    } catch (e) { return opFailure(e) }
   }
 
   async getStorageQuota(): Promise<CloudStorageQuota | null> {

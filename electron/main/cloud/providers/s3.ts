@@ -1,3 +1,4 @@
+import { toErrorMessage, opFailure } from "../../errors"
 import fs from "fs/promises"
 import path from "path"
 import crypto from "crypto"
@@ -187,7 +188,7 @@ export class S3Provider implements CloudProvider {
       await writeConfig(config)
       return { success: true, provider: "s3" }
     } catch (e) {
-      return { success: false, error: `Не удалось подключиться: ${e instanceof Error ? e.message : String(e)}` }
+      return { success: false, error: `Не удалось подключиться: ${toErrorMessage(e)}` }
     }
   }
 
@@ -219,7 +220,7 @@ export class S3Provider implements CloudProvider {
       const prefix = folderPath ? `${BASE_PREFIX}${folderPath}/` : BASE_PREFIX
       const files = await listS3Files(config, prefix)
       return { success: true, files }
-    } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
+    } catch (e) { return opFailure(e) }
   }
 
   async uploadFile(localPath: string, remotePath: string, onProgress?: (percent: number) => void): Promise<CloudUploadResult> {
@@ -234,7 +235,7 @@ export class S3Provider implements CloudProvider {
       if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`)
       onProgress?.(100)
       return { success: true, id: key, name: path.basename(remotePath) }
-    } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
+    } catch (e) { return opFailure(e) }
   }
 
   async downloadFile(remotePath: string, localPath: string): Promise<CloudDownloadResult> {
@@ -250,7 +251,7 @@ export class S3Provider implements CloudProvider {
       await fs.mkdir(path.dirname(localPath), { recursive: true })
       await fs.writeFile(localPath, buffer)
       return { success: true, localPath }
-    } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
+    } catch (e) { return opFailure(e) }
   }
 
   async deleteFile(remotePath: string): Promise<{ success: boolean; error?: string }> {
@@ -262,7 +263,7 @@ export class S3Provider implements CloudProvider {
       const res = await s3Request(config, "DELETE", url)
       if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
       return { success: true }
-    } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
+    } catch (e) { return opFailure(e) }
   }
 
   async getStorageQuota(): Promise<CloudStorageQuota | null> {

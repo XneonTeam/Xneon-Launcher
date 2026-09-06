@@ -1,3 +1,4 @@
+import { opFailure } from "../errors"
 import { ipcMain, shell, app } from "electron"
 import path from "path"
 import fs from "fs/promises"
@@ -45,7 +46,7 @@ export function registerCloudHandlers() {
       }
       return result
     } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     }
   })
 
@@ -62,7 +63,7 @@ export function registerCloudHandlers() {
       await provider.logout()
       return { success: true }
     } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     }
   })
 
@@ -72,7 +73,7 @@ export function registerCloudHandlers() {
       const result = await provider.listFiles(folderPath)
       return result
     } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     }
   })
 
@@ -87,7 +88,7 @@ export function registerCloudHandlers() {
       sendUploadProgress(id, 100, "upload")
       return result
     } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     }
   })
 
@@ -96,7 +97,7 @@ export function registerCloudHandlers() {
       const provider = getProvider(providerId)
       return await provider.downloadFile(remotePath, localPath)
     } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     }
   })
 
@@ -105,7 +106,7 @@ export function registerCloudHandlers() {
       const provider = getProvider(providerId)
       return await provider.deleteFile(remotePath)
     } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     }
   })
 
@@ -137,7 +138,7 @@ export function registerCloudHandlers() {
       sendUploadProgress(id, 100, "upload")
       return result
     } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     }
   })
 
@@ -155,7 +156,7 @@ export function registerCloudHandlers() {
       sendUploadProgress(id, 100, "upload")
       return result
     } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     }
   })
 
@@ -206,7 +207,7 @@ export function registerCloudHandlers() {
 
       return { success: true }
     } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     }
   })
 }

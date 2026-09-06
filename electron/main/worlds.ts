@@ -1,3 +1,4 @@
+import { opFailure } from "./errors"
 // ============================================================
 // Worlds & Screenshots IPC Handlers
 // Per-build save management: list/rename/delete/icon/seed,
@@ -10,38 +11,7 @@ import path from "path"
 import fs from "fs/promises"
 import type { NBTCompound } from "@xnlc/nbt"
 import { ensureBuildIntentDir, downloadBuffer, sanitizeFileName } from "./builds/helpers"
-
-type WorldInfo = {
-  folder: string
-  name: string
-  seed: string
-  gameMode: string
-  hardcore: boolean
-  lastPlayed: number
-  playedTime: number
-  mcVersion: string
-  iconDataUrl: string
-  sizeBytes: number
-  lastModified: number
-  path: string
-  datapackCount: number
-  hasLevelData: boolean
-}
-
-type DatapackInfo = {
-  name: string
-  sizeBytes: number
-  lastModified: number
-  path: string
-}
-
-type ScreenshotInfo = {
-  name: string
-  sizeBytes: number
-  lastModified: number
-  thumbDataUrl: string
-  path: string
-}
+import type { WorldInfo, DatapackInfo, ScreenshotInfo } from "@xnlc/types" with { "resolution-mode": "import" }
 
 type OpResult = { success: boolean; error?: string }
 
@@ -315,23 +285,11 @@ export function registerWorldsHandlers(): void {
       }
 
       // Update LevelName inside level.dat (keep in-sync display name)
-      const targetWorldPath = newWorldPath
-      const level = await readLevelNbt(targetWorldPath)
-      if (level) {
-        try {
-          const nbt = await import("@xnlc/nbt")
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const data = (level as any).Data
-          if (data?.LevelName) {
-            data.LevelName = trimmedName
-            await fs.writeFile(path.join(targetWorldPath, "level.dat"), new nbt.NBTWriter().write(level, { compressed: "gzip" }))
-          }
-        } catch { /* level.dat update is best-effort */ }
-      }
+      await updateLevelName(newWorldPath, trimmedName)
 
       return { success: true }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -344,7 +302,7 @@ export function registerWorldsHandlers(): void {
       await fs.rm(worldPath, { recursive: true, force: true })
       return { success: true }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -361,7 +319,7 @@ export function registerWorldsHandlers(): void {
       await fs.writeFile(path.join(worldPath, "icon.png"), resized.toPNG())
       return { success: true }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -374,7 +332,7 @@ export function registerWorldsHandlers(): void {
       await fs.rm(path.join(worldPath, "icon.png"), { force: true })
       return { success: true }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -394,7 +352,7 @@ export function registerWorldsHandlers(): void {
       await updateLevelName(newWorldPath, trimmedName)
       return { success: true, folder: newFolder }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -444,7 +402,7 @@ export function registerWorldsHandlers(): void {
       if (trimmedName) await updateLevelName(destRoot, trimmedName)
       return { success: true, folder: destFolder }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -478,7 +436,7 @@ export function registerWorldsHandlers(): void {
       }
       return { success: true, path: filePath }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -497,7 +455,7 @@ export function registerWorldsHandlers(): void {
       }
       return { success: true, path: destPath }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -513,7 +471,7 @@ export function registerWorldsHandlers(): void {
       await fs.rm(filePath, { recursive: true, force: true })
       return { success: true }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -582,7 +540,7 @@ export function registerWorldsHandlers(): void {
       await fs.rm(filePath, { force: true })
       return { success: true }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 
@@ -607,7 +565,7 @@ export function registerWorldsHandlers(): void {
       await fs.rename(src, dest)
       return { success: true }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return opFailure(error)
     }
   })
 }

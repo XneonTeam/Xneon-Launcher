@@ -1,3 +1,4 @@
+import { toErrorMessage, opFailure } from "../../errors"
 import { shell } from "electron"
 import http from "http"
 import { URL } from "url"
@@ -87,9 +88,9 @@ export class DropboxProvider implements CloudProvider {
           resolve({ success: true, provider: "dropbox" })
         } catch (e) {
           res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" })
-          res.end(callbackErrorPage("Dropbox", e instanceof Error ? e.message : String(e)))
+          res.end(callbackErrorPage("Dropbox", toErrorMessage(e)))
           server.close()
-          resolve({ success: false, error: e instanceof Error ? e.message : String(e) })
+          resolve({ success: false, error: toErrorMessage(e) })
         }
       })
       server.listen(REDIRECT_PORT, () => { shell.openExternal(authUrl.toString()) })
@@ -132,7 +133,7 @@ export class DropboxProvider implements CloudProvider {
           category: e[".tag"] === "folder" ? undefined : (folderPath || "builds"),
         }))
       return { success: true, files }
-    } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
+    } catch (e) { return opFailure(e) }
   }
 
   async uploadFile(localPath: string, remotePath: string, onProgress?: (percent: number) => void): Promise<CloudUploadResult> {
@@ -157,7 +158,7 @@ export class DropboxProvider implements CloudProvider {
       if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
       const created = res.json as { id: string; name: string; path_display: string }
       return { success: true, id: created.id, name: created.name }
-    } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
+    } catch (e) { return opFailure(e) }
   }
 
   async downloadFile(remotePath: string, localPath: string): Promise<CloudDownloadResult> {
@@ -174,7 +175,7 @@ export class DropboxProvider implements CloudProvider {
       await fs.mkdir(path.dirname(localPath), { recursive: true })
       await fs.writeFile(localPath, Buffer.from(arrayBuffer))
       return { success: true, localPath }
-    } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
+    } catch (e) { return opFailure(e) }
   }
 
   async deleteFile(remotePath: string): Promise<{ success: boolean; error?: string }> {
@@ -188,7 +189,7 @@ export class DropboxProvider implements CloudProvider {
         body: JSON.stringify({ path: dbxPath }),
       })
       return { success: true }
-    } catch (e) { return { success: false, error: e instanceof Error ? e.message : String(e) } }
+    } catch (e) { return opFailure(e) }
   }
 
   async getStorageQuota(): Promise<CloudStorageQuota | null> {

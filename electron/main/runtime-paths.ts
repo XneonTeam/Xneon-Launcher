@@ -2,19 +2,13 @@ import { app } from "electron"
 import path from "path"
 import fs from "fs/promises"
 import { constants } from "fs"
+import { ensureDir } from "./utils/fs"
 
 const homeDir = app.getPath("home")
 const configDir = path.join(homeDir, ".config", "xneon-launcher")
 const cacheDir = path.join(homeDir, ".cache", "xneon-launcher")
 const runtimeDir = path.join(cacheDir, "runtime")
 const runtimeTempDir = path.join(cacheDir, "temp")
-
-async function ensureDir(dir: string) {
-  try {
-    await fs.mkdir(dir, { recursive: true, mode: 0o700 })
-  } catch {}
-  return dir
-}
 
 async function canUseDir(dir?: string) {
   if (!dir) return false
@@ -28,11 +22,11 @@ async function canUseDir(dir?: string) {
 }
 
 export async function ensureRuntimeDir() {
-  return ensureDir(runtimeDir)
+  return ensureDir(runtimeDir, 0o700)
 }
 
 export async function ensureRuntimeTempDir() {
-  return ensureDir(runtimeTempDir)
+  return ensureDir(runtimeTempDir, 0o700)
 }
 
 export async function configureRuntimePaths() {

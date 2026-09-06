@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
   AuthPayload,
   AuthSession,
+  DeviceCodeStart,
+  DeviceCodePoll,
   MinecraftVersionInfo,
   MinecraftProgress,
   MinecraftNewsEntry,
@@ -35,72 +37,13 @@ import type {
   McPlayerEntry,
   McServerState,
   McServerMetrics,
+  WorldInfo,
+  DatapackInfo,
+  ScreenshotInfo,
+  XnConnectState,
+  XnConnectUsage,
 } from '@xnlc/types' with { 'resolution-mode': 'import' }
-
-// World/screenshot types are defined locally (not imported from @xnlc/types)
-// so the preload compiles against any published version of the package.
-// Keep in sync with electron/main/worlds.ts and @xnlc/types domain-types.
-type WorldInfo = {
-  folder: string
-  name: string
-  seed: string
-  gameMode: string
-  hardcore: boolean
-  lastPlayed: number
-  playedTime: number
-  mcVersion: string
-  iconDataUrl: string
-  sizeBytes: number
-  lastModified: number
-  path: string
-  datapackCount: number
-  hasLevelData: boolean
-}
-
-type DatapackInfo = {
-  name: string
-  sizeBytes: number
-  lastModified: number
-  path: string
-}
-
-type ScreenshotInfo = {
-  name: string
-  sizeBytes: number
-  lastModified: number
-  thumbDataUrl: string
-  path: string
-}
-
-// Server status type is defined locally (not imported from @xnlc/types)
-// so the preload compiles against any published version of the package.
-// Keep in sync with electron/main/server-status.ts.
-type ServerStatusResult = {
-  online: boolean
-  ip: string
-  port: number
-  players_online: number
-  players_max: number
-  motd_raw?: string
-  motd_clean?: string
-  version: string
-  latency_ms: number
-  icon?: string
-  error?: string
-}
-
-type XnConnectState =
-  | { status: "stopped" }
-  | { status: "auth_required"; authUrl: string }
-  | { status: "starting" }
-  | { status: "running"; publicAddress: string; tunnelId: string }
-  | { status: "limit_reached"; used: number; max: number; plan: string }
-
-type XnConnectUsage = {
-  used: number
-  max: number
-  plan: string
-}
+import type { ServerStatusResult } from '@xnlc/servers'
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): CleanupFn {
   const handler = (_: Electron.IpcRendererEvent, payload: T) => callback(payload)
@@ -128,35 +71,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Auth ───────────────────────────────────────────────
   loginElyBy: invoke<AuthPayload>('auth:elyby-login'),
-  startElyByDeviceCode: invoke<{
-    deviceCode: string
-    userCode: string
-    verificationUri: string
-    verificationUriComplete: string
-    expiresIn: number
-    interval: number
-  }>('auth:elyby-device-start'),
-  pollElyByDeviceCode: (deviceCode: string) => ipcRenderer.invoke('auth:elyby-device-poll', deviceCode) as Promise<{ status: "pending"; slowDown?: boolean } | { status: "expired" } | { status: "complete"; account: AuthPayload } | { status: "error"; message: string; retryable?: boolean }>,
+  startElyByDeviceCode: invoke<DeviceCodeStart>('auth:elyby-device-start'),
+  pollElyByDeviceCode: (deviceCode: string) => ipcRenderer.invoke('auth:elyby-device-poll', deviceCode) as Promise<DeviceCodePoll>,
   loginXnSkins: invoke<AuthPayload>('auth:xnskins-login'),
-  startXnSkinsDeviceCode: invoke<{
-    deviceCode: string
-    userCode: string
-    verificationUri: string
-    verificationUriComplete: string
-    expiresIn: number
-    interval: number
-  }>('auth:xnskins-device-start'),
-  pollXnSkinsDeviceCode: (deviceCode: string) => ipcRenderer.invoke('auth:xnskins-device-poll', deviceCode) as Promise<{ status: "pending"; slowDown?: boolean } | { status: "expired" } | { status: "complete"; account: AuthPayload } | { status: "error"; message: string; retryable?: boolean }>,
+  startXnSkinsDeviceCode: invoke<DeviceCodeStart>('auth:xnskins-device-start'),
+  pollXnSkinsDeviceCode: (deviceCode: string) => ipcRenderer.invoke('auth:xnskins-device-poll', deviceCode) as Promise<DeviceCodePoll>,
   loginMicrosoft: invoke<AuthPayload>('auth:microsoft-login'),
-  startMicrosoftDeviceCode: invoke<{
-    deviceCode: string
-    userCode: string
-    verificationUri: string
-    verificationUriComplete: string
-    expiresIn: number
-    interval: number
-  }>('auth:microsoft-device-start'),
-  pollMicrosoftDeviceCode: (deviceCode: string) => ipcRenderer.invoke('auth:microsoft-device-poll', deviceCode) as Promise<{ status: "pending"; slowDown?: boolean } | { status: "expired" } | { status: "complete"; account: AuthPayload } | { status: "error"; message: string; retryable?: boolean }>,
+  startMicrosoftDeviceCode: invoke<DeviceCodeStart>('auth:microsoft-device-start'),
+  pollMicrosoftDeviceCode: (deviceCode: string) => ipcRenderer.invoke('auth:microsoft-device-poll', deviceCode) as Promise<DeviceCodePoll>,
   onAuthProgress: (callback: (msg: string) => void) => {
     const handler = (_: Electron.IpcRendererEvent, msg: string) => callback(msg)
     ipcRenderer.on('auth:progress', handler)

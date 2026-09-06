@@ -63,100 +63,13 @@ export type BuildMod = {
 
 // -- Unified Mod Types (aligned with xnlc/mods) --
 
-export type ModSearchResult = {
-  id: string
-  slug: string
-  name: string
-  summary: string
-  iconUrl: string
-  downloadCount: number
-  categories: string[]
-  source: Source
-  author?: string
-  projectId?: string
-  modId?: number
-  primaryFileId?: number
-  primaryFileName?: string
-  fileSize?: number
-  dateCreated?: string
-  dateModified?: string
-}
+import type { ModSearchResult, ModDetails, ModVersion, ModDependency } from "@xnlc/types"
 
-export type ModDependency = {
-  projectId: string
-  versionId?: string | null
-  fileName?: string | null
-  dependencyType: "required" | "optional" | "incompatible" | "embedded"
-  name?: string
-  slug?: string
-  iconUrl?: string
-}
-
-export type ModVersion = {
-  id: string
-  name: string
-  gameVersion: string
-  downloadCount: number
-  fileName: string
-  fileSize: number
-  downloadUrl?: string
-  versionType?: "release" | "beta" | "alpha"
-  loaders?: string[]
-  changelog?: string
-  datePublished?: string
-  files?: { url: string; size: number; filename: string }[]
-  dependencies?: ModDependency[]
-}
-
-export type ModDetails = {
-  id: string
-  slug: string
-  name: string
-  summary: string
-  description: string
-  iconUrl: string
-  downloadCount: number
-  categories: string[]
-  versions: ModVersion[]
-  gallery: { url: string; title?: string }[]
-  source: Source
-  body?: string
-  modId?: number
-  projectId?: string
-}
+export type { ModSearchResult, ModDetails, ModVersion, ModDependency }
 
 // -- World / Save Management --
 
-export type WorldInfo = {
-  folder: string
-  name: string
-  seed: string
-  gameMode: string
-  hardcore: boolean
-  lastPlayed: number
-  playedTime: number
-  mcVersion: string
-  iconDataUrl: string
-  sizeBytes: number
-  lastModified: number
-  path: string
-  datapackCount: number
-}
-
-export type DatapackInfo = {
-  name: string
-  sizeBytes: number
-  lastModified: number
-  path: string
-}
-
-export type ScreenshotInfo = {
-  name: string
-  sizeBytes: number
-  lastModified: number
-  thumbDataUrl: string
-  path: string
-}
+export type { WorldInfo, DatapackInfo, ScreenshotInfo } from "@xnlc/types"
 
 /** @deprecated Use ModSearchResult instead */
 export type ModrinthProject = ModSearchResult & { title?: string; description?: string; icon_url?: string; downloads?: number }

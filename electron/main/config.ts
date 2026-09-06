@@ -1,50 +1,31 @@
 import { dbHelpers } from "../db"
 import { getCloudCredentials } from "./cloud/credentials"
 
-export async function getCloudApiUrl(): Promise<string> {
-  const stored = await dbHelpers.getSetting("cloudApiUrl")
-  if (stored) return stored
-  return process.env.CLOUD_API_URL || "http://87.121.82.248:3001/api"
+async function getSettingOrDefault(key: string, fallback: string): Promise<string> {
+  const stored = await dbHelpers.getSetting(key)
+  return stored || fallback
 }
 
-export async function getXnClientId(): Promise<string> {
-  const stored = await dbHelpers.getSetting("xnClientId")
-  if (stored) return stored
-  return getCloudCredentials().xnskins.clientId
-}
+export const getCloudApiUrl = () =>
+  getSettingOrDefault("cloudApiUrl", process.env.CLOUD_API_URL || "http://87.121.82.248:3001/api")
 
-export async function getXnClientSecret(): Promise<string> {
-  const stored = await dbHelpers.getSetting("xnClientSecret")
-  if (stored) return stored
-  return getCloudCredentials().xnskins.clientSecret
-}
+export const getXnClientId = () =>
+  getSettingOrDefault("xnClientId", getCloudCredentials().xnskins.clientId)
 
-export async function getElyClientId(): Promise<string> {
-  const stored = await dbHelpers.getSetting("elyClientId")
-  if (stored) return stored
-  return getCloudCredentials().elyby.clientId
-}
+export const getXnClientSecret = () =>
+  getSettingOrDefault("xnClientSecret", getCloudCredentials().xnskins.clientSecret)
 
-export async function getElyClientSecret(): Promise<string> {
-  const stored = await dbHelpers.getSetting("elyClientSecret")
-  if (stored) return stored
-  return getCloudCredentials().elyby.clientSecret
-}
+export const getElyClientId = () =>
+  getSettingOrDefault("elyClientId", getCloudCredentials().elyby.clientId)
 
-export async function getElyDeviceClientId(): Promise<string> {
-  const stored = await dbHelpers.getSetting("elyDeviceClientId")
-  if (stored) return stored
-  return getCloudCredentials().elyby.deviceClientId || "xneon-launcher"
-}
+export const getElyClientSecret = () =>
+  getSettingOrDefault("elyClientSecret", getCloudCredentials().elyby.clientSecret)
 
-export async function getMicrosoftClientId(): Promise<string> {
-  const stored = await dbHelpers.getSetting("microsoftClientId")
-  if (stored) return stored
-  return getCloudCredentials().microsoft.clientId
-}
+export const getElyDeviceClientId = () =>
+  getSettingOrDefault("elyDeviceClientId", getCloudCredentials().elyby.deviceClientId || "xneon-launcher")
 
-export async function getMicrosoftDeviceClientId(): Promise<string> {
-  const stored = await dbHelpers.getSetting("microsoftDeviceClientId")
-  if (stored) return stored
-  return getCloudCredentials().microsoftDevice.clientId
-}
+export const getMicrosoftClientId = () =>
+  getSettingOrDefault("microsoftClientId", getCloudCredentials().microsoft.clientId)
+
+export const getMicrosoftDeviceClientId = () =>
+  getSettingOrDefault("microsoftDeviceClientId", getCloudCredentials().microsoftDevice.clientId)

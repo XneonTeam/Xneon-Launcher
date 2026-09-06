@@ -2,8 +2,9 @@ import path from "path"
 import fs from "fs/promises"
 import fsSync from "fs"
 import { createRequire } from "node:module"
-import { app } from "electron"
 import initSqlJs from "sql.js"
+import { getLauncherDataRoot } from "../main/paths"
+import { ensureDir } from "../main/utils/fs"
 
 export type SqlJsDatabase = {
   run: (sql: string, params?: unknown[] | Record<string, unknown>) => void
@@ -17,18 +18,7 @@ type SqlJsModule = {
 }
 
 function getDataDir(): string {
-  if (process.platform === "win32") {
-    return path.join(app.getPath("appData"), "xneonlauncher")
-  }
-  if (process.platform === "darwin") {
-    return path.join(app.getPath("home"), "Library", "Application Support", "xneonlauncher")
-  }
-  return path.join(app.getPath("home"), ".xneonlauncher")
-}
-
-async function ensureDir(dir: string) {
-  await fs.mkdir(dir, { recursive: true }).catch(() => {})
-  return dir
+  return getLauncherDataRoot()
 }
 
 export const dbPath = path.join(getDataDir(), "data.db")
@@ -98,15 +88,25 @@ export function run(sql: string, params: unknown[] = []) {
   }
 }
 
+async function persistBytes(bytes: Uint8Array): Promise<void> {
+  await fs.mkdir(path.dirname(dbPath), { recursive: true }).catch(() => {})
+  await fs.writeFile(tmpDbPath, bytes)
+  await fs.rename(tmpDbPath, dbPath)
+}
+
+function persistBytesSync(bytes: Uint8Array): void {
+  fsSync.mkdirSync(path.dirname(dbPath), { recursive: true })
+  fsSync.writeFileSync(tmpDbPath, bytes)
+  fsSync.renameSync(tmpDbPath, dbPath)
+}
+
 export async function writeDatabaseToDisk() {
   if (!database) {
     return
   }
   try {
     const bytes = Buffer.from(database.export())
-    await fs.mkdir(path.dirname(dbPath), { recursive: true }).catch(() => {})
-    await fs.writeFile(tmpDbPath, bytes)
-    await fs.rename(tmpDbPath, dbPath)
+    await persistBytes(bytes)
   } catch (error) {
     const message = error instanceof Error ? error.stack ?? error.message : String(error)
     console.error(`[DB] writeDatabaseToDisk() FAILED: ${message}`)
@@ -152,9 +152,7 @@ export function flushDatabasePersistenceSync() {
 
   try {
     const bytes = Buffer.from(database.export())
-    fsSync.mkdirSync(path.dirname(dbPath), { recursive: true })
-    fsSync.writeFileSync(tmpDbPath, bytes)
-    fsSync.renameSync(tmpDbPath, dbPath)
+    persistBytesSync(bytes)
   } catch (error) {
     const message = error instanceof Error ? error.stack ?? error.message : String(error)
     console.error(`[DB] flushDatabasePersistenceSync() FAILED: ${message}`)

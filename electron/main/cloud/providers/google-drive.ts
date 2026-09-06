@@ -1,3 +1,4 @@
+import { toErrorMessage, opFailure } from "../../errors"
 import { BrowserWindow, shell } from "electron"
 import http from "http"
 import https from "https"
@@ -203,9 +204,9 @@ export class GoogleDriveProvider implements CloudProvider {
           resolve({ success: true, provider: "google-drive" })
         } catch (e) {
           res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" })
-          res.end(callbackErrorPage("Google Drive", e instanceof Error ? e.message : String(e)))
+          res.end(callbackErrorPage("Google Drive", toErrorMessage(e)))
           server.close()
-          resolve({ success: false, error: e instanceof Error ? e.message : String(e) })
+          resolve({ success: false, error: toErrorMessage(e) })
         }
       })
 
@@ -262,7 +263,7 @@ export class GoogleDriveProvider implements CloudProvider {
       }))
       return { success: true, files }
     } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     }
   }
 
@@ -323,7 +324,7 @@ export class GoogleDriveProvider implements CloudProvider {
       const created = await res.json() as { id: string; name: string }
       return { success: true, id: created.id, name: created.name }
     } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     }
   }
 
@@ -359,7 +360,7 @@ export class GoogleDriveProvider implements CloudProvider {
       await fs.writeFile(localPath, Buffer.from(arrayBuffer))
       return { success: true, localPath }
     } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     }
   }
 
@@ -389,7 +390,7 @@ export class GoogleDriveProvider implements CloudProvider {
       await googleFetch(`${GOOGLE_API}/files/${findData.files[0].id}`, token, { method: "DELETE" })
       return { success: true }
     } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
+      return opFailure(e)
     }
   }
 

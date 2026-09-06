@@ -16,6 +16,8 @@ export type {
   XnSkinsPayload,
   MicrosoftPayload,
   AuthSession,
+  DeviceCodeStart,
+  DeviceCodePoll,
   MinecraftVersionInfo,
   VersionEntry,
   MinecraftNewsEntry,
@@ -60,6 +62,8 @@ export type {
   IpcInvokeMap,
   IpcEventMap,
   ElectronAPIExplicit,
+  ElectronAPIExtra,
+  ElectronAPI,
 } from "./ipc-contracts.js"
 
 // Launch types

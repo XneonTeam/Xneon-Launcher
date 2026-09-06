@@ -13,18 +13,7 @@ export type LaunchUiState = {
   totalFiles: number | null
   currentFileName: string | null
 }
-export type NewsEntry = {
-  id: string
-  title: string
-  tag?: string
-  category?: string
-  date: string
-  text?: string
-  readMoreLink?: string
-  playPageImage?: { url?: string }
-  newsPageImage?: { url?: string }
-  newsType?: string[]
-}
+export type NewsEntry = import("@xnlc/types").MinecraftNewsEntry
 export type MinecraftVersionOption = { version: string; stable: boolean; type: string }
 export type VersionVisibility = { showSnapshot: boolean; showBeta: boolean; showAlpha: boolean }
 
