@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils"
 import { IconCheck, IconDownload, IconLoader2 } from "@tabler/icons-react"
 import { LauncherSourceIcon } from "./icons"
+import { LoaderIcon } from "@/components/launcher/instance/loader-icon"
 import type { LauncherSource, OnboardingCopy } from "./translations"
 
 type StepImportProps = {
@@ -120,7 +121,12 @@ export function StepImport({ copy, importableInstances, selectedImportIds, activ
                           {copy.sourceNames[instance.source] ?? instance.source}
                         </span>
                       </div>
-                      <div className="mt-2 text-sm text-muted-foreground">{instance.version} • {instance.modLoader}</div>
+                      <div className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <span>{instance.version}</span>
+                        <span>•</span>
+                        <LoaderIcon loaderId={instance.modLoader} className="w-4 h-4 flex-shrink-0" />
+                        <span className="capitalize">{instance.modLoader}</span>
+                      </div>
                       {counts && <div className="mt-3 text-sm text-muted-foreground">{counts}</div>}
                     </div>
                     <div

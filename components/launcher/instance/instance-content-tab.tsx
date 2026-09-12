@@ -1,6 +1,6 @@
-import { memo, useEffect, useMemo, useState, useDeferredValue } from "react"
+import { memo, useEffect, useMemo, useState, useDeferredValue, useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import { IconSearch, IconUpload, IconInfoCircle, IconPlus, IconTrash, IconRefresh, IconList, IconPower, IconCheck, IconChevronDown, IconChevronRight, IconDownload, IconArrowRight, IconX } from "@tabler/icons-react"
+import { IconSearch, IconUpload, IconInfoCircle, IconPlus, IconTrash, IconRefresh, IconList, IconPower, IconCheck, IconChevronDown, IconChevronRight, IconDownload, IconArrowRight, IconX, IconArrowUpCircle, IconLoader2, IconLock } from "@tabler/icons-react"
 import ReactMarkdown from "react-markdown"
 import rehypeRaw from "rehype-raw"
 import rehypeSanitize from "rehype-sanitize"
@@ -11,6 +11,9 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Spinner } from "./spinner"
 import { Pagination } from "./pagination"
 import { formatDownloads, matchesBuildVersion } from "./utils"
+import { InstanceUpdatesDialog } from "./instance-updates-dialog"
+import { LoaderIcon } from "./loader-icon"
+import { CategoryBadge } from "./category-badge"
 import type { Build, BuildMod, ModSearchResult, ModSort, SearchSource, ModVersion } from "./types"
 import type { ModCategory } from "@xnlc/types"
 import type { SelectedModCategory } from "./use-mod-search"
@@ -163,6 +166,31 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   type ContentCategory = ModCategory & { source?: "modrinth" | "curseforge" }
   const filteredCategories = useMemo(() => (categories ?? []).filter(c => c.projectType === contentType) as ContentCategory[], [categories, contentType])
   const [collapsedSourceGroups, setCollapsedSourceGroups] = useState<Set<string>>(() => new Set())
+  const [updatesOpen, setUpdatesOpen] = useState(false)
+  const [updatesCount, setUpdatesCount] = useState(0)
+
+  const refreshUpdatesCount = useCallback(async () => {
+    try {
+      const cache = await window.electronAPI?.getContentUpdatesCache()
+      const entry = cache?.[activeBuild.id]
+      const count = entry?.updates.filter((u) => u.contentType === type).length ?? 0
+      setUpdatesCount(count)
+    } catch {
+      // ignore
+    }
+  }, [activeBuild.id, type])
+
+  const isLocked = Boolean(
+    (activeBuild.source === "modrinth" || activeBuild.source === "curseforge") &&
+    activeBuild.locked !== false
+  )
+
+  useEffect(() => {
+    void refreshUpdatesCount()
+    const handler = () => void refreshUpdatesCount()
+    window.addEventListener("content-updates-changed", handler)
+    return () => window.removeEventListener("content-updates-changed", handler)
+  }, [refreshUpdatesCount])
 
   useEffect(() => {
     const off = window.electronAPI?.onContentDownloadProgress?.((progress) => {
@@ -172,11 +200,17 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   }, [])
 
   useEffect(() => {
-    if (updatingSlug === null) setDownloadProgress(null)
-  }, [updatingSlug])
+    if (updatingSlug === null && installingModSlug === null) setDownloadProgress(null)
+  }, [updatingSlug, installingModSlug])
 
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-4">
+      {isLocked && (
+        <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl border border-amber-500/20 bg-amber-500/5 text-xs text-amber-500/90">
+          <IconLock className="w-4 h-4 shrink-0" />
+          <span>Инстанс привязан к официальному модпаку. Параметры ядра заблокированы в общих настройках.</span>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[300px]">
           <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -373,9 +407,30 @@ export const InstanceContentTab = memo(function InstanceContentTab({
           <div className="flex flex-col min-h-0 rounded-2xl border border-border bg-card/50 p-4">
             <div className="mb-2 flex items-center justify-between gap-3 shrink-0">
               <h3 className="text-sm font-medium text-foreground">Установлено</h3>
-              <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
-                {installedSearch.trim() ? `${filteredInstalled.length}/${installedItems.length}` : installedItems.length}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setUpdatesOpen(true)}
+                  className={cn(
+                    "relative flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors",
+                    updatesCount > 0
+                      ? "border-primary/50 bg-primary/10 text-primary hover:bg-primary/20"
+                      : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                  title={t("updates.checkTitle")}
+                >
+                  <IconArrowUpCircle className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  {t("updates.title")}
+                  {updatesCount > 0 && (
+                    <span className="ml-0.5 rounded-full bg-primary px-1.5 py-px text-[10px] font-bold text-primary-foreground">
+                      {updatesCount}
+                    </span>
+                  )}
+                </button>
+                <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+                  {installedSearch.trim() ? `${filteredInstalled.length}/${installedItems.length}` : installedItems.length}
+                </span>
+              </div>
             </div>
 
             {installedItems.length > 0 && (
@@ -503,65 +558,114 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                 <div className="grid gap-2 pb-2">
                   {deferredResults.map(project => {
                     const installed = isInstalledFn?.(project) ?? false
+                    const isInstalling = installingModSlug === project.slug
+                    const percent = isInstalling && downloadProgress && downloadProgress.total > 0
+                      ? Math.min(100, Math.round((downloadProgress.current / downloadProgress.total) * 100))
+                      : null
                     return (
-                    <div key={project.id} className="group flex items-center gap-3.5 rounded-xl border border-border bg-card px-3.5 py-2.5 transition-colors hover:border-primary/50">
-                      <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-muted flex-shrink-0">
-                        {project.iconUrl ? (
-                          <img src={project.iconUrl} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          <span className="text-sm font-bold text-muted-foreground">{project.name[0]}</span>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <p className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-primary">{project.name}</p>
-                          {project.source === "modrinth" ? (
-                            <svg className="h-3.5 w-3.5 shrink-0 text-[#1bd96a]" viewBox="0 0 24 24" fill="currentColor"><path d="M12.252.004a11.78 11.768 0 0 0-8.92 3.73 11 10.999 0 0 0-2.17 3.11 11.37 11.359 0 0 0-1.16 5.169c0 1.42.17 2.5.6 3.77.24.759.77 1.899 1.17 2.529a12.3 12.298 0 0 0 8.85 5.639c.44.05 2.54.07 2.76.02.2-.04.22.1-.26-1.7l-.36-1.37-1.01-.06a8.5 8.489 0 0 1-5.18-1.8 5.34 5.34 0 0 1-1.3-1.26c0-.05.34-.28.74-.5a37.572 37.545 0 0 1 2.88-1.629c.03 0 .5.45 1.06.98l1 .97 2.07-.43 2.06-.43 1.47-1.47c.8-.8 1.48-1.5 1.48-1.52 0-.09-.42-1.63-.46-1.7-.04-.06-.2-.03-1.02.18-.53.13-1.2.3-1.45.4l-.48.15-.53.53-.53.53-.93.1-.93.07-.52-.5a2.7 2.7 0 0 1-.96-1.7l-.13-.6.43-.57c.68-.9.68-.9 1.46-1.1.4-.1.65-.2.83-.33.13-.099.65-.579 1.14-1.069l.9-.9-.7-.7-.7-.7-1.95.54c-1.07.3-1.96.53-1.97.53-.03 0-2.23 2.48-2.63 2.97l-.29.35.28 1.03c.16.56.3 1.16.31 1.34l.03.3-.34.23c-.37.23-2.22 1.3-2.84 1.63-.36.2-.37.2-.44.1-.08-.1-.23-.6-.32-1.03-.18-.86-.17-2.75.02-3.73a8.84 8.839 0 0 1 7.9-6.93c.43-.03.77-.08.78-.1.06-.17.5-2.999.47-3.039-.01-.02-.1-.02-.2-.03Zm3.68.67c-.2 0-.3.1-.37.38-.06.23-.46 2.42-.46 2.52 0 .04.1.11.22.16a8.51 8.499 0 0 1 2.99 2 8.38 8.379 0 0 1 2.16 3.449 6.9 6.9 0 0 1 .4 2.8c0 1.07 0 1.27-.1 1.73a9.37 9.369 0 0 1-1.76 3.769c-.32.4-.98 1.06-1.37 1.38-.38.32-1.54 1.1-1.7 1.14-.1.03-.1.06-.07.26.03.18.64 2.56.7 2.78l.06.06a12.07 12.058 0 0 0 7.27-9.4c.13-.77.13-2.58 0-3.4a11.96 11.948 0 0 0-5.73-8.578c-.7-.42-2.05-1.06-2.25-1.06Z"/></svg>
+                    <div
+                      key={project.id}
+                      className={cn(
+                        "group rounded-xl border border-border bg-card px-3.5 py-2.5 transition-colors hover:border-primary/50",
+                        isInstalling && "border-primary/50 bg-primary/5",
+                      )}
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-muted flex-shrink-0">
+                          {project.iconUrl ? (
+                            <img src={project.iconUrl} alt="" className="h-full w-full object-cover" />
                           ) : (
-                            <svg className="h-3.5 w-3.5 shrink-0 text-[#f16436]" viewBox="0 0 24 24" fill="currentColor"><path d="M18.326 9.2145S23.2261 8.4418 24 6.1882h-7.5066V4.4H0l2.0318 2.3576V9.173s5.1267-.2665 7.1098 1.2372c2.7146 2.516-3.053 5.917-3.053 5.917L5.0995 19.6c1.5465-1.4726 4.494-3.3775 9.8983-3.2857-2.0565.65-4.1245 1.6651-5.7344 3.2857h10.9248l-1.0288-3.2726s-7.918-4.6688-.8336-7.1127z"/></svg>
+                            <span className="text-sm font-bold text-muted-foreground">{project.name[0]}</span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-muted-foreground">{formatDownloads(project.downloadCount)}</span>
-                          {type === "mods" && project.categories?.slice(0, 3).map(cat => (
-                            <span key={cat} className="rounded bg-muted/60 px-1.5 py-0.5 text-[11px] capitalize">{cat}</span>
-                          ))}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <p className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-primary">{project.name}</p>
+                            {project.source === "modrinth" ? (
+                              <svg className="h-3.5 w-3.5 shrink-0 text-[#1bd96a]" viewBox="0 0 24 24" fill="currentColor"><path d="M12.252.004a11.78 11.768 0 0 0-8.92 3.73 11 10.999 0 0 0-2.17 3.11 11.37 11.359 0 0 0-1.16 5.169c0 1.42.17 2.5.6 3.77.24.759.77 1.899 1.17 2.529a12.3 12.298 0 0 0 8.85 5.639c.44.05 2.54.07 2.76.02.2-.04.22.1-.26-1.7l-.36-1.37-1.01-.06a8.5 8.489 0 0 1-5.18-1.8 5.34 5.34 0 0 1-1.3-1.26c0-.05.34-.28.74-.5a37.572 37.545 0 0 1 2.88-1.629c.03 0 .5.45 1.06.98l1 .97 2.07-.43 2.06-.43 1.47-1.47c.8-.8 1.48-1.5 1.48-1.52 0-.09-.42-1.63-.46-1.7-.04-.06-.2-.03-1.02.18-.53.13-1.2.3-1.45.4l-.48.15-.53.53-.53.53-.93.1-.93.07-.52-.5a2.7 2.7 0 0 1-.96-1.7l-.13-.6.43-.57c.68-.9.68-.9 1.46-1.1.4-.1.65-.2.83-.33.13-.099.65-.579 1.14-1.069l.9-.9-.7-.7-.7-.7-1.95.54c-1.07.3-1.96.53-1.97.53-.03 0-2.23 2.48-2.63 2.97l-.29.35.28 1.03c.16.56.3 1.16.31 1.34l.03.3-.34.23c-.37.23-2.22 1.3-2.84 1.63-.36.2-.37.2-.44.1-.08-.1-.23-.6-.32-1.03-.18-.86-.17-2.75.02-3.73a8.84 8.839 0 0 1 7.9-6.93c.43-.03.77-.08.78-.1.06-.17.5-2.999.47-3.039-.01-.02-.1-.02-.2-.03Zm3.68.67c-.2 0-.3.1-.37.38-.06.23-.46 2.42-.46 2.52 0 .04.1.11.22.16a8.51 8.499 0 0 1 2.99 2 8.38 8.379 0 0 1 2.16 3.449 6.9 6.9 0 0 1 .4 2.8c0 1.07 0 1.27-.1 1.73a9.37 9.369 0 0 1-1.76 3.769c-.32.4-.98 1.06-1.37 1.38-.38.32-1.54 1.1-1.7 1.14-.1.03-.1.06-.07.26.03.18.64 2.56.7 2.78l.06.06a12.07 12.058 0 0 0 7.27-9.4c.13-.77.13-2.58 0-3.4a11.96 11.948 0 0 0-5.73-8.578c-.7-.42-2.05-1.06-2.25-1.06Z"/></svg>
+                            ) : (
+                              <svg className="h-3.5 w-3.5 shrink-0 text-[#f16436]" viewBox="0 0 24 24" fill="currentColor"><path d="M18.326 9.2145S23.2261 8.4418 24 6.1882h-7.5066V4.4H0l2.0318 2.3576V9.173s5.1267-.2665 7.1098 1.2372c2.7146 2.516-3.053 5.917-3.053 5.917L5.0995 19.6c1.5465-1.4726 4.494-3.3775 9.8983-3.2857-2.0565.65-4.1245 1.6651-5.7344 3.2857h10.9248l-1.0288-3.2726s-7.918-4.6688-.8336-7.1127z"/></svg>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-muted-foreground">{formatDownloads(project.downloadCount)}</span>
+                            {type === "mods" && project.categories?.slice(0, 3).map(cat => (
+                              <CategoryBadge key={cat} name={cat} source={project.source} className="px-1.5 text-[11px]" />
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => openProjectModal(project)}
-                          className="flex items-center gap-1.5 rounded-lg bg-muted px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted/80"
-                        >
-                          <IconInfoCircle className="h-3.5 w-3.5" strokeWidth={1.75} />
-                          {t("builds.details")}
-                        </button>
-                        {installed ? (
-                          <span className="flex items-center justify-center gap-1.5 rounded-lg bg-primary/10 px-3.5 py-1.5 text-xs font-medium text-primary">
-                            <IconCheck className="h-3.5 w-3.5" strokeWidth={1.75} />
-                            {t("builds.installed")}
-                          </span>
-                        ) : (
+                        <div className="flex items-center gap-1.5 shrink-0">
                           <button
                             type="button"
-                            disabled={type === "mods" && installingModSlug === project.slug}
-                            onClick={() => {
-                              if (type === "mods") {
+                            onClick={() => openProjectModal(project)}
+                            className="flex items-center gap-1.5 rounded-lg bg-muted px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted/80"
+                          >
+                            <IconInfoCircle className="h-3.5 w-3.5" strokeWidth={1.75} />
+                            {t("builds.details")}
+                          </button>
+                          {installed ? (
+                            <span className="flex items-center justify-center gap-1.5 rounded-lg bg-primary/10 px-3.5 py-1.5 text-xs font-medium text-primary">
+                              <IconCheck className="h-3.5 w-3.5" strokeWidth={1.75} />
+                              {t("builds.installed")}
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={installingModSlug !== null}
+                              onClick={() => {
+                                if (isLocked) {
+                                  if (!confirm(`Сборка привязана к официальному модпаку.\n\nУстановка стороннего дополнения «${project.name}» поверх модпака может привести к конфликтам. Продолжить установку?`)) {
+                                    return
+                                  }
+                                }
                                 setInstallingModSlug(project.slug)
-                                Promise.resolve(installModToBuild(project)).finally(() => {
+                                const task = type === "mods"
+                                  ? installModToBuild(project)
+                                  : addContentToBuild(activeBuild.id, type, project)
+                                Promise.resolve(task).finally(() => {
                                   setTimeout(() => setInstallingModSlug(null), 500)
                                 })
-                                return
-                              }
-                              void addContentToBuild(activeBuild.id, type, project)
-                            }}
-                            className="flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {type === "mods" && installingModSlug === project.slug ? "..." : <><IconPlus className="h-3.5 w-3.5" strokeWidth={1.75} />{t("builds.add")}</>}
-                          </button>
-                        )}
+                              }}
+                              className="flex items-center justify-center gap-1.5 min-w-[90px] rounded-lg bg-primary px-3.5 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {isInstalling ? (
+                                <>
+                                  <IconLoader2 className="h-3.5 w-3.5 animate-spin shrink-0" strokeWidth={2} />
+                                  {percent !== null && <span className="font-mono tabular-nums">{percent}%</span>}
+                                </>
+                              ) : (
+                                <>
+                                  <IconPlus className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
+                                  <span>{t("builds.add")}</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </div>
+
+                      {isInstalling && (
+                        <div className="mt-2.5 pt-2 border-t border-border/50">
+                          <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                            <span className="flex items-center gap-1.5 min-w-0">
+                              <IconLoader2 className="h-3 w-3 shrink-0 animate-spin text-primary" strokeWidth={2} />
+                              <span className="truncate">Установка...</span>
+                            </span>
+                            <span className="shrink-0 font-mono tabular-nums">
+                              {percent !== null ? `${percent}%` : ""}
+                            </span>
+                          </div>
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                            <div
+                              className={cn(
+                                "h-full rounded-full bg-primary transition-[width] duration-200 ease-out",
+                                percent === null && "animate-pulse",
+                              )}
+                              style={{ width: percent === null ? "100%" : `${Math.max(2, percent)}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                     )
                   })}
@@ -590,8 +694,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
         </div>
       </div>
 
-      {versionPickerItem !== null && (
-        <div
+      {versionPickerItem !== null && (        <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm"
           onClick={() => { setVersionPickerItem(null); setSelectedPickerVersion(null) }}
         >
@@ -660,8 +763,11 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                             <div className="flex items-center gap-3 mt-1">
                               <span className="text-xs text-muted-foreground">{ver.gameVersion ?? ""}</span>
                               {ver.loaders && (
-                                <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                                  {Array.isArray(ver.loaders) ? ver.loaders.join(", ") : ""}
+                                <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground flex items-center gap-1.5">
+                                  {(Array.isArray(ver.loaders) ? ver.loaders : [ver.loaders]).map(l => (
+                                    <LoaderIcon key={String(l)} loaderId={String(l).toLowerCase()} className="w-3.5 h-3.5" />
+                                  ))}
+                                  <span>{Array.isArray(ver.loaders) ? ver.loaders.join(", ") : ver.loaders}</span>
                                 </span>
                               )}
                               {ver.datePublished && (
@@ -735,8 +841,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
 
                             {updatingSlug === versionPickerItem?.id && downloadProgress && downloadProgress.total > 0 && (
                               <div className="mt-4">
-                                <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                                  <span className="truncate">{downloadProgress.fileName}</span>
+                                <div className="flex items-center justify-end text-xs text-muted-foreground mb-1">
                                   <span className="shrink-0 ml-2">{Math.round((downloadProgress.current / downloadProgress.total) * 100)}%</span>
                                 </div>
                                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -758,6 +863,13 @@ export const InstanceContentTab = memo(function InstanceContentTab({
           </div>
         </div>
       )}
+
+      <InstanceUpdatesDialog
+        activeBuild={activeBuild}
+        open={updatesOpen}
+        onOpenChange={setUpdatesOpen}
+        updateItemVersion={updateItemVersion}
+      />
     </div>
   )
 })

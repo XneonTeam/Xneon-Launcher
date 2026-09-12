@@ -99,3 +99,11 @@ update-*.js
 
 # Temp docs
 PRODUCT_SPECIFICATION.md
+CODE_DEDUP_AUDIT.md
+ELECTRON_DEDUP_CHANGES.md
+electron-dedup-audit.md
+
+# Temp workspace scratch dir
+.tmp/
+launcher-screenshot.png
+

@@ -265,6 +265,12 @@ export function useBuilds() {
       try {
         await window.electronAPI?.deleteBuildIntent(build.name)
       } catch {}
+      try {
+        const lastVersion = localStorage.getItem("xneon-launcher:lastVersion")
+        if (lastVersion === build.name) {
+          localStorage.removeItem("xneon-launcher:lastVersion")
+        }
+      } catch {}
     }
     setBuilds(prev => prev.filter(b => b.id !== id))
     setActiveBuildId(prev => prev === id ? null : prev)
@@ -283,6 +289,12 @@ export function useBuilds() {
     try {
       const result = await window.electronAPI?.moveBuildIntentToTrash?.(build.name)
       trashName = result?.trashName
+    } catch {}
+    try {
+      const lastVersion = localStorage.getItem("xneon-launcher:lastVersion")
+      if (lastVersion === build.name) {
+        localStorage.removeItem("xneon-launcher:lastVersion")
+      }
     } catch {}
     trashStackRef.current.push({ build, trashName })
     if (trashStackRef.current.length > 30) {

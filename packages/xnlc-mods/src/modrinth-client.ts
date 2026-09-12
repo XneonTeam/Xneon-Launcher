@@ -54,7 +54,15 @@ async function mrFetch(endpoint: string): Promise<unknown> {
   throw lastError;
 }
 
+const KNOWN_MR_LOADERS = new Set(["forge", "fabric", "neoforge", "quilt", "liteloader", "rift", "modloader"]);
+
 function normalizeMrProject(item: any): ModSearchResult {
+  const versions: string[] = Array.isArray(item.versions) ? item.versions : [];
+  const rawCats: string[] = Array.isArray(item.categories) ? item.categories : [];
+  const loaders = rawCats
+    .map(c => String(c).toLowerCase())
+    .filter(c => KNOWN_MR_LOADERS.has(c));
+
   return {
     id: item.slug ?? item.project_id ?? String(item.id ?? ""),
     slug: item.slug ?? item.project_id ?? "",
@@ -62,12 +70,14 @@ function normalizeMrProject(item: any): ModSearchResult {
     summary: item.description ?? "",
     iconUrl: item.icon_url ?? "",
     downloadCount: item.downloads ?? 0,
-    categories: (item.categories ?? []).slice(0, 5),
+    categories: rawCats.slice(0, 5),
     source: "modrinth",
     author: item.author ?? (Array.isArray(item.authors) ? item.authors.map((a: any) => a.user?.username ?? a.name).filter(Boolean).join(", ") : undefined),
     projectId: item.project_id ?? item.slug,
     dateCreated: item.date_created ?? undefined,
     dateModified: item.date_modified ?? undefined,
+    gameVersions: versions,
+    loaders,
   };
 }
 
@@ -75,6 +85,7 @@ function normalizeMrVersion(v: any): ModVersion {
   return {
     id: v.id ?? "",
     name: v.name ?? v.version_number ?? "",
+    versionNumber: v.version_number ?? undefined,
     gameVersion: (v.game_versions ?? []).join(", "),
     downloadCount: v.downloads ?? 0,
     fileName: v.files?.[0]?.filename ?? "",
@@ -88,6 +99,7 @@ function normalizeMrVersion(v: any): ModVersion {
       url: f.url ?? "",
       size: f.size ?? 0,
       filename: f.filename ?? "",
+      hashes: f.hashes ?? {},
     })),
     dependencies: (v.dependencies ?? []).map((d: any) => ({
       projectId: d.project_id ?? "",
@@ -112,6 +124,9 @@ export async function modrinthSearch(
   },
 ): Promise<ModSearchResponse> {
   const contentType = options?.contentType ?? "mod";
+  if (contentType === "world") {
+    return { results: [], totalCount: 0 };
+  }
   const gameVersion = options?.gameVersion;
   const modLoader = options?.modLoader;
   const categories = options?.categories ?? (options?.category ? [options.category] : []);
@@ -172,6 +187,15 @@ export async function modrinthGetDetails(slug: string): Promise<ModDetails | nul
       source: "modrinth",
       body: p.body ?? "",
       projectId: p.id ?? p.slug,
+      links: {
+        wikiUrl: p.wiki_url || undefined,
+        issuesUrl: p.issues_url || undefined,
+        sourceUrl: p.source_url || undefined,
+        discordUrl: p.discord_url || undefined,
+        donationUrls: Array.isArray(p.donation_urls)
+          ? p.donation_urls.map((d: any) => ({ id: d.id, platform: d.platform, url: d.url }))
+          : undefined,
+      },
     };
   } catch (err) {
     console.error("Modrinth get-details error:", err);
@@ -253,6 +277,42 @@ export async function modrinthGetProjectsByIds(ids: string[]): Promise<Record<st
   return result;
 }
 
+export async function modrinthGetVersionsByIds(ids: string[]): Promise<Record<string, ModVersion>> {
+  const result: Record<string, ModVersion> = {};
+  const cleaned = [...new Set(ids.filter(Boolean))];
+  if (!cleaned.length) return result;
+
+  const BATCH_SIZE = 100;
+  for (let i = 0; i < cleaned.length; i += BATCH_SIZE) {
+    const batch = cleaned.slice(i, i + BATCH_SIZE);
+    try {
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), 15_000);
+      const res = await fetch(`${MODRINTH_API}/versions?ids=${encodeURIComponent(JSON.stringify(batch))}`, {
+        headers: { "User-Agent": "XNeon-Launcher/1.0 (launcher@xneon.fun)" },
+        signal: abort.signal,
+      });
+      clearTimeout(timer);
+      if (!res.ok) continue;
+
+      const versions = (await res.json()) as any[];
+      if (Array.isArray(versions)) {
+        for (const v of versions) {
+          if (v && v.id) {
+            result[v.id] = normalizeMrVersion(v);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Modrinth getVersionsByIds error:", err);
+    }
+    if (i + BATCH_SIZE < ids.length) {
+      await new Promise(r => setTimeout(r, 100));
+    }
+  }
+  return result;
+}
+
 export async function modrinthGetRawVersions(slug: string): Promise<ModrinthVersionDetail[]> {
   try {
     const data = (await mrFetch(`/project/${encodeURIComponent(slug)}/version`)) as ModrinthVersionDetail[];
@@ -320,6 +380,47 @@ export async function modrinthGetFilesByHash(sha1s: string[]): Promise<Record<st
     }
   }
   return result
+}
+
+export async function modrinthCheckUpdates(
+  hashes: string[],
+  loaders?: string[],
+  gameVersions?: string[],
+): Promise<Record<string, ModVersion>> {
+  if (hashes.length === 0) return {};
+  const result: Record<string, ModVersion> = {};
+  const BATCH_SIZE = 100;
+  for (let i = 0; i < hashes.length; i += BATCH_SIZE) {
+    const batch = hashes.slice(i, i + BATCH_SIZE);
+    try {
+      const payload: Record<string, unknown> = {
+        hashes: batch,
+        algorithm: "sha1",
+      };
+      if (loaders && loaders.length > 0) payload.loaders = loaders;
+      if (gameVersions && gameVersions.length > 0) payload.game_versions = gameVersions;
+
+      const res = await fetch(`${MODRINTH_API}/version_files/update`, {
+        method: "POST",
+        headers: {
+          "User-Agent": "XNeon-Launcher/1.0 (launcher@xneon.fun)",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as Record<string, any>;
+        for (const [hash, ver] of Object.entries(data)) {
+          if (ver) {
+            result[hash] = normalizeMrVersion(ver);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Modrinth checkUpdates error:", err);
+    }
+  }
+  return result;
 }
 
 let modrinthCategoriesCache: ModCategory[] | null = null;

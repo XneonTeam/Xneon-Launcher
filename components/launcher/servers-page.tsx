@@ -13,6 +13,7 @@ import { ServerTrashView } from "./server-trash-view"
 import { ServersBrowse } from "./servers-browse"
 import { InstanceModal } from "./instance/instance-modal"
 import { LoaderIcon } from "./instance/loader-icon"
+import { PlatformBadge } from "./platform-icon"
 import type { McServerInfo, ModCategory } from "@xnlc/types"
 import type { SelectedModCategory } from "./instance/use-mod-search"
 import type { ModDetails, ModSearchResult, ModSort, ModVersion, ModalTab } from "./instance/types"
@@ -536,15 +537,8 @@ function ServerListRow({ server, onClick, onDelete, onDuplicate }: { server: McS
           <div className="flex items-center gap-1.5 mt-0.5">
             <LoaderIcon loaderId={server.modloader} className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
             <span className="text-[11px] text-muted-foreground truncate">{loaderName} · {server.gameVersion}</span>
-            {server.source === "modrinth" && (
-              <span className="shrink-0 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-green-500/15 text-green-500">
-                Modrinth
-              </span>
-            )}
-            {server.source === "curseforge" && (
-              <span className="shrink-0 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-orange-500/15 text-orange-500">
-                CurseForge
-              </span>
+            {server.source && (
+              <PlatformBadge source={server.source} showLabel className="shrink-0 text-[10px] py-0 px-1.5" iconSize={11} />
             )}
           </div>
         </div>

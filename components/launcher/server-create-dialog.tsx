@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
-import { IconPlayerPlay, IconServer, IconArrowLeft, IconCheck, IconFolderPlus, IconLoader2, IconShield, IconRouter, IconUpload, IconClipboard, IconExternalLink, IconGauge } from "@tabler/icons-react"
+import { IconPlayerPlay, IconServer, IconArrowLeft, IconCheck, IconFolderPlus, IconLoader2, IconShield, IconRouter, IconUpload, IconClipboard, IconExternalLink, IconGauge, IconCamera, IconTrash } from "@tabler/icons-react"
 import type { XnConnectUsage } from "@xnlc/types"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -11,12 +11,13 @@ import { useHomeVersions } from "@/src/hooks/use-home-versions"
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
 import { LoaderIcon } from "./instance/loader-icon"
 import { XnConnectLogo } from "./server/xn-connect-logo"
+import { IconPickerModal } from "./instance/icon-picker-modal"
 import type { JavaInstallation } from "./settings/types"
 
 interface ServerCreateDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreate: (params: { name: string; gameVersion: string; modloader: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string }) => Promise<unknown>
+  onCreate: (params: { name: string; gameVersion: string; modloader: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string; extraJavaArgs?: string }) => Promise<unknown>
 }
 
 const MODLOADERS = [
@@ -56,6 +57,8 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
   const [usage, setUsage] = useState<XnConnectUsage | null>(null)
   const [usageLimitShown, setUsageLimitShown] = useState(false)
   const [name, setName] = useState("")
+  const [icon, setIcon] = useState("")
+  const [showIconPicker, setShowIconPicker] = useState(false)
   const [modloader, setModloader] = useState("vanilla")
   const [modloaderVersion, setModloaderVersion] = useState("")
   const [port, setPort] = useState("25565")
@@ -70,6 +73,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
   const [authDone, setAuthDone] = useState(false)
   const [xmx, setXmx] = useState(2048)
   const [xms, setXms] = useState(1024)
+  const [extraJavaArgs, setExtraJavaArgs] = useState("")
   const [onlineMode, setOnlineMode] = useState(true)
   const [maxPlayers, setMaxPlayers] = useState(20)
   const [customJarPath, setCustomJarPath] = useState("")
@@ -81,9 +85,58 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
 
   const { maxMb, snapPoints } = useMemoryOptions()
 
-  const { versions, versionsLoaded, selectedVersion, setSelectedVersion } = useHomeVersions(modloader)
-  const { loaderVersions, loaderVersionsLoaded, recommendedLoaderVersion } = useLoaderVersionOptions(modloader, selectedVersion)
-  const requiresLoaderVersion = !["vanilla", "spigot", "bukkit", "sponge", "bungeecord"].includes(modloader)
+  const [spongeType, setSpongeType] = useState<"spongevanilla" | "spongeforge" | "spongeneo">("spongevanilla")
+  const effectiveLoader = modloader === "sponge" ? "sponge" : modloader
+  const { versions, versionsLoaded, selectedVersion, setSelectedVersion } = useHomeVersions(effectiveLoader)
+  const loaderForOptions = modloader === "sponge" ? spongeType : modloader
+  const { loaderVersions, loaderVersionsLoaded, recommendedLoaderVersion } = useLoaderVersionOptions(loaderForOptions, selectedVersion)
+  const requiresLoaderVersion = !["vanilla", "spigot", "bukkit", "bungeecord"].includes(modloader)
+
+  const [spongeSupported, setSpongeSupported] = useState<{
+    spongevanilla: string[]
+    spongeforge: string[]
+    spongeneo: string[]
+  }>({
+    spongevanilla: [],
+    spongeforge: [],
+    spongeneo: [],
+  })
+
+  useEffect(() => {
+    if (modloader !== "sponge") return
+    let cancelled = false
+    Promise.all([
+      window.electronAPI?.getSpongeSupported("spongevanilla") ?? Promise.resolve([]),
+      window.electronAPI?.getSpongeSupported("spongeforge") ?? Promise.resolve([]),
+      window.electronAPI?.getSpongeSupported("spongeneo") ?? Promise.resolve([]),
+    ]).then(([sv, sf, sn]) => {
+      if (!cancelled) {
+        setSpongeSupported({
+          spongevanilla: sv ?? [],
+          spongeforge: sf ?? [],
+          spongeneo: sn ?? [],
+        })
+      }
+    }).catch(err => console.error("Failed to load sponge supported versions", err))
+
+    return () => {
+      cancelled = true
+    }
+  }, [modloader])
+
+  // Automatically switch spongeType if current is unsupported for selected Minecraft version
+  useEffect(() => {
+    if (modloader !== "sponge" || !selectedVersion) return
+    const currentList = spongeSupported[spongeType]
+    if (currentList.length > 0 && !currentList.includes(selectedVersion)) {
+      const supportedTypes: ("spongevanilla" | "spongeforge" | "spongeneo")[] = ["spongevanilla", "spongeforge", "spongeneo"]
+      const candidate = supportedTypes.find(t => spongeSupported[t].includes(selectedVersion))
+      if (candidate) {
+        setSpongeType(candidate)
+        setModloaderVersion("")
+      }
+    }
+  }, [selectedVersion, spongeSupported, spongeType, modloader])
 
   const steps = customJarPath ? STEPS_CUSTOM : STEPS_FULL
 
@@ -93,7 +146,10 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
     if (!open) return
     setStep("name")
     setName("")
+    setIcon("")
+    setShowIconPicker(false)
     setModloader("vanilla")
+    setSpongeType("spongevanilla")
     setModloaderVersion("")
     setPort("25565")
     setJavaPath("auto")
@@ -101,6 +157,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
     setRelayEnabled(false)
     setXmx(2048)
     setXms(1024)
+    setExtraJavaArgs("")
     setOnlineMode(true)
     setMaxPlayers(20)
     setCustomJarPath("")
@@ -226,19 +283,22 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
     if (!name.trim() || !selectedVersion || creating) return
     setCreating(true)
     try {
+      const finalLoader = modloader === "sponge" ? spongeType : modloader
       await onCreate({
         name: name.trim(),
         gameVersion: selectedVersion,
-        modloader,
+        modloader: finalLoader,
         modloaderVersion: modloaderVersion || undefined,
         port: parseInt(port) || 25565,
         javaPath: javaPath && javaPath !== "auto" ? javaPath : undefined,
         relayEnabled,
         xmx,
         xms,
+        extraJavaArgs: extraJavaArgs || undefined,
         onlineMode,
         maxPlayers,
         customJarPath: customJarPath || undefined,
+        icon: icon || undefined,
       })
       onOpenChange(false)
     } finally {
@@ -246,7 +306,8 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
     }
   }
 
-  const loaderName = modloader === "neoforge" ? "NeoForge"
+  const loaderName = modloader === "sponge" ? (spongeType === "spongevanilla" ? "SpongeVanilla" : spongeType === "spongeforge" ? "SpongeForge" : "SpongeNeo")
+    : modloader === "neoforge" ? "NeoForge"
     : modloader.charAt(0).toUpperCase() + modloader.slice(1)
 
   return (
@@ -305,6 +366,48 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                 <h3 className="text-sm font-semibold text-foreground mb-1">{t("servers.create.nameTitle")}</h3>
                 <p className="text-xs text-muted-foreground">{t("servers.create.nameDesc")}</p>
               </div>
+
+              <div className="flex items-center gap-4 p-3 rounded-2xl border border-border bg-muted/20">
+                <div
+                  className="w-16 h-16 rounded-xl bg-muted/60 overflow-hidden border border-border cursor-pointer hover:border-primary/50 transition-colors flex-shrink-0 flex items-center justify-center relative group"
+                  onClick={() => setShowIconPicker(true)}
+                  title="Выбрать иконку сервера"
+                >
+                  {icon ? (
+                    <img src={icon} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-muted-foreground group-hover:text-primary transition-colors">
+                      <IconCamera className="w-6 h-6" />
+                      <span className="text-[10px] mt-0.5 font-medium">Иконка</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowIconPicker(true)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                    >
+                      {icon ? "Изменить иконку" : "Выбрать иконку"}
+                    </button>
+                    {icon && (
+                      <button
+                        type="button"
+                        onClick={() => setIcon("")}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      >
+                        <IconTrash className="w-3.5 h-3.5" />
+                        Удалить
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1.5">
+                    Нажмите, чтобы выбрать из готовых значков или загрузить собственную картинку (PNG/JPG)
+                  </p>
+                </div>
+              </div>
+
               <input
                 value={name}
                 onChange={e => setName(e.target.value)}
@@ -453,6 +556,56 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                   </Select>
                 </div>
 
+                {modloader === "sponge" && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">Тип Sponge</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: "spongevanilla" as const, loaderIconId: "vanilla", label: "SpongeVanilla", desc: "Vanilla + плагины" },
+                        { id: "spongeforge" as const, loaderIconId: "forge", label: "SpongeForge", desc: "Forge + плагины" },
+                        { id: "spongeneo" as const, loaderIconId: "neoforge", label: "SpongeNeo", desc: "NeoForge + плагины" },
+                      ].map(type => {
+                        const isSupported = selectedVersion
+                          ? spongeSupported[type.id].length === 0 || spongeSupported[type.id].includes(selectedVersion)
+                          : true
+
+                        return (
+                          <button
+                            key={type.id}
+                            type="button"
+                            disabled={!isSupported}
+                            onClick={() => {
+                              if (!isSupported) return
+                              setSpongeType(type.id)
+                              setModloaderVersion("")
+                            }}
+                            className={cn(
+                              "flex flex-col items-start p-2.5 rounded-xl border text-left transition-all gap-1.5",
+                              !isSupported && "opacity-40 cursor-not-allowed grayscale",
+                              isSupported && spongeType === type.id
+                                ? "border-primary bg-primary/15 text-primary shadow-sm"
+                                : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                            )}
+                          >
+                            <div className="flex items-center gap-2 w-full">
+                              <div className={cn(
+                                "w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0",
+                                isSupported && spongeType === type.id ? "bg-primary/25 text-primary" : "bg-muted/60 text-muted-foreground"
+                              )}>
+                                <LoaderIcon loaderId={type.loaderIconId} className="w-3.5 h-3.5" />
+                              </div>
+                              <span className="text-xs font-semibold truncate text-foreground">{type.label}</span>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground leading-tight">
+                              {!isSupported ? "Нет для этой MC" : type.desc}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {requiresLoaderVersion && (
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-muted-foreground">{loaderName} version</label>
@@ -491,9 +644,16 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">{t("servers.create.portDetected")}</p>
-                    <p className="text-sm font-semibold text-foreground truncate">
-                      Minecraft {detectedVersion}{detectedLoader ? ` · ${detectedLoader}` : ""}
-                    </p>
+                    <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground truncate">
+                      <span>{detectedVersion}</span>
+                      {detectedLoader && (
+                        <>
+                          <span>·</span>
+                          <LoaderIcon loaderId={detectedLoader.toLowerCase()} className="w-4 h-4 flex-shrink-0" />
+                          <span className="capitalize">{detectedLoader}</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -524,8 +684,8 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                 <p className="text-xs text-muted-foreground">{t("servers.create.settingsDesc")}</p>
               </div>
 
-              <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-2.5">
-                <label className="block text-sm font-medium text-foreground">{t("servers.create.memoryAllocated")}</label>
+              <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-2">
+                <label className="block text-xs font-medium text-foreground">{t("servers.create.memoryAllocated")}</label>
                 <MemorySlider
                   value={xmx}
                   min={512}
@@ -540,8 +700,8 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                   }}
                 />
               </div>
-              <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-2.5">
-                <label className="block text-sm font-medium text-foreground">{t("servers.create.memoryInitial")}</label>
+              <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-2">
+                <label className="block text-xs font-medium text-foreground">{t("servers.create.memoryInitial")}</label>
                 <MemorySlider
                   value={xms}
                   min={256}
@@ -589,6 +749,17 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                   </button>
                 </div>
               </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">{t("settings.java.args")}</label>
+                <input
+                  type="text"
+                  value={extraJavaArgs}
+                  onChange={e => setExtraJavaArgs(e.target.value)}
+                  placeholder={t("settings.java.argsPlaceholder")}
+                  className="w-full px-4 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
             </div>
           )}
 
@@ -600,6 +771,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
               </div>
 
               <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Исполняемый файл Java</label>
                 <button
                   type="button"
                   onClick={() => setJavaPath("auto")}
@@ -767,19 +939,13 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                     <p className="text-xs text-muted-foreground mt-0.5">{t("servers.create.enableXnConnectDesc")}</p>
                   </div>
                   <button
-                    onClick={async () => {
-                      if (!relayEnabled) {
-                        // Proactive tunnel-limit check before enabling XN-Connect
-                        try {
-                          const fresh = await window.electronAPI?.xnConnectUsage()
-                          if (fresh) setUsage(fresh)
-                          if (fresh && fresh.used >= fresh.max) {
-                            setUsageLimitShown(true)
-                            return
-                          }
-                        } catch { /* fall through to normal enable */ }
-                        setUsageLimitShown(false)
+                    type="button"
+                    onClick={() => {
+                      if (!relayEnabled && usage && usage.used >= usage.max) {
+                        setUsageLimitShown(true)
+                        return
                       }
+                      setUsageLimitShown(false)
                       setRelayEnabled(!relayEnabled)
                     }}
                     className={cn(
@@ -942,6 +1108,13 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
           )}
         </div>
       </DialogContent>
+
+      <IconPickerModal
+        open={showIconPicker}
+        onOpenChange={setShowIconPicker}
+        value={icon}
+        onChange={(newIcon: string) => setIcon(newIcon)}
+      />
     </Dialog>
   )
 }

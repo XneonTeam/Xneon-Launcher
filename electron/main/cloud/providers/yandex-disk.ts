@@ -17,7 +17,7 @@ const REDIRECT_PORT = 18935
 const REDIRECT_URI = `http://localhost:${REDIRECT_PORT}/callback`
 const YANDEX_API = "https://cloud-api.yandex.net/v1"
 const BASE_FOLDER = "Xneon Launcher"
-const SUB_FOLDERS = ["builds", "accounts"]
+const SUB_FOLDERS = ["builds", "accounts", "servers"]
 
 type TokenData = { access_token: string; refresh_token?: string; expires_at?: number }
 

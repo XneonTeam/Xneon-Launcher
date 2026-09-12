@@ -17,8 +17,8 @@
     "lib"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "clean": "rm -rf lib"
+    "build": "node -e \"fs.rmSync('lib',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "clean": "node -e \"fs.rmSync('lib',{recursive:true,force:true})\""
   },
   "publishConfig": {
     "registry": "https://git.xneon.org/api/packages/MAINER4IK/npm/"

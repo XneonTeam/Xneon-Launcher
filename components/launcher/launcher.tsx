@@ -9,6 +9,7 @@ import { CloudPage } from "./cloud"
 import { SkinsPage } from "./skins-page"
 import { ServersPage } from "./servers-page"
 import { ServerDetailPage } from "./server-detail-page"
+import { StatsPage } from "./stats-page"
 import { OnboardingModal } from "./onboarding-modal"
 import { Sidebar, type TabId } from "./sidebar"
 import { applyTheme, presetThemes } from "./settings/data"
@@ -104,6 +105,7 @@ export function Launcher({ onReady }: LauncherProps) {
       case "home": return <HomePage />
       case "builds": return <InstancePage />
       case "logs": return <LogsPage />
+      case "stats": return <StatsPage />
       case "settings": return <SettingsPage />
       case "accounts": return <AccountsPage />
       case "cloud": return <CloudPage />

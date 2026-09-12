@@ -17,7 +17,7 @@ const AUTH_ENDPOINT = "https://login.microsoftonline.com/common/oauth2/v2.0/auth
 const TOKEN_ENDPOINT = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
 const GRAPH_API = "https://graph.microsoft.com/v1.0"
 const BASE_FOLDER = "Xneon Launcher"
-const SUB_FOLDERS = ["builds", "accounts"]
+const SUB_FOLDERS = ["builds", "accounts", "servers"]
 const SCOPES = "Files.ReadWrite offline_access User.Read"
 const ONEDRIVE_CLIENT_ID = getCloudCredentials().onedrive.clientId
 

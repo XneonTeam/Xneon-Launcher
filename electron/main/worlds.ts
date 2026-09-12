@@ -252,6 +252,59 @@ async function listDatapacks(worldPath: string): Promise<DatapackInfo[]> {
 
 // ---------- Handlers ----------
 
+async function unpackWorldZip(
+  savesDir: string,
+  zipBufferOrPath: string | Buffer,
+  fallbackName: string,
+  newName?: string,
+): Promise<OpResult & { folder?: string }> {
+  try {
+    const AdmZip = (await import("adm-zip")).default
+    const zip = new AdmZip(zipBufferOrPath)
+    const entries: Array<{ entryName: string; isDirectory: boolean; getData: () => Buffer }> = zip.getEntries()
+    const levelEntry = entries.find(e => !e.isDirectory && e.entryName.replace(/\\/g, "/").split("/").pop() === "level.dat")
+    if (!levelEntry) {
+      return { success: false, error: "В архиве не найден мир Minecraft (level.dat)" }
+    }
+
+    // Определяем корневую папку мира внутри архива.
+    const levelPath = levelEntry.entryName.replace(/\\/g, "/")
+    const slashIdx = levelPath.lastIndexOf("/")
+    const levelDir = slashIdx === -1 ? "" : levelPath.slice(0, slashIdx)
+    let prefix: string
+    let defaultFolderName: string
+    if (levelDir) {
+      const firstSegment = levelDir.split("/")[0]
+      prefix = `${firstSegment}/`
+      defaultFolderName = firstSegment
+    } else {
+      prefix = ""
+      defaultFolderName = fallbackName || "world"
+    }
+
+    const trimmedName = newName?.trim().replace(/[<>:"/\\|?*\u0000-\u001F]/g, "").slice(0, 64) ?? ""
+    const destFolder = await uniqueFolderPath(savesDir, (trimmedName || defaultFolderName).replace(/\s+/g, "_"))
+    const destRoot = path.join(savesDir, destFolder)
+    await fs.mkdir(destRoot, { recursive: true })
+
+    for (const entry of entries) {
+      if (entry.isDirectory) continue
+      const entryPath = entry.entryName.replace(/\\/g, "/")
+      if (prefix && !entryPath.startsWith(prefix)) continue
+      const rel = prefix ? entryPath.slice(prefix.length) : entryPath
+      const target = resolveRelativeSafe(destRoot, rel)
+      if (!target) continue
+      await fs.mkdir(path.dirname(target), { recursive: true })
+      await fs.writeFile(target, entry.getData())
+    }
+
+    if (trimmedName) await updateLevelName(destRoot, trimmedName)
+    return { success: true, folder: destFolder }
+  } catch (error) {
+    return opFailure(error)
+  }
+}
+
 export function registerWorldsHandlers(): void {
   ipcMain.handle("worlds:list", async (_event, buildName: string): Promise<WorldInfo[]> => {
     try {
@@ -360,47 +413,21 @@ export function registerWorldsHandlers(): void {
     try {
       const gameDir = await getGameDir(buildName)
       const savesDir = path.join(gameDir, "saves")
-      const AdmZip = (await import("adm-zip")).default
-      const zip = new AdmZip(localFilePath)
-      const entries: Array<{ entryName: string; isDirectory: boolean; getData: () => Buffer }> = zip.getEntries()
-      const levelEntry = entries.find(e => !e.isDirectory && e.entryName.replace(/\\/g, "/").split("/").pop() === "level.dat")
-      if (!levelEntry) {
-        return { success: false, error: "В архиве не найден мир Minecraft (level.dat)" }
-      }
+      const fallbackName = path.basename(localFilePath, path.extname(localFilePath))
+      return await unpackWorldZip(savesDir, localFilePath, fallbackName, newName)
+    } catch (error) {
+      return opFailure(error)
+    }
+  })
 
-      // Определяем корневую папку мира внутри архива.
-      const levelPath = levelEntry.entryName.replace(/\\/g, "/")
-      const slashIdx = levelPath.lastIndexOf("/")
-      const levelDir = slashIdx === -1 ? "" : levelPath.slice(0, slashIdx)
-      let prefix: string
-      let defaultFolderName: string
-      if (levelDir) {
-        const firstSegment = levelDir.split("/")[0]
-        prefix = `${firstSegment}/`
-        defaultFolderName = firstSegment
-      } else {
-        prefix = ""
-        defaultFolderName = path.basename(localFilePath, path.extname(localFilePath))
-      }
-
-      const trimmedName = newName?.trim().replace(/[<>:"/\\|?*\u0000-\u001F]/g, "").slice(0, 64) ?? ""
-      const destFolder = await uniqueFolderPath(savesDir, (trimmedName || defaultFolderName).replace(/\s+/g, "_"))
-      const destRoot = path.join(savesDir, destFolder)
-      await fs.mkdir(destRoot, { recursive: true })
-
-      for (const entry of entries) {
-        if (entry.isDirectory) continue
-        const entryPath = entry.entryName.replace(/\\/g, "/")
-        if (prefix && !entryPath.startsWith(prefix)) continue
-        const rel = prefix ? entryPath.slice(prefix.length) : entryPath
-        const target = resolveRelativeSafe(destRoot, rel)
-        if (!target) continue
-        await fs.mkdir(path.dirname(target), { recursive: true })
-        await fs.writeFile(target, entry.getData())
-      }
-
-      if (trimmedName) await updateLevelName(destRoot, trimmedName)
-      return { success: true, folder: destFolder }
+  ipcMain.handle("worlds:import-remote", async (_event, buildName: string, url: string, preferredName?: string): Promise<OpResult & { folder?: string }> => {
+    try {
+      const gameDir = await getGameDir(buildName)
+      const savesDir = path.join(gameDir, "saves")
+      const safeFileName = sanitizeFileName((preferredName || "world").replace(/\s+/g, "_") + ".zip")
+      const buffer = await downloadBuffer(url, undefined, safeFileName)
+      const fallbackName = (preferredName || "imported_map").trim().replace(/[<>:"/\\|?*\u0000-\u001F]/g, "")
+      return await unpackWorldZip(savesDir, buffer, fallbackName, preferredName)
     } catch (error) {
       return opFailure(error)
     }

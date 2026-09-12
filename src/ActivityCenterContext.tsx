@@ -131,7 +131,6 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
         title: getImportTitle(source),
         message: progress.message,
         progress: percent,
-        itemName: progress.itemName ?? null,
         busy: true,
       })
     })
@@ -141,7 +140,7 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     const off = window.electronAPI?.onContentDownloadProgress?.((progress) => {
-      if (!progress || !progress.fileName) return
+      if (!progress) return
       if (importSessionSourceRef.current) return
       const total = Math.max(progress.total, 1)
       const current = Math.max(0, Math.min(progress.current, total))
@@ -150,9 +149,8 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
         kind: "progress",
         source: "install",
         title: "Установка контента",
-        message: progress.fileName,
+        message: "Установка...",
         progress: percent,
-        itemName: progress.fileName,
         busy: true,
       })
     })

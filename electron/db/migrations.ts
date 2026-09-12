@@ -51,6 +51,10 @@ function createTables() {
       source TEXT NOT NULL DEFAULT 'local',
       projectSlug TEXT,
       modpackVersion TEXT,
+      modpackVersionId TEXT,
+      locked INTEGER,
+      modId INTEGER,
+      fileId INTEGER,
       playtime INTEGER NOT NULL DEFAULT 0
     )
   `)
@@ -149,11 +153,37 @@ function createTables() {
       FOREIGN KEY (sessionId) REFERENCES ai_sessions(id) ON DELETE CASCADE
     )
   `)
+
+  run(`
+    CREATE TABLE IF NOT EXISTS game_sessions (
+      id TEXT PRIMARY KEY,
+      buildId TEXT NOT NULL,
+      buildName TEXT NOT NULL DEFAULT '',
+      startedAt INTEGER NOT NULL,
+      endedAt INTEGER NOT NULL,
+      duration INTEGER NOT NULL DEFAULT 0
+    )
+  `)
+
+  run(`
+    CREATE TABLE IF NOT EXISTS server_sessions (
+      id TEXT PRIMARY KEY,
+      serverId TEXT NOT NULL,
+      serverName TEXT NOT NULL DEFAULT '',
+      icon TEXT,
+      startedAt INTEGER NOT NULL,
+      endedAt INTEGER NOT NULL,
+      duration INTEGER NOT NULL DEFAULT 0
+    )
+  `)
 }
 
 function addColumnIfMissing(table: string, column: string, ddl: string) {
   const columns = queryAll<{ name: string }>(`PRAGMA table_info(${table})`)
-  if (Array.isArray(columns) && !columns.some((c) => c.name === column)) {
+  // PRAGMA table_info returns bare column names — strip quoting/brackets
+  // from the requested name before comparing (e.g. "[group]" → "group").
+  const bareName = column.replace(/[[\]"]/g, "")
+  if (Array.isArray(columns) && !columns.some((c) => c.name === bareName)) {
     run(`ALTER TABLE ${table} ADD COLUMN ${ddl}`)
   }
 }
@@ -174,6 +204,10 @@ function migrateBuilds() {
   addColumnIfMissing("builds", "coverImage", "coverImage TEXT")
   addColumnIfMissing("builds", "projectSlug", "projectSlug TEXT")
   addColumnIfMissing("builds", "modpackVersion", "modpackVersion TEXT")
+  addColumnIfMissing("builds", "modpackVersionId", "modpackVersionId TEXT")
+  addColumnIfMissing("builds", "locked", "locked INTEGER")
+  addColumnIfMissing("builds", "modId", "modId INTEGER")
+  addColumnIfMissing("builds", "fileId", "fileId INTEGER")
   addColumnIfMissing("builds", "javaOverride", "javaOverride INTEGER NOT NULL DEFAULT 0")
   addColumnIfMissing("builds", "javaPath", "javaPath TEXT NOT NULL DEFAULT ''")
   addColumnIfMissing("builds", "javaArgs", "javaArgs TEXT NOT NULL DEFAULT ''")

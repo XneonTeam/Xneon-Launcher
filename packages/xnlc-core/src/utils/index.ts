@@ -424,3 +424,12 @@ export function mavenCoordinateToPath(
   fileName += `.${extension}`;
   return `${groupPath}/${artifactId}/${version}/${fileName}`;
 }
+
+/**
+ * Normalizes a Java executable path by replacing `javaw.exe` with `java.exe`.
+ * Returns undefined if the input is empty.
+ */
+export function normalizeJavaPath(javaPath?: string): string | undefined {
+  if (!javaPath) return javaPath
+  return javaPath.replace(/(^|[\\/])javaw\.exe$/i, "$1java.exe")
+}

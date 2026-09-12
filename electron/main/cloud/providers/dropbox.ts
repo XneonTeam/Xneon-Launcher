@@ -16,7 +16,7 @@ const DBX_CLIENT_ID = credentials.dropbox.clientId
 const REDIRECT_PORT = 18934
 const REDIRECT_URI = `http://localhost:${REDIRECT_PORT}/callback`
 const BASE_FOLDER = "/Xneon Launcher"
-const SUB_FOLDERS = ["/builds", "/accounts"]
+const SUB_FOLDERS = ["/builds", "/accounts", "/servers"]
 
 type TokenData = { access_token: string }
 

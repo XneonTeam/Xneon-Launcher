@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils"
-import { IconDeviceGamepad2, IconCoffee, IconPalette, IconLanguage, IconInfoCircle, IconBrain } from "@tabler/icons-react"
+import { IconDeviceGamepad2, IconCoffee, IconPalette, IconLanguage, IconInfoCircle, IconBrain, IconDatabase } from "@tabler/icons-react"
 import type { SettingsTab } from "./types"
 
 const ICONS: Record<string, React.ComponentType<{ className?: string; strokeWidth?: number }>> = {
@@ -9,6 +9,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string; strokeWidt
   IconLanguage,
   IconInfoCircle,
   IconBrain,
+  IconDatabase,
 }
 
 interface SettingsTabsProps {

@@ -1,4 +1,4 @@
-export type SettingsTab = "game" | "java" | "themes" | "language" | "ai" | "about"
+export type SettingsTab = "game" | "java" | "themes" | "language" | "ai" | "storage" | "about"
 
 export interface Theme {
   id: string

@@ -1,5 +1,5 @@
 import { MOD_LOADERS } from "./constants"
-import type { Build, ModVersion } from "./types"
+import type { Build, ModSearchResult, ModVersion } from "./types"
 
 export function loadBuilds(): Build[] {
   const saved = localStorage.getItem("xneon-launcher:builds:legacy")
@@ -42,6 +42,25 @@ function parseVersionList(gameVersion: string) {
   return gameVersion.split(/[|,/]/).map(item => item.trim()).filter(Boolean)
 }
 
+/** Совпадает ли загрузчик версии с загрузчиком сборки (без учёта версии Minecraft) */
+export function matchesBuildLoader(version: ModVersion, build: Build): boolean {
+  const buildLoader = (build.modLoader ?? "").toLowerCase().trim()
+  // "instance" — модпак-инстанс со своим набором модов, фильтровать нечем
+  if (!buildLoader || buildLoader === "instance") return true
+
+  const loaders = version.loaders?.map(loader => String(loader).toLowerCase().trim()).filter(Boolean) ?? []
+
+  if (buildLoader === "vanilla") {
+    return loaders.length === 0
+  }
+
+  if (loaders.length === 0) {
+    return false
+  }
+
+  return loaders.includes(buildLoader)
+}
+
 export function matchesBuildVersion(version: ModVersion, build: Build, requireLoaderMatch = true) {
   const gameVersions = parseVersionList(version.gameVersion ?? "")
   if (gameVersions.length > 0 && !gameVersions.includes(build.version)) {
@@ -52,26 +71,68 @@ export function matchesBuildVersion(version: ModVersion, build: Build, requireLo
     return true
   }
 
-  const loaders = version.loaders?.map(loader => loader.toLowerCase()) ?? []
-  if (build.modLoader === "vanilla") {
-    return loaders.length === 0
-  }
-
-  if (loaders.length === 0) {
-    return false
-  }
-
-  return loaders.includes(build.modLoader.toLowerCase())
+  return matchesBuildLoader(version, build)
 }
 
-export function pickCompatibleVersion(versions: ModVersion[] | undefined, build: Build, requireLoaderMatch = true) {
+/**
+ * Разбивает список версий проекта на группы совместимости:
+ * exact  — подходит и версия Minecraft, и загрузчик;
+ * byLoader — подходит только загрузчик (другая версия Minecraft);
+ * all    — вообще все версии проекта.
+ */
+export function groupVersionsByCompatibility(
+  versions: ModVersion[],
+  build: Build | null,
+  requireLoaderMatch = true,
+): { exact: ModVersion[]; byLoader: ModVersion[]; all: ModVersion[] } {
+  if (!build) return { exact: versions, byLoader: versions, all: versions }
+
+  const exact = versions.filter(version => matchesBuildVersion(version, build, requireLoaderMatch))
+  const byLoader = requireLoaderMatch
+    ? versions.filter(version => matchesBuildLoader(version, build))
+    : versions
+
+  return { exact, byLoader, all: versions }
+}
+
+export function pickCompatibleVersion(versions: ModVersion[] | undefined, build: Build, requireLoaderMatch = true): ModVersion | undefined {
   if (!versions?.length) return undefined
 
   const installableVersions = versions.filter(version => version.files?.[0]?.url || version.downloadUrl || version.fileName)
   return installableVersions.find(version => matchesBuildVersion(version, build, requireLoaderMatch))
-    ?? installableVersions.find(version => {
-      const gameVersions = parseVersionList(version.gameVersion ?? "")
-      return gameVersions.length === 0 || gameVersions.includes(build.version)
-    })
-    ?? installableVersions[0]
 }
+
+/**
+ * Проверяет, совместим ли найденный проект с текущей сборкой (версия Minecraft + загрузчик).
+ * Если у проекта есть метаданные версий или загрузчиков, несовместимые проекты отсекаются.
+ */
+export function isProjectCompatibleWithBuild(
+  project: ModSearchResult,
+  build: Build | null,
+  requireLoaderMatch = true,
+): boolean {
+  if (!build) return true
+
+  // 1. Фильтр по версии Minecraft
+  const targetMc = (build.version || "").trim().toLowerCase()
+  if (targetMc && project.gameVersions && project.gameVersions.length > 0) {
+    const hasMc = project.gameVersions.some((v: string) => {
+      const clean = String(v).trim().toLowerCase()
+      if (clean === targetMc) return true
+      const baseClean = clean.split("-")[0]
+      const baseTarget = targetMc.split("-")[0]
+      return baseClean === baseTarget
+    })
+    if (!hasMc) return false
+  }
+
+  // 2. Фильтр по загрузчику (только для модов)
+  const buildLoader = (build.modLoader || "").trim().toLowerCase()
+  if (requireLoaderMatch && buildLoader && buildLoader !== "vanilla" && project.loaders && project.loaders.length > 0) {
+    const hasLoader = project.loaders.some((l: string) => String(l).trim().toLowerCase() === buildLoader)
+    if (!hasLoader) return false
+  }
+
+  return true
+}
+

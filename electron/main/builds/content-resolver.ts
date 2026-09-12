@@ -321,10 +321,18 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
     ...Object.values(mrMap).map((m) => m.projectId),
     ...cachedWithoutIcon.map((c) => c.resource.projectId!).filter(Boolean),
   ])]
+  const uniqueVersionIds = [...new Set(Object.values(mrMap).map((m) => m.versionId).filter(Boolean))]
+
   let projectInfoMap: Record<string, { iconUrl: string; author?: string }> = {}
+  let versionInfoMap: Record<string, { versionNumber?: string; name?: string }> = {}
   try {
     const mods = await loadModsModule()
-    projectInfoMap = await mods.modrinthGetProjectsByIds(uniqueProjectIds)
+    const [pMap, vMap] = await Promise.all([
+      mods.modrinthGetProjectsByIds(uniqueProjectIds),
+      mods.modrinthGetVersionsByIds(uniqueVersionIds),
+    ])
+    projectInfoMap = pMap
+    versionInfoMap = vMap
   } catch {}
 
   for (const { filePath, resource } of cachedWithoutIcon) {
@@ -359,11 +367,13 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
       const metadata = await readModMetadataFromArchive(filePath)
       const found = mrMap[sha1]
       const mrInfo = found?.projectId ? projectInfoMap[found.projectId] : undefined
+      const verInfo = found?.versionId ? versionInfoMap[found.versionId] : undefined
+      const resolvedVersion = verInfo?.versionNumber || metadata.version || verInfo?.name || "local"
       const entry: ResolvedContentEntry = {
         sha1,
         name: metadata.name || "",
         description: metadata.description || "",
-        version: metadata.version || "local",
+        version: resolvedVersion,
         icon_url: metadata.icon_url || mrInfo?.iconUrl,
         author: metadata.author || mrInfo?.author,
         source: found ? "modrinth" : "local",

@@ -1,11 +1,95 @@
 import ReactMarkdown from "react-markdown"
 import rehypeRaw from "rehype-raw"
 import rehypeSanitize from "rehype-sanitize"
-import { useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
-import { IconX, IconFileText, IconPhoto, IconHistory, IconDownload, IconRefresh, IconCheck, IconArrowRight } from "@tabler/icons-react"
+import {
+  IconX,
+  IconFileText,
+  IconPhoto,
+  IconHistory,
+  IconDownload,
+  IconRefresh,
+  IconCheck,
+  IconArrowRight,
+  IconAlertTriangle,
+  IconPackage,
+  IconLoader2,
+  IconCircleCheck,
+  IconAlertCircle,
+  IconExternalLink,
+  IconBrandGithub,
+  IconBug,
+  IconBook,
+  IconBrandDiscord,
+} from "@tabler/icons-react"
 import { Spinner } from "./spinner"
+import { LoaderIcon } from "./loader-icon"
+import { MOD_LOADERS } from "./constants"
+import { matchesBuildLoader } from "./utils"
 import type { Build, ModDetails, ModalTab, ModVersion } from "./types"
+
+function loaderLabel(loaderId: string): string {
+  return MOD_LOADERS.find(item => item.id === loaderId)?.name ?? loaderId
+}
+
+type InstallPhase = "running" | "done" | "error"
+
+interface InstallState {
+  versionId: string
+  phase: InstallPhase
+  /** Байтовый прогресс текущего файла (null — размер неизвестен) */
+  percent: number | null
+  fileName?: string
+  error?: string
+}
+
+/** Полоска прогресса установки прямо на карточке версии */
+function VersionInstallProgress({ state }: { state: InstallState }) {
+  if (state.phase === "error") {
+    return (
+      <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-500/5 px-3 py-2 text-xs text-red-400">
+        <IconAlertCircle className="w-4 h-4 shrink-0 mt-px" strokeWidth={1.75} />
+        <span className="break-words">{state.error || "Не удалось установить версию"}</span>
+      </div>
+    )
+  }
+
+  if (state.phase === "done") {
+    return (
+      <div className="mt-3 flex items-center gap-2 text-xs text-green-500">
+        <IconCircleCheck className="w-4 h-4 shrink-0" strokeWidth={1.75} />
+        <span>Установлено</span>
+      </div>
+    )
+  }
+
+  const indeterminate = state.percent === null
+  const width = indeterminate ? 100 : Math.max(2, Math.min(100, state.percent ?? 0))
+
+  return (
+    <div className="mt-3">
+      <div className="flex items-center justify-between gap-3 mb-1.5">
+        <span className="flex items-center gap-1.5 min-w-0 text-[11px] text-muted-foreground">
+          <IconLoader2 className="w-3.5 h-3.5 shrink-0 animate-spin text-primary" strokeWidth={2} />
+          <span className="truncate">Установка...</span>
+        </span>
+        <span className="shrink-0 text-[11px] font-mono text-muted-foreground tabular-nums">
+          {indeterminate ? "" : `${state.percent}%`}
+        </span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn(
+            "h-full rounded-full bg-primary transition-[width] duration-200 ease-out",
+            indeterminate && "animate-pulse",
+          )}
+          style={{ width: indeterminate ? "100%" : `${width}%` }}
+        />
+      </div>
+    </div>
+  )
+}
 
 const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
   h1: ({ children }) => <h1 className="text-2xl font-bold text-foreground mt-6 mb-3 pb-2 border-b border-border">{children}</h1>,
@@ -30,10 +114,18 @@ interface InstanceModalProps {
   setModalTab: (tab: ModalTab) => void
   loadingModal: boolean
   displayedModalVersions: ModVersion[]
-  onInstallVersion: (version: ModVersion) => void
+  /** Установка версии. Вернуть false, если установка отложена (например, ждём подтверждения зависимостей) */
+  onInstallVersion: (version: ModVersion) => Promise<boolean | void> | void
   onClose: () => void
   activeBuild?: Build
-  onUpdateModpack?: (version: ModVersion) => void
+  /** Обновление до выбранной версии. Вернуть false, если установка отложена */
+  onUpdateModpack?: (version: ModVersion) => Promise<boolean | void> | void
+  /** Какие версии показаны: точное совпадение, другой MC, другой загрузчик и т.д. */
+  versionsFallback?: "none" | "otherMc" | "otherLoader" | "empty"
+  /** Учитывался ли при фильтрации загрузчик сборки (только для вкладки «Моды») */
+  versionsLoaderFiltered?: boolean
+  onShowAllVersions?: () => void
+  allVersionsCount?: number
 }
 
 export function InstanceModal({
@@ -46,9 +138,125 @@ export function InstanceModal({
   onClose,
   activeBuild,
   onUpdateModpack,
+  versionsFallback = "none",
+  versionsLoaderFiltered = false,
+  onShowAllVersions,
+  allVersionsCount = 0,
 }: InstanceModalProps) {
   const [showUpdateDialog, setShowUpdateDialog] = useState(false)
   const [selectedUpdateVersion, setSelectedUpdateVersion] = useState<ModVersion | null>(null)
+  const showAllVersionsActive = versionsFallback === "otherMc" || versionsFallback === "otherLoader"
+  const [install, setInstall] = useState<InstallState | null>(null)
+  const [cfChangelogs, setCfChangelogs] = useState<Record<string, string>>({})
+  const [loadingChangelog, setLoadingChangelog] = useState(false)
+  const installVersionRef = useRef<string | null>(null)
+  const installStateRef = useRef<InstallState | null>(null)
+  const doneTimerRef = useRef<number | null>(null)
+
+  useEffect(() => { installStateRef.current = install }, [install])
+
+  // Прогресс скачивания файлов приходит из main-процесса по имени файла.
+  // Подписка одна на всё время жизни окна, чтобы не пропустить первые события.
+  useEffect(() => {
+    const off = window.electronAPI?.onContentDownloadProgress?.((progress) => {
+      if (installStateRef.current?.phase !== "running") return
+      setInstall(prev => {
+        if (!prev || prev.phase !== "running") return prev
+        const percent = progress.total > 0
+          ? Math.min(100, Math.round((progress.current / progress.total) * 100))
+          : null
+        return { ...prev, percent, fileName: progress.fileName }
+      })
+    })
+    return () => off?.()
+  }, [])
+
+  useEffect(() => () => {
+    if (doneTimerRef.current !== null) window.clearTimeout(doneTimerRef.current)
+  }, [])
+
+  // Автоматическая загрузка ченджлогов для версий CurseForge
+  useEffect(() => {
+    if (modalTab !== "changelog") return
+    if (selectedDetails?.source !== "curseforge" || !selectedDetails.modId) return
+
+    const versionsToFetch = displayedModalVersions.slice(0, 5).filter(v => !v.changelog && !cfChangelogs[v.id])
+    if (versionsToFetch.length === 0) return
+
+    let cancelled = false
+    setLoadingChangelog(true)
+
+    Promise.all(
+      versionsToFetch.map(async (v) => {
+        const fileId = Number(v.id)
+        if (!fileId || isNaN(fileId)) return null
+        try {
+          const text = await window.electronAPI?.modsCurseforgeChangelog(selectedDetails.modId!, fileId)
+          return { id: v.id, text: text || "" }
+        } catch {
+          return null
+        }
+      })
+    ).then((results) => {
+      if (cancelled) return
+      const updates: Record<string, string> = {}
+      for (const res of results) {
+        if (res) updates[res.id] = res.text
+      }
+      setCfChangelogs(prev => ({ ...prev, ...updates }))
+      setLoadingChangelog(false)
+    })
+
+    return () => { cancelled = true }
+  }, [modalTab, selectedDetails?.id, selectedDetails?.modId, displayedModalVersions])
+
+  const runVersionInstall = useCallback(async (
+    version: ModVersion,
+    action: () => Promise<boolean | void> | void,
+  ) => {
+    if (installVersionRef.current) return
+    if (doneTimerRef.current !== null) {
+      window.clearTimeout(doneTimerRef.current)
+      doneTimerRef.current = null
+    }
+    installVersionRef.current = version.id
+    setInstall({ versionId: version.id, phase: "running", percent: null })
+
+    let completed = false
+    try {
+      const result = await action()
+      completed = result !== false
+    } catch (e) {
+      installVersionRef.current = null
+      setInstall({
+        versionId: version.id,
+        phase: "error",
+        percent: null,
+        error: e instanceof Error ? e.message : "Не удалось установить версию",
+      })
+      return
+    }
+
+    installVersionRef.current = null
+
+    if (!completed) {
+      // Установку перехватил другой диалог (например, подтверждение зависимостей)
+      setInstall(null)
+      return
+    }
+
+    setInstall({ versionId: version.id, phase: "done", percent: 100 })
+    doneTimerRef.current = window.setTimeout(() => {
+      setInstall(prev => (prev?.versionId === version.id && prev.phase === "done" ? null : prev))
+      doneTimerRef.current = null
+    }, 2200)
+  }, [])
+
+  // Сбрасываем состояние прогресса при смене мода
+  useEffect(() => {
+    setInstall(null)
+    setSelectedUpdateVersion(null)
+  }, [selectedDetails?.id, selectedDetails?.projectId])
 
   if (!selectedDetails) return null
 
@@ -93,6 +301,65 @@ export function InstanceModal({
                 <div>
                   <h2 className="text-xl font-bold text-foreground">{title}</h2>
                   <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{description}</p>
+                  {selectedDetails.links && (
+                    <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                      {selectedDetails.links.sourceUrl && (
+                        <a
+                          href={selectedDetails.links.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
+                        >
+                          <IconBrandGithub className="w-3.5 h-3.5" />
+                          <span>Исходный код</span>
+                        </a>
+                      )}
+                      {selectedDetails.links.wikiUrl && (
+                        <a
+                          href={selectedDetails.links.wikiUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
+                        >
+                          <IconBook className="w-3.5 h-3.5" />
+                          <span>Вики / Документация</span>
+                        </a>
+                      )}
+                      {selectedDetails.links.issuesUrl && (
+                        <a
+                          href={selectedDetails.links.issuesUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
+                        >
+                          <IconBug className="w-3.5 h-3.5" />
+                          <span>Багтрекер</span>
+                        </a>
+                      )}
+                      {selectedDetails.links.discordUrl && (
+                        <a
+                          href={selectedDetails.links.discordUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
+                        >
+                          <IconBrandDiscord className="w-3.5 h-3.5" />
+                          <span>Discord</span>
+                        </a>
+                      )}
+                      {selectedDetails.links.websiteUrl && (
+                        <a
+                          href={selectedDetails.links.websiteUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
+                        >
+                          <IconExternalLink className="w-3.5 h-3.5" />
+                          <span>Страница проекта</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   {isInstalled && installedVersion && onUpdateModpack && (
@@ -147,11 +414,20 @@ export function InstanceModal({
             </div>
           )}
           {!loadingModal && modalTab === "gallery" && (
-            <div className="grid grid-cols-2 gap-4">
+            <div>
               {gallery && gallery.length > 0 ? (
-                gallery.map((img, i) => (
-                  <img key={i} src={img.url} alt={img.title || ""} className="rounded-xl w-full hover:scale-[1.02] transition-transform" />
-                ))
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {gallery.map((img, i) => (
+                    <div key={i} className="group relative overflow-hidden rounded-xl border border-border bg-muted/20">
+                      <img src={img.url} alt={img.title || ""} className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300" />
+                      {img.title && (
+                        <div className="absolute inset-x-0 bottom-0 bg-background/80 backdrop-blur-sm px-3 py-2 text-xs text-foreground font-medium border-t border-border">
+                          {img.title}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <p className="col-span-2 text-center text-muted-foreground py-12">Нет скриншотов</p>
               )}
@@ -166,13 +442,25 @@ export function InstanceModal({
                       <h4 className="font-semibold text-foreground">{ver.name}</h4>
                       <span className="text-xs text-muted-foreground">{ver.datePublished ? new Date(ver.datePublished).toLocaleDateString() : ""}</span>
                     </div>
-                    {ver.changelog ? (
-                      <div className="text-sm text-muted-foreground">
-                        <ReactMarkdown rehypePlugins={[rehypeRaw, rehypeSanitize]} components={mdComponents}>{ver.changelog}</ReactMarkdown>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">Нет changelog</p>
-                    )}
+                    {(() => {
+                      const changelogText = ver.changelog || cfChangelogs[ver.id]
+                      if (changelogText) {
+                        return (
+                          <div className="text-sm text-muted-foreground">
+                            <ReactMarkdown rehypePlugins={[rehypeRaw, rehypeSanitize]} components={mdComponents}>{changelogText}</ReactMarkdown>
+                          </div>
+                        )
+                      }
+                      if (loadingChangelog) {
+                        return (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                            <IconLoader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                            <span>Загрузка списка изменений...</span>
+                          </div>
+                        )
+                      }
+                      return <p className="text-sm text-muted-foreground">Нет changelog</p>
+                    })()}
                   </div>
                 ))
               ) : (
@@ -182,33 +470,114 @@ export function InstanceModal({
           )}
           {!loadingModal && modalTab === "versions" && (
             <div className="space-y-2">
+              {/* Предупреждение показывается только если пользователь сам нажал «Показать все версии» */}
+              {showAllVersionsActive && activeBuild && (
+                <div className="flex items-center gap-2 rounded-xl border border-yellow-500/20 bg-yellow-500/5 px-3.5 py-2.5 text-xs text-yellow-500/90">
+                  <IconAlertTriangle className="w-4 h-4 shrink-0" strokeWidth={1.75} />
+                  <span>
+                    Показаны все версии проекта. Версии под другие сборки или загрузчики <span className="font-medium">не запустятся</span> в вашей сборке.
+                  </span>
+                </div>
+              )}
+
               {displayedModalVersions.length > 0 ? (
-                displayedModalVersions.slice(0, 50).map((ver) => (
-                  <div key={ver.id} className="p-4 rounded-xl bg-muted/20 border border-border flex items-center justify-between hover:bg-muted/30 transition-colors">
-                    <div className="flex-1">
-                      <p className="font-medium text-foreground">{ver.name}</p>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs text-muted-foreground">
-                          {ver.gameVersion ?? ""}
-                        </span>
-                        {ver.loaders && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                            {Array.isArray(ver.loaders) ? ver.loaders.join(", ") : ""}
+                displayedModalVersions.slice(0, 50).map((ver) => {
+                  const mismatch = versionsLoaderFiltered && activeBuild
+                    ? !matchesBuildLoader(ver, activeBuild)
+                    : false
+                  const installState = install?.versionId === ver.id ? install : null
+                  const busy = install?.phase === "running"
+                  return (
+                  <div
+                    key={ver.id}
+                    className={cn(
+                      "p-4 rounded-xl border transition-colors",
+                      mismatch
+                        ? "border-red-500/20 bg-red-500/5"
+                        : installState?.phase === "error"
+                          ? "border-red-500/25 bg-red-500/5"
+                          : installState?.phase === "done"
+                            ? "border-green-500/25 bg-green-500/5"
+                            : installState
+                              ? "border-primary/40 bg-primary/5"
+                              : "bg-muted/20 border-border hover:bg-muted/30"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-foreground truncate">{ver.name}</p>
+                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                          <span className="text-xs text-muted-foreground">
+                            {ver.gameVersion ?? ""}
                           </span>
-                        )}
+                          {ver.loaders && ver.loaders.length > 0 && (
+                            <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                              {ver.loaders.map(l => (
+                                <LoaderIcon key={l} loaderId={String(l).toLowerCase()} className="w-3.5 h-3.5" />
+                              ))}
+                              <span>{Array.isArray(ver.loaders) ? ver.loaders.join(", ") : ""}</span>
+                            </span>
+                          )}
+                          {mismatch && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 font-medium">
+                              другой загрузчик
+                            </span>
+                          )}
+                        </div>
                       </div>
+                      <button
+                        onClick={() => void runVersionInstall(ver, () => onInstallVersion(ver))}
+                        disabled={busy}
+                        className={cn(
+                          "flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors shrink-0 ml-3",
+                          busy
+                            ? "bg-muted text-muted-foreground cursor-not-allowed"
+                            : "bg-primary text-primary-foreground hover:bg-primary/90"
+                        )}
+                      >
+                        {installState?.phase === "running" ? (
+                          <>
+                            <IconLoader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} />
+                            Установка...
+                          </>
+                        ) : (
+                          <>
+                            <IconDownload className="w-4 h-4" strokeWidth={1.75} />
+                            Скачать
+                          </>
+                        )}
+                      </button>
                     </div>
-                    <button
-                      onClick={() => onInstallVersion(ver)}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-                    >
-                      <IconDownload className="w-4 h-4" strokeWidth={1.75} />
-                      Скачать
-                    </button>
+
+                    {installState && <VersionInstallProgress state={installState} />}
                   </div>
-                ))
+                  )
+                })
               ) : (
-                <p className="text-center text-muted-foreground py-12">Нет версий</p>
+                <div className="flex flex-col items-center justify-center py-14 text-center">
+                  <IconPackage className="h-8 w-8 text-muted-foreground/60 mb-3" strokeWidth={1.5} />
+                  <p className="text-sm font-medium text-foreground">Нет версий для вашей сборки</p>
+                  <div className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1.5">
+                    {activeBuild ? (
+                      <>
+                        <span>Не найдено версий для</span>
+                        <LoaderIcon loaderId={activeBuild.modLoader} className="w-3.5 h-3.5" />
+                        <span>{loaderLabel(activeBuild.modLoader)} {activeBuild.version}</span>
+                      </>
+                    ) : (
+                      <span>Не найдено подходящих версий</span>
+                    )}
+                  </div>
+                  {onShowAllVersions && allVersionsCount > 0 && (
+                    <button
+                      onClick={onShowAllVersions}
+                      className="mt-4 flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-border bg-muted/40 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    >
+                      <IconAlertTriangle className="w-3.5 h-3.5" strokeWidth={1.75} />
+                      Показать все версии ({allVersionsCount})
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -245,6 +614,8 @@ export function InstanceModal({
                   const isCurrent = installedVersion === ver.name || installedVersion === ver.id
                   const isSelected = selectedUpdateVersion?.id === ver.id
                   const isOlder = installedVersion && ver.name < installedVersion
+                  const installState = install?.versionId === ver.id ? install : null
+                  const busy = install?.phase === "running"
 
                   return (
                     <button
@@ -253,11 +624,15 @@ export function InstanceModal({
                       onClick={() => setSelectedUpdateVersion(isSelected ? null : ver)}
                       className={cn(
                         "w-full text-left p-4 rounded-xl border transition-colors",
-                        isSelected
-                          ? "border-primary bg-primary/5"
-                          : isCurrent
-                            ? "border-primary/40 bg-primary/5"
-                            : "border-border bg-muted/20 hover:bg-muted/30"
+                        installState?.phase === "error"
+                          ? "border-red-500/25 bg-red-500/5"
+                          : installState?.phase === "done"
+                            ? "border-green-500/25 bg-green-500/5"
+                            : isSelected
+                              ? "border-primary bg-primary/5"
+                              : isCurrent
+                                ? "border-primary/40 bg-primary/5"
+                                : "border-border bg-muted/20 hover:bg-muted/30"
                       )}
                     >
                       <div className="flex items-center justify-between">
@@ -277,8 +652,11 @@ export function InstanceModal({
                           <div className="flex items-center gap-3 mt-1">
                             <span className="text-xs text-muted-foreground">{ver.gameVersion ?? ""}</span>
                             {ver.loaders && (
-                              <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                                {Array.isArray(ver.loaders) ? ver.loaders.join(", ") : ""}
+                              <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground flex items-center gap-1.5">
+                                {(Array.isArray(ver.loaders) ? ver.loaders : [ver.loaders]).map(l => (
+                                  <LoaderIcon key={String(l)} loaderId={String(l).toLowerCase()} className="w-3.5 h-3.5" />
+                                ))}
+                                <span>{Array.isArray(ver.loaders) ? ver.loaders.join(", ") : ver.loaders}</span>
                               </span>
                             )}
                             {ver.datePublished && (
@@ -304,7 +682,9 @@ export function InstanceModal({
                         )} />
                       </div>
 
-                      {isSelected && (
+                      {installState && <VersionInstallProgress state={installState} />}
+
+                      {isSelected && !installState && (
                         <div className="mt-4 pt-4 border-t border-border">
                           {ver.changelog ? (
                             <div className="text-sm text-muted-foreground">
@@ -332,14 +712,30 @@ export function InstanceModal({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
-                                onUpdateModpack?.(ver)
-                                setShowUpdateDialog(false)
-                                setSelectedUpdateVersion(null)
+                                void runVersionInstall(ver, async () => {
+                                  const result = await onUpdateModpack?.(ver)
+                                  return result === false ? false : true
+                                })
                               }}
-                              className="mt-4 flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+                              disabled={busy}
+                              className={cn(
+                                "mt-4 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                                busy
+                                  ? "bg-muted text-muted-foreground cursor-not-allowed"
+                                  : "bg-primary text-primary-foreground hover:bg-primary/90"
+                              )}
                             >
-                              <IconDownload className="w-4 h-4" strokeWidth={1.75} />
-                              Обновить до этой версии
+                              {busy ? (
+                                <>
+                                  <IconLoader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} />
+                                  Обновление...
+                                </>
+                              ) : (
+                                <>
+                                  <IconDownload className="w-4 h-4" strokeWidth={1.75} />
+                                  Обновить до этой версии
+                                </>
+                              )}
                             </button>
                           )}
                         </div>

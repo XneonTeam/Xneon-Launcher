@@ -4,6 +4,7 @@ import { IconTrash, IconRefresh, IconServer } from "@tabler/icons-react"
 import type { McServerInfo } from "@xnlc/types"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
+import { LoaderIcon } from "./instance/loader-icon"
 import { XnConnectLogo } from "./server/xn-connect-logo"
 
 interface ServerTrashViewProps {
@@ -89,9 +90,12 @@ export function ServerTrashView({ onBack }: ServerTrashViewProps) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
-            <p className="text-xs text-muted-foreground">
-              {item.gameVersion} &middot; {item.modloader === "vanilla" ? "Vanilla" : item.modloader}
-            </p>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span>{item.gameVersion}</span>
+              <span>&middot;</span>
+              <LoaderIcon loaderId={item.modloader} className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="capitalize">{item.modloader === "vanilla" ? "Vanilla" : item.modloader}</span>
+            </div>
             {item.trashedAt && (
               <p className="text-[11px] text-muted-foreground">
                 {t("servers.trash.deletedAt", { date: new Date(item.trashedAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) })}

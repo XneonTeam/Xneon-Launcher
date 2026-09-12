@@ -4,6 +4,7 @@ import { IconSearch, IconList, IconChevronDown, IconChevronRight } from "@tabler
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
+import { LoaderIcon } from "./instance/loader-icon"
 import type { ModSort } from "./instance/types"
 import type { ModCategory } from "@xnlc/types"
 import type { SelectedModCategory } from "./instance/use-mod-search"
@@ -268,7 +269,10 @@ export function ServersBrowseToolbar({
         <SelectContent>
           {MOD_LOADER_OPTIONS.map(loader => (
             <SelectItem key={loader.id} value={loader.id}>
-              {loader.id === "all" ? t("servers.allLoaders") : loader.label}
+              <span className="flex items-center gap-2">
+                {loader.id !== "all" && <LoaderIcon loaderId={loader.id} className="w-4 h-4 flex-shrink-0" />}
+                <span>{loader.id === "all" ? t("servers.allLoaders") : loader.label}</span>
+              </span>
             </SelectItem>
           ))}
         </SelectContent>

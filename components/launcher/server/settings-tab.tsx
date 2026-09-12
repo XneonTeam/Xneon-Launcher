@@ -25,6 +25,7 @@ export function SettingsTab({ server }: SettingsTabProps) {
   const [loadingJava, setLoadingJava] = useState(false)
   const [showJavaModal, setShowJavaModal] = useState(false)
   const [relayEnabled, setRelayEnabled] = useState(server.relayEnabled)
+  const [relayToggling, setRelayToggling] = useState(false)
   const [relayState, setRelayState] = useState<XnConnectState>({ status: "stopped" })
   const [usage, setUsage] = useState<XnConnectUsage | null>(null)
   const { maxMb, snapPoints } = useMemoryOptions()
@@ -51,25 +52,40 @@ export function SettingsTab({ server }: SettingsTabProps) {
   }
 
   const handleToggleRelay = async () => {
+    if (relayToggling) return
     const next = !relayEnabled
+    setRelayToggling(true)
+    setRelayEnabled(next)
+
     if (next) {
-      // Proactive limit check: fetch fresh usage before starting the relay
-      // so the limit error shows immediately instead of after a failed start
+      setRelayState({ status: "starting" })
       try {
         const fresh = await window.electronAPI?.xnConnectUsage()
         if (fresh) setUsage(fresh)
         if (fresh && fresh.used >= fresh.max) {
+          setRelayEnabled(false)
           setRelayState({ status: "limit_reached", used: fresh.used, max: fresh.max, plan: fresh.plan })
+          setRelayToggling(false)
           return
         }
       } catch { /* fall through to normal start */ }
-    }
-    setRelayEnabled(next)
-    save({ relayEnabled: next ? 1 : 0 })
-    if (next) {
-      await window.electronAPI?.xnConnectStart(server.id)
     } else {
-      await window.electronAPI?.xnConnectStop(server.id)
+      setRelayState({ status: "stopped" })
+    }
+
+    try {
+      await save({ relayEnabled: next ? 1 : 0 })
+      if (next) {
+        await window.electronAPI?.xnConnectStart(server.id)
+      } else {
+        await window.electronAPI?.xnConnectStop(server.id)
+      }
+    } catch (e) {
+      console.error("[XN-Connect] Toggle error:", e)
+      setRelayEnabled(!next)
+      setRelayState({ status: "stopped" })
+    } finally {
+      setRelayToggling(false)
     }
   }
 
@@ -266,15 +282,21 @@ export function SettingsTab({ server }: SettingsTabProps) {
           </p>
           <button
             onClick={handleToggleRelay}
+            disabled={relayToggling}
             className={cn(
               "relative w-11 h-6 rounded-full transition-colors",
-              relayEnabled ? "bg-primary" : "bg-muted"
+              relayEnabled ? "bg-primary" : "bg-muted",
+              relayToggling && "opacity-70 cursor-wait"
             )}
           >
             <div className={cn(
-              "absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform shadow-sm",
+              "absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform shadow-sm flex items-center justify-center",
               relayEnabled ? "translate-x-5.5" : "translate-x-0.5"
-            )} />
+            )}>
+              {relayToggling && (
+                <IconLoader2 className="w-3 h-3 text-primary animate-spin" strokeWidth={2.5} />
+              )}
+            </div>
           </button>
         </div>
         {relayEnabled && (

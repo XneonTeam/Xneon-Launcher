@@ -14,6 +14,8 @@ import { registerUpdater } from "./updater"
 import { registerAiAgent } from "./ai-agent"
 import { registerSkinsHandlers } from "./skins"
 import { registerMcServerHandlers } from "./mc-server-handlers"
+import { registerStatsHandlers } from "./stats"
+import { registerStorageHandlers } from "./storage"
 
 registerWindowLifecycle()
 registerSystemHandlers()
@@ -29,6 +31,8 @@ registerUpdater()
 registerAiAgent()
 registerSkinsHandlers()
 registerMcServerHandlers()
+registerStatsHandlers()
+registerStorageHandlers()
 
 import("@xnlc/mods").catch(() => {})
 import("./discord-rpc.js").catch(() => {})

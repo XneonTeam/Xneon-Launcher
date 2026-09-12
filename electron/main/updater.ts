@@ -1,31 +1,14 @@
 import { autoUpdater, UpdateInfo } from "electron-updater"
-import { app, ipcMain, BrowserWindow } from "electron"
-import { isDev, logRuntime, logRuntimeDebug } from "./runtime"
+import { app, ipcMain } from "electron"
+import { isDev, logRuntime, logRuntimeDebug, sendToRenderer } from "./runtime"
 import { isLaunchActive } from "./minecraft-core"
+import { isVersionNewer } from "./utils/version"
 
 let pendingUpdate: UpdateInfo | null = null
 let isDownloading = false
 let updateDownloaded = false
 
-function isVersionNewer(remote: string, local: string): boolean {
-  const r = remote.replace(/^v/, "").split(".").map(Number)
-  const l = local.replace(/^v/, "").split(".").map(Number)
-  for (let i = 0; i < Math.max(r.length, l.length); i++) {
-    const a = r[i] ?? 0
-    const b = l[i] ?? 0
-    if (a > b) return true
-    if (a < b) return false
-  }
-  return false
-}
-
 const CURRENT_VERSION = app.getVersion()
-
-function sendToRenderer(channel: string, ...args: unknown[]) {
-  BrowserWindow.getAllWindows().forEach((win) => {
-    if (!win.isDestroyed()) win.webContents.send(channel, ...args)
-  })
-}
 
 export function registerUpdater() {
   autoUpdater.autoDownload = false

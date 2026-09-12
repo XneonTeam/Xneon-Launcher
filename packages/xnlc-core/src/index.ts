@@ -134,6 +134,7 @@ export {
   formatBytes,
   isLegacyVersion,
   isLegacyFabric,
+  normalizeJavaPath,
 } from "./utils/index.js";
 
 // Handler - Simple API

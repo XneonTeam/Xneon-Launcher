@@ -220,7 +220,8 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
   } = props
   const showLoaderVersionSelect = selectedModLoader !== "vanilla" && selectedModLoader !== "instance"
   const loaderVersionSelectionPending = showLoaderVersionSelect && (!loaderVersionsLoaded || !selectedLoaderVersion)
-  const playDisabled = (launchUi.isLaunching && !isRunning) || loaderVersionSelectionPending
+  const noVersionsAvailable = versionsLoaded && versions.length === 0
+  const playDisabled = (launchUi.isLaunching && !isRunning) || loaderVersionSelectionPending || noVersionsAvailable
 
   return (
     <div className="w-72 flex-shrink-0 flex flex-col justify-start gap-4 px-1">
@@ -274,11 +275,24 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
         <div className="relative z-10">
           <label className="block text-xs font-medium text-muted-foreground mb-1.5">{t("home.version")}</label>
           <Select value={selectedVersion} onValueChange={setSelectedVersion}>
-            <SelectTrigger className="w-full h-[42px] rounded-xl bg-muted/50 border border-border text-foreground text-sm"><SelectValue placeholder="Minecraft" /></SelectTrigger>
+            <SelectTrigger className="w-full h-[42px] rounded-xl bg-muted/50 border border-border text-foreground text-sm">
+              <SelectValue
+                placeholder={
+                  selectedModLoader === "instance" && versionsLoaded && versions.length === 0
+                    ? t("home.noBuilds")
+                    : !versionsLoaded
+                      ? t("home.loadingVersions")
+                      : "Minecraft"
+                }
+              />
+            </SelectTrigger>
             <SelectContent>
-              {!versionsLoaded ? <div className="px-3 py-2 text-sm text-muted-foreground">Loading...</div>
-                : versions.length === 0 ? <div className="px-3 py-2 text-sm text-muted-foreground">Failed to load versions</div>
-                : versions.map(v => <SelectItem key={v} value={v}>
+              {!versionsLoaded ? <div className="px-3 py-2 text-sm text-muted-foreground">{t("home.loadingVersions")}</div>
+                : versions.length === 0
+                  ? <div className="px-3 py-2 text-sm text-muted-foreground">
+                      {selectedModLoader === "instance" ? t("home.noBuilds") : t("home.failedToLoadVersions")}
+                    </div>
+                  : versions.map(v => <SelectItem key={v} value={v}>
                     <span className="flex items-center gap-2">
                       {buildIcons[v] ? (
                         <img src={buildIcons[v]} alt="" className="w-4 h-4 rounded-sm object-cover shrink-0" />

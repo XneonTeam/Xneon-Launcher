@@ -12,9 +12,10 @@ import {
   IconColorSwatch,
   IconShirt,
   IconServer,
+  IconChartBar,
 } from "@tabler/icons-react";
 
-type TabId = "home" | "builds" | "logs" | "cloud" | "accounts" | "settings" | "themes" | "skins" | "servers";
+type TabId = "home" | "builds" | "logs" | "cloud" | "accounts" | "settings" | "themes" | "skins" | "servers" | "stats";
 
 interface SidebarItem {
   id: TabId;
@@ -57,6 +58,11 @@ const sidebarItems: SidebarItem[] = [
     id: "logs",
     labelKey: "sidebar.logs",
     icon: <IconFileText className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
+  },
+  {
+    id: "stats",
+    labelKey: "sidebar.stats",
+    icon: <IconChartBar className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
   },
   {
     id: "cloud",

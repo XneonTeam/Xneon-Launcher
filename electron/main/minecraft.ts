@@ -14,7 +14,21 @@ import {
 } from "./minecraft-core"
 import { logRuntimeDebug } from "./runtime"
 import { registerIpcHandlers, ctxHandler, rawHandler, type IpcHandlerDef } from "./ipc-router"
-import { getPaperVersions, getPurpurVersions, getFoliaVersions, getPaperBuilds, getPurpurBuilds, getFoliaBuilds, getVelocityVersions, getVelocityBuilds, getWaterfallVersions, getWaterfallBuilds } from "@xnlc/servers"
+import {
+  getPaperVersions,
+  getPurpurVersions,
+  getFoliaVersions,
+  getPaperBuilds,
+  getPurpurBuilds,
+  getFoliaBuilds,
+  getVelocityVersions,
+  getVelocityBuilds,
+  getWaterfallVersions,
+  getWaterfallBuilds,
+  getSpongeSupportedVersions,
+  getSpongeBuilds,
+  type SpongeType,
+} from "@xnlc/servers"
 
 type LaunchResultPayload = {
   success: boolean
@@ -190,6 +204,18 @@ const versionHandlers: IpcHandlerDef[] = [
   rawHandler("minecraft:get-waterfall-versions", async (...args: unknown[]) => {
     const mcVersion = args[0] as string
     return await getWaterfallBuilds(mcVersion)
+  }),
+
+  // Sponge — SpongeVanilla / SpongeForge / SpongeNeo
+  rawHandler("minecraft:get-sponge-supported", async (...args: unknown[]) => {
+    const spongeType = args[0] as SpongeType | undefined
+    return await getSpongeSupportedVersions(spongeType)
+  }),
+
+  rawHandler("minecraft:get-sponge-versions", async (...args: unknown[]) => {
+    const spongeType = (args[0] as SpongeType) || "spongevanilla"
+    const mcVersion = args[1] as string
+    return await getSpongeBuilds(spongeType, mcVersion)
   }),
 
   // Auth

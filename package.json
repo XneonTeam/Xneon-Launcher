@@ -45,7 +45,7 @@
     "predev": "node scripts/gen-credentials.mjs",
     "prebuild": "node scripts/gen-credentials.mjs",
     "prepackage": "node scripts/gen-credentials.mjs",
-    "dev": "concurrently -k -s first \"vite --host 127.0.0.1\" \"tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development node scripts/launch-electron-dev.mjs\"",
+    "dev": "concurrently -k -s first \"vite --host 127.0.0.1\" \"tsc -p tsconfig.node.json && wait-on tcp:127.0.0.1:5173 --timeout 60000 && cross-env NODE_ENV=development node scripts/launch-electron-dev.mjs\"",
     "dev:fast": "concurrently -k -s first \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development node scripts/launch-electron-dev.mjs\"",
     "dev:diag": "concurrently -k -s first \"vite --host 127.0.0.1\" \"tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development ELECTRON_DEBUG_FLAGS=1 node scripts/launch-electron-dev.mjs\"",
     "dev:diag:no-shm": "concurrently -k -s first \"vite --host 127.0.0.1\" \"tsc -p tsconfig.node.json && wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development ELECTRON_DEBUG_FLAGS=1 ELECTRON_DISABLE_DEV_SHM_USAGE=0 node scripts/launch-electron-dev.mjs\"",

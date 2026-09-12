@@ -18,6 +18,7 @@ import { SettingsLanguage } from "./settings-language-about"
 import { SettingsAbout } from "./settings-language-about"
 import { SettingsUpdate } from "./settings-update"
 import { SettingsAi } from "./settings-ai"
+import { SettingsStorage } from "./settings-storage"
 import type { SettingsTab, JavaInstallation } from "./types"
 
 export function SettingsPage() {
@@ -479,6 +480,12 @@ export function SettingsPage() {
         {activeSettingsTab === "ai" && (
           <div className="min-h-0 flex-1 overflow-y-auto pr-6">
             <SettingsAi />
+          </div>
+        )}
+
+        {activeSettingsTab === "storage" && (
+          <div className="min-h-0 flex-1 overflow-y-auto pr-6">
+            <SettingsStorage />
           </div>
         )}
 

@@ -6,7 +6,7 @@ import { createClient } from "webdav"
 import { dbHelpers } from "../../../db"
 
 const BASE_FOLDER = "Xneon Launcher"
-const SUB_FOLDERS = ["builds", "accounts"]
+const SUB_FOLDERS = ["builds", "accounts", "servers"]
 
 type WebDavConfig = {
   url: string

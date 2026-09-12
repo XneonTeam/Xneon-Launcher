@@ -4,6 +4,7 @@ import { Spinner } from "./instance/spinner"
 import { formatDownloads } from "./instance/utils"
 import { ServersBrowseToolbar } from "./servers-browse-toolbar"
 import { Pagination } from "./instance/pagination"
+import { CategoryBadge } from "./instance/category-badge"
 import type { ModCategory } from "@xnlc/types"
 import type { SelectedModCategory } from "./instance/use-mod-search"
 import type { ModSearchResult, ModSort } from "./instance/types"
@@ -111,7 +112,7 @@ export function ServersBrowse({
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">{formatDownloads(project.downloadCount)} {t("builds.downloads")}</span>
                           {project.categories?.slice(0, 3).map(category => (
-                            <span key={category} className="rounded-md bg-primary/10 px-2 py-0.5 text-xs capitalize text-primary">{category}</span>
+                            <CategoryBadge key={category} name={category} source={project.source} />
                           ))}
                         </div>
                       </div>

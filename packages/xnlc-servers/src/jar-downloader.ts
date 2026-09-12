@@ -474,20 +474,167 @@ async function installBukkit(serverDir: string, gameVersion: string, javaPath: s
 
 // ── Sponge ────────────────────────────────────────────
 
-async function installSponge(serverDir: string, gameVersion: string, onProgress?: OnProgress): Promise<string> {
-  onProgress?.({ phase: "resolving", message: "Получение информации о Sponge..." })
-  // SpongeVanilla uses Forge-like versioning: MC_VERSION-BUILD
-  // API: https://repo.spongepowered.org/maven/org/spongepowered/spongevanilla/
-  // We need to find the latest build for the given MC version
-  const metaUrl = `https://meta.spongepowered.org/v3/versions/vanilla/${gameVersion}/summary`
-  const meta = await fetchJson(metaUrl)
-  const latestVersion = meta?.latest?.version
-  if (!latestVersion) throw new Error(`Sponge не найден для версии ${gameVersion}`)
+export type SpongeType = "spongevanilla" | "spongeforge" | "spongeneo"
 
-  const filename = `spongevanilla-${latestVersion}.jar`
-  const url = `https://repo.spongepowered.org/maven/org/spongepowered/spongevanilla/${latestVersion}/${filename}`
+export async function getSpongeSupportedVersions(spongeType?: SpongeType): Promise<string[]> {
+  try {
+    const types: SpongeType[] = spongeType ? [spongeType] : ["spongevanilla", "spongeforge", "spongeneo"]
+    const results = await Promise.all(
+      types.map(async (t) => {
+        const data = await fetchJson(`https://dl-api.spongepowered.org/v2/groups/org.spongepowered/artifacts/${t}`)
+        const mcTags: string[] = data?.tags?.minecraft || []
+        return mcTags
+      })
+    )
+    const set = new Set<string>()
+    for (const list of results) {
+      for (const v of list) {
+        set.add(v)
+      }
+    }
+    return Array.from(set)
+  } catch (err) {
+    console.error(`[Sponge] Failed to fetch supported MC versions:`, err)
+    return []
+  }
+}
+
+export async function getSpongeBuilds(spongeType: SpongeType = "spongevanilla", gameVersion: string): Promise<LoaderVersionEntry[]> {
+  try {
+    const url = `https://dl-api.spongepowered.org/v2/groups/org.spongepowered/artifacts/${spongeType}/versions?tags=minecraft:${gameVersion}`
+    const data = await fetchJson(url)
+    const artifacts: Record<string, { recommended?: boolean; tagValues?: Record<string, string> }> = data?.artifacts || {}
+    const entries: LoaderVersionEntry[] = []
+
+    for (const [versionKey, info] of Object.entries(artifacts)) {
+      const isRec = !!info.recommended
+      const apiVer = info.tagValues?.api ? ` (API ${info.tagValues.api})` : ""
+      const forgeVer = info.tagValues?.forge ? ` [Forge ${info.tagValues.forge}]` : ""
+      entries.push({
+        value: versionKey,
+        label: `${versionKey}${apiVer}${forgeVer}${isRec ? " ★ Recommended" : ""}`,
+        recommended: isRec,
+        stable: isRec || !versionKey.includes("-RC"),
+      })
+    }
+
+    return entries
+  } catch (err) {
+    console.error(`[Sponge] Failed to fetch builds for ${spongeType} on MC ${gameVersion}:`, err)
+    return []
+  }
+}
+
+async function installSponge(
+  serverDir: string,
+  gameVersion: string,
+  spongeVersion?: string,
+  spongeType: SpongeType = "spongevanilla",
+  javaPath: string = "java",
+  onProgress?: OnProgress
+): Promise<string> {
+  onProgress?.({ phase: "resolving", message: `Получение информации о ${spongeType}...` })
+
+  let targetVersion = spongeVersion
+  if (!targetVersion) {
+    const builds = await getSpongeBuilds(spongeType, gameVersion)
+    const rec = builds.find(b => b.recommended) || builds[0]
+    if (!rec) throw new Error(`Версия Sponge (${spongeType}) не найдена для Minecraft ${gameVersion}`)
+    targetVersion = rec.value
+  }
+
+  // Query artifact details to get actual download URL and metadata from Sponge API
+  const versionUrl = `https://dl-api.spongepowered.org/v2/groups/org.spongepowered/artifacts/${spongeType}/versions/${targetVersion}`
+  const verData = await fetchJson(versionUrl)
+  const assets: Array<{ classifier: string; downloadUrl: string; extension: string }> = verData?.assets || []
+  const tags: Record<string, string> = verData?.tags || {}
+
+  // 1. SpongeForge: install Forge server, put spongeforge jar into mods/
+  if (spongeType === "spongeforge") {
+    // Find SpongeForge jar
+    const sfAsset = assets.find(a => a.extension === "jar" && a.classifier === "universal")
+      || assets.find(a => a.extension === "jar" && !a.classifier)
+      || assets.find(a => a.extension === "jar" && !a.classifier?.includes("source"))
+    if (!sfAsset) throw new Error(`JAR-файл не найден для SpongeForge ${targetVersion}`)
+
+    // Determine matching Forge version from tags or version string
+    // Tag example: tags.forge = "65.1.1" or "2838"
+    let forgeVer = tags.forge
+    if (!forgeVer) {
+      // Version string format: MC-FORGE-API-BUILD (e.g. "1.12.2-2838-7.4.7" or "26.2-65.1.1-20.0.0-RC2703")
+      const parts = targetVersion.split("-")
+      if (parts.length >= 2) forgeVer = parts[1]
+    }
+    if (!forgeVer) {
+      throw new Error(`Не удалось определить требуемую версию Forge для SpongeForge ${targetVersion}`)
+    }
+
+    onProgress?.({ phase: "resolving", message: `Установка основы Forge (${forgeVer})...` })
+    const launchTarget = await installForge(serverDir, gameVersion, forgeVer, javaPath, onProgress)
+
+    // Download SpongeForge mod jar to mods/
+    const modsDir = path.join(serverDir, "mods")
+    if (!fs.existsSync(modsDir)) {
+      fs.mkdirSync(modsDir, { recursive: true })
+    }
+    const sfFilename = path.basename(new URL(sfAsset.downloadUrl).pathname) || `spongeforge-${targetVersion}.jar`
+    const sfDest = path.join(modsDir, sfFilename)
+    onProgress?.({ phase: "downloading", message: `Загрузка SpongeForge в mods/...` })
+    await downloadFile(sfAsset.downloadUrl, sfDest, onProgress)
+
+    onProgress?.({ phase: "done", percent: 100, message: "Готово!" })
+    return launchTarget
+  }
+
+  // 2. SpongeNeo: install NeoForge server, put spongeneo jar into mods/
+  if (spongeType === "spongeneo") {
+    const snAsset = assets.find(a => a.extension === "jar" && a.classifier === "universal")
+      || assets.find(a => a.extension === "jar" && !a.classifier)
+      || assets.find(a => a.extension === "jar" && !a.classifier?.includes("source"))
+    if (!snAsset) throw new Error(`JAR-файл не найден для SpongeNeo ${targetVersion}`)
+
+    let neoVer = tags.neoforge
+    if (!neoVer) {
+      const parts = targetVersion.split("-")
+      if (parts.length >= 2) neoVer = parts[1]
+    }
+    if (!neoVer) {
+      throw new Error(`Не удалось определить требуемую версию NeoForge для SpongeNeo ${targetVersion}`)
+    }
+
+    onProgress?.({ phase: "resolving", message: `Установка основы NeoForge (${neoVer})...` })
+    const launchTarget = await installNeoForge(serverDir, neoVer, javaPath, onProgress)
+
+    // Download SpongeNeo mod jar to mods/
+    const modsDir = path.join(serverDir, "mods")
+    if (!fs.existsSync(modsDir)) {
+      fs.mkdirSync(modsDir, { recursive: true })
+    }
+    const snFilename = path.basename(new URL(snAsset.downloadUrl).pathname) || `spongeneo-${targetVersion}.jar`
+    const snDest = path.join(modsDir, snFilename)
+    onProgress?.({ phase: "downloading", message: `Загрузка SpongeNeo в mods/...` })
+    await downloadFile(snAsset.downloadUrl, snDest, onProgress)
+
+    onProgress?.({ phase: "done", percent: 100, message: "Готово!" })
+    return launchTarget
+  }
+
+  // 3. SpongeVanilla: standalone server
+  // For modern SpongeVanilla (8+), prefer the executable installer.jar which contains InstallerMain.
+  // For older SpongeVanilla (7.x and below), plain jar or universal jar is used.
+  const installerAsset = assets.find(a => a.extension === "jar" && a.classifier === "installer")
+  const jarAsset = installerAsset
+    || assets.find(a => a.extension === "jar" && a.classifier === "universal")
+    || assets.find(a => a.extension === "jar" && !a.classifier)
+    || assets.find(a => a.extension === "jar" && !a.classifier?.includes("source"))
+
+  if (!jarAsset) {
+    throw new Error(`JAR-файл не найден для SpongeVanilla ${targetVersion}`)
+  }
+
+  const filename = path.basename(new URL(jarAsset.downloadUrl).pathname) || `${spongeType}-${targetVersion}.jar`
   const dest = path.join(serverDir, filename)
-  await downloadFile(url, dest, onProgress)
+  await downloadFile(jarAsset.downloadUrl, dest, onProgress)
   onProgress?.({ phase: "done", percent: 100, message: "Готово!" })
   return dest
 }
@@ -530,8 +677,12 @@ function findExistingJar(serverDir: string, modloader: string): string | null {
     knownJars.push("spigot-*.jar")
   } else if (modloader === "bukkit") {
     knownJars.push("craftbukkit-*.jar")
-  } else if (modloader === "sponge") {
+  } else if (modloader === "sponge" || modloader === "spongevanilla") {
     knownJars.push("spongevanilla-*.jar")
+  } else if (modloader === "spongeforge") {
+    knownJars.push("spongeforge-*.jar")
+  } else if (modloader === "spongeneo") {
+    knownJars.push("spongeneo-*.jar")
   } else if (modloader === "velocity") {
     knownJars.push("velocity-*.jar")
   } else if (modloader === "waterfall") {
@@ -784,7 +935,12 @@ export async function ensureServerJar(
     case "bukkit":
       return await installBukkit(serverDir, gameVersion, javaPath, onProgress)
     case "sponge":
-      return await installSponge(serverDir, gameVersion, onProgress)
+    case "spongevanilla":
+      return await installSponge(serverDir, gameVersion, modloaderVersion, "spongevanilla", javaPath, onProgress)
+    case "spongeforge":
+      return await installSponge(serverDir, gameVersion, modloaderVersion, "spongeforge", javaPath, onProgress)
+    case "spongeneo":
+      return await installSponge(serverDir, gameVersion, modloaderVersion, "spongeneo", javaPath, onProgress)
     case "bungeecord":
       return await installBungeeCord(serverDir, onProgress)
     default:

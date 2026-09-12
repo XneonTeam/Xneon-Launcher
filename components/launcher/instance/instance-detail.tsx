@@ -1,6 +1,6 @@
-import { memo, useCallback, useState } from "react"
+import { memo, useCallback, useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
-import { IconArrowLeft, IconInfoCircle, IconSettings, IconPuzzle, IconPhoto, IconSparkles, IconWorld, IconCamera, IconServer } from "@tabler/icons-react"
+import { IconArrowLeft, IconInfoCircle, IconSettings, IconPuzzle, IconPhoto, IconSparkles, IconMap, IconCamera, IconServer, IconLock } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { MOD_LOADERS } from "./constants"
 import { LoaderIcon } from "./loader-icon"
@@ -13,6 +13,7 @@ import { InstanceScreenshotsTab } from "./instance-screenshots-tab"
 import { InstanceServersTab } from "./instance-servers-tab"
 import { InstanceModal } from "./instance-modal"
 import { DepInstallDialog } from "@/components/launcher/dep-install-dialog"
+import { ActionConfirmDialog } from "./action-confirm-dialog"
 import type { SelectedModCategory } from "./use-mod-search"
 import type {
   Build,
@@ -87,6 +88,10 @@ interface InstanceDetailProps {
   setModalTab: (tab: ModalTab) => void
   loadingModal: boolean
   displayedModalVersions: ModVersion[]
+  versionsFallback?: "none" | "otherMc" | "otherLoader" | "empty"
+  versionsLoaderFiltered?: boolean
+  onShowAllVersions?: () => void
+  allVersionsCount?: number
   closeModal: () => void
 }
 
@@ -133,6 +138,10 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     setModalTab,
     loadingModal,
     displayedModalVersions,
+    versionsFallback,
+    versionsLoaderFiltered,
+    onShowAllVersions,
+    allVersionsCount,
     closeModal,
   } = props
 
@@ -142,6 +151,27 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
   const loader = MOD_LOADERS.find(item => item.id === activeBuild.modLoader) ?? MOD_LOADERS[0]
   const buildHasImage = !!activeBuild.icon
   const isVanilla = activeBuild.modLoader === "vanilla"
+
+  const isLocked = Boolean(
+    (activeBuild.source === "modrinth" || activeBuild.source === "curseforge") &&
+    activeBuild.locked !== false
+  )
+  const [lockedTargetTab, setLockedTargetTab] = useState<DetailTab | null>(null)
+
+  useEffect(() => {
+    if (isLocked && (detailTab === "mods" || detailTab === "resourcepacks" || detailTab === "shaders")) {
+      setDetailTab("general")
+    }
+  }, [isLocked, detailTab, setDetailTab])
+
+  const handleTabClick = (tab: DetailTab) => {
+    if (isLocked && (tab === "mods" || tab === "resourcepacks" || tab === "shaders")) {
+      setLockedTargetTab(tab)
+      return
+    }
+    setDetailTab(tab)
+  }
+
   const handleUploadModFile = useCallback((file: File) => addLocalModToBuild(activeBuild.id, file), [activeBuild.id, addLocalModToBuild])
   const handleUploadResourcepackFile = useCallback((file: File) => addLocalContentToBuild(activeBuild.id, "resourcepacks", file), [activeBuild.id, addLocalContentToBuild])
   const handleUploadShaderFile = useCallback((file: File) => addLocalContentToBuild(activeBuild.id, "shaders", file), [activeBuild.id, addLocalContentToBuild])
@@ -358,11 +388,11 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     })
   }, [activeBuild, activeBuild.id, activeBuild.mods, installVersionWithDeps, isInstalledBuildMod])
 
-  const handleInstallVersion = useCallback(async (version: ModVersion) => {
-    if (!selectedDetails) return
+  const handleInstallVersion = useCallback(async (version: ModVersion): Promise<boolean> => {
+    if (!selectedDetails) return false
 
     if (selectedDetails.source === "ftb") {
-      return
+      return false
     }
 
     const source = selectedDetails.source
@@ -380,9 +410,10 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
 
     if (missingRequiredDeps.length === 0) {
       await installVersionWithDeps(version, source, [])
-      return
+      return true
     }
 
+    // Установку продолжит диалог подтверждения зависимостей — прогресс покажет он сам
     setDepInstallState({
       version,
       modName: selectedDetails.name,
@@ -390,6 +421,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       source,
       resolvedDeps: missingRequiredDeps,
     })
+    return false
   }, [selectedDetails, activeBuild.mods, installVersionWithDeps, isInstalledBuildMod])
 
   const handleDepInstallConfirm = useCallback(async (selectedDeps: ModDependency[]) => {
@@ -402,9 +434,10 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     }
   }, [depInstallState, installVersionWithDeps])
 
-  const handleUpdateModpack = useCallback(async (version: ModVersion) => {
-    if (!selectedDetails || selectedDetails.source === "ftb") return
+  const handleUpdateModpack = useCallback(async (version: ModVersion): Promise<boolean> => {
+    if (!selectedDetails || selectedDetails.source === "ftb") return false
     await installVersionWithDeps(version, selectedDetails.source, [])
+    return true
   }, [selectedDetails, installVersionWithDeps])
 
   return (
@@ -428,7 +461,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
               <h1 className="text-xl font-bold text-foreground">{activeBuild.name}</h1>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <LoaderIcon loaderId={activeBuild.modLoader} className="w-4 h-4 text-muted-foreground inline-block flex-shrink-0" />
-                <span>{loader.name} · MC {activeBuild.version}</span>
+                <span>{loader.name} · {activeBuild.version}</span>
               </div>
             </div>
           </div>
@@ -436,34 +469,38 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
         <div className="flex flex-col gap-1">
           <div className="flex gap-0.5 p-1 rounded-xl bg-muted/30 border border-border/50">
             {([
-              { tab: "general" as const, icon: IconInfoCircle, label: t("builds.tab.general") },
-              { tab: "settings" as const, icon: IconSettings, label: t("builds.tab.settings") },
+              { tab: "general" as const, icon: IconInfoCircle, label: t("builds.tab.general"), locked: false },
+              { tab: "settings" as const, icon: IconSettings, label: t("builds.tab.settings"), locked: false },
               ...(!isVanilla ? [
-                { tab: "mods" as const, icon: IconPuzzle, label: t("builds.tab.mods") },
-                { tab: "resourcepacks" as const, icon: IconPhoto, label: t("builds.tab.resourcepacks") },
-                { tab: "shaders" as const, icon: IconSparkles, label: t("builds.tab.shaders") },
+                { tab: "mods" as const, icon: IconPuzzle, label: t("builds.tab.mods"), locked: isLocked },
+                { tab: "resourcepacks" as const, icon: IconPhoto, label: t("builds.tab.resourcepacks"), locked: isLocked },
+                { tab: "shaders" as const, icon: IconSparkles, label: t("builds.tab.shaders"), locked: isLocked },
               ] : []),
-            ]).map(({ tab, icon: Icon, label }) => (
+            ]).map(({ tab, icon: Icon, label, locked }) => (
               <button
                 key={tab}
                 type="button"
-                onClick={() => setDetailTab(tab)}
+                onClick={() => handleTabClick(tab)}
+                title={locked ? "Инстанс заблокирован. Нажмите для разблокировки" : undefined}
                 className={cn(
                   "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-200",
                   detailTab === tab
                     ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                    : locked
+                      ? "text-muted-foreground/60 hover:text-foreground hover:bg-muted/50 cursor-pointer"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
                 )}
               >
                 <Icon className="w-4 h-4" strokeWidth={1.75} />
-                {label}
+                <span>{label}</span>
+                {locked && <IconLock className="w-3 h-3 text-amber-500/80 shrink-0 ml-0.5" />}
               </button>
             ))}
           </div>
           <div className="flex gap-0.5 p-1 rounded-xl bg-muted/30 border border-border/50">
             {([
               { tab: "servers" as const, icon: IconServer, label: t("builds.tab.servers") },
-              { tab: "worlds" as const, icon: IconWorld, label: t("builds.tab.worlds") },
+              { tab: "worlds" as const, icon: IconMap, label: t("builds.tab.worlds") },
               { tab: "screenshots" as const, icon: IconCamera, label: t("builds.tab.screenshots") },
             ]).map(({ tab, icon: Icon, label }) => (
               <button
@@ -629,6 +666,10 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
         setModalTab={setModalTab}
         loadingModal={loadingModal}
         displayedModalVersions={displayedModalVersions}
+        versionsFallback={versionsFallback}
+        versionsLoaderFiltered={versionsLoaderFiltered}
+        onShowAllVersions={onShowAllVersions}
+        allVersionsCount={allVersionsCount}
         onInstallVersion={handleInstallVersion}
         onClose={closeModal}
         activeBuild={activeBuild}
@@ -646,6 +687,28 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
           onCancel={() => setDepInstallState(null)}
         />
       )}
+
+      <ActionConfirmDialog
+        open={lockedTargetTab !== null}
+        onClose={() => setLockedTargetTab(null)}
+        onConfirm={() => {
+          updateBuild(activeBuild.id, { locked: false })
+          if (lockedTargetTab) {
+            setDetailTab(lockedTargetTab)
+            setLockedTargetTab(null)
+          }
+        }}
+        title="Управление контентом заблокировано"
+        description={`Этот инстанс привязан к официальному модпаку «${activeBuild.name}».
+
+Добавление, удаление и изменение модов или ресурспаков заблокировано, чтобы избежать поломки сборки.
+
+Хотите отвязать инстанс прямо сейчас, чтобы получить полный доступ к редактированию?`}
+        confirmText="Отвязать инстанс"
+        cancelText="Оставить привязанным"
+        variant="warning"
+        icon="lock"
+      />
     </div>
   )
 })
