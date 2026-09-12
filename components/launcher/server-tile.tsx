@@ -4,7 +4,7 @@ import {
   IconPlayerPlay, IconPlayerStop,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
-import { LoaderIcon } from "./instance/loader-icon"
+import { LoaderIcon, loaderLabel } from "./instance/loader-icon"
 import { ServerContextMenu } from "./server/server-context-menu"
 import type { McServerInfo, McServerState } from "@xnlc/types"
 
@@ -40,8 +40,7 @@ export function ServerTile({ server, state, onClick, onStart, onStop, onDelete, 
     setMenuOpen(true)
   }
 
-  const loaderName = server.modloader === "neoforge" ? "NeoForge"
-    : server.modloader.charAt(0).toUpperCase() + server.modloader.slice(1)
+  const loaderName = loaderLabel(server.modloader)
 
   return (
     <>

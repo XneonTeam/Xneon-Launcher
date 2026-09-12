@@ -14,6 +14,7 @@ import { formatDownloads, matchesBuildVersion } from "./utils"
 import { InstanceUpdatesDialog } from "./instance-updates-dialog"
 import { LoaderIcon } from "./loader-icon"
 import { CategoryBadge } from "./category-badge"
+import { PlatformIcon } from "@/components/launcher/platform-icon"
 import type { Build, BuildMod, ModSearchResult, ModSort, SearchSource, ModVersion } from "./types"
 import type { ModCategory } from "@xnlc/types"
 import type { SelectedModCategory } from "./use-mod-search"
@@ -489,9 +490,14 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-foreground break-words">{item.name}</div>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-sm font-medium text-foreground break-words truncate">{item.name}</span>
+                        {item.source && item.source !== "local" && (
+                          <PlatformIcon source={item.source} className="opacity-80 shrink-0" size={12} />
+                        )}
+                      </div>
                       {item.author && (
-                        <div className="mt-0.5 text-xs text-muted-foreground/70">{item.author}</div>
+                        <div className="mt-0.5 text-xs text-muted-foreground/70 truncate">{item.author}</div>
                       )}
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
@@ -545,7 +551,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-col rounded-2xl border border-border bg-card/40 p-4">
+          <div className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-border bg-card/40 p-4">
             <div className="flex items-center justify-between shrink-0">
               <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
               {!modLoading && displayResults.length > 0 && (
@@ -553,9 +559,9 @@ export const InstanceContentTab = memo(function InstanceContentTab({
               )}
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto pr-1 mt-2">
+            <div className="flex-1 min-h-0 min-w-0 overflow-y-auto pr-1 mt-2">
               {displayResults.length > 0 ? (
-                <div className="grid gap-2 pb-2">
+                <div className="grid min-w-0 gap-2 pb-2">
                   {deferredResults.map(project => {
                     const installed = isInstalledFn?.(project) ?? false
                     const isInstalling = installingModSlug === project.slug
@@ -566,11 +572,11 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                     <div
                       key={project.id}
                       className={cn(
-                        "group rounded-xl border border-border bg-card px-3.5 py-2.5 transition-colors hover:border-primary/50",
+                        "group min-w-0 rounded-xl border border-border bg-card px-3.5 py-2.5 transition-colors hover:border-primary/50",
                         isInstalling && "border-primary/50 bg-primary/5",
                       )}
                     >
-                      <div className="flex items-center gap-3.5">
+                      <div className="flex min-w-0 items-center gap-3.5">
                         <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-muted flex-shrink-0">
                           {project.iconUrl ? (
                             <img src={project.iconUrl} alt="" className="h-full w-full object-cover" />
@@ -579,18 +585,18 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <p className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-primary">{project.name}</p>
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <p className="min-w-0 truncate text-sm font-medium text-foreground transition-colors group-hover:text-primary">{project.name}</p>
                             {project.source === "modrinth" ? (
                               <svg className="h-3.5 w-3.5 shrink-0 text-[#1bd96a]" viewBox="0 0 24 24" fill="currentColor"><path d="M12.252.004a11.78 11.768 0 0 0-8.92 3.73 11 10.999 0 0 0-2.17 3.11 11.37 11.359 0 0 0-1.16 5.169c0 1.42.17 2.5.6 3.77.24.759.77 1.899 1.17 2.529a12.3 12.298 0 0 0 8.85 5.639c.44.05 2.54.07 2.76.02.2-.04.22.1-.26-1.7l-.36-1.37-1.01-.06a8.5 8.489 0 0 1-5.18-1.8 5.34 5.34 0 0 1-1.3-1.26c0-.05.34-.28.74-.5a37.572 37.545 0 0 1 2.88-1.629c.03 0 .5.45 1.06.98l1 .97 2.07-.43 2.06-.43 1.47-1.47c.8-.8 1.48-1.5 1.48-1.52 0-.09-.42-1.63-.46-1.7-.04-.06-.2-.03-1.02.18-.53.13-1.2.3-1.45.4l-.48.15-.53.53-.53.53-.93.1-.93.07-.52-.5a2.7 2.7 0 0 1-.96-1.7l-.13-.6.43-.57c.68-.9.68-.9 1.46-1.1.4-.1.65-.2.83-.33.13-.099.65-.579 1.14-1.069l.9-.9-.7-.7-.7-.7-1.95.54c-1.07.3-1.96.53-1.97.53-.03 0-2.23 2.48-2.63 2.97l-.29.35.28 1.03c.16.56.3 1.16.31 1.34l.03.3-.34.23c-.37.23-2.22 1.3-2.84 1.63-.36.2-.37.2-.44.1-.08-.1-.23-.6-.32-1.03-.18-.86-.17-2.75.02-3.73a8.84 8.839 0 0 1 7.9-6.93c.43-.03.77-.08.78-.1.06-.17.5-2.999.47-3.039-.01-.02-.1-.02-.2-.03Zm3.68.67c-.2 0-.3.1-.37.38-.06.23-.46 2.42-.46 2.52 0 .04.1.11.22.16a8.51 8.499 0 0 1 2.99 2 8.38 8.379 0 0 1 2.16 3.449 6.9 6.9 0 0 1 .4 2.8c0 1.07 0 1.27-.1 1.73a9.37 9.369 0 0 1-1.76 3.769c-.32.4-.98 1.06-1.37 1.38-.38.32-1.54 1.1-1.7 1.14-.1.03-.1.06-.07.26.03.18.64 2.56.7 2.78l.06.06a12.07 12.058 0 0 0 7.27-9.4c.13-.77.13-2.58 0-3.4a11.96 11.948 0 0 0-5.73-8.578c-.7-.42-2.05-1.06-2.25-1.06Z"/></svg>
                             ) : (
                               <svg className="h-3.5 w-3.5 shrink-0 text-[#f16436]" viewBox="0 0 24 24" fill="currentColor"><path d="M18.326 9.2145S23.2261 8.4418 24 6.1882h-7.5066V4.4H0l2.0318 2.3576V9.173s5.1267-.2665 7.1098 1.2372c2.7146 2.516-3.053 5.917-3.053 5.917L5.0995 19.6c1.5465-1.4726 4.494-3.3775 9.8983-3.2857-2.0565.65-4.1245 1.6651-5.7344 3.2857h10.9248l-1.0288-3.2726s-7.918-4.6688-.8336-7.1127z"/></svg>
                             )}
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-muted-foreground">{formatDownloads(project.downloadCount)}</span>
+                          <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+                            <span className="shrink-0 text-xs text-muted-foreground">{formatDownloads(project.downloadCount)}</span>
                             {type === "mods" && project.categories?.slice(0, 3).map(cat => (
-                              <CategoryBadge key={cat} name={cat} source={project.source} className="px-1.5 text-[11px]" />
+                              <CategoryBadge key={cat} name={cat} source={project.source} className="min-w-0 px-1.5 text-[11px]" />
                             ))}
                           </div>
                         </div>

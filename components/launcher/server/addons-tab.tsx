@@ -3,11 +3,14 @@ import { useTranslation } from "react-i18next"
 import ReactMarkdown from "react-markdown"
 import rehypeRaw from "rehype-raw"
 import rehypeSanitize from "rehype-sanitize"
+import { PlatformIcon } from "@/components/launcher/platform-icon"
 import {
   IconSearch, IconUpload, IconInfoCircle,
   IconCheck, IconDownload, IconLoader2, IconPlug, IconList,
+  IconPackage,
   IconChevronDown, IconChevronRight, IconX, IconFileText, IconPhoto,
   IconHistory, IconRefresh, IconTrash,
+  IconBrandGithub, IconBug, IconBook, IconBrandDiscord, IconExternalLink,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -15,6 +18,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Checkbox } from "@/components/ui/checkbox"
 import { Spinner } from "../instance/spinner"
 import { Pagination } from "../instance/pagination"
+import { CategoryBadge } from "../instance/category-badge"
+import { LoaderIcon } from "../instance/loader-icon"
+import { VersionInstallProgress, type InstallState } from "../instance/version-install-progress"
 import { formatDownloads } from "../instance/utils"
 import { SORT_LABELS, SORT_OPTIONS_BY_SOURCE } from "../instance/sort-options"
 import { dataCache, MOD_SEARCH_CACHE_TTL } from "@/lib/swr"
@@ -65,6 +71,30 @@ function normalizeContentIdentity(value?: string): string {
     .replace(/[\W_]+/g, "")
 }
 
+/**
+ * Совместима ли версия с сервером: подходит и версия Minecraft, и загрузчик.
+ * Логика та же, что в инстансах (matchesBuildVersion) — версии под другие
+ * загрузчики/версии игры не показываются вовсе.
+ */
+function isVersionCompatibleWithServer(version: ModVersion, gameVersion: string, modloader: string): boolean {
+  const gvs = (version.gameVersion ?? "").split(/[|,/]/).map(s => s.trim()).filter(Boolean)
+  const targetMc = (gameVersion ?? "").trim().toLowerCase()
+  if (gvs.length > 0 && targetMc && !gvs.some(v => v.trim().toLowerCase() === targetMc)) {
+    return false
+  }
+
+  const loader = (modloader ?? "").toLowerCase().trim()
+  if (!loader) return true
+  const loaders = (version.loaders ?? []).map(l => String(l).toLowerCase().trim()).filter(Boolean)
+  if (loader === "vanilla") return loaders.length === 0
+  if (loaders.length === 0) return false
+  if (loaders.includes(loader)) return true
+  // paper/folia взаимозаменяемы
+  if (loader === "paper" && loaders.includes("folia")) return true
+  if (loader === "folia" && loaders.includes("paper")) return true
+  return false
+}
+
 interface AddonsTabProps {
   server: McServerInfo
 }
@@ -89,6 +119,8 @@ export function AddonsTab({ server }: AddonsTabProps) {
   const [detailVersions, setDetailVersions] = useState<ModVersion[]>([])
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [modalTab, setModalTab] = useState<ModalTab>("description")
+  const [cfChangelogs, setCfChangelogs] = useState<Record<string, string>>({})
+  const [loadingChangelog, setLoadingChangelog] = useState(false)
   const [fileInputRef, setFileInputRef] = useState<HTMLInputElement | null>(null)
   const deferredResults = useDeferredValue(results)
   const [categories, setCategories] = useState<ModCategory[]>([])
@@ -98,8 +130,82 @@ export function AddonsTab({ server }: AddonsTabProps) {
   const [collapsedSourceGroups, setCollapsedSourceGroups] = useState<Set<string>>(() => new Set())
   const [removingSlug, setRemovingSlug] = useState<string | null>(null)
   const [updatingSlug, setUpdatingSlug] = useState<string | null>(null)
+  const [install, setInstall] = useState<InstallState | null>(null)
+  const installStateRef = useRef<InstallState | null>(null)
+  const installVersionRef = useRef<string | null>(null)
+  const doneTimerRef = useRef<number | null>(null)
 
   const searchVersionRef = useRef(0)
+
+  useEffect(() => { installStateRef.current = install }, [install])
+
+  // Прогресс скачивания файлов приходит из main-процесса по имени файла.
+  // Подписка одна на всё время жизни вкладки — как в окне инстансов.
+  useEffect(() => {
+    const off = window.electronAPI?.onContentDownloadProgress?.((progress) => {
+      if (installStateRef.current?.phase !== "running") return
+      setInstall(prev => {
+        if (!prev || prev.phase !== "running") return prev
+        const percent = progress.total > 0
+          ? Math.min(100, Math.round((progress.current / progress.total) * 100))
+          : null
+        return { ...prev, percent, fileName: progress.fileName }
+      })
+    })
+    return () => off?.()
+  }, [])
+
+  useEffect(() => () => {
+    if (doneTimerRef.current !== null) window.clearTimeout(doneTimerRef.current)
+  }, [])
+
+  const runVersionInstall = useCallback(async (
+    version: ModVersion,
+    action: () => Promise<boolean | void> | void,
+  ) => {
+    if (installVersionRef.current) return
+    if (doneTimerRef.current !== null) {
+      window.clearTimeout(doneTimerRef.current)
+      doneTimerRef.current = null
+    }
+    installVersionRef.current = version.id
+    setInstall({ versionId: version.id, phase: "running", percent: null })
+
+    let completed = false
+    try {
+      const result = await action()
+      completed = result !== false
+    } catch (e) {
+      installVersionRef.current = null
+      setInstall({
+        versionId: version.id,
+        phase: "error",
+        percent: null,
+        error: e instanceof Error ? e.message : "Не удалось установить версию",
+      })
+      return
+    }
+
+    installVersionRef.current = null
+
+    if (!completed) {
+      setInstall(null)
+      return
+    }
+
+    setInstall({ versionId: version.id, phase: "done", percent: 100 })
+    doneTimerRef.current = window.setTimeout(() => {
+      setInstall(prev => (prev?.versionId === version.id && prev.phase === "done" ? null : prev))
+      doneTimerRef.current = null
+    }, 2200)
+  }, [])
+
+  // Показываем только совместимые версии — как в инстансах.
+  // Версии под другие загрузчики/версии игры не отображаются вовсе.
+  const compatibleDetailVersions = useMemo(
+    () => detailVersions.filter(ver => isVersionCompatibleWithServer(ver, server.gameVersion, server.modloader)),
+    [detailVersions, server.gameVersion, server.modloader],
+  )
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300)
@@ -348,6 +454,41 @@ export function AddonsTab({ server }: AddonsTabProps) {
     setLoadingDetail(false)
   }, [])
 
+  // Автоматическая загрузка ченджлогов для версий CurseForge
+  useEffect(() => {
+    if (modalTab !== "changelog") return
+    if (selectedDetails?.source !== "curseforge" || !selectedDetails.modId) return
+
+    const versionsToFetch = detailVersions.slice(0, 5).filter(v => !v.changelog && !cfChangelogs[v.id])
+    if (versionsToFetch.length === 0) return
+
+    let cancelled = false
+    setLoadingChangelog(true)
+
+    Promise.all(
+      versionsToFetch.map(async (v) => {
+        const fileId = Number(v.id)
+        if (!fileId || isNaN(fileId)) return null
+        try {
+          const text = await window.electronAPI?.modsCurseforgeChangelog(selectedDetails.modId!, fileId)
+          return { id: v.id, text: text || "" }
+        } catch {
+          return null
+        }
+      })
+    ).then((results) => {
+      if (cancelled) return
+      const updates: Record<string, string> = {}
+      for (const res of results) {
+        if (res) updates[res.id] = res.text
+      }
+      setCfChangelogs(prev => ({ ...prev, ...updates }))
+      setLoadingChangelog(false)
+    })
+
+    return () => { cancelled = true }
+  }, [modalTab, selectedDetails?.id, selectedDetails?.modId, detailVersions])
+
   if (!contentType) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
@@ -370,17 +511,17 @@ export function AddonsTab({ server }: AddonsTabProps) {
   const searchTitle = contentType === "plugin" ? t("servers.addons.plugins") : t("servers.addons.mods")
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col gap-4">
+    <div className="flex-1 min-h-0 flex flex-col gap-2">
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[300px]">
+        <div className="relative flex-1 min-w-[240px]">
           <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
             placeholder={emptyStateText}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary"
+            className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-muted/50 border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -458,6 +599,9 @@ export function AddonsTab({ server }: AddonsTabProps) {
                           {collapsed
                             ? <IconChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
                             : <IconChevronDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />}
+                          {key === "modrinth" || key === "curseforge" || key === "ftb" ? (
+                            <PlatformIcon source={key} className="opacity-90" size={14} />
+                          ) : null}
                           <span className="min-w-0 flex-1 text-left truncate">{groupLabels[key] ?? key}</span>
                           <span className="rounded-full bg-background border border-border px-2 py-0.5 text-[10px] font-normal text-muted-foreground">{cats.length}</span>
                         </button>
@@ -573,7 +717,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
               {deferredResults.map(project => {
                 const installed = isInstalled(project)
                 return (
-                <div key={project.id} className="group flex items-center gap-3.5 rounded-xl border border-border bg-card px-3.5 py-2.5 transition-colors hover:border-primary/50">
+                <div key={project.id} className="group flex min-w-0 items-center gap-3.5 rounded-xl border border-border bg-card px-3.5 py-2.5 transition-colors hover:border-primary/50">
                   <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-muted flex-shrink-0">
                     {project.iconUrl ? (
                       <img src={project.iconUrl} alt="" className="h-full w-full object-cover" />
@@ -582,19 +726,17 @@ export function AddonsTab({ server }: AddonsTabProps) {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <p className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-primary">{project.name}</p>
-                      {project.source === "modrinth" ? (
-                        <svg className="h-3.5 w-3.5 shrink-0 text-[#1bd96a]" viewBox="0 0 24 24" fill="currentColor"><path d="M12.252.004a11.78 11.768 0 0 0-8.92 3.73 11 10.999 0 0 0-2.17 3.11 11.37 11.359 0 0 0-1.16 5.169c0 1.42.17 2.5.6 3.77.24.759.77 1.899 1.17 2.529a12.3 12.298 0 0 0 8.85 5.639c.44.05 2.54.07 2.76.02.2-.04.22.1-.26-1.7l-.36-1.37-1.01-.06a8.5 8.489 0 0 1-5.18-1.8 5.34 5.34 0 0 1-1.3-1.26c0-.05.34-.28.74-.5a37.572 37.545 0 0 1 2.88-1.629c.03 0 .5.45 1.06.98l1 .97 2.07-.43 2.06-.43 1.47-1.47c.8-.8 1.48-1.5 1.48-1.52 0-.09-.42-1.63-.46-1.7-.04-.06-.2-.03-1.02.18-.53.13-1.2.3-1.45.4l-.48.15-.53.53-.53.53-.93.1-.93.07-.52-.5a2.7 2.7 0 0 1-.96-1.7l-.13-.6.43-.57c.68-.9.68-.9 1.46-1.1.4-.1.65-.2.83-.33.13-.099.65-.579 1.14-1.069l.9-.9-.7-.7-.7-.7-1.95.54c-1.07.3-1.96.53-1.97.53-.03 0-2.23 2.48-2.63 2.97l-.29.35.28 1.03c.16.56.3 1.16.31 1.34l.03.3-.34.23c-.37.23-2.22 1.3-2.84 1.63-.36.2-.37.2-.44.1-.08-.1-.23-.6-.32-1.03-.18-.86-.17-2.75.02-3.73a8.84 8.839 0 0 1 7.9-6.93c.43-.03.77-.08.78-.1.06-.17.5-2.999.47-3.039-.01-.02-.1-.02-.2-.03Zm3.68.67c-.2 0-.3.1-.37.38-.06.23-.46 2.42-.46 2.52 0 .04.1.11.22.16a8.51 8.499 0 0 1 2.99 2 8.38 8.379 0 0 1 2.16 3.449 6.9 6.9 0 0 1 .4 2.8c0 1.07 0 1.27-.1 1.73a9.37 9.369 0 0 1-1.76 3.769c-.32.4-.98 1.06-1.37 1.38-.38.32-1.54 1.1-1.7 1.14-.1.03-.1.06-.07.26.03.18.64 2.56.7 2.78l.06.06a12.07 12.058 0 0 0 7.27-9.4c.13-.77.13-2.58 0-3.4a11.96 11.948 0 0 0-5.73-8.578c-.7-.42-2.05-1.06-2.25-1.06Z"/></svg>
-                      ) : (
-                        <svg className="h-3.5 w-3.5 shrink-0 text-[#f16436]" viewBox="0 0 24 24" fill="currentColor"><path d="M18.326 9.2145S23.2261 8.4418 24 6.1882h-7.5066V4.4H0l2.0318 2.3576V9.173s5.1267-.2665 7.1098 1.2372c2.7146 2.516-3.053 5.917-3.053 5.917L5.0995 19.6c1.5465-1.4726 4.494-3.3775 9.8983-3.2857-2.0565.65-4.1245 1.6651-5.7344 3.2857h10.9248l-1.0288-3.2726s-7.918-4.6688-.8336-7.1127z"/></svg>
-                      )}
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <p className="min-w-0 truncate text-sm font-medium text-foreground transition-colors group-hover:text-primary">{project.name}</p>
+                      <PlatformIcon source={project.source} className="opacity-80 shrink-0" size={13} />
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-muted-foreground">{formatDownloads(project.downloadCount)}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground capitalize">
-                        {project.source}
-                      </span>
+                    <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="truncate max-w-[200px]">{project.author || t("servers.addons.unknownAuthor") || "—"}</span>
+                      <span className="text-muted-foreground/40 shrink-0">·</span>
+                      <span className="shrink-0">{formatDownloads(project.downloadCount)}</span>
+                      {project.categories?.slice(0, 3).map(cat => (
+                        <CategoryBadge key={cat} name={cat} source={project.source} className="min-w-0 px-1.5 text-[11px]" />
+                      ))}
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -679,10 +821,65 @@ export function AddonsTab({ server }: AddonsTabProps) {
                     <div>
                       <h2 className="text-xl font-bold text-foreground">{selectedDetails.name}</h2>
                       <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{selectedDetails.summary}</p>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <span className="text-xs text-muted-foreground">{formatDownloads(selectedDetails.downloadCount)} {t("servers.addons.downloads")}</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground capitalize">{selectedDetails.source}</span>
-                      </div>
+                      {selectedDetails.links && (
+                        <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                          {selectedDetails.links.sourceUrl && (
+                            <a
+                              href={selectedDetails.links.sourceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
+                            >
+                              <IconBrandGithub className="w-3.5 h-3.5" />
+                              <span>Исходный код</span>
+                            </a>
+                          )}
+                          {selectedDetails.links.wikiUrl && (
+                            <a
+                              href={selectedDetails.links.wikiUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
+                            >
+                              <IconBook className="w-3.5 h-3.5" />
+                              <span>Вики / Документация</span>
+                            </a>
+                          )}
+                          {selectedDetails.links.issuesUrl && (
+                            <a
+                              href={selectedDetails.links.issuesUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
+                            >
+                              <IconBug className="w-3.5 h-3.5" />
+                              <span>Багтрекер</span>
+                            </a>
+                          )}
+                          {selectedDetails.links.discordUrl && (
+                            <a
+                              href={selectedDetails.links.discordUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
+                            >
+                              <IconBrandDiscord className="w-3.5 h-3.5" />
+                              <span>Discord</span>
+                            </a>
+                          )}
+                          {selectedDetails.links.websiteUrl && (
+                            <a
+                              href={selectedDetails.links.websiteUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
+                            >
+                              <IconExternalLink className="w-3.5 h-3.5" />
+                              <span>Страница проекта</span>
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={() => { setSelectedDetails(null); setDetailVersions([]) }}
@@ -757,13 +954,25 @@ export function AddonsTab({ server }: AddonsTabProps) {
                               <h4 className="font-semibold text-foreground">{ver.name}</h4>
                               <span className="text-xs text-muted-foreground">{ver.datePublished ? new Date(ver.datePublished).toLocaleDateString() : ""}</span>
                             </div>
-                            {ver.changelog ? (
-                              <div className="text-sm text-muted-foreground">
-                                <ReactMarkdown rehypePlugins={[rehypeRaw, rehypeSanitize]} components={mdComponents}>{ver.changelog}</ReactMarkdown>
-                              </div>
-                            ) : (
-                              <p className="text-sm text-muted-foreground">{t("servers.addons.noChangelog")}</p>
-                            )}
+                            {(() => {
+                              const changelogText = ver.changelog || cfChangelogs[ver.id]
+                              if (changelogText) {
+                                return (
+                                  <div className="text-sm text-muted-foreground">
+                                    <ReactMarkdown rehypePlugins={[rehypeRaw, rehypeSanitize]} components={mdComponents}>{changelogText}</ReactMarkdown>
+                                  </div>
+                                )
+                              }
+                              if (loadingChangelog) {
+                                return (
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                                    <IconLoader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                                    <span>{t("servers.addons.loadingChangelog")}</span>
+                                  </div>
+                                )
+                              }
+                              return <p className="text-sm text-muted-foreground">{t("servers.addons.noChangelog")}</p>
+                            })()}
                           </div>
                         ))
                       ) : (
@@ -774,68 +983,86 @@ export function AddonsTab({ server }: AddonsTabProps) {
 
                   {modalTab === "versions" && (
                     <div className="space-y-2">
-                      {detailVersions.length > 0 ? (
-                        detailVersions.slice(0, 50).map(ver => {
-                          const compatible = ver.gameVersion.includes(server.gameVersion)
+                      {compatibleDetailVersions.length > 0 ? (
+                        compatibleDetailVersions.slice(0, 50).map(ver => {
+                          const installState = install?.versionId === ver.id ? install : null
+                          const busy = install?.phase === "running"
                           return (
-                          <div key={ver.id} className={cn(
-                            "p-4 rounded-xl border flex items-center justify-between transition-colors",
-                            compatible
-                              ? "bg-muted/20 border-border hover:bg-muted/30"
-                              : "bg-muted/10 border-border/50 opacity-60"
-                          )}>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <p className="font-medium text-foreground">{ver.name}</p>
-                                {ver.versionType && (
-                                  <span className={cn(
-                                    "rounded px-1.5 py-0.5 text-[10px] font-medium uppercase",
-                                    ver.versionType === "release" ? "bg-green-500/10 text-green-500"
-                                      : ver.versionType === "beta" ? "bg-yellow-500/10 text-yellow-500"
-                                        : "bg-red-500/10 text-red-500"
-                                  )}>
-                                    {ver.versionType}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-3 mt-1">
-                                <span className="text-xs text-muted-foreground">{ver.gameVersion}</span>
-                                {ver.loaders && (
-                                  <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                                    {Array.isArray(ver.loaders) ? ver.loaders.join(", ") : ""}
-                                  </span>
-                                )}
-                                {ver.datePublished && (
-                                  <span className="text-xs text-muted-foreground">
-                                    {new Date(ver.datePublished).toLocaleDateString()}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            {ver.downloadUrl && (
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  if (!contentDir) return
-                                  setInstallingSlug(selectedDetails.slug)
-                                  await window.electronAPI?.mcServerFsDownload(
-                                    server.id, contentDir, ver.downloadUrl!, ver.fileName || `${selectedDetails.name}.jar`,
-                                  )
-                                  await loadInstalled()
-                                  setInstallingSlug(null)
-                                  setSelectedDetails(null)
-                                }}
-                                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors shrink-0 ml-3"
-                              >
-                                <IconDownload className="w-4 h-4" strokeWidth={1.75} />
-                                {t("servers.addons.download")}
-                              </button>
+                          <div
+                            key={ver.id}
+                            className={cn(
+                              "p-4 rounded-xl border transition-colors",
+                              installState?.phase === "error"
+                                ? "border-red-500/25 bg-red-500/5"
+                                : installState?.phase === "done"
+                                  ? "border-green-500/25 bg-green-500/5"
+                                  : installState
+                                    ? "border-primary/40 bg-primary/5"
+                                    : "bg-muted/20 border-border hover:bg-muted/30"
                             )}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-foreground truncate">{ver.name}</p>
+                                <div className="flex flex-wrap items-center gap-2 mt-1">
+                                  <span className="text-xs text-muted-foreground">
+                                    {ver.gameVersion ?? ""}
+                                  </span>
+                                  {ver.loaders && ver.loaders.length > 0 && (
+                                    <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                                      {ver.loaders.map(l => (
+                                        <LoaderIcon key={l} loaderId={String(l).toLowerCase()} className="w-3.5 h-3.5" />
+                                      ))}
+                                      <span>{Array.isArray(ver.loaders) ? ver.loaders.join(", ") : ""}</span>
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => void runVersionInstall(ver, async () => {
+                                  if (!contentDir || !ver.downloadUrl) return false
+                                  setInstallingSlug(selectedDetails.slug)
+                                  try {
+                                    await window.electronAPI?.mcServerFsDownload(
+                                      server.id, contentDir, ver.downloadUrl, ver.fileName || `${selectedDetails.name}.jar`,
+                                    )
+                                    await loadInstalled()
+                                    return true
+                                  } finally {
+                                    setInstallingSlug(null)
+                                  }
+                                })}
+                                disabled={busy}
+                                className={cn(
+                                  "flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors shrink-0 ml-3",
+                                  busy
+                                    ? "bg-muted text-muted-foreground cursor-not-allowed"
+                                    : "bg-primary text-primary-foreground hover:bg-primary/90"
+                                )}
+                              >
+                                {installState?.phase === "running" ? (
+                                  <>
+                                    <IconLoader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} />
+                                    Установка...
+                                  </>
+                                ) : (
+                                  <>
+                                    <IconDownload className="w-4 h-4" strokeWidth={1.75} />
+                                    {t("servers.addons.download")}
+                                  </>
+                                )}
+                              </button>
+                            </div>
+
+                            {installState && <VersionInstallProgress state={installState} />}
                           </div>
                           )
                         })
                       ) : (
-                        <p className="text-center text-muted-foreground py-12">{t("servers.addons.noVersions")}</p>
+                        <div className="flex flex-col items-center justify-center py-14 text-center">
+                          <IconPackage className="h-8 w-8 text-muted-foreground/60 mb-3" strokeWidth={1.5} />
+                          <p className="text-sm font-medium text-foreground">{t("servers.addons.noVersions")}</p>
+                        </div>
                       )}
                     </div>
                   )}

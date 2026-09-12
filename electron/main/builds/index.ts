@@ -330,7 +330,7 @@ export function registerBuildHandlers() {
     }
   })
 
-  ipcMain.handle("build:move-intent-to-trash", async (_event, dirName: string): Promise<{ success: boolean; trashName?: string; error?: string }> => {
+  ipcMain.handle("build:move-intent-to-trash", async (_event, dirName: string, metadata?: Record<string, unknown>): Promise<{ success: boolean; trashName?: string; error?: string }> => {
     try {
       const baseDataRoot = getInstancesRoot()
       const safeName = getBuildIntentDirName(dirName)
@@ -339,21 +339,38 @@ export function registerBuildHandlers() {
       const trashRoot = path.join(baseDataRoot, "intents", ".trash")
       await fs.mkdir(trashRoot, { recursive: true })
       const trashName = `${Date.now()}-${safeName}`
-      await fs.rename(intentPath, path.join(trashRoot, trashName)).catch(async () => {
-        await fs.cp(intentPath, path.join(trashRoot, trashName), { recursive: true, verbatimSymlinks: true })
+      const trashedPath = path.join(trashRoot, trashName)
+      await fs.rename(intentPath, trashedPath).catch(async () => {
+        await fs.cp(intentPath, trashedPath, { recursive: true, verbatimSymlinks: true })
         await fs.rm(intentPath, { recursive: true, force: true })
       })
+
+      // Метаданные сборки (иконка, версия, загрузчик, привязка к модпаку и т.д.)
+      // живут только в БД и теряются при удалении записи. Сохраняем снапшот рядом
+      // с папкой в корзине, иначе восстановление вернёт файлы без метаданных —
+      // и сборка появится в списке лишь после перезапуска (или не появится вовсе).
+      if (metadata && typeof metadata === "object") {
+        try {
+          await fs.writeFile(
+            path.join(trashRoot, `${trashName}.json`),
+            JSON.stringify(metadata),
+            "utf-8",
+          )
+        } catch { /* снапшот не критичен для самого перемещения */ }
+      }
+
       return { success: true, trashName }
     } catch (error) {
-      return { success: true, error: toErrorMessage(error) }
+      return { success: false, error: toErrorMessage(error) }
     }
   })
 
-  ipcMain.handle("build:restore-intent-from-trash", async (_event, dirName: string, trashName: string): Promise<{ success: boolean; error?: string }> => {
+  ipcMain.handle("build:restore-intent-from-trash", async (_event, dirName: string, trashName: string): Promise<{ success: boolean; build?: Record<string, unknown>; error?: string }> => {
     try {
       const baseDataRoot = getInstancesRoot()
       const safeName = getBuildIntentDirName(dirName)
-      const trashPath = path.join(baseDataRoot, "intents", ".trash", trashName)
+      const trashRoot = path.join(baseDataRoot, "intents", ".trash")
+      const trashPath = path.join(trashRoot, trashName)
       await fs.access(trashPath)
       const intentPath = path.join(baseDataRoot, "intents", safeName)
       await fs.mkdir(path.dirname(intentPath), { recursive: true })
@@ -361,7 +378,19 @@ export function registerBuildHandlers() {
         await fs.cp(trashPath, intentPath, { recursive: true, verbatimSymlinks: true })
         await fs.rm(trashPath, { recursive: true, force: true })
       })
-      return { success: true }
+
+      // Возвращаем сохранённые при отправке в корзину метаданные, чтобы вызывающая
+      // сторона могла восстановить запись сборки в БД и в UI без перезапуска.
+      let build: Record<string, unknown> | undefined
+      const snapshotPath = path.join(trashRoot, `${trashName}.json`)
+      try {
+        const raw = await fs.readFile(snapshotPath, "utf-8")
+        const parsed = JSON.parse(raw)
+        if (parsed && typeof parsed === "object") build = parsed as Record<string, unknown>
+        await fs.rm(snapshotPath, { force: true })
+      } catch { /* снапшота может не быть у старых записей корзины */ }
+
+      return { success: true, build }
     } catch (error) {
       if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") {
         return { success: true }
@@ -426,6 +455,8 @@ export function registerBuildHandlers() {
       const originalName = match ? match[2] : null
 
       await fs.rm(trashPath, { recursive: true, force: true })
+      // Снапшот метаданных лежит рядом с папкой отдельным файлом — удаляем вместе с ней.
+      await fs.rm(path.join(getInstancesRoot(), "intents", ".trash", `${trashName}.json`), { force: true }).catch(() => {})
 
       if (originalName) {
         await clearBuildSessions(originalName)

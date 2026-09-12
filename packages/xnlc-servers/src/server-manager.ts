@@ -31,12 +31,65 @@ export class ServerManager {
 
   private metricsCache = new Map<string, McServerMetrics>()
   private metricsPending = new Map<string, Promise<McServerMetrics>>()
+  /** Предыдущий замер CPU-времени процесса — база для расчёта загрузки по дельте. */
+  private cpuSamples = new Map<string, { ticks: number; at: number }>()
+  private samplerTimer: ReturnType<typeof setInterval> | null = null
+
+  /**
+   * Возвращает метрики немедленно, без обращения к ОС.
+   *
+   * Сбор метрик на Windows — это spawn powershell (~150-250 мс), поэтому он не
+   * должен выполняться в пути запроса из renderer. Значения приходят из фонового
+   * сэмплера (см. startMetricsSampler), который обновляет кэш параллельно.
+   */
+  getMetricsSync(id: string): McServerMetrics {
+    const r = this.running.get(id)
+    if (!r?.process.pid) return { cpuPercent: 0, memoryMb: 0, uptimeSeconds: 0 }
+    const cached = this.metricsCache.get(id)
+    return {
+      cpuPercent: cached?.cpuPercent ?? 0,
+      memoryMb: cached?.memoryMb ?? 0,
+      uptimeSeconds: Math.floor((Date.now() - r.startTime) / 1000),
+    }
+  }
+
+  /**
+   * Фоновый цикл сбора метрик для всех запущенных серверов.
+   *
+   * Один таймер на менеджер: каждый тик последовательно обновляет кэш для каждого
+   * живого сервера. Останавливается, когда запущенных серверов нет, — вхолостую
+   * спавнить powershell не нужно.
+   */
+  startMetricsSampler(intervalMs = 1000): void {
+    if (this.samplerTimer !== null) return
+    const tick = async () => {
+      if (this.running.size === 0) {
+        this.stopMetricsSampler()
+        return
+      }
+      for (const [id, r] of this.running) {
+        if (!r.process.pid) continue
+        // Последовательно, чтобы не поднимать несколько powershell одновременно.
+        try { await this.getMetrics(id) } catch { /* процесс мог завершиться */ }
+      }
+    }
+    this.samplerTimer = setInterval(() => { void tick() }, intervalMs)
+    this.samplerTimer.unref?.()
+  }
+
+  stopMetricsSampler(): void {
+    if (this.samplerTimer !== null) {
+      clearInterval(this.samplerTimer)
+      this.samplerTimer = null
+    }
+  }
 
   async getMetrics(id: string): Promise<McServerMetrics> {
     const r = this.running.get(id)
     if (!r?.process.pid) {
       this.metricsCache.delete(id)
       this.metricsPending.delete(id)
+      this.cpuSamples.delete(id)
       return { cpuPercent: 0, memoryMb: 0, uptimeSeconds: 0 }
     }
 
@@ -58,32 +111,37 @@ export class ServerManager {
     const pid = r.process.pid
     if (!pid) return this.metricsCache.get(id) ?? { cpuPercent: 0, memoryMb: 0, uptimeSeconds: 0 }
 
-    let cpuPercent = 0
-    let memoryMb = 0
+    let cpuPercent = this.metricsCache.get(id)?.cpuPercent ?? 0
+    let memoryMb = this.metricsCache.get(id)?.memoryMb ?? 0
+    let cpuTicks: number | null = null
 
     try {
       if (process.platform === "win32") {
+        // Get-Process заметно дешевле Get-CimInstance (нет запроса к WMI):
+        // ~250 мс против ~480 мс на замер. CPU здесь — суммарное время процесса
+        // в секундах, WorkingSet64 — рабочий набор в байтах.
         const { stdout } = await execAsync(
-          `powershell -NoProfile -NonInteractive -Command "Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}' | Select-Object WorkingSetSize,UserModeTime,KernelModeTime | ConvertTo-Json"`,
+          `powershell -NoProfile -NonInteractive -Command "Get-Process -Id ${pid} -ErrorAction SilentlyContinue | Select-Object WorkingSet64,CPU | ConvertTo-Json"`,
           { timeout: 2500, windowsHide: true, encoding: "utf-8" },
         )
-        const json = JSON.parse(stdout.trim())
-        memoryMb = Math.round(parseInt(json.WorkingSetSize || "0", 10) / 1024 / 1024)
-        const kernelTicks = parseInt(json.KernelModeTime || "0", 10)
-        const userTicks = parseInt(json.UserModeTime || "0", 10)
-        const totalMs = (kernelTicks + userTicks) / 10000
-        const uptimeMs = Date.now() - r.startTime
-        cpuPercent = uptimeMs > 0 ? Math.min(100, Math.round((totalMs / uptimeMs) * 100)) : 0
+        const trimmed = stdout.trim()
+        if (trimmed) {
+          const json = JSON.parse(trimmed)
+          memoryMb = Math.round(parseInt(json.WorkingSet64 || "0", 10) / 1024 / 1024)
+          const cpuSeconds = parseFloat(json.CPU || "0")
+          if (Number.isFinite(cpuSeconds)) cpuTicks = cpuSeconds * 1000
+        }
       } else {
         try {
           const stat = await fs.promises.readFile(`/proc/${pid}/stat`, "utf-8")
-          const fields = stat.split(" ")
-          const utime = parseInt(fields[13], 10)
-          const stime = parseInt(fields[14], 10)
-          const totalTicks = utime + stime
-          const uptimeMs = Date.now() - r.startTime
-          const clockTicks = 100
-          cpuPercent = uptimeMs > 0 ? Math.min(100, Math.round((totalTicks / clockTicks) / (uptimeMs / 1000) * 100)) : 0
+          // comm может содержать пробелы в скобках — режем по последней ')'.
+          const rest = stat.slice(stat.lastIndexOf(")") + 2).split(" ")
+          const utime = parseInt(rest[11], 10)
+          const stime = parseInt(rest[12], 10)
+          if (Number.isFinite(utime) && Number.isFinite(stime)) {
+            // Тики -> миллисекунды CPU-времени (USER_HZ обычно 100).
+            cpuTicks = ((utime + stime) / 100) * 1000
+          }
         } catch {}
 
         try {
@@ -93,6 +151,28 @@ export class ServerManager {
         } catch {}
       }
     } catch {}
+
+    // CPU считаем по дельте между двумя замерами, а не от старта процесса:
+    // деление накопленного CPU-времени на аптайм давало ложные 100% на старте
+    // (аптайм крошечный, знаменатель почти ноль) и не отражало текущую нагрузку.
+    if (cpuTicks !== null) {
+      const now = Date.now()
+      const prev = this.cpuSamples.get(id)
+      this.cpuSamples.set(id, { ticks: cpuTicks, at: now })
+      if (prev && now > prev.at) {
+        const deltaCpuMs = cpuTicks - prev.ticks
+        const deltaWallMs = now - prev.at
+        const cores = Math.max(1, os.cpus().length)
+        if (deltaCpuMs >= 0 && deltaWallMs > 0) {
+          // Нормализуем на число ядер, чтобы 100% означало «занято всё ядро».
+          const raw = (deltaCpuMs / deltaWallMs) * 100 / cores
+          cpuPercent = Math.max(0, Math.min(100, Math.round(raw)))
+        }
+      } else {
+        // Первый замер — данных для дельты ещё нет, honest-значение неизвестно.
+        cpuPercent = 0
+      }
+    }
 
     return {
       cpuPercent,
@@ -185,6 +265,10 @@ export class ServerManager {
     }
     this.running.set(id, running)
 
+    // Метрики собираются в фоне, а не по запросу из renderer: спавн powershell
+    // занимает сотни миллисекунд, и держать его в пути запроса нельзя.
+    this.startMetricsSampler()
+
     onStateChange({ status: "starting", startTime: running.startTime })
 
     const pushLog = (line: string) => {
@@ -271,6 +355,11 @@ export class ServerManager {
 
   private cleanup(id: string): void {
     this.running.delete(id)
+    this.metricsCache.delete(id)
+    this.metricsPending.delete(id)
+    this.cpuSamples.delete(id)
+    // Запущенных серверов не осталось — фоновый сбор больше не нужен.
+    if (this.running.size === 0) this.stopMetricsSampler()
   }
 
   resolveServerJar(serverDir: string, modloader: string): string {

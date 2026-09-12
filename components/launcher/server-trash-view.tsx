@@ -4,7 +4,7 @@ import { IconTrash, IconRefresh, IconServer } from "@tabler/icons-react"
 import type { McServerInfo } from "@xnlc/types"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
-import { LoaderIcon } from "./instance/loader-icon"
+import { LoaderIcon, loaderLabel } from "./instance/loader-icon"
 import { XnConnectLogo } from "./server/xn-connect-logo"
 
 interface ServerTrashViewProps {
@@ -94,7 +94,7 @@ export function ServerTrashView({ onBack }: ServerTrashViewProps) {
               <span>{item.gameVersion}</span>
               <span>&middot;</span>
               <LoaderIcon loaderId={item.modloader} className="w-3.5 h-3.5 flex-shrink-0" />
-              <span className="capitalize">{item.modloader === "vanilla" ? "Vanilla" : item.modloader}</span>
+              <span>{loaderLabel(item.modloader)}</span>
             </div>
             {item.trashedAt && (
               <p className="text-[11px] text-muted-foreground">

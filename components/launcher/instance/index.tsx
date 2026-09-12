@@ -55,7 +55,7 @@ export function InstancePage() {
 
   const {
     builds, setBuilds, activeBuildId, setActiveBuildId, activeBuild,
-    fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, collapsedGroups, toggleGroupCollapse, groups,
+    fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, restoreBuildFromTrash, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, collapsedGroups, toggleGroupCollapse, groups,
     updateBuild, addModToBuild, addLocalModToBuild,
     addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds,
     toggleItemEnabled, updateItemVersion,
@@ -437,6 +437,7 @@ export function InstancePage() {
       {view === "trash" && (
         <InstanceTrashView
           goToMyBuilds={goToMyBuilds}
+          onRestore={restoreBuildFromTrash}
         />
       )}
 

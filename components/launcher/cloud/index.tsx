@@ -7,6 +7,7 @@ import { CloudFileBrowser } from "./cloud-file-browser"
 import { WebDavSetupModal } from "./cloud-webdav-setup"
 import { S3SetupModal } from "./cloud-s3-setup"
 import { ErrorBoundary } from "./error-boundary"
+import { useAlertDialog } from "@/lib/use-alert-dialog"
 
 const api = typeof window !== "undefined" ? window.electronAPI : undefined
 
@@ -22,6 +23,7 @@ export function CloudPage() {
   const [showWebdav, setShowWebdav] = useState(false)
   const [showS3, setShowS3] = useState(false)
   const [connecting, setConnecting] = useState<string | null>(null)
+  const { showAlert, alertDialog } = useAlertDialog()
 
   useEffect(() => {
     if (!api) { setChecking(false); return }
@@ -64,9 +66,9 @@ export function CloudPage() {
         setConnected({ id: providerId, name: providers.find(p => p.id === providerId)?.name || providerId })
       }
     } catch (e) {
-      alert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`)
+      showAlert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`)
     } finally { setConnecting(null) }
-  }, [providers])
+  }, [providers, showAlert])
 
   const handleWebdavConnect = useCallback(async (url: string, username: string, password: string) => {
     if (!api) return
@@ -77,12 +79,12 @@ export function CloudPage() {
         setConnected({ id: "webdav", name: "WebDAV" })
         setShowWebdav(false)
       } else {
-        alert(result.error || "Ошибка подключения")
+        showAlert(result.error || "Ошибка подключения")
       }
     } catch (e) {
-      alert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`)
+      showAlert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`)
     } finally { setConnecting(null) }
-  }, [])
+  }, [showAlert])
 
   const handleS3Connect = useCallback(async (data: { endpoint: string; bucket: string; accessKeyId: string; secretAccessKey: string; region: string; forcePathStyle: string }) => {
     if (!api) return
@@ -93,12 +95,12 @@ export function CloudPage() {
         setConnected({ id: "s3", name: "S3" })
         setShowS3(false)
       } else {
-        alert(result.error || "Ошибка подключения")
+        showAlert(result.error || "Ошибка подключения")
       }
     } catch (e) {
-      alert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`)
+      showAlert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`)
     } finally { setConnecting(null) }
-  }, [])
+  }, [showAlert])
 
   const handleDisconnect = useCallback(async () => {
     if (!api || !connected) return
@@ -184,6 +186,8 @@ export function CloudPage() {
           </div>
         )}
       </div>
+
+      {alertDialog}
     </div>
   )
 }

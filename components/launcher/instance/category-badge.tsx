@@ -76,7 +76,7 @@ export function CategoryBadge({ name, source, className }: CategoryBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs capitalize text-primary",
+        "inline-flex min-w-0 items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs capitalize text-primary",
         className
       )}
     >

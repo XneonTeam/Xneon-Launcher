@@ -14,6 +14,7 @@ import {
   IconPencil,
 } from "@tabler/icons-react"
 import type { Build, ScreenshotInfo } from "./types"
+import { useAlertDialog } from "@/lib/use-alert-dialog"
 
 interface InstanceScreenshotsTabProps {
   build: Build
@@ -27,6 +28,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
   const [loadingFull, setLoadingFull] = useState(false)
   const [renameFor, setRenameFor] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState("")
+  const { showAlert, alertDialog } = useAlertDialog()
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -78,7 +80,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
       if (viewIndex === index) setViewIndex(null)
       await refresh()
     } else {
-      alert(result?.error ?? "Не удалось удалить скриншот")
+      showAlert(result?.error ?? "Не удалось удалить скриншот")
     }
   }
 
@@ -93,7 +95,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
     if (result?.success) {
       await refresh()
     } else {
-      alert(result?.error ?? "Не удалось переименовать скриншот")
+      showAlert(result?.error ?? "Не удалось переименовать скриншот")
     }
   }
 
@@ -282,6 +284,8 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
           </div>
         </div>
       )}
+
+      {alertDialog}
     </div>
   )
 }
