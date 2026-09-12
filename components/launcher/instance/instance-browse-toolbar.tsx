@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { IconSearch } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { LoaderIcon } from "./loader-icon"
 import type { ModSort } from "./types"
 
 interface InstanceBrowseToolbarProps {
@@ -21,7 +22,9 @@ interface InstanceBrowseToolbarProps {
 const MOD_LOADER_OPTIONS = [
   { id: "all", label: "all" },
   { id: "vanilla", label: "Vanilla" },
+  { id: "forge", label: "Forge" },
   { id: "fabric", label: "Fabric" },
+  { id: "neoforge", label: "NeoForge" },
   { id: "quilt", label: "Quilt" },
 ] as const
 
@@ -84,7 +87,10 @@ export function InstanceBrowseToolbar({
         <SelectContent>
           {MOD_LOADER_OPTIONS.map(loader => (
             <SelectItem key={loader.id} value={loader.id}>
-              {loader.id === "all" ? t("builds.allLoaders") : loader.label}
+              <span className="flex items-center gap-2">
+                {loader.id !== "all" && <LoaderIcon loaderId={loader.id} className="w-4 h-4 flex-shrink-0" />}
+                <span>{loader.id === "all" ? t("builds.allLoaders") : loader.label}</span>
+              </span>
             </SelectItem>
           ))}
         </SelectContent>

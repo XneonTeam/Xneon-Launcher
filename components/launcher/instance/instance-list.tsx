@@ -4,13 +4,14 @@ import {
   IconPackage, IconPlus, IconCopy, IconTrash, IconDownload, IconUpload, IconTag,
   IconRotateClockwise, IconX, IconChevronDown, IconChevronRight,
   IconPencil, IconTrashFilled, IconBox, IconPalette, IconWallpaper, IconWorldUpload,
-  IconSettings, IconBug, IconFolder, IconCheck, IconLayoutGrid, IconLayoutList,
+  IconSettings, IconBug, IconFolder, IconCheck, IconLayoutGrid, IconLayoutList, IconArrowUpCircle,
 } from "@tabler/icons-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MOD_LOADERS } from "./constants"
 import { LoaderIcon } from "./loader-icon"
+import { PlatformBadge } from "@/components/launcher/platform-icon"
 import type { Build } from "./types"
 import type { BuildExportCategory } from "@xnlc/types"
 
@@ -31,6 +32,7 @@ interface InstanceListProps {
   groups: string[]
   collapsedGroups: Set<string>
   onToggleGroupCollapse: (group: string) => void
+  updatesCountByBuild?: Record<string, number>
 }
 
 const MODLIST_FORMATS: Array<{ id: "html" | "markdown" | "json" | "csv" | "plaintext"; label: string }> = [
@@ -54,6 +56,7 @@ export const InstanceList = memo(function InstanceList({
   builds, totalBuilds, onCreate, onDelete, onTrash, onUndoTrash, onDuplicate,
   onExportZip, onExportModlist, onSetGroup, onRenameGroup,
   onDeleteGroup, onOpen, groups, collapsedGroups, onToggleGroupCollapse,
+  updatesCountByBuild,
 }: InstanceListProps) {
   const { t } = useTranslation()
   const [trashedName, setTrashedName] = useState<string | null>(null)
@@ -227,6 +230,8 @@ export const InstanceList = memo(function InstanceList({
                     {groupBuilds.map(build => {
                       const loader = MOD_LOADERS.find(item => item.id === build.modLoader) ?? MOD_LOADERS[0]
                       const hasImage = !!build.icon
+                      const isLinkedModpack = (build.source === "modrinth" || build.source === "curseforge") && build.locked !== false
+                      const updatesCount = isLinkedModpack ? 0 : (updatesCountByBuild?.[build.id] ?? 0)
                       return (
                         <div
                           key={build.id}
@@ -244,6 +249,15 @@ export const InstanceList = memo(function InstanceList({
                                 </div>
                               )}
                             </div>
+                            {updatesCount > 0 && (
+                              <div
+                                className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground shadow-lg"
+                                title={t("updates.badgeTitle", { count: updatesCount })}
+                              >
+                                <IconArrowUpCircle className="w-3 h-3" strokeWidth={2} />
+                                {updatesCount}
+                              </div>
+                            )}
                             {build.source === "modrinth" && (
                               <div className="absolute top-2 left-2 p-1 rounded-md bg-green-500/20">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">
@@ -286,6 +300,8 @@ export const InstanceList = memo(function InstanceList({
                     {groupBuilds.map(build => {
                       const loader = MOD_LOADERS.find(item => item.id === build.modLoader) ?? MOD_LOADERS[0]
                       const hasImage = !!build.icon
+                      const isLinkedModpack = (build.source === "modrinth" || build.source === "curseforge") && build.locked !== false
+                      const updatesCount = isLinkedModpack ? 0 : (updatesCountByBuild?.[build.id] ?? 0)
                       const sourceLabel = build.source === "modrinth" ? "Modrinth" : build.source === "curseforge" ? "CurseForge" : build.source === "ftb" ? "FTB" : null
                       return (
                         <div
@@ -310,14 +326,16 @@ export const InstanceList = memo(function InstanceList({
                               <span className="text-[11px] text-muted-foreground truncate">{loader.name} · {build.version}</span>
                             </div>
                           </div>
-                          {sourceLabel && (
-                            <span className={cn(
-                              "shrink-0 px-2 py-0.5 rounded-md text-[10px] font-medium",
-                              build.source === "modrinth" && "bg-green-500/15 text-green-500",
-                              build.source === "curseforge" && "bg-orange-500/15 text-orange-500",
-                              build.source === "ftb" && "bg-sky-500/15 text-sky-500",
-                            )}>
-                              {sourceLabel}
+                          {build.source && (
+                            <PlatformBadge source={build.source} showLabel className="shrink-0 text-[10px] py-0.5 px-2" iconSize={12} />
+                          )}
+                          {updatesCount > 0 && (
+                            <span
+                              className="shrink-0 flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground"
+                              title={t("updates.badgeTitle", { count: updatesCount })}
+                            >
+                              <IconArrowUpCircle className="w-3 h-3" strokeWidth={2} />
+                              {updatesCount}
                             </span>
                           )}
                         </div>

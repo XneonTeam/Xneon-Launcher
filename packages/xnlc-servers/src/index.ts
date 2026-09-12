@@ -19,8 +19,10 @@ export {
   getVelocityBuilds,
   getWaterfallVersions,
   getWaterfallBuilds,
+  getSpongeSupportedVersions,
+  getSpongeBuilds,
 } from "./jar-downloader.js"
-export type { DownloadProgress, LoaderVersionEntry, McVersionEntry } from "./jar-downloader.js"
+export type { DownloadProgress, LoaderVersionEntry, McVersionEntry, SpongeType } from "./jar-downloader.js"
 
 // JAR analysis
 export { analyzeServerJar } from "./jar-analyzer.js"

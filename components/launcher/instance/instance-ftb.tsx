@@ -3,6 +3,7 @@ import { IconDownload, IconInfoCircle, IconLoader2, IconSearch } from "@tabler/i
 import { Spinner } from "./spinner"
 import { formatDownloads } from "./utils"
 import { Pagination } from "./pagination"
+import { CategoryBadge } from "./category-badge"
 import type { ModSearchResult } from "./types"
 
 interface InstanceFtbProps {
@@ -67,7 +68,7 @@ export function InstanceFtb({
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">{formatDownloads(pack.downloadCount)} {t("builds.downloads")}</span>
                         {pack.categories?.slice(0, 3).map(category => (
-                          <span key={category} className="rounded-md bg-primary/10 px-2 py-0.5 text-xs capitalize text-primary">{category}</span>
+                          <CategoryBadge key={category} name={category} source="ftb" />
                         ))}
                       </div>
                     </div>

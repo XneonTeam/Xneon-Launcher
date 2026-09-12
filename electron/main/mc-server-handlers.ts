@@ -20,7 +20,39 @@ import {
 } from "./builds/helpers"
 import type { ModrinthVersionDetail, ModrinthManifestFile, CurseForgeManifestFile } from "@xnlc/mods" with { "resolution-mode": "import" }
 import type { McServerInfo, McServerState, McServerMetrics, McPlayerEntry } from "@xnlc/types" with { "resolution-mode": "import" }
-import { logRuntime } from "./runtime"
+import { logRuntime, sendToRenderer } from "./runtime"
+import { getMcServerDir } from "./paths"
+import { recordServerSession } from "./stats"
+import { upsertActiveServerSession, takeActiveServerSession } from "./session-tracker"
+
+// Tracks running MC servers for stats: registers the running state with the
+// session tracker so an uptime session is recorded when the process stops.
+function attachServerUptimeTracking(id: string, serverInfo: McServerInfo, onStateChange: (state: McServerState) => void): (state: McServerState) => void {
+  return (state) => {
+    onStateChange(state)
+    if (state.status === "starting" || state.status === "running") {
+      // `starting` тоже несёт startTime — фиксируем сессию сразу, чтобы не потерять
+      // аптайм, если процесс упадёт до перехода в `running` (он эмитится с задержкой 500мс).
+      upsertActiveServerSession({ kind: "server", serverId: id, serverName: serverInfo.name, icon: serverInfo.icon, startedAt: state.startTime })
+    } else if (state.status === "stopped") {
+      const active = takeActiveServerSession(id)
+      if (active) {
+        const endTime = Date.now()
+        const duration = Math.floor((endTime - active.startedAt) / 1000)
+        if (duration > 0) {
+          void recordServerSession({
+            serverId: active.serverId,
+            serverName: active.serverName,
+            icon: active.icon,
+            startedAt: active.startedAt,
+            endedAt: endTime,
+            duration,
+          })
+        }
+      }
+    }
+  }
+}
 
 function rowToInfo(row: McServerRow): McServerInfo {
   return {
@@ -46,23 +78,7 @@ function rowToInfo(row: McServerRow): McServerInfo {
 }
 
 function getServerDir(id: string): string {
-  const dataDir = path.join(
-    process.platform === "win32"
-      ? path.join(process.env.APPDATA || "", "xneonlauncher")
-      : process.platform === "darwin"
-        ? path.join(process.env.HOME || "", "Library", "Application Support", "xneonlauncher")
-        : path.join(process.env.HOME || "", ".xneonlauncher"),
-    "mc-servers",
-    id,
-  )
-  return dataDir
-}
-
-function sendToRenderer(channel: string, ...args: unknown[]) {
-  const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed())
-  if (win && !win.isDestroyed()) {
-    win.webContents.send(channel, ...args)
-  }
+  return getMcServerDir(id)
 }
 
 function escapePropertiesValue(value: string): string {
@@ -105,6 +121,28 @@ function unescapePropertiesValue(value: string): string {
   return result
 }
 
+function loadServerProperties(propsPath: string): Record<string, string> {
+  if (!fs.existsSync(propsPath)) return {}
+  const content = fs.readFileSync(propsPath, "utf-8")
+  const props: Record<string, string> = {}
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith("#")) continue
+    const eqIdx = trimmed.indexOf("=")
+    if (eqIdx === -1) continue
+    props[trimmed.slice(0, eqIdx)] = unescapePropertiesValue(trimmed.slice(eqIdx + 1))
+  }
+  return props
+}
+
+function saveServerProperties(propsPath: string, props: Record<string, string>): void {
+  const lines = ["#Minecraft server properties"]
+  for (const [key, value] of Object.entries(props)) {
+    lines.push(`${key}=${escapePropertiesValue(value)}`)
+  }
+  fs.writeFileSync(propsPath, lines.join("\n") + "\n", "utf-8")
+}
+
 export function registerMcServerHandlers() {
   ipcMain.handle("mc-server:list", async () => {
     const rows = await dbHelpers.listMcServers()
@@ -116,7 +154,7 @@ export function registerMcServerHandlers() {
     return row ? rowToInfo(row) : null
   })
 
-  ipcMain.handle("mc-server:create", async (_event, data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string }) => {
+  ipcMain.handle("mc-server:create", async (_event, data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string; extraJavaArgs?: string }) => {
     const id = randomUUID()
     const now = new Date().toISOString()
     const server: McServerRow = {
@@ -128,10 +166,10 @@ export function registerMcServerHandlers() {
       port: data.port ?? 25565,
       xmx: data.xmx ?? 2048,
       xms: data.xms ?? 1024,
-      extraJavaArgs: "",
+      extraJavaArgs: data.extraJavaArgs ?? "",
       javaPath: data.javaPath ?? null,
       autoRestart: 0,
-      icon: null,
+      icon: data.icon ?? null,
       relayEnabled: data.relayEnabled ? 1 : 0,
       onlineMode: data.onlineMode !== false ? 1 : 0,
       maxPlayers: data.maxPlayers ?? 20,
@@ -177,21 +215,9 @@ export function registerMcServerHandlers() {
       const serverDir = getServerDir(id)
       const propsPath = path.join(serverDir, "server.properties")
       if (fs.existsSync(propsPath)) {
-        let props: Record<string, string> = {}
-        const content = fs.readFileSync(propsPath, "utf-8")
-        for (const line of content.split(/\r?\n/)) {
-          const trimmed = line.trim()
-          if (!trimmed || trimmed.startsWith("#")) continue
-          const eqIdx = trimmed.indexOf("=")
-          if (eqIdx === -1) continue
-          props[trimmed.slice(0, eqIdx)] = unescapePropertiesValue(trimmed.slice(eqIdx + 1))
-        }
+        const props = loadServerProperties(propsPath)
         props["server-port"] = String(update.port)
-        const propsLines = ["#Minecraft server properties"]
-        for (const [key, value] of Object.entries(props)) {
-          propsLines.push(`${key}=${escapePropertiesValue(value)}`)
-        }
-        fs.writeFileSync(propsPath, propsLines.join("\n") + "\n", "utf-8")
+        saveServerProperties(propsPath, props)
       }
     }
   })
@@ -376,25 +402,11 @@ export function registerMcServerHandlers() {
 
     // Write port to server.properties
     const propsPath = path.join(serverDir, "server.properties")
-    let props: Record<string, string> = {}
-    if (fs.existsSync(propsPath)) {
-      const content = fs.readFileSync(propsPath, "utf-8")
-      for (const line of content.split(/\r?\n/)) {
-        const trimmed = line.trim()
-        if (!trimmed || trimmed.startsWith("#")) continue
-        const eqIdx = trimmed.indexOf("=")
-        if (eqIdx === -1) continue
-        props[trimmed.slice(0, eqIdx)] = unescapePropertiesValue(trimmed.slice(eqIdx + 1))
-      }
-    }
+    const props = loadServerProperties(propsPath)
     props["server-port"] = String(serverInfo.port)
     if (row.onlineMode !== undefined) props["online-mode"] = row.onlineMode ? "true" : "false"
     if (row.maxPlayers) props["max-players"] = String(row.maxPlayers)
-    const propsLines = ["#Minecraft server properties"]
-    for (const [key, value] of Object.entries(props)) {
-      propsLines.push(`${key}=${escapePropertiesValue(value)}`)
-    }
-    fs.writeFileSync(propsPath, propsLines.join("\n") + "\n", "utf-8")
+    saveServerProperties(propsPath, props)
 
     serverManager.start(
       id,
@@ -402,7 +414,7 @@ export function registerMcServerHandlers() {
       javaPath,
       serverDir,
       (line) => sendToRenderer("mc-server:log", { id, line }),
-      (state) => sendToRenderer("mc-server:state-change", { id, state }),
+      attachServerUptimeTracking(id, serverInfo, (state) => sendToRenderer("mc-server:state-change", { id, state })),
       resolvedJarPath,
     )
 
@@ -457,18 +469,7 @@ export function registerMcServerHandlers() {
     const serverDir = getServerDir(id)
     const propsPath = path.join(serverDir, "server.properties")
     if (!fs.existsSync(propsPath)) return null
-    const content = fs.readFileSync(propsPath, "utf-8")
-    const props: Record<string, string> = {}
-    for (const line of content.split(/\r?\n/)) {
-      const trimmed = line.trim()
-      if (!trimmed || trimmed.startsWith("#")) continue
-      const eqIdx = trimmed.indexOf("=")
-      if (eqIdx === -1) continue
-      const key = trimmed.slice(0, eqIdx)
-      const value = unescapePropertiesValue(trimmed.slice(eqIdx + 1))
-      props[key] = value
-    }
-    return props
+    return loadServerProperties(propsPath)
   })
 
   ipcMain.handle("mc-server:check-eula", async (_event, id: string): Promise<boolean> => {
@@ -486,11 +487,7 @@ export function registerMcServerHandlers() {
     const serverDir = getServerDir(id)
     fs.mkdirSync(serverDir, { recursive: true })
     const propsPath = path.join(serverDir, "server.properties")
-    const lines = ["#Minecraft server properties"]
-    for (const [key, value] of Object.entries(properties)) {
-      lines.push(`${key}=${escapePropertiesValue(value)}`)
-    }
-    fs.writeFileSync(propsPath, lines.join("\n") + "\n", "utf-8")
+    saveServerProperties(propsPath, properties)
   })
 
   // ── Player lists (whitelist, ops, banned, banned-ips) ───
@@ -980,12 +977,30 @@ export function registerMcServerHandlers() {
         let downloaded = 0
         const modsDir = path.join(serverDir, "mods")
         fs.mkdirSync(modsDir, { recursive: true })
+
+        // Пакетный запрос информации о всех файлах сборки (POST /v1/mods/files)
+        const fileIds = cfFiles.map((f) => f.fileID).filter((id): id is number => typeof id === "number" && id > 0)
+        let filesBatch: Record<number, { downloadUrl: string; fileName: string }> = {}
+        try {
+          filesBatch = await mods.curseforgeGetFiles(fileIds)
+        } catch (err) {
+          console.warn("[mc-server] CurseForge batch getFiles failed, using fallback:", err)
+        }
+
         for (const f of cfFiles) {
           if (!f.projectID || !f.fileID) continue
           try {
-            const fileUrl = await mods.curseforgeGetDownloadUrl(f.projectID, f.fileID)
+            const batchInfo = filesBatch[f.fileID]
+            let fileUrl: string | null = batchInfo?.downloadUrl ?? null
+            let fileName = batchInfo?.fileName
+
+            if (!fileUrl) {
+              fileUrl = await mods.curseforgeGetDownloadUrl(f.projectID, f.fileID)
+            }
             if (!fileUrl) continue
-            const fileName = sanitizeFileName(fileUrl.split("/").pop()?.split("?")[0] ?? `mod-${f.fileID}.jar`)
+
+            const extractedName = fileUrl.split("/").pop()?.split("?")[0]
+            fileName = sanitizeFileName(fileName || (extractedName ?? `mod-${f.fileID}.jar`))
             const targetPath = path.join(modsDir, fileName)
             sendPackProgress(`${downloaded}/${total} модов`, downloaded, total)
             try { await fs.promises.access(targetPath) } catch {

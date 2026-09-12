@@ -100,10 +100,10 @@ export function setMainWindow(window: BrowserWindow | null) {
 }
 
 export function sendToRenderer(channel: string, data: unknown) {
-  if (!mainWindow) {
-    return
+  const windows = BrowserWindow.getAllWindows().filter(w => !w.isDestroyed())
+  for (const win of windows) {
+    win.webContents.send(channel, data)
   }
-  mainWindow.webContents.send(channel, data)
 }
 
 // Lazy deferred configureRuntimePaths — called from window.ts after app.whenReady

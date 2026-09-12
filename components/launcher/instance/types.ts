@@ -24,6 +24,11 @@ export type Build = {
   source: "local" | Source
   projectSlug?: string
   modpackVersion?: string
+  modpackVersionId?: string
+  modId?: number
+  fileId?: number
+  /** Whether the build is linked/locked to an official modpack */
+  locked?: boolean
   intentPath?: string
   installedMods?: Record<string, string>
   memoryMin?: string

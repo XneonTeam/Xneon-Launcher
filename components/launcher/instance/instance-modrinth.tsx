@@ -3,6 +3,7 @@ import { IconDownload, IconInfoCircle, IconLoader2 } from "@tabler/icons-react"
 import { Spinner } from "./spinner"
 import { formatDownloads } from "./utils"
 import { InstanceBrowseToolbar } from "./instance-browse-toolbar"
+import { CategoryBadge } from "./category-badge"
 import { Pagination } from "./pagination"
 import type { ModSearchResult, ModSort } from "./types"
 
@@ -88,7 +89,7 @@ export function InstanceModrinth({
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">{formatDownloads(project.downloadCount)} {t("builds.downloads")}</span>
                         {project.categories?.slice(0, 3).map(category => (
-                          <span key={category} className="rounded-md bg-primary/10 px-2 py-0.5 text-xs capitalize text-primary">{category}</span>
+                          <CategoryBadge key={category} name={category} source={project.source} />
                         ))}
                       </div>
                     </div>

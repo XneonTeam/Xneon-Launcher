@@ -11,6 +11,7 @@ import { InstanceHeader } from "./instance-header"
 import { InstanceTrashView } from "./instance-trash-view"
 import { InstanceImportOverlay } from "./instance-import-overlay"
 import { InstanceModal } from "./instance-modal"
+import { ModpackConflictDialog } from "./modpack-conflict-dialog"
 import { useBuilds } from "./use-builds"
 import { useModSearch } from "./use-mod-search"
 import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
@@ -25,6 +26,7 @@ export function InstancePage() {
   const [view, setView] = useState<ViewMode>("my")
   const [detailTab, setDetailTab] = useState<DetailTab>("general")
   const [createOpen, setCreateOpen] = useState(false)
+  const [updatesCountByBuild, setUpdatesCountByBuild] = useState<Record<string, number>>({})
 
   const { activeAccount } = useAccounts()
   const { launchInstance } = useBuildLaunch({ account: activeAccount ?? undefined })
@@ -59,6 +61,37 @@ export function InstancePage() {
     toggleItemEnabled, updateItemVersion,
   } = useBuilds()
 
+  const refreshUpdatesCount = useCallback(async () => {
+    try {
+      const cache = await window.electronAPI?.getContentUpdatesCache()
+      const counts: Record<string, number> = {}
+      for (const [buildId, entry] of Object.entries(cache ?? {})) {
+        const count = entry?.updates?.length ?? 0
+        if (count > 0) {
+          const b = builds.find(item => item.id === buildId)
+          const isLinked = b && (b.source === "modrinth" || b.source === "curseforge") && b.locked !== false
+          if (!isLinked) {
+            counts[buildId] = count
+          }
+        }
+      }
+      setUpdatesCountByBuild(counts)
+    } catch {
+      // ignore
+    }
+  }, [builds])
+
+  useEffect(() => {
+    void refreshUpdatesCount()
+    const handler = () => void refreshUpdatesCount()
+    window.addEventListener("content-updates-changed", handler)
+    return () => window.removeEventListener("content-updates-changed", handler)
+  }, [refreshUpdatesCount])
+
+  useEffect(() => {
+    if (view === "my") void refreshUpdatesCount()
+  }, [view, refreshUpdatesCount])
+
   // CLI launch (--launch <buildName>, e.g. from a desktop shortcut)
   useEffect(() => {
     return window.electronAPI?.onCliLaunchBuild?.(async (buildName) => {
@@ -81,12 +114,15 @@ export function InstancePage() {
     categories,
     selectedDetails, modalTab, setModalTab,
     loadingModal, displayedModalVersions, displayResults,
+    modalVersionsFallback, showAllModalVersions, setShowAllModalVersions, allModalVersionsCount,
+    modalVersionsLoaderFiltered,
     modFileInputRef, openProjectModal, closeModal, resetModSearch,
     isInstalledFn,
   } = useModSearch(activeBuild, detailTab, view, activeBuildId)
 
   const {
     importProgress, importError, isCancellingImport, downloadingSlug, cfDownloadingId, ftbDownloadingId,
+    installConflict, dismissInstallConflict, createInstallCopy,
     cancelImport, downloadFromModrinth, downloadVersionFromModrinth, downloadFromCurseforge, downloadVersionFromCurseforge, downloadFromFtb, downloadVersionFromFtb, handleImportFile,
   } = useImport(setBuilds, () => setView("my"))
 
@@ -300,6 +336,10 @@ export function InstancePage() {
         setModalTab={setModalTab}
         loadingModal={loadingModal}
         displayedModalVersions={displayedModalVersions}
+        versionsFallback={modalVersionsFallback}
+        versionsLoaderFiltered={modalVersionsLoaderFiltered}
+        onShowAllVersions={() => setShowAllModalVersions(true)}
+        allVersionsCount={allModalVersionsCount}
         closeModal={closeModal}
       />
     )
@@ -342,6 +382,7 @@ export function InstancePage() {
           groups={groups}
           collapsedGroups={collapsedGroups}
           onToggleGroupCollapse={toggleGroupCollapse}
+          updatesCountByBuild={updatesCountByBuild}
         />
       )}
 
@@ -420,8 +461,25 @@ export function InstancePage() {
         setModalTab={setModalTab}
         loadingModal={loadingModal}
         displayedModalVersions={displayedModalVersions}
+        versionsFallback={modalVersionsFallback}
+        versionsLoaderFiltered={modalVersionsLoaderFiltered}
+        onShowAllVersions={() => setShowAllModalVersions(true)}
+        allVersionsCount={allModalVersionsCount}
         onInstallVersion={handleInstallModalVersion}
         onClose={closeModal}
+      />
+
+      <ModpackConflictDialog
+        open={!!installConflict}
+        conflict={installConflict}
+        onCancel={dismissInstallConflict}
+        onCreateCopy={(name) => void createInstallCopy(name)}
+        onOpenExisting={() => {
+          const id = installConflict?.existingBuildId
+          dismissInstallConflict()
+          closeModal()
+          if (id) openBuildDetail(id)
+        }}
       />
     </div>
   )

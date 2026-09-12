@@ -3,9 +3,26 @@
 // Single source of truth for database entities, auth, news, etc.
 // ============================================================
 
+import type { ModVersion } from "./mod-types.js"
+
 // ── Database Types ──────────────────────────────────────────
 
 export type BuildExportCategory = "mods" | "resourcepacks" | "shaderpacks" | "saves" | "data" | "logs"
+
+/**
+ * Категории содержимого, которое можно выборочно загрузить в облако.
+ * Объединяет категории сборки (BuildExportCategory) и серверные категории.
+ */
+export type CloudUploadCategory =
+  | "mods"
+  | "resourcepacks"
+  | "shaderpacks"
+  | "saves"
+  | "data"
+  | "logs"
+  | "world"
+  | "plugins"
+  | "configs"
 
 export type DbAccount = {
   id: string
@@ -51,6 +68,10 @@ export type DbBuild = {
   source: "local" | "modrinth" | "curseforge"
   projectSlug?: string
   modpackVersion?: string
+  modId?: number
+  fileId?: number
+  /** Whether the build is linked/locked to an official modpack */
+  locked?: boolean
   intentPath?: string
   installedMods?: Record<string, string>
   playtime: number
@@ -265,6 +286,18 @@ export type ModpackImportMod = {
   version: string
 }
 
+/** Уже установленный модпак, который мешает новой установке */
+export type ModpackImportConflict = {
+  /** duplicate — этот же модпак уже установлен, name — имя сборки уже занято другим модпаком */
+  kind: "duplicate" | "name"
+  /** Имя существующей сборки */
+  existingName: string
+  /** Id существующей сборки */
+  existingBuildId: string
+  /** Свободное имя, предлагаемое для новой сборки */
+  suggestedName: string
+}
+
 export type ModpackImportResult = {
   success: boolean
   error?: string
@@ -273,10 +306,14 @@ export type ModpackImportResult = {
   modLoader?: string
   loaderVersion?: string
   modpackVersion?: string
+  /** Id установленной версии модпака — нужен, чтобы «Восстановить» ставил именно её */
+  modpackVersionId?: string
   mods?: ModpackImportMod[]
   resourcepacks?: ModpackImportMod[]
   shaders?: ModpackImportMod[]
   installedMods?: Record<string, string>
+  /** Заполняется, когда импорт заблокирован, потому что такая сборка уже есть */
+  conflict?: ModpackImportConflict
 }
 
 // ── Import Progress ─────────────────────────────────────────
@@ -317,4 +354,140 @@ export type QuickPlayEntry = {
   label: string
   address: string
   lastPlayed: number
+}
+
+// ── Content Updates ─────────────────────────────────────────
+
+/** Minimum stability channel included when checking for content updates */
+export type UpdateChannel = "release" | "beta" | "alpha"
+
+export type ContentUpdateInfo = {
+  /** BuildMod.id of the installed item */
+  itemId: string
+  contentType: "mods" | "resourcepacks" | "shaders"
+  source: "modrinth" | "curseforge"
+  /** CurseForge numeric project id (needed to resolve download URLs) */
+  modId?: number
+  name: string
+  iconUrl?: string
+  currentVersion: string
+  latestVersion: ModVersion
+}
+
+export type BuildContentUpdates = {
+  buildId: string
+  channel: UpdateChannel
+  checkedAt: number
+  updates: ContentUpdateInfo[]
+}
+
+// ── Game Statistics ─────────────────────────────────────────
+
+export type GameSessionInfo = {
+  id: string
+  buildId: string
+  buildName: string
+  startedAt: number
+  endedAt: number
+  /** Session length in seconds */
+  duration: number
+}
+
+export type ServerSessionInfo = {
+  id: string
+  serverId: string
+  serverName: string
+  startedAt: number
+  endedAt: number
+  /** Session length in seconds */
+  duration: number
+}
+
+export type StatsOverview = {
+  totalPlaytime: number
+  totalSessions: number
+  averageSession: number
+  lastSession: GameSessionInfo | null
+  /** Per-day playtime for the last 30 days, date = YYYY-MM-DD (local) */
+  dailyPlaytime: Array<{ date: string; seconds: number }>
+  topBuilds: Array<{ buildId: string; name: string; icon?: string; seconds: number; sessions: number }>
+  /** Per-server uptime for the launcher's own MC servers */
+  serverTotalUptime: number
+  serverTotalSessions?: number
+  serverAverageSession?: number
+  serverLastSession?: ServerSessionInfo | null
+  dailyServerUptime?: Array<{ date: string; seconds: number }>
+  topServers: Array<{ serverId: string; name: string; icon?: string; seconds: number; sessions: number }>
+}
+
+// ── Storage / Disk Manager ──────────────────────────────────
+
+export type BuildStorageEntry = {
+  buildId: string
+  name: string
+  path: string
+  icon: string
+  version: string
+  modLoader: string
+  total: number
+  mods: number
+  resourcepacks: number
+  shaderpacks: number
+  saves: number
+  config: number
+  logs: number
+  crashReports: number
+  /** .cache, .fabric, .quilt folders */
+  cache: number
+  other: number
+}
+
+export type ServerStorageEntry = {
+  serverId: string
+  name: string
+  path: string
+  icon: string
+  gameVersion: string
+  modLoader: string
+  total: number
+  mods: number
+  config: number
+  logs: number
+  world: number
+  /** server wrapper / plugins / dynmap etc. */
+  plugins: number
+  cache: number
+  other: number
+}
+
+export type JavaRuntimeEntry = {
+  path: string
+  component: string
+  size: number
+  /** Human-readable Java version label, e.g. "Java 21" */
+  label: string
+  /** Exact version string when known, e.g. "21.0.7" */
+  versionLabel: string
+}
+
+export type StorageScanResult = {
+  builds: BuildStorageEntry[]
+  servers: ServerStorageEntry[]
+  trash: { path: string; size: number }
+  javaRuntimes: { path: string; size: number; entries: JavaRuntimeEntry[] }
+  gameDir: { path: string; size: number }
+  scannedAt: number
+}
+
+export type StorageCleanTarget =
+  | { kind: "build-logs"; buildId: string }
+  | { kind: "build-crash-reports"; buildId: string }
+  | { kind: "build-cache"; buildId: string }
+  | { kind: "trash" }
+  | { kind: "java-runtime"; path: string }
+
+export type StorageCleanResult = {
+  success: boolean
+  freedBytes: number
+  error?: string
 }

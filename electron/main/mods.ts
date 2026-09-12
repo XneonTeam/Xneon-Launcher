@@ -139,6 +139,30 @@ export function registerModsHandlers(): void {
     },
   )
 
+  ipcMain.handle(
+    "mods:curseforge-changelog",
+    async (_event, modId: number, fileId: number): Promise<string> => {
+      const mods = await loadModsModule()
+      return await mods.curseforgeGetChangelog(modId, fileId)
+    },
+  )
+
+  ipcMain.handle(
+    "mods:curseforge-description",
+    async (_event, modId: number): Promise<string> => {
+      const mods = await loadModsModule()
+      return await mods.curseforgeGetDescription(modId)
+    },
+  )
+
+  ipcMain.handle(
+    "mods:modrinth-check-updates",
+    async (_event, hashes: string[], loaders?: string[], gameVersions?: string[]): Promise<Record<string, any>> => {
+      const mods = await loadModsModule()
+      return await mods.modrinthCheckUpdates(hashes, loaders, gameVersions)
+    },
+  )
+
   // ── FTB (Feed The Beast) ──────────────────────────────────
   ipcMain.handle(
     "mods:ftb-search",

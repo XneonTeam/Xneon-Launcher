@@ -42,6 +42,13 @@ import type {
   ScreenshotInfo,
   XnConnectState,
   XnConnectUsage,
+  UpdateChannel,
+  BuildContentUpdates,
+  StatsOverview,
+  StorageScanResult,
+  StorageCleanTarget,
+  StorageCleanResult,
+  CloudUploadCategory,
 } from '@xnlc/types' with { 'resolution-mode': 'import' }
 import type { ServerStatusResult } from '@xnlc/servers'
 
@@ -123,6 +130,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   modsCurseforgeDetails: (modId: number) => ipcRenderer.invoke('mods:curseforge-details', modId) as Promise<ModDetails | null>,
   modsCurseforgeDownloadUrl: (fileId: number, modId: number) => ipcRenderer.invoke('mods:curseforge-download-url', fileId, modId) as Promise<string | null>,
   modsCurseforgeFeatured: (gameVersion?: string) => ipcRenderer.invoke('mods:curseforge-featured', gameVersion) as Promise<{ popular: ModSearchResult[]; trending: ModSearchResult[] }>,
+  modsCurseforgeChangelog: (modId: number, fileId: number) => ipcRenderer.invoke('mods:curseforge-changelog', modId, fileId) as Promise<string>,
+  modsCurseforgeDescription: (modId: number) => ipcRenderer.invoke('mods:curseforge-description', modId) as Promise<string>,
+  modsModrinthCheckUpdates: (hashes: string[], loaders?: string[], gameVersions?: string[]) => ipcRenderer.invoke('mods:modrinth-check-updates', hashes, loaders, gameVersions) as Promise<Record<string, ModVersion>>,
   modsResolveDependencies: (version: ModVersion, source: "modrinth" | "curseforge") => ipcRenderer.invoke('mods:resolve-dependencies', version, source) as Promise<ModDependency[]>,
   modsFtbSearch: (query: string, page?: number) => ipcRenderer.invoke('mods:ftb-search', query, page) as Promise<ModSearchResponse>,
   modsFtbDetails: (id: number) => ipcRenderer.invoke('mods:ftb-details', id) as Promise<ModDetails | null>,
@@ -165,6 +175,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getVelocityVersions: (velocityVersion: string) => ipcRenderer.invoke('minecraft:get-velocity-versions', velocityVersion) as Promise<{ value: string; label: string; stable?: boolean; recommended?: boolean }[]>,
   getWaterfallSupported: invoke<string[]>('minecraft:get-waterfall-supported'),
   getWaterfallVersions: (mcVersion: string) => ipcRenderer.invoke('minecraft:get-waterfall-versions', mcVersion) as Promise<{ value: string; label: string; stable?: boolean; recommended?: boolean }[]>,
+  getSpongeSupported: (spongeType?: string) => ipcRenderer.invoke('minecraft:get-sponge-supported', spongeType) as Promise<string[]>,
+  getSpongeVersions: (spongeType: string, mcVersion: string) => ipcRenderer.invoke('minecraft:get-sponge-versions', spongeType, mcVersion) as Promise<{ value: string; label: string; stable?: boolean; recommended?: boolean }[]>,
   getCustomVersions: invoke<string[]>('minecraft:get-custom-versions'),
 
   // ── Minecraft Auth & Launch ────────────────────────────
@@ -207,13 +219,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setBuildIntentPath: (buildId: string, intentPath: string) => ipcRenderer.invoke('build:set-intent-path', buildId, intentPath) as Promise<void>,
   deleteBuildIntent: (buildName: string) => ipcRenderer.invoke('build:delete-intent', buildName) as Promise<{ success: boolean; error?: string }>,
   installContentFile: (contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string) => ipcRenderer.invoke('content:install-remote', contentType, url, fileName) as Promise<{ success: boolean; filePath?: string; error?: string }>,
-  importModrinthModpack: (buildName: string, projectSlug: string, versionId?: string) => ipcRenderer.invoke('build:import-modrinth', buildName, projectSlug, versionId) as Promise<ModpackImportResult>,
-  importCurseforgeModpack: (buildName: string, modId: number, fileId: number) => ipcRenderer.invoke('build:import-curseforge', buildName, modId, fileId) as Promise<ModpackImportResult>,
-  importFtbModpack: (buildName: string, modpackId: number, versionId: number) => ipcRenderer.invoke('build:import-ftb', buildName, modpackId, versionId) as Promise<ModpackImportResult>,
-  openAndImportModpack: invoke<ModpackImportResult & { name?: string; description?: string; icon?: string; source?: 'modrinth' | 'curseforge'; intentPath?: string }>('build:open-and-import'),
+  importModrinthModpack: (buildName: string, projectSlug: string, versionId?: string, targetBuildId?: string) => ipcRenderer.invoke('build:import-modrinth', buildName, projectSlug, versionId, targetBuildId) as Promise<ModpackImportResult>,
+  importCurseforgeModpack: (buildName: string, modId: number, fileId: number, targetBuildId?: string) => ipcRenderer.invoke('build:import-curseforge', buildName, modId, fileId, targetBuildId) as Promise<ModpackImportResult>,
+  importFtbModpack: (buildName: string, modpackId: number, versionId: number, targetBuildId?: string) => ipcRenderer.invoke('build:import-ftb', buildName, modpackId, versionId, targetBuildId) as Promise<ModpackImportResult>,
+  openAndImportModpack: (nameOverride?: string) => invoke<ModpackImportResult & { name?: string; description?: string; icon?: string; source?: 'modrinth' | 'curseforge'; intentPath?: string }>('build:open-and-import')(nameOverride),
   cancelImportModpack: invoke<{ success: boolean }>('build:cancel-import'),
   onImportProgress: (callback: (progress: ImportProgress) => void) => subscribe('import:progress', callback),
   onContentDownloadProgress: (callback: (progress: { fileName: string; current: number; total: number }) => void) => subscribe('content:download-progress', callback),
+
+  // ── Content Updates ──────────────────────────────────────
+  checkBuildContentUpdates: (buildId: string, channel?: UpdateChannel) => ipcRenderer.invoke('build:check-content-updates', buildId, channel) as Promise<BuildContentUpdates>,
+  getContentUpdatesCache: () => ipcRenderer.invoke('build:get-content-updates-cache') as Promise<Record<string, BuildContentUpdates>>,
+  dismissContentUpdate: (buildId: string, itemId: string) => ipcRenderer.invoke('build:dismiss-content-update', buildId, itemId) as Promise<void>,
+
+  // ── Game Statistics ──────────────────────────────────────
+  getStatsOverview: () => ipcRenderer.invoke('stats:overview') as Promise<StatsOverview>,
+  onStatsUpdated: (callback: () => void) => subscribe<{}>('stats:updated', callback),
+
+  // ── Storage / Disk Manager ───────────────────────────────
+  scanStorage: () => ipcRenderer.invoke('storage:scan') as Promise<StorageScanResult>,
+  cleanStorage: (target: StorageCleanTarget) => ipcRenderer.invoke('storage:clean', target) as Promise<StorageCleanResult>,
 
   // ── Shell ──────────────────────────────────────────────
   openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url) as Promise<void>,
@@ -248,6 +273,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   renameWorld: (buildName: string, folder: string, newName: string) => ipcRenderer.invoke('worlds:rename', buildName, folder, newName) as Promise<{ success: boolean; error?: string }>,
   copyWorld: (buildName: string, folder: string, newName: string) => ipcRenderer.invoke('worlds:copy', buildName, folder, newName) as Promise<{ success: boolean; folder?: string; error?: string }>,
   importWorldZip: (buildName: string, localFilePath: string, newName?: string) => ipcRenderer.invoke('worlds:import-zip', buildName, localFilePath, newName) as Promise<{ success: boolean; folder?: string; error?: string }>,
+  importWorldRemote: (buildName: string, url: string, preferredName?: string) => ipcRenderer.invoke('worlds:import-remote', buildName, url, preferredName) as Promise<{ success: boolean; folder?: string; error?: string }>,
   deleteWorld: (buildName: string, folder: string) => ipcRenderer.invoke('worlds:delete', buildName, folder) as Promise<{ success: boolean; error?: string }>,
   setWorldIcon: (buildName: string, folder: string, dataUrl: string) => ipcRenderer.invoke('worlds:set-icon', buildName, folder, dataUrl) as Promise<{ success: boolean; error?: string }>,
   resetWorldIcon: (buildName: string, folder: string) => ipcRenderer.invoke('worlds:reset-icon', buildName, folder) as Promise<{ success: boolean; error?: string }>,
@@ -272,11 +298,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cloudDownloadFile: (providerId: string, remotePath: string, localPath: string) => ipcRenderer.invoke('cloud:download-file', providerId, remotePath, localPath) as Promise<{ success: boolean; localPath?: string; error?: string }>,
   cloudDeleteFile: (providerId: string, remotePath: string) => ipcRenderer.invoke('cloud:delete-file', providerId, remotePath) as Promise<{ success: boolean; error?: string }>,
   cloudGetQuota: (providerId: string) => ipcRenderer.invoke('cloud:get-quota', providerId) as Promise<{ used: number; total: number } | null>,
-  cloudUploadBuild: (providerId: string, buildName: string, uploadId?: string) => ipcRenderer.invoke('cloud:upload-build', providerId, buildName, uploadId) as Promise<{ success: boolean; id?: string; name?: string; error?: string }>,
+  cloudUploadBuild: (providerId: string, buildName: string, uploadId?: string, categories?: CloudUploadCategory[]) => ipcRenderer.invoke('cloud:upload-build', providerId, buildName, uploadId, categories) as Promise<{ success: boolean; id?: string; name?: string; error?: string }>,
+  cloudUploadServer: (providerId: string, serverId: string, serverName: string, uploadId?: string, categories?: CloudUploadCategory[]) => ipcRenderer.invoke('cloud:upload-server', providerId, serverId, serverName, uploadId, categories) as Promise<{ success: boolean; id?: string; name?: string; error?: string }>,
   onCloudUploadProgress: (callback: (data: { id: string; percent: number; stage: "zip" | "upload" }) => void) => subscribe('cloud:upload-progress', callback),
   getFilePath: (file: File) => webUtils.getPathForFile(file),
   cloudUploadAccount: (providerId: string, account: { id: string; type: string; username: string; uuid?: string }) => ipcRenderer.invoke('cloud:upload-account', providerId, account) as Promise<{ success: boolean; id?: string; name?: string; error?: string }>,
-  cloudDownloadAndImport: (providerId: string, remotePath: string, fileType: string) => ipcRenderer.invoke('cloud:download-and-import', providerId, remotePath, fileType) as Promise<{ success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } }>,
+  cloudDownloadAndImport: (providerId: string, remotePath: string, fileType: string, selectedCategories?: string[]) => ipcRenderer.invoke('cloud:download-and-import', providerId, remotePath, fileType, selectedCategories) as Promise<{ success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } }>,
 
   // ── Skins ──────────────────────────────────────────────
   skinsGetProfile: (accountId?: string) => ipcRenderer.invoke('skins:get-profile', accountId) as Promise<McProfile | null>,
@@ -300,7 +327,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── MC Server Management ───────────────────────────────
   mcServerList: invoke<McServerInfo[]>('mc-server:list'),
   mcServerGet: (id: string) => ipcRenderer.invoke('mc-server:get', id) as Promise<McServerInfo | null>,
-  mcServerCreate: (data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string }) => ipcRenderer.invoke('mc-server:create', data) as Promise<McServerInfo>,
+  mcServerCreate: (data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }) => ipcRenderer.invoke('mc-server:create', data) as Promise<McServerInfo>,
   mcServerInstallPack: (params: { source: "modrinth" | "curseforge"; projectSlug?: string; versionId?: string; modId?: number; fileId?: number; name?: string; icon?: string; port?: number; xmx?: number; xms?: number; extraJavaArgs?: string; javaPath?: string; relayEnabled?: boolean; onlineMode?: boolean; maxPlayers?: number }) => ipcRenderer.invoke('mc-server:install-pack', params) as Promise<McServerInfo>,
   mcServerAnalyzeJar: (jarPath: string) => ipcRenderer.invoke('mc-server:analyze-jar', jarPath) as Promise<{ minecraftVersion: string | null; loaderId: string | null; loaderLabel: string | null; modId: string | null; mainClass: string | null; error?: string }>,
   mcServerUpdate: (id: string, update: Record<string, unknown>) => ipcRenderer.invoke('mc-server:update', id, update) as Promise<void>,

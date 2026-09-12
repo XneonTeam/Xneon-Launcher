@@ -12,6 +12,8 @@ import { getMainWindow, sendToRenderer, logRuntime, logRuntimeDebug } from "./ru
 import { dbHelpers, type DbAccount } from "../db"
 import { getGameStartTimestamp, setDiscordActivity } from "./discord-rpc"
 import { getBuildIntentPath } from "./builds"
+import { recordGameSession } from "./stats"
+import { setActiveGameSession } from "./session-tracker"
 
 type LaunchAccountPayload = {
   type: "elyby" | "xnskins" | "microsoft" | "offline"
@@ -37,6 +39,7 @@ export class LaunchOrchestrator {
   private launchWorker: ChildProcess | null = null
   private minecraftPid: number | null = null
   private buildLaunchTimestamps = new Map<string, number>()
+  private vanillaLaunchTimestamp: number | null = null
 
   // ---------- State queries ----------
 
@@ -48,6 +51,7 @@ export class LaunchOrchestrator {
     this.launchWorker = null
     this.minecraftPid = null
     this.buildLaunchTimestamps = new Map<string, number>()
+    this.vanillaLaunchTimestamp = null
   }
 
   stop(): void {
@@ -162,7 +166,16 @@ export class LaunchOrchestrator {
             logRuntime(`[Minecraft] Worker reported started pid=${this.minecraftPid ?? 0}`)
             if (request.buildName) {
               this.buildLaunchTimestamps.set(request.buildName, Date.now())
+            } else {
+              this.vanillaLaunchTimestamp = Date.now()
             }
+            setActiveGameSession({
+              kind: "game",
+              buildId: request.buildId ?? `minecraft:${request.mcVersion}`,
+              buildName: request.buildName ?? `Minecraft ${request.mcVersion}`,
+              startedAt: Date.now(),
+              mcVersion: request.mcVersion,
+            })
             this.emitGameData("[Launcher] Minecraft process started")
             settle({ success: true, pid: this.minecraftPid ?? undefined })
             return
@@ -177,18 +190,46 @@ export class LaunchOrchestrator {
             if (request.buildName) {
               const startTime = this.buildLaunchTimestamps.get(request.buildName)
               if (startTime) {
-                const elapsed = Math.floor((Date.now() - startTime) / 1000)
+                const endTime = Date.now()
+                const elapsed = Math.floor((endTime - startTime) / 1000)
                 this.buildLaunchTimestamps.delete(request.buildName)
                 if (elapsed > 0) {
+                  const sessionBuildName = request.buildName
                   dbHelpers.loadBuilds().then(builds => {
-                    const build = builds.find(b => b.name === request.buildName)
+                    const build = builds.find(b => b.name === sessionBuildName)
                     if (build) {
                       dbHelpers.updateBuildPlaytime(build.id, elapsed)
+                      void recordGameSession({
+                        buildId: build.id,
+                        buildName: build.name,
+                        startedAt: startTime,
+                        endedAt: endTime,
+                        duration: elapsed,
+                      })
                     }
                   })
                 }
               }
+            } else {
+              // Vanilla Minecraft (no build/instance) — record the session so
+              // regular Minecraft also shows up in statistics.
+              const startTime = this.vanillaLaunchTimestamp
+              this.vanillaLaunchTimestamp = null
+              if (startTime) {
+                const endTime = Date.now()
+                const elapsed = Math.floor((endTime - startTime) / 1000)
+                if (elapsed > 0) {
+                  void recordGameSession({
+                    buildId: `minecraft:${request.mcVersion}`,
+                    buildName: `Minecraft ${request.mcVersion}`,
+                    startedAt: startTime,
+                    endedAt: endTime,
+                    duration: elapsed,
+                  })
+                }
+              }
             }
+            setActiveGameSession(null)
             this.clearState()
             this.setPresenceMenu()
             this.emitToRenderer("minecraft:close", typeof payload.code === "number" ? payload.code : 0)

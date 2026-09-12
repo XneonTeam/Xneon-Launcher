@@ -11,8 +11,9 @@ import { getFileSnapshots, upsertFileSnapshot, type FileSnapshotRow } from "./sn
 import { loadSkinLibrary, saveSkinToLibrary, deleteSkinFromLibrary, updateSkinVariant, updateSkinCapeId, updateSkinName, type SkinLibraryRow } from "./skins"
 import { aiListSessions, aiCreateSession, aiRenameSession, aiDeleteSession, aiListMessages, aiAddMessage } from "./ai"
 import { listMcServers, listTrashedMcServers, getMcServer, createMcServer, updateMcServer, softDeleteMcServer, restoreMcServer, purgeTrashedMcServers, deleteMcServer, type McServerRow } from "./mc-servers"
+import { addGameSession, listGameSessions, deleteGameSessionsForBuild, deleteGameSessionsForBuildNames, addServerSession, listServerSessions, type GameSessionRow, type ServerSessionRow } from "./stats"
 
-export type { DbAccount, BuildJson, ResourceRow, FileSnapshotRow, SkinLibraryRow, McServerRow }
+export type { DbAccount, BuildJson, ResourceRow, FileSnapshotRow, SkinLibraryRow, McServerRow, GameSessionRow, ServerSessionRow }
 
 export function isUsingFallbackStorage(): boolean {
   return isDbFallbackMode()
@@ -65,6 +66,12 @@ export const dbHelpers = {
   restoreMcServer,
   purgeTrashedMcServers,
   deleteMcServer,
+  addGameSession,
+  listGameSessions,
+  deleteGameSessionsForBuild,
+  deleteGameSessionsForBuildNames,
+  addServerSession,
+  listServerSessions,
 }
 
 process.once("beforeExit", flushDatabasePersistence)

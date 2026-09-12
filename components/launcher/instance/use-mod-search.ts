@@ -4,6 +4,7 @@ import type { Source, SearchSource, ModSort, ContentType, ModalTab, ModSearchRes
 import type { ModLoaderFilter, ModCategory } from "@xnlc/types"
 import { dataCache, STALE_SEARCH_MS, MOD_SEARCH_CACHE_TTL } from "@/lib/swr"
 import { SORT_OPTIONS_BY_SOURCE } from "./sort-options"
+import { groupVersionsByCompatibility, isProjectCompatibleWithBuild } from "./utils"
 
 export type SelectedModCategory = { name: string; source?: "modrinth" | "curseforge" }
 
@@ -73,18 +74,51 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
     if (!allowed.includes(modSortBy)) setModSortBy(allowed[0] ?? "downloads")
   }, [modSource, modSortBy])
 
-  const compatibleProjectVersions = useMemo(() => {
-    if (!activeBuild) return projectVersions
-    return projectVersions.filter(ver => {
-      const gameVersions = ver.gameVersion.split(/[|,/]/).map(v => v.trim()).filter(Boolean)
-      const versionMatches = !gameVersions.length || gameVersions.includes(activeBuild.version)
-      if (!versionMatches) return false
-      if (detailTab !== "mods") return true
-      const loaders = ver.loaders?.map(l => l.toLowerCase()) ?? []
-      if (activeBuild.modLoader === "vanilla") return loaders.length === 0
-      return loaders.includes(activeBuild.modLoader)
-    })
-  }, [activeBuild, projectVersions, detailTab])
+  const requireLoaderMatch = detailTab === "mods"
+
+  // Группы совместимости для модального окна: точное совпадение → только загрузчик → все версии
+  const modalVersionGroups = useMemo(() => {
+    if (!selectedDetails) return { exact: [], byLoader: [], all: [] }
+    if (selectedDetails.source === "ftb") {
+      return groupVersionsByCompatibility(selectedDetails.versions ?? [], activeBuild, requireLoaderMatch)
+    }
+    const source = selectedDetails.source === "modrinth"
+      ? projectVersions
+      : (selectedDetails.versions ?? [])
+    return groupVersionsByCompatibility(source, activeBuild, requireLoaderMatch)
+  }, [activeBuild, projectVersions, requireLoaderMatch, selectedDetails])
+
+  // Показывать ли версии под другие загрузчики (только по явному запросу пользователя)
+  const [showAllModalVersions, setShowAllModalVersions] = useState(false)
+
+  useEffect(() => { setShowAllModalVersions(false) }, [selectedDetails?.id, selectedDetails?.projectId, detailTab])
+
+  const displayedModalVersions = useMemo(() => {
+    const { exact, byLoader, all } = modalVersionGroups
+    if (exact.length > 0) return exact
+    // По умолчанию не показываем версии под другие версии игры — только по явному запросу
+    if (showAllModalVersions) {
+      if (byLoader.length > 0) return byLoader
+      return all
+    }
+    return []
+  }, [modalVersionGroups, showAllModalVersions])
+
+  /**
+   * none        — показаны полностью совместимые версии;
+   * otherMc     — совместимых по версии Minecraft нет, показаны версии того же загрузчика (только при showAllModalVersions);
+   * otherLoader — для загрузчика сборки версий нет, показан полный список (только при showAllModalVersions);
+   * empty       — ничего не найдено, предложить показать все версии.
+   */
+  const modalVersionsFallback = useMemo<"none" | "otherMc" | "otherLoader" | "empty">(() => {
+    const { exact, byLoader, all } = modalVersionGroups
+    if (!selectedDetails) return "empty"
+    if (exact.length > 0) return "none"
+    if (!showAllModalVersions) return "empty"
+    if (byLoader.length > 0) return "otherMc"
+    if (all.length > 0) return "otherLoader"
+    return "empty"
+  }, [modalVersionGroups, selectedDetails, showAllModalVersions])
 
   const searchModrinth = useCallback((
     query: string, type: ContentType, version: string | undefined,
@@ -112,29 +146,6 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
     )
   }, [])
 
-  const compatibleCFVersions = useMemo(() => {
-    if (!activeBuild || !selectedDetails) return selectedDetails?.versions ?? []
-    return selectedDetails.versions.filter(ver => {
-      const gameVersions = String(ver.gameVersion ?? "").split(/[|,/]/).map(v => v.trim()).filter(Boolean)
-      if (gameVersions.length > 0 && !gameVersions.includes(activeBuild.version)) return false
-      if (detailTab !== "mods") return true
-      const loaders = ver.loaders?.map(loader => loader.toLowerCase()) ?? []
-      if (activeBuild.modLoader === "vanilla") return loaders.length === 0
-      return loaders.includes(activeBuild.modLoader)
-    })
-  }, [activeBuild, selectedDetails, detailTab])
-
-  const displayedModalVersions = useMemo(() => {
-    if (!selectedDetails) return []
-    if (selectedDetails.source === "modrinth") {
-      return compatibleProjectVersions.length > 0 ? compatibleProjectVersions : projectVersions
-    }
-    if (selectedDetails.source === "ftb") {
-      return selectedDetails.versions ?? []
-    }
-    return compatibleCFVersions.length > 0 ? compatibleCFVersions : (selectedDetails.versions ?? [])
-  }, [compatibleCFVersions, compatibleProjectVersions, projectVersions, selectedDetails])
-
   const isInstalledFn = useCallback((project: ModSearchResult): boolean => {
     const items = detailTab === "mods"
       ? activeBuild?.mods ?? []
@@ -159,7 +170,7 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
     try {
       const type: ContentType = detailTab === "resourcepacks" ? "resourcepack" : detailTab === "shaders" ? "shader" : "mod"
       const modLoaderFilter = detailTab === "mods" && activeBuild?.modLoader && activeBuild.modLoader !== "vanilla"
-        ? activeBuild.modLoader as "fabric" | "quilt"
+        ? activeBuild.modLoader as ModLoaderFilter
         : undefined
 
       const mrCats = modCategories.filter(c => c.source !== "curseforge").map(c => c.name)
@@ -209,8 +220,12 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
       }
 
       if (version !== searchVersionRef.current) return
-      const newResults = resp?.results ?? []
-      setDisplayResults(newResults)
+      const rawResults = resp?.results ?? []
+      // Жёстко отсекаем проекты, у которых нет версии под текущую сборку
+      const filteredResults = activeBuild
+        ? rawResults.filter(project => isProjectCompatibleWithBuild(project, activeBuild, detailTab === "mods"))
+        : rawResults
+      setDisplayResults(filteredResults)
       setModTotalHits(resp?.totalCount ?? Math.max(respMrTotal, respCfTotal))
     } catch {
       if (version !== searchVersionRef.current) return
@@ -315,6 +330,9 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
     categories,
     selectedDetails, cfModalData: selectedDetails, modalTab, setModalTab,
     loadingModal, displayedModalVersions, displayResults,
+    modalVersionsFallback, showAllModalVersions, setShowAllModalVersions,
+    allModalVersionsCount: modalVersionGroups.all.length,
+    modalVersionsLoaderFiltered: requireLoaderMatch,
     isInstalledFn,
     modFileInputRef, openProjectModal, openCFModal: openProjectModal, closeModal, resetModSearch,
   }

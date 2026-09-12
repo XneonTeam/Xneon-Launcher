@@ -8,6 +8,7 @@ export type {
   ModSearchResponse,
   ModDetails,
   ModVersion,
+  ModLinks,
   ModSortOption,
   ModDependency,
   ModProjectInfo,
@@ -37,6 +38,8 @@ export {
   modrinthGetCategories,
   modrinthGetLoaders,
   modrinthGetGameVersions,
+  modrinthCheckUpdates,
+  modrinthGetVersionsByIds,
 } from "./modrinth-client.js"
 
 export {
@@ -50,11 +53,15 @@ export {
   curseforgeGetProjectsByIds,
   curseforgeGetFingerprintsMatches,
   curseforgeGetCategories,
+  curseforgeGetChangelog,
+  curseforgeGetDescription,
+  curseforgeGetFiles,
 } from "./curseforge-client.js"
 
 export type {
   CurseforgeFingerprintMatch,
   CurseforgeFingerprintsResult,
+  CurseForgeFileInfo,
 } from "./curseforge-client.js"
 
 export {

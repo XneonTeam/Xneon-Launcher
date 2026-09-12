@@ -273,8 +273,35 @@ export type ImportProgressPayload = {
   itemName?: string
 }
 
+/**
+ * Сообщения прогресса собираются вызывающим кодом вместе со счётчиками,
+ * поэтому здесь подстраховываемся: счётчик в тексте не может превышать свой
+ * максимум (иначе в UI утекает «51/50» и прочие перескоки).
+ */
+function clampCountersInMessage(message: string): string {
+  return message
+    .replace(/(\d+)\s*\/\s*(\d+)/g, (match, rawCurrent: string, rawTotal: string) => {
+      const current = Number(rawCurrent)
+      const total = Number(rawTotal)
+      if (!Number.isFinite(current) || !Number.isFinite(total) || current <= total) return match
+      return `${total}/${rawTotal}`
+    })
+    .replace(/(\d+)\s+из\s+(\d+)/g, (match, rawCurrent: string, rawTotal: string) => {
+      const current = Number(rawCurrent)
+      const total = Number(rawTotal)
+      if (!Number.isFinite(current) || !Number.isFinite(total) || current <= total) return match
+      return `${total} из ${rawTotal}`
+    })
+}
+
 export function sendImportProgress(current: number, total: number, message: string, itemName?: string) {
-  const payload: ImportProgressPayload = { current, total, message }
+  const safeTotal = Number.isFinite(total) && total > 0 ? Math.floor(total) : 1
+  const safeCurrent = Number.isFinite(current) ? Math.max(0, Math.min(Math.floor(current), safeTotal)) : 0
+  const payload: ImportProgressPayload = {
+    current: safeCurrent,
+    total: safeTotal,
+    message: clampCountersInMessage(message),
+  }
   if (itemName) payload.itemName = itemName
   sendToRenderer("import:progress", payload)
 }
@@ -299,6 +326,41 @@ export async function copyOverrideEntries(zip: AdmZipType, intentPath: string) {
     }
   }
 }
+
+/**
+ * Каталоги, содержимым которых управляет модпак.
+ * При смене версии модпака / переустановке они полностью очищаются,
+ * иначе файлы старой версии остаются и дублируются с новыми.
+ *
+ * Пользовательские данные (saves, screenshots, logs, backups, config,
+ * defaultconfigs, schematics и т.п.) при этом не трогаются.
+ */
+const PACK_MANAGED_DIRS = [
+  "mods",
+  "resourcepacks",
+  "shaderpacks",
+  "shaders",
+  "datapacks",
+  "scripts",
+  "kubejs",
+]
+
+/**
+ * Полностью очищает содержимое, которым управляет модпак (моды, ресурспаки, шейдеры и т.п.),
+ * сохраняя миры, настройки и прочие пользовательские данные.
+ * Используется при смене версии модпака и переустановке.
+ */
+export async function cleanPackManagedContent(intentPath: string): Promise<void> {
+  for (const dir of PACK_MANAGED_DIRS) {
+    const target = path.join(intentPath, dir)
+    try {
+      await fs.rm(target, { recursive: true, force: true, maxRetries: 3 })
+    } catch (err) {
+      console.warn(`[modpack] Не удалось очистить ${dir}:`, err)
+    }
+  }
+}
+
 
 export function formatDisplayNameFromFileName(fileName: string): string {
   return fileName.replace(/\.jar$|\.zip$/i, "").replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase())
@@ -387,6 +449,8 @@ export type ImportModEntry = {
   source?: "local" | "modrinth" | "curseforge"
   projectId?: string
   modId?: number
+  versionId?: string
+  fileId?: number
   author?: string
   enabled?: boolean
 }

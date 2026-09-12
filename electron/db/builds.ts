@@ -16,6 +16,10 @@ export type BuildJson = {
   source: "local" | "modrinth" | "curseforge"
   projectSlug?: string
   modpackVersion?: string
+  modpackVersionId?: string
+  locked?: boolean
+  modId?: number
+  fileId?: number
   intentPath?: string
   installedMods?: Record<string, string>
   playtime: number
@@ -48,6 +52,10 @@ type BuildRow = {
   source: string
   projectSlug: string | null
   modpackVersion: string | null
+  modpackVersionId: string | null
+  locked: number | null
+  modId: number | null
+  fileId: number | null
   playtime: number
   javaOverride: number | null
   javaPath: string | null
@@ -77,6 +85,11 @@ function rowToBuild(row: BuildRow): BuildJson {
     source: row.source as BuildJson["source"],
     projectSlug: row.projectSlug ?? undefined,
     modpackVersion: row.modpackVersion ?? undefined,
+    modpackVersionId: row.modpackVersionId ?? undefined,
+    // null означает «по умолчанию»: для модпаков инстанс заблокирован
+    locked: row.locked === null || row.locked === undefined ? undefined : row.locked === 1,
+    modId: row.modId ?? undefined,
+    fileId: row.fileId ?? undefined,
     intentPath: row.intentPath || undefined,
     installedMods: JSON.parse(row.installedMods || "{}"),
     playtime: row.playtime ?? 0,
@@ -134,6 +147,10 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
         build.source,
         build.projectSlug ?? null,
         build.modpackVersion ?? null,
+        build.modpackVersionId ?? null,
+        build.locked === undefined ? null : (build.locked ? 1 : 0),
+        build.modId ?? null,
+        build.fileId ?? null,
         build.playtime ?? 0,
         build.javaOverride ? 1 : 0,
         build.javaPath ?? "",
@@ -153,8 +170,8 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
         }
       }
       run(`
-        INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, modpackVersion, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax, serverOverride, server, serverPort, [group])
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, modpackVersion, modpackVersionId, locked, modId, fileId, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax, serverOverride, server, serverPort, [group])
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, params)
     }
     run("COMMIT")

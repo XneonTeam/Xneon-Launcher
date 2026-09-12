@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 
-type SupportedLoader = "vanilla" | "forge" | "fabric" | "liteloader" | "quilt" | "neoforge" | "optifine" | "instance" | "paper" | "purpur" | "folia" | "velocity" | "waterfall"
+type SupportedLoader = "vanilla" | "forge" | "fabric" | "liteloader" | "quilt" | "neoforge" | "optifine" | "instance" | "paper" | "purpur" | "folia" | "velocity" | "waterfall" | "sponge" | "spongevanilla" | "spongeforge" | "spongeneo"
 
 export type LoaderVersionOption = {
   value: string
@@ -180,6 +180,15 @@ export function useLoaderVersionOptions(modLoader: string, mcVersion: string) {
           }))
         } else if (normalizedLoader === "waterfall") {
           const versions = await window.electronAPI?.getWaterfallVersions(mcVersion)
+          nextOptions = (versions ?? []).map(v => ({
+            value: v.value,
+            label: v.label,
+            stable: v.stable,
+            recommended: v.recommended,
+          }))
+        } else if (normalizedLoader === "sponge" || normalizedLoader === "spongevanilla" || normalizedLoader === "spongeforge" || normalizedLoader === "spongeneo") {
+          const spongeType = normalizedLoader === "sponge" ? "spongevanilla" : normalizedLoader
+          const versions = await window.electronAPI?.getSpongeVersions(spongeType, mcVersion)
           nextOptions = (versions ?? []).map(v => ({
             value: v.value,
             label: v.label,

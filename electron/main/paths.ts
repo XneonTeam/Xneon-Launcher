@@ -6,3 +6,7 @@ export function getLauncherDataRoot(): string {
   if (process.platform === "darwin") return path.join(app.getPath("home"), "Library", "Application Support", "xneonlauncher")
   return path.join(app.getPath("home"), ".xneonlauncher")
 }
+
+export function getMcServerDir(id: string): string {
+  return path.join(getLauncherDataRoot(), "mc-servers", id)
+}

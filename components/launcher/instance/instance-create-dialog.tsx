@@ -227,7 +227,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                   <SelectContent>
                     {!versionsLoaded ? <div className="px-3 py-2 text-sm text-muted-foreground">Loading...</div>
                       : versions.length === 0 ? <div className="px-3 py-2 text-sm text-muted-foreground">Failed to load versions</div>
-                      : versions.map((item) => <SelectItem key={item} value={item}>Minecraft {item}</SelectItem>)}
+                      : versions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={modLoader} onValueChange={setModLoader}>
@@ -326,9 +326,6 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                           style={{ width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%` }}
                         />
                       </div>
-                      {importProgress.itemName && (
-                        <div className="text-[10px] text-muted-foreground truncate">{importProgress.itemName}</div>
-                      )}
                     </div>
                   )}
 
@@ -363,8 +360,11 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                             <div className="flex items-center gap-2">
                               <span className="truncate font-medium text-foreground">{instance.name}</span>
                             </div>
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              {instance.version} • {instance.loaderVersion ? `${instance.modLoader} ${instance.loaderVersion}` : instance.modLoader}
+                            <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <span>{instance.version}</span>
+                              <span>•</span>
+                              <LoaderIcon loaderId={instance.modLoader} className="w-3.5 h-3.5 flex-shrink-0" />
+                              <span className="capitalize">{instance.loaderVersion ? `${instance.modLoader} ${instance.loaderVersion}` : instance.modLoader}</span>
                             </div>
                           </div>
                           <div className={cn(

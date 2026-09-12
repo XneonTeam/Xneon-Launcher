@@ -3,7 +3,7 @@
 // Author: MAINER4IK
 // ============================================================
 
-export type ContentType = "mod" | "modpack" | "resourcepack" | "shader" | "datapack" | "plugin";
+export type ContentType = "mod" | "modpack" | "resourcepack" | "shader" | "datapack" | "plugin" | "world";
 export type ModSort = "relevance" | "downloads" | "follows" | "newest" | "updated" | "featured" | "rating";
 export type ModSource = "modrinth" | "curseforge" | "ftb";
 export type ModEnvironment = "client" | "server";
@@ -27,6 +27,8 @@ export interface ModSearchResult {
   fileSize?: number;
   dateCreated?: string;
   dateModified?: string;
+  gameVersions?: string[];
+  loaders?: string[];
 }
 
 export type ModLoaderFilter = "vanilla" | "fabric" | "neoforge" | "quilt";
@@ -49,6 +51,7 @@ export interface ModDependency {
 export interface ModVersion {
   id: string;
   name: string;
+  versionNumber?: string;
   gameVersion: string;
   downloadCount: number;
   fileName: string;
@@ -58,8 +61,17 @@ export interface ModVersion {
   loaders?: string[];
   changelog?: string;
   datePublished?: string;
-  files?: { url: string; size: number; filename: string }[];
+  files?: { url: string; size: number; filename: string; hashes?: { sha1?: string; sha512?: string } }[];
   dependencies?: ModDependency[];
+}
+
+export interface ModLinks {
+  websiteUrl?: string;
+  wikiUrl?: string;
+  issuesUrl?: string;
+  sourceUrl?: string;
+  discordUrl?: string;
+  donationUrls?: { id?: string; platform?: string; url: string }[];
 }
 
 export interface ModDetails {
@@ -79,6 +91,7 @@ export interface ModDetails {
   modId?: number;
   /** Modrinth-specific project ID */
   projectId?: string;
+  links?: ModLinks;
 }
 
 export interface ModSortOption {
@@ -103,7 +116,8 @@ export const CONTENT_TYPE_FACETS: Record<ContentType, { facet: string; cfClassId
   resourcepack: { facet: "resourcepack", cfClassId: 12 },
   shader: { facet: "shader", cfClassId: 6552 },
   datapack: { facet: "datapack", cfClassId: 6945 },
-  plugin: { facet: "plugin", cfClassId: 17 },
+  plugin: { facet: "plugin", cfClassId: 5 },
+  world: { facet: "world", cfClassId: 17 },
 };
 
 export interface ModCategory {
@@ -112,6 +126,8 @@ export interface ModCategory {
   header: string;
   projectType: ContentType;
   cfCategoryId?: number;
+  /** CurseForge category slug (stable filter key used by resolveCFCategoryId) */
+  slug?: string;
 }
 
 export interface CurseForgeCategory {

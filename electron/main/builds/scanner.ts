@@ -88,6 +88,8 @@ export async function scanIntentDir(intentPath: string, onProgress?: (processed:
             source: entry.source,
             projectId: entry.projectId,
             modId: entry.modId,
+            versionId: entry.versionId,
+            fileId: entry.fileId,
             author: entry.author,
             enabled,
           }

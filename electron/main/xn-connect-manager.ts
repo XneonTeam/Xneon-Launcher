@@ -1,4 +1,3 @@
-import { BrowserWindow } from "electron"
 import {
   apiValidToken,
   apiLoadToken,
@@ -17,31 +16,13 @@ import {
 } from "./xn-connect/api"
 import { runTunnel, type RelayCallbacks } from "./xn-connect/relay"
 import { logRuntime } from "./runtime"
-
-type RelayState =
-  | { status: "stopped" }
-  | { status: "auth_required"; authUrl: string }
-  | { status: "starting" }
-  | { status: "running"; publicAddress: string; tunnelId: string }
-  | { status: "limit_reached"; used: number; max: number; plan: string }
-
-export type XnConnectUsage = {
-  used: number
-  max: number
-  plan: string
-}
+import type { XnConnectState, XnConnectUsage } from "@xnlc/types"
+import { sendToRenderer } from "./runtime"
 
 type RunningRelay = {
-  state: RelayState
+  state: XnConnectState
   stopFn: (() => void) | null
   stop: boolean
-}
-
-function sendToRenderer(channel: string, ...args: unknown[]) {
-  const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed())
-  if (win && !win.isDestroyed()) {
-    win.webContents.send(channel, ...args)
-  }
 }
 
 function sleep(ms: number): Promise<void> {
@@ -83,7 +64,7 @@ export class XnConnectManager {
     return usage
   }
 
-  getState(serverId: string): RelayState {
+  getState(serverId: string): XnConnectState {
     return this.running.get(serverId)?.state ?? { status: "stopped" }
   }
 
@@ -92,7 +73,7 @@ export class XnConnectManager {
     serverName: string,
     port: number,
     ip: string = "127.0.0.1",
-  ): Promise<RelayState> {
+  ): Promise<XnConnectState> {
     if (this.running.has(serverId)) {
       return this.running.get(serverId)!.state
     }
@@ -338,7 +319,7 @@ export class XnConnectManager {
   // creating/running a tunnel. Used to authorize up front (e.g. at server creation)
   // so that starting a server later doesn't re-prompt for login.
   async authorize(
-    onState: (state: RelayState) => void = () => {},
+    onState: (state: XnConnectState) => void = () => {},
   ): Promise<boolean> {
     const apiUrl = DEFAULT_API_URL
 
