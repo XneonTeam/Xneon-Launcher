@@ -457,8 +457,8 @@ export interface ElectronAPIExplicit {
   copyBuild: (buildName: string, newName: string) => Promise<{ success: boolean; intentPath?: string; error?: string }>
   exportBuildZip: (buildName: string, label: string, categories?: BuildExportCategory[]) => Promise<{ success: boolean; path?: string; error?: string }>
   exportBuildModlist: (buildName: string, label: string, format: "html" | "markdown" | "json" | "csv" | "plaintext") => Promise<{ success: boolean; path?: string; error?: string }>
-  moveBuildIntentToTrash: (dirName: string) => Promise<{ success: boolean; trashName?: string; error?: string }>
-  restoreBuildIntentFromTrash: (dirName: string, trashName: string) => Promise<{ success: boolean; error?: string }>
+  moveBuildIntentToTrash: (dirName: string, metadata?: Record<string, unknown>) => Promise<{ success: boolean; trashName?: string; error?: string }>
+  restoreBuildIntentFromTrash: (dirName: string, trashName: string) => Promise<{ success: boolean; build?: Record<string, unknown>; error?: string }>
   purgeBuildTrash: () => Promise<{ success: boolean; error?: string }>
   listTrashBuilds: () => Promise<Array<{ trashName: string; originalName: string; trashedAt: number }>>
   deleteTrashItem: (trashName: string) => Promise<{ success: boolean; error?: string }>
@@ -554,8 +554,8 @@ export interface ElectronAPIExtra {
   renameBuildIntent: (oldName: string, newName: string) => Promise<{ success: boolean; intentPath?: string; error?: string }>
   exportBuildZip: (buildName: string, label: string, categories?: BuildExportCategory[]) => Promise<{ success: boolean; path?: string; error?: string }>
   exportBuildModlist: (buildName: string, label: string, format: "html" | "markdown" | "json" | "csv" | "plaintext") => Promise<{ success: boolean; path?: string; error?: string }>
-  moveBuildIntentToTrash: (dirName: string) => Promise<{ success: boolean; trashName?: string; error?: string }>
-  restoreBuildIntentFromTrash: (dirName: string, trashName: string) => Promise<{ success: boolean; error?: string }>
+  moveBuildIntentToTrash: (dirName: string, metadata?: Record<string, unknown>) => Promise<{ success: boolean; trashName?: string; error?: string }>
+  restoreBuildIntentFromTrash: (dirName: string, trashName: string) => Promise<{ success: boolean; build?: Record<string, unknown>; error?: string }>
   purgeBuildTrash: () => Promise<{ success: boolean; error?: string }>
   listTrashBuilds: () => Promise<Array<{ trashName: string; originalName: string; trashedAt: number }>>
   deleteTrashItem: (trashName: string) => Promise<{ success: boolean; error?: string }>
@@ -597,6 +597,10 @@ export interface ElectronAPIExtra {
   mcServerSendCommand: (id: string, command: string) => Promise<void>
   mcServerStatus: (id: string) => Promise<McServerState>
   mcServerMetrics: (id: string) => Promise<McServerMetrics>
+  /** Подписка на push-метрики сервера (вместо поллинга из renderer). */
+  mcServerMetricsSubscribe: (id: string) => Promise<void>
+  mcServerMetricsUnsubscribe: (id: string) => Promise<void>
+  onMcServerMetrics: (callback: (data: { id: string; metrics: McServerMetrics }) => void) => CleanupFn
   mcServerLogs: (id: string) => Promise<string[]>
   mcServerOpenFolder: (id: string) => Promise<void>
   mcServerReadProperties: (id: string) => Promise<Record<string, string> | null>

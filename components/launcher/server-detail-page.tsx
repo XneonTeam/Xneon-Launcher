@@ -9,18 +9,17 @@ import {
 import { useMcServerState, useMcServerLogs, useMcServerMetrics, useMcServerDownloadProgress } from "@/src/hooks/use-mc-servers"
 import { cn } from "@/lib/utils"
 import { IconPickerModal } from "@/components/launcher/instance/icon-picker-modal"
-import { LoaderIcon } from "./instance/loader-icon"
+import { LoaderIcon, loaderLabel } from "./instance/loader-icon"
 import type { McServerInfo } from "@xnlc/types"
 import { ConsoleTab } from "./server/console-tab"
 import { SettingsTab } from "./server/settings-tab"
 import { PlayersTab } from "./server/players-tab"
-import { MetricsTab } from "./server/metrics-tab"
 import { PropertiesTab } from "./server/properties-tab"
 import { FilesTab } from "./server/files-tab"
 import { AddonsTab } from "./server/addons-tab"
 import { ServerEulaModal } from "./server-eula-modal"
 
-type ServerTab = "console" | "addons" | "properties" | "players" | "settings" | "metrics" | "files"
+type ServerTab = "console" | "addons" | "properties" | "players" | "settings" | "files"
 
 const ALL_TABS: Array<{ id: ServerTab; labelKey: string; icon: React.ElementType; label?: string }> = [
   { id: "console", labelKey: "servers.tabConsole", icon: IconTerminal },
@@ -151,8 +150,7 @@ export function ServerDetailPage({ server, onBack }: ServerDetailPageProps) {
     start()
   }
 
-  const loaderName = server.modloader === "neoforge" ? "NeoForge"
-    : server.modloader ? server.modloader.charAt(0).toUpperCase() + server.modloader.slice(1) : "Vanilla"
+  const loaderName = loaderLabel(server.modloader)
 
   const tabs = ALL_TABS
     .filter(tab => tab.id !== "addons" || hasAddons(server.modloader))
@@ -233,7 +231,7 @@ export function ServerDetailPage({ server, onBack }: ServerDetailPageProps) {
                 </span>
                 <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                   <IconDatabase className="w-3 h-3 text-primary" />
-                  <span className="font-mono font-bold text-foreground">{metrics.memoryMb}<span className="text-muted-foreground/60 font-normal">MB</span></span>
+                  <span className="font-mono font-bold text-foreground">{metrics.memoryMb} <span className="text-foreground">MB</span></span>
                 </span>
                 <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                   <IconClock className="w-3 h-3 text-accent" />
@@ -379,13 +377,6 @@ export function ServerDetailPage({ server, onBack }: ServerDetailPageProps) {
             onCommandChange={setCommand}
             onSendCommand={handleSendCommand}
             onClearLogs={clearLogs}
-          />
-        )}
-        {activeTab === "metrics" && (
-          <MetricsTab
-            serverId={server.id}
-            isRunning={isRunning}
-            xmx={server.xmx}
           />
         )}
         {activeTab === "settings" && (

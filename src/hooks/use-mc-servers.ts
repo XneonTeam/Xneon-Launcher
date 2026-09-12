@@ -111,17 +111,23 @@ export function useMcServerMetrics(id: string | null, isRunning: boolean) {
   })
 
   useEffect(() => {
-    if (!id || !isRunning) return
-    let interval: ReturnType<typeof setInterval>
-
-    const poll = async () => {
-      const m = await window.electronAPI?.mcServerMetrics(id)
-      if (m) setMetrics(m)
+    if (!id || !isRunning) {
+      setMetrics({ cpuPercent: 0, memoryMb: 0, uptimeSeconds: 0 })
+      return
     }
-    poll()
-    interval = setInterval(poll, 2000)
 
-    return () => clearInterval(interval)
+    // Метрики приходят push'ем из main-процесса: он сам собирает их раз в 2 секунды
+    // и рассылает подписчикам. Renderer ничего не опрашивает — сбор метрик на Windows
+    // спавнит PowerShell, и постоянный поллинг из компонентов был бы накладным.
+    const unsub = window.electronAPI?.onMcServerMetrics((data) => {
+      if (data.id === id) setMetrics(data.metrics)
+    })
+    void window.electronAPI?.mcServerMetricsSubscribe(id)
+
+    return () => {
+      void window.electronAPI?.mcServerMetricsUnsubscribe(id)
+      unsub?.()
+    }
   }, [id, isRunning])
 
   return metrics

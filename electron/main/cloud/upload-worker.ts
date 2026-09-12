@@ -3,12 +3,15 @@ import { parentPort, workerData } from "worker_threads"
 import path from "path"
 import fs from "fs/promises"
 import AdmZip from "adm-zip"
+import { META_ICON_ENTRY } from "./archive-meta"
 
 interface ZipWorkerData {
   intentPath: string
   archivePath: string
   /** Опциональный фильтр: включать только эти категории (mods/saves/logs/...). */
   categories?: string[]
+  /** Иконка сборки (data-URL). Хранится в БД, а не в интенте, поэтому кладётся в архив отдельно. */
+  icon?: string
 }
 
 interface ZipWorkerResult {
@@ -56,7 +59,7 @@ function categoriesOf(relPath: string): string[] {
 }
 
 async function run(): Promise<void> {
-  const { intentPath, archivePath, categories } = workerData as ZipWorkerData
+  const { intentPath, archivePath, categories, icon } = workerData as ZipWorkerData
   const post = (stage: "scan" | "compress", percent: number) => {
     parentPort?.postMessage({ type: "zip-progress", stage, percent } satisfies ZipProgressMessage)
   }
@@ -88,6 +91,14 @@ async function run(): Promise<void> {
       const phase = (15 + Math.round((i + 1) / total * 70))
       post("compress", phase)
     }
+
+    // Иконка сборки живёт в БД (data-URL), а не в папке интента, поэтому в общий
+    // обход файлов она не попадает. Добавляем её отдельной метазаписью, чтобы при
+    // восстановлении из облака иконка не терялась. Пустую иконку не пишем.
+    if (icon && icon.trim()) {
+      zip.addFile(META_ICON_ENTRY, Buffer.from(icon, "utf-8"))
+    }
+
     await fs.mkdir(path.dirname(archivePath), { recursive: true })
     zip.writeZip(archivePath)
     post("compress", 100)

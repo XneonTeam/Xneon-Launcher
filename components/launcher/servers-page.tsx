@@ -12,7 +12,7 @@ import { ServerPackInstallDialog, type PackInstallTarget } from "./server-pack-i
 import { ServerTrashView } from "./server-trash-view"
 import { ServersBrowse } from "./servers-browse"
 import { InstanceModal } from "./instance/instance-modal"
-import { LoaderIcon } from "./instance/loader-icon"
+import { LoaderIcon, loaderLabel } from "./instance/loader-icon"
 import { PlatformBadge } from "./platform-icon"
 import type { McServerInfo, ModCategory } from "@xnlc/types"
 import type { SelectedModCategory } from "./instance/use-mod-search"
@@ -499,8 +499,7 @@ function ServerListRow({ server, onClick, onDelete, onDuplicate }: { server: McS
   const isRunning = state.status === "running"
   const isBusy = state.status === "starting" || state.status === "stopping"
 
-  const loaderName = server.modloader === "neoforge" ? "NeoForge"
-    : server.modloader.charAt(0).toUpperCase() + server.modloader.slice(1)
+  const loaderName = loaderLabel(server.modloader)
 
   const handlePlayStop = (e: React.MouseEvent) => {
     e.stopPropagation()

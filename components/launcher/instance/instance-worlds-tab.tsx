@@ -26,6 +26,7 @@ import { formatDownloads } from "./utils"
 import { Pagination } from "./pagination"
 import { InstanceModal } from "./instance-modal"
 import { CategoryBadge } from "./category-badge"
+import { useAlertDialog } from "@/lib/use-alert-dialog"
 import type { Build, DatapackInfo, ModalTab, ModDetails, ModSearchResult, ModVersion, Source, WorldInfo, ModSort } from "./types"
 
 // CurseForge отдаёт категории карт (classId 17) вместе с их названиями и иконками.
@@ -109,6 +110,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
   const [modalTab, setModalTab] = useState<ModalTab>("description")
   const [loadingModal, setLoadingModal] = useState(false)
   const [displayedModalVersions, setDisplayedModalVersions] = useState<ModVersion[]>([])
+  const { showAlert, alertDialog } = useAlertDialog()
 
   const iconInputRef = useRef<HTMLInputElement>(null)
   const datapackInputRef = useRef<HTMLInputElement>(null)
@@ -214,7 +216,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
       }
 
       if (!downloadUrl) {
-        alert("Не удалось получить ссылку на скачивание карты")
+        showAlert("Не удалось получить ссылку на скачивание карты")
         return
       }
 
@@ -224,10 +226,10 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         await refreshWorlds()
         if (res.folder) setSelectedFolder(res.folder)
       } else {
-        alert(res?.error ?? "Ошибка установки карты")
+        showAlert(res?.error ?? "Ошибка установки карты")
       }
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Не удалось скачать карту")
+      showAlert(e instanceof Error ? e.message : "Не удалось скачать карту")
     } finally {
       setInstallingMapId(null)
       setMapDownloadProgress(null)
@@ -244,10 +246,10 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         setDisplayedModalVersions(details.versions ?? [])
         setModalTab("description")
       } else {
-        alert("Не удалось загрузить информацию о карте")
+        showAlert("Не удалось загрузить информацию о карте")
       }
     } catch {
-      alert("Не удалось загрузить информацию о карте")
+      showAlert("Не удалось загрузить информацию о карте")
     } finally {
       setLoadingModal(false)
     }
@@ -258,7 +260,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     const url = version.downloadUrl || version.files?.[0]?.url
       || (selectedDetails.modId ? await window.electronAPI?.modsCurseforgeDownloadUrl(Number(version.id), selectedDetails.modId) : null)
     if (!url) {
-      alert("Не удалось получить ссылку на скачивание карты")
+      showAlert("Не удалось получить ссылку на скачивание карты")
       return
     }
     const res = await window.electronAPI?.importWorldRemote(build.name, url, selectedDetails.name)
@@ -268,7 +270,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
       if (res.folder) setSelectedFolder(res.folder)
       setSelectedDetails(null)
     } else {
-      alert(res?.error ?? "Ошибка установки карты")
+      showAlert(res?.error ?? "Ошибка установки карты")
     }
   }
 
@@ -332,7 +334,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         setNameDraft(newName)
       } else {
         setNameDraft(selectedWorld.name)
-        alert(result?.error ?? "Не удалось переименовать мир")
+        showAlert(result?.error ?? "Не удалось переименовать мир")
       }
     } finally {
       setRenaming(false)
@@ -352,7 +354,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
           await refreshWorlds()
           if (result.folder) setSelectedFolder(result.folder)
         } else {
-          alert(result?.error ?? "Не удалось скопировать мир")
+          showAlert(result?.error ?? "Не удалось скопировать мир")
         }
       } else {
         const result = await window.electronAPI?.importWorldZip(build.name, namePrompt.pendingFile ?? "", name || undefined)
@@ -361,7 +363,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
           await refreshWorlds()
           if (result.folder) setSelectedFolder(result.folder)
         } else {
-          alert(result?.error ?? "Не удалось импортировать мир")
+          showAlert(result?.error ?? "Не удалось импортировать мир")
         }
       }
     } finally {
@@ -373,7 +375,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     if (!selectedWorld) return
     const result = await window.electronAPI?.resetWorldIcon(build.name, selectedWorld.folder)
     if (result?.success) await refreshWorlds()
-    else alert(result?.error ?? "Не удалось сбросить иконку")
+    else showAlert(result?.error ?? "Не удалось сбросить иконку")
   }
 
   const handleDelete = async () => {
@@ -385,7 +387,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         setDeleteOpen(false)
         await refreshWorlds()
       } else {
-        alert(result?.error ?? "Не удалось удалить мир")
+        showAlert(result?.error ?? "Не удалось удалить мир")
       }
     } finally {
       setDeleting(false)
@@ -397,13 +399,13 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     const dataUrl = await readFileAsDataUrl(file)
     const result = await window.electronAPI?.setWorldIcon(build.name, selectedWorld.folder, dataUrl)
     if (result?.success) await refreshWorlds()
-    else alert(result?.error ?? "Не удалось изменить иконку")
+    else showAlert(result?.error ?? "Не удалось изменить иконку")
   }
 
   const handleImportFile = (file: File) => {
     const localPath = window.electronAPI?.getFilePath(file)
     if (!localPath) {
-      alert("Не удалось получить путь к файлу")
+      showAlert("Не удалось получить путь к файлу")
       return
     }
     const initial = file.name.replace(/\.zip$/i, "")
@@ -415,12 +417,12 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     if (!selectedWorld) return
     const localPath = window.electronAPI?.getFilePath(file)
     if (!localPath) {
-      alert("Не удалось получить путь к файлу")
+      showAlert("Не удалось получить путь к файлу")
       return
     }
     const result = await window.electronAPI?.installDatapackLocal(build.name, selectedWorld.folder, localPath)
     if (!result?.success) {
-      alert(result?.error ?? "Не удалось установить датапак")
+      showAlert(result?.error ?? "Не удалось установить датапак")
       return
     }
     await refreshDatapacks(selectedWorld.folder)
@@ -434,27 +436,27 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         const versions = await window.electronAPI?.modsModrinthVersions(mod.slug)
         const version = versions?.find(v => v.files?.[0]?.url)
         if (!version?.files?.[0]) {
-          alert("Не найдена подходящая версия датапака")
+          showAlert("Не найдена подходящая версия датапака")
           return
         }
         const file = version.files[0]
         const result = await window.electronAPI?.installDatapackRemote(build.name, selectedWorld.folder, file.url, file.filename || `${mod.slug}.zip`)
-        if (!result?.success) alert(result?.error ?? "Не удалось скачать датапак")
+        if (!result?.success) showAlert(result?.error ?? "Не удалось скачать датапак")
       } else if (mod.modId) {
         const details = await window.electronAPI?.modsCurseforgeDetails(mod.modId)
         const version = details?.versions?.find(v => Number(v.id) === mod.primaryFileId) ?? details?.versions?.[0]
         if (!version) {
-          alert("Не найдена подходящая версия датапака")
+          showAlert("Не найдена подходящая версия датапака")
           return
         }
         const url = await window.electronAPI?.modsCurseforgeDownloadUrl(Number(version.id), mod.modId)
         if (!url) {
-          alert("Не удалось получить ссылку на скачивание")
+          showAlert("Не удалось получить ссылку на скачивание")
           return
         }
         const fileName = version.fileName || url.split("/").pop()?.split("?")[0] || `${mod.slug}.zip`
         const result = await window.electronAPI?.installDatapackRemote(build.name, selectedWorld.folder, url, fileName)
-        if (!result?.success) alert(result?.error ?? "Не удалось скачать датапак")
+        if (!result?.success) showAlert(result?.error ?? "Не удалось скачать датапак")
       }
       await refreshDatapacks(selectedWorld.folder)
     } finally {
@@ -466,7 +468,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     if (!selectedWorld) return
     const result = await window.electronAPI?.deleteWorldDatapack(build.name, selectedWorld.folder, name)
     if (!result?.success) {
-      alert(result?.error ?? "Не удалось удалить датапак")
+      showAlert(result?.error ?? "Не удалось удалить датапак")
       return
     }
     await refreshDatapacks(selectedWorld.folder)
@@ -485,10 +487,10 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         setDisplayedModalVersions(details.versions ?? [])
         setModalTab("description")
       } else {
-        alert("Не удалось загрузить информацию о датапаке")
+        showAlert("Не удалось загрузить информацию о датапаке")
       }
     } catch {
-      alert("Не удалось загрузить информацию о датапаке")
+      showAlert("Не удалось загрузить информацию о датапаке")
     } finally {
       setLoadingModal(false)
     }
@@ -498,13 +500,13 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     if (!selectedWorld) return
     const url = version.downloadUrl || version.files?.[0]?.url
     if (!url) {
-      alert("Нет ссылки на скачивание")
+      showAlert("Нет ссылки на скачивание")
       return
     }
     const fileName = version.fileName || url.split("/").pop()?.split("?")[0] || "datapack.zip"
     const result = await window.electronAPI?.installDatapackRemote(build.name, selectedWorld.folder, url, fileName)
     if (!result?.success) {
-      alert(result?.error ?? "Не удалось скачать датапак")
+      showAlert(result?.error ?? "Не удалось скачать датапак")
       return
     }
     await refreshDatapacks(selectedWorld.folder)
@@ -1370,6 +1372,8 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         }}
         onClose={() => setSelectedDetails(null)}
       />
+
+      {alertDialog}
     </div>
   )
 }

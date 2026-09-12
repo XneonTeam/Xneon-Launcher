@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
+import { useAlertDialog } from "@/lib/use-alert-dialog"
 import {
   IconCamera,
   IconTrash,
@@ -63,6 +64,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
   const [dialogAlert, setDialogAlert] = useState<{ title: string; message: string } | null>(null)
   const [repairing, setRepairing] = useState(false)
   const [repairDone, setRepairDone] = useState(false)
+  const { showAlert, alertDialog } = useAlertDialog()
 
   const isModpack = Boolean(
     (activeBuild.source === "modrinth" && activeBuild.projectSlug) ||
@@ -152,7 +154,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
     } else {
       // Revert to the last saved name if the folder could not be renamed.
       updateBuild(activeBuild.id, { name: saved })
-      alert(result.error ?? "Не удалось переименовать сборку")
+      showAlert(result.error ?? "Не удалось переименовать сборку")
     }
   }
 
@@ -479,6 +481,8 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
           icon="warning"
         />
       )}
+
+      {alertDialog}
     </div>
   )
 }

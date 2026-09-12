@@ -1,5 +1,5 @@
 import { opFailure } from "./errors"
-import { ipcMain, BrowserWindow, dialog } from "electron"
+import { ipcMain, BrowserWindow, dialog, webContents } from "electron"
 import { randomUUID, createHash } from "crypto"
 import path from "path"
 import fs from "fs"
@@ -24,6 +24,43 @@ import { logRuntime, sendToRenderer } from "./runtime"
 import { getMcServerDir } from "./paths"
 import { recordServerSession } from "./stats"
 import { upsertActiveServerSession, takeActiveServerSession } from "./session-tracker"
+
+// ── Push-метрики серверов ──────────────────────────────────────────────
+// Renderer раньше опрашивал getMetrics каждые 2 секунды из каждого компонента
+// (детальная страница + вкладка метрик). Сбор метрик на Windows — это spawn
+// PowerShell, поэтому в пути запроса его быть не должно. Здесь только рассылка:
+// значения берутся из кэша фонового сэмплера @xnlc/servers (getMetricsSync),
+// который наполняется параллельно, пока сервер запущен.
+const METRICS_PUSH_INTERVAL_MS = 1000
+const metricsSubscribers = new Map<string, Set<number>>() // serverId → webContents.id
+let metricsTimer: ReturnType<typeof setInterval> | null = null
+
+function pushServerMetrics(): void {
+  for (const [id, subscribers] of metricsSubscribers) {
+    if (subscribers.size === 0) continue
+    // Мгновенное чтение из кэша — без спавна процессов и без await.
+    const metrics = serverManager.getMetricsSync(id)
+    for (const webContentsId of subscribers) {
+      const wc = webContents.fromId(webContentsId)
+      if (wc && !wc.isDestroyed()) wc.send("mc-server:metrics", { id, metrics })
+    }
+  }
+}
+
+function ensureMetricsTimer(): void {
+  if (metricsTimer !== null) return
+  metricsTimer = setInterval(() => pushServerMetrics(), METRICS_PUSH_INTERVAL_MS)
+  // Таймер не должен удерживать процесс при выходе.
+  metricsTimer.unref?.()
+}
+
+function stopMetricsTimerIfIdle(): void {
+  const hasSubscribers = [...metricsSubscribers.values()].some(s => s.size > 0)
+  if (!hasSubscribers && metricsTimer !== null) {
+    clearInterval(metricsTimer)
+    metricsTimer = null
+  }
+}
 
 // Tracks running MC servers for stats: registers the running state with the
 // session tracker so an uptime session is recorded when the process stops.
@@ -450,7 +487,31 @@ export function registerMcServerHandlers() {
   })
 
   ipcMain.handle("mc-server:metrics", async (_event, id: string) => {
-    return serverManager.getMetrics(id)
+    // Мгновенный ответ из кэша фонового сэмплера.
+    return serverManager.getMetricsSync(id)
+  })
+
+  ipcMain.handle("mc-server:metrics-subscribe", async (event, id: string) => {
+    const senderId = event.sender.id
+    let subscribers = metricsSubscribers.get(id)
+    if (!subscribers) {
+      subscribers = new Set()
+      metricsSubscribers.set(id, subscribers)
+    }
+    subscribers.add(senderId)
+    ensureMetricsTimer()
+    // Сразу отдаём текущее значение из кэша — без ожидания тика таймера.
+    pushServerMetrics()
+  })
+
+  ipcMain.handle("mc-server:metrics-unsubscribe", async (event, id: string) => {
+    const senderId = event.sender.id
+    const subscribers = metricsSubscribers.get(id)
+    if (subscribers) {
+      subscribers.delete(senderId)
+      if (subscribers.size === 0) metricsSubscribers.delete(id)
+    }
+    stopMetricsTimerIfIdle()
   })
 
   ipcMain.handle("mc-server:logs", async (_event, id: string) => {

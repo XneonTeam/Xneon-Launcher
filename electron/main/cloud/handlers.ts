@@ -8,6 +8,7 @@ import { ensureBuildIntentDir, getBuildIntentDirName } from "../builds"
 import { getMcServerDir } from "../paths"
 import { dbHelpers } from "../../db"
 import { sendToRenderer } from "../runtime"
+import { META_ICON_ENTRY } from "./archive-meta"
 
 function sendUploadProgress(id: string, percent: number, stage: "zip" | "upload") {
   sendToRenderer("cloud:upload-progress", { id, percent, stage })
@@ -134,9 +135,9 @@ function extractSelectedCategories(
   }
 }
 
-async function createBuildZipInWorker(intentPath: string, archivePath: string, id: string, categories?: string[]): Promise<void> {
+async function createBuildZipInWorker(intentPath: string, archivePath: string, id: string, categories?: string[], icon?: string): Promise<void> {
   const workerPath = path.join(__dirname, "upload-worker.js")
-  const worker = new Worker(workerPath, { workerData: { intentPath, archivePath, categories } })
+  const worker = new Worker(workerPath, { workerData: { intentPath, archivePath, categories, icon } })
   return new Promise((resolve, reject) => {
     worker.on("message", (msg) => {
       if (msg?.type === "zip-progress") {
@@ -247,7 +248,19 @@ export function registerCloudHandlers() {
       const archivePath = path.join(app.getPath("temp"), `${safeName}.zip`)
       const id = uploadId ?? `build-${safeName}`
 
-      await uploadWithProgress(id, "zip", () => createBuildZipInWorker(intentPath, archivePath, id, categories))
+      // Иконка сборки хранится в БД (data-URL), в папке интента её нет.
+      // Кладём её в архив отдельной метазаписью, чтобы при восстановлении из
+      // облака сборка получила ту же иконку. Имя в облаке могло быть нормализовано,
+      // поэтому ищем запись тем же нестрогим сравнением, что и в UI облачного браузера.
+      const builds = await dbHelpers.loadBuilds()
+      const norm = (s: string) => s.trim().toLowerCase()
+      const target = norm(buildName)
+      const buildIcon = builds.find((b) => {
+        const candidate = norm(b.name)
+        return candidate === target || candidate.includes(target) || target.includes(candidate)
+      })?.icon ?? ""
+
+      await uploadWithProgress(id, "zip", () => createBuildZipInWorker(intentPath, archivePath, id, categories, buildIcon))
 
       const provider = getProvider(providerId)
       const result = await uploadWithProgress(id, "upload", () =>
@@ -272,7 +285,11 @@ export function registerCloudHandlers() {
       const archivePath = path.join(app.getPath("temp"), `server-${safeName}.zip`)
       const id = uploadId ?? `server-${serverId}`
 
-      await uploadWithProgress(id, "zip", () => createBuildZipInWorker(serverDir, archivePath, id, categories))
+      // Иконка сервера хранится в БД (data-URL), в папке сервера её нет —
+      // кладём в архив метазаписью, чтобы при восстановлении она не терялась.
+      const serverRow = await dbHelpers.getMcServer(serverId).catch(() => null)
+
+      await uploadWithProgress(id, "zip", () => createBuildZipInWorker(serverDir, archivePath, id, categories, serverRow?.icon ?? ""))
 
       const provider = getProvider(providerId)
       const result = await uploadWithProgress(id, "upload", () =>
@@ -341,13 +358,22 @@ export function registerCloudHandlers() {
         }
 
         const existingBuilds = await dbHelpers.loadBuilds()
+
+        // Иконка восстанавливается из метазаписи архива (её писала загрузка сборки).
+        // Читаем напрямую из zip: выборочный импорт категорий эту запись не извлекает.
+        let restoredIcon = ""
+        try {
+          const iconEntry = zip.getEntry(META_ICON_ENTRY)
+          if (iconEntry) restoredIcon = iconEntry.getData().toString("utf-8").trim()
+        } catch { /* noop */ }
+
         existingBuilds.push({
           id: `cloud-${Date.now()}`,
           name: buildName,
           description: "",
           version: "1.0",
           modLoader: "",
-          icon: "",
+          icon: restoredIcon,
           mods: [],
           resourcepacks: [],
           shaders: [],
@@ -388,6 +414,17 @@ export function registerCloudHandlers() {
         // online-mode и max-players, чтобы метаданные сервера не были фиктивными.
         const props = await readServerProperties(serverDir)
 
+        // Иконка восстанавливается из метазаписи архива (её писала загрузка сервера).
+        // Читаем напрямую из zip: выборочный импорт категорий эту запись не извлекает.
+        let restoredIcon: string | null = null
+        try {
+          const iconEntry = zip.getEntry(META_ICON_ENTRY)
+          if (iconEntry) {
+            const text = iconEntry.getData().toString("utf-8").trim()
+            if (text) restoredIcon = text
+          }
+        } catch { /* noop */ }
+
         await dbHelpers.createMcServer({
           id: serverId,
           name: serverName,
@@ -402,7 +439,7 @@ export function registerCloudHandlers() {
           extraJavaArgs: "",
           javaPath: null,
           autoRestart: 0,
-          icon: null,
+          icon: restoredIcon,
           relayEnabled: 0,
           onlineMode: props.onlineMode ? 1 : 0,
           maxPlayers: props.maxPlayers,

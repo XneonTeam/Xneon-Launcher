@@ -27,6 +27,15 @@ export function useBuilds() {
   const reloadSeqRef = useRef(0)
   const lastSavedSnapshotRef = useRef("")
 
+  /**
+   * Правки, сделанные пользователем в UI, но ещё не записанные в БД (сохранение
+   * отложено debounce'ом). reloadBuilds читает снапшот из БД, поэтому без этого
+   * буфера свежие изменения откатывались бы: например, отвязка модпака
+   * (``locked: false``) возвращалась обратно, если reload случался в окне до
+   * записи. Храним по id сборки, чтобы переживать промежуточные reload'ы.
+   */
+  const pendingEditsRef = useRef<Map<string, Partial<Build>>>(new Map())
+
   const setBuilds = useCallback<React.Dispatch<React.SetStateAction<Build[]>>>((value) => {
     setBuildsState(prev => {
       const next = typeof value === "function" ? value(prev) : value
@@ -102,6 +111,8 @@ export function useBuilds() {
       saveTimeoutRef.current = null
       void window.electronAPI?.saveBuilds(buildsRef.current as unknown as Parameters<NonNullable<Window["electronAPI"]>["saveBuilds"]>[0])
       lastSavedSnapshotRef.current = JSON.stringify(buildsRef.current)
+      // Состояние из памяти только что записано в БД — буфер правок исчерпан.
+      pendingEditsRef.current.clear()
     }
 
     isReloadingRef.current = true
@@ -135,6 +146,16 @@ export function useBuilds() {
           normalized.installedMods = inMemoryBuild.installedMods ?? normalized.installedMods
         }
 
+        // Правки пользователя, ещё не доехавшие до БД, должны победить снапшот БД —
+        // иначе отвязка модпака и прочие изменения откатываются. Применяем по ключам,
+        // чтобы осознанные `undefined` (сброс поля) тоже сработали.
+        const pending = pendingEditsRef.current.get(normalized.id)
+        if (pending) {
+          for (const key of Object.keys(pending) as (keyof Build)[]) {
+            ;(normalized as Record<string, unknown>)[key as string] = pending[key]
+          }
+        }
+
         return normalized
       })
 
@@ -148,7 +169,19 @@ export function useBuilds() {
       void Promise.all(processed.map(async (normalized) => {
         const synced = await syncBuildContent(normalized)
         if (seq !== reloadSeqRef.current) return
-        setBuilds(prev => prev.map(b => b.id === synced.id ? synced : b))
+        setBuilds(prev => prev.map(b => {
+          if (b.id !== synced.id) return b
+          // Скан асинхронный: пока он шёл, пользователь мог снова изменить поля
+          // (например, отвязать модпак). Накладываем актуальный буфер поверх
+          // результата синка, чтобы поздний ответ скана не откатил эти правки.
+          const pending = pendingEditsRef.current.get(synced.id)
+          if (!pending) return synced
+          const merged = { ...synced } as Record<string, unknown>
+          for (const key of Object.keys(pending) as (keyof Build)[]) {
+            merged[key as string] = pending[key]
+          }
+          return merged as Build
+        }))
       })).then(() => {
         if (seq !== reloadSeqRef.current) return
         // Сигнализируем что первичная загрузка завершена — splash можно убрать
@@ -230,6 +263,9 @@ export function useBuilds() {
     saveTimeoutRef.current = window.setTimeout(() => {
       saveTimeoutRef.current = null
       lastSavedSnapshotRef.current = nextSnapshot
+      // Правки уезжают в БД — буфер больше не нужен, иначе он навсегда
+      // перекрывал бы изменения, приходящие из внешних источников.
+      pendingEditsRef.current.clear()
       void window.electronAPI?.saveBuilds(builds as unknown as Parameters<NonNullable<Window["electronAPI"]>["saveBuilds"]>[0])
     }, 200)
   }, [builds, buildsHydrated])
@@ -274,6 +310,7 @@ export function useBuilds() {
     }
     setBuilds(prev => prev.filter(b => b.id !== id))
     setActiveBuildId(prev => prev === id ? null : prev)
+    pendingEditsRef.current.delete(id)
   }, [builds])
 
   type TrashSnapshot = {
@@ -287,7 +324,10 @@ export function useBuilds() {
     if (!build) return false
     let trashName: string | undefined
     try {
-      const result = await window.electronAPI?.moveBuildIntentToTrash?.(build.name)
+      // Метаданные сборки хранятся только в БД; при удалении записи они потерялись бы.
+      // Отдаём их main-процессу, чтобы он сохранил снапшот рядом с папкой в корзине —
+      // тогда восстановление вернёт сборку целиком, без перезахода.
+      const result = await window.electronAPI?.moveBuildIntentToTrash?.(build.name, build as unknown as Record<string, unknown>)
       trashName = result?.trashName
     } catch {}
     try {
@@ -302,6 +342,7 @@ export function useBuilds() {
     }
     setBuilds(prev => prev.filter(b => b.id !== id))
     setActiveBuildId(prev => prev === id ? null : prev)
+    pendingEditsRef.current.delete(id)
     return true
   }, [builds])
 
@@ -321,6 +362,45 @@ export function useBuilds() {
     trashStackRef.current = []
     try { await window.electronAPI?.purgeBuildTrash?.() } catch {}
   }, [])
+
+  /**
+   * Восстановление сборки из корзины по записи файловой системы.
+   *
+   * Папка интента и снапшот метаданных восстанавливаются в main-процессе, но запись
+   * в БД и состояние UI обновляются здесь. Без этого сборка появлялась в списке
+   * только после перезапуска приложения: список читается из БД, где записи уже нет.
+   */
+  const restoreBuildFromTrash = useCallback(async (item: { trashName: string; originalName: string }): Promise<boolean> => {
+    try {
+      const result = await window.electronAPI?.restoreBuildIntentFromTrash?.(item.originalName, item.trashName)
+      if (!result?.success) return false
+
+      const restored = result.build as Build | undefined
+      if (restored) {
+        // Возвращаем сборку в память и следом в БД, чтобы она сразу появилась в списке
+        // и пережила следующий reloadBuilds (иначе тот откатил бы её как отсутствующую).
+        setBuilds(prev => {
+          if (prev.some(b => b.id === restored.id)) return prev
+          return [restored, ...prev]
+        })
+        try {
+          const existing = await window.electronAPI?.loadBuilds() ?? []
+          if (!existing.some(b => b.id === restored.id)) {
+            await window.electronAPI?.saveBuilds([
+              restored,
+              ...existing,
+            ] as unknown as Parameters<NonNullable<Window["electronAPI"]>["saveBuilds"]>[0])
+          }
+        } catch { /* память уже обновлена; следующий автосейв добьёт состояние */ }
+      }
+
+      // Перечитываем состояние, чтобы подтянуть актуальный контент из восстановленной папки.
+      await reloadBuilds()
+      return true
+    } catch {
+      return false
+    }
+  }, [reloadBuilds])
 
   const duplicateBuild = useCallback(async (id: string): Promise<Build | null> => {
     const source = builds.find(b => b.id === id)
@@ -387,6 +467,10 @@ export function useBuilds() {
   }, [builds, setBuilds])
 
   const updateBuild = useCallback((id: string, fields: Partial<Build>) => {
+    // Буферизуем правку: если между ней и записью в БД случится reloadBuilds,
+    // он не должен вернуть старые значения из снапшота БД.
+    const pending = pendingEditsRef.current.get(id)
+    pendingEditsRef.current.set(id, pending ? { ...pending, ...fields } : { ...fields })
     setBuilds(prev => prev.map(b => b.id === id ? { ...b, ...fields } : b))
   }, [])
 
@@ -832,5 +916,5 @@ export function useBuilds() {
     }
   }, [builds, reloadBuilds])
 
-  return { builds, setBuilds, activeBuildId, setActiveBuildId, activeBuild, fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, collapsedGroups, toggleGroupCollapse, groups, updateBuild, addModToBuild, addLocalModToBuild, addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds, toggleItemEnabled, updateItemVersion }
+  return { builds, setBuilds, activeBuildId, setActiveBuildId, activeBuild, fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, restoreBuildFromTrash, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, collapsedGroups, toggleGroupCollapse, groups, updateBuild, addModToBuild, addLocalModToBuild, addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds, toggleItemEnabled, updateItemVersion }
 }

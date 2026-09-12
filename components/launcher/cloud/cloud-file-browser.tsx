@@ -13,6 +13,8 @@ import { CachedAvatar } from "@/components/ui/cached-avatar"
 import { LoaderIcon } from "@/components/launcher/instance/loader-icon"
 import { getAvatarUrl, getAccountTypeInfo, type AccountType } from "../accounts-page"
 import type { CloudUploadCategory } from "@xnlc/types"
+import { useAlertDialog } from "@/lib/use-alert-dialog"
+import { ActionConfirmDialog } from "@/components/launcher/instance/action-confirm-dialog"
 
 const AVATAR_API = "https://mcskinapi-three.vercel.app/avatar"
 const FALLBACK_AVATAR = `${AVATAR_API}/Steve?skin_type=microsoft`
@@ -47,7 +49,7 @@ function FileIcon({ file, currentPath, localBuilds, localServers }: {
   file: CloudFile
   currentPath: string
   localBuilds: Array<{ id: string; name: string; icon?: string; modLoader?: string }>
-  localServers: Array<{ id: string; name: string; modloader?: string }>
+  localServers: Array<{ id: string; name: string; icon?: string; version?: string; modloader?: string }>
 }) {
   if (file.isDir) return <IconFolder className="w-5 h-5 text-primary/70" />
 
@@ -71,6 +73,9 @@ function FileIcon({ file, currentPath, localBuilds, localServers }: {
   if (currentPath === "servers" && file.name.endsWith(".zip")) {
     const serverName = file.name.replace(/\.zip$/i, "").replace(/^server-/i, "")
     const localServer = localServers.find(s => s.name.trim().toLowerCase() === serverName.trim().toLowerCase() || s.name.toLowerCase().includes(serverName.toLowerCase()) || serverName.toLowerCase().includes(s.name.toLowerCase()))
+    // У сервера есть своя иконка — показываем её, как у сборок. Лоадер остаётся
+    // запасным вариантом, когда иконка не задана.
+    if (localServer?.icon) return <CloudFileIcon icon={localServer.icon} name={serverName} />
     return (
       <div className="w-full h-full flex items-center justify-center text-primary">
         <LoaderIcon loaderId={localServer?.modloader ?? "instance"} className="w-5 h-5" />
@@ -114,6 +119,8 @@ export function CloudFileBrowser({ providerId }: Props) {
   const [uploadModalTarget, setUploadModalTarget] = useState<{ kind: "build" | "server"; id: string; name: string } | null>(null)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState<Record<string, { percent: number; stage: "zip" | "upload" }>>({})
+  const { showAlert, alertDialog } = useAlertDialog()
+  const [pendingDelete, setPendingDelete] = useState<CloudFile | null>(null)
 
   useEffect(() => {
     return window.electronAPI?.onCloudUploadProgress?.((data) => {
@@ -178,11 +185,11 @@ export function CloudFileBrowser({ providerId }: Props) {
         if (result.success && result.account) {
           addAccount({ ...result.account, type: result.account.type as Account["type"], isActive: false })
           window.dispatchEvent(new CustomEvent("cloud:imported", { detail: { type: "account" } }))
-          alert("Аккаунт импортирован!")
+          showAlert("Аккаунт импортирован!", { variant: "info", title: "Готово" })
         } else if (!result.success) {
-          alert(result.error || "Ошибка импорта")
+          showAlert(result.error || "Ошибка импорта")
         }
-      } catch (e) { alert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`) }
+      } catch (e) { showAlert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`) }
     } else if (isBuild || isServer) {
       setImportModalFile(file)
     } else {
@@ -191,23 +198,30 @@ export function CloudFileBrowser({ providerId }: Props) {
         const { canceled, filePath } = await dialog.showSaveDialog({ defaultPath: file.name })
         if (!canceled && filePath) {
           const result = await api.cloudDownloadFile(providerId, file.path, filePath)
-          if (!result.success) alert(result.error || "Ошибка скачивания")
+          if (!result.success) showAlert(result.error || "Ошибка скачивания")
         }
       } else {
-        alert("Скачивание доступно только в Electron")
+        showAlert("Скачивание доступно только в Electron")
       }
     }
-  }, [providerId, currentPath, addAccount])
+  }, [providerId, currentPath, addAccount, showAlert])
 
-  const handleDelete = useCallback(async (file: CloudFile) => {
-    if (!api || !confirm(`Удалить "${file.name}"?`)) return
+  const handleDelete = useCallback((file: CloudFile) => {
+    if (!api) return
+    setPendingDelete(file)
+  }, [])
+
+  const confirmDelete = useCallback(async () => {
+    const file = pendingDelete
+    if (!api || !file) return
+    setPendingDelete(null)
     try {
       const result = await api.cloudDeleteFile(providerId, file.path)
       if (!result.success) throw new Error(result.error || "Ошибка удаления")
       fetchFiles()
       fetchQuota()
-    } catch (e) { alert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`) }
-  }, [providerId, fetchFiles, fetchQuota])
+    } catch (e) { showAlert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`) }
+  }, [providerId, fetchFiles, fetchQuota, pendingDelete, showAlert])
 
   const handleUploadBuild = useCallback(async (buildId: string, buildName: string, categories?: string[]) => {
     if (!api) return
@@ -220,9 +234,9 @@ export function CloudFileBrowser({ providerId }: Props) {
       fetchQuota()
       setShowUploadChoice(false)
       setUploadModalTarget(null)
-    } catch (e) { alert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`) }
+    } catch (e) { showAlert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`) }
     finally { setUploadingId(null) }
-  }, [providerId, fetchFiles, fetchQuota])
+  }, [providerId, fetchFiles, fetchQuota, showAlert])
 
   const handleUploadServer = useCallback(async (serverId: string, serverName: string, categories?: string[]) => {
     if (!api) return
@@ -235,9 +249,9 @@ export function CloudFileBrowser({ providerId }: Props) {
       fetchQuota()
       setShowUploadChoice(false)
       setUploadModalTarget(null)
-    } catch (e) { alert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`) }
+    } catch (e) { showAlert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`) }
     finally { setUploadingId(null) }
-  }, [providerId, fetchFiles, fetchQuota])
+  }, [providerId, fetchFiles, fetchQuota, showAlert])
 
   const handleUploadAccount = useCallback(async (account: { id: string; type: string; username: string; uuid?: string }) => {
     if (!api) return
@@ -248,9 +262,9 @@ export function CloudFileBrowser({ providerId }: Props) {
       if (!result.success) throw new Error(result.error || "Ошибка загрузки")
       fetchFiles()
       fetchQuota()
-    } catch (e) { alert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`) }
+    } catch (e) { showAlert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`) }
     finally { setUploadingId(null); setShowUploadChoice(false) }
-  }, [providerId, fetchFiles, fetchQuota])
+  }, [providerId, fetchFiles, fetchQuota, showAlert])
 
   const translateFolderName = useCallback((name: string) => {
     if (name === "builds") return t("cloud.builds")
@@ -369,7 +383,7 @@ export function CloudFileBrowser({ providerId }: Props) {
           onSuccess={(type) => {
             setImportModalFile(null)
             window.dispatchEvent(new CustomEvent("cloud:imported", { detail: { type } }))
-            alert(type === "server" ? "Сервер успешно импортирован!" : "Сборка успешно импортирована!")
+            showAlert(type === "server" ? "Сервер успешно импортирован!" : "Сборка успешно импортирована!", { variant: "info", title: "Готово" })
           }}
         />
       )}
@@ -481,6 +495,20 @@ export function CloudFileBrowser({ providerId }: Props) {
           </div>
         </div>
       )}
+
+      <ActionConfirmDialog
+        open={pendingDelete !== null}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDelete()}
+        title="Удалить файл из облака?"
+        description={`«${pendingDelete?.name ?? ""}» будет удалён из облачного хранилища без возможности восстановления.`}
+        confirmText="Удалить"
+        cancelText="Отмена"
+        variant="danger"
+        icon="warning"
+      />
+
+      {alertDialog}
     </div>
   )
 }
@@ -713,6 +741,7 @@ function SelectiveImportModal({
   const [selected, setSelected] = useState<Set<string>>(() => new Set(defaultCategories))
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { showAlert, alertDialog } = useAlertDialog()
 
   const categories = isServer
     ? [
@@ -742,7 +771,7 @@ function SelectiveImportModal({
 
   const handleImport = async () => {
     if (selected.size === 0) {
-      alert("Выберите хотя бы одну категорию для импорта")
+      showAlert("Выберите хотя бы одну категорию для импорта")
       return
     }
     setImporting(true)
@@ -828,6 +857,8 @@ function SelectiveImportModal({
           </button>
         </div>
       </div>
+
+      {alertDialog}
     </div>
   )
 }
