@@ -22,6 +22,8 @@ export type McServerInfo = {
   createdAt: string
   trashedAt?: string
   source: "local" | "modrinth" | "curseforge"
+  /** Категория/группа сервера в списке (как группы у сборок). */
+  group?: string
 }
 
 export type McServerState =

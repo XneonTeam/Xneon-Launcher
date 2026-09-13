@@ -111,6 +111,7 @@ function rowToInfo(row: McServerRow): McServerInfo {
     createdAt: row.createdAt,
     trashedAt: row.trashedAt ?? undefined,
     source: row.source ?? "local",
+    group: row.group ?? undefined,
   }
 }
 

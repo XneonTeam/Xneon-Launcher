@@ -936,5 +936,13 @@
   "stats.cancel": "Скасувати",
   "stats.show": "Показати",
   "stats.prevMonth": "Попередній місяць",
-  "stats.nextMonth": "Наступний місяць"
+  "stats.nextMonth": "Наступний місяць",
+  "servers.ungrouped": "Без категорії",
+  "servers.renameGroup": "Перейменувати категорію",
+  "servers.deleteGroup": "Видалити категорію",
+  "servers.moveToGroup": "Перемістити до категорії",
+  "servers.removeFromGroup": "Прибрати з категорії",
+  "servers.newGroupPlaceholder": "Нова категорія…",
+  "servers.createGroup": "Створити",
+  "common.save": "Зберегти"
 }

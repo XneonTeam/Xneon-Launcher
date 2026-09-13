@@ -120,7 +120,7 @@ export function ConsoleTab({ serverId, logs, isRunning, command, onCommandChange
   }, [])
 
   return (
-    <div className="flex flex-col h-full p-4 gap-3" onClick={handleContainerClick}>
+    <div className="flex flex-col flex-1 min-h-0 p-4 gap-3" onClick={handleContainerClick}>
       {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">

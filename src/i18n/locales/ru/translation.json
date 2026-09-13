@@ -936,5 +936,13 @@
   "stats.cancel": "Отмена",
   "stats.show": "Показать",
   "stats.prevMonth": "Предыдущий месяц",
-  "stats.nextMonth": "Следующий месяц"
+  "stats.nextMonth": "Следующий месяц",
+  "servers.ungrouped": "Без категории",
+  "servers.renameGroup": "Переименовать категорию",
+  "servers.deleteGroup": "Удалить категорию",
+  "servers.moveToGroup": "Переместить в категорию",
+  "servers.removeFromGroup": "Убрать из категории",
+  "servers.newGroupPlaceholder": "Новая категория…",
+  "servers.createGroup": "Создать",
+  "common.save": "Сохранить"
 }

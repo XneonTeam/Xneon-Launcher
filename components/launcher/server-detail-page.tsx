@@ -348,7 +348,7 @@ export function ServerDetailPage({ server, onBack }: ServerDetailPageProps) {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-0.5 p-1 rounded-xl bg-muted/30 border border-border/50 mx-auto w-fit">
+      <div className="flex gap-0.5 p-1 mt-4 rounded-xl bg-muted/30 border border-border/50 mx-auto w-fit">
         {tabs.map(tab => (
           <button
             key={tab.id}
@@ -367,7 +367,7 @@ export function ServerDetailPage({ server, onBack }: ServerDetailPageProps) {
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 min-h-0 flex flex-col">
+      <div className="flex-1 min-h-0 flex flex-col mt-3">
         {activeTab === "console" && (
           <ConsoleTab
             serverId={server.id}

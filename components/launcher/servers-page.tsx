@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IconPlus, IconServer, IconTrash, IconLayoutGrid, IconLayoutList, IconPlayerPlay, IconPlayerStop, IconTerminal, IconFolder } from "@tabler/icons-react"
+import { IconPlus, IconServer, IconTrash, IconLayoutGrid, IconLayoutList, IconPlayerPlay, IconPlayerStop, IconTerminal, IconFolder, IconPencil, IconX, IconChevronDown, IconChevronRight } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { useMcServers, useMcServerState } from "@/src/hooks/use-mc-servers"
 import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
@@ -28,11 +28,17 @@ const PAGE_SIZE = 20
 
 export function ServersPage({ onSelectServer }: ServersPageProps) {
   const { t } = useTranslation()
-  const { servers, loading, createServer, deleteServer, duplicateServer, reload } = useMcServers()
+  const { servers, loading, createServer, deleteServer, duplicateServer, reload,
+    setServerGroup, renameGroup, deleteGroup, groups, collapsedGroups, toggleGroupCollapse } = useMcServers()
   const { visibleVersions, versionsLoaded } = useMinecraftVersionOptions()
   const [showCreate, setShowCreate] = useState(false)
   const [view, setView] = useState<"servers" | "trash" | "modrinth" | "curseforge">("servers")
   const [layoutMode, setLayoutMode] = useState<"grid" | "list">("grid")
+  // Категории/группы серверов: меню действий над группой + назначение сервера в группу.
+  const [groupMenu, setGroupMenu] = useState<{ name: string; x: number; y: number } | null>(null)
+  const [renameGroupFor, setRenameGroupFor] = useState<string | null>(null)
+  const [renameGroupDraft, setRenameGroupDraft] = useState("")
+  const [assignMenu, setAssignMenu] = useState<{ serverId: string; x: number; y: number } | null>(null)
 
   // ── Marketplace state ──
   const [mrSearch, setMrSearch] = useState("")
@@ -251,6 +257,58 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
     setShowPackInstall(true)
   }
 
+  // ── Категории (группы) серверов: как группы у сборок ──
+  const groupedServers = useMemo(() => {
+    const map = new Map<string, McServerInfo[]>()
+    for (const server of servers) {
+      const key = server.group ?? ""
+      const list = map.get(key) ?? (map.set(key, []), map.get(key)!)
+      list.push(server)
+    }
+    return map
+  }, [servers])
+
+  const sortedGroupKeys = useMemo(() => {
+    const keys = Array.from(groupedServers.keys())
+    const named = keys.filter(k => k !== "").sort((a, b) => a.localeCompare(b))
+    // «Без группы» — всегда последней; показываем её только если есть именованные группы.
+    if (named.length > 0 && groupedServers.has("")) named.push("")
+    else if (named.length === 0 && groupedServers.has("")) named.push("")
+    return named
+  }, [groupedServers])
+
+  const handleGroupContextMenu = useCallback((e: React.MouseEvent, group: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setGroupMenu({ name: group, x: e.clientX, y: e.clientY })
+  }, [])
+
+  const handleRenameGroupConfirm = useCallback(() => {
+    if (!renameGroupFor) return
+    const trimmed = renameGroupDraft.trim()
+    if (trimmed && trimmed !== renameGroupFor) void renameGroup(renameGroupFor, trimmed)
+    setRenameGroupFor(null)
+    setRenameGroupDraft("")
+  }, [renameGroupFor, renameGroupDraft, renameGroup])
+
+  const handleAssignGroup = useCallback((serverId: string, group: string) => {
+    void setServerGroup(serverId, group)
+    setAssignMenu(null)
+  }, [setServerGroup])
+
+  useEffect(() => {
+    if (!groupMenu && !assignMenu) return
+    const close = () => { setGroupMenu(null); setAssignMenu(null) }
+    window.addEventListener("click", close)
+    window.addEventListener("scroll", close, true)
+    window.addEventListener("keydown", close)
+    return () => {
+      window.removeEventListener("click", close)
+      window.removeEventListener("scroll", close, true)
+      window.removeEventListener("keydown", close)
+    }
+  }, [groupMenu, assignMenu])
+
   return (
     <div className="flex flex-col h-full gap-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
       {/* Header */}
@@ -414,33 +472,173 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
               </button>
             </div>
           ) : (
-            layoutMode === "grid" ? (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3 px-3 pb-4 overflow-y-auto flex-1 min-h-0 items-start">
-                {servers.map(server => (
-                  <ServerTileWrapper
-                    key={server.id}
-                    server={server}
-                    onClick={() => onSelectServer?.(server)}
-                    onDelete={() => deleteServer(server.id)}
-                    onDuplicate={() => void duplicateServer(server.id)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1 px-3 pb-4 overflow-y-auto flex-1 min-h-0">
-                {servers.map(server => (
-                  <ServerListRow
-                    key={server.id}
-                    server={server}
-                    onClick={() => onSelectServer?.(server)}
-                    onDelete={() => deleteServer(server.id)}
-                    onDuplicate={() => void duplicateServer(server.id)}
-                  />
-                ))}
-              </div>
-            )
+            <div className="flex flex-col gap-3 px-3 pb-4 overflow-y-auto flex-1 min-h-0">
+              {sortedGroupKeys.map(groupKey => {
+                const groupServers = groupedServers.get(groupKey) ?? []
+                const isCollapsed = groupKey !== "" && collapsedGroups.has(groupKey)
+                const displayName = groupKey || t("servers.ungrouped", "Без категории")
+                return (
+                  <div key={groupKey || "__ungrouped__"} className="flex flex-col gap-2">
+                    {/* Заголовок категории */}
+                    <div
+                      className={cn(
+                        "group/head flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors",
+                        groupKey !== "" ? "cursor-pointer hover:bg-muted/50 select-none" : "cursor-default",
+                      )}
+                      onClick={() => { if (groupKey) toggleGroupCollapse(groupKey) }}
+                      onContextMenu={(e) => { if (groupKey) handleGroupContextMenu(e, groupKey) }}
+                    >
+                      {groupKey !== "" ? (
+                        isCollapsed
+                          ? <IconChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                          : <IconChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                      ) : <div className="w-4" />}
+                      <IconFolder className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      <span className={cn(
+                        "text-sm font-semibold",
+                        groupKey ? "text-foreground" : "text-muted-foreground italic",
+                      )}>
+                        {displayName}
+                      </span>
+                      <span className="text-xs text-muted-foreground">({groupServers.length})</span>
+                      <div className="flex-1" />
+                      {groupKey !== "" && (
+                        <div
+                          className="flex items-center gap-0.5 opacity-0 group-hover/head:opacity-100 transition-opacity"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button type="button" title={t("servers.renameGroup", "Переименовать категорию")}
+                            onClick={() => { setRenameGroupFor(groupKey); setRenameGroupDraft(groupKey) }}
+                            className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
+                            <IconPencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button type="button" title={t("servers.deleteGroup", "Удалить категорию")}
+                            onClick={() => void deleteGroup(groupKey)}
+                            className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-destructive">
+                            <IconTrash className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {!isCollapsed && (
+                      layoutMode === "grid" ? (
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3 items-start">
+                          {groupServers.map(server => (
+                            <ServerTileWrapper
+                              key={server.id}
+                              server={server}
+                              onClick={() => onSelectServer?.(server)}
+                              onDelete={() => deleteServer(server.id)}
+                              onDuplicate={() => void duplicateServer(server.id)}
+                              onAssignGroup={(x, y) => setAssignMenu({ serverId: server.id, x, y })}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-1">
+                          {groupServers.map(server => (
+                            <ServerListRow
+                              key={server.id}
+                              server={server}
+                              onClick={() => onSelectServer?.(server)}
+                              onDelete={() => deleteServer(server.id)}
+                              onDuplicate={() => void duplicateServer(server.id)}
+                              onAssignGroup={(x, y) => setAssignMenu({ serverId: server.id, x, y })}
+                            />
+                          ))}
+                        </div>
+                      )
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           )}
         </>
+      )}
+
+      {/* Group context menu (rename/delete category) */}
+      {groupMenu && (
+        <div
+          className="fixed z-50 min-w-[168px] rounded-xl border border-border bg-popover p-1 shadow-2xl"
+          style={{ left: groupMenu.x, top: groupMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button type="button"
+            onClick={() => { setRenameGroupFor(groupMenu.name); setRenameGroupDraft(groupMenu.name); setGroupMenu(null) }}
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-foreground hover:bg-muted">
+            <IconPencil className="w-4 h-4 text-muted-foreground" />
+            {t("servers.renameGroup", "Переименовать категорию")}
+          </button>
+          <button type="button"
+            onClick={() => { void deleteGroup(groupMenu.name); setGroupMenu(null) }}
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-destructive hover:bg-destructive/10">
+            <IconTrash className="w-4 h-4" />
+            {t("servers.deleteGroup", "Удалить категорию")}
+          </button>
+        </div>
+      )}
+
+      {/* Assign server to category */}
+      {assignMenu && (
+        <div
+          className="fixed z-50 min-w-[180px] rounded-xl border border-border bg-popover p-1 shadow-2xl"
+          style={{ left: assignMenu.x, top: assignMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-2.5 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {t("servers.moveToGroup", "Переместить в категорию")}
+          </div>
+          {groups.map(g => (
+            <button key={g} type="button"
+              onClick={() => handleAssignGroup(assignMenu.serverId, g)}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-foreground hover:bg-muted">
+              <IconFolder className="w-4 h-4 text-muted-foreground" />
+              {g}
+            </button>
+          ))}
+          <button type="button"
+            onClick={() => handleAssignGroup(assignMenu.serverId, "")}
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-muted-foreground hover:bg-muted">
+            <IconX className="w-4 h-4" />
+            {t("servers.removeFromGroup", "Убрать из категории")}
+          </button>
+          <NewGroupInput
+            onConfirm={(name) => handleAssignGroup(assignMenu.serverId, name)}
+            placeholder={t("servers.newGroupPlaceholder", "Новая категория…")}
+            confirmLabel={t("servers.createGroup", "Создать")}
+          />
+        </div>
+      )}
+
+      {/* Rename category dialog */}
+      {renameGroupFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60" onClick={() => setRenameGroupFor(null)}>
+          <div className="w-[320px] rounded-2xl border border-border bg-card p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-foreground">{t("servers.renameGroup", "Переименовать категорию")}</h3>
+            <input
+              autoFocus
+              value={renameGroupDraft}
+              onChange={(e) => setRenameGroupDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRenameGroupConfirm()
+                if (e.key === "Escape") setRenameGroupFor(null)
+              }}
+              className="mt-3 w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
+            />
+            <div className="mt-3 flex justify-end gap-2">
+              <button type="button" onClick={() => setRenameGroupFor(null)}
+                className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
+                {t("common.cancel", "Отмена")}
+              </button>
+              <button type="button" onClick={handleRenameGroupConfirm}
+                className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90">
+                {t("common.save", "Сохранить")}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Create dialog */}
@@ -474,8 +672,38 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
   )
 }
 
-function ServerTileWrapper({ server, onClick, onDelete, onDuplicate }: { server: McServerInfo; onClick: () => void; onDelete: () => void; onDuplicate: () => void }) {
-  const { state, start, stop } = useMcServerState(server.id)
+/** Инлайн-ввод для создания новой категории прямо в меню назначения. */
+function NewGroupInput({ onConfirm, placeholder, confirmLabel }: { onConfirm: (name: string) => void; placeholder: string; confirmLabel: string }) {
+  const [value, setValue] = useState("")
+  const submit = () => {
+    const trimmed = value.trim()
+    if (trimmed) onConfirm(trimmed)
+  }
+  return (
+    <div className="mt-1 flex items-center gap-1 border-t border-border px-1.5 pt-1.5" onClick={(e) => e.stopPropagation()}>
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); submit() }
+          e.stopPropagation()
+        }}
+        placeholder={placeholder}
+        className="min-w-0 flex-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs text-foreground outline-none focus:border-primary"
+      />
+      <button
+        type="button"
+        disabled={!value.trim()}
+        onClick={submit}
+        className="shrink-0 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
+      >
+        {confirmLabel}
+      </button>
+    </div>
+  )
+}
+
+function ServerTileWrapper({ server, onClick, onDelete, onDuplicate, onAssignGroup }: { server: McServerInfo; onClick: () => void; onDelete: () => void; onDuplicate: () => void; onAssignGroup: (x: number, y: number) => void }) {  const { state, start, stop } = useMcServerState(server.id)
 
   return (
     <ServerTile
@@ -486,11 +714,12 @@ function ServerTileWrapper({ server, onClick, onDelete, onDuplicate }: { server:
       onStop={stop}
       onDelete={onDelete}
       onDuplicate={onDuplicate}
+      onOpenAssignGroup={onAssignGroup}
     />
   )
 }
 
-function ServerListRow({ server, onClick, onDelete, onDuplicate }: { server: McServerInfo; onClick: () => void; onDelete: () => void; onDuplicate: () => void }) {
+function ServerListRow({ server, onClick, onDelete, onDuplicate, onAssignGroup }: { server: McServerInfo; onClick: () => void; onDelete: () => void; onDuplicate: () => void; onAssignGroup: (x: number, y: number) => void }) {
   const { t } = useTranslation()
   const { state, start, stop } = useMcServerState(server.id)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -578,6 +807,7 @@ function ServerListRow({ server, onClick, onDelete, onDuplicate }: { server: McS
           onDelete={onDelete}
           onDuplicate={onDuplicate}
           onClose={() => setMenuOpen(false)}
+          onOpenAssignGroup={onAssignGroup}
         />
       )}
     </>

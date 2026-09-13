@@ -16,9 +16,10 @@ interface ServerTileProps {
   onStop: () => void
   onDelete: () => void
   onDuplicate: () => void
+  onOpenAssignGroup?: (x: number, y: number) => void
 }
 
-export function ServerTile({ server, state, onClick, onStart, onStop, onDelete, onDuplicate }: ServerTileProps) {
+export function ServerTile({ server, state, onClick, onStart, onStop, onDelete, onDuplicate, onOpenAssignGroup }: ServerTileProps) {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
@@ -121,6 +122,7 @@ export function ServerTile({ server, state, onClick, onStart, onStop, onDelete, 
           onDelete={onDelete}
           onDuplicate={onDuplicate}
           onClose={() => setMenuOpen(false)}
+          onOpenAssignGroup={onOpenAssignGroup}
         />
       )}
     </>

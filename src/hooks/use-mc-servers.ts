@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import type { McServerInfo, McServerState } from "@xnlc/types"
 
 export function useMcServers() {
   const [servers, setServers] = useState<McServerInfo[]>([])
   const [loading, setLoading] = useState(true)
+  // Свёрнутые категории (как группы у сборок) — состояние только в UI.
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -58,7 +60,58 @@ export function useMcServers() {
     return copy
   }, [])
 
-  return { servers, loading, reload, createServer, deleteServer, updateServer, restoreServer, listTrash, purgeTrash, permanentDelete, duplicateServer }
+  /** Назначает серверу категорию (пустая строка — убрать из группы). */
+  const setServerGroup = useCallback(async (id: string, group: string) => {
+    const value = group.trim()
+    setServers(prev => prev.map(s => s.id === id ? { ...s, group: value || undefined } : s))
+    await window.electronAPI?.mcServerUpdate(id, { group: value || null })
+  }, [])
+
+  /** Переименовывает категорию у всех серверов, что в неё входят. */
+  const renameGroup = useCallback(async (oldName: string, newName: string) => {
+    const target = newName.trim()
+    if (!target || target === oldName) return
+    const affected = servers.filter(s => (s.group ?? "") === oldName).map(s => s.id)
+    setServers(prev => prev.map(s => (s.group ?? "") === oldName ? { ...s, group: target } : s))
+    setCollapsedGroups(prev => {
+      if (!prev.has(oldName)) return prev
+      const next = new Set(prev)
+      next.delete(oldName)
+      next.add(target)
+      return next
+    })
+    await Promise.all(affected.map(id => window.electronAPI?.mcServerUpdate(id, { group: target })))
+  }, [servers])
+
+  /** Удаляет категорию: серверы остаются, но становятся без группы. */
+  const deleteGroup = useCallback(async (group: string) => {
+    const affected = servers.filter(s => (s.group ?? "") === group).map(s => s.id)
+    setServers(prev => prev.map(s => (s.group ?? "") === group ? { ...s, group: undefined } : s))
+    setCollapsedGroups(prev => {
+      if (!prev.has(group)) return prev
+      const next = new Set(prev)
+      next.delete(group)
+      return next
+    })
+    await Promise.all(affected.map(id => window.electronAPI?.mcServerUpdate(id, { group: null })))
+  }, [servers])
+
+  const toggleGroupCollapse = useCallback((group: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(group)) next.delete(group)
+      else next.add(group)
+      return next
+    })
+  }, [])
+
+  const groups = useMemo(() => {
+    const set = new Set<string>()
+    for (const s of servers) { if (s.group) set.add(s.group) }
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [servers])
+
+  return { servers, loading, reload, createServer, deleteServer, updateServer, restoreServer, listTrash, purgeTrash, permanentDelete, duplicateServer, setServerGroup, renameGroup, deleteGroup, groups, collapsedGroups, toggleGroupCollapse }
 }
 
 export function useMcServerState(id: string | null) {
