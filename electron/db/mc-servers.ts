@@ -20,6 +20,7 @@ export type McServerRow = {
   trashedAt: string | null
   customJar: string | null
   source: "local" | "modrinth" | "curseforge"
+  group?: string | null
 }
 
 export async function listMcServers(): Promise<McServerRow[]> {
@@ -41,8 +42,8 @@ export async function getMcServer(id: string): Promise<McServerRow | null> {
 export async function createMcServer(server: McServerRow): Promise<void> {
   if (!isDbAvailable()) return
   run(
-    "INSERT INTO mc_servers (id, name, gameVersion, modloader, modloaderVersion, port, xmx, xms, extraJavaArgs, javaPath, autoRestart, icon, relayEnabled, onlineMode, maxPlayers, createdAt, customJar, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    [server.id, server.name, server.gameVersion, server.modloader, server.modloaderVersion ?? null, server.port, server.xmx, server.xms, server.extraJavaArgs, server.javaPath ?? null, server.autoRestart, server.icon ?? null, server.relayEnabled ?? 0, server.onlineMode ?? 1, server.maxPlayers ?? 20, server.createdAt, server.customJar ?? null, server.source ?? "local"]
+    "INSERT INTO mc_servers (id, name, gameVersion, modloader, modloaderVersion, port, xmx, xms, extraJavaArgs, javaPath, autoRestart, icon, relayEnabled, onlineMode, maxPlayers, createdAt, customJar, source, [group]) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [server.id, server.name, server.gameVersion, server.modloader, server.modloaderVersion ?? null, server.port, server.xmx, server.xms, server.extraJavaArgs, server.javaPath ?? null, server.autoRestart, server.icon ?? null, server.relayEnabled ?? 0, server.onlineMode ?? 1, server.maxPlayers ?? 20, server.createdAt, server.customJar ?? null, server.source ?? "local", server.group ?? null]
   )
   persistDatabase()
 }
@@ -53,7 +54,9 @@ export async function updateMcServer(id: string, update: Partial<McServerRow>): 
   const values: unknown[] = []
   for (const [key, value] of Object.entries(update)) {
     if (key === "id") continue
-    fields.push(`${key} = ?`)
+    // "group" — зарезервированное слово SQLite, экранируем скобками.
+    const column = key === "group" ? "[group]" : key
+    fields.push(`${column} = ?`)
     values.push(value ?? null)
   }
   if (fields.length === 0) return

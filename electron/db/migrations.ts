@@ -130,7 +130,8 @@ function createTables() {
       maxPlayers INTEGER NOT NULL DEFAULT 20,
       createdAt TEXT NOT NULL,
       trashedAt TEXT DEFAULT NULL,
-      customJar TEXT DEFAULT NULL
+      customJar TEXT DEFAULT NULL,
+      [group] TEXT DEFAULT NULL
     )
   `)
 
@@ -238,6 +239,7 @@ function migrateMcServers() {
   addColumnIfMissing("mc_servers", "trashedAt", "trashedAt TEXT DEFAULT NULL")
   addColumnIfMissing("mc_servers", "customJar", "customJar TEXT DEFAULT NULL")
   addColumnIfMissing("mc_servers", "source", "source TEXT NOT NULL DEFAULT 'local'")
+  addColumnIfMissing("mc_servers", "group", "[group] TEXT DEFAULT NULL")
 }
 
 function seedDefaultSettings() {

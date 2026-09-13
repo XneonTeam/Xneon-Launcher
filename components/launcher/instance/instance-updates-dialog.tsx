@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { IconRefresh, IconDownload, IconX, IconCheck, IconChevronDown, IconChevronRight, IconPackage, IconAlertCircle, IconLoader2, IconCircleCheck, IconFlask, IconFlame } from "@tabler/icons-react"
 import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import rehypeRaw from "rehype-raw"
 import rehypeSanitize from "rehype-sanitize"
 import { cn } from "@/lib/utils"
@@ -36,6 +37,18 @@ const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
   blockquote: ({ children }) => <blockquote className="border-l-2 border-primary/50 pl-3 my-2 text-muted-foreground italic">{children}</blockquote>,
   hr: () => <hr className="border-border my-4" />,
   img: ({ src, alt }) => <img src={src} alt={alt || ""} className="rounded-lg max-w-full my-2" />,
+  table: ({ children }) => (
+    <div className="my-3 overflow-x-auto rounded-xl border border-border">
+      <table className="w-full border-collapse text-sm">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
+  tbody: ({ children }) => <tbody>{children}</tbody>,
+  tr: ({ children }) => <tr className="border-b border-border last:border-0">{children}</tr>,
+  th: ({ children }) => (
+    <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-foreground whitespace-nowrap">{children}</th>
+  ),
+  td: ({ children }) => <td className="px-4 py-2.5 align-top text-muted-foreground">{children}</td>,
 }
 
 interface InstanceUpdatesDialogProps {
@@ -401,7 +414,7 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
                           )}
                           {isExpanded && !!update.latestVersion.changelog && (
                             <div className="mt-3 border-t border-border pt-3 text-sm">
-                              <ReactMarkdown rehypePlugins={[rehypeRaw, rehypeSanitize]} components={mdComponents}>
+                              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, rehypeSanitize]} components={mdComponents}>
                                 {update.latestVersion.changelog}
                               </ReactMarkdown>
                             </div>

@@ -935,5 +935,13 @@
   "stats.cancel": "Cancelar",
   "stats.show": "Mostrar",
   "stats.prevMonth": "Mes anterior",
-  "stats.nextMonth": "Mes siguiente"
+  "stats.nextMonth": "Mes siguiente",
+  "servers.ungrouped": "Sin categoría",
+  "servers.renameGroup": "Renombrar categoría",
+  "servers.deleteGroup": "Eliminar categoría",
+  "servers.moveToGroup": "Mover a categoría",
+  "servers.removeFromGroup": "Quitar de la categoría",
+  "servers.newGroupPlaceholder": "Nueva categoría…",
+  "servers.createGroup": "Crear",
+  "common.save": "Guardar"
 }

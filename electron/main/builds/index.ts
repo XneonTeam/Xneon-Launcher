@@ -531,10 +531,34 @@ export function registerBuildHandlers() {
     try {
       const win = getMainWindow()
       if (!win) return { success: false, error: "Окно недоступно" }
-      const intentPath = await ensureBuildIntentDir(dirName)
-      const scanned = await scanIntentDir(intentPath)
-      const mods = scanned.mods ?? []
       const label = buildNameLabel || dirName
+
+      // Быстрый путь: список модов уже лежит в БД сборки — берём его оттуда,
+      // не сканируя intent-директорию и не дёргая Modrinth/CurseForge API
+      // (именно сетевые запросы в scanIntentDir → resolveContentEntries и были
+      // причиной долгого экспорта). Скан на диске — только как fallback,
+      // если сборка почему-то не найдена в БД.
+      type ModlistRow = { name?: string; slug?: string; version?: string; author?: string }
+      const toRow = (m: unknown): ModlistRow => {
+        const r = (m ?? {}) as Record<string, unknown>
+        return {
+          name: typeof r.name === "string" ? r.name : undefined,
+          slug: typeof r.slug === "string" ? r.slug : undefined,
+          version: typeof r.version === "string" ? r.version : undefined,
+          author: typeof r.author === "string" ? r.author : undefined,
+        }
+      }
+
+      let mods: ModlistRow[] = []
+      const builds = await dbHelpers.loadBuilds()
+      const build = builds.find((b) => b.name === dirName)
+      if (build) {
+        mods = (build.mods ?? []).map(toRow)
+      } else {
+        const intentPath = await ensureBuildIntentDir(dirName)
+        const scanned = await scanIntentDir(intentPath)
+        mods = (scanned.mods ?? []).map(toRow)
+      }
 
       const extMap: Record<string, string> = { html: "html", markdown: "md", json: "json", csv: "csv", plaintext: "txt" }
       const picked = await dialog.showSaveDialog(win, {

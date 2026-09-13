@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useState, useDeferredValue, useCallback } fro
 import { useTranslation } from "react-i18next"
 import { IconSearch, IconUpload, IconInfoCircle, IconPlus, IconTrash, IconRefresh, IconList, IconPower, IconCheck, IconChevronDown, IconChevronRight, IconDownload, IconArrowRight, IconX, IconArrowUpCircle, IconLoader2, IconLock } from "@tabler/icons-react"
 import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import rehypeRaw from "rehype-raw"
 import rehypeSanitize from "rehype-sanitize"
 import { cn } from "@/lib/utils"
@@ -35,6 +36,18 @@ const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
   blockquote: ({ children }) => <blockquote className="border-l-4 border-primary/50 pl-4 my-4 text-muted-foreground italic">{children}</blockquote>,
   hr: () => <hr className="border-border my-6" />,
   img: ({ src, alt }) => <img src={src} alt={alt || ""} className="rounded-lg max-w-full my-4" />,
+  table: ({ children }) => (
+    <div className="my-4 overflow-x-auto rounded-xl border border-border">
+      <table className="w-full border-collapse text-sm">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
+  tbody: ({ children }) => <tbody>{children}</tbody>,
+  tr: ({ children }) => <tr className="border-b border-border last:border-0">{children}</tr>,
+  th: ({ children }) => (
+    <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-foreground whitespace-nowrap">{children}</th>
+  ),
+  td: ({ children }) => <td className="px-4 py-2.5 align-top text-muted-foreground">{children}</td>,
 }
 
 function normalizeContentIdentity(value?: string): string {
@@ -804,7 +817,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                             {ver.changelog ? (
                               <div className="text-sm text-muted-foreground">
                                 <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Что изменилось</div>
-                                <ReactMarkdown rehypePlugins={[rehypeRaw, rehypeSanitize]} components={mdComponents}>{ver.changelog}</ReactMarkdown>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, rehypeSanitize]} components={mdComponents}>{ver.changelog}</ReactMarkdown>
                               </div>
                             ) : (
                               <p className="text-sm text-muted-foreground">Нет описания изменений</p>

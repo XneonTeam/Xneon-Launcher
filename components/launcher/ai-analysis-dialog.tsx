@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { IconBrain, IconLoader2, IconCopy, IconCheck } from "@tabler/icons-react"
 import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import rehypeRaw from "rehype-raw"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useLaunchLogs } from "@/src/LaunchLogsContext"
@@ -126,6 +127,7 @@ export function AiAnalysisDialog({ open, onOpenChange, logsOverride }: AiAnalysi
             <div className="space-y-3">
               <div className="p-4 rounded-xl bg-muted/50 border border-border min-h-[80px]">
                 <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
                   rehypePlugins={[rehypeRaw]}
                   components={{
                     p: ({ children }) => <p className="text-sm text-foreground leading-relaxed mb-2 last:mb-0">{children}</p>,
@@ -141,6 +143,15 @@ export function AiAnalysisDialog({ open, onOpenChange, logsOverride }: AiAnalysi
                     em: ({ children }) => <em className="text-foreground italic">{children}</em>,
                     a: ({ href, children }) => <a href={href} className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
                     blockquote: ({ children }) => <blockquote className="border-l-2 border-primary pl-3 text-muted-foreground italic mb-2">{children}</blockquote>,
+                    table: ({ children }) => (
+                      <div className="my-2 overflow-x-auto rounded-lg border border-border">
+                        <table className="w-full border-collapse text-xs">{children}</table>
+                      </div>
+                    ),
+                    thead: ({ children }) => <thead className="bg-muted/60">{children}</thead>,
+                    tr: ({ children }) => <tr className="border-b border-border last:border-0">{children}</tr>,
+                    th: ({ children }) => <th className="px-3 py-1.5 text-left font-semibold text-foreground whitespace-nowrap">{children}</th>,
+                    td: ({ children }) => <td className="px-3 py-1.5 align-top text-muted-foreground">{children}</td>,
                   }}
                 >
                   {streamText}

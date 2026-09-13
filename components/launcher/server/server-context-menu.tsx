@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import {
   IconTerminal, IconPlayerPlay, IconPlayerStop, IconFolder, IconCopy,
   IconDownload, IconTrashFilled, IconX, IconWorldUpload, IconBox,
-  IconPlug, IconSettings, IconBug,
+  IconPlug, IconSettings, IconBug, IconCategoryPlus,
 } from "@tabler/icons-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import type { McServerInfo } from "@xnlc/types"
@@ -18,6 +18,8 @@ interface ServerContextMenuProps {
   onDelete: () => void
   onDuplicate: () => void
   onClose: () => void
+  /** Открывает меню выбора категории для сервера в указанной точке экрана. */
+  onOpenAssignGroup?: (x: number, y: number) => void
 }
 
 // Same category keys as the export handler in mc-server-handlers.ts
@@ -26,7 +28,7 @@ type ServerExportCategory = "world" | "mods" | "plugins" | "configs" | "logs"
 // Context menu shown on right-click over a server tile/row.
 // Mirrors the instance list context menu (open folder / duplicate / export
 // to zip / move to trash) with the server-specific run and connect actions.
-export function ServerContextMenu({ server, position, isRunning, isBusy, onConnect, onToggleRun, onDelete, onDuplicate, onClose }: ServerContextMenuProps) {
+export function ServerContextMenu({ server, position, isRunning, isBusy, onConnect, onToggleRun, onDelete, onDuplicate, onClose, onOpenAssignGroup }: ServerContextMenuProps) {
   const { t } = useTranslation()
   const [exporting, setExporting] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
@@ -121,6 +123,14 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
           <IconDownload className="w-4 h-4 text-muted-foreground" />
           {t("servers.contextExportZip")}
         </button>
+        {onOpenAssignGroup && (
+          <button type="button"
+            className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
+            onClick={() => { onOpenAssignGroup(position.x + 8, position.y + 8); onClose() }}>
+            <IconCategoryPlus className="w-4 h-4 text-muted-foreground" />
+            {t("servers.moveToGroup", "Переместить в категорию")}
+          </button>
+        )}
         <div className="mx-2 my-1 border-t border-border" />
         <button type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-destructive/15 text-destructive"
           onClick={() => { onDelete(); onClose() }}>

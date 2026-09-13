@@ -3,14 +3,10 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     const img = new Image()
     img.crossOrigin = "anonymous"
     img.onload = () => resolve(img)
-    img.onerror = () => {
-      // Retry via CORS proxy if direct load fails
-      const proxy = new Image()
-      proxy.crossOrigin = "anonymous"
-      proxy.onload = () => resolve(proxy)
-      proxy.onerror = () => reject(new Error(`Failed to load: ${url}`))
-      proxy.src = `https://corsproxy.io/?${encodeURIComponent(url)}`
-    }
+    // Текстуры плащей (textures.minecraft.net / ely.by) отдаются напрямую с
+    // разрешённым CORS, поэтому внешний CORS-прокси не нужен — раньше он
+    // только добавлял лишний сетевой хоп и тормозил загрузку превью.
+    img.onerror = () => reject(new Error(`Failed to load: ${url}`))
     img.src = url
   })
 }
