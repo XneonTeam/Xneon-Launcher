@@ -6,6 +6,7 @@ interface TrashItem {
   trashName: string
   originalName: string
   trashedAt: number
+  icon?: string
 }
 
 interface InstanceTrashViewProps {
@@ -110,8 +111,10 @@ export function InstanceTrashView({ goToMyBuilds, onRestore }: InstanceTrashView
       {items.map((item) => (
         <div key={item.trashName}
           className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:bg-muted/50 transition-colors">
-          <div className="w-9 h-9 rounded-lg bg-muted/60 flex items-center justify-center shrink-0">
-            <IconTrash className="w-4 h-4 text-muted-foreground" />
+          <div className="w-9 h-9 rounded-lg bg-muted/60 flex items-center justify-center shrink-0 overflow-hidden">
+            {item.icon
+              ? <img src={item.icon} alt="" className="w-9 h-9 object-cover" />
+              : <IconTrash className="w-4 h-4 text-muted-foreground" />}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground truncate">{item.originalName}</p>

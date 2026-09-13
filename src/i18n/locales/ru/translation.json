@@ -928,5 +928,13 @@
   "content.stats.title": "Статистика",
   "content.stats.message": "Ваш игровой прогресс",
   "storage.canFree": "Можно освободить {{size}}",
-  "storage.openFolder": "Открыть папку"
+  "storage.openFolder": "Открыть папку",
+  "stats.preset7d": "7 дней",
+  "stats.preset30d": "30 дней",
+  "stats.preset90d": "90 дней",
+  "stats.presetThisMonth": "Этот месяц",
+  "stats.cancel": "Отмена",
+  "stats.show": "Показать",
+  "stats.prevMonth": "Предыдущий месяц",
+  "stats.nextMonth": "Следующий месяц"
 }

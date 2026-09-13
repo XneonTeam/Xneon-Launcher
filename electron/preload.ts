@@ -45,6 +45,7 @@ import type {
   UpdateChannel,
   BuildContentUpdates,
   StatsOverview,
+  StatsRange,
   StorageScanResult,
   StorageCleanTarget,
   StorageCleanResult,
@@ -101,6 +102,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeAccount: (id: string) => ipcRenderer.invoke('db:remove-account', id) as Promise<void>,
   loadBuilds: invoke<DbBuild[]>('db:load-builds'),
   saveBuilds: (builds: DbBuild[]) => ipcRenderer.invoke('db:save-builds', builds) as Promise<void>,
+  updateBuildFields: (buildId: string, fields: Partial<DbBuild>) => ipcRenderer.invoke('db:update-build-fields', buildId, fields) as Promise<void>,
   dbIsFallbackStorage: invoke<{ isFallback: boolean }>('db:is-fallback-storage'),
   reorderAccounts: (ids: string[]) => ipcRenderer.invoke('db:reorder-accounts', ids) as Promise<void>,
 
@@ -116,7 +118,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   moveBuildIntentToTrash: (dirName: string, metadata?: Record<string, unknown>) => ipcRenderer.invoke('build:move-intent-to-trash', dirName, metadata) as Promise<{ success: boolean; trashName?: string; error?: string }>,
   restoreBuildIntentFromTrash: (dirName: string, trashName: string) => ipcRenderer.invoke('build:restore-intent-from-trash', dirName, trashName) as Promise<{ success: boolean; build?: Record<string, unknown>; error?: string }>,
   purgeBuildTrash: () => ipcRenderer.invoke('build:purge-trash') as Promise<{ success: boolean; error?: string }>,
-  listTrashBuilds: () => ipcRenderer.invoke('build:list-trash') as Promise<Array<{ trashName: string; originalName: string; trashedAt: number }>>,
+  listTrashBuilds: () => ipcRenderer.invoke('build:list-trash') as Promise<Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string }>>,
   deleteTrashItem: (trashName: string) => ipcRenderer.invoke('build:delete-trash-item', trashName) as Promise<{ success: boolean; error?: string }>,
   onCliLaunchBuild: (callback: (buildName: string) => void) => subscribe('cli:launch-build', callback),
 
@@ -233,7 +235,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dismissContentUpdate: (buildId: string, itemId: string) => ipcRenderer.invoke('build:dismiss-content-update', buildId, itemId) as Promise<void>,
 
   // ── Game Statistics ──────────────────────────────────────
-  getStatsOverview: () => ipcRenderer.invoke('stats:overview') as Promise<StatsOverview>,
+  getStatsOverview: (range?: StatsRange) => ipcRenderer.invoke('stats:overview', range) as Promise<StatsOverview>,
   onStatsUpdated: (callback: () => void) => subscribe<{}>('stats:updated', callback),
 
   // ── Storage / Disk Manager ───────────────────────────────

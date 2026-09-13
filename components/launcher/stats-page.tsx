@@ -6,6 +6,18 @@ import {
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import type { StatsOverview } from "@xnlc/types"
+import { StatsRangePicker, type StatsRange } from "@/components/launcher/stats/stats-range-picker"
+
+const DAY_MS = 86_400_000
+
+function defaultRange(): StatsRange {
+  const now = Date.now()
+  const from = new Date(now - 29 * DAY_MS)
+  from.setHours(0, 0, 0, 0)
+  const to = new Date(now)
+  to.setHours(23, 59, 59, 999)
+  return { from: from.getTime(), to: to.getTime() }
+}
 
 function formatDuration(totalSeconds: number): string {
   if (totalSeconds <= 0) return "0м"
@@ -52,8 +64,7 @@ function EntryIcon({ icon, fallback }: { icon?: string; fallback: React.ReactNod
   )
 }
 
-function DailyChart({ data }: { data: Array<{ date: string; seconds: number }> }) {
-  const { t } = useTranslation()
+function DailyChart({ data }: { data: Array<{ date: string; seconds: number }> }) {  const { t } = useTranslation()
   const max = Math.max(1, ...data.map((d) => d.seconds))
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 
@@ -99,7 +110,11 @@ function DailyChart({ data }: { data: Array<{ date: string; seconds: number }> }
       </div>
       <div className="mt-1.5 flex justify-between text-[10px] text-muted-foreground">
         <span>{new Date(data[0]?.date + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
-        <span>{t("stats.last30days")}</span>
+        <span>
+          {data.length > 0
+            ? `${data.length} ${data.length === 1 ? "day" : "days"}`
+            : t("stats.last30days")}
+        </span>
         <span>{new Date(data[data.length - 1]?.date + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
       </div>
     </div>
@@ -150,18 +165,19 @@ export function StatsPage() {
   const [stats, setStats] = useState<StatsOverview | null>(null)
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<"builds" | "servers">("builds")
+  const [range, setRange] = useState<StatsRange>(() => defaultRange())
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const result = await window.electronAPI?.getStatsOverview()
+      const result = await window.electronAPI?.getStatsOverview(range)
       if (result) setStats(result)
     } catch (error) {
       console.error("[Stats] Failed to load overview:", error)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [range])
 
   useEffect(() => {
     void load()
@@ -231,6 +247,7 @@ export function StatsPage() {
               {t("stats.tabServers")}
             </button>
           </div>
+          <StatsRangePicker value={range} onChange={setRange} />
           <button
             type="button"
             disabled={loading}

@@ -928,5 +928,13 @@
   "content.stats.title": "Статистика",
   "content.stats.message": "Ваш ігровий прогрес",
   "storage.canFree": "Можна звільнити {{size}}",
-  "storage.openFolder": "Відкрити папку"
+  "storage.openFolder": "Відкрити папку",
+  "stats.preset7d": "7 днів",
+  "stats.preset30d": "30 днів",
+  "stats.preset90d": "90 днів",
+  "stats.presetThisMonth": "Цей місяць",
+  "stats.cancel": "Скасувати",
+  "stats.show": "Показати",
+  "stats.prevMonth": "Попередній місяць",
+  "stats.nextMonth": "Наступний місяць"
 }

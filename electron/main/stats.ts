@@ -9,9 +9,27 @@ import { randomUUID } from "crypto"
 import { dbHelpers, type GameSessionRow } from "../db"
 import { sendToRenderer } from "./runtime"
 import { getActiveGameSession, getActiveServerSessions } from "./session-tracker"
-import type { GameSessionInfo, StatsOverview } from "@xnlc/types" with { "resolution-mode": "import" }
+import type { GameSessionInfo, StatsOverview, StatsRange } from "@xnlc/types" with { "resolution-mode": "import" }
 
 const DAY_MS = 86_400_000
+const DEFAULT_RANGE_DAYS = 30
+
+/** Inclusive [from, to] window; defaults to the last 30 days when omitted. */
+function resolveRange(range?: StatsRange): { from: number; to: number } {
+  const now = Date.now()
+  let from = now - DEFAULT_RANGE_DAYS * DAY_MS
+  let to = now
+  if (range && Number.isFinite(range.from) && Number.isFinite(range.to)) {
+    from = Math.min(range.from, range.to)
+    to = Math.max(range.from, range.to)
+  }
+  // Normalize to whole local days so the chart's day buckets line up.
+  const start = new Date(from)
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(to)
+  end.setHours(23, 59, 59, 999)
+  return { from: start.getTime(), to: end.getTime() }
+}
 
 /** Emits an event so the Statistics page refreshes in real time. */
 export function notifyStatsUpdated(): void {
@@ -45,13 +63,15 @@ function sessionsFromRows(rows: GameSessionRow[]): GameSessionInfo[] {
   }))
 }
 
-async function buildOverview(): Promise<StatsOverview> {
+async function buildOverview(range?: StatsRange): Promise<StatsOverview> {
+  const { from, to } = resolveRange(range)
   const rows = await dbHelpers.listGameSessions()
-  const sessions = sessionsFromRows(rows)
+  const sessions = sessionsFromRows(rows).filter((s) => s.startedAt >= from && s.startedAt <= to)
 
   // Real-time: include the in-progress game session so totals tick up
-  // while Minecraft is running.
-  const activeGame = getActiveGameSession()
+  // while Minecraft is running — but only when it started inside the range.
+  const activeGameRaw = getActiveGameSession()
+  const activeGame = activeGameRaw && activeGameRaw.startedAt >= from && activeGameRaw.startedAt <= to ? activeGameRaw : null
   const activeGameElapsed = activeGame ? liveElapsed(activeGame.startedAt) : 0
 
   const totalPlaytime = sessions.reduce((sum, s) => sum + s.duration, 0) + activeGameElapsed
@@ -64,7 +84,7 @@ async function buildOverview(): Promise<StatsOverview> {
   const buildNames = new Map(builds.map((b) => [b.id, b.name]))
   const buildIcons = new Map(builds.map((b) => [b.id, b.icon]))
 
-  // Per-day playtime for the last 30 days (oldest → newest for the chart).
+  // Per-day playtime across the selected range (oldest → newest for the chart).
   const dailyMap = new Map<string, number>()
   for (const session of sessions) {
     const key = localDateKey(session.startedAt)
@@ -75,9 +95,16 @@ async function buildOverview(): Promise<StatsOverview> {
     dailyMap.set(key, (dailyMap.get(key) ?? 0) + activeGameElapsed)
   }
   const dailyPlaytime: Array<{ date: string; seconds: number }> = []
-  for (let i = 29; i >= 0; i--) {
-    const key = localDateKey(Date.now() - i * DAY_MS)
+  const startDay = new Date(from)
+  startDay.setHours(0, 0, 0, 0)
+  const endDay = new Date(to)
+  endDay.setHours(0, 0, 0, 0)
+  for (let t = startDay.getTime(); t <= endDay.getTime() && dailyPlaytime.length < 1000; t += DAY_MS) {
+    const key = localDateKey(t)
     dailyPlaytime.push({ date: key, seconds: dailyMap.get(key) ?? 0 })
+  }
+  if (dailyPlaytime.length === 0) {
+    dailyPlaytime.push({ date: localDateKey(Date.now()), seconds: dailyMap.get(localDateKey(Date.now())) ?? 0 })
   }
 
   // Top builds by playtime (includes the live in-progress session).
@@ -111,8 +138,10 @@ async function buildOverview(): Promise<StatsOverview> {
     .slice(0, 5)
 
   // Launcher-hosted MC servers: aggregate uptime sessions (including
-  // servers that are still running right now).
-  const serverRows = await dbHelpers.listServerSessions()
+  // servers that are still running right now) inside the selected range.
+  const serverRowsAll = await dbHelpers.listServerSessions()
+  const serverRows = serverRowsAll.filter((r) => r.startedAt >= from && r.startedAt <= to)
+  const activeServers = getActiveServerSessions().filter((a) => a.startedAt >= from && a.startedAt <= to)
   const serverMap = new Map<string, { seconds: number; sessions: number; name: string; icon?: string }>()
   for (const row of serverRows) {
     const entry = serverMap.get(row.serverId) ?? {
@@ -125,7 +154,7 @@ async function buildOverview(): Promise<StatsOverview> {
     entry.sessions += 1
     serverMap.set(row.serverId, entry)
   }
-  for (const active of getActiveServerSessions()) {
+  for (const active of activeServers) {
     const elapsed = liveElapsed(active.startedAt)
     if (elapsed <= 0) continue
     const entry = serverMap.get(active.serverId) ?? {
@@ -141,25 +170,28 @@ async function buildOverview(): Promise<StatsOverview> {
     serverMap.set(active.serverId, entry)
   }
   const serverTotalUptime = [...serverMap.values()].reduce((sum, e) => sum + e.seconds, 0)
-  const serverTotalSessions = serverRows.length + getActiveServerSessions().filter((a) => liveElapsed(a.startedAt) > 0).length
+  const serverTotalSessions = serverRows.length + activeServers.filter((a) => liveElapsed(a.startedAt) > 0).length
   const serverAverageSession = serverTotalSessions > 0 ? Math.round(serverTotalUptime / serverTotalSessions) : 0
 
-  // Server daily uptime for 30 days
+  // Server daily uptime across the selected range
   const serverDailyMap = new Map<string, number>()
   for (const row of serverRows) {
     const key = localDateKey(row.startedAt)
     serverDailyMap.set(key, (serverDailyMap.get(key) ?? 0) + row.duration)
   }
-  for (const active of getActiveServerSessions()) {
+  for (const active of activeServers) {
     const elapsed = liveElapsed(active.startedAt)
     if (elapsed <= 0) continue
     const key = localDateKey(active.startedAt)
     serverDailyMap.set(key, (serverDailyMap.get(key) ?? 0) + elapsed)
   }
   const dailyServerUptime: Array<{ date: string; seconds: number }> = []
-  for (let i = 29; i >= 0; i--) {
-    const key = localDateKey(Date.now() - i * DAY_MS)
+  for (let t = startDay.getTime(); t <= endDay.getTime() && dailyServerUptime.length < 1000; t += DAY_MS) {
+    const key = localDateKey(t)
     dailyServerUptime.push({ date: key, seconds: serverDailyMap.get(key) ?? 0 })
+  }
+  if (dailyServerUptime.length === 0) {
+    dailyServerUptime.push({ date: localDateKey(Date.now()), seconds: 0 })
   }
 
   const serverLastSession = serverRows[0] ? {
@@ -181,6 +213,8 @@ async function buildOverview(): Promise<StatsOverview> {
     totalSessions,
     averageSession,
     lastSession: sessions[0] ?? null,
+    rangeFrom: from,
+    rangeTo: to,
     dailyPlaytime,
     topBuilds,
     serverTotalUptime,
@@ -221,5 +255,5 @@ export async function recordServerSession(input: { serverId: string; serverName:
 }
 
 export function registerStatsHandlers(): void {
-  ipcMain.handle("stats:overview", async (): Promise<StatsOverview> => buildOverview())
+  ipcMain.handle("stats:overview", async (_event, range?: StatsRange): Promise<StatsOverview> => buildOverview(range))
 }
