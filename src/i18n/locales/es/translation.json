@@ -927,5 +927,13 @@
   "content.stats.title": "Estadísticas",
   "content.stats.message": "Tu progreso de juego",
   "storage.canFree": "Se pueden liberar {{size}}",
-  "storage.openFolder": "Abrir carpeta"
+  "storage.openFolder": "Abrir carpeta",
+  "stats.preset7d": "7 días",
+  "stats.preset30d": "30 días",
+  "stats.preset90d": "90 días",
+  "stats.presetThisMonth": "Este mes",
+  "stats.cancel": "Cancelar",
+  "stats.show": "Mostrar",
+  "stats.prevMonth": "Mes anterior",
+  "stats.nextMonth": "Mes siguiente"
 }

@@ -127,6 +127,12 @@ export function registerSystemHandlers() {
   ipcMain.handle("db:reorder-accounts", async (_event, ids: string[]) => dbHelpers.reorderAccounts(ids))
   ipcMain.handle("db:load-builds", async () => dbHelpers.loadBuilds())
   ipcMain.handle("db:save-builds", async (_event, builds) => dbHelpers.saveAllBuilds(builds))
+  // Мгновенная точечная запись полей одной сборки (без debounce на стороне UI):
+  // нужна для правок вроде отвязки/привязки модпака, которые не должны теряться
+  // при быстром переключении вкладок инстанса.
+  ipcMain.handle("db:update-build-fields", async (_event, buildId: string, fields: Record<string, unknown>) => {
+    await dbHelpers.updateBuildFields(buildId, fields as Parameters<typeof dbHelpers.updateBuildFields>[1])
+  })
   ipcMain.handle("db:is-fallback-storage", async () => ({ isFallback: isUsingFallbackStorage() }))
   ipcMain.handle("launcher:discover-importable-instances", async () => discoverAllInstances())
   ipcMain.handle("launcher:discover-from-path", async (_event, source: string, customPath: string) => {

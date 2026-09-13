@@ -35,6 +35,7 @@ import type {
   UpdateChannel,
   BuildContentUpdates,
   StatsOverview,
+  StatsRange,
   StorageScanResult,
   StorageCleanTarget,
   StorageCleanResult,
@@ -99,6 +100,7 @@ export interface IpcInvokeMap {
   "db:remove-account": { args: [id: string]; return: void }
   "db:load-builds": { args: []; return: DbBuild[] }
   "db:save-builds": { args: [builds: DbBuild[]]; return: void }
+  "db:update-build-fields": { args: [buildId: string, fields: Partial<DbBuild>]; return: void }
   "db:is-fallback-storage": { args: []; return: { isFallback: boolean } }
   "db:reorder-accounts": { args: [ids: string[]]; return: void }
 
@@ -129,7 +131,7 @@ export interface IpcInvokeMap {
   "build:move-intent-to-trash": { args: [dirName: string]; return: { success: boolean; trashName?: string; error?: string } }
   "build:restore-intent-from-trash": { args: [dirName: string, trashName: string]; return: { success: boolean; error?: string } }
   "build:purge-trash": { args: []; return: { success: boolean; error?: string } }
-  "build:list-trash": { args: []; return: Array<{ trashName: string; originalName: string; trashedAt: number }> }
+  "build:list-trash": { args: []; return: Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string }> }
   "build:delete-trash-item": { args: [trashName: string]; return: { success: boolean; error?: string } }
 
   // ── Content Updates ──
@@ -138,7 +140,7 @@ export interface IpcInvokeMap {
   "build:dismiss-content-update": { args: [buildId: string, itemId: string]; return: void }
 
   // ── Game Statistics ──
-  "stats:overview": { args: []; return: StatsOverview }
+  "stats:overview": { args: [range?: StatsRange]; return: StatsOverview }
 
   // ── Storage / Disk Manager ──
   "storage:scan": { args: []; return: StorageScanResult }
@@ -353,6 +355,7 @@ export interface ElectronAPIExplicit {
   removeAccount: (id: string) => Promise<void>
   loadBuilds: () => Promise<DbBuild[]>
   saveBuilds: (builds: DbBuild[]) => Promise<void>
+  updateBuildFields: (buildId: string, fields: Partial<DbBuild>) => Promise<void>
   dbIsFallbackStorage: () => Promise<{ isFallback: boolean }>
   reorderAccounts: (ids: string[]) => Promise<void>
   scanBuildIntentContent: (buildName: string) => Promise<BuildIntentScanResult>
@@ -460,12 +463,12 @@ export interface ElectronAPIExplicit {
   moveBuildIntentToTrash: (dirName: string, metadata?: Record<string, unknown>) => Promise<{ success: boolean; trashName?: string; error?: string }>
   restoreBuildIntentFromTrash: (dirName: string, trashName: string) => Promise<{ success: boolean; build?: Record<string, unknown>; error?: string }>
   purgeBuildTrash: () => Promise<{ success: boolean; error?: string }>
-  listTrashBuilds: () => Promise<Array<{ trashName: string; originalName: string; trashedAt: number }>>
+  listTrashBuilds: () => Promise<Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string }>>
   deleteTrashItem: (trashName: string) => Promise<{ success: boolean; error?: string }>
   checkBuildContentUpdates: (buildId: string, channel?: UpdateChannel) => Promise<BuildContentUpdates>
   getContentUpdatesCache: () => Promise<Record<string, BuildContentUpdates>>
   dismissContentUpdate: (buildId: string, itemId: string) => Promise<void>
-  getStatsOverview: () => Promise<StatsOverview>
+  getStatsOverview: (range?: StatsRange) => Promise<StatsOverview>
   onStatsUpdated: (callback: () => void) => CleanupFn
   scanStorage: () => Promise<StorageScanResult>
   cleanStorage: (target: StorageCleanTarget) => Promise<StorageCleanResult>
@@ -557,7 +560,7 @@ export interface ElectronAPIExtra {
   moveBuildIntentToTrash: (dirName: string, metadata?: Record<string, unknown>) => Promise<{ success: boolean; trashName?: string; error?: string }>
   restoreBuildIntentFromTrash: (dirName: string, trashName: string) => Promise<{ success: boolean; build?: Record<string, unknown>; error?: string }>
   purgeBuildTrash: () => Promise<{ success: boolean; error?: string }>
-  listTrashBuilds: () => Promise<Array<{ trashName: string; originalName: string; trashedAt: number }>>
+  listTrashBuilds: () => Promise<Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string }>>
   deleteTrashItem: (trashName: string) => Promise<{ success: boolean; error?: string }>
   setContentEnabled: (buildName: string, contentType: "mod" | "resourcepack" | "shader", fileName: string, enabled: boolean) => Promise<{ success: boolean; fileName?: string; error?: string }>
   onCliLaunchBuild: (callback: (buildName: string) => void) => () => void

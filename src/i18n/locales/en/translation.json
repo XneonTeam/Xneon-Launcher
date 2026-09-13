@@ -927,5 +927,13 @@
   "content.stats.title": "Statistics",
   "content.stats.message": "Your gaming progress",
   "storage.canFree": "Can free {{size}}",
-  "storage.openFolder": "Open folder"
+  "storage.openFolder": "Open folder",
+  "stats.preset7d": "7 days",
+  "stats.preset30d": "30 days",
+  "stats.preset90d": "90 days",
+  "stats.presetThisMonth": "This month",
+  "stats.cancel": "Cancel",
+  "stats.show": "Show",
+  "stats.prevMonth": "Previous month",
+  "stats.nextMonth": "Next month"
 }

@@ -46,6 +46,7 @@ export type {
   GameSessionInfo,
   ServerSessionInfo,
   StatsOverview,
+  StatsRange,
   BuildStorageEntry,
   ServerStorageEntry,
   JavaRuntimeEntry,

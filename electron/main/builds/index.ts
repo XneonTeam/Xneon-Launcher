@@ -430,17 +430,24 @@ export function registerBuildHandlers() {
     }
   })
 
-  ipcMain.handle("build:list-trash", async (): Promise<Array<{ trashName: string; originalName: string; trashedAt: number }>> => {
+  ipcMain.handle("build:list-trash", async (): Promise<Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string }>> => {
     try {
       const trashRoot = path.join(getInstancesRoot(), "intents", ".trash")
       const entries = await fs.readdir(trashRoot, { withFileTypes: true }).catch(() => [])
-      const items: Array<{ trashName: string; originalName: string; trashedAt: number }> = []
+      const items: Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string }> = []
       for (const entry of entries) {
         if (!entry.isDirectory()) continue
         const match = entry.name.match(/^(\d+)-(.+)$/)
-        if (match) {
-          items.push({ trashName: entry.name, originalName: match[2], trashedAt: Number(match[1]) })
-        }
+        if (!match) continue
+        // Иконка сборки живёт в снапшоте метаданных рядом с папкой в корзине
+        // (`<trashName>.json`), иначе в списке корзины показывалась бы заглушка.
+        let icon: string | undefined
+        try {
+          const raw = await fs.readFile(path.join(trashRoot, `${entry.name}.json`), "utf-8")
+          const parsed = JSON.parse(raw) as { icon?: string; iconUrl?: string }
+          icon = parsed.icon || parsed.iconUrl || undefined
+        } catch { /* снапшота может не быть у старых записей корзины */ }
+        items.push({ trashName: entry.name, originalName: match[2], trashedAt: Number(match[1]), icon })
       }
       return items
     } catch {

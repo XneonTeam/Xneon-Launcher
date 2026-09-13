@@ -111,8 +111,6 @@ export function useBuilds() {
       saveTimeoutRef.current = null
       void window.electronAPI?.saveBuilds(buildsRef.current as unknown as Parameters<NonNullable<Window["electronAPI"]>["saveBuilds"]>[0])
       lastSavedSnapshotRef.current = JSON.stringify(buildsRef.current)
-      // Состояние из памяти только что записано в БД — буфер правок исчерпан.
-      pendingEditsRef.current.clear()
     }
 
     isReloadingRef.current = true
@@ -260,13 +258,22 @@ export function useBuilds() {
     if (saveTimeoutRef.current !== null) {
       window.clearTimeout(saveTimeoutRef.current)
     }
+    const snapshotIds = builds.map(b => b.id)
     saveTimeoutRef.current = window.setTimeout(() => {
       saveTimeoutRef.current = null
       lastSavedSnapshotRef.current = nextSnapshot
-      // Правки уезжают в БД — буфер больше не нужен, иначе он навсегда
-      // перекрывал бы изменения, приходящие из внешних источников.
-      pendingEditsRef.current.clear()
-      void window.electronAPI?.saveBuilds(builds as unknown as Parameters<NonNullable<Window["electronAPI"]>["saveBuilds"]>[0])
+      void (async () => {
+        try {
+          await window.electronAPI?.saveBuilds(builds as unknown as Parameters<NonNullable<Window["electronAPI"]>["saveBuilds"]>[0])
+          // Правки уехали в БД — буфер для записанных сборок больше не нужен,
+          // иначе он навсегда перекрывал бы изменения из внешних источников.
+          // Чистим только после подтверждённой записи, чтобы не потерять правку,
+          // если запись не успела/упала.
+          for (const id of snapshotIds) pendingEditsRef.current.delete(id)
+        } catch (error) {
+          console.error("[Builds] Debounced save failed:", error)
+        }
+      })()
     }, 200)
   }, [builds, buildsHydrated])
 
@@ -472,6 +479,25 @@ export function useBuilds() {
     const pending = pendingEditsRef.current.get(id)
     pendingEditsRef.current.set(id, pending ? { ...pending, ...fields } : { ...fields })
     setBuilds(prev => prev.map(b => b.id === id ? { ...b, ...fields } : b))
+
+    // Мгновенная точечная запись в БД. Без неё правка жила только в памяти до
+    // debounce-сейва (200 мс), и быстрое переключение вкладки инстанса успевало
+    // откатить её (например, отвязку модпака `locked: false`). Буфер очищаем
+    // только после подтверждённой записи — и лишь для тех ключей, что записали.
+    void (async () => {
+      try {
+        await window.electronAPI?.updateBuildFields?.(id, fields as unknown as Parameters<NonNullable<Window["electronAPI"]>["updateBuildFields"]>[1])
+        const buffered = pendingEditsRef.current.get(id)
+        if (buffered) {
+          const rest: Partial<Build> = { ...buffered }
+          for (const key of Object.keys(fields)) delete (rest as Record<string, unknown>)[key]
+          if (Object.keys(rest).length > 0) pendingEditsRef.current.set(id, rest)
+          else pendingEditsRef.current.delete(id)
+        }
+      } catch (error) {
+        console.error("[Builds] Immediate field update failed:", error)
+      }
+    })()
   }, [])
 
   const setBuildGroup = useCallback((id: string, group: string) => {

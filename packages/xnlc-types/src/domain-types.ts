@@ -403,12 +403,21 @@ export type ServerSessionInfo = {
   duration: number
 }
 
+/** Inclusive time range (epoch ms) for statistics aggregation. */
+export type StatsRange = {
+  from: number
+  to: number
+}
+
 export type StatsOverview = {
   totalPlaytime: number
   totalSessions: number
   averageSession: number
   lastSession: GameSessionInfo | null
-  /** Per-day playtime for the last 30 days, date = YYYY-MM-DD (local) */
+  /** Range actually aggregated (epoch ms). */
+  rangeFrom?: number
+  rangeTo?: number
+  /** Per-day playtime inside the selected range, date = YYYY-MM-DD (local) */
   dailyPlaytime: Array<{ date: string; seconds: number }>
   topBuilds: Array<{ buildId: string; name: string; icon?: string; seconds: number; sessions: number }>
   /** Per-server uptime for the launcher's own MC servers */

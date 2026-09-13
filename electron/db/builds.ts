@@ -198,3 +198,74 @@ export async function updateBuildPlaytime(buildId: string, seconds: number): Pro
   run("UPDATE builds SET playtime = playtime + ? WHERE id = ?", [seconds, buildId])
   persistDatabase()
 }
+
+/**
+ * Точечное обновление полей одной сборки без перезаписи всего массива.
+ * Нужно для изменений, которые должны попасть в БД мгновенно (например,
+ * отвязка/привязка модпака `locked`), иначе отложенный debounce-сейв и
+ * параллельный reload успевают откатить правку.
+ */
+export async function updateBuildFields(buildId: string, fields: Partial<BuildJson>): Promise<void> {
+  if (!isDbAvailable()) {
+    const build = inMemoryBuilds.get(buildId) as BuildJson | undefined
+    if (build) Object.assign(build, fields)
+    return
+  }
+
+  const columnMap: Record<string, string> = {
+    name: "name",
+    description: "description",
+    version: "version",
+    modLoader: "modLoader",
+    loaderVersion: "loaderVersion",
+    icon: "icon",
+    coverImage: "coverImage",
+    mods: "mods",
+    resourcepacks: "resourcepacks",
+    shaders: "shaders",
+    intentPath: "intentPath",
+    installedMods: "installedMods",
+    source: "source",
+    projectSlug: "projectSlug",
+    modpackVersion: "modpackVersion",
+    modpackVersionId: "modpackVersionId",
+    locked: "locked",
+    modId: "modId",
+    fileId: "fileId",
+    playtime: "playtime",
+    javaOverride: "javaOverride",
+    javaPath: "javaPath",
+    javaArgs: "javaArgs",
+    memoryMin: "memoryMin",
+    memoryMax: "memoryMax",
+    serverOverride: "serverOverride",
+    server: "server",
+    serverPort: "serverPort",
+    group: "group",
+  }
+
+  const sets: string[] = []
+  const params: unknown[] = []
+  for (const [key, value] of Object.entries(fields)) {
+    const column = columnMap[key]
+    if (!column) continue
+    let stored: unknown = value
+    if (key === "mods" || key === "resourcepacks" || key === "shaders" || key === "installedMods") {
+      stored = JSON.stringify(value ?? (key === "installedMods" ? {} : []))
+    } else if (key === "locked") {
+      // undefined означает «по умолчанию» (для модпаков инстанс заблокирован)
+      stored = value === undefined ? null : value ? 1 : 0
+    } else if (key === "javaOverride" || key === "serverOverride") {
+      stored = value ? 1 : 0
+    } else if (value === undefined) {
+      stored = null
+    }
+    sets.push(`${column === "group" ? "[group]" : column} = ?`)
+    params.push(stored)
+  }
+
+  if (sets.length === 0) return
+  params.push(buildId)
+  run(`UPDATE builds SET ${sets.join(", ")} WHERE id = ?`, params)
+  persistDatabase()
+}
