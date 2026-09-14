@@ -10,11 +10,34 @@ import type { McFsEntry } from "@xnlc/types"
 import { cn } from "@/lib/utils"
 import Editor from "react-simple-code-editor"
 import Prism from "prismjs"
-import "prismjs/components/prism-json"
-import "prismjs/components/prism-yaml"
-import "prismjs/components/prism-java"
-import "prismjs/components/prism-log"
-import "prismjs/components/prism-properties"
+
+// prismjs-компоненты (prism-json, prism-java и т.д.) — это side-effect скрипты,
+// которые обращаются к ГЛОБАЛЬНОМУ `Prism`. В dev-режиме глобал успевает
+// выставиться сам, но в собранном бандле порядок чанков другой, и они падают с
+// "Prism is not defined" (ESM-hoisting выносит их раньше `prismjs`).
+// Поэтому берём их исходники как строки и выполняем вручную, передавая Prism
+// напрямую — без зависимости от глобальной области.
+import prismJsonSrc from "prismjs/components/prism-json.js?raw"
+import prismYamlSrc from "prismjs/components/prism-yaml.js?raw"
+import prismJavaSrc from "prismjs/components/prism-java.js?raw"
+import prismLogSrc from "prismjs/components/prism-log.js?raw"
+import prismPropertiesSrc from "prismjs/components/prism-properties.js?raw"
+
+function registerPrismLanguages(): void {
+  const run = (source: string) => {
+    // Компоненты ожидают объект Prism либо в параметре, либо в глобале.
+    // eslint-disable-next-line no-new-func
+    new Function("Prism", "globalThis", "window", source)(Prism, globalThis, globalThis)
+  }
+  for (const src of [prismJsonSrc, prismYamlSrc, prismJavaSrc, prismLogSrc, prismPropertiesSrc]) {
+    try {
+      run(src)
+    } catch {
+      // грамматика не загрузилась — подсветка откатится к plaintext
+    }
+  }
+}
+registerPrismLanguages()
 
 function JavaIcon({ className }: { className?: string }) {
   return (
