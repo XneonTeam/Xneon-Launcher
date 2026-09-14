@@ -219,7 +219,10 @@ export class GoogleDriveProvider implements CloudProvider {
   }
 
   async isAuthenticated(): Promise<boolean> {
-    const token = await getValidToken()
+    // Быстрая локальная проверка: сохранённый валидный токен => подключён.
+    // Refresh токена выполняется лениво при реальных операциях, чтобы не
+    // блокировать рендер страницы Cloud сетевым запросом.
+    const token = await readToken()
     return token !== null
   }
 

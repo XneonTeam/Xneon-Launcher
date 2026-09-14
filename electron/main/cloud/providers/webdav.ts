@@ -70,9 +70,11 @@ export class WebDavProvider implements CloudProvider {
   }
 
   async isAuthenticated(): Promise<boolean> {
-    const client = await getClient()
-    if (!client) return false
-    try { await client.stat("/"); return true } catch { return false }
+    // Быстрая локальная проверка: конфиг сохранён => провайдер подключён.
+    // Сетевой stat() выполняется лениво при реальных операциях, чтобы не
+    // блокировать рендер страницы Cloud.
+    const config = await readConfig()
+    return config !== null
   }
 
   async logout(): Promise<void> {

@@ -39,6 +39,20 @@ export function createWindow() {
     return { action: "deny" }
   })
 
+  // Some content (e.g. CurseForge changelogs) renders plain <a href> without a
+  // target, which would navigate the app window itself — including to broken
+  // relative "linkout" URLs. Redirect any off-app navigation to the browser.
+  win.webContents.on("will-navigate", (event, url) => {
+    const current = win.webContents.getURL()
+    try {
+      if (new URL(url).origin === new URL(current).origin) return
+    } catch {
+      // Fall through and treat malformed URLs as external.
+    }
+    event.preventDefault()
+    if (/^https?:\/\//i.test(url)) void shell.openExternal(url)
+  })
+
   win.once("ready-to-show", () => {
     logRuntime("[Window] ready-to-show")
     getMainWindow()?.show()

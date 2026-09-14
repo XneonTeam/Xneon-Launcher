@@ -73,15 +73,37 @@ export function useBuilds() {
             })
 
           if (!matched) return item
+
+          // Источник — это знание о том, ОТКУДА пользователь установил мод
+          // (curseforge/modrinth), а не догадка сканера по хэшу файла. Скан
+          // может ошибочно определить мод как modrinth, даже если он скачан с
+          // CurseForge (мод есть на обеих площадках). Поэтому известный
+          // не-local источник из matched всегда приоритетнее источника скана.
+          const matchedSource = matched.source
+          const matchedKnowsSource = matchedSource === "modrinth" || matchedSource === "curseforge"
+          const resolvedSource = matchedKnowsSource
+            ? matchedSource
+            : (item.source && item.source !== "local" ? item.source : matchedSource ?? item.source)
+
+          // Идентификаторы площадки берём только из источника, который победил,
+          // чтобы curseforge-мод не получил modrinth projectId и наоборот.
+          const sameSourceAsResolved = item.source === resolvedSource
+          const resolvedProjectId = resolvedSource === "modrinth"
+            ? (item.projectId ?? matched.projectId)
+            : undefined
+          const resolvedModId = resolvedSource === "curseforge"
+            ? (item.modId ?? matched.modId)
+            : undefined
+
           return {
             ...item,
             slug: matched.slug || item.slug,
             name: item.name && item.name.length > 1 ? item.name : matched.name || item.name,
             description: matched.description || item.description,
             icon_url: matched.icon_url || item.icon_url,
-            source: item.source && item.source !== "local" ? item.source : matched.source ?? item.source,
-            projectId: item.projectId ?? matched.projectId,
-            modId: item.modId ?? matched.modId,
+            source: resolvedSource,
+            projectId: sameSourceAsResolved ? resolvedProjectId : matched.projectId,
+            modId: sameSourceAsResolved ? resolvedModId : matched.modId,
             author: matched.author || item.author,
             version: item.version && item.version !== "local"
               ? item.version

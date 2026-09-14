@@ -132,7 +132,13 @@ export class YandexDiskProvider implements CloudProvider {
     })
   }
 
-  async isAuthenticated(): Promise<boolean> { return (await getValidToken()) !== null }
+  async isAuthenticated(): Promise<boolean> {
+    // Быстрая локальная проверка: сохранённый токен => подключён.
+    // Refresh токена выполняется лениво при реальных операциях, чтобы не
+    // блокировать рендер страницы Cloud сетевым запросом.
+    const token = await readToken()
+    return token !== null
+  }
   async logout(): Promise<void> {
     try { await dbHelpers.removeCloudConfig("yandex") } catch { /* noop */ }
   }
