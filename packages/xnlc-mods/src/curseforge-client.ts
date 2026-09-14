@@ -213,26 +213,63 @@ function sortCFSearchItems(items: any[], sortBy: ModSort): any[] {
   return sorted;
 }
 
+// Official CurseForge `FileRelationType` values (see CF "Mod dependencies and
+// file relationships" docs): 0 None, 1 EmbeddedLibrary, 2 OptionalDependency,
+// 3 RequiredDependency, 4 Tool, 5 Incompatible, 6 Include.
 const CF_DEP_TYPE_MAP: Record<number, ModDependency["dependencyType"]> = {
-  1: "required",
+  0: "embedded",
+  1: "embedded",
   2: "optional",
-  3: "incompatible",
-  4: "embedded",
+  3: "required",
+  4: "optional",
+  5: "incompatible",
+  6: "embedded",
+}
+
+/**
+ * CurseForge encodes the release channel in `releaseType`
+ * (1 = release, 2 = beta, 3 = alpha). Some proxies/endpoints omit it, so fall
+ * back to an explicit "alpha"/"beta" marker in the file/display name. Never
+ * match a bare "a"/"b" letter: it produces false positives (e.g. any word
+ * containing it), which is why stable files were being flagged as beta.
+ */
+function detectCFReleaseType(f: any): ModVersion["versionType"] {
+  const raw = Number(f?.releaseType);
+  if (raw === 1) return "release";
+  if (raw === 2) return "beta";
+  if (raw === 3) return "alpha";
+
+  const haystack = `${f?.fileName ?? ""} ${f?.displayName ?? ""}`.toLowerCase();
+  if (/alpha/.test(haystack)) return "alpha";
+  if (/beta/.test(haystack)) return "beta";
+  return "release";
+}
+
+// CurseForge mixes environment markers (Client/Server), mod loaders and the
+// actual Minecraft version into a single `gameVersions` array. Only the MC
+// version belongs in `gameVersion`; loaders are surfaced separately via
+// `loaders` and the environment is irrelevant (the launcher is client-only).
+const CF_GAME_VERSION_NOISE = new Set(["client", "server", "fabric", "forge", "quilt", "neoforge", "neo forge", "liteloader", "cauldron"]);
+
+function extractCFGameVersion(gameVersions: unknown[]): string {
+  return gameVersions
+    .map(v => String(v ?? "").trim())
+    .filter(v => v && !CF_GAME_VERSION_NOISE.has(v.toLowerCase()))
+    .join(", ");
 }
 
 function normalizeCFVersion(f: any): ModVersion {
   const gameVersions = Array.isArray(f.gameVersions) ? f.gameVersions : [];
-  const releaseType = Number(f.releaseType ?? 1);
   return {
     id: String(f.id ?? ""),
     name: f.displayName ?? f.fileName ?? `v${f.id}`,
     versionNumber: f.displayName ?? undefined,
-    gameVersion: gameVersions.join(", "),
+    gameVersion: extractCFGameVersion(gameVersions),
     downloadCount: f.downloadCount ?? 0,
     fileName: f.fileName ?? "",
     fileSize: f.fileLength ?? 0,
     loaders: detectCFLoaders(gameVersions),
-    versionType: releaseType === 1 ? "release" : releaseType === 2 ? "beta" : "alpha",
+    versionType: detectCFReleaseType(f),
     datePublished: typeof f.fileDate === "string" ? f.fileDate : undefined,
     dependencies: (f.dependencies ?? []).map((d: any) => ({
       projectId: String(d.modId ?? ""),

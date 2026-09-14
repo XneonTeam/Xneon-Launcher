@@ -27,22 +27,29 @@ export function CloudPage() {
 
   useEffect(() => {
     if (!api) { setChecking(false); return }
-    api.cloudListProviders().then(setProviders).catch(() => setProviders([]))
-    checkAnyConnected()
+    let cancelled = false
+    api.cloudListProviders()
+      .then((provs) => {
+        if (cancelled) return
+        setProviders(provs)
+        setChecking(false)
+        // Проверяем статусы подключения параллельно и не блокируем рендер карточек.
+        void checkAnyConnected(provs)
+      })
+      .catch(() => { if (!cancelled) { setProviders([]); setChecking(false) } })
+    return () => { cancelled = true }
   }, [])
 
-  const checkAnyConnected = useCallback(async () => {
-    if (!api) { setChecking(false); return }
-    try {
-      const provs = await api.cloudListProviders()
-      const ids = new Set<string>()
-      for (const p of provs) {
-        const ok = await api.cloudIsConnected(p.id)
-        if (ok) ids.add(p.id)
-      }
-      setConnectedIds(ids)
-    } catch { /* noop */ }
-    setChecking(false)
+  const checkAnyConnected = useCallback(async (provs: ProviderInfo[]) => {
+    if (!api || provs.length === 0) return
+    const results = await Promise.all(
+      provs.map(async (p) => {
+        try { return { id: p.id, ok: await api.cloudIsConnected(p.id) } }
+        catch { return { id: p.id, ok: false } }
+      })
+    )
+    const ids = new Set(results.filter(r => r.ok).map(r => r.id))
+    setConnectedIds(ids)
   }, [])
 
   const handleConnect = useCallback(async (providerId: string) => {

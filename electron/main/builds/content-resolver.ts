@@ -199,6 +199,72 @@ export async function resolveContentEntry(filePath: string): Promise<ResolvedCon
   }
 }
 
+/**
+ * Enriches cache entries with Modrinth metadata in the background: the network
+ * resolution (hash -> project/version) runs AFTER the local result has been
+ * returned, so the UI does not wait for the API. Results are written to the DB
+ * and picked up on the next scan/refetch.
+ */
+function enrichWithModrinthInBackground(toParse: Array<{ filePath: string; sha1: string }>): void {
+  if (toParse.length === 0) return
+  void (async () => {
+    try {
+      const missingSha1s = [...new Set(toParse.map((entry) => entry.sha1))]
+      const mods = await loadModsModule()
+      const mrMap = await mods.modrinthGetFilesByHash(missingSha1s)
+
+      const projectIds = [...new Set(Object.values(mrMap).map((m) => m.projectId))]
+      const versionIds = [...new Set(Object.values(mrMap).map((m) => m.versionId).filter(Boolean))]
+
+      let projectInfoMap: Record<string, { iconUrl: string; author?: string }> = {}
+      let versionInfoMap: Record<string, { versionNumber?: string; name?: string }> = {}
+      try {
+        const [pMap, vMap] = await Promise.all([
+          mods.modrinthGetProjectsByIds(projectIds),
+          mods.modrinthGetVersionsByIds(versionIds),
+        ])
+        projectInfoMap = pMap
+        versionInfoMap = vMap
+      } catch {}
+
+      for (const { filePath, sha1 } of toParse) {
+        const found = mrMap[sha1]
+        if (!found) continue
+        const mrInfo = found.projectId ? projectInfoMap[found.projectId] : undefined
+        const verInfo = found.versionId ? versionInfoMap[found.versionId] : undefined
+
+        const [existing] = await dbHelpers.getResources([sha1])
+        try {
+          // Never overwrite a source that is already known (e.g. CurseForge):
+          // many mods exist on both platforms, so a hash match here is only a
+          // guess and must not clobber an authoritative platform identity.
+          if (existing?.source === "curseforge" || existing?.cfChecked === 1 || existing?.modId) continue
+
+          // At this point the record has no conflicting source, so claiming
+          // Modrinth is safe. Missing fields are filled from Modrinth data.
+          await dbHelpers.upsertResource({
+            sha1,
+            name: existing?.name || "",
+            description: existing?.description || "",
+            version: verInfo?.versionNumber || existing?.version || verInfo?.name || "",
+            icon: existing?.icon || mrInfo?.iconUrl || "",
+            author: existing?.author || mrInfo?.author || "",
+            source: "modrinth",
+            projectId: found.projectId,
+            versionId: found.versionId,
+            modId: existing?.modId ?? null,
+            fileId: existing?.fileId ?? null,
+            cfChecked: existing?.cfChecked ?? 0,
+          })
+        } catch {}
+        void filePath
+      }
+    } catch {
+      // Background Modrinth enrichment is best-effort: fail silently.
+    }
+  })()
+}
+
 export async function resolveContentEntries(filePaths: string[], onProgress?: (processed: number, total: number) => void): Promise<Record<string, ResolvedContentEntry>> {
   const result: Record<string, ResolvedContentEntry> = {}
   if (filePaths.length === 0) return result
@@ -310,75 +376,26 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
     }
   }
 
-  const missingSha1s = [...new Set(toParse.map((entry) => entry.sha1))]
-  let mrMap: Record<string, { projectId: string; versionId: string }> = {}
-  try {
-    const mods = await loadModsModule()
-    mrMap = await mods.modrinthGetFilesByHash(missingSha1s)
-  } catch {}
-
-  const uniqueProjectIds = [...new Set([
-    ...Object.values(mrMap).map((m) => m.projectId),
-    ...cachedWithoutIcon.map((c) => c.resource.projectId!).filter(Boolean),
-  ])]
-  const uniqueVersionIds = [...new Set(Object.values(mrMap).map((m) => m.versionId).filter(Boolean))]
-
-  let projectInfoMap: Record<string, { iconUrl: string; author?: string }> = {}
-  let versionInfoMap: Record<string, { versionNumber?: string; name?: string }> = {}
-  try {
-    const mods = await loadModsModule()
-    const [pMap, vMap] = await Promise.all([
-      mods.modrinthGetProjectsByIds(uniqueProjectIds),
-      mods.modrinthGetVersionsByIds(uniqueVersionIds),
-    ])
-    projectInfoMap = pMap
-    versionInfoMap = vMap
-  } catch {}
-
-  for (const { filePath, resource } of cachedWithoutIcon) {
-    const info = projectInfoMap[resource.projectId!]
-    if (info?.iconUrl) {
-      result[filePath].icon_url = info.iconUrl
-      if (info.author && !result[filePath].author) {
-        result[filePath].author = info.author
-      }
-      await dbHelpers.upsertResource({
-        sha1: resource.sha1,
-        name: resource.name,
-        description: resource.description,
-        version: resource.version,
-        icon: info.iconUrl,
-        author: info.author ?? resource.author ?? "",
-        source: resource.source,
-        projectId: resource.projectId,
-        versionId: resource.versionId,
-        modId: resource.modId,
-        fileId: resource.fileId,
-        cfChecked: resource.cfChecked,
-      })
-    }
-  }
+  // Modrinth enrichment (icons for cache entries without one) runs in the
+  // background: the UI must not wait for network calls. Data is picked up on
+  // the next scan.
+  enrichCachedIconsInBackground(cachedWithoutIcon)
 
   const parsed: Array<{ filePath: string; entry: ResolvedContentEntry }> = []
   const PARSE_CHUNK = 8
   for (let i = 0; i < toParse.length; i += PARSE_CHUNK) {
     const chunk = toParse.slice(i, i + PARSE_CHUNK)
     const chunkResults = await Promise.all(chunk.map(async ({ filePath, sha1 }) => {
+      // Local resolve: read metadata from the archive only, no network.
       const metadata = await readModMetadataFromArchive(filePath)
-      const found = mrMap[sha1]
-      const mrInfo = found?.projectId ? projectInfoMap[found.projectId] : undefined
-      const verInfo = found?.versionId ? versionInfoMap[found.versionId] : undefined
-      const resolvedVersion = verInfo?.versionNumber || metadata.version || verInfo?.name || "local"
       const entry: ResolvedContentEntry = {
         sha1,
         name: metadata.name || "",
         description: metadata.description || "",
-        version: resolvedVersion,
-        icon_url: metadata.icon_url || mrInfo?.iconUrl,
-        author: metadata.author || mrInfo?.author,
-        source: found ? "modrinth" : "local",
-        projectId: found?.projectId,
-        versionId: found?.versionId,
+        version: metadata.version || "local",
+        icon_url: metadata.icon_url,
+        author: metadata.author,
+        source: "local",
       }
       if (metadata.name) {
         await dbHelpers.upsertResource({
@@ -389,8 +406,8 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
           icon: entry.icon_url ?? "",
           author: entry.author ?? "",
           source: entry.source,
-          projectId: entry.projectId ?? null,
-          versionId: entry.versionId ?? null,
+          projectId: null,
+          versionId: null,
           modId: null,
           fileId: null,
           cfChecked: 0,
@@ -407,81 +424,98 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
     result[filePath] = entry
   }
 
-  const cfCandidates: CfCandidate[] = []
-  for (const { filePath, stat } of valid) {
-    const sha1 = sha1ByPath.get(filePath)
-    if (!sha1) continue
-    const resource = resourceBySha1.get(sha1)
-    if (!resource || resource.cfChecked === 0) {
-      cfCandidates.push({ filePath, sha1 })
-    }
-  }
-
-  if (cfCandidates.length > 0) {
-    const cfResolution = await resolveCurseforgeMatches(cfCandidates)
-    const cfMap = cfResolution.matches
-
-    const cfModIds = [...new Set(Object.values(cfMap)
-      .filter(m => m.isAvailable !== false)
-      .map(m => m.modId))]
-    let cfProjectInfoMap: Record<number, { name: string; iconUrl: string; author?: string }> = {}
-    if (cfModIds.length > 0) {
-      try {
-        const mods = await loadModsModule()
-        cfProjectInfoMap = await mods.curseforgeGetProjectsByIds(cfModIds)
-      } catch {}
-    }
-
-    for (const { filePath, sha1 } of cfCandidates) {
-      const match = cfMap[sha1]
-      // Skip hidden/removed CurseForge projects entirely: moderation-hidden
-      // projects return placeholder junk ("now"/"no") instead of real data.
-      // The file stays a local mod with its own embedded metadata. Mark the
-      // resource as checked so we don't re-query the API on every scan.
-      if (match && match.isAvailable === false) {
-        await dbHelpers.markResourcesCurseforgeChecked([sha1])
-        continue
-      }
-      if (match) {
-        const entry = result[filePath]
-        if (entry) {
-          entry.modId = match.modId
-          entry.fileId = match.fileId
-          if (entry.source !== "modrinth") entry.source = "curseforge"
-
-          const cfInfo = cfProjectInfoMap[match.modId]
-          if (cfInfo) {
-            // Metadata read from the file itself always wins — only fill gaps
-            // with CurseForge data, never overwrite what the jar already told us.
-            entry.icon_url = entry.icon_url || cfInfo.iconUrl || undefined
-            entry.author = entry.author || cfInfo.author
-          }
-        }
-        const cfInfo = cfProjectInfoMap[match.modId]
-        await dbHelpers.setResourceCurseforge(sha1, match.modId, match.fileId)
-        if (cfInfo) {
-          // Merge CurseForge project info into the cache without destroying
-          // the local metadata (previous code wiped description/version here).
-          await dbHelpers.upsertResource({
-            sha1,
-            name: entry?.name || cfInfo.name,
-            description: entry?.description || "",
-            version: entry?.version || "",
-            icon: entry?.icon_url || cfInfo.iconUrl || "",
-            author: entry?.author || cfInfo.author || "",
-            source: "curseforge",
-            projectId: null,
-            versionId: null,
-            modId: match.modId,
-            fileId: match.fileId,
-            cfChecked: 1,
-          })
-        }
-      } else if (cfResolution.ok) {
-        await dbHelpers.markResourcesCurseforgeChecked([sha1])
-      }
-    }
-  }
+  // Network enrichment (Modrinth/CurseForge) runs in the background so the
+  // return is not blocked by API calls.
+  enrichWithModrinthInBackground(toParse)
+  enrichWithCurseforgeInBackground(valid.map(({ filePath }) => ({ filePath, sha1: sha1ByPath.get(filePath) ?? "" })).filter(c => c.sha1))
 
   return result
+}
+
+/** Background Modrinth icon fetch for already-cached entries without an icon. */
+function enrichCachedIconsInBackground(
+  cachedWithoutIcon: Array<{ filePath: string; resource: Awaited<ReturnType<typeof dbHelpers.getResources>>[number] }>,
+): void {
+  if (cachedWithoutIcon.length === 0) return
+  void (async () => {
+    try {
+      const mods = await loadModsModule()
+      const projectIds = [...new Set(cachedWithoutIcon.map((c) => c.resource.projectId!).filter(Boolean))]
+      if (projectIds.length === 0) return
+      const projectInfoMap = await mods.modrinthGetProjectsByIds(projectIds)
+      for (const { resource } of cachedWithoutIcon) {
+        const info = projectInfoMap[resource.projectId!]
+        if (!info?.iconUrl) continue
+        try {
+          await dbHelpers.upsertResource({
+            sha1: resource.sha1,
+            name: resource.name,
+            description: resource.description,
+            version: resource.version,
+            icon: info.iconUrl,
+            author: info.author ?? resource.author ?? "",
+            source: resource.source,
+            projectId: resource.projectId,
+            versionId: resource.versionId,
+            modId: resource.modId,
+            fileId: resource.fileId,
+            cfChecked: resource.cfChecked,
+          })
+        } catch {}
+      }
+    } catch {}
+  })()
+}
+
+/** Background CurseForge match resolution (fingerprint -> modId/fileId). */
+function enrichWithCurseforgeInBackground(candidates: CfCandidate[]): void {
+  const pending = candidates.filter(c => c.sha1)
+  if (pending.length === 0) return
+  void (async () => {
+    try {
+      const cfResolution = await resolveCurseforgeMatches(pending)
+      const cfMap = cfResolution.matches
+      const cfModIds = [...new Set(Object.values(cfMap).filter(m => m.isAvailable !== false).map(m => m.modId))]
+      let cfProjectInfoMap: Record<number, { name: string; iconUrl: string; author?: string }> = {}
+      if (cfModIds.length > 0) {
+        try {
+          const mods = await loadModsModule()
+          cfProjectInfoMap = await mods.curseforgeGetProjectsByIds(cfModIds)
+        } catch {}
+      }
+
+      for (const { sha1 } of pending) {
+        const match = cfMap[sha1]
+        if (match && match.isAvailable === false) {
+          try { await dbHelpers.markResourcesCurseforgeChecked([sha1]) } catch {}
+          continue
+        }
+        if (match) {
+          const [existing] = await dbHelpers.getResources([sha1])
+          const cfInfo = cfProjectInfoMap[match.modId]
+          try { await dbHelpers.setResourceCurseforge(sha1, match.modId, match.fileId) } catch {}
+          if (cfInfo) {
+            try {
+              await dbHelpers.upsertResource({
+                sha1,
+                name: existing?.name || cfInfo.name,
+                description: existing?.description || "",
+                version: existing?.version || "",
+                icon: existing?.icon || cfInfo.iconUrl || "",
+                author: existing?.author || cfInfo.author || "",
+                source: "curseforge",
+                projectId: null,
+                versionId: null,
+                modId: match.modId,
+                fileId: match.fileId,
+                cfChecked: 1,
+              })
+            } catch {}
+          }
+        } else if (cfResolution.ok) {
+          try { await dbHelpers.markResourcesCurseforgeChecked([sha1]) } catch {}
+        }
+      }
+    } catch {}
+  })()
 }
