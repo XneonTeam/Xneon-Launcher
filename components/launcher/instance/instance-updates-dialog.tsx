@@ -1,19 +1,20 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IconRefresh, IconDownload, IconX, IconCheck, IconChevronDown, IconChevronRight, IconPackage, IconAlertCircle, IconLoader2, IconCircleCheck, IconFlask, IconFlame } from "@tabler/icons-react"
+import { IconRefresh, IconDownload, IconX, IconCheck, IconChevronDown, IconChevronRight, IconPackage, IconAlertCircle, IconLoader2 } from "@tabler/icons-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeRaw from "rehype-raw"
 import rehypeSanitize from "rehype-sanitize"
 import { cn } from "@/lib/utils"
+import { ChangelogContent } from "./changelog-content"
 import { PlatformBadge } from "@/components/launcher/platform-icon"
 import type { Build, ModVersion } from "./types"
 import type { BuildContentUpdates, ContentUpdateInfo, UpdateChannel } from "@xnlc/types"
 
-const CHANNELS: Array<{ id: UpdateChannel; labelKey: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }> }> = [
-  { id: "release", labelKey: "updates.channel.release", icon: IconCircleCheck },
-  { id: "beta", labelKey: "updates.channel.beta", icon: IconFlask },
-  { id: "alpha", labelKey: "updates.channel.alpha", icon: IconFlame },
+const CHANNELS: Array<{ id: UpdateChannel; labelKey: string }> = [
+  { id: "release", labelKey: "updates.channel.release" },
+  { id: "beta", labelKey: "updates.channel.beta" },
+  { id: "alpha", labelKey: "updates.channel.alpha" },
 ]
 
 const CONTENT_TYPE_LABEL_KEYS: Record<ContentUpdateInfo["contentType"], string> = {
@@ -253,31 +254,24 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
           <div className="flex items-center gap-1.5 mt-3">
             <span className="text-xs text-muted-foreground mr-1">{t("updates.channel")}</span>
             {CHANNELS.map((c) => {
-              const Icon = c.icon
               const isSelected = channel === c.id
+              const tone = c.id === "release"
+                ? "bg-green-500/15 text-green-500"
+                : c.id === "beta"
+                  ? "bg-yellow-500/15 text-yellow-500"
+                  : "bg-red-500/15 text-red-500"
               return (
                 <button
                   key={c.id}
                   type="button"
                   onClick={() => handleChannelChange(c.id)}
                   className={cn(
-                    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors",
-                    isSelected
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "bg-muted/60 border border-border text-muted-foreground hover:text-foreground hover:bg-muted",
+                    "px-1.5 py-0.5 rounded text-[10px] font-medium uppercase transition-colors",
+                    tone,
+                    isSelected ? "ring-1 ring-current" : "opacity-60 hover:opacity-100",
                   )}
                 >
-                  <Icon className={cn(
-                    "w-3.5 h-3.5 shrink-0",
-                    isSelected
-                      ? "text-primary-foreground"
-                      : c.id === "release"
-                        ? "text-green-500"
-                        : c.id === "beta"
-                          ? "text-yellow-500"
-                          : "text-orange-500"
-                  )} strokeWidth={2} />
-                  <span>{t(c.labelKey)}</span>
+                  {t(c.labelKey)}
                 </button>
               )
             })}
@@ -336,10 +330,12 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
                                 {update.source && (
                                   <PlatformBadge source={update.source} className="shrink-0 p-1" iconSize={12} />
                                 )}
-                                {update.latestVersion.versionType && update.latestVersion.versionType !== "release" && (
+                                {update.latestVersion.versionType && (
                                   <span className={cn(
                                     "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase",
-                                    update.latestVersion.versionType === "beta" ? "bg-yellow-500/10 text-yellow-500" : "bg-red-500/10 text-red-500",
+                                    update.latestVersion.versionType === "release" ? "bg-green-500/10 text-green-500"
+                                      : update.latestVersion.versionType === "beta" ? "bg-yellow-500/10 text-yellow-500"
+                                        : "bg-red-500/10 text-red-500",
                                   )}>
                                     {update.latestVersion.versionType}
                                   </span>
@@ -414,9 +410,7 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
                           )}
                           {isExpanded && !!update.latestVersion.changelog && (
                             <div className="mt-3 border-t border-border pt-3 text-sm">
-                              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, rehypeSanitize]} components={mdComponents}>
-                                {update.latestVersion.changelog}
-                              </ReactMarkdown>
+                              <ChangelogContent content={update.latestVersion.changelog} components={mdComponents} />
                             </div>
                           )}
                         </div>

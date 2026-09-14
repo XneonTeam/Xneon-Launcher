@@ -259,13 +259,15 @@ export function ModpackChangeVersionDialog({
                       <span className="font-semibold text-sm text-foreground truncate">
                         {v.name || v.versionNumber || v.id}
                       </span>
-                      {v.versionType && v.versionType !== "release" && (
+                      {v.versionType && (
                         <span
                           className={cn(
                             "px-1.5 py-0.5 rounded text-[10px] font-medium uppercase",
-                            v.versionType === "beta"
-                              ? "bg-yellow-500/15 text-yellow-500"
-                              : "bg-red-500/15 text-red-500"
+                            v.versionType === "release"
+                              ? "bg-green-500/15 text-green-500"
+                              : v.versionType === "beta"
+                                ? "bg-yellow-500/15 text-yellow-500"
+                                : "bg-red-500/15 text-red-500"
                           )}
                         >
                           {v.versionType}

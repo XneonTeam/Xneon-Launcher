@@ -188,12 +188,12 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     const normalizedSlug = normalizeContentIdentity(slug)
     const installedSlug = normalizeContentIdentity(installedMod.slug)
     const installedName = normalizeContentIdentity(installedMod.name)
-    return Boolean(normalizedSlug) && (
-      installedSlug === normalizedSlug
-      || installedName === normalizedSlug
-      || installedSlug.includes(normalizedSlug)
-      || normalizedSlug.includes(installedName)
-    )
+    if (!normalizedSlug || (!installedSlug && !installedName)) return false
+
+    // Exact identity only. Partial matching is unsafe here: "sodium" would
+    // otherwise be treated as installed because of "sodium-extra" /
+    // "reese's sodium options" being present in the build.
+    return installedSlug === normalizedSlug || installedName === normalizedSlug
   }, [])
 
   const doDownloadMod = useCallback(async (
