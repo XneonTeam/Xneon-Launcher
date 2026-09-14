@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useState, useDeferredValue, useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import { IconSearch, IconUpload, IconInfoCircle, IconPlus, IconTrash, IconRefresh, IconList, IconPower, IconCheck, IconChevronDown, IconChevronRight, IconDownload, IconArrowRight, IconX, IconArrowUpCircle, IconLoader2, IconLock } from "@tabler/icons-react"
+import { IconSearch, IconUpload, IconTrash, IconRefresh, IconList, IconPower, IconCheck, IconChevronDown, IconChevronRight, IconDownload, IconArrowRight, IconX, IconArrowUpCircle, IconLock } from "@tabler/icons-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeRaw from "rehype-raw"
@@ -14,8 +14,10 @@ import { Pagination } from "./pagination"
 import { formatDownloads, matchesBuildVersion } from "./utils"
 import { InstanceUpdatesDialog } from "./instance-updates-dialog"
 import { LoaderIcon } from "./loader-icon"
-import { CategoryBadge } from "./category-badge"
-import { PlatformIcon } from "@/components/launcher/platform-icon"
+import { ChangelogContent } from "./changelog-content"
+import { AddonRow } from "@/components/launcher/addon-row"
+import { ProviderIcon } from "@/components/launcher/provider-icon"
+import { SourceMark } from "@/components/launcher/source-mark"
 import type { Build, BuildMod, ModSearchResult, ModSort, SearchSource, ModVersion } from "./types"
 import type { ModCategory } from "@xnlc/types"
 import type { SelectedModCategory } from "./use-mod-search"
@@ -55,28 +57,6 @@ function normalizeContentIdentity(value?: string): string {
     .toLowerCase()
     .replace(/\.(jar|zip)$/gi, "")
     .replace(/[\W_]+/g, "")
-}
-
-function ProviderIcon({ source, className }: { source: string; className?: string }) {
-  if (source === "modrinth") {
-    return (
-      <span className={`inline-flex items-center justify-center rounded-md bg-green-500/15 ${className ?? "w-5 h-5"}`}>
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">
-          <path fill="#26a269" d="M12.252.004a11.78 11.768 0 0 0-8.92 3.73a11 11 0 0 0-2.17 3.11a11.37 11.359 0 0 0-1.16 5.169c0 1.42.17 2.5.6 3.77c.24.759.77 1.899 1.17 2.529a12.3 12.298 0 0 0 8.85 5.639c.44.05 2.54.07 2.76.02c.2-.04.22.1-.26-1.7l-.36-1.37l-1.01-.06a8.5 8.489 0 0 1-5.18-1.8a5.3 5.3 0 0 1-1.3-1.26c0-.05.34-.28.74-.5a37.572 37.545 0 0 1 2.88-1.629c.03 0 .5.45 1.06.98l1 .97l2.07-.43l2.06-.43l1.47-1.47c.8-.8 1.48-1.5 1.48-1.52c0-.09-.42-1.63-.46-1.7c-.04-.06-.2-.03-1.02.18c-.53.13-1.2.3-1.45.4l-.48.15l-.53.53l-.53.53l-.93.1l-.93.07l-.52-.5a2.7 2.7 0 0 1-.96-1.7l-.13-.6l.43-.57c.68-.9.68-.9 1.46-1.1c.4-.1.65-.2.83-.33c.13-.099.65-.579 1.14-1.069l.9-.9l-.7-.7l-.7-.7l-1.95.54c-1.07.3-1.96.53-1.97.53c-.03 0-2.23 2.48-2.63 2.97l-.29.35l.28 1.03c.16.56.3 1.16.31 1.34l.03.3l-.34.23c-.37.23-2.22 1.3-2.84 1.63-.36.2-.37.2-.44.1c-.08-.1-.23-.6-.32-1.03c-.18-.86-.17-2.75.02-3.73a8.84 8.84 0 0 1 7.9-6.93c.43-.03.77-.08.78-.1c.06-.17.5-2.999.47-3.039c-.01-.02-.1-.02-.2-.03Zm3.68.67c-.2 0-.3.1-.37.38c-.06.23-.46 2.42-.46 2.52c0 .04.1.11.22.16a8.51 8.499 0 0 1 2.99 2a8.38 8.379 0 0 1 2.16 3.449a6.9 6.9 0 0 1 .4 2.8c0 1.07 0 1.27-.1 1.73a9.4 9.4 0 0 1-1.76 3.769c-.32.4-.98 1.06-1.37 1.38c-.38.32-1.54 1.1-1.7 1.14c-.1.03-.1.06-.07.26c.03.18.64 2.56.7 2.78l.06.06a12.07 12.058 0 0 0 7.27-9.4c.13-.77.13-2.58 0-3.4a11.96 11.948 0 0 0-5.73-8.578c-.7-.42-2.05-1.06-2.25-1.06Z"/>
-        </svg>
-      </span>
-    )
-  }
-  if (source === "curseforge") {
-    return (
-      <span className="inline-flex items-center justify-center rounded-md bg-orange-500/15 w-5 h-5">
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">
-          <path fill="#e66100" d="M18.326 9.215s4.9-.773 5.674-3.027h-7.507V4.4H0l2.032 2.358v2.415s5.127-.266 7.11 1.237c2.714 2.516-3.053 5.917-3.053 5.917l-.99 3.273c1.547-1.473 4.494-3.377 9.899-3.286c-2.057.65-4.125 1.665-5.735 3.286h10.925l-1.029-3.273s-7.918-4.668-.833-7.112"/>
-        </svg>
-      </span>
-    )
-  }
-  return null
 }
 
 interface InstanceContentTabProps {
@@ -173,6 +153,8 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   const [versionPickerLoading, setVersionPickerLoading] = useState(false)
   const [selectedPickerVersion, setSelectedPickerVersion] = useState<ModVersion | null>(null)
   const [updatingSlug, setUpdatingSlug] = useState<string | null>(null)
+  const [cfChangelogs, setCfChangelogs] = useState<Record<string, string>>({})
+  const [loadingPickerChangelog, setLoadingPickerChangelog] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState<{ fileName: string; current: number; total: number } | null>(null)
   const [catDialogOpen, setCatDialogOpen] = useState(false)
   const [draftCats, setDraftCats] = useState<SelectedModCategory[]>([])
@@ -205,6 +187,31 @@ export const InstanceContentTab = memo(function InstanceContentTab({
     window.addEventListener("content-updates-changed", handler)
     return () => window.removeEventListener("content-updates-changed", handler)
   }, [refreshUpdatesCount])
+
+  // CurseForge не отдаёт changelog вместе со списком файлов — подтягиваем его
+  // отдельным запросом для раскрытой версии в диалоге обновления.
+  useEffect(() => {
+    const item = versionPickerItem
+    if (!item || item.source !== "curseforge" || !item.modId) return
+    const ver = selectedPickerVersion
+    if (!ver) return
+    if (ver.changelog || cfChangelogs[ver.id]) return
+
+    const fileId = Number(ver.id)
+    if (!fileId || isNaN(fileId)) return
+
+    let cancelled = false
+    setLoadingPickerChangelog(true)
+    void window.electronAPI?.modsCurseforgeChangelog(item.modId, fileId)
+      .then((text) => {
+        if (cancelled) return
+        setCfChangelogs(prev => ({ ...prev, [ver.id]: text || "" }))
+      })
+      .catch(() => { /* ignore */ })
+      .finally(() => { if (!cancelled) setLoadingPickerChangelog(false) })
+
+    return () => { cancelled = true }
+  }, [versionPickerItem, selectedPickerVersion, cfChangelogs])
 
   useEffect(() => {
     const off = window.electronAPI?.onContentDownloadProgress?.((progress) => {
@@ -506,7 +513,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="text-sm font-medium text-foreground break-words truncate">{item.name}</span>
                         {item.source && item.source !== "local" && (
-                          <PlatformIcon source={item.source} className="opacity-80 shrink-0" size={12} />
+                          <SourceMark source={item.source} className="shrink-0" />
                         )}
                       </div>
                       {item.author && (
@@ -536,6 +543,9 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                             const shown = compatible.length > 0 ? compatible : (gameOnly.length > 0 ? gameOnly : list)
                             setVersionPickerVersions(shown)
                             setVersionPickerLoading(false)
+                            // Раскрываем changelog установленной версии сразу.
+                            const current = shown.find(v => v.name === item.version || v.id === item.version)
+                            if (current) setSelectedPickerVersion(current)
                           })
                         }}
                         className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
@@ -582,110 +592,29 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                       ? Math.min(100, Math.round((downloadProgress.current / downloadProgress.total) * 100))
                       : null
                     return (
-                    <div
-                      key={project.id}
-                      className={cn(
-                        "group min-w-0 rounded-xl border border-border bg-card px-3.5 py-2.5 transition-colors hover:border-primary/50",
-                        isInstalling && "border-primary/50 bg-primary/5",
-                      )}
-                    >
-                      <div className="flex min-w-0 items-center gap-3.5">
-                        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-muted flex-shrink-0">
-                          {project.iconUrl ? (
-                            <img src={project.iconUrl} alt="" className="h-full w-full object-cover" />
-                          ) : (
-                            <span className="text-sm font-bold text-muted-foreground">{project.name[0]}</span>
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex min-w-0 items-center gap-1.5">
-                            <p className="min-w-0 truncate text-sm font-medium text-foreground transition-colors group-hover:text-primary">{project.name}</p>
-                            {project.source === "modrinth" ? (
-                              <svg className="h-3.5 w-3.5 shrink-0 text-[#1bd96a]" viewBox="0 0 24 24" fill="currentColor"><path d="M12.252.004a11.78 11.768 0 0 0-8.92 3.73 11 10.999 0 0 0-2.17 3.11 11.37 11.359 0 0 0-1.16 5.169c0 1.42.17 2.5.6 3.77.24.759.77 1.899 1.17 2.529a12.3 12.298 0 0 0 8.85 5.639c.44.05 2.54.07 2.76.02.2-.04.22.1-.26-1.7l-.36-1.37-1.01-.06a8.5 8.489 0 0 1-5.18-1.8 5.34 5.34 0 0 1-1.3-1.26c0-.05.34-.28.74-.5a37.572 37.545 0 0 1 2.88-1.629c.03 0 .5.45 1.06.98l1 .97 2.07-.43 2.06-.43 1.47-1.47c.8-.8 1.48-1.5 1.48-1.52 0-.09-.42-1.63-.46-1.7-.04-.06-.2-.03-1.02.18-.53.13-1.2.3-1.45.4l-.48.15-.53.53-.53.53-.93.1-.93.07-.52-.5a2.7 2.7 0 0 1-.96-1.7l-.13-.6.43-.57c.68-.9.68-.9 1.46-1.1.4-.1.65-.2.83-.33.13-.099.65-.579 1.14-1.069l.9-.9-.7-.7-.7-.7-1.95.54c-1.07.3-1.96.53-1.97.53-.03 0-2.23 2.48-2.63 2.97l-.29.35.28 1.03c.16.56.3 1.16.31 1.34l.03.3-.34.23c-.37.23-2.22 1.3-2.84 1.63-.36.2-.37.2-.44.1-.08-.1-.23-.6-.32-1.03-.18-.86-.17-2.75.02-3.73a8.84 8.839 0 0 1 7.9-6.93c.43-.03.77-.08.78-.1.06-.17.5-2.999.47-3.039-.01-.02-.1-.02-.2-.03Zm3.68.67c-.2 0-.3.1-.37.38-.06.23-.46 2.42-.46 2.52 0 .04.1.11.22.16a8.51 8.499 0 0 1 2.99 2 8.38 8.379 0 0 1 2.16 3.449 6.9 6.9 0 0 1 .4 2.8c0 1.07 0 1.27-.1 1.73a9.37 9.369 0 0 1-1.76 3.769c-.32.4-.98 1.06-1.37 1.38-.38.32-1.54 1.1-1.7 1.14-.1.03-.1.06-.07.26.03.18.64 2.56.7 2.78l.06.06a12.07 12.058 0 0 0 7.27-9.4c.13-.77.13-2.58 0-3.4a11.96 11.948 0 0 0-5.73-8.578c-.7-.42-2.05-1.06-2.25-1.06Z"/></svg>
-                            ) : (
-                              <svg className="h-3.5 w-3.5 shrink-0 text-[#f16436]" viewBox="0 0 24 24" fill="currentColor"><path d="M18.326 9.2145S23.2261 8.4418 24 6.1882h-7.5066V4.4H0l2.0318 2.3576V9.173s5.1267-.2665 7.1098 1.2372c2.7146 2.516-3.053 5.917-3.053 5.917L5.0995 19.6c1.5465-1.4726 4.494-3.3775 9.8983-3.2857-2.0565.65-4.1245 1.6651-5.7344 3.2857h10.9248l-1.0288-3.2726s-7.918-4.6688-.8336-7.1127z"/></svg>
-                            )}
-                          </div>
-                          <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-                            <span className="shrink-0 text-xs text-muted-foreground">{formatDownloads(project.downloadCount)}</span>
-                            {type === "mods" && project.categories?.slice(0, 3).map(cat => (
-                              <CategoryBadge key={cat} name={cat} source={project.source} className="min-w-0 px-1.5 text-[11px]" />
-                            ))}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => openProjectModal(project)}
-                            className="flex items-center gap-1.5 rounded-lg bg-muted px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted/80"
-                          >
-                            <IconInfoCircle className="h-3.5 w-3.5" strokeWidth={1.75} />
-                            {t("builds.details")}
-                          </button>
-                          {installed ? (
-                            <span className="flex items-center justify-center gap-1.5 rounded-lg bg-primary/10 px-3.5 py-1.5 text-xs font-medium text-primary">
-                              <IconCheck className="h-3.5 w-3.5" strokeWidth={1.75} />
-                              {t("builds.installed")}
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={installingModSlug !== null}
-                              onClick={() => {
-                                if (isLocked) {
-                                  if (!confirm(`Сборка привязана к официальному модпаку.\n\nУстановка стороннего дополнения «${project.name}» поверх модпака может привести к конфликтам. Продолжить установку?`)) {
-                                    return
-                                  }
-                                }
-                                setInstallingModSlug(project.slug)
-                                const task = type === "mods"
-                                  ? installModToBuild(project)
-                                  : addContentToBuild(activeBuild.id, type, project)
-                                Promise.resolve(task).finally(() => {
-                                  setTimeout(() => setInstallingModSlug(null), 500)
-                                })
-                              }}
-                              className="flex items-center justify-center gap-1.5 min-w-[90px] rounded-lg bg-primary px-3.5 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {isInstalling ? (
-                                <>
-                                  <IconLoader2 className="h-3.5 w-3.5 animate-spin shrink-0" strokeWidth={2} />
-                                  {percent !== null && <span className="font-mono tabular-nums">{percent}%</span>}
-                                </>
-                              ) : (
-                                <>
-                                  <IconPlus className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
-                                  <span>{t("builds.add")}</span>
-                                </>
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {isInstalling && (
-                        <div className="mt-2.5 pt-2 border-t border-border/50">
-                          <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                            <span className="flex items-center gap-1.5 min-w-0">
-                              <IconLoader2 className="h-3 w-3 shrink-0 animate-spin text-primary" strokeWidth={2} />
-                              <span className="truncate">Установка...</span>
-                            </span>
-                            <span className="shrink-0 font-mono tabular-nums">
-                              {percent !== null ? `${percent}%` : ""}
-                            </span>
-                          </div>
-                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                            <div
-                              className={cn(
-                                "h-full rounded-full bg-primary transition-[width] duration-200 ease-out",
-                                percent === null && "animate-pulse",
-                              )}
-                              style={{ width: percent === null ? "100%" : `${Math.max(2, percent)}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                      <AddonRow
+                        key={project.id}
+                        project={project}
+                        installed={installed}
+                        installing={isInstalling}
+                        percent={percent}
+                        showCategories={type === "mods"}
+                        installDisabled={installingModSlug !== null}
+                        installLabel={t("builds.add")}
+                        confirmMessage={isLocked
+                          ? `Сборка привязана к официальному модпаку.\n\nУстановка стороннего дополнения «${project.name}» поверх модпака может привести к конфликтам. Продолжить установку?`
+                          : undefined}
+                        onDetails={() => openProjectModal(project)}
+                        onInstall={() => {
+                          setInstallingModSlug(project.slug)
+                          const task = type === "mods"
+                            ? installModToBuild(project)
+                            : addContentToBuild(activeBuild.id, type, project)
+                          Promise.resolve(task).finally(() => {
+                            setTimeout(() => setInstallingModSlug(null), 500)
+                          })
+                        }}
+                      />
                     )
                   })}
                 </div>
@@ -754,10 +683,9 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                       <button
                         key={ver.id}
                         type="button"
-                        disabled={!!isCurrent && !isSelected}
                         onClick={() => setSelectedPickerVersion(isSelected ? null : ver)}
                         className={cn(
-                          "w-full text-left p-4 rounded-xl border transition-colors disabled:cursor-not-allowed",
+                          "w-full text-left p-4 rounded-xl border transition-colors",
                           isSelected
                             ? "border-primary bg-primary/5"
                             : isCurrent
@@ -814,14 +742,26 @@ export const InstanceContentTab = memo(function InstanceContentTab({
 
                         {isSelected && (
                           <div className="mt-4 pt-4 border-t border-border">
-                            {ver.changelog ? (
-                              <div className="text-sm text-muted-foreground">
-                                <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Что изменилось</div>
-                                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, rehypeSanitize]} components={mdComponents}>{ver.changelog}</ReactMarkdown>
-                              </div>
-                            ) : (
-                              <p className="text-sm text-muted-foreground">Нет описания изменений</p>
-                            )}
+                            {(() => {
+                              const changelogText = ver.changelog || cfChangelogs[ver.id]
+                              if (changelogText) {
+                                return (
+                                  <div className="text-sm text-muted-foreground">
+                                    <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Что изменилось</div>
+                                    <ChangelogContent content={changelogText} components={mdComponents} />
+                                  </div>
+                                )
+                              }
+                              if (loadingPickerChangelog) {
+                                return (
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+                                    <IconRefresh className="h-3.5 w-3.5 animate-spin text-primary" strokeWidth={1.75} />
+                                    <span>Загрузка описания изменений...</span>
+                                  </div>
+                                )
+                              }
+                              return <p className="text-sm text-muted-foreground">Нет описания изменений</p>
+                            })()}
 
                             <div className="flex items-center gap-3 mt-4">
                               {ver.files && ver.files.length > 0 && (
