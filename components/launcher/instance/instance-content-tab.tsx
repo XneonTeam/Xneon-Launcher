@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useState, useDeferredValue, useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import { IconSearch, IconUpload, IconTrash, IconRefresh, IconList, IconPower, IconCheck, IconChevronDown, IconChevronRight, IconDownload, IconArrowRight, IconX, IconArrowUpCircle, IconLock } from "@tabler/icons-react"
+import { IconSearch, IconUpload, IconTrash, IconRefresh, IconList, IconPower, IconCheck, IconChevronDown, IconChevronRight, IconDownload, IconArrowRight, IconX, IconArrowUpCircle, IconLock, IconAlertTriangle } from "@tabler/icons-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeRaw from "rehype-raw"
@@ -21,7 +21,7 @@ import { SourceMark } from "@/components/launcher/source-mark"
 import type { Build, BuildMod, ModSearchResult, ModSort, SearchSource, ModVersion } from "./types"
 import type { ModCategory } from "@xnlc/types"
 import type { SelectedModCategory } from "./use-mod-search"
-import { SORT_LABELS, SORT_OPTIONS_BY_SOURCE } from "./sort-options"
+import { getSortLabels, SORT_OPTIONS_BY_SOURCE } from "./sort-options"
 
 const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
   h1: ({ children }) => <h1 className="text-2xl font-bold text-foreground mt-6 mb-3 pb-2 border-b border-border">{children}</h1>,
@@ -164,6 +164,29 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   const [collapsedSourceGroups, setCollapsedSourceGroups] = useState<Set<string>>(() => new Set())
   const [updatesOpen, setUpdatesOpen] = useState(false)
   const [updatesCount, setUpdatesCount] = useState(0)
+  const [loaderRequirementReport, setLoaderRequirementReport] = useState<BuildLoaderRequirementReport | null>(null)
+  const [loaderWarningDismissed, setLoaderWarningDismissed] = useState(false)
+
+  // Требование мода к версии загрузчика есть только внутри JAR, поэтому оно
+  // читается из файлов сборки и сравнивается с выбранной версией загрузчика.
+  useEffect(() => {
+    if (type !== "mods" || !activeBuild.name || !activeBuild.loaderVersion) {
+      setLoaderRequirementReport(null)
+      return
+    }
+    setLoaderWarningDismissed(false)
+    let cancelled = false
+    window.electronAPI
+      ?.checkBuildLoaderRequirements(activeBuild.name, activeBuild.modLoader, activeBuild.loaderVersion)
+      .then(report => { if (!cancelled) setLoaderRequirementReport(report) })
+      .catch(() => { if (!cancelled) setLoaderRequirementReport(null) })
+    return () => { cancelled = true }
+  }, [type, activeBuild.name, activeBuild.modLoader, activeBuild.loaderVersion, activeBuild.mods.length])
+
+  const loaderIssues = useMemo(
+    () => (loaderRequirementReport?.issues ?? []).filter(issue => !issue.satisfied),
+    [loaderRequirementReport],
+  )
 
   const refreshUpdatesCount = useCallback(async () => {
     try {
@@ -229,7 +252,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
       {isLocked && (
         <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl border border-amber-500/20 bg-amber-500/5 text-xs text-amber-500/90">
           <IconLock className="w-4 h-4 shrink-0" />
-          <span>Инстанс привязан к официальному модпаку. Параметры ядра заблокированы в общих настройках.</span>
+          <span>{t("buildDetail.lockedBanner")}</span>
         </div>
       )}
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -249,7 +272,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="both">Обе платформы</SelectItem>
+              <SelectItem value="both">{t("servers.addons.bothPlatforms")}</SelectItem>
               <SelectItem value="modrinth">Modrinth</SelectItem>
               <SelectItem value="curseforge">CurseForge</SelectItem>
             </SelectContent>
@@ -260,7 +283,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
             </SelectTrigger>
             <SelectContent>
               {SORT_OPTIONS_BY_SOURCE[modSource].map((id) => (
-                <SelectItem key={id} value={id}>{SORT_LABELS[id]}</SelectItem>
+                <SelectItem key={id} value={id}>{getSortLabels(t)[id]}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -278,17 +301,17 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                 }`}
               >
                 <IconList className="w-4 h-4" strokeWidth={1.75} />
-                {(modCategories?.length ?? 0) > 0 ? `${modCategories!.length} кат.` : "Категории"}
+                {(modCategories?.length ?? 0) > 0 ? t("servers.addons.categoriesCount", { count: modCategories!.length }) : t("servers.addons.categories")}
               </button>
             </DialogTrigger>
             <DialogContent className="max-w-md max-h-[70vh] flex flex-col">
               <DialogHeader>
-                <DialogTitle>Категории</DialogTitle>
-                <DialogDescription>Выбери категории и нажми «Найти»</DialogDescription>
+                <DialogTitle>{t("servers.addons.categoriesTitle")}</DialogTitle>
+                <DialogDescription>{t("servers.addons.categoriesDesc")}</DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-1 overflow-y-auto flex-1 min-h-0 pr-1">
                 {filteredCategories.length === 0 && (
-                  <p className="text-xs text-muted-foreground py-2">Нет категорий для этого типа контента</p>
+                  <p className="text-xs text-muted-foreground py-2">{t("servers.addons.noCategories")}</p>
                 )}
                 {(() => {
                   const groups = new Map<string, ContentCategory[]>()
@@ -298,7 +321,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                     if (list) list.push(cat)
                     else groups.set(key, [cat])
                   }
-                  const groupLabels: Record<string, string> = { modrinth: "Modrinth", curseforge: "CurseForge", both: "Обе платформы" }
+                  const groupLabels: Record<string, string> = { modrinth: "Modrinth", curseforge: "CurseForge", both: t("servers.addons.bothPlatforms") }
                   return [...groups.entries()].map(([key, cats]) => {
                     const collapsed = collapsedSourceGroups.has(key)
                     return (
@@ -374,7 +397,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                   onClick={() => setDraftCats([])}
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
                 >
-                  Сбросить все
+                  {t("buildDetail.resetAll")}
                 </button>
               )}
               <div className="flex justify-end gap-2 mt-3">
@@ -383,7 +406,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                   onClick={() => setCatDialogOpen(false)}
                   className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  Отмена
+                  {t("common.cancel")}
                 </button>
                 <button
                   type="button"
@@ -394,7 +417,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                   className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
                 >
                   <IconSearch className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  Найти
+                  {t("buildDetail.search.submit")}
                 </button>
               </div>
             </DialogContent>
@@ -424,10 +447,48 @@ export const InstanceContentTab = memo(function InstanceContentTab({
       </div>
 
       <div className="flex flex-1 min-h-0 flex-col gap-4">
+        {loaderIssues.length > 0 && !loaderWarningDismissed && (
+          <div className="shrink-0 rounded-2xl border border-[#FF6625]/40 bg-[#FF6625]/10 p-3">
+            <div className="flex items-start gap-2">
+              <IconAlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#FF6625]" strokeWidth={1.75} />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-foreground">
+                  {t("builds.loaderVersionMismatch", {
+                    total: loaderIssues.length,
+                    loader: `${activeBuild.modLoader} ${activeBuild.loaderVersion}`,
+                  })}
+                </p>
+                <ul className="mt-1.5 space-y-0.5">
+                  {loaderIssues.slice(0, 5).map(issue => (
+                    <li key={issue.fileName} className="truncate text-xs text-muted-foreground">
+                      <span className="text-foreground/90">{issue.modName || issue.fileName}</span>
+                      {" — "}
+                      {t("builds.loaderVersionRequired", { loader: issue.loaderId, requirement: issue.requirement })}
+                    </li>
+                  ))}
+                  {loaderIssues.length > 5 && (
+                    <li className="text-xs text-muted-foreground">
+                      {t("builds.loaderVersionMore", { more: loaderIssues.length - 5 })}
+                    </li>
+                  )}
+                </ul>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLoaderWarningDismissed(true)}
+                className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+                aria-label={t("servers.cancel")}
+              >
+                <IconX className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="grid gap-3 min-h-0 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
           <div className="flex flex-col min-h-0 rounded-2xl border border-border bg-card/50 p-4">
             <div className="mb-2 flex items-center justify-between gap-3 shrink-0">
-              <h3 className="text-sm font-medium text-foreground">Установлено</h3>
+              <h3 className="text-sm font-medium text-foreground">{t("builds.installed")}</h3>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
@@ -497,8 +558,8 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                       type="button"
                       onClick={() => toggleItemEnabled(activeBuild.id, type, item.id)}
                       className={`mt-0.5 rounded-lg border p-2 transition-colors hover:bg-muted/80 ${isEnabled ? 'border-primary/40 text-primary' : 'border-border text-muted-foreground'}`}
-                      aria-label={isEnabled ? "Отключить" : "Включить"}
-                      title={isEnabled ? "Отключить" : "Включить"}
+                      aria-label={isEnabled ? t("common.disable") : t("common.enable")}
+                      title={isEnabled ? t("common.disable") : t("common.enable")}
                     >
                       <IconPower className={`h-4 w-4 ${isEnabled ? 'fill-primary/20' : ''}`} strokeWidth={1.75} />
                     </button>
@@ -549,8 +610,8 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                           })
                         }}
                         className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-                        aria-label="Обновить"
-                        title="Обновить"
+                        aria-label={t("common.refresh")}
+                        title={t("common.refresh")}
                       >
                         <IconRefresh className="h-4 w-4" strokeWidth={1.75} />
                       </button>
@@ -562,8 +623,8 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                           void removeContentFromBuild(activeBuild.id, type, item).finally(() => setRemovingSlug(null))
                         }}
                         className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-60"
-                        aria-label="Удалить"
-                        title="Удалить"
+                        aria-label={t("common.delete")}
+                        title={t("common.delete")}
                       >
                         <IconTrash className="h-4 w-4" strokeWidth={1.75} />
                       </button>
@@ -578,7 +639,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
             <div className="flex items-center justify-between shrink-0">
               <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
               {!modLoading && displayResults.length > 0 && (
-                <span className="text-xs text-muted-foreground">{formatDownloads(modTotalHits)} результатов</span>
+                <span className="text-xs text-muted-foreground">{t("buildDetail.resultsCount", { count: formatDownloads(modTotalHits) })}</span>
               )}
             </div>
 
@@ -602,7 +663,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                         installDisabled={installingModSlug !== null}
                         installLabel={t("builds.add")}
                         confirmMessage={isLocked
-                          ? `Сборка привязана к официальному модпаку.\n\nУстановка стороннего дополнения «${project.name}» поверх модпака может привести к конфликтам. Продолжить установку?`
+                          ? t("buildDetail.lockedInstallConfirm", { name: project.name })
                           : undefined}
                         onDetails={() => openProjectModal(project)}
                         onInstall={() => {
@@ -628,7 +689,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
               ) : (
                 <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-border text-center">
                   <IconSearch className="mb-2 h-6 w-6 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">Начни поиск, чтобы добавить новый контент в сборку</p>
+                  <p className="text-sm text-muted-foreground">{t("addon.search.startHint")}</p>
                 </div>
               )}
             </div>
@@ -653,8 +714,8 @@ export const InstanceContentTab = memo(function InstanceContentTab({
             <div className="p-5 border-b border-border flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-bold text-foreground">Обновить {versionPickerItem?.name}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">Текущая версия: {versionPickerItem?.version}</p>
+                  <h3 className="text-lg font-bold text-foreground">{t("addon.updateTitle", { name: versionPickerItem?.name })}</h3>
+                  <p className="text-sm text-muted-foreground mt-1">{t("addon.currentVersion", { version: versionPickerItem?.version })}</p>
                 </div>
                 <button
                   onClick={() => { setVersionPickerItem(null); setSelectedPickerVersion(null) }}
@@ -671,7 +732,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                   <IconRefresh className="h-5 w-5 animate-spin text-muted-foreground" strokeWidth={1.75} />
                 </div>
               ) : versionPickerVersions.length === 0 ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">Нет доступных версий</p>
+                <p className="py-6 text-center text-sm text-muted-foreground">{t("addon.versions.unavailable")}</p>
               ) : (
                 <div className="space-y-2">
                   {versionPickerVersions.map((ver) => {
@@ -700,11 +761,11 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                               {isCurrent && (
                                 <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                                   <IconCheck className="w-3 h-3" />
-                                  Текущая
+                                  {t("addon.versions.current")}
                                 </span>
                               )}
                               {isOlder && !isCurrent && (
-                                <span className="text-xs text-muted-foreground">Старая</span>
+                                <span className="text-xs text-muted-foreground">{t("addon.versions.older")}</span>
                               )}
                             </div>
                             <div className="flex items-center gap-3 mt-1">
@@ -747,7 +808,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                               if (changelogText) {
                                 return (
                                   <div className="text-sm text-muted-foreground">
-                                    <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Что изменилось</div>
+                                    <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">{t("addon.changelog.whatsChanged")}</div>
                                     <ChangelogContent content={changelogText} components={mdComponents} />
                                   </div>
                                 )
@@ -756,22 +817,22 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                                 return (
                                   <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
                                     <IconRefresh className="h-3.5 w-3.5 animate-spin text-primary" strokeWidth={1.75} />
-                                    <span>Загрузка описания изменений...</span>
+                                    <span>{t("addon.changelog.loadingDescription")}</span>
                                   </div>
                                 )
                               }
-                              return <p className="text-sm text-muted-foreground">Нет описания изменений</p>
+                              return <p className="text-sm text-muted-foreground">{t("addon.changelog.emptyDescription")}</p>
                             })()}
 
                             <div className="flex items-center gap-3 mt-4">
                               {ver.files && ver.files.length > 0 && (
                                 <span className="text-xs text-muted-foreground">
-                                  Файлов: {ver.files.length}
+                                  {t("addon.filesCount", { count: ver.files.length })}
                                 </span>
                               )}
                               {ver.downloadCount !== undefined && (
                                 <span className="text-xs text-muted-foreground">
-                                  Загрузок: {ver.downloadCount.toLocaleString()}
+                                  {t("addon.downloadsCount", { count: ver.downloadCount.toLocaleString() })}
                                 </span>
                               )}
                             </div>
@@ -794,7 +855,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                                 className="mt-4 flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 <IconDownload className="w-4 h-4" strokeWidth={1.75} />
-                                Обновить до этой версии
+                                {t("addon.updateToThisVersion")}
                               </button>
                             )}
 

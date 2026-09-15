@@ -38,6 +38,7 @@ function writeNewsCache(entries: NewsEntry[]) {
 }
 
 const NewsCard = memo(function NewsCard({ entry, height }: { entry: NewsEntry; height?: number }) {
+  const { t } = useTranslation()
   const imgUrl = entry.playPageImage?.url ?? entry.newsPageImage?.url
   const tag = entry.tag ?? entry.category ?? entry.newsType?.[0]
   const style = useMemo<CSSProperties>(() => (height ? { ...NEWS_CARD_STYLE, height } : NEWS_CARD_STYLE), [height])
@@ -53,7 +54,7 @@ const NewsCard = memo(function NewsCard({ entry, height }: { entry: NewsEntry; h
         {entry.text && <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{entry.text}</p>}
         <div className="flex items-center justify-between mt-auto pt-1">
           <span className="text-xs text-muted-foreground/70">{formatDate(entry.date)}</span>
-          {entry.readMoreLink && <button type="button" onClick={() => entry.readMoreLink && window.open(entry.readMoreLink)} className="text-xs text-primary hover:text-primary/80 transition-colors font-medium">Читать →</button>}
+          {entry.readMoreLink && <button type="button" onClick={() => entry.readMoreLink && window.open(entry.readMoreLink)} className="text-xs text-primary hover:text-primary/80 transition-colors font-medium">{t("home.readMore")}</button>}
         </div>
       </div>
     </div>

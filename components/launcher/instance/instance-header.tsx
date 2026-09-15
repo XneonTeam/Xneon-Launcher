@@ -39,7 +39,7 @@ export function InstanceHeader({ view, setView, createOpen, setCreateOpen, onCre
           className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
             view === "trash" ? "bg-red-500/20 text-red-400" : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground")}>
           <IconTrash className="w-3.5 h-3.5" strokeWidth={1.75} />
-          Корзина
+          {t("builds.trash")}
         </button>
         <div className="w-px h-6 bg-border mx-1" />
         <button key="modrinth" type="button" onClick={() => setView("modrinth")}

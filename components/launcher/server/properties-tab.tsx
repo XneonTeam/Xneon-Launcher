@@ -127,9 +127,13 @@ const GROUPS: Record<string, { labelKey: string; icon: React.ElementType }> = {
 
 interface PropertiesTabProps {
   server: McServerInfo
+  /** Даёт родителю возможность дописать несохранённые правки перед стартом сервера. */
+  flushRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  /** Свежие данные сервера после записи server.properties (порт/online-mode/слоты). */
+  onServerUpdated?: (server: McServerInfo) => void
 }
 
-export function PropertiesTab({ server }: PropertiesTabProps) {
+export function PropertiesTab({ server, flushRef, onServerUpdated }: PropertiesTabProps) {
   const { t } = useTranslation()
   const [properties, setProperties] = useState<Record<string, string> | null>(null)
   const [loading, setLoading] = useState(true)
@@ -139,6 +143,10 @@ export function PropertiesTab({ server }: PropertiesTabProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set(Object.keys(GROUPS)))
   const [hasChanges, setHasChanges] = useState(false)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Снимок ещё не записанных значений: без него закрытие вкладки теряло правки,
+  // а запуск сервера успевал прочитать старый файл.
+  const pendingRef = useRef<Record<string, string> | null>(null)
+  const flushImplRef = useRef<() => Promise<void>>(async () => {})
 
   useEffect(() => {
     let cancelled = false
@@ -161,34 +169,66 @@ export function PropertiesTab({ server }: PropertiesTabProps) {
     setSaving(true)
     try {
       await window.electronAPI?.mcServerWriteProperties(server.id, props)
+      // Запись возвращает актуальные данные сервера: порт/online-mode/слоты
+      // синхронизируются с файлом, поэтому список в лаунчере тоже обновляем.
+      const fresh = await window.electronAPI?.mcServerGet(server.id)
+      if (fresh) onServerUpdated?.(fresh)
       setSaved(true)
       setHasChanges(false)
       setTimeout(() => setSaved(false), 2000)
     } finally {
       setSaving(false)
     }
-  }, [server.id])
+  }, [server.id, onServerUpdated])
+
+  /** Немедленно записывает отложенные правки (если есть). */
+  const flushPending = useCallback(async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = null
+    }
+    const pending = pendingRef.current
+    pendingRef.current = null
+    if (!pending) return
+    await save(pending)
+  }, [save])
+
+  useEffect(() => {
+    flushImplRef.current = flushPending
+  }, [flushPending])
+
+  useEffect(() => {
+    if (!flushRef) return
+    flushRef.current = () => flushImplRef.current()
+    return () => { flushRef.current = null }
+  }, [flushRef])
+
+  // Уход с вкладки не должен терять правки.
+  useEffect(() => () => { void flushImplRef.current() }, [])
+
+  const scheduleSave = useCallback((next: Record<string, string>) => {
+    pendingRef.current = next
+    setHasChanges(true)
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => { void flushPending() }, 500)
+  }, [flushPending])
 
   const handleChange = useCallback((key: string, value: string) => {
     setProperties(prev => {
       if (!prev) return prev
       const next = { ...prev, [key]: value }
-      setHasChanges(true)
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-      saveTimerRef.current = setTimeout(() => save(next), 800)
+      scheduleSave(next)
       return next
     })
-  }, [save])
+  }, [scheduleSave])
 
   const handleReset = useCallback(() => {
     if (!properties) return
     const defaults: Record<string, string> = {}
     for (const def of PROP_DEFS) defaults[def.key] = def.default
     setProperties(defaults)
-    setHasChanges(true)
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => save(defaults), 100)
-  }, [properties, save])
+    scheduleSave(defaults)
+  }, [properties, scheduleSave])
 
   const toggleGroup = useCallback((group: string) => {
     setExpandedGroups(prev => {

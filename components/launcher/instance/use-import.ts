@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useActivityCenter } from "@/src/ActivityCenterContext"
 import { MOD_LOADERS } from "./constants"
 import type { ModpackConflictInfo } from "./modpack-conflict-dialog"
@@ -24,14 +25,15 @@ async function persistImportedBuild(build: Build) {
   await window.electronAPI?.saveBuilds(next as Parameters<NonNullable<Window["electronAPI"]>["saveBuilds"]>[0])
 }
 
-function getImportSourceLabel(source: ImportProgressState["source"]): string {
-  if (source === "modrinth") return "Импорт с Modrinth"
-  if (source === "curseforge") return "Импорт с CurseForge"
-  if (source === "ftb") return "Импорт с FTB"
-  return "Импорт из файла"
+function getImportSourceLabel(t: (key: string) => string, source: ImportProgressState["source"]): string {
+  if (source === "modrinth") return t("import.source.modrinth")
+  if (source === "curseforge") return t("import.source.curseforge")
+  if (source === "ftb") return t("import.source.ftb")
+  return t("import.source.file")
 }
 
 export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]>>, setView: (v: "my") => void) {
+  const { t } = useTranslation()
   const { pushNotification, startImportSession, clearImportSession } = useActivityCenter()
   const [importProgress, setImportProgress] = useState<ImportProgressState | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
@@ -100,7 +102,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
     pushNotification({
       kind: "error",
       source: "import",
-      title: "Не удалось импортировать сборку",
+      title: t("import.failedTitle"),
       message: importError,
     })
   }, [finishImportSession, importError, pushNotification])
@@ -111,7 +113,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
     pushNotification({
       kind: "success",
       source: "import",
-      title: "Сборка импортирована",
+      title: t("import.importedTitle"),
       message: build.name,
     })
     if (isMountedRef.current) {
@@ -133,8 +135,8 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
       pushNotification({
         kind: "info",
         source: "import",
-        title: "Импорт отменен",
-        message: `${getImportSourceLabel(source)} остановлен пользователем.`,
+        title: t("import.cancelledTitle"),
+        message: t("import.cancelledMessage", { source: getImportSourceLabel(t, source) }),
       })
       if (isMountedRef.current) {
         setDownloadingSlug(null)
@@ -151,7 +153,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
   const importModrinthProject = useCallback(async (project: ModSearchResult, versionId?: string, overrideName?: string) => {
     beginImportSession("modrinth")
     setDownloadingSlug(project.slug)
-    safeSetImportProgress({ current: 0, total: 1, message: "Подготовка к импорту...", source: "modrinth" })
+    safeSetImportProgress({ current: 0, total: 1, message: t("import.preparing"), source: "modrinth" })
     const buildName = overrideName?.trim() || project.name
     try {
       const response = await fetch(`https://api.modrinth.com/v2/project/${project.slug}/version?limit=20`)
@@ -187,7 +189,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
         safeSetImportProgress(null)
         return
       }
-      if (importResult && !importResult.success) throw new Error(importResult.error ?? "Ошибка импорта")
+      if (importResult && !importResult.success) throw new Error(importResult.error ?? t("import.error"))
 
       await applyImportedBuild({
         id,
@@ -212,11 +214,11 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
         playtime: 0,
       })
     } catch (error) {
-      safeSetImportError(error instanceof Error ? error.message : "Ошибка импорта")
+      safeSetImportError(error instanceof Error ? error.message : t("import.error"))
       safeSetImportProgress({
         current: 0,
         total: 1,
-        message: error instanceof Error ? error.message : "Ошибка импорта",
+        message: error instanceof Error ? error.message : t("import.error"),
         source: "modrinth",
       })
     } finally {
@@ -230,12 +232,12 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
   const importCurseforgeProject = useCallback(async (pack: ModSearchResult, fileIdOverride?: number, overrideName?: string) => {
     beginImportSession("curseforge")
     setCfDownloadingId(pack.modId ?? null)
-    safeSetImportProgress({ current: 0, total: 1, message: "Подготовка к импорту...", source: "curseforge" })
+    safeSetImportProgress({ current: 0, total: 1, message: t("import.preparing"), source: "curseforge" })
     const buildName = overrideName?.trim() || pack.name
     try {
       const fileId = fileIdOverride ?? pack.primaryFileId
       if (!pack.modId || !fileId) {
-        throw new Error("У модпака CurseForge нет данных для скачивания")
+        throw new Error(t("import.cfNoData"))
       }
       const id = crypto.randomUUID()
       let intentPath = ""
@@ -262,7 +264,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
         safeSetImportProgress(null)
         return
       }
-      if (importResult && !importResult.success) throw new Error(importResult.error ?? "Ошибка импорта")
+      if (importResult && !importResult.success) throw new Error(importResult.error ?? t("import.error"))
 
       await applyImportedBuild({
         id,
@@ -287,11 +289,11 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
         playtime: 0,
       })
     } catch (error) {
-      safeSetImportError(error instanceof Error ? error.message : "Ошибка импорта")
+      safeSetImportError(error instanceof Error ? error.message : t("import.error"))
       safeSetImportProgress({
         current: 0,
         total: 1,
-        message: error instanceof Error ? error.message : "Ошибка импорта",
+        message: error instanceof Error ? error.message : t("import.error"),
         source: "curseforge",
       })
     } finally {
@@ -306,11 +308,11 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
     beginImportSession("ftb")
     const modpackId = Number(pack.projectId)
     if (!modpackId) {
-      safeSetImportError("У модпака FTB нет данных для скачивания")
+      safeSetImportError(t("import.ftbNoData"))
       return
     }
     setFtbDownloadingId(modpackId)
-    safeSetImportProgress({ current: 0, total: 1, message: "Подготовка к импорту...", source: "ftb" })
+    safeSetImportProgress({ current: 0, total: 1, message: t("import.preparing"), source: "ftb" })
     const buildName = overrideName?.trim() || pack.name
     try {
       let targetVersionId = versionId
@@ -318,7 +320,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
         const details = await window.electronAPI?.modsFtbDetails(modpackId)
         const release = details?.versions?.find(v => v.versionType === "release")
         if (!release) {
-          throw new Error("Не найдена версия модпака FTB для скачивания")
+          throw new Error(t("import.ftbNoVersion"))
         }
         targetVersionId = Number(release.id.replace("ftb-", ""))
       }
@@ -348,7 +350,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
         safeSetImportProgress(null)
         return
       }
-      if (importResult && !importResult.success) throw new Error(importResult.error ?? "Ошибка импорта")
+      if (importResult && !importResult.success) throw new Error(importResult.error ?? t("import.error"))
 
       await applyImportedBuild({
         id,
@@ -371,11 +373,11 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
         playtime: 0,
       })
     } catch (error) {
-      safeSetImportError(error instanceof Error ? error.message : "Ошибка импорта")
+      safeSetImportError(error instanceof Error ? error.message : t("import.error"))
       safeSetImportProgress({
         current: 0,
         total: 1,
-        message: error instanceof Error ? error.message : "Ошибка импорта",
+        message: error instanceof Error ? error.message : t("import.error"),
         source: "ftb",
       })
     } finally {
@@ -412,7 +414,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
 
   const handleImportFile = useCallback(async (overrideName?: string) => {
     beginImportSession("local")
-    safeSetImportProgress({ current: 0, total: 1, message: "Открытие файла...", source: "local" })
+    safeSetImportProgress({ current: 0, total: 1, message: t("import.openingFile"), source: "local" })
     try {
       const result = await window.electronAPI?.openAndImportModpack(overrideName)
       if (!result) {
@@ -429,7 +431,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
       if (result.conflict) {
         pendingInstallRef.current = { source: "local" }
         if (isMountedRef.current) {
-          setInstallConflict({ ...result.conflict, packName: result.name ?? "Модпак" })
+          setInstallConflict({ ...result.conflict, packName: result.name ?? t("import.modpack") })
         }
         finishImportSession()
         safeSetImportProgress(null)
@@ -446,7 +448,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
 
       await applyImportedBuild({
         id: crypto.randomUUID(),
-        name: overrideName?.trim() || result.name || "Импортированная сборка",
+        name: overrideName?.trim() || result.name || t("import.importedBuild"),
         description: result.description ?? "",
         version: result.version ?? "",
         modLoader: result.modLoader ?? "vanilla",
@@ -462,7 +464,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
         playtime: 0,
       })
     } catch (error) {
-      safeSetImportError(error instanceof Error ? error.message : "Ошибка импорта")
+      safeSetImportError(error instanceof Error ? error.message : t("import.error"))
     } finally {
       clearProgressLater(3000, true)
     }

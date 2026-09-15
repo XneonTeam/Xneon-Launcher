@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useAccounts } from "@/src/AccountsContext"
 import { getAvatarUrl } from "@/lib/home-page-shared"
 import { useHomeLaunch } from "@/src/hooks/use-home-launch"
 import { useHomeVersions } from "@/src/hooks/use-home-versions"
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
-import { loadLaunchSettings, resolveLaunchDimensions } from "@/src/hooks/use-build-launch"
 import { HomeControls } from "./controls"
 import { NewsSection } from "./news"
 
@@ -42,68 +41,7 @@ export function HomePage() {
   const account = activeAccount ?? accounts[0]
   const activeAvatarUrl = useMemo(() => account ? getAvatarUrl(account, account.username) : "", [account])
   const accountAvatarUrls = useMemo(() => Object.fromEntries(accounts.map(a => [a.id, getAvatarUrl(a, a.username)])), [accounts])
-  const { isRunning, launchUi, launchDetails, handlePlay } = useHomeLaunch({ account, selectedVersion, selectedModLoader, selectedLoaderVersion })
-
-  const handleQuickPlayLaunch = useCallback(async (type: "singleplayer" | "multiplayer", address: string) => {
-    if (!account || !window.electronAPI || isRunning) return
-
-    const settings = await loadLaunchSettings()
-    const { width, height } = resolveLaunchDimensions(settings)
-
-    const quickPlayParams = type === "singleplayer"
-      ? { quickPlaySingleplayer: address }
-      : { quickPlayMultiplayer: address }
-
-    const isInstance = selectedModLoader === "instance"
-    const buildName = isInstance ? selectedVersion : undefined
-    let mcVersion = selectedVersion
-    let modLoader = selectedModLoader
-    let loaderVersion: string | undefined
-    let build: {
-      name: string; version: string; modLoader: string; loaderVersion?: string
-      preLaunchCommand?: string; postLaunchCommand?: string; wrapperCommand?: string; customEnv?: string
-    } | undefined
-
-    if (isInstance && buildName) {
-      const builds = await window.electronAPI.loadBuilds() ?? []
-      build = builds.find(b => b.name === buildName)
-      if (!build) return
-      mcVersion = build.version
-      modLoader = build.modLoader
-      loaderVersion = build.loaderVersion
-    }
-
-    const intentPath = buildName ? await window.electronAPI.getBuildIntentPath(buildName) : undefined
-
-    const envRecord: Record<string, string> = {}
-    for (const line of (build?.customEnv ?? "").split(/\r?\n/)) {
-      const trimmed = line.trim()
-      if (!trimmed || trimmed.startsWith("#")) continue
-      const eq = trimmed.indexOf("=")
-      if (eq > 0) envRecord[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim()
-    }
-
-    const result = await window.electronAPI.launchMinecraft({
-      version: mcVersion,
-      modLoader: modLoader as "vanilla" | "forge" | "fabric" | "quilt" | "liteloader" | "optifine" | "neoforge",
-      ...(loaderVersion ? { loaderVersion } : {}),
-      account: { type: account.type, username: account.username, uuid: account.uuid, accessToken: account.accessToken },
-      memory: { min: settings.savedMemoryMin || "512M", max: settings.savedMemoryMax || "4G" },
-      width,
-      height,
-      buildName,
-      gameDir: intentPath,
-      ...quickPlayParams,
-      ...(build?.preLaunchCommand ? { preLaunchCommand: build.preLaunchCommand } : {}),
-      ...(build?.postLaunchCommand ? { postLaunchCommand: build.postLaunchCommand } : {}),
-      ...(build?.wrapperCommand ? { wrapperCommand: build.wrapperCommand } : {}),
-      ...(Object.keys(envRecord).length > 0 ? { customEnv: envRecord } : {}),
-    })
-
-    if (result.success) {
-      // Refresh is handled by the running state
-    }
-  }, [account, isRunning, selectedModLoader, selectedVersion])
+  const { isRunning, launchUi, launchDetails, handlePlay, handleQuickPlay } = useHomeLaunch({ account, selectedVersion, selectedModLoader, selectedLoaderVersion })
 
   useEffect(() => {
     if (selectedModLoader === "vanilla" || selectedModLoader === "instance") {
@@ -145,7 +83,7 @@ export function HomePage() {
         launchDetails={launchDetails}
         isRunning={isRunning}
         onPlay={handlePlay}
-        onQuickPlayLaunch={handleQuickPlayLaunch}
+        onQuickPlayLaunch={handleQuickPlay}
       />
       <div className="flex-1 overflow-hidden"><NewsSection /></div>
     </div>

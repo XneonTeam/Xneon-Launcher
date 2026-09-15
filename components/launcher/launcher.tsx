@@ -111,7 +111,7 @@ export function Launcher({ onReady }: LauncherProps) {
       case "cloud": return <CloudPage />
       case "servers":
         if (selectedMcServer) {
-          return <ServerDetailPage server={selectedMcServer} onBack={() => setSelectedMcServer(null)} />
+          return <ServerDetailPage server={selectedMcServer} onBack={() => setSelectedMcServer(null)} onServerUpdated={setSelectedMcServer} />
         }
         return <ServersPage onSelectServer={setSelectedMcServer} />
       case "skins": return <SkinsPage />

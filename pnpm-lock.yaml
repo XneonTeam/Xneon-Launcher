@@ -1176,7 +1176,7 @@ packages:
     resolution: {integrity: sha512-1iDLEy7UV38W8uIzGJmkh5pVFloawgqaCz4ylye0XrtfoVwP+/ZjhXdLJniouakh+uChEINqqXto16RZjsmzvg==, tarball: https://git.xneon.org/api/packages/MAINER4IK/npm/%40xnlc%2Fnbt/-/1.0.1/nbt-1.0.1.tgz}
 
   '@xnlc/servers@1.0.0':
-    resolution: {integrity: sha512-2ygIikbdhevFzljl2CM++JboXeOEw86EzAFQ7dw3wCjxZEHYdprPiRxI5Db1R/FTmzLOMh6cC5coVvaBTZfABQ==, tarball: https://git.xneon.org/api/packages/MAINER4IK/npm/%40xnlc%2Fservers/-/1.0.0/servers-1.0.0.tgz}
+    resolution: {integrity: sha512-1F/Coy6PbtM2SRuOxwRp08ON1WXsHzyg5YEalj8Fl+jDGPxKtfwuWoqh1S2pq9QZx4kZkSJAv7or/YAlg0Yfbw==, tarball: https://git.xneon.org/api/packages/MAINER4IK/npm/%40xnlc%2Fservers/-/1.0.0/servers-1.0.0.tgz}
 
   '@xnlc/types@1.0.4':
     resolution: {integrity: sha512-WuXX64N3MWkY6riq5YLWcFMTWffhx5NBYDDnpK5o22LkBrSsHPSvAH4JNDL0vnSe1piAJldiO3P0mECU14aY8w==, tarball: https://git.xneon.org/api/packages/MAINER4IK/npm/%40xnlc%2Ftypes/-/1.0.4/types-1.0.4.tgz}
@@ -1185,7 +1185,7 @@ packages:
     resolution: {integrity: sha512-58elfLQ0a/Vs+85cXy1SYf57GJGSRsg0gKGYX3U3OELut6RGMBJIUM23nH7HaNuJR2WcjO27p6armjZc2Qeb6g==, tarball: https://git.xneon.org/api/packages/MAINER4IK/npm/%40xnlc%2Ftypes/-/1.0.7/types-1.0.7.tgz}
 
   '@xnlc/types@1.0.8':
-    resolution: {integrity: sha512-ibvpb9lm9BhRzakRN/1TTTa7FBhNZuwZc2mjeDJVuomcfLyTuUCycUqTf+SgH56CSpqCjnXv19QEk9EejRYyFg==, tarball: https://git.xneon.org/api/packages/MAINER4IK/npm/%40xnlc%2Ftypes/-/1.0.8/types-1.0.8.tgz}
+    resolution: {integrity: sha512-Ua7WGqh+WBCLD7xEGIEtnC6oLDogkrwpgCA78l6bi6sNB6vO41C3AqPerTNNHGpE7oNLT6n4FnFJhT/TdcypdQ==, tarball: https://git.xneon.org/api/packages/MAINER4IK/npm/%40xnlc%2Ftypes/-/1.0.8/types-1.0.8.tgz}
 
   abbrev@4.0.0:
     resolution: {integrity: sha512-a1wflyaL0tHtJSmLSOVybYhy22vRih4eduhhrkcjgrWGnRfrZtovJ2FRjxuTtkkj47O/baf0R86QU5OuYpz8fA==}

@@ -7,6 +7,7 @@ import { MemorySlider } from "@/components/ui/memory-slider"
 import { useMemoryOptions } from "@/src/hooks/use-memory-options"
 import type { JavaInstallation } from "@/components/launcher/settings/types"
 import type { Build } from "./types"
+import { useTranslation } from "react-i18next"
 
 interface InstanceBuildJavaProps {
   build: Build
@@ -14,6 +15,7 @@ interface InstanceBuildJavaProps {
 }
 
 export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps) {
+  const { t } = useTranslation()
   const [detected, setDetected] = useState<JavaInstallation[]>([])
   const [loadingDetect, setLoadingDetect] = useState(false)
   const [showJavaModal, setShowJavaModal] = useState(false)
@@ -42,7 +44,7 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
   }
 
   const selectedLabel = isAuto
-    ? "Автоматически (как в лаунчере)"
+    ? t("build.java.auto")
     : detected.find(j => j.path === build.javaPath)?.label || build.javaPath?.split(/[\\/]/).pop() || build.javaPath
 
   const { maxMb, snapPoints } = useMemoryOptions()
@@ -53,10 +55,10 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
         <div>
           <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
             <IconSettings className="h-5 w-5 text-primary" strokeWidth={1.75} />
-            Java и память
+            {t("build.java.title")}
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Свои настройки запуска для этой сборки. Если выключено — используются общие настройки лаунчера.
+            {t("build.java.desc")}
           </p>
         </div>
         <button
@@ -68,16 +70,16 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
           )}
         >
           <span className={cn("w-2 h-2 rounded-full", override ? "bg-primary-foreground" : "bg-muted-foreground/50")} />
-          {override ? "Свои настройки включены" : "Использовать настройки лаунчера"}
+          {override ? t("build.java.overrideOn") : t("build.java.useLauncher")}
         </button>
       </div>
 
       {override && (
         <div className="mt-6 grid gap-6">
           <div>
-            <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Память</label>
+            <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("build.java.memory")}</label>
             <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-2.5">
-              <label className="block text-sm font-medium text-foreground">Выделено памяти</label>
+              <label className="block text-sm font-medium text-foreground">{t("build.java.allocated")}</label>
               <MemorySlider
                 value={memoryToMb(build.memoryMax)}
                 min={512}
@@ -88,12 +90,12 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
                 unit="MB"
                 onChange={(v) => updateBuild(build.id, { memoryMax: mbToMemory(v) })}
               />
-              <p className="text-xs text-muted-foreground">Максимум оперативной памяти, выделяемой Minecraft.</p>
+              <p className="text-xs text-muted-foreground">{t("build.java.memoryDesc")}</p>
             </div>
           </div>
 
           <div>
-            <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Java (путь к java.exe)</label>
+            <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("build.java.path")}</label>
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -111,13 +113,13 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
                 className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-muted/20 px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
               >
                 <IconFolderPlus className="h-4 w-4" strokeWidth={1.75} />
-                Выбрать файл...
+                {t("build.java.pickFile")}
               </button>
             </div>
           </div>
 
           <div>
-            <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Доп. аргументы JVM</label>
+            <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("build.java.jvmArgs")}</label>
             <textarea
               value={build.javaArgs ?? ""}
               onChange={e => updateBuild(build.id, { javaArgs: e.target.value })}
@@ -126,7 +128,7 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
               className="w-full resize-none rounded-2xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary"
             />
             <p className="mt-1.5 text-xs text-muted-foreground">
-              Разделяй аргументы пробелами. Можно использовать кавычки для значений с пробелами.
+              {t("build.java.argsHint")}
             </p>
           </div>
         </div>
@@ -136,7 +138,7 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0">
           <div className="w-full max-w-lg p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-semibold text-foreground">Java (путь к java.exe)</h3>
+              <h3 className="text-lg font-semibold text-foreground">{t("build.java.path")}</h3>
               <button
                 onClick={() => setShowJavaModal(false)}
                 className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
@@ -159,25 +161,25 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
                 )}
               >
                 <div className="flex items-center justify-between">
-                  <div className="font-medium text-foreground">Автоматически (как в лаунчере)</div>
+                  <div className="font-medium text-foreground">{t("build.java.auto")}</div>
                   <span className={cn(
                     "text-xs px-2 py-1 rounded-md font-medium",
                     isAuto ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
                   )}>
-                    {isAuto ? "Выбрано" : "Выбрать"}
+                    {isAuto ? t("build.java.selected") : t("build.java.choose")}
                   </span>
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">Использовать Java из общих настроек лаунчера</div>
+                <div className="text-xs text-muted-foreground mt-1">{t("build.java.autoDesc")}</div>
               </button>
 
               {loadingDetect ? (
                 <div className="w-full p-4 rounded-xl border border-border bg-muted/30 flex items-center justify-center gap-2">
                   <IconLoader2 className="w-4 h-4 animate-spin text-primary" strokeWidth={1.5} />
-                  <span className="text-sm text-muted-foreground">Поиск Java...</span>
+                  <span className="text-sm text-muted-foreground">{t("build.java.searching")}</span>
                 </div>
               ) : detected.length > 0 ? (
                 <div className="space-y-2">
-                  <div className="text-xs font-medium text-muted-foreground px-1">Обнаруженные</div>
+                  <div className="text-xs font-medium text-muted-foreground px-1">{t("build.java.detected")}</div>
                   <div className="max-h-[304px] space-y-2 overflow-y-auto pr-1">
                     {detected.map((java, index) => (
                       <button
@@ -199,7 +201,7 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
                             "shrink-0 text-xs px-2 py-1 rounded-md font-medium",
                             build.javaPath === java.path ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
                           )}>
-                            {build.javaPath === java.path ? "Выбрано" : "Выбрать"}
+                            {build.javaPath === java.path ? t("build.java.selected") : t("build.java.choose")}
                           </span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 truncate">{java.path}</div>
@@ -215,9 +217,9 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
               >
                 <div className="flex items-center gap-2">
                   <IconFolderPlus className="w-5 h-5" strokeWidth={1.5} />
-                  <span className="text-sm">Выбрать файл...</span>
+                  <span className="text-sm">{t("build.java.pickFile")}</span>
                 </div>
-                <span className="text-xs px-2 py-1 rounded-md bg-muted/50 font-medium">Выбрать</span>
+                <span className="text-xs px-2 py-1 rounded-md bg-muted/50 font-medium">{t("build.java.choose")}</span>
               </button>
             </div>
 
@@ -226,7 +228,7 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
               className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground text-sm transition-colors"
             >
               <IconX className="w-4 h-4" strokeWidth={1.75} />
-              Отмена
+              {t("common.cancel")}
             </button>
           </div>
         </div>,

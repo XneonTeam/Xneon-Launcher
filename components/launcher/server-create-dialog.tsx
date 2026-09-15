@@ -371,14 +371,14 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                 <div
                   className="w-16 h-16 rounded-xl bg-muted/60 overflow-hidden border border-border cursor-pointer hover:border-primary/50 transition-colors flex-shrink-0 flex items-center justify-center relative group"
                   onClick={() => setShowIconPicker(true)}
-                  title="Выбрать иконку сервера"
+                  title={t("servers.create.iconTitle")}
                 >
                   {icon ? (
                     <img src={icon} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <div className="flex flex-col items-center justify-center text-muted-foreground group-hover:text-primary transition-colors">
                       <IconCamera className="w-6 h-6" />
-                      <span className="text-[10px] mt-0.5 font-medium">Иконка</span>
+                      <span className="text-[10px] mt-0.5 font-medium">{t("servers.create.iconLabel")}</span>
                     </div>
                   )}
                 </div>
@@ -389,7 +389,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                       onClick={() => setShowIconPicker(true)}
                       className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                     >
-                      {icon ? "Изменить иконку" : "Выбрать иконку"}
+                      {icon ? t("servers.create.iconChange") : t("servers.create.iconChoose")}
                     </button>
                     {icon && (
                       <button
@@ -398,12 +398,12 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                       >
                         <IconTrash className="w-3.5 h-3.5" />
-                        Удалить
+                        {t("common.delete")}
                       </button>
                     )}
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-1.5">
-                    Нажмите, чтобы выбрать из готовых значков или загрузить собственную картинку (PNG/JPG)
+                    {t("servers.create.iconHint")}
                   </p>
                 </div>
               </div>
@@ -558,12 +558,12 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
 
                 {modloader === "sponge" && (
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">Тип Sponge</label>
+                    <label className="text-xs font-medium text-muted-foreground">{t("servers.create.spongeType")}</label>
                     <div className="grid grid-cols-3 gap-2">
                       {[
-                        { id: "spongevanilla" as const, loaderIconId: "vanilla", label: "SpongeVanilla", desc: "Vanilla + плагины" },
-                        { id: "spongeforge" as const, loaderIconId: "forge", label: "SpongeForge", desc: "Forge + плагины" },
-                        { id: "spongeneo" as const, loaderIconId: "neoforge", label: "SpongeNeo", desc: "NeoForge + плагины" },
+                        { id: "spongevanilla" as const, loaderIconId: "vanilla", label: "SpongeVanilla", desc: t("servers.create.spongevanillaDesc") },
+                        { id: "spongeforge" as const, loaderIconId: "forge", label: "SpongeForge", desc: t("servers.create.spongeforgeDesc") },
+                        { id: "spongeneo" as const, loaderIconId: "neoforge", label: "SpongeNeo", desc: t("servers.create.spongeneoDesc") },
                       ].map(type => {
                         const isSupported = selectedVersion
                           ? spongeSupported[type.id].length === 0 || spongeSupported[type.id].includes(selectedVersion)
@@ -597,7 +597,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                               <span className="text-xs font-semibold truncate text-foreground">{type.label}</span>
                             </div>
                             <span className="text-[10px] text-muted-foreground leading-tight">
-                              {!isSupported ? "Нет для этой MC" : type.desc}
+                              {!isSupported ? t("servers.create.notForMc") : type.desc}
                             </span>
                           </button>
                         )
@@ -771,7 +771,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Исполняемый файл Java</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("servers.create.javaExecutable")}</label>
                 <button
                   type="button"
                   onClick={() => setJavaPath("auto")}

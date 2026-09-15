@@ -2,9 +2,8 @@ import { memo, useCallback, useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { IconArrowLeft, IconInfoCircle, IconSettings, IconPuzzle, IconPhoto, IconSparkles, IconMap, IconCamera, IconServer, IconLock } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
-import { MOD_LOADERS } from "./constants"
-import { LoaderIcon } from "./loader-icon"
-import { pickCompatibleVersion } from "./utils"
+import { LoaderIcon, loaderLabel } from "./loader-icon"
+import { matchesBuildVersion, pickCompatibleVersion } from "./utils"
 import { InstanceContentTab } from "./instance-content-tab"
 import { InstanceDetailGeneral } from "./instance-detail-general"
 import { InstanceBuildSettings } from "./instance-build-settings"
@@ -148,7 +147,6 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
   const [depInstallState, setDepInstallState] = useState<DepInstallState | null>(null)
 
   const { t } = useTranslation()
-  const loader = MOD_LOADERS.find(item => item.id === activeBuild.modLoader) ?? MOD_LOADERS[0]
   const buildHasImage = !!activeBuild.icon
   const isVanilla = activeBuild.modLoader === "vanilla"
 
@@ -195,6 +193,35 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     // "reese's sodium options" being present in the build.
     return installedSlug === normalizedSlug || installedName === normalizedSlug
   }, [])
+
+  /**
+   * Оставляет только те зависимости, у которых есть версия под эту сборку
+   * (версия Minecraft + загрузчик). Одни и те же проекты часто публикуют файлы
+   * под разные загрузчики, поэтому на NeoForge-сборке предлагалось поставить
+   * Fabric API — проверка по версиям проекта это отсекает.
+   */
+  const filterDepsForBuild = useCallback(async (deps: ModDependency[], source: Source): Promise<ModDependency[]> => {
+    if (source === "ftb" || deps.length === 0) return deps
+
+    const checked = await Promise.all(deps.map(async (dep) => {
+      if (!dep.projectId) return dep
+      try {
+        if (source === "modrinth") {
+          const versions = await window.electronAPI?.modsModrinthVersions(dep.projectId) ?? []
+          return versions.some(version => matchesBuildVersion(version, activeBuild)) ? dep : null
+        }
+        const modId = Number.parseInt(dep.projectId, 10)
+        if (!Number.isInteger(modId)) return dep
+        const details = await window.electronAPI?.modsCurseforgeDetails(modId)
+        return (details?.versions ?? []).some(version => matchesBuildVersion(version, activeBuild)) ? dep : null
+      } catch {
+        // Данные о проекте недоступны — не прячем зависимость от пользователя.
+        return dep
+      }
+    }))
+
+    return checked.filter((dep): dep is ModDependency => Boolean(dep))
+  }, [activeBuild])
 
   const doDownloadMod = useCallback(async (
     fileUrl: string,
@@ -366,12 +393,12 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     const overrideMeta = { name: mod.name, description: mod.summary, iconUrl: mod.iconUrl, projectId: mod.projectId, modId: mod.modId }
 
     const resolvedDeps = await window.electronAPI?.modsResolveDependencies(selectedVersion, source) ?? []
-    const missingRequiredDeps = resolvedDeps.filter(dep => {
+    const missingRequiredDeps = await filterDepsForBuild(resolvedDeps.filter(dep => {
       if (dep.dependencyType !== "required") return false
       return !activeBuild.mods.some(installedMod =>
         isInstalledBuildMod(installedMod, source, dep.projectId, source === "curseforge" ? Number(dep.projectId) : undefined, dep.slug || dep.projectId),
       )
-    })
+    }), source)
 
     if (missingRequiredDeps.length === 0) {
       await installVersionWithDeps(selectedVersion, source, [], overrideMeta)
@@ -386,7 +413,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       resolvedDeps: missingRequiredDeps,
       overrideMetadata: overrideMeta,
     })
-  }, [activeBuild, activeBuild.id, activeBuild.mods, installVersionWithDeps, isInstalledBuildMod])
+  }, [activeBuild, activeBuild.id, activeBuild.mods, filterDepsForBuild, installVersionWithDeps, isInstalledBuildMod])
 
   const handleInstallVersion = useCallback(async (version: ModVersion): Promise<boolean> => {
     if (!selectedDetails) return false
@@ -397,7 +424,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
 
     const source = selectedDetails.source
     const resolvedDeps = await window.electronAPI?.modsResolveDependencies(version, selectedDetails.source) ?? []
-    const missingRequiredDeps = resolvedDeps.filter(dep => {
+    const missingRequiredDeps = await filterDepsForBuild(resolvedDeps.filter(dep => {
       if (dep.dependencyType !== "required") return false
       return !activeBuild.mods.some(mod => isInstalledBuildMod(
         mod,
@@ -406,7 +433,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
         source === "curseforge" ? Number(dep.projectId) : undefined,
         dep.slug || dep.projectId,
       ))
-    })
+    }), source)
 
     if (missingRequiredDeps.length === 0) {
       await installVersionWithDeps(version, source, [])
@@ -422,7 +449,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       resolvedDeps: missingRequiredDeps,
     })
     return false
-  }, [selectedDetails, activeBuild.mods, installVersionWithDeps, isInstalledBuildMod])
+  }, [selectedDetails, activeBuild.mods, filterDepsForBuild, installVersionWithDeps, isInstalledBuildMod])
 
   const handleDepInstallConfirm = useCallback(async (selectedDeps: ModDependency[]) => {
     if (!depInstallState) return
@@ -461,7 +488,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
               <h1 className="text-xl font-bold text-foreground">{activeBuild.name}</h1>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <LoaderIcon loaderId={activeBuild.modLoader} className="w-4 h-4 text-muted-foreground inline-block flex-shrink-0" />
-                <span>{loader.name} · {activeBuild.version}</span>
+                <span>{loaderLabel(activeBuild.modLoader)} · {activeBuild.version}</span>
               </div>
             </div>
           </div>
@@ -481,7 +508,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
                 key={tab}
                 type="button"
                 onClick={() => handleTabClick(tab)}
-                title={locked ? "Инстанс заблокирован. Нажмите для разблокировки" : undefined}
+                title={locked ? t("buildDetail.tab.locked") : undefined}
                 className={cn(
                   "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-200",
                   detailTab === tab
@@ -537,9 +564,9 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       {detailTab === "mods" && (
         <InstanceContentTab
           activeBuild={activeBuild}
-          title="Результаты поиска"
-          placeholder="Поиск..."
-          uploadLabel="Загрузить мод"
+          title={t("buildDetail.search.title")}
+          placeholder={t("buildDetail.search.modsPlaceholder")}
+          uploadLabel={t("buildDetail.search.modsUpload")}
           type="mods"
           modSearch={modSearch}
           setModSearch={setModSearch}
@@ -575,9 +602,9 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       {detailTab === "resourcepacks" && (
         <InstanceContentTab
           activeBuild={activeBuild}
-          title="Результаты поиска"
-          placeholder="Поиск ресурспаков..."
-          uploadLabel="Загрузить ресурспак"
+          title={t("buildDetail.search.title")}
+          placeholder={t("buildDetail.search.resourcepacksPlaceholder")}
+          uploadLabel={t("buildDetail.search.resourcepacksUpload")}
           type="resourcepacks"
           modSearch={modSearch}
           setModSearch={setModSearch}
@@ -613,9 +640,9 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       {detailTab === "shaders" && (
         <InstanceContentTab
           activeBuild={activeBuild}
-          title="Результаты поиска"
-          placeholder="Поиск шейдеров..."
-          uploadLabel="Загрузить шейдер"
+          title={t("buildDetail.search.title")}
+          placeholder={t("buildDetail.search.shadersPlaceholder")}
+          uploadLabel={t("buildDetail.search.shadersUpload")}
           type="shaders"
           modSearch={modSearch}
           setModSearch={setModSearch}
@@ -698,14 +725,10 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
             setLockedTargetTab(null)
           }
         }}
-        title="Управление контентом заблокировано"
-        description={`Этот инстанс привязан к официальному модпаку «${activeBuild.name}».
-
-Добавление, удаление и изменение модов или ресурспаков заблокировано, чтобы избежать поломки сборки.
-
-Хотите отвязать инстанс прямо сейчас, чтобы получить полный доступ к редактированию?`}
-        confirmText="Отвязать инстанс"
-        cancelText="Оставить привязанным"
+        title={t("buildDetail.locked.title")}
+        description={t("buildDetail.locked.description", { name: activeBuild.name })}
+        confirmText={t("buildDetail.locked.confirm")}
+        cancelText={t("buildDetail.locked.cancel")}
         variant="warning"
         icon="lock"
       />

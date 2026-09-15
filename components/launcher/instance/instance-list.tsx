@@ -4,14 +4,13 @@ import {
   IconPackage, IconPlus, IconCopy, IconTrash, IconDownload, IconUpload, IconTag,
   IconRotateClockwise, IconX, IconChevronDown, IconChevronRight,
   IconPencil, IconTrashFilled, IconBox, IconPalette, IconWallpaper, IconWorldUpload,
-  IconSettings, IconBug, IconFolder, IconCheck, IconLayoutGrid, IconLayoutList, IconArrowUpCircle,
+  IconSettings, IconBug, IconFolder, IconLayoutGrid, IconLayoutList, IconArrowUpCircle,
 } from "@tabler/icons-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
-import { MOD_LOADERS } from "./constants"
-import { LoaderIcon } from "./loader-icon"
+import { LoaderIcon, loaderLabel } from "./loader-icon"
 import { PlatformBadge } from "@/components/launcher/platform-icon"
+import { CategoryAssignMenu } from "@/components/launcher/category-assign-menu"
 import type { Build } from "./types"
 import type { BuildExportCategory } from "@xnlc/types"
 
@@ -43,14 +42,16 @@ const MODLIST_FORMATS: Array<{ id: "html" | "markdown" | "json" | "csv" | "plain
   { id: "plaintext", label: "TXT" },
 ]
 
-const EXPORT_CATEGORIES: Array<{ id: BuildExportCategory; label: string; description: string; icon: React.ReactNode }> = [
-  { id: "mods", label: "Моды", description: "Папка mods", icon: <IconBox className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
-  { id: "resourcepacks", label: "Ресурспаки", description: "Папка resourcepacks", icon: <IconPalette className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
-  { id: "shaderpacks", label: "Шейдерпаки", description: "Папка shaderpacks", icon: <IconWallpaper className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
-  { id: "saves", label: "Миры", description: "Папка saves (миры/сохранения)", icon: <IconWorldUpload className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
-  { id: "data", label: "Данные и конфиги", description: "config, options.txt, servers.dat и прочие файлы", icon: <IconSettings className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
-  { id: "logs", label: "Логи и кэш", description: "logs, crash-reports, .cache, .fabric, .quilt", icon: <IconBug className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
-]
+function buildExportCategories(t: (key: string) => string): Array<{ id: BuildExportCategory; label: string; description: string; icon: React.ReactNode }> {
+  return [
+    { id: "mods", label: t("exportCat.mods"), description: t("exportCat.modsDesc"), icon: <IconBox className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
+    { id: "resourcepacks", label: t("exportCat.resourcepacks"), description: t("exportCat.resourcepacksDesc"), icon: <IconPalette className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
+    { id: "shaderpacks", label: t("exportCat.shaderpacks"), description: t("exportCat.shaderpacksDesc"), icon: <IconWallpaper className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
+    { id: "saves", label: t("exportCat.saves"), description: t("exportCat.savesDesc"), icon: <IconWorldUpload className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
+    { id: "data", label: t("exportCat.data"), description: t("exportCat.dataDesc"), icon: <IconSettings className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
+    { id: "logs", label: t("exportCat.logs"), description: t("exportCat.logsDesc"), icon: <IconBug className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
+  ]
+}
 
 export const InstanceList = memo(function InstanceList({
   builds, totalBuilds, onCreate, onDelete, onTrash, onUndoTrash, onDuplicate,
@@ -59,14 +60,14 @@ export const InstanceList = memo(function InstanceList({
   updatesCountByBuild,
 }: InstanceListProps) {
   const { t } = useTranslation()
+  const exportCategoryOptions = buildExportCategories(t)
   const [trashedName, setTrashedName] = useState<string | null>(null)
   const undoTimeoutRef = useRef<number | null>(null)
   const [exportingId, setExportingId] = useState<string | null>(null)
   const [exportDialogFor, setExportDialogFor] = useState<string | null>(null)
   const [exportCategories, setExportCategories] = useState<Set<BuildExportCategory>>(() => new Set(["mods", "resourcepacks", "shaderpacks", "saves", "data"]))
   const [modlistMenuFor, setModlistMenuFor] = useState<string | null>(null)
-  const [groupEditFor, setGroupEditFor] = useState<string | null>(null)
-  const [groupDraft, setGroupDraft] = useState("")
+  const [assignMenu, setAssignMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [groupContextMenu, setGroupContextMenu] = useState<{ group: string; x: number; y: number } | null>(null)
   const [buildContextMenu, setBuildContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [renameGroupFor, setRenameGroupFor] = useState<string | null>(null)
@@ -98,7 +99,7 @@ export const InstanceList = memo(function InstanceList({
     const build = builds.find((b) => b.id === id)
     const ok = await onTrash(id)
     if (!ok) return
-    setTrashedName(build?.name ?? "Сборка")
+    setTrashedName(build?.name ?? t("instanceList.build"))
     if (undoTimeoutRef.current !== null) window.clearTimeout(undoTimeoutRef.current)
     undoTimeoutRef.current = window.setTimeout(() => setTrashedName(null), 8000)
   }, [builds, onTrash])
@@ -137,7 +138,7 @@ export const InstanceList = memo(function InstanceList({
   }, [renameGroupFor, renameGroupDraft, onRenameGroup])
 
   return (
-    <div className="flex-1 overflow-y-auto relative" onClick={() => { setGroupContextMenu(null); setBuildContextMenu(null); setModlistMenuFor(null) }}>
+    <div className="flex-1 overflow-y-auto relative" onClick={() => { setGroupContextMenu(null); setBuildContextMenu(null); setModlistMenuFor(null); setAssignMenu(null) }}>
       {totalBuilds === 0 ? (
         <div className="h-full flex flex-col items-center justify-center text-center">
           <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mb-5">
@@ -162,7 +163,7 @@ export const InstanceList = memo(function InstanceList({
                     "p-1.5 rounded-md transition-colors",
                     layoutMode === "grid" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80",
                   )}
-                  title="Карточки"
+                  title={t("instanceList.viewGrid")}
                 >
                   <IconLayoutGrid className="w-3.5 h-3.5" strokeWidth={1.75} />
                 </button>
@@ -173,7 +174,7 @@ export const InstanceList = memo(function InstanceList({
                     "p-1.5 rounded-md transition-colors",
                     layoutMode === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80",
                   )}
-                  title="Список"
+                  title={t("instanceList.viewList")}
                 >
                   <IconLayoutList className="w-3.5 h-3.5" strokeWidth={1.75} />
                 </button>
@@ -211,12 +212,12 @@ export const InstanceList = memo(function InstanceList({
                   {groupKey !== "" && (
                     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={(e) => e.stopPropagation()}>
-                      <button type="button" title="Переименовать группу"
+                      <button type="button" title={t("instanceList.renameGroup")}
                         onClick={() => { setRenameGroupFor(groupKey); setRenameGroupDraft(groupKey) }}
                         className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
                         <IconPencil className="w-3.5 h-3.5" />
                       </button>
-                      <button type="button" title="Удалить группу"
+                      <button type="button" title={t("instanceList.deleteGroup")}
                         onClick={() => onDeleteGroup(groupKey)}
                         className="p-1 rounded-md hover:bg-destructive/15 text-muted-foreground hover:text-destructive">
                         <IconTrashFilled className="w-3.5 h-3.5" />
@@ -228,7 +229,6 @@ export const InstanceList = memo(function InstanceList({
                 {!isCollapsed && layoutMode === "grid" && (
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3 px-3 pb-4">
                     {groupBuilds.map(build => {
-                      const loader = MOD_LOADERS.find(item => item.id === build.modLoader) ?? MOD_LOADERS[0]
                       const hasImage = !!build.icon
                       const isLinkedModpack = (build.source === "modrinth" || build.source === "curseforge") && build.locked !== false
                       const updatesCount = isLinkedModpack ? 0 : (updatesCountByBuild?.[build.id] ?? 0)
@@ -286,7 +286,7 @@ export const InstanceList = memo(function InstanceList({
                             <p className="text-sm font-semibold text-foreground truncate leading-tight">{build.name}</p>
                             <div className="flex items-center gap-1.5 mt-1">
                               <LoaderIcon loaderId={build.modLoader} className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                              <span className="text-[11px] text-muted-foreground truncate">{loader.name} · {build.version}</span>
+                              <span className="text-[11px] text-muted-foreground truncate">{loaderLabel(build.modLoader)} · {build.version}</span>
                             </div>
                           </div>
                         </div>
@@ -298,7 +298,6 @@ export const InstanceList = memo(function InstanceList({
                 {!isCollapsed && layoutMode === "list" && (
                   <div className="flex flex-col gap-1 px-3 pb-4">
                     {groupBuilds.map(build => {
-                      const loader = MOD_LOADERS.find(item => item.id === build.modLoader) ?? MOD_LOADERS[0]
                       const hasImage = !!build.icon
                       const isLinkedModpack = (build.source === "modrinth" || build.source === "curseforge") && build.locked !== false
                       const updatesCount = isLinkedModpack ? 0 : (updatesCountByBuild?.[build.id] ?? 0)
@@ -323,7 +322,7 @@ export const InstanceList = memo(function InstanceList({
                             <p className="text-sm font-medium text-foreground truncate">{build.name}</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
                               <LoaderIcon loaderId={build.modLoader} className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                              <span className="text-[11px] text-muted-foreground truncate">{loader.name} · {build.version}</span>
+                              <span className="text-[11px] text-muted-foreground truncate">{loaderLabel(build.modLoader)} · {build.version}</span>
                             </div>
                           </div>
                           {build.source && (
@@ -355,9 +354,9 @@ export const InstanceList = memo(function InstanceList({
           <div className="w-[420px] rounded-2xl border border-border bg-card p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-base font-semibold text-foreground">Экспорт в zip</p>
+                <p className="text-base font-semibold text-foreground">{t("instanceList.exportZip")}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Выберите, что включить в архив сборки «{builds.find(b => b.id === exportDialogFor)?.name ?? ""}»
+                  {t("instanceList.exportZipDesc", { name: builds.find(b => b.id === exportDialogFor)?.name ?? "" })}
                 </p>
               </div>
               <button type="button" onClick={() => setExportDialogFor(null)} className="p-1 rounded-md hover:bg-muted text-muted-foreground">
@@ -366,7 +365,7 @@ export const InstanceList = memo(function InstanceList({
             </div>
 
             <div className="mt-4 space-y-2">
-              {EXPORT_CATEGORIES.map(cat => (
+              {exportCategoryOptions.map(cat => (
                 <label key={cat.id} className="flex items-start gap-3 rounded-xl border border-border bg-muted/30 px-3 py-2.5 cursor-pointer transition-colors hover:border-primary/40">
                   <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">{cat.icon}</span>
                   <Checkbox
@@ -390,20 +389,20 @@ export const InstanceList = memo(function InstanceList({
             </div>
 
             <div className="mt-5 flex items-center justify-between gap-2">
-              <button type="button" onClick={() => setExportCategories(new Set(EXPORT_CATEGORIES.map(c => c.id)))}
+              <button type="button" onClick={() => setExportCategories(new Set(exportCategoryOptions.map(c => c.id)))}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted">
-                Выбрать всё
+                {t("instanceList.selectAll")}
               </button>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setExportDialogFor(null)}
                   className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-muted text-muted-foreground">
-                  Отмена
+                  {t("common.cancel")}
                 </button>
                 <button type="button" disabled={exportCategories.size === 0}
                   onClick={() => { void handleExportZip(exportDialogFor); setExportDialogFor(null) }}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed">
                   {exportingId ? <IconDownload className="w-4 h-4 animate-pulse" /> : <IconDownload className="w-4 h-4" />}
-                  Экспортировать
+                  {t("instanceList.export")}
                 </button>
               </div>
             </div>
@@ -411,53 +410,15 @@ export const InstanceList = memo(function InstanceList({
         </div>
       )}
 
-      <Dialog open={!!groupEditFor} onOpenChange={(v) => { if (!v) setGroupEditFor(null) }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <IconTag className="w-5 h-5 text-primary" />
-              Категория сборки
-            </DialogTitle>
-            <DialogDescription>Выберите существующую группу или введите новую</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            {groups.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {groups.map(g => (
-                  <button key={g} type="button"
-                    onClick={() => setGroupDraft(g)}
-                    className={cn(
-                      "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors",
-                      groupDraft === g
-                        ? "bg-primary/15 border-primary text-primary"
-                        : "bg-muted/50 border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
-                    )}>
-                    {groupDraft === g && <IconCheck className="w-3 h-3" />}
-                    {g}
-                  </button>
-                ))}
-              </div>
-            )}
-            <input autoFocus value={groupDraft} onChange={e => setGroupDraft(e.target.value)}
-              placeholder="Название группы (пусто — без группы)"
-              onKeyDown={e => {
-                if (e.key === "Enter" && groupEditFor) { onSetGroup(groupEditFor, groupDraft.trim()); setGroupEditFor(null) }
-                if (e.key === "Escape") setGroupEditFor(null)
-              }}
-              className="w-full rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm outline-none focus:border-primary" />
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setGroupEditFor(null)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-muted text-muted-foreground">
-                Отмена
-              </button>
-              <button type="button" onClick={() => { if (groupEditFor) { onSetGroup(groupEditFor, groupDraft.trim()); setGroupEditFor(null) } }}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground">
-                Сохранить
-              </button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {assignMenu && (
+        <CategoryAssignMenu
+          position={{ x: assignMenu.x, y: assignMenu.y }}
+          groups={groups}
+          current={builds.find(b => b.id === assignMenu.id)?.group ?? ""}
+          onAssign={(group) => { onSetGroup(assignMenu.id, group); setAssignMenu(null) }}
+          onClose={() => setAssignMenu(null)}
+        />
+      )}
 
       {groupContextMenu && (
         <div className="fixed z-50 min-w-[160px] rounded-xl border border-border bg-card shadow-2xl p-1"
@@ -466,12 +427,12 @@ export const InstanceList = memo(function InstanceList({
           <button type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
             onClick={() => { setRenameGroupFor(groupContextMenu.group); setRenameGroupDraft(groupContextMenu.group); setGroupContextMenu(null) }}>
             <IconPencil className="w-4 h-4 text-muted-foreground" />
-            Переименовать
+            {t("instanceList.rename")}
           </button>
           <button type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-destructive/15 text-destructive"
             onClick={() => { onDeleteGroup(groupContextMenu.group); setGroupContextMenu(null) }}>
             <IconTrashFilled className="w-4 h-4" />
-            Удалить группу
+            {t("instanceList.deleteGroup")}
           </button>
         </div>
       )}
@@ -487,22 +448,22 @@ export const InstanceList = memo(function InstanceList({
               setBuildContextMenu(null)
             }}>
             <IconFolder className="w-4 h-4 text-muted-foreground" />
-            Открыть папку сборки
+            {t("instanceList.openFolder")}
           </button>
           <button type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
             onClick={() => { void onDuplicate(buildContextMenu.id); setBuildContextMenu(null) }}>
             <IconCopy className="w-4 h-4 text-muted-foreground" />
-            Дублировать
+            {t("instanceList.duplicate")}
           </button>
           <button type="button" disabled={exportingId === buildContextMenu.id} className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground disabled:opacity-40"
             onClick={() => { setExportDialogFor(buildContextMenu.id); setExportCategories(new Set(["mods", "resourcepacks", "shaderpacks", "saves", "data"])); setBuildContextMenu(null) }}>
             <IconDownload className="w-4 h-4 text-muted-foreground" />
-            Экспорт в zip
+            {t("instanceList.exportZip")}
           </button>
           <button type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
             onClick={() => { setModlistMenuFor(prev => prev === buildContextMenu.id ? null : buildContextMenu.id) }}>
             <IconUpload className="w-4 h-4 text-muted-foreground" />
-            Экспорт модлиста
+            {t("instanceList.exportModlist")}
           </button>
           {modlistMenuFor === buildContextMenu.id && (
             <div className="mx-1 mb-1 rounded-lg bg-muted/50 border border-border p-1 grid grid-cols-3 gap-1">
@@ -516,15 +477,15 @@ export const InstanceList = memo(function InstanceList({
             </div>
           )}
           <button type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
-            onClick={() => { const build = builds.find(b => b.id === buildContextMenu.id); if (build) { setGroupEditFor(buildContextMenu.id); setGroupDraft(build.group ?? "") } setBuildContextMenu(null) }}>
+            onClick={() => { setAssignMenu({ id: buildContextMenu.id, x: buildContextMenu.x + 8, y: buildContextMenu.y + 8 }); setBuildContextMenu(null) }}>
             <IconTag className="w-4 h-4 text-muted-foreground" />
-            Изменить категорию
+            {t("categoryMenu.title")}
           </button>
           <div className="mx-2 my-1 border-t border-border" />
           <button type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-destructive/15 text-destructive"
             onClick={() => { void handleTrash(buildContextMenu.id); setBuildContextMenu(null) }}>
             <IconTrash className="w-4 h-4" />
-            В корзину
+            {t("instanceList.toTrash")}
           </button>
         </div>
       )}
@@ -533,7 +494,7 @@ export const InstanceList = memo(function InstanceList({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm"
           onClick={() => setRenameGroupFor(null)}>
           <div className="w-72 rounded-2xl border border-border bg-card p-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <p className="text-sm font-semibold mb-3">Переименовать группу</p>
+            <p className="text-sm font-semibold mb-3">{t("instanceList.renameGroup")}</p>
             <input autoFocus value={renameGroupDraft} onChange={e => setRenameGroupDraft(e.target.value)}
               onKeyDown={e => {
                 if (e.key === "Enter") handleRenameGroup()
@@ -541,9 +502,9 @@ export const InstanceList = memo(function InstanceList({
               }}
               className="w-full rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm outline-none focus:border-primary mb-3" />
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setRenameGroupFor(null)} className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-muted text-muted-foreground">Отмена</button>
+              <button type="button" onClick={() => setRenameGroupFor(null)} className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-muted text-muted-foreground">{t("common.cancel")}</button>
               <button type="button" onClick={handleRenameGroup}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground">Сохранить</button>
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground">{t("common.save")}</button>
             </div>
           </div>
         </div>
@@ -551,10 +512,10 @@ export const InstanceList = memo(function InstanceList({
 
       {trashedName && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-2 shadow-2xl">
-          <p className="text-sm text-foreground"><span className="font-medium">{trashedName}</span> — в корзине</p>
+          <p className="text-sm text-foreground">{t("instanceList.trashed", { name: trashedName })}</p>
           <button type="button" onClick={() => void handleUndo()} className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80">
             <IconRotateClockwise className="w-3.5 h-3.5" />
-            Отменить
+            {t("instanceList.undo")}
           </button>
         </div>
       )}

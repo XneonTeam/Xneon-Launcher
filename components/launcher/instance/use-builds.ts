@@ -5,6 +5,7 @@ import type { Build, BuildMod, ModSearchResult, ModDependency, ModVersion } from
 import type { BuildExportCategory } from "@xnlc/types"
 import { enrichBuildModNames } from "@/lib/modrinth-metadata"
 import { useActivityCenter } from "@/src/ActivityCenterContext"
+import { useTranslation } from "react-i18next"
 
 type BuildContentListKey = "mods" | "resourcepacks" | "shaders"
 type BuildContentKind = "mod" | "resourcepack" | "shader"
@@ -16,6 +17,7 @@ const CONTENT_KIND_BY_KEY: Record<BuildContentListKey, BuildContentKind> = {
 }
 
 export function useBuilds() {
+  const { t } = useTranslation()
   const { pushNotification, upsertLiveNotification, removeLiveNotification } = useActivityCenter()
   const [buildsState, setBuildsState] = useState<Build[]>(loadBuilds)
   const [activeBuildId, setActiveBuildId] = useState<string | null>(null)
@@ -434,11 +436,11 @@ export function useBuilds() {
   const duplicateBuild = useCallback(async (id: string): Promise<Build | null> => {
     const source = builds.find(b => b.id === id)
     if (!source) return null
-    const baseName = `${source.name} (копия)`
+    const baseName = t("builds.copy", { name: source.name })
     let newName = baseName
     let counter = 2
     while (builds.some(b => b.name === newName)) {
-      newName = `${source.name} (копия ${counter})`
+      newName = t("builds.copyN", { name: source.name, counter })
       counter++
     }
     const newBuild: Build = {
@@ -462,24 +464,24 @@ export function useBuilds() {
 
   const exportBuildZip = useCallback(async (id: string, categories?: BuildExportCategory[]): Promise<{ success: boolean; path?: string; error?: string }> => {
     const build = builds.find(b => b.id === id)
-    if (!build) return { success: false, error: "Сборка не найдена" }
-    return await window.electronAPI?.exportBuildZip?.(build.name, build.name, categories) ?? { success: false, error: "Функция недоступна" }
+    if (!build) return { success: false, error: t("builds.errors.notFound") }
+    return await window.electronAPI?.exportBuildZip?.(build.name, build.name, categories) ?? { success: false, error: t("builds.errors.unavailable") }
   }, [builds])
 
   const exportBuildModlist = useCallback(async (id: string, format: "html" | "markdown" | "json" | "csv" | "plaintext"): Promise<{ success: boolean; path?: string; error?: string }> => {
     const build = builds.find(b => b.id === id)
-    if (!build) return { success: false, error: "Сборка не найдена" }
-    return await window.electronAPI?.exportBuildModlist?.(build.name, build.name, format) ?? { success: false, error: "Функция недоступна" }
+    if (!build) return { success: false, error: t("builds.errors.notFound") }
+    return await window.electronAPI?.exportBuildModlist?.(build.name, build.name, format) ?? { success: false, error: t("builds.errors.unavailable") }
   }, [builds])
 
   const renameBuild = useCallback(async (id: string, newName: string): Promise<{ success: boolean; error?: string }> => {
     const build = builds.find(b => b.id === id)
-    if (!build) return { success: false, error: "Сборка не найдена" }
+    if (!build) return { success: false, error: t("builds.errors.notFound") }
     const target = newName.trim()
-    if (!target) return { success: false, error: "Имя сборки не может быть пустым" }
+    if (!target) return { success: false, error: t("builds.errors.emptyName") }
     if (target === build.name) return { success: true }
     if (builds.some(b => b.id !== id && b.name === target)) {
-      return { success: false, error: "Сборка с таким именем уже существует" }
+      return { success: false, error: t("builds.errors.duplicateName") }
     }
     try {
       const result = await window.electronAPI?.renameBuildIntent?.(build.name, target)
@@ -489,9 +491,9 @@ export function useBuilds() {
           : b))
         return { success: true }
       }
-      return { success: false, error: result?.error ?? "Не удалось переименовать сборку" }
+      return { success: false, error: result?.error ?? t("builds.errors.renameFailed") }
     } catch {
-      return { success: false, error: "Не удалось переименовать сборку" }
+      return { success: false, error: t("builds.errors.renameFailed") }
     }
   }, [builds, setBuilds])
 
@@ -612,8 +614,8 @@ export function useBuilds() {
         upsertLiveNotification(liveKey, {
           kind: "progress",
           source: "install",
-          title: "Установка мода",
-          message: `Скачивание ${mod.name}...`,
+          title: t("builds.mod.installing"),
+          message: t("builds.mod.downloading", { name: mod.name }),
           progress: 0,
           itemName: mod.name,
           busy: true,
@@ -713,7 +715,7 @@ export function useBuilds() {
         pushNotification({
           kind: "success",
           source: "install",
-          title: "Мод установлен",
+          title: t("builds.mod.installed"),
           message: mod.name,
         })
         void reloadBuilds()
@@ -722,7 +724,7 @@ export function useBuilds() {
         pushNotification({
           kind: "error",
           source: "install",
-          title: "Ошибка установки мода",
+          title: t("builds.mod.installFailed"),
           message: mod.name,
         })
       }
@@ -742,7 +744,7 @@ export function useBuilds() {
       return {
         ...b,
         installedMods: { ...(b.installedMods ?? {}), [file.name]: savedPath },
-        mods: [...b.mods, { id: crypto.randomUUID(), slug: file.name, name: modName, description: "Локальный мод", version: "local" }],
+        mods: [...b.mods, { id: crypto.randomUUID(), slug: file.name, name: modName, description: t("builds.mod.local"), version: "local" }],
       }
     }))
     void reloadBuilds()
@@ -752,14 +754,14 @@ export function useBuilds() {
     const build = builds.find(b => b.id === buildId)
     if (!build?.name) return
 
-    const contentTypeLabel = type === "resourcepacks" ? "ресурс-пак" : "шейдер"
+    const contentTypeLabel = type === "resourcepacks" ? t("builds.content.resourcepack") : t("builds.content.shader")
     const liveKey = `install-content-${mod.slug}`
 
     upsertLiveNotification(liveKey, {
       kind: "progress",
       source: "install",
-      title: `Установка ${contentTypeLabel}`,
-      message: `Скачивание ${mod.name}...`,
+      title: t("builds.content.installing", { type: contentTypeLabel }),
+      message: t("builds.mod.downloading", { name: mod.name }),
       progress: 0,
       itemName: mod.name,
       busy: true,
@@ -799,7 +801,7 @@ export function useBuilds() {
         pushNotification({
           kind: "error",
           source: "install",
-          title: `Ошибка установки ${contentTypeLabel}`,
+          title: t("builds.content.installFailed", { type: contentTypeLabel }),
           message: mod.name,
         })
         return
@@ -831,7 +833,7 @@ export function useBuilds() {
       pushNotification({
         kind: "success",
         source: "install",
-        title: `${contentTypeLabel.charAt(0).toUpperCase() + contentTypeLabel.slice(1)} установлен`,
+        title: type === "resourcepacks" ? t("builds.content.installedResourcepack") : t("builds.content.installedShader"),
         message: mod.name,
       })
       void reloadBuilds()
@@ -840,7 +842,7 @@ export function useBuilds() {
       pushNotification({
         kind: "error",
         source: "install",
-        title: `Ошибка установки ${contentTypeLabel}`,
+        title: t("builds.content.installFailed", { type: contentTypeLabel }),
         message: mod.name,
       })
     }
@@ -859,7 +861,7 @@ export function useBuilds() {
       id: crypto.randomUUID(),
       slug: file.name,
       name: itemName,
-      description: type === "resourcepacks" ? "Локальный ресурспак" : "Локальный шейдер",
+      description: type === "resourcepacks" ? t("builds.content.localResourcepack") : t("builds.content.localShader"),
       version: "local",
     }
 

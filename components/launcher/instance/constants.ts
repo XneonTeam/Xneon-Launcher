@@ -13,12 +13,24 @@ export const MOD_LOADERS = [
   { id: "instance", name: "Instance" },
 ]
 
-export const modSortOptions: { id: ModSort; label: string; modrinthIndex: string; cfSortField: number }[] = [
-  { id: "relevance", label: "По релевантности", modrinthIndex: "relevance", cfSortField: 2 },
-  { id: "downloads", label: "По загрузкам", modrinthIndex: "downloads", cfSortField: 6 },
-  { id: "follows", label: "По подписчикам", modrinthIndex: "follows", cfSortField: 2 },
-  { id: "newest", label: "По новизне", modrinthIndex: "newest", cfSortField: 11 },
-  { id: "updated", label: "По дате обновления", modrinthIndex: "updated", cfSortField: 3 },
-  { id: "featured", label: "Избранные", modrinthIndex: "relevance", cfSortField: 1 },
-  { id: "rating", label: "По рейтингу", modrinthIndex: "relevance", cfSortField: 12 },
-]
+/**
+ * Загрузчики, которые можно выбрать у сборки.
+ *
+ * `instance` — это не загрузчик, а режим главной страницы («запустить
+ * существующую сборку»), поэтому в списках сборок его быть не должно.
+ * В `MOD_LOADERS` он остаётся, чтобы корректно отображать старые сборки
+ * с таким значением.
+ */
+export const BUILD_MOD_LOADERS = MOD_LOADERS.filter(item => item.id !== "instance")
+
+export function getModSortOptions(t: (key: string) => string): { id: ModSort; label: string; modrinthIndex: string; cfSortField: number }[] {
+  return [
+    { id: "relevance", label: t("sort.relevance"), modrinthIndex: "relevance", cfSortField: 2 },
+    { id: "downloads", label: t("sort.downloads"), modrinthIndex: "downloads", cfSortField: 6 },
+    { id: "follows", label: t("sort.follows"), modrinthIndex: "follows", cfSortField: 2 },
+    { id: "newest", label: t("sort.newest"), modrinthIndex: "newest", cfSortField: 11 },
+    { id: "updated", label: t("sort.updated"), modrinthIndex: "updated", cfSortField: 3 },
+    { id: "featured", label: t("sort.featured"), modrinthIndex: "relevance", cfSortField: 1 },
+    { id: "rating", label: t("sort.rating"), modrinthIndex: "relevance", cfSortField: 12 },
+  ]
+}

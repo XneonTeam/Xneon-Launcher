@@ -11,10 +11,15 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false
-    void initI18n().then(() => {
-      if (cancelled) return
-      setModulesReady(true)
-    })
+    void initI18n()
+      .catch((error) => {
+        // Не оставляем UI навсегда в состоянии загрузки: i18n не критичен для старта.
+        console.error("[i18n] init failed, falling back to raw keys:", error)
+      })
+      .then(() => {
+        if (cancelled) return
+        setModulesReady(true)
+      })
     return () => {
       cancelled = true
     }

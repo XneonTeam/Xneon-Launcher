@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils"
 import { IconTerminal2, IconWorldDownload, IconCode } from "@tabler/icons-react"
 import type { Build } from "./types"
+import { useTranslation } from "react-i18next"
 
 interface InstanceBuildLaunchProps {
   build: Build
@@ -20,6 +21,7 @@ function parseEnvText(raw: string): Record<string, string> {
 }
 
 export function InstanceBuildLaunch({ build, updateBuild }: InstanceBuildLaunchProps) {
+  const { t } = useTranslation()
   const customEnv = build.customEnv ?? ""
 
   return (
@@ -29,34 +31,34 @@ export function InstanceBuildLaunch({ build, updateBuild }: InstanceBuildLaunchP
           <div>
             <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
               <IconTerminal2 className="h-5 w-5 text-primary" strokeWidth={1.75} />
-              Команды запуска
+              {t("build.launch.title")}
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Pre-launch и post-launch команды, выполняемые до и после игры. Поддерживаются переменные{" "}
+              {t("build.launch.descBefore")}{" "}
               <code className="text-foreground">$INST_NAME</code>, <code className="text-foreground">$INST_MC_DIR</code>,{" "}
-              <code className="text-foreground">$INST_JAVA</code>, <code className="text-foreground">$AUTH_PLAYER_NAME</code> и другие.
+              <code className="text-foreground">$INST_JAVA</code>, <code className="text-foreground">$AUTH_PLAYER_NAME</code> {t("build.launch.descAfter")}
             </p>
           </div>
         </div>
 
         <div className="mt-6 grid gap-5">
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-muted-foreground">Pre-launch команда</label>
+            <label className="block text-xs font-medium text-muted-foreground">{t("build.launch.preLaunch")}</label>
             <textarea
               value={build.preLaunchCommand ?? ""}
               onChange={e => updateBuild(build.id, { preLaunchCommand: e.target.value })}
-              placeholder={"echo \"Запуск $INST_NAME\"\n./scripts/setup.sh"}
+              placeholder={t("build.launch.preLaunchPlaceholder")}
               rows={3}
               className="w-full resize-y rounded-2xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary font-mono"
             />
           </div>
 
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-muted-foreground">Post-launch команда</label>
+            <label className="block text-xs font-medium text-muted-foreground">{t("build.launch.postLaunch")}</label>
             <textarea
               value={build.postLaunchCommand ?? ""}
               onChange={e => updateBuild(build.id, { postLaunchCommand: e.target.value })}
-              placeholder={"echo \"Игра $INST_NAME завершена\""}
+              placeholder={t("build.launch.postLaunchPlaceholder")}
               rows={3}
               className="w-full resize-y rounded-2xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary font-mono"
             />
@@ -67,11 +69,11 @@ export function InstanceBuildLaunch({ build, updateBuild }: InstanceBuildLaunchP
       <div className="rounded-3xl border border-border bg-card/40 p-6">
         <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
           <IconCode className="h-5 w-5 text-primary" strokeWidth={1.75} />
-          Wrapper-команда
+          {t("build.launch.wrapper")}
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Программа, через которую запускается Java (например <code className="text-foreground">optirun</code> или{" "}
-          <code className="text-foreground">primusrun</code> для NVIDIA Optimus). Пусто — запуск напрямую.
+          {t("build.launch.wrapperDescBefore")} <code className="text-foreground">optirun</code> {t("build.launch.wrapperDescOr")}{" "}
+          <code className="text-foreground">primusrun</code> {t("build.launch.wrapperDescAfter")}
         </p>
         <div className="mt-4 space-y-2">
           <input
@@ -87,10 +89,10 @@ export function InstanceBuildLaunch({ build, updateBuild }: InstanceBuildLaunchP
       <div className="rounded-3xl border border-border bg-card/40 p-6">
         <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
           <IconWorldDownload className="h-5 w-5 text-primary" strokeWidth={1.75} />
-          Переменные окружения
+          {t("build.launch.env")}
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Дополнительные переменные окружения для процесса игры. По одной <code className="text-foreground">KEY=VALUE</code> на строку.
+          {t("build.launch.envDescBefore")} <code className="text-foreground">KEY=VALUE</code> {t("build.launch.envDescAfter")}
         </p>
         <div className="mt-4 space-y-2">
           <textarea
@@ -101,7 +103,7 @@ export function InstanceBuildLaunch({ build, updateBuild }: InstanceBuildLaunchP
             className="w-full resize-y rounded-2xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary font-mono"
           />
           <p className="text-xs text-muted-foreground">
-            Распознано переменных: {Object.keys(parseEnvText(customEnv)).length}
+            {t("build.launch.envCount", { count: Object.keys(parseEnvText(customEnv)).length })}
           </p>
         </div>
       </div>

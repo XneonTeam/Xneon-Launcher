@@ -4,6 +4,9 @@
 // ============================================================
 
 import { ipcMain } from "electron"
+import path from "path"
+import { getBuildIntentPath } from "./builds/helpers"
+import { checkLoaderRequirements, type LoaderRequirementReport } from "./mods-loader-requirements"
 import type {
   ContentType,
   ModDetails,
@@ -241,6 +244,20 @@ export function registerModsHandlers(): void {
       } catch (err) {
         console.error("Dependency resolution error:", err)
         return []
+      }
+    },
+  )
+
+  // ── Требования модов сборки к версии загрузчика ───────────
+  ipcMain.handle(
+    "mods:check-loader-requirements",
+    async (_event, buildName: string, modLoader?: string, loaderVersion?: string): Promise<LoaderRequirementReport> => {
+      try {
+        const modsDir = path.join(getBuildIntentPath(buildName), "mods")
+        return await checkLoaderRequirements(modsDir, modLoader, loaderVersion)
+      } catch (err) {
+        console.error("Loader requirement check error:", err)
+        return { loaderId: modLoader ?? "", loaderVersion, checked: 0, issues: [] }
       }
     },
   )

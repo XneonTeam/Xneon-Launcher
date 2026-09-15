@@ -7,7 +7,12 @@ import { dbHelpers, isUsingFallbackStorage } from "../db"
 import { getMainWindow } from "./runtime"
 import { discoverAllInstances, discoverGdLauncherInstances, discoverInstancesFromPath, importLauncherInstance } from "./import"
 import { execAsync, fileExists } from "./import/helpers"
-import { sendImportProgress } from "./builds/helpers"
+import {
+  cleanupReplacedLoaderArtifacts,
+  cleanupReplacedLoaderArtifactsForBuilds,
+  isLoaderSelectionFieldChange,
+  sendImportProgress,
+} from "./builds/helpers"
 import { fetchWithRetry } from "@xnlc/core/retry"
 
 const MOJANG_BASE = "https://launchercontent.mojang.com"
@@ -126,12 +131,49 @@ export function registerSystemHandlers() {
   ipcMain.handle("db:remove-account", async (_event, id: string) => dbHelpers.removeAccount(id))
   ipcMain.handle("db:reorder-accounts", async (_event, ids: string[]) => dbHelpers.reorderAccounts(ids))
   ipcMain.handle("db:load-builds", async () => dbHelpers.loadBuilds())
-  ipcMain.handle("db:save-builds", async (_event, builds) => dbHelpers.saveAllBuilds(builds))
+  ipcMain.handle("db:save-builds", async (_event, builds) => {
+    const incoming = Array.isArray(builds) ? builds : []
+    const previousBuilds = await dbHelpers.loadBuilds()
+    await dbHelpers.saveAllBuilds(incoming)
+    // Массовое сохранение — вторая (подстраховывающая) точка, где может
+    // проехать смена версии загрузчика: импорт/восстановление модпака и т.п.
+    void cleanupReplacedLoaderArtifactsForBuilds(previousBuilds, incoming)
+  })
   // Мгновенная точечная запись полей одной сборки (без debounce на стороне UI):
   // нужна для правок вроде отвязки/привязки модпака, которые не должны теряться
   // при быстром переключении вкладок инстанса.
   ipcMain.handle("db:update-build-fields", async (_event, buildId: string, fields: Record<string, unknown>) => {
+    // Смена версии загрузчика / типа загрузчика / версии Minecraft меняет имя
+    // профиля в `versions/` — старый профиль остаётся на диске и его нужно
+    // убрать, иначе в папке игры копятся «мёртвые» лоадеры. Снапшот до правки
+    // читаем только для таких полей, чтобы не дёргать БД на каждое изменение
+    // описания или иконки.
+    const selectionChange = isLoaderSelectionFieldChange(fields)
+    const previous = selectionChange
+      ? (await dbHelpers.loadBuilds()).find(build => build.id === buildId)
+      : undefined
     await dbHelpers.updateBuildFields(buildId, fields as Parameters<typeof dbHelpers.updateBuildFields>[1])
+
+    if (previous) {
+      await cleanupReplacedLoaderArtifacts({
+        buildName: previous.name,
+        previous: {
+          version: previous.version,
+          modLoader: previous.modLoader,
+          loaderVersion: previous.loaderVersion,
+        },
+        current: {
+          version: typeof fields.version === "string" ? fields.version : previous.version,
+          modLoader: typeof fields.modLoader === "string" ? fields.modLoader : previous.modLoader,
+          // `loaderVersion: undefined` — это осознанный сброс поля, поэтому
+          // проверяем наличие ключа, а не его значение.
+          loaderVersion: "loaderVersion" in fields
+            ? (fields.loaderVersion as string | undefined)
+            : previous.loaderVersion,
+        },
+        intentPath: typeof fields.intentPath === "string" ? fields.intentPath : previous.intentPath,
+      })
+    }
   })
   ipcMain.handle("db:is-fallback-storage", async () => ({ isFallback: isUsingFallbackStorage() }))
   ipcMain.handle("launcher:discover-importable-instances", async () => discoverAllInstances())

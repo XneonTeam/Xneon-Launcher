@@ -1,3 +1,4 @@
+import i18n from "@/src/i18n"
 import { LOADER_SVG_ICONS } from "./loader-icons"
 
 interface LoaderIconProps {
@@ -37,12 +38,14 @@ const LOADER_DISPLAY_NAMES: Record<string, string> = {
   velocity: "Velocity",
   waterfall: "Waterfall",
   bungeecord: "BungeeCord",
-  instance: "Instance",
 }
 
 export function loaderLabel(loaderId?: string | null): string {
   const id = String(loaderId ?? "").toLowerCase().trim()
   if (!id) return "Vanilla"
+  // `instance` — режим главной страницы («запустить сборку»), а не загрузчик,
+  // поэтому подпись берём из локали, а не из таблицы имён.
+  if (id === "instance") return i18n.t("home.modLoader.instance")
   return LOADER_DISPLAY_NAMES[id] ?? id.charAt(0).toUpperCase() + id.slice(1)
 }
 

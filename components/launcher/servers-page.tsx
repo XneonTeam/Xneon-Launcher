@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IconPlus, IconServer, IconTrash, IconLayoutGrid, IconLayoutList, IconPlayerPlay, IconPlayerStop, IconTerminal, IconFolder, IconPencil, IconX, IconChevronDown, IconChevronRight } from "@tabler/icons-react"
+import { IconPlus, IconServer, IconTrash, IconLayoutGrid, IconLayoutList, IconPlayerPlay, IconPlayerStop, IconTerminal, IconFolder, IconPencil, IconChevronDown, IconChevronRight } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { useMcServers, useMcServerState } from "@/src/hooks/use-mc-servers"
 import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
@@ -10,6 +10,7 @@ import { ServerContextMenu } from "./server/server-context-menu"
 import { ServerCreateDialog } from "./server-create-dialog"
 import { ServerPackInstallDialog, type PackInstallTarget } from "./server-pack-install-dialog"
 import { ServerTrashView } from "./server-trash-view"
+import { CategoryAssignMenu } from "./category-assign-menu"
 import { ServersBrowse } from "./servers-browse"
 import { InstanceModal } from "./instance/instance-modal"
 import { LoaderIcon, loaderLabel } from "./instance/loader-icon"
@@ -582,34 +583,13 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
 
       {/* Assign server to category */}
       {assignMenu && (
-        <div
-          className="fixed z-50 min-w-[180px] rounded-xl border border-border bg-popover p-1 shadow-2xl"
-          style={{ left: assignMenu.x, top: assignMenu.y }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="px-2.5 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            {t("servers.moveToGroup", "Переместить в категорию")}
-          </div>
-          {groups.map(g => (
-            <button key={g} type="button"
-              onClick={() => handleAssignGroup(assignMenu.serverId, g)}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-foreground hover:bg-muted">
-              <IconFolder className="w-4 h-4 text-muted-foreground" />
-              {g}
-            </button>
-          ))}
-          <button type="button"
-            onClick={() => handleAssignGroup(assignMenu.serverId, "")}
-            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-muted-foreground hover:bg-muted">
-            <IconX className="w-4 h-4" />
-            {t("servers.removeFromGroup", "Убрать из категории")}
-          </button>
-          <NewGroupInput
-            onConfirm={(name) => handleAssignGroup(assignMenu.serverId, name)}
-            placeholder={t("servers.newGroupPlaceholder", "Новая категория…")}
-            confirmLabel={t("servers.createGroup", "Создать")}
-          />
-        </div>
+        <CategoryAssignMenu
+          position={{ x: assignMenu.x, y: assignMenu.y }}
+          groups={groups}
+          current={servers.find(s => s.id === assignMenu.serverId)?.group ?? ""}
+          onAssign={(group) => handleAssignGroup(assignMenu.serverId, group)}
+          onClose={() => setAssignMenu(null)}
+        />
       )}
 
       {/* Rename category dialog */}
@@ -668,37 +648,6 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
           onClose={closeServerPackModal}
         />
       )}
-    </div>
-  )
-}
-
-/** Инлайн-ввод для создания новой категории прямо в меню назначения. */
-function NewGroupInput({ onConfirm, placeholder, confirmLabel }: { onConfirm: (name: string) => void; placeholder: string; confirmLabel: string }) {
-  const [value, setValue] = useState("")
-  const submit = () => {
-    const trimmed = value.trim()
-    if (trimmed) onConfirm(trimmed)
-  }
-  return (
-    <div className="mt-1 flex items-center gap-1 border-t border-border px-1.5 pt-1.5" onClick={(e) => e.stopPropagation()}>
-      <input
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") { e.preventDefault(); submit() }
-          e.stopPropagation()
-        }}
-        placeholder={placeholder}
-        className="min-w-0 flex-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs text-foreground outline-none focus:border-primary"
-      />
-      <button
-        type="button"
-        disabled={!value.trim()}
-        onClick={submit}
-        className="shrink-0 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
-      >
-        {confirmLabel}
-      </button>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils"
+import { useTranslation } from "react-i18next"
 import { IconCheck, IconPalette } from "@tabler/icons-react"
 import { presetThemes, applyTheme } from "./data"
 
@@ -8,12 +9,13 @@ interface SettingsThemesProps {
 }
 
 export function SettingsThemes({ selectedTheme, setSelectedTheme }: SettingsThemesProps) {
+  const { t } = useTranslation()
   return (
     <div className="space-y-8 animate-in fade-in-0 slide-in-from-left-4 duration-300">
       <section className="space-y-4">
         <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
           <IconPalette className="w-5 h-5 text-primary" strokeWidth={1.75} />
-          Готовые темы
+          {t("settings.themes.presets")}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           {presetThemes.map((theme) => (

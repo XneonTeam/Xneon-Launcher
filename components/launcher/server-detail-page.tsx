@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import {
   IconArrowLeft, IconTerminal, IconSettings, IconPlayerPlay,
@@ -46,9 +46,11 @@ function hasAddons(modloader: string): boolean {
 interface ServerDetailPageProps {
   server: McServerInfo
   onBack: () => void
+  /** Обновлённые данные сервера (порт/online-mode/слоты) после записи server.properties. */
+  onServerUpdated?: (server: McServerInfo) => void
 }
 
-export function ServerDetailPage({ server, onBack }: ServerDetailPageProps) {
+export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDetailPageProps) {
   const { t } = useTranslation()
   const { state, start, stop } = useMcServerState(server.id)
   const { logs, clearLogs } = useMcServerLogs(server.id)
@@ -63,6 +65,9 @@ export function ServerDetailPage({ server, onBack }: ServerDetailPageProps) {
   const [icon, setIcon] = useState(server.icon ?? "")
   const [showIconPicker, setShowIconPicker] = useState(false)
   const [limitState, setLimitState] = useState<{ used: number; max: number } | null>(null)
+  // Несохранённые правки server.properties дописываются на диск перед стартом:
+  // иначе сервер поднимается со старыми значениями из файла.
+  const propertiesFlushRef = useRef<(() => Promise<void>) | null>(null)
 
   useEffect(() => {
     window.electronAPI?.mcServerGetAddresses(server.id).then(addrs => {
@@ -109,7 +114,10 @@ export function ServerDetailPage({ server, onBack }: ServerDetailPageProps) {
     await window.electronAPI?.mcServerAcceptEula(server.id)
     setEulaAccepted(true)
     setShowEula(false)
-    if (!isBusy) start()
+    if (!isBusy) {
+      await propertiesFlushRef.current?.().catch(() => {})
+      start()
+    }
   }
 
   const handleEulaDecline = () => {
@@ -133,19 +141,23 @@ export function ServerDetailPage({ server, onBack }: ServerDetailPageProps) {
     setCommand("")
   }
 
-  const handleStartStop = () => {
-    if (isRunning) stop()
-    else if (!isBusy) {
-      if (!eulaAccepted) {
-        setShowEula(true)
-        return
-      }
-      start()
+  const handleStartStop = async () => {
+    if (isRunning) {
+      stop()
+      return
     }
+    if (isBusy) return
+    if (!eulaAccepted) {
+      setShowEula(true)
+      return
+    }
+    await propertiesFlushRef.current?.().catch(() => {})
+    start()
   }
 
   const handleRestart = async () => {
     if (!isRunning || isBusy) return
+    await propertiesFlushRef.current?.().catch(() => {})
     await stop()
     start()
   }
@@ -386,7 +398,7 @@ export function ServerDetailPage({ server, onBack }: ServerDetailPageProps) {
           <PlayersTab serverId={server.id} />
         )}
         {activeTab === "properties" && (
-          <PropertiesTab server={server} />
+          <PropertiesTab server={server} flushRef={propertiesFlushRef} onServerUpdated={onServerUpdated} />
         )}
         {activeTab === "files" && (
           <FilesTab serverId={server.id} />

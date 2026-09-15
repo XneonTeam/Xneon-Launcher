@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useTranslation } from "react-i18next"
 
 interface SettingsVersionsProps {
   showAlpha: boolean
@@ -18,10 +19,11 @@ export function SettingsVersions({
   showSnapshot,
   setShowSnapshot,
 }: SettingsVersionsProps) {
+  const { t } = useTranslation()
   const options = [
-    { label: "Snapshot", description: "Снапшоты и экспериментальные сборки (snapshot)", value: showSnapshot, set: setShowSnapshot },
-    { label: "Old Beta", description: "Старые бета-версии Minecraft (old_beta)", value: showBeta, set: setShowBeta },
-    { label: "Old Alpha", description: "Старые альфа-версии Minecraft (old_alpha)", value: showAlpha, set: setShowAlpha },
+    { label: "Snapshot", description: t("settings.versions.snapshotDesc"), value: showSnapshot, set: setShowSnapshot },
+    { label: "Old Beta", description: t("settings.versions.oldBetaDesc"), value: showBeta, set: setShowBeta },
+    { label: "Old Alpha", description: t("settings.versions.oldAlphaDesc"), value: showAlpha, set: setShowAlpha },
   ]
 
   return (

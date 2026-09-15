@@ -1,5 +1,6 @@
 import { MOD_LOADERS } from "./constants"
 import type { Build, ModSearchResult, ModVersion } from "./types"
+import i18n from "@/src/i18n"
 
 export function loadBuilds(): Build[] {
   const saved = localStorage.getItem("xneon-launcher:builds:legacy")
@@ -8,7 +9,7 @@ export function loadBuilds(): Build[] {
     if (hasLegacy) {
       const migrated: Build[] = hasLegacy.map(build => ({
         id: build.id ?? crypto.randomUUID(),
-        name: build.name ?? "Без названия",
+        name: build.name ?? i18n.t("builds.untitled"),
         description: build.description ?? "",
         version: build.version ?? "",
         modLoader: build.modLoader ?? MOD_LOADERS[0].id,

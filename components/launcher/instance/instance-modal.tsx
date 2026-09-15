@@ -26,5 +26,5 @@ interface InstanceModalProps {
  * остаётся только инстанс-специфичный текст пустого состояния.
  */
 export function InstanceModal(props: InstanceModalProps) {
-  return <AddonDetailModal {...props} targetLabel="для вашей сборки" />
+  return <AddonDetailModal {...props} />
 }
