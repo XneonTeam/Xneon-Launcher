@@ -2,7 +2,7 @@ import { opFailure } from "../errors"
 import path from "path"
 import fs from "fs/promises"
 import { sendToRenderer } from "../runtime"
-import { dbHelpers } from "../../db"
+import { dbHelpers, type BuildJson } from "../../db"
 import { ensureSharedGameLinksSync } from "../shared-game-cache"
 import { fetchWithRetry } from "@xnlc/core/retry"
 import { getLauncherDataRoot } from "../paths"
@@ -523,4 +523,267 @@ export function getLoaderSelectionFromCurseManifest(loaderRaw: string): { modLoa
   if (loaderType === "quilt") return { modLoader: "quilt", loaderVersion }
   if (loaderType === "neoforge") return { modLoader: "neoforge", loaderVersion }
   return { modLoader: "vanilla" }
+}
+
+// ---------- Loader artifacts (профили и библиотеки загрузчика) ----------
+
+/**
+ * Имена папок в `<gameDir>/versions`, которыми владеет загрузчик
+ * (формат совпадает с `XnlcLoaderService.getProfileName` из @xnlc/core).
+ * Обычные ванильные версии под этот шаблон не попадают.
+ */
+const LOADER_PROFILE_RE = /^(?:neoforge|forge|fabric-loader|quilt-loader|liteloader)-|^[^-]+-OptiFine_/i
+
+/** OptiFine хранит версию в имени файла: `OptiFine_<mc>_<edition>_<release>.jar`. */
+const OPTIFINE_FILENAME_RE = /(?:preview_)?OptiFine_(\d+(?:\.\d+)*)_([A-Z0-9_]+?)_([A-Z0-9]+)\.jar/i
+
+/**
+ * Артефакты, принадлежащие конкретной версии загрузчика. Список узкий:
+ * транзитивные зависимости (mixin, accesstransformers, asm и т.п.) живут под
+ * своими собственными версиями и не должны удаляться.
+ */
+const LOADER_LIBRARY_ARTIFACTS: Record<string, string[]> = {
+  neoforge: [
+    "net.neoforged:neoforge",
+    "net.neoforged:fmlcore",
+    "net.neoforged:fmlloader",
+    "net.neoforged:javafmllanguage",
+    "net.neoforged:lowcodelanguage",
+    "net.neoforged:mclanguage",
+  ],
+  forge: [
+    "net.minecraftforge:forge",
+    "net.minecraftforge:fmlcore",
+    "net.minecraftforge:fmlloader",
+    "net.minecraftforge:javafmllanguage",
+    "net.minecraftforge:lowcodelanguage",
+    "net.minecraftforge:mclanguage",
+  ],
+  fabric: ["net.fabricmc:fabric-loader"],
+  "fabric-legacy": ["net.fabricmc:fabric-loader"],
+  quilt: ["org.quiltmc:quilt-loader"],
+  liteloader: ["com.mumfrey:liteloader"],
+  optifine: ["optifine:OptiFine", "net.optifine:OptiFine"],
+}
+
+export type LoaderSelection = {
+  version: string
+  modLoader?: string
+  loaderVersion?: string
+}
+
+/**
+ * Имя профиля загрузчика в `versions/` — зеркало `LoaderService.getProfileName`
+ * из @xnlc/core. Возвращает null, если загрузчик версией не управляет
+ * (vanilla / instance / custom).
+ */
+export function getLoaderProfileName(selection: LoaderSelection): string | null {
+  const mcVersion = (selection.version ?? "").trim()
+  const modLoader = (selection.modLoader ?? "").trim().toLowerCase()
+  const loaderVersion = (selection.loaderVersion ?? "").trim()
+  if (!mcVersion || !loaderVersion) return null
+
+  switch (modLoader) {
+    case "neoforge":
+      return `neoforge-${loaderVersion}-${mcVersion}`
+    case "forge":
+      return `forge-${loaderVersion}-${mcVersion}`
+    case "fabric":
+    case "fabric-legacy":
+      return `fabric-loader-${loaderVersion}-${mcVersion}`
+    case "quilt":
+      return `quilt-loader-${loaderVersion}-${mcVersion}`
+    case "liteloader":
+      return `liteloader-${loaderVersion}-${mcVersion}`
+    case "optifine": {
+      const parsed = loaderVersion.match(OPTIFINE_FILENAME_RE)
+      return parsed
+        ? `${parsed[1]}-OptiFine_${parsed[2]}_${parsed[3]}`
+        : `${mcVersion}-OptiFine_${loaderVersion}`
+    }
+    default:
+      return null
+  }
+}
+
+function isPathInside(parent: string, child: string): boolean {
+  const normalizedParent = path.resolve(parent)
+  const normalizedChild = path.resolve(child)
+  return normalizedChild !== normalizedParent && normalizedChild.startsWith(`${normalizedParent}${path.sep}`)
+}
+
+/**
+ * Правка вообще может изменить профиль загрузчика в `versions/`.
+ * Гейт нужен, чтобы не читать БД на каждое изменение описания/иконки.
+ */
+export function isLoaderSelectionFieldChange(fields: Record<string, unknown>): boolean {
+  return "loaderVersion" in fields
+    || typeof fields.modLoader === "string"
+    || typeof fields.version === "string"
+}
+
+async function removeDirectoryIfExists(target: string): Promise<void> {
+  try {
+    await fs.rm(target, { recursive: true, force: true, maxRetries: 3 })
+  } catch (error) {
+    console.warn(`[Builds] Failed to remove "${target}":`, error)
+  }
+}
+
+function isSafeMavenSegment(segment: string): boolean {
+  return !!segment && !segment.includes("/") && !segment.includes("\\") && segment !== "." && segment !== ".."
+}
+
+/**
+ * Папки библиотек, которые принадлежат именно предыдущей версии загрузчика.
+ * Список берётся из её же profile JSON, поэтому пути точные: удаляются только
+ * артефакты из белого списка, чья версия совпадает с версией загрузчика
+ * (например `net.neoforged:neoforge:21.0.1` или
+ * `net.minecraftforge:forge:1.20.1-47.2.0`).
+ */
+async function collectReplacedLoaderLibraryDirs(
+  gameDir: string,
+  previous: LoaderSelection,
+): Promise<string[]> {
+  const loaderKey = (previous.modLoader ?? "").trim().toLowerCase()
+  const loaderVersion = (previous.loaderVersion ?? "").trim()
+  const mcVersion = (previous.version ?? "").trim()
+  const allowed = LOADER_LIBRARY_ARTIFACTS[loaderKey]
+  const profileName = getLoaderProfileName(previous)
+  if (!allowed || !loaderVersion || !profileName) return []
+
+  const profileJsonPath = path.join(gameDir, "versions", profileName, `${profileName}.json`)
+  let libraries: Array<{ name?: string }>
+  try {
+    const raw = JSON.parse(await fs.readFile(profileJsonPath, "utf-8")) as { libraries?: Array<{ name?: string }> }
+    libraries = Array.isArray(raw.libraries) ? raw.libraries : []
+  } catch {
+    // Профиль ещё не устанавливался — библиотеки привязать не к чему.
+    return []
+  }
+
+  const librariesDir = path.join(gameDir, "libraries")
+  const dirs = new Set<string>()
+
+  for (const lib of libraries) {
+    const name = typeof lib?.name === "string" ? lib.name : ""
+    const [group, artifact, version] = name.split(":")
+    if (!group || !artifact || !version) continue
+    if (!allowed.includes(`${group}:${artifact}`)) continue
+    // Версия загрузчика: у Forge/NeoForge её пишут как `<mc>-<loader>`,
+    // у Fabric/Quilt/LiteLoader/OptiFine — как есть.
+    if (version !== loaderVersion && version !== `${mcVersion}-${loaderVersion}`) continue
+    if (![group, artifact, version].every(isSafeMavenSegment)) continue
+
+    const dir = path.join(librariesDir, ...group.split("."), artifact, version)
+    if (isPathInside(librariesDir, dir)) dirs.add(dir)
+  }
+
+  return Array.from(dirs)
+}
+
+/**
+ * Удаляет артефакты предыдущего загрузчика после смены версии/типа загрузчика
+ * (или версии Minecraft) в сборке: профиль в `versions/` и библиотеки самой
+ * версии загрузчика.
+ *
+ * Важно: у интентов `versions` и `libraries` — это символические ссылки на
+ * общий кеш, поэтому профиль/библиотеки снимаются только тогда, когда их не
+ * использует ни одна другая сборка (сравнение по маске профиля и по паре
+ * загрузчик+версия загрузчика). Пользовательские данные (mods, saves, config,
+ * resourcepacks и т.п.) не трогаются.
+ */
+export async function cleanupReplacedLoaderArtifacts(params: {
+  buildName: string
+  previous?: LoaderSelection
+  current: LoaderSelection
+  intentPath?: string
+  builds?: Array<{ name?: string; version?: string; modLoader?: string; loaderVersion?: string }>
+}): Promise<void> {
+  const { buildName, previous, current } = params
+  if (!previous) return
+
+  const previousProfile = getLoaderProfileName(previous)
+  const currentProfile = getLoaderProfileName(current)
+  // Смена, которая не меняет профиль на диске (например, только описание
+  // сборки), не требует никакой очистки.
+  if (!previousProfile || previousProfile === currentProfile) return
+  if (!LOADER_PROFILE_RE.test(previousProfile)) return
+
+  try {
+    const builds = params.builds ?? await dbHelpers.loadBuilds()
+    const otherBuilds = builds.filter(b => b?.name !== buildName)
+    const profileStillUsed = otherBuilds.some(b => getLoaderProfileName({
+      version: b?.version ?? "",
+      modLoader: b?.modLoader,
+      loaderVersion: b?.loaderVersion,
+    }) === previousProfile)
+    if (profileStillUsed) return
+
+    const gameDir = (params.intentPath ?? "").trim() || getBuildIntentPath(buildName)
+    const versionsDir = path.join(gameDir, "versions")
+    const profileDir = path.join(versionsDir, previousProfile)
+    if (!isPathInside(versionsDir, profileDir)) return
+
+    // Библиотеки версии загрузчика общие для всех сборок с этой же версией
+    // загрузчика — их снимаем только если такая сборка не найдётся.
+    const loaderKey = (previous.modLoader ?? "").trim().toLowerCase()
+    const loaderVersion = (previous.loaderVersion ?? "").trim()
+    const loaderVersionStillUsed = otherBuilds.some(b =>
+      (b?.modLoader ?? "").trim().toLowerCase() === loaderKey
+      && (b?.loaderVersion ?? "").trim() === loaderVersion)
+
+    const libraryDirs = loaderVersionStillUsed
+      ? []
+      : await collectReplacedLoaderLibraryDirs(gameDir, previous)
+
+    await removeDirectoryIfExists(profileDir)
+    for (const dir of libraryDirs) {
+      await removeDirectoryIfExists(dir)
+    }
+  } catch (error) {
+    console.warn(`[Builds] Failed to clean up replaced loader for "${buildName}":`, error)
+  }
+}
+
+/**
+ * Прогоняет очистку старых загрузчиков по результату массового сохранения
+ * сборок: сравнивает снапшот из БД с только что записанным списком и убирает
+ * артефакты у тех сборок, где профиль загрузчика изменился.
+ */
+export async function cleanupReplacedLoaderArtifactsForBuilds(
+  previousBuilds: BuildJson[],
+  savedBuilds: BuildJson[],
+): Promise<void> {
+  try {
+    const previousById = new Map(previousBuilds.map(build => [build.id, build]))
+    const changed = savedBuilds.filter(build => {
+      const before = previousById.get(build.id)
+      if (!before) return false
+      return getLoaderProfileName(before) !== getLoaderProfileName(build)
+    })
+    if (changed.length === 0) return
+
+    for (const build of changed) {
+      const before = previousById.get(build.id)
+      if (!before) continue
+      await cleanupReplacedLoaderArtifacts({
+        buildName: build.name || before.name,
+        previous: {
+          version: before.version,
+          modLoader: before.modLoader,
+          loaderVersion: before.loaderVersion,
+        },
+        current: {
+          version: build.version,
+          modLoader: build.modLoader,
+          loaderVersion: build.loaderVersion,
+        },
+        intentPath: build.intentPath || before.intentPath,
+        builds: savedBuilds,
+      })
+    }
+  } catch (error) {
+    console.warn("[Builds] Failed to clean up replaced loaders after bulk save:", error)
+  }
 }

@@ -31,6 +31,8 @@ let dbFallbackMode = false
 let sqlModulePromise: Promise<SqlJsModule> | null = null
 let database: SqlJsDatabase | null = null
 let persistTimer: NodeJS.Timeout | null = null
+let tmpCounter = 0
+let persistChain: Promise<void> = Promise.resolve()
 
 export const inMemoryAccounts = new Map<string, unknown>()
 export const inMemoryBuilds = new Map<string, unknown>()
@@ -90,8 +92,16 @@ export function run(sql: string, params: unknown[] = []) {
 
 async function persistBytes(bytes: Uint8Array): Promise<void> {
   await fs.mkdir(path.dirname(dbPath), { recursive: true }).catch(() => {})
-  await fs.writeFile(tmpDbPath, bytes)
-  await fs.rename(tmpDbPath, dbPath)
+  // Уникальное имя временного файла: параллельные записи не должны отбирать
+  // tmp друг у друга (иначе rename падает с ENOENT).
+  const tmpPath = `${dbPath}.${process.pid}.${++tmpCounter}.tmp`
+  try {
+    await fs.writeFile(tmpPath, bytes)
+    await fs.rename(tmpPath, dbPath)
+  } catch (error) {
+    await fs.rm(tmpPath, { force: true }).catch(() => {})
+    throw error
+  }
 }
 
 function persistBytesSync(bytes: Uint8Array): void {
@@ -100,18 +110,25 @@ function persistBytesSync(bytes: Uint8Array): void {
   fsSync.renameSync(tmpDbPath, dbPath)
 }
 
-export async function writeDatabaseToDisk() {
-  if (!database) {
-    return
-  }
-  try {
-    const bytes = Buffer.from(database.export())
-    await persistBytes(bytes)
-  } catch (error) {
-    const message = error instanceof Error ? error.stack ?? error.message : String(error)
-    console.error(`[DB] writeDatabaseToDisk() FAILED: ${message}`)
-    throw error
-  }
+export function writeDatabaseToDisk(): Promise<void> {
+  // Записи сериализуем: иначе два export()+rename подряд гоняются за один и тот же файл.
+  const task = persistChain.then(async () => {
+    if (!database) {
+      return
+    }
+    try {
+      const bytes = Buffer.from(database.export())
+      await persistBytes(bytes)
+    } catch (error) {
+      const message = error instanceof Error ? error.stack ?? error.message : String(error)
+      console.error(`[DB] writeDatabaseToDisk() FAILED: ${message}`)
+      throw error
+    }
+  })
+
+  // Ошибка не должна ломать цепочку и всплывать как unhandledRejection.
+  persistChain = task.catch(() => {})
+  return task
 }
 
 export function persistDatabase() {
@@ -125,7 +142,7 @@ export function persistDatabase() {
 
   persistTimer = setTimeout(() => {
     persistTimer = null
-    writeDatabaseToDisk()
+    void writeDatabaseToDisk().catch(() => {})
   }, 75)
 }
 
@@ -136,7 +153,7 @@ export function flushDatabasePersistence() {
   }
 
   if (database) {
-    writeDatabaseToDisk()
+    void writeDatabaseToDisk().catch(() => {})
   }
 }
 

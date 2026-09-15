@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Spinner } from "../instance/spinner"
 import { Pagination } from "../instance/pagination"
 import { formatDownloads } from "../instance/utils"
-import { SORT_LABELS, SORT_OPTIONS_BY_SOURCE } from "../instance/sort-options"
+import { getSortLabels, SORT_OPTIONS_BY_SOURCE } from "../instance/sort-options"
 import { dataCache, MOD_SEARCH_CACHE_TTL } from "@/lib/swr"
 import type { McServerInfo, McFsEntry } from "@xnlc/types"
 import type { ModSearchResult, ModSort, ModVersion, ModDetails, ModContentType, ModCategory } from "@xnlc/types"
@@ -345,7 +345,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
             </SelectTrigger>
             <SelectContent>
               {SORT_OPTIONS_BY_SOURCE[source].map(id => (
-                <SelectItem key={id} value={id}>{SORT_LABELS[id]}</SelectItem>
+                <SelectItem key={id} value={id}>{getSortLabels(t)[id]}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -433,7 +433,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
         setModalTab={setModalTab}
         loadingModal={loadingDetail}
         onClose={closeDetails}
-        targetLabel="для вашего сервера"
+        targetLabel={t("addon.target.server")}
         onInstallVersion={(ver) => (async () => {
           if (!contentDir || !ver.downloadUrl || !selectedDetails) return false
           setInstallingSlug(selectedDetails.slug)

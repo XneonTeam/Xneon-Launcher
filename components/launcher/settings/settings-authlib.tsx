@@ -120,7 +120,7 @@ export function SettingsAuthlib({
         
         {injectorType === "retroauth" && enabled && (
           <div className="mt-3 text-xs text-muted-foreground">
-            Для всех версий + HD скины и плащи
+            {t("settings.authlib.retroauthDesc")}
           </div>
         )}
       </div>

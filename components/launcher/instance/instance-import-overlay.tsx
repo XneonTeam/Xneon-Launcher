@@ -1,5 +1,6 @@
 import { IconLoader2 } from "@tabler/icons-react"
 import type { ImportProgressState } from "./use-import"
+import { useTranslation } from "react-i18next"
 
 interface InstanceImportOverlayProps {
   importProgress: ImportProgressState | null
@@ -8,16 +9,16 @@ interface InstanceImportOverlayProps {
   onCancel: () => void
 }
 
-function formatProgressLabel(message: string, source: ImportProgressState["source"]): string {
+function formatProgressLabel(t: (key: string) => string, message: string, source: ImportProgressState["source"]): string {
   const trimmed = message.trim()
   const isCurseforge = source === "curseforge"
   const isFtb = source === "ftb"
   if (!trimmed) {
-    return isCurseforge || isFtb ? "Загрузка модпака" : "Загрузка файлов"
+    return isCurseforge || isFtb ? t("import.loadingModpack") : t("import.loadingFiles")
   }
 
   if (/^\d+\s*\/\s*\d+/.test(trimmed)) {
-    return isCurseforge || isFtb ? "Загрузка модпака" : "Загрузка файлов"
+    return isCurseforge || isFtb ? t("import.loadingModpack") : t("import.loadingFiles")
   }
 
   return trimmed
@@ -29,18 +30,19 @@ export function InstanceImportOverlay({
   isCancelling,
   onCancel,
 }: InstanceImportOverlayProps) {
+  const { t } = useTranslation()
   if (!importProgress) return null
 
   const total = Math.max(importProgress.total, 1)
   const progressPercent = Math.max(0, Math.min(100, Math.round((importProgress.current / total) * 100)))
-  const progressLabel = formatProgressLabel(importProgress.message, importProgress.source)
+  const progressLabel = formatProgressLabel(t, importProgress.message, importProgress.source)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/78 p-4 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-card shadow-2xl">
         <div className="border-b border-border px-5 py-4">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Импорт модпака</p>
-          <h3 className="mt-1 text-lg font-semibold text-foreground">Загрузка сборки</h3>
+          <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">{t("import.modpackImport")}</p>
+          <h3 className="mt-1 text-lg font-semibold text-foreground">{t("import.loadingBuild")}</h3>
         </div>
 
         <div className="space-y-4 px-5 py-5">
@@ -74,7 +76,7 @@ export function InstanceImportOverlay({
               disabled={isCancelling}
               className="rounded-xl border border-border bg-muted/40 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isCancelling ? "Отмена..." : "Отменить"}
+              {isCancelling ? t("import.cancelling") : t("import.cancel")}
             </button>
           </div>
         </div>

@@ -134,7 +134,7 @@ export function CloudFileBrowser({ providerId }: Props) {
     setError(null)
     try {
       const result = await api.cloudListFiles(providerId, currentPath || undefined)
-      if (!result.success) throw new Error(result.error || "Ошибка загрузки")
+      if (!result.success) throw new Error(result.error || t("cloud.errorUpload"))
       setFiles(result.files || [])
     } catch (e) {
       console.error("[Cloud] Fetch files error:", e)
@@ -185,11 +185,11 @@ export function CloudFileBrowser({ providerId }: Props) {
         if (result.success && result.account) {
           addAccount({ ...result.account, type: result.account.type as Account["type"], isActive: false })
           window.dispatchEvent(new CustomEvent("cloud:imported", { detail: { type: "account" } }))
-          showAlert("Аккаунт импортирован!", { variant: "info", title: "Готово" })
+          showAlert(t("cloud.accountImported"), { variant: "info", title: t("cloud.done") })
         } else if (!result.success) {
-          showAlert(result.error || "Ошибка импорта")
+          showAlert(result.error || t("cloud.importError"))
         }
-      } catch (e) { showAlert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`) }
+      } catch (e) { showAlert(t("cloud.error", { message: e instanceof Error ? e.message : String(e) })) }
     } else if (isBuild || isServer) {
       setImportModalFile(file)
     } else {
@@ -198,10 +198,10 @@ export function CloudFileBrowser({ providerId }: Props) {
         const { canceled, filePath } = await dialog.showSaveDialog({ defaultPath: file.name })
         if (!canceled && filePath) {
           const result = await api.cloudDownloadFile(providerId, file.path, filePath)
-          if (!result.success) showAlert(result.error || "Ошибка скачивания")
+          if (!result.success) showAlert(result.error || t("cloud.errorDownload"))
         }
       } else {
-        showAlert("Скачивание доступно только в Electron")
+        showAlert(t("cloud.onlyElectron"))
       }
     }
   }, [providerId, currentPath, addAccount, showAlert])
@@ -217,10 +217,10 @@ export function CloudFileBrowser({ providerId }: Props) {
     setPendingDelete(null)
     try {
       const result = await api.cloudDeleteFile(providerId, file.path)
-      if (!result.success) throw new Error(result.error || "Ошибка удаления")
+      if (!result.success) throw new Error(result.error || t("cloud.errorDelete"))
       fetchFiles()
       fetchQuota()
-    } catch (e) { showAlert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`) }
+    } catch (e) { showAlert(t("cloud.error", { message: e instanceof Error ? e.message : String(e) })) }
   }, [providerId, fetchFiles, fetchQuota, pendingDelete, showAlert])
 
   const handleUploadBuild = useCallback(async (buildId: string, buildName: string, categories?: string[]) => {
@@ -229,12 +229,12 @@ export function CloudFileBrowser({ providerId }: Props) {
     setUploadProgress({})
     try {
       const result = await api.cloudUploadBuild(providerId, buildName, buildId, categories as CloudUploadCategory[] | undefined)
-      if (!result.success) throw new Error(result.error || "Ошибка загрузки")
+      if (!result.success) throw new Error(result.error || t("cloud.errorUpload"))
       fetchFiles()
       fetchQuota()
       setShowUploadChoice(false)
       setUploadModalTarget(null)
-    } catch (e) { showAlert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`) }
+    } catch (e) { showAlert(t("cloud.error", { message: e instanceof Error ? e.message : String(e) })) }
     finally { setUploadingId(null) }
   }, [providerId, fetchFiles, fetchQuota, showAlert])
 
@@ -244,12 +244,12 @@ export function CloudFileBrowser({ providerId }: Props) {
     setUploadProgress({})
     try {
       const result = await api.cloudUploadServer(providerId, serverId, serverName, serverId, categories as CloudUploadCategory[] | undefined)
-      if (!result.success) throw new Error(result.error || "Ошибка загрузки")
+      if (!result.success) throw new Error(result.error || t("cloud.errorUpload"))
       fetchFiles()
       fetchQuota()
       setShowUploadChoice(false)
       setUploadModalTarget(null)
-    } catch (e) { showAlert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`) }
+    } catch (e) { showAlert(t("cloud.error", { message: e instanceof Error ? e.message : String(e) })) }
     finally { setUploadingId(null) }
   }, [providerId, fetchFiles, fetchQuota, showAlert])
 
@@ -259,10 +259,10 @@ export function CloudFileBrowser({ providerId }: Props) {
     setUploadProgress({})
     try {
       const result = await api.cloudUploadAccount(providerId, account)
-      if (!result.success) throw new Error(result.error || "Ошибка загрузки")
+      if (!result.success) throw new Error(result.error || t("cloud.errorUpload"))
       fetchFiles()
       fetchQuota()
-    } catch (e) { showAlert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`) }
+    } catch (e) { showAlert(t("cloud.error", { message: e instanceof Error ? e.message : String(e) })) }
     finally { setUploadingId(null); setShowUploadChoice(false) }
   }, [providerId, fetchFiles, fetchQuota, showAlert])
 
@@ -290,7 +290,7 @@ export function CloudFileBrowser({ providerId }: Props) {
     const isBuilds = currentPath === "builds"
     const isServers = currentPath === "servers"
     if (isAccounts) {
-      return <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">Аккаунт</span>
+      return <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">{t("cloud.type.account")}</span>
     }
     if (isBuilds && file.name.endsWith(".zip")) {
       const buildName = file.name.replace(/\.zip$/i, "")
@@ -300,7 +300,7 @@ export function CloudFileBrowser({ providerId }: Props) {
         buildName.toLowerCase().includes(b.name.toLowerCase()))
       return (
         <div className="flex items-center gap-1">
-          <span className="text-xs px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">Сборка</span>
+          <span className="text-xs px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">{t("cloud.type.build")}</span>
           {localBuild?.version && (
             <span className="text-xs px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground font-medium">{localBuild.version}</span>
           )}
@@ -320,7 +320,7 @@ export function CloudFileBrowser({ providerId }: Props) {
         serverName.toLowerCase().includes(s.name.toLowerCase()))
       return (
         <div className="flex items-center gap-1">
-          <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium">Сервер</span>
+          <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium">{t("cloud.type.server")}</span>
           {localServer?.version && (
             <span className="text-xs px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground font-medium">{localServer.version}</span>
           )}
@@ -383,7 +383,7 @@ export function CloudFileBrowser({ providerId }: Props) {
           onSuccess={(type) => {
             setImportModalFile(null)
             window.dispatchEvent(new CustomEvent("cloud:imported", { detail: { type } }))
-            showAlert(type === "server" ? "Сервер успешно импортирован!" : "Сборка успешно импортирована!", { variant: "info", title: "Готово" })
+            showAlert(type === "server" ? t("cloud.serverImported") : t("cloud.buildImported"), { variant: "info", title: t("cloud.done") })
           }}
         />
       )}
@@ -415,7 +415,7 @@ export function CloudFileBrowser({ providerId }: Props) {
                 className="hover:text-foreground transition-colors cursor-pointer">{translateFolderName(part)}</button>
             </span>
           ))}
-          {!currentPath && <span>Корень</span>}
+          {!currentPath && <span>{t("cloud.root")}</span>}
         </div>
         <button onClick={fetchFiles}
           className="ml-auto p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
@@ -435,12 +435,12 @@ export function CloudFileBrowser({ providerId }: Props) {
         ) : error ? (
           <div className="text-center py-12">
             <p className="text-sm text-destructive">{error}</p>
-            <button onClick={fetchFiles} className="mt-2 text-xs text-primary hover:underline">Повторить</button>
+            <button onClick={fetchFiles} className="mt-2 text-xs text-primary hover:underline">{t("cloud.retry")}</button>
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12">
             <IconCloud className="w-10 h-10 text-muted-foreground/20 mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground/50">Папка пуста</p>
+            <p className="text-sm text-muted-foreground/50">{t("cloud.folderEmpty")}</p>
           </div>
         ) : (
           <div className="space-y-1">
@@ -460,7 +460,7 @@ export function CloudFileBrowser({ providerId }: Props) {
                     {getFileTypeBadge(file)}
                   </div>
                   <p className="text-xs text-muted-foreground/60">
-                    {file.isDir ? "Папка" : formatBytes(file.size)}
+                    {file.isDir ? t("cloud.folder") : formatBytes(file.size)}
                     {file.modifiedAt && ` · ${timeAgo(file.modifiedAt)}`}
                   </p>
                 </div>
@@ -468,12 +468,12 @@ export function CloudFileBrowser({ providerId }: Props) {
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={(e) => { e.stopPropagation(); handleDownload(file) }}
                       className="p-1.5 rounded-lg hover:bg-primary/15 text-muted-foreground hover:text-primary transition-colors"
-                      title="Скачать">
+title={t("cloud.download")}>
                       <IconDownload className="w-4 h-4" />
                     </button>
                     <button onClick={(e) => { e.stopPropagation(); handleDelete(file) }}
                       className="p-1.5 rounded-lg hover:bg-destructive/15 text-muted-foreground hover:text-destructive transition-colors"
-                      title="Удалить">
+                      title={t("cloud.delete")}>
                       <IconTrash className="w-4 h-4" />
                     </button>
                   </div>
@@ -500,10 +500,10 @@ export function CloudFileBrowser({ providerId }: Props) {
         open={pendingDelete !== null}
         onClose={() => setPendingDelete(null)}
         onConfirm={() => void confirmDelete()}
-        title="Удалить файл из облака?"
-        description={`«${pendingDelete?.name ?? ""}» будет удалён из облачного хранилища без возможности восстановления.`}
-        confirmText="Удалить"
-        cancelText="Отмена"
+        title={t("cloud.deleteFileTitle")}
+        description={t("cloud.deleteFileDesc", { name: pendingDelete?.name ?? "" })}
+        confirmText={t("cloud.delete")}
+        cancelText={t("common.cancel")}
         variant="danger"
         icon="warning"
       />
@@ -577,7 +577,7 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
         <div className="max-h-80 overflow-y-auto p-3">
           {tab === "builds" ? (
             localBuilds.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">{t("cloud.noBuilds") || "Нет сборок"}</p>
+              <p className="text-sm text-muted-foreground text-center py-8">{t("cloud.noBuilds")}</p>
             ) : (
               <div className="space-y-2">
                 {localBuilds.map(b => {
@@ -607,7 +607,7 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
                               <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
                             </div>
                             <p className="text-[11px] text-muted-foreground mt-1">
-                              {prog.stage === "zip" ? "Упаковка..." : "Загрузка..."} · {pct}%
+                              {prog.stage === "zip" ? t("cloud.packing") : t("cloud.uploading")} · {pct}%
                             </p>
                           </div>
                         )}
@@ -623,7 +623,7 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
             )
           ) : tab === "servers" ? (
             localServers.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">Нет серверов</p>
+              <p className="text-sm text-muted-foreground text-center py-8">{t("cloud.noServers")}</p>
             ) : (
               <div className="space-y-2">
                 {localServers.map(s => {
@@ -657,7 +657,7 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
                               <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
                             </div>
                             <p className="text-[11px] text-muted-foreground mt-1">
-                              {prog.stage === "zip" ? "Архивация сервера..." : "Загрузка в облако..."} · {pct}%
+                              {prog.stage === "zip" ? t("cloud.archivingServer") : t("cloud.uploadingCloud")} · {pct}%
                             </p>
                           </div>
                         )}
@@ -673,7 +673,7 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
             )
           ) : (
             localAccounts.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">{t("cloud.noAccounts") || "Нет аккаунтов"}</p>
+              <p className="text-sm text-muted-foreground text-center py-8">{t("cloud.noAccounts")}</p>
             ) : (
               <div className="space-y-2">
                 {localAccounts.map(a => {
@@ -694,13 +694,13 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
                             <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
                               <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
                             </div>
-                            <p className="text-[11px] text-muted-foreground mt-1">Загрузка... · {pct}%</p>
+                            <p className="text-[11px] text-muted-foreground mt-1">{t("cloud.uploading")} · {pct}%</p>
                           </div>
                         )}
                       </div>
                       <button onClick={() => onUploadAccount(a)} disabled={isUploading}
                         className="px-3 py-2 rounded-lg bg-muted/50 hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors text-sm flex-shrink-0 disabled:opacity-50">
-                        {isUploading ? <IconLoader2 className="w-4 h-4 animate-spin" /> : "Загрузить"}
+                        {isUploading ? <IconLoader2 className="w-4 h-4 animate-spin" /> : t("cloud.upload")}
                       </button>
                     </div>
                   )
@@ -712,7 +712,7 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
         <div className="p-3 border-t border-border flex justify-end">
           <button onClick={onClose}
             className="px-4 py-2 rounded-xl text-sm font-medium bg-muted/50 hover:bg-muted text-foreground transition-colors">
-            {t("cloud.close") || "Закрыть"}
+            {t("cloud.close")}
           </button>
         </div>
       </div>
@@ -733,6 +733,7 @@ function SelectiveImportModal({
   onClose: () => void
   onSuccess: (type: "build" | "server") => void
 }) {
+  const { t } = useTranslation()
   const isServer = file.path.includes("/servers/") || currentPath.includes("servers")
   const defaultCategories = isServer
     ? ["world", "mods", "plugins", "configs", "logs"]
@@ -745,19 +746,19 @@ function SelectiveImportModal({
 
   const categories = isServer
     ? [
-        { id: "world", label: "Мир / Сохранения", desc: "Папки world, nether, end", icon: <IconWorldUpload className="w-4 h-4" /> },
-        { id: "mods", label: "Моды", desc: "Папка mods", icon: <IconBox className="w-4 h-4" /> },
-        { id: "plugins", label: "Плагины", desc: "Папка plugins", icon: <IconPlug className="w-4 h-4" /> },
-        { id: "configs", label: "Конфигурация", desc: "server.properties, whitelist, eula и др.", icon: <IconSettings className="w-4 h-4" /> },
-        { id: "logs", label: "Логи", desc: "Папка logs и crash-reports", icon: <IconBug className="w-4 h-4" /> },
+        { id: "world", label: t("cloud.cat.world"), desc: t("cloud.cat.worldDesc"), icon: <IconWorldUpload className="w-4 h-4" /> },
+        { id: "mods", label: t("cloud.cat.mods"), desc: t("cloud.cat.modsDesc"), icon: <IconBox className="w-4 h-4" /> },
+        { id: "plugins", label: t("cloud.cat.plugins"), desc: t("cloud.cat.pluginsDesc"), icon: <IconPlug className="w-4 h-4" /> },
+        { id: "configs", label: t("cloud.cat.configs"), desc: t("cloud.cat.configsDesc"), icon: <IconSettings className="w-4 h-4" /> },
+        { id: "logs", label: t("cloud.cat.logs"), desc: t("cloud.cat.logsDesc"), icon: <IconBug className="w-4 h-4" /> },
       ]
     : [
-        { id: "mods", label: "Моды", desc: "Папка mods", icon: <IconBox className="w-4 h-4" /> },
-        { id: "resourcepacks", label: "Ресурспаки", desc: "Папка resourcepacks", icon: <IconPalette className="w-4 h-4" /> },
-        { id: "shaderpacks", label: "Шейдеры", desc: "Папка shaderpacks", icon: <IconWallpaper className="w-4 h-4" /> },
-        { id: "saves", label: "Миры / Сохранения", desc: "Папка saves", icon: <IconWorldUpload className="w-4 h-4" /> },
-        { id: "data", label: "Конфиги и настройки", desc: "config, options.txt, servers.dat", icon: <IconSettings className="w-4 h-4" /> },
-        { id: "logs", label: "Логи и кэш", desc: "logs, crash-reports", icon: <IconBug className="w-4 h-4" /> },
+        { id: "mods", label: t("cloud.cat.mods"), desc: t("cloud.cat.modsDesc"), icon: <IconBox className="w-4 h-4" /> },
+        { id: "resourcepacks", label: t("cloud.cat.resourcepacks"), desc: t("cloud.cat.resourcepacksDesc"), icon: <IconPalette className="w-4 h-4" /> },
+        { id: "shaderpacks", label: t("cloud.cat.shaderpacks"), desc: t("cloud.cat.shaderpacksDesc"), icon: <IconWallpaper className="w-4 h-4" /> },
+        { id: "saves", label: t("cloud.cat.saves"), desc: t("cloud.cat.savesDesc"), icon: <IconWorldUpload className="w-4 h-4" /> },
+        { id: "data", label: t("cloud.cat.data"), desc: t("cloud.cat.dataDesc"), icon: <IconSettings className="w-4 h-4" /> },
+        { id: "logs", label: t("cloud.cat.logsCache"), desc: t("cloud.cat.logsDesc"), icon: <IconBug className="w-4 h-4" /> },
       ]
 
   const toggleCategory = (id: string) => {
@@ -771,7 +772,7 @@ function SelectiveImportModal({
 
   const handleImport = async () => {
     if (selected.size === 0) {
-      showAlert("Выберите хотя бы одну категорию для импорта")
+      showAlert(t("cloud.selectCategoryFirst"))
       return
     }
     setImporting(true)
@@ -782,7 +783,7 @@ function SelectiveImportModal({
       if (res?.success) {
         onSuccess(isServer ? "server" : "build")
       } else {
-        setError(res?.error || "Ошибка импорта")
+        setError(res?.error || t("cloud.importError"))
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -799,9 +800,9 @@ function SelectiveImportModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0" onClick={onClose}>
       <div className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="p-4 border-b border-border">
-          <h3 className="font-semibold text-foreground text-base">Импорт: {name}</h3>
+          <h3 className="font-semibold text-foreground text-base">{t("cloud.importTitle", { name })}</h3>
           <p className="text-xs text-muted-foreground mt-1">
-            Выберите компоненты архива, которые хотите импортировать ({isServer ? "сервер" : "сборка"}):
+            {t("cloud.importChooseComponents", { what: isServer ? t("cloud.type.server") : t("cloud.type.build") })}
           </p>
         </div>
 
@@ -845,7 +846,7 @@ function SelectiveImportModal({
             disabled={importing}
             className="px-4 py-2 rounded-xl text-sm font-medium bg-muted/50 hover:bg-muted text-foreground transition-colors disabled:opacity-50"
           >
-            Отмена
+            {t("common.cancel")}
           </button>
           <button
             onClick={handleImport}
@@ -853,7 +854,7 @@ function SelectiveImportModal({
             className="px-4 py-2 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-1.5"
           >
             {importing && <IconLoader2 className="w-4 h-4 animate-spin" />}
-            {importing ? "Импорт..." : "Импортировать"}
+            {importing ? t("cloud.importing") : t("cloud.import")}
           </button>
         </div>
       </div>

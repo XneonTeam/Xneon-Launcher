@@ -73,7 +73,7 @@ export function CloudPage() {
         setConnected({ id: providerId, name: providers.find(p => p.id === providerId)?.name || providerId })
       }
     } catch (e) {
-      showAlert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`)
+      showAlert(t("cloud.error", { message: e instanceof Error ? e.message : String(e) }))
     } finally { setConnecting(null) }
   }, [providers, showAlert])
 
@@ -86,10 +86,10 @@ export function CloudPage() {
         setConnected({ id: "webdav", name: "WebDAV" })
         setShowWebdav(false)
       } else {
-        showAlert(result.error || "Ошибка подключения")
+        showAlert(result.error || t("cloud.connectionError"))
       }
     } catch (e) {
-      showAlert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`)
+      showAlert(t("cloud.error", { message: e instanceof Error ? e.message : String(e) }))
     } finally { setConnecting(null) }
   }, [showAlert])
 
@@ -102,10 +102,10 @@ export function CloudPage() {
         setConnected({ id: "s3", name: "S3" })
         setShowS3(false)
       } else {
-        showAlert(result.error || "Ошибка подключения")
+        showAlert(result.error || t("cloud.connectionError"))
       }
     } catch (e) {
-      showAlert(`Ошибка: ${e instanceof Error ? e.message : String(e)}`)
+      showAlert(t("cloud.error", { message: e instanceof Error ? e.message : String(e) }))
     } finally { setConnecting(null) }
   }, [showAlert])
 

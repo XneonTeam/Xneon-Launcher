@@ -128,7 +128,7 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
             className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
             onClick={() => { onOpenAssignGroup(position.x + 8, position.y + 8); onClose() }}>
             <IconCategoryPlus className="w-4 h-4 text-muted-foreground" />
-            {t("servers.moveToGroup", "Переместить в категорию")}
+            {t("categoryMenu.title")}
           </button>
         )}
         <div className="mx-2 my-1 border-t border-border" />

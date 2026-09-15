@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import { formatBytes, formatDateTime } from "@/lib/format"
+import { formatBytes, formatDateTime, formatPlaytime } from "@/lib/format"
 import {
   IconArchive,
   IconCopy,
@@ -33,16 +33,6 @@ import type { Build, DatapackInfo, ModalTab, ModDetails, ModSearchResult, ModVer
 // Ничего не переводим и не генерируем — берём как есть из API.
 
 interface InstanceWorldsTabProps {  build: Build
-}
-
-function formatPlaytime(seconds: number): string {
-  if (!seconds) return "—"
-  if (seconds < 60) return `${seconds} сек`
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes} мин`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} ч ${minutes % 60} мин`
-  return `${Math.floor(hours / 24)} д ${hours % 24} ч`
 }
 
 async function readFileAsDataUrl(file: File): Promise<string> {
@@ -216,7 +206,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
       }
 
       if (!downloadUrl) {
-        showAlert("Не удалось получить ссылку на скачивание карты")
+        showAlert(t("worlds.errors.getMapDownloadLink"))
         return
       }
 
@@ -226,10 +216,10 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         await refreshWorlds()
         if (res.folder) setSelectedFolder(res.folder)
       } else {
-        showAlert(res?.error ?? "Ошибка установки карты")
+        showAlert(res?.error ?? t("worlds.errors.mapInstall"))
       }
     } catch (e) {
-      showAlert(e instanceof Error ? e.message : "Не удалось скачать карту")
+      showAlert(e instanceof Error ? e.message : t("worlds.errors.mapDownload"))
     } finally {
       setInstallingMapId(null)
       setMapDownloadProgress(null)
@@ -246,10 +236,10 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         setDisplayedModalVersions(details.versions ?? [])
         setModalTab("description")
       } else {
-        showAlert("Не удалось загрузить информацию о карте")
+        showAlert(t("worlds.errors.mapInfo"))
       }
     } catch {
-      showAlert("Не удалось загрузить информацию о карте")
+      showAlert(t("worlds.errors.mapInfo"))
     } finally {
       setLoadingModal(false)
     }
@@ -260,7 +250,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     const url = version.downloadUrl || version.files?.[0]?.url
       || (selectedDetails.modId ? await window.electronAPI?.modsCurseforgeDownloadUrl(Number(version.id), selectedDetails.modId) : null)
     if (!url) {
-      showAlert("Не удалось получить ссылку на скачивание карты")
+      showAlert(t("worlds.errors.getMapDownloadLink"))
       return
     }
     const res = await window.electronAPI?.importWorldRemote(build.name, url, selectedDetails.name)
@@ -270,7 +260,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
       if (res.folder) setSelectedFolder(res.folder)
       setSelectedDetails(null)
     } else {
-      showAlert(res?.error ?? "Ошибка установки карты")
+      showAlert(res?.error ?? t("worlds.errors.mapInstall"))
     }
   }
 
@@ -334,7 +324,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         setNameDraft(newName)
       } else {
         setNameDraft(selectedWorld.name)
-        showAlert(result?.error ?? "Не удалось переименовать мир")
+        showAlert(result?.error ?? t("worlds.errors.rename"))
       }
     } finally {
       setRenaming(false)
@@ -354,7 +344,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
           await refreshWorlds()
           if (result.folder) setSelectedFolder(result.folder)
         } else {
-          showAlert(result?.error ?? "Не удалось скопировать мир")
+          showAlert(result?.error ?? t("worlds.errors.copy"))
         }
       } else {
         const result = await window.electronAPI?.importWorldZip(build.name, namePrompt.pendingFile ?? "", name || undefined)
@@ -363,7 +353,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
           await refreshWorlds()
           if (result.folder) setSelectedFolder(result.folder)
         } else {
-          showAlert(result?.error ?? "Не удалось импортировать мир")
+          showAlert(result?.error ?? t("worlds.errors.import"))
         }
       }
     } finally {
@@ -375,7 +365,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     if (!selectedWorld) return
     const result = await window.electronAPI?.resetWorldIcon(build.name, selectedWorld.folder)
     if (result?.success) await refreshWorlds()
-    else showAlert(result?.error ?? "Не удалось сбросить иконку")
+    else showAlert(result?.error ?? t("worlds.errors.resetIcon"))
   }
 
   const handleDelete = async () => {
@@ -387,7 +377,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         setDeleteOpen(false)
         await refreshWorlds()
       } else {
-        showAlert(result?.error ?? "Не удалось удалить мир")
+        showAlert(result?.error ?? t("worlds.errors.deleteWorld"))
       }
     } finally {
       setDeleting(false)
@@ -399,13 +389,13 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     const dataUrl = await readFileAsDataUrl(file)
     const result = await window.electronAPI?.setWorldIcon(build.name, selectedWorld.folder, dataUrl)
     if (result?.success) await refreshWorlds()
-    else showAlert(result?.error ?? "Не удалось изменить иконку")
+    else showAlert(result?.error ?? t("worlds.errors.changeIcon"))
   }
 
   const handleImportFile = (file: File) => {
     const localPath = window.electronAPI?.getFilePath(file)
     if (!localPath) {
-      showAlert("Не удалось получить путь к файлу")
+      showAlert(t("worlds.errors.getFilePath"))
       return
     }
     const initial = file.name.replace(/\.zip$/i, "")
@@ -417,12 +407,12 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     if (!selectedWorld) return
     const localPath = window.electronAPI?.getFilePath(file)
     if (!localPath) {
-      showAlert("Не удалось получить путь к файлу")
+      showAlert(t("worlds.errors.getFilePath"))
       return
     }
     const result = await window.electronAPI?.installDatapackLocal(build.name, selectedWorld.folder, localPath)
     if (!result?.success) {
-      showAlert(result?.error ?? "Не удалось установить датапак")
+      showAlert(result?.error ?? t("worlds.errors.datapackInstall"))
       return
     }
     await refreshDatapacks(selectedWorld.folder)
@@ -436,27 +426,27 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         const versions = await window.electronAPI?.modsModrinthVersions(mod.slug)
         const version = versions?.find(v => v.files?.[0]?.url)
         if (!version?.files?.[0]) {
-          showAlert("Не найдена подходящая версия датапака")
+          showAlert(t("worlds.errors.datapackNoVersion"))
           return
         }
         const file = version.files[0]
         const result = await window.electronAPI?.installDatapackRemote(build.name, selectedWorld.folder, file.url, file.filename || `${mod.slug}.zip`)
-        if (!result?.success) showAlert(result?.error ?? "Не удалось скачать датапак")
+        if (!result?.success) showAlert(result?.error ?? t("worlds.errors.datapackDownload"))
       } else if (mod.modId) {
         const details = await window.electronAPI?.modsCurseforgeDetails(mod.modId)
         const version = details?.versions?.find(v => Number(v.id) === mod.primaryFileId) ?? details?.versions?.[0]
         if (!version) {
-          showAlert("Не найдена подходящая версия датапака")
+          showAlert(t("worlds.errors.datapackNoVersion"))
           return
         }
         const url = await window.electronAPI?.modsCurseforgeDownloadUrl(Number(version.id), mod.modId)
         if (!url) {
-          showAlert("Не удалось получить ссылку на скачивание")
+          showAlert(t("worlds.errors.downloadLink"))
           return
         }
         const fileName = version.fileName || url.split("/").pop()?.split("?")[0] || `${mod.slug}.zip`
         const result = await window.electronAPI?.installDatapackRemote(build.name, selectedWorld.folder, url, fileName)
-        if (!result?.success) showAlert(result?.error ?? "Не удалось скачать датапак")
+        if (!result?.success) showAlert(result?.error ?? t("worlds.errors.datapackDownload"))
       }
       await refreshDatapacks(selectedWorld.folder)
     } finally {
@@ -468,7 +458,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     if (!selectedWorld) return
     const result = await window.electronAPI?.deleteWorldDatapack(build.name, selectedWorld.folder, name)
     if (!result?.success) {
-      showAlert(result?.error ?? "Не удалось удалить датапак")
+      showAlert(result?.error ?? t("worlds.errors.datapackDelete"))
       return
     }
     await refreshDatapacks(selectedWorld.folder)
@@ -487,10 +477,10 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         setDisplayedModalVersions(details.versions ?? [])
         setModalTab("description")
       } else {
-        showAlert("Не удалось загрузить информацию о датапаке")
+        showAlert(t("worlds.errors.datapackInfo"))
       }
     } catch {
-      showAlert("Не удалось загрузить информацию о датапаке")
+      showAlert(t("worlds.errors.datapackInfo"))
     } finally {
       setLoadingModal(false)
     }
@@ -500,13 +490,13 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     if (!selectedWorld) return
     const url = version.downloadUrl || version.files?.[0]?.url
     if (!url) {
-      showAlert("Нет ссылки на скачивание")
+      showAlert(t("worlds.errors.noDownloadLink"))
       return
     }
     const fileName = version.fileName || url.split("/").pop()?.split("?")[0] || "datapack.zip"
     const result = await window.electronAPI?.installDatapackRemote(build.name, selectedWorld.folder, url, fileName)
     if (!result?.success) {
-      showAlert(result?.error ?? "Не удалось скачать датапак")
+      showAlert(result?.error ?? t("worlds.errors.datapackDownload"))
       return
     }
     await refreshDatapacks(selectedWorld.folder)
@@ -611,16 +601,16 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                     )}
                   >
                     <IconList className="w-4 h-4" strokeWidth={1.75} />
-                    <span>{selectedMapCategories.length > 0 ? `${selectedMapCategories.length} кат.` : "Категории"}</span>
+                    <span>{selectedMapCategories.length > 0 ? t("servers.addons.categoriesCount", { count: selectedMapCategories.length }) : t("servers.addons.categories")}</span>
                   </button>
                 </DialogTrigger>
                 <DialogContent className="max-w-sm p-6 bg-card border border-border shadow-2xl rounded-3xl flex flex-col max-h-[75vh]">
                   <DialogHeader className="text-left">
                     <DialogTitle className="text-lg font-bold text-foreground">
-                      Категории карт
+                      {t("worlds.ui.categoriesTitle")}
                     </DialogTitle>
                     <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                      Выберите категории карт для фильтрации поиска
+                      {t("worlds.ui.categoriesDesc")}
                     </DialogDescription>
                   </DialogHeader>
 
@@ -628,12 +618,12 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                     {mapCategoriesLoading && mapCategories.length === 0 && (
                       <div className="flex items-center gap-2 px-3 py-4 text-xs text-muted-foreground">
                         <IconLoader2 className="w-4 h-4 animate-spin" />
-                        <span>Загрузка категорий…</span>
+                        <span>{t("worlds.ui.categoriesLoading")}</span>
                       </div>
                     )}
                     {!mapCategoriesLoading && mapCategories.length === 0 && (
                       <div className="px-3 py-4 text-xs text-muted-foreground">
-                        Не удалось загрузить категории CurseForge
+                        {t("worlds.ui.categoriesError")}
                       </div>
                     )}
                     {mapCategories.map((cat) => {
@@ -681,7 +671,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                       onClick={() => setDraftMapCategories([])}
                       className="text-xs text-muted-foreground hover:text-foreground transition-colors mb-2 text-left"
                     >
-                      Сбросить выбранные
+                      {t("worlds.ui.resetSelected")}
                     </button>
                   )}
 
@@ -691,7 +681,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                       onClick={() => setMapCatDialogOpen(false)}
                       className="flex-1 px-4 py-2 rounded-xl text-xs font-medium bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
                     >
-                      Отмена
+                      {t("common.cancel")}
                     </button>
                     <button
                       type="button"
@@ -702,7 +692,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                       }}
                       className="flex-1 px-4 py-2 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground transition-all shadow-sm"
                     >
-                      Применить
+                      {t("common.apply")}
                     </button>
                   </div>
                 </DialogContent>
@@ -911,7 +901,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
           {/* World list */}
           <div>
             <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="text-sm font-semibold text-foreground">Миры · {worlds.length}</div>
+              <div className="text-sm font-semibold text-foreground">{t("worlds.ui.title", { count: worlds.length })}</div>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
@@ -919,7 +909,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                   className="flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                   <IconUpload className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  Загрузить ZIP
+                  {t("worlds.import_zip")}
                 </button>
                 <button
                   type="button"
@@ -927,7 +917,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                   className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                   <IconRefresh className={cn("h-3.5 w-3.5", loading && "animate-spin")} strokeWidth={1.75} />
-                  Обновить
+                  {t("common.refresh")}
                 </button>
               </div>
               <input
@@ -968,11 +958,11 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                     <div className="truncate text-sm font-semibold text-foreground">{world.name}</div>
                     <div className="mt-0.5 truncate text-xs text-muted-foreground">
                       {world.gameMode}
-                      {world.hardcore ? " · Хардкор" : ""}
+                      {world.hardcore ? t("worlds.ui.hardcore") : ""}
                       {world.mcVersion ? ` · ${world.mcVersion}` : ""}
                     </div>
                     <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground/70">
-                      <span>Играл: {formatDateTime(world.lastPlayed)}</span>
+                      <span>{t("worlds.ui.playedOn", { date: formatDateTime(world.lastPlayed) })}</span>
                     </div>
                   </div>
                 </button>
@@ -995,7 +985,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                   <button
                     type="button"
                     onClick={() => void handleResetIcon()}
-                    title="Сбросить иконку мира"
+                    title={t("worlds.ui.resetIcon")}
                     className="absolute bottom-1 right-9 flex h-7 w-7 items-center justify-center rounded-lg bg-background/85 text-muted-foreground shadow-sm transition-colors hover:text-destructive"
                   >
                     <IconX className="h-3.5 w-3.5" strokeWidth={1.75} />
@@ -1003,7 +993,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                   <button
                     type="button"
                     onClick={() => iconInputRef.current?.click()}
-                    title="Сменить иконку мира"
+                    title={t("worlds.ui.changeIcon")}
                     className="absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-lg bg-background/85 text-muted-foreground shadow-sm transition-colors hover:text-foreground"
                   >
                     <IconPhoto className="h-3.5 w-3.5" strokeWidth={1.75} />
@@ -1034,8 +1024,8 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                     }}
                     disabled={renaming}
                     maxLength={64}
-                    placeholder="Название мира"
-                    title="Название мира (Enter — сохранить)"
+                    placeholder={t("worlds.ui.namePlaceholder")}
+                    title={t("worlds.ui.nameTitle")}
                     className={cn(
                       "h-10 w-full rounded-xl border border-border bg-muted/40 px-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary",
                       renaming && "opacity-60"
@@ -1043,7 +1033,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                   />
                   <div className="mt-0.5 text-sm text-muted-foreground">
                     {selectedWorld.gameMode}
-                    {selectedWorld.hardcore ? " · Хардкор" : ""}
+                    {selectedWorld.hardcore ? t("worlds.ui.hardcore") : ""}
                     {selectedWorld.mcVersion ? ` · ${selectedWorld.mcVersion}` : ""}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -1053,15 +1043,15 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                       className="flex items-center gap-1.5 rounded-xl bg-muted/60 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
                     >
                       <IconFolderOpen className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      Папка мира
+                      {t("worlds.ui.folder")}
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setPromptValue(`${selectedWorld.name} (копия)`); setNamePrompt({ mode: "copy", initial: `${selectedWorld.name} (копия)` }) }}
+                      onClick={() => { const n = `${selectedWorld.name} ${t("worlds.ui.copySuffix")}`; setPromptValue(n); setNamePrompt({ mode: "copy", initial: n }) }}
                       className="flex items-center gap-1.5 rounded-xl bg-muted/60 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
                     >
                       <IconCopy className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      Копировать
+                      {t("worlds.ui.copy")}
                     </button>
                     <button
                       type="button"
@@ -1069,7 +1059,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                       className="flex items-center gap-1.5 rounded-xl bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
                     >
                       <IconTrash className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      Удалить
+                      {t("common.delete")}
                     </button>
                   </div>
                 </div>
@@ -1077,16 +1067,16 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
 
               <div className="mt-4 grid grid-cols-2 gap-3 rounded-2xl border border-border/70 bg-muted/20 p-4 sm:grid-cols-3">
                 <div>
-                  <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Сид</div>
+                  <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{t("worlds.ui.seed")}</div>
                   <div className="mt-1 flex items-center gap-1.5">
-                    <span className="max-w-[120px] truncate text-sm font-medium text-foreground" title={selectedWorld.seed || "Сид неизвестен"}>
+                    <span className="max-w-[120px] truncate text-sm font-medium text-foreground" title={selectedWorld.seed || t("worlds.ui.seedUnknown")}>
                       {selectedWorld.seed || "—"}
                     </span>
                     {selectedWorld.seed && (
                       <button
                         type="button"
                         onClick={() => copyToClipboard(selectedWorld.seed)}
-                        title="Копировать сид"
+                        title={t("worlds.ui.copySeed")}
                         className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                       >
                         <IconCopy className="h-3.5 w-3.5" strokeWidth={1.75} />
@@ -1095,15 +1085,15 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Наиграно</div>
+                  <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{t("buildDetail.played")}</div>
                   <div className="mt-1 text-sm font-medium text-foreground">{formatPlaytime(selectedWorld.playedTime)}</div>
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Размер</div>
-                  <div className="mt-1 text-sm font-medium text-foreground">{formatBytes(selectedWorld.sizeBytes, "ru")}</div>
+                  <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{t("worlds.ui.size")}</div>
+                  <div className="mt-1 text-sm font-medium text-foreground">{formatBytes(selectedWorld.sizeBytes)}</div>
                 </div>
                 <div className="col-span-2 sm:col-span-3">
-                  <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Последний вход</div>
+                  <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{t("worlds.ui.lastPlayed")}</div>
                   <div className="mt-1 text-sm font-medium text-foreground">{formatDateTime(selectedWorld.lastPlayed)}</div>
                 </div>
               </div>
@@ -1113,7 +1103,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                     <IconArchive className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
-                    Датапаки · {datapacks.length}
+                    {t("worlds.ui.datapacks", { count: datapacks.length })}
                   </div>
                   <button
                     type="button"
@@ -1121,7 +1111,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                     className="flex items-center gap-1.5 rounded-xl bg-muted/60 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
                   >
                     <IconUpload className="h-3.5 w-3.5" strokeWidth={1.75} />
-                    Загрузить файл
+                    {t("worlds.ui.uploadFile")}
                   </button>
                   <input
                     ref={datapackInputRef}
@@ -1143,13 +1133,13 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                         <IconArchive className="h-4 w-4 flex-shrink-0 text-muted-foreground" strokeWidth={1.75} />
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm text-foreground">{dp.name}</div>
-                          <div className="text-[11px] text-muted-foreground">{formatBytes(dp.sizeBytes, "ru")}</div>
+                          <div className="text-[11px] text-muted-foreground">{formatBytes(dp.sizeBytes)}</div>
                         </div>
                         <button
                           type="button"
                           onClick={() => void handleDeleteDatapack(dp.name)}
                           className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                          title="Удалить датапак"
+                          title={t("worlds.ui.deleteDatapack")}
                         >
                           <IconTrash className="h-4 w-4" strokeWidth={1.75} />
                         </button>
@@ -1167,7 +1157,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                         type="text"
                         value={search}
                         onChange={e => setSearch(e.target.value)}
-                        placeholder="Найти датапак на Modrinth или CurseForge..."
+                        placeholder={t("worlds.ui.searchDatapack")}
                         className="h-10 w-full rounded-xl border border-border bg-muted/40 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary"
                       />
                     </div>
@@ -1206,12 +1196,12 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
 
                   {searching && (
                     <div className="mt-3 flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-                      <IconLoader2 className="h-4 w-4 animate-spin" /> Поиск...
+                      <IconLoader2 className="h-4 w-4 animate-spin" /> {t("worlds.ui.searching")}
                     </div>
                   )}
 
                   {!searching && results && results.length === 0 && (
-                    <div className="mt-3 py-4 text-center text-sm text-muted-foreground">Ничего не найдено</div>
+                    <div className="mt-3 py-4 text-center text-sm text-muted-foreground">{t("worlds.ui.nothingFound")}</div>
                   )}
 
                   {!searching && results && results.length > 0 && (
@@ -1228,7 +1218,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                           <div className="min-w-0 flex-1">
                             <div className="truncate text-sm font-medium text-foreground">{mod.name}</div>
                             <div className="truncate text-xs text-muted-foreground">
-                              {mod.downloadCount.toLocaleString("ru-RU")} скачиваний
+                              {t("worlds.download_count", { count: mod.downloadCount.toLocaleString() })}
                             </div>
                           </div>
                           <button
@@ -1237,7 +1227,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                             className="flex items-center gap-1.5 rounded-xl bg-muted/60 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                           >
                             <IconInfoCircle className="h-3.5 w-3.5" strokeWidth={1.75} />
-                            Подробнее
+                            {t("worlds.details")}
                           </button>
                           <button
                             type="button"
@@ -1250,7 +1240,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                             ) : (
                               <IconDownload className="h-3.5 w-3.5" strokeWidth={2} />
                             )}
-                            Установить
+                            {t("worlds.ui.install")}
                           </button>
                         </div>
                       ))}
@@ -1270,7 +1260,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
           <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-2xl border border-border animate-in zoom-in-95">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">
-                {namePrompt.mode === "copy" ? "Копировать мир" : "Импортировать мир из ZIP"}
+                {namePrompt.mode === "copy" ? t("worlds.ui.copyWorld") : t("worlds.ui.importWorldZip")}
               </h3>
               <button
                 type="button"
@@ -1282,8 +1272,8 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {namePrompt.mode === "copy"
-                ? `Будет создана копия мира «${selectedWorld?.name ?? ""}». Введи название для копии.`
-                : "Введи название для мира. Если оставить поле пустым — имя возьмётся из архива."}
+                ? t("worlds.ui.copyHint", { name: selectedWorld?.name ?? "" })
+                : t("worlds.ui.importHint")}
             </p>
             <input
               type="text"
@@ -1292,7 +1282,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
               onKeyDown={e => { if (e.key === "Enter") void submitNamePrompt() }}
               autoFocus
               maxLength={64}
-              placeholder="Название мира"
+              placeholder={t("worlds.ui.namePlaceholder")}
               className="mt-4 h-12 w-full rounded-2xl border border-border bg-muted/40 px-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary"
             />
             <div className="mt-5 flex gap-3">
@@ -1301,7 +1291,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                 onClick={() => setNamePrompt(null)}
                 className="flex-1 rounded-2xl border border-border bg-muted/30 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
               >
-                Отмена
+                {t("common.cancel")}
               </button>
               <button
                 type="button"
@@ -1310,7 +1300,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                 className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
               >
                 {promptBusy && <IconLoader2 className="h-4 w-4 animate-spin" />}
-                {namePrompt.mode === "copy" ? "Копировать" : "Импортировать"}
+                {namePrompt.mode === "copy" ? t("worlds.ui.copy") : t("worlds.ui.import")}
               </button>
             </div>
           </div>
@@ -1322,7 +1312,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0">
           <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-2xl border border-border animate-in zoom-in-95">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-foreground">Удалить мир?</h3>
+              <h3 className="text-lg font-semibold text-foreground">{t("worlds.ui.deleteTitle")}</h3>
               <button
                 type="button"
                 onClick={() => setDeleteOpen(false)}
@@ -1332,7 +1322,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
               </button>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              Мир «{selectedWorld.name}» будет удалён навсегда вместе со всеми постройками, инвентарём и датапаками. Это действие нельзя отменить.
+              {t("worlds.ui.deleteDescription", { name: selectedWorld.name })}
             </p>
             <div className="mt-5 flex gap-3">
               <button
@@ -1340,7 +1330,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                 onClick={() => setDeleteOpen(false)}
                 className="flex-1 rounded-2xl border border-border bg-muted/30 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
               >
-                Отмена
+                {t("common.cancel")}
               </button>
               <button
                 type="button"
@@ -1349,7 +1339,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                 className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-destructive py-2.5 text-sm font-semibold text-destructive-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
               >
                 {deleting && <IconLoader2 className="h-4 w-4 animate-spin" />}
-                Удалить
+                {t("common.delete")}
               </button>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { IconLoader2 } from "@tabler/icons-react"
+import { useTranslation } from "react-i18next"
 
 type Props = {
   onClose: () => void
@@ -8,6 +9,7 @@ type Props = {
 }
 
 export function WebDavSetupModal({ onClose, onConnect, connecting }: Props) {
+  const { t } = useTranslation()
   const [url, setUrl] = useState("")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
@@ -22,23 +24,23 @@ export function WebDavSetupModal({ onClose, onConnect, connecting }: Props) {
       <div className="w-full max-w-sm mx-4 rounded-2xl bg-card border border-border shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="p-5">
           <h3 className="text-lg font-semibold text-foreground mb-1">WebDAV</h3>
-          <p className="text-sm text-muted-foreground mb-4">Введите данные вашего WebDAV-сервера</p>
+          <p className="text-sm text-muted-foreground mb-4">{t("cloud.webdav.desc")}</p>
 
           <div className="space-y-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">URL сервера</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">{t("cloud.webdav.url")}</label>
               <input value={url} onChange={e => setUrl(e.target.value)}
                 placeholder="https://example.com/dav/"
                 className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/50 transition-colors" />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Логин</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">{t("cloud.webdav.login")}</label>
               <input value={username} onChange={e => setUsername(e.target.value)}
                 placeholder="user@example.com"
                 className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/50 transition-colors" />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Пароль</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">{t("cloud.webdav.password")}</label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
                 className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/50 transition-colors" />
@@ -48,12 +50,12 @@ export function WebDavSetupModal({ onClose, onConnect, connecting }: Props) {
         <div className="p-3 border-t border-border flex justify-end gap-2">
           <button onClick={onClose}
             className="px-4 py-2 rounded-xl text-sm font-medium bg-muted/50 hover:bg-muted text-foreground transition-colors">
-            Отмена
+            {t("common.cancel")}
           </button>
           <button onClick={handleSubmit} disabled={connecting || !url.trim() || !username.trim() || !password.trim()}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-primary hover:bg-primary/90 text-primary-foreground transition-all disabled:opacity-50">
             {connecting && <IconLoader2 className="w-4 h-4 animate-spin" />}
-            Подключить
+            {t("cloud.connect")}
           </button>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react"
 import { IconAlertTriangle } from "@tabler/icons-react"
+import i18n from "@/src/i18n"
 
 type Props = { children: ReactNode; fallback?: ReactNode }
 type State = { hasError: boolean; error: Error | null }
@@ -24,11 +25,11 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex flex-col items-center justify-center p-8 text-center">
           <IconAlertTriangle className="w-10 h-10 text-destructive mb-3" />
-          <p className="text-sm font-medium text-foreground mb-1">Произошла ошибка</p>
+          <p className="text-sm font-medium text-foreground mb-1">{i18n.t("cloud.errorBoundary.title")}</p>
           <p className="text-xs text-muted-foreground mb-3">{this.state.error?.message}</p>
           <button onClick={() => this.setState({ hasError: false, error: null })}
             className="px-4 py-2 rounded-xl text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-            Попробовать снова
+            {i18n.t("cloud.errorBoundary.retry")}
           </button>
         </div>
       )

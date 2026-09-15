@@ -6,16 +6,9 @@ import {
   IconDatabase, IconAlertTriangle, IconPackage, IconFolderOpen, IconServer,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
+import { formatBytes } from "@/lib/format"
 import { LoaderIcon } from "@/components/launcher/instance/loader-icon"
 import type { BuildStorageEntry, ServerStorageEntry, StorageScanResult } from "@xnlc/types"
-
-function formatBytes(bytes: number): string {
-  if (!bytes || bytes <= 0) return "0 Б"
-  const units = ["Б", "КБ", "МБ", "ГБ", "ТБ"]
-  const exponent = Math.min(Math.floor(Math.log2(bytes) / 10), units.length - 1)
-  const value = bytes / 2 ** (10 * exponent)
-  return `${value >= 100 ? Math.round(value) : value.toFixed(1)} ${units[exponent]}`
-}
 
 type CleanKind = "build-logs" | "build-crash-reports" | "build-cache"
 

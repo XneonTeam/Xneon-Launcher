@@ -4,6 +4,7 @@ import { IconCheck, IconDeviceDesktop } from "@tabler/icons-react"
 import { presetResolutions } from "@/components/launcher/settings/data"
 import { Checkbox } from "@/components/ui/checkbox"
 import type { Build } from "./types"
+import { useTranslation } from "react-i18next"
 
 interface InstanceBuildWindowProps {
   build: Build
@@ -17,6 +18,7 @@ function normalizeNumber(value: string): number | undefined {
 }
 
 export function InstanceBuildWindow({ build, updateBuild }: InstanceBuildWindowProps) {
+  const { t } = useTranslation()
   const [useCustom, setUseCustom] = useState(false)
 
   const override = build.windowOverride === true
@@ -46,10 +48,10 @@ export function InstanceBuildWindow({ build, updateBuild }: InstanceBuildWindowP
         <div>
           <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
             <IconDeviceDesktop className="h-5 w-5 text-primary" strokeWidth={1.75} />
-            Размер окна
+            {t("build.window.title")}
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Свой размер окна запуска для этой сборки. Если выключено — используется размер окна из общих настроек лаунчера.
+            {t("build.window.desc")}
           </p>
         </div>
         <button
@@ -61,7 +63,7 @@ export function InstanceBuildWindow({ build, updateBuild }: InstanceBuildWindowP
           )}
         >
           <span className={cn("w-2 h-2 rounded-full", override ? "bg-primary-foreground" : "bg-muted-foreground/50")} />
-          {override ? "Свой размер включён" : "Использовать настройки лаунчера"}
+          {override ? t("build.window.overrideOn") : t("build.java.useLauncher")}
         </button>
       </div>
 
@@ -94,12 +96,12 @@ export function InstanceBuildWindow({ build, updateBuild }: InstanceBuildWindowP
           <div>
             <label className="flex items-center gap-3 cursor-pointer">
               <Checkbox checked={useCustom} onCheckedChange={(v) => toggleCustom(!!v)} />
-              <span className="text-sm font-medium text-foreground">Своё разрешение</span>
+              <span className="text-sm font-medium text-foreground">{t("build.window.customResolution")}</span>
             </label>
 
             <div className="mt-3 grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Ширина</label>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{t("build.window.width")}</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
@@ -112,7 +114,7 @@ export function InstanceBuildWindow({ build, updateBuild }: InstanceBuildWindowP
                 </div>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Высота</label>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{t("build.window.height")}</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="number"

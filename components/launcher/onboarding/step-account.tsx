@@ -24,27 +24,24 @@ type Account = {
 
 type ProviderId = "microsoft" | "elyby" | "xnskins"
 
-const PROVIDERS: { id: ProviderId; title: string; description: string; color: string; methodOAuthDesc: string; methodDeviceDesc: string }[] = [
+const PROVIDERS: { id: ProviderId; title: string; description: string; color: string; siteName: string }[] = [
   {
     id: "microsoft", title: "Microsoft",
     description: "Official Mojang / Microsoft sign-in.",
     color: "#2563EB",
-    methodOAuthDesc: "Вход через браузерное окно авторизации",
-    methodDeviceDesc: "Введите код на сайте Microsoft на любом устройстве",
+    siteName: "Microsoft",
   },
   {
     id: "elyby", title: "Ely.By",
     description: "Sign in with an Ely.By account.",
     color: "#217e5c",
-    methodOAuthDesc: "Вход через браузерное окно авторизации",
-    methodDeviceDesc: "Введите код на сайте Ely.by на любом устройстве",
+    siteName: "Ely.by",
   },
   {
     id: "xnskins", title: "XN Skins",
     description: "Sign in with XN Skins support.",
     color: "#f97316",
-    methodOAuthDesc: "Вход через браузерное окно авторизации",
-    methodDeviceDesc: "Введите код на сайте XN Skins на любом устройстве",
+    siteName: "XN Skins",
   },
 ]
 
@@ -103,7 +100,7 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
         setDevicePolling(true)
       }
     } catch (err: unknown) {
-      setAuthError(err instanceof Error ? err.message : "Ошибка")
+      setAuthError(err instanceof Error ? err.message : copy.error)
     } finally {
       setAuthLoading(false)
     }
@@ -140,7 +137,7 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
         if (result.status === "expired") {
           setDevicePolling(false)
           setDeviceStatus("expired")
-          setAuthError("Срок действия кода истёк. Запросите новый код.")
+          setAuthError(copy.codeExpired)
           return
         }
         if (result.status === "error" && !result.retryable) {
@@ -156,7 +153,7 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
         pollTimer = setTimeout(poll, Math.max(delayMs, 5000))
       } catch (err: unknown) {
         if (cancelled) return
-        setAuthError(err instanceof Error ? err.message : "Ошибка")
+        setAuthError(err instanceof Error ? err.message : copy.error)
         pollTimer = setTimeout(poll, deviceCodeInfo.interval * 1000)
       }
     }
@@ -232,7 +229,7 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
             </div>
             <div>
               <div className="font-medium text-foreground">{provider.title}</div>
-              <div className="text-xs text-muted-foreground">Выберите способ входа</div>
+              <div className="text-xs text-muted-foreground">{copy.chooseMethod}</div>
             </div>
           </div>
 
@@ -254,7 +251,7 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
               </div>
               <div>
                 <div className="font-medium text-foreground">OAuth2</div>
-                <div className="text-sm text-muted-foreground mt-1">{provider.methodOAuthDesc}</div>
+                <div className="text-sm text-muted-foreground mt-1">{copy.methodOAuthDesc}</div>
               </div>
             </button>
 
@@ -276,7 +273,7 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
               </div>
               <div>
                 <div className="font-medium text-foreground">Device Code</div>
-                <div className="text-sm text-muted-foreground mt-1">{provider.methodDeviceDesc}</div>
+                <div className="text-sm text-muted-foreground mt-1">{copy.methodDeviceDesc.replace("{{site}}", provider.siteName)}</div>
               </div>
               {authLoading && <IconLoader2 className="ml-auto h-5 w-5 animate-spin text-primary" />}
             </button>
@@ -316,14 +313,14 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
           {deviceStatus === "waiting" && (
             <div className="text-center space-y-4">
               <div>
-                <p className="text-sm text-muted-foreground mb-3">Перейдите по ссылке и введите код:</p>
+                <p className="text-sm text-muted-foreground mb-3">{copy.openLink}</p>
                 <a
                   href={deviceCodeInfo.verificationUriComplete}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
                 >
-                  Открыть страницу входа →
+                  {copy.openLoginPage}
                 </a>
               </div>
 
@@ -335,24 +332,24 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
                 <span className="text-2xl font-mono font-bold tracking-[0.3em] text-foreground">
                   {deviceCodeInfo.userCode}
                 </span>
-                <span className="text-xs text-muted-foreground">{copied ? "Скопировано!" : "Нажмите чтобы скопировать"}</span>
+                <span className="text-xs text-muted-foreground">{copied ? copy.copied : copy.clickToCopy}</span>
               </button>
 
               <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                 <IconLoader2 className="h-4 w-4 animate-spin" />
-                Ожидание подтверждения...
+                {copy.waitingConfirmation}
               </div>
             </div>
           )}
 
           {deviceStatus === "expired" && (
             <div className="text-center space-y-3">
-              <p className="text-sm text-destructive">{authError || "Срок действия кода истёк. Запросите новый код."}</p>
+              <p className="text-sm text-destructive">{authError || copy.codeExpired}</p>
               <button
                 onClick={() => void handleStartDeviceCode(chosenProvider)}
                 className="px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium transition-colors"
               >
-                Запросить новый код
+                {copy.requestNewCode}
               </button>
             </div>
           )}
@@ -360,7 +357,7 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
           {deviceStatus === "done" && (
             <div className="flex items-center justify-center gap-2 text-sm text-primary">
               <IconCheck className="h-4 w-4" />
-              Вход выполнен!
+              {copy.loginSuccess}
             </div>
           )}
         </div>

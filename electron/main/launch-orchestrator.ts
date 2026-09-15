@@ -12,6 +12,7 @@ import { getMainWindow, sendToRenderer, logRuntime, logRuntimeDebug } from "./ru
 import { dbHelpers, type DbAccount } from "../db"
 import { getGameStartTimestamp, setDiscordActivity } from "./discord-rpc"
 import { getBuildIntentPath } from "./builds"
+import { pruneStaleLoaderProfiles } from "./builds/loader-profiles"
 import { recordGameSession } from "./stats"
 import { setActiveGameSession } from "./session-tracker"
 
@@ -116,6 +117,16 @@ export class LaunchOrchestrator {
         }
       } catch (error) {
         logRuntime(`[Minecraft] Failed to get build intent path: ${toErrorMessage(error)}`)
+      }
+    }
+
+    // Профили старых загрузчиков в папке сборки удаляются прямо перед запуском:
+    // если пользователь сменил загрузчик/версию, оставшийся профиль конфликтует
+    // с новым. Для обычного Minecraft (без сборки) папка общая — не трогаем.
+    if (request.buildName) {
+      const pruned = pruneStaleLoaderProfiles(gameDir, request.loaderType, request.loaderVersion)
+      if (pruned.removed.length > 0) {
+        logRuntime(`[Minecraft] Removed stale loader profiles: ${pruned.removed.join(", ")}`)
       }
     }
 

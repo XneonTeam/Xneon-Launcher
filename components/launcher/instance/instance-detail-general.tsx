@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
 import { useAlertDialog } from "@/lib/use-alert-dialog"
@@ -17,7 +17,7 @@ import {
   IconCheck,
 } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MOD_LOADERS } from "./constants"
+import { BUILD_MOD_LOADERS } from "./constants"
 import { LoaderIcon } from "./loader-icon"
 import { IconPickerModal } from "./icon-picker-modal"
 import { PlatformBadge } from "@/components/launcher/platform-icon"
@@ -25,19 +25,8 @@ import { ModpackChangeVersionDialog } from "./modpack-change-version-dialog"
 import { ActionConfirmDialog } from "./action-confirm-dialog"
 import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
+import { formatPlaytime } from "@/lib/format"
 import type { Build } from "./types"
-
-function formatPlaytime(seconds: number): string {
-  if (seconds < 60) return `${seconds} сек`
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes} мин`
-  const hours = Math.floor(minutes / 60)
-  const mins = minutes % 60
-  if (hours < 24) return mins > 0 ? `${hours} ч ${mins} мин` : `${hours} ч`
-  const days = Math.floor(hours / 24)
-  const hrs = hours % 24
-  return hrs > 0 ? `${days} д ${hrs} ч` : `${days} д`
-}
 
 interface InstanceDetailGeneralProps {
   activeBuild: Build
@@ -107,8 +96,8 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
           setTimeout(() => setRepairDone(false), 3000)
         } else {
           setDialogAlert({
-            title: "Ошибка восстановления",
-            message: res?.error || "Не удалось восстановить файлы модпака",
+            title: t("buildDetail.repair.errorTitle"),
+            message: res?.error || t("buildDetail.repair.errorMessage"),
           })
         }
       } else if (activeBuild.source === "curseforge" && activeBuild.modId && activeBuild.fileId) {
@@ -129,14 +118,14 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
           setTimeout(() => setRepairDone(false), 3000)
         } else {
           setDialogAlert({
-            title: "Ошибка восстановления",
-            message: res?.error || "Не удалось восстановить файлы модпака",
+            title: t("buildDetail.repair.errorTitle"),
+            message: res?.error || t("buildDetail.repair.errorMessage"),
           })
         }
       }
     } catch (err: any) {
       setDialogAlert({
-        title: "Ошибка восстановления",
+        title: t("buildDetail.repair.errorTitle"),
         message: err?.message || String(err),
       })
     } finally {
@@ -154,9 +143,29 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
     } else {
       // Revert to the last saved name if the folder could not be renamed.
       updateBuild(activeBuild.id, { name: saved })
-      showAlert(result.error ?? "Не удалось переименовать сборку")
+      showAlert(result.error ?? t("buildDetail.rename.error"))
     }
   }
+
+  /**
+   * Профиль старого загрузчика остаётся в папке сборки после смены загрузчика
+   * или его версии и конфликтует с новым. Убираем его сразу при смене —
+   * дополнительно то же самое делает лаунчер перед каждым запуском.
+   */
+  const pruneStaleLoaders = useCallback((modLoader: string, loaderVersion?: string) => {
+    if (!activeBuild.name) return
+    void window.electronAPI?.pruneLoaderProfiles(activeBuild.name, modLoader, loaderVersion).catch(() => {})
+  }, [activeBuild.name])
+
+  const handleModLoaderChange = useCallback((value: string) => {
+    updateBuild(activeBuild.id, { modLoader: value, loaderVersion: undefined })
+    pruneStaleLoaders(value, undefined)
+  }, [activeBuild.id, pruneStaleLoaders, updateBuild])
+
+  const handleLoaderVersionChange = useCallback((value: string) => {
+    updateBuild(activeBuild.id, { loaderVersion: value })
+    pruneStaleLoaders(activeBuild.modLoader, value)
+  }, [activeBuild.id, activeBuild.modLoader, pruneStaleLoaders, updateBuild])
 
   useEffect(() => {
     if (!showLoaderVersionSelect) {
@@ -191,8 +200,8 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
               )}
             </div>
 
-            <div className="mt-4 text-sm font-medium text-foreground">{activeBuild.name || "Новая сборка"}</div>
-            <div className="mt-1 text-xs text-muted-foreground">Нажми на аватарку, чтобы изменить иконку сборки</div>
+            <div className="mt-4 text-sm font-medium text-foreground">{activeBuild.name || t("buildDetail.newBuild")}</div>
+            <div className="mt-1 text-xs text-muted-foreground">{t("buildDetail.changeIconHint")}</div>
 
             {buildHasImage && (
               <button
@@ -208,11 +217,11 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
 
           <div className="mt-6 grid gap-3 rounded-2xl border border-border/70 bg-muted/20 p-4 text-left">
             <div>
-              <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Наиграно</div>
+              <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{t("buildDetail.played")}</div>
               <div className="mt-1 text-sm text-foreground">{formatPlaytime(activeBuild.playtime ?? 0)}</div>
             </div>
             <div>
-              <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Создана</div>
+              <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{t("buildDetail.created")}</div>
               <div className="mt-1 text-sm text-foreground">{formattedCreatedAt}</div>
             </div>
           </div>
@@ -261,7 +270,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
                           <button
                             type="button"
                             onClick={() => window.open(`https://modrinth.com/modpack/${activeBuild.projectSlug}`, "_blank")}
-                            title="Открыть на Modrinth"
+                            title={t("buildDetail.openOnModrinth")}
                             className="text-muted-foreground hover:text-primary transition-colors"
                           >
                             <IconExternalLink className="w-3.5 h-3.5" />
@@ -270,7 +279,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
                         <span className="font-medium text-foreground/80">
-                          {activeBuild.modpackVersion ? `Версия ${activeBuild.modpackVersion}` : activeBuild.version}
+                          {activeBuild.modpackVersion ? t("buildDetail.modpackVersion", { version: activeBuild.modpackVersion }) : activeBuild.version}
                         </span>
                         <span>•</span>
                         <span className="inline-flex items-center gap-1.5 capitalize font-medium text-foreground/90">
@@ -288,7 +297,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
                       type="button"
                       onClick={() => setShowRepairConfirm(true)}
                       disabled={repairing}
-                      title="Восстановить оригинальные файлы модпака"
+                      title={t("buildDetail.repair.tooltip")}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-medium text-foreground transition-colors"
                     >
                       {repairing ? (
@@ -298,7 +307,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
                       ) : (
                         <IconTools className="w-3.5 h-3.5 text-muted-foreground" />
                       )}
-                      <span>{repairing ? "Восстановление..." : repairDone ? "Готово" : "Восстановить"}</span>
+                      <span>{repairing ? t("buildDetail.repair.repairing") : repairDone ? t("buildDetail.repair.done") : t("buildDetail.repair.action")}</span>
                     </button>
 
                     <button
@@ -307,24 +316,24 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium transition-colors shadow-sm"
                     >
                       <IconArrowsExchange className="w-3.5 h-3.5" />
-                      <span>Сменить версию</span>
+                      <span>{t("buildDetail.changeVersion")}</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={handleToggleLock}
-                      title="Отвязать инстанс от модпака для ручной смены версии и лоадера"
+                      title={t("buildDetail.unlink.tooltip")}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border/80 bg-muted/40 hover:bg-muted text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
                     >
                       <IconUnlink className="w-3.5 h-3.5" />
-                      <span>Отвязать</span>
+                      <span>{t("buildDetail.unlink.action")}</span>
                     </button>
                   </div>
                 </div>
 
                 <div className="mt-3 pt-3 border-t border-border/50 flex items-center gap-2 text-xs text-muted-foreground">
                   <IconLock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                  <span>Инстанс заблокирован: версия Minecraft и загрузчик управляются модпаком. Чтобы изменять их вручную, нажмите «Отвязать».</span>
+                  <span>{t("buildDetail.lockedNotice")}</span>
                 </div>
               </div>
             )}
@@ -333,7 +342,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
               <div className="flex items-center justify-between gap-3 p-3 rounded-2xl border border-border/70 bg-muted/20 text-xs text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <IconLockOpen className="w-4 h-4 text-muted-foreground" />
-                  <span>Инстанс отвязан от модпака. Вы можете свободно изменять версию и загрузчик.</span>
+                  <span>{t("buildDetail.unlinkedNotice")}</span>
                 </div>
                 <button
                   type="button"
@@ -341,7 +350,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
                   className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-muted text-xs font-medium text-foreground transition-colors shrink-0"
                 >
                   <IconLink className="w-3 h-3 text-primary" />
-                  <span>Привязать обратно</span>
+                  <span>{t("buildDetail.relink")}</span>
                 </button>
               </div>
             )}
@@ -364,12 +373,12 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
 
                 <div>
                   <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("builds.modLoader")}</label>
-                  <Select value={activeBuild.modLoader} onValueChange={(value) => updateBuild(activeBuild.id, { modLoader: value, loaderVersion: undefined })}>
+                  <Select value={activeBuild.modLoader} onValueChange={handleModLoaderChange}>
                     <SelectTrigger className="h-10 w-full rounded-xl border-border bg-muted/40 text-foreground">
                       <SelectValue placeholder={t("builds.modLoader")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {MOD_LOADERS.map((item) => (
+                      {BUILD_MOD_LOADERS.map((item) => (
                         <SelectItem key={item.id} value={item.id}>
                           <span className="flex items-center gap-2">
                             <LoaderIcon loaderId={item.id} className="w-4 h-4 flex-shrink-0" />
@@ -384,7 +393,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
                 {showLoaderVersionSelect && (
                   <div>
                     <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Loader Version</label>
-                    <Select value={activeBuild.loaderVersion ?? ""} onValueChange={(value) => updateBuild(activeBuild.id, { loaderVersion: value })} disabled={!loaderVersionsLoaded || loaderVersions.length === 0}>
+                    <Select value={activeBuild.loaderVersion ?? ""} onValueChange={handleLoaderVersionChange} disabled={!loaderVersionsLoaded || loaderVersions.length === 0}>
                       <SelectTrigger className="h-10 w-full rounded-xl border-border bg-muted/40 text-foreground">
                         <SelectValue placeholder={loaderVersionsLoaded ? "Loader Version" : "Loading..."} />
                       </SelectTrigger>
@@ -409,7 +418,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
                   className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-3.5 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted"
                 >
                   <IconFolderOpen className="h-4 w-4" strokeWidth={1.75} />
-                  Открыть папку игры
+                  {t("buildDetail.openGameFolder")}
                 </button>
               )}
             </div>
@@ -446,12 +455,10 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
         open={showUnlinkConfirm}
         onClose={() => setShowUnlinkConfirm(false)}
         onConfirm={confirmUnlink}
-        title="Отвязать инстанс от модпака?"
-        description={`Этот инстанс больше не будет связан с официальным модпаком.
-
-Вы сможете свободно изменять версию Minecraft, загрузчик и состав модов вручную. Однако автоматические обновления модпака станут недоступны.`}
-        confirmText="Отвязать инстанс"
-        cancelText="Отмена"
+        title={t("buildDetail.unlink.title")}
+        description={t("buildDetail.unlink.description")}
+        confirmText={t("buildDetail.unlink.confirm")}
+        cancelText={t("common.cancel")}
         variant="warning"
         icon="unlink"
       />
@@ -460,12 +467,10 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
         open={showRepairConfirm}
         onClose={() => setShowRepairConfirm(false)}
         onConfirm={executeRepair}
-        title="Восстановить файлы модпака?"
-        description={`Лаунчер заново проверит и восстановит все оригинальные файлы и моды для текущей версии модпака.
-
-Поврежденные или отсутствующие файлы сборки будут скачаны заново.`}
-        confirmText="Восстановить"
-        cancelText="Отмена"
+        title={t("buildDetail.repairConfirm.title")}
+        description={t("buildDetail.repairConfirm.description")}
+        confirmText={t("buildDetail.repairConfirm.confirm")}
+        cancelText={t("common.cancel")}
         variant="info"
         icon="repair"
       />

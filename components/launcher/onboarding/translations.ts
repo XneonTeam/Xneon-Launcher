@@ -28,6 +28,18 @@ export type OnboardingCopy = {
   accountSelected: string
   accountSelect: string
   accountMissing: string
+  methodOAuthDesc: string
+  methodDeviceDesc: string
+  error: string
+  codeExpired: string
+  chooseMethod: string
+  openLink: string
+  openLoginPage: string
+  copied: string
+  clickToCopy: string
+  waitingConfirmation: string
+  requestNewCode: string
+  loginSuccess: string
   memoryMin: string
   memoryMax: string
   memoryHint: string
@@ -76,6 +88,18 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     accountSelected: "Выбранный аккаунт",
     accountSelect: "Выбрать",
     accountMissing: "Аккаунт пока не добавлен",
+    methodOAuthDesc: "Вход через браузерное окно авторизации",
+    methodDeviceDesc: "Введите код на сайте {{site}} на любом устройстве",
+    error: "Ошибка",
+    codeExpired: "Срок действия кода истёк. Запросите новый код.",
+    chooseMethod: "Выберите способ входа",
+    openLink: "Перейдите по ссылке и введите код:",
+    openLoginPage: "Открыть страницу входа →",
+    copied: "Скопировано!",
+    clickToCopy: "Нажмите чтобы скопировать",
+    waitingConfirmation: "Ожидание подтверждения...",
+    requestNewCode: "Запросить новый код",
+    loginSuccess: "Вход выполнен!",
     memoryMin: "Минимум, GB",
     memoryMax: "Максимум, GB",
     memoryHint: "Минимум не должен быть больше максимума. Обычный стартовый вариант: `2G` и `4G`.",
@@ -128,6 +152,18 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     accountSelected: "Selected account",
     accountSelect: "Select",
     accountMissing: "No account added yet",
+    methodOAuthDesc: "Sign in through a browser authorization window",
+    methodDeviceDesc: "Enter the code on the {{site}} website on any device",
+    error: "Error",
+    codeExpired: "The code has expired. Request a new one.",
+    chooseMethod: "Choose a sign-in method",
+    openLink: "Follow the link and enter the code:",
+    openLoginPage: "Open the sign-in page →",
+    copied: "Copied!",
+    clickToCopy: "Click to copy",
+    waitingConfirmation: "Waiting for confirmation...",
+    requestNewCode: "Request a new code",
+    loginSuccess: "Signed in!",
     memoryMin: "Minimum, GB",
     memoryMax: "Maximum, GB",
     memoryHint: "Minimum must not be greater than maximum. A common starting point is `2G` and `4G`.",
@@ -180,6 +216,18 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     accountSelected: "Вибраний акаунт",
     accountSelect: "Обрати",
     accountMissing: "Акаунт ще не додано",
+    methodOAuthDesc: "Вхід через браузерне вікно авторизації",
+    methodDeviceDesc: "Введіть код на сайті {{site}} на будь-якому пристрої",
+    error: "Помилка",
+    codeExpired: "Термін дії коду минув. Запросіть новий код.",
+    chooseMethod: "Виберіть спосіб входу",
+    openLink: "Перейдіть за посиланням і введіть код:",
+    openLoginPage: "Відкрити сторінку входу →",
+    copied: "Скопійовано!",
+    clickToCopy: "Натисніть, щоб скопіювати",
+    waitingConfirmation: "Очікування підтвердження...",
+    requestNewCode: "Запросити новий код",
+    loginSuccess: "Вхід виконано!",
     memoryMin: "Мінімум, GB",
     memoryMax: "Максимум, GB",
     memoryHint: "Мінімум не повинен бути більшим за максимум. Звичний стартовий варіант: `2G` і `4G`.",
@@ -232,6 +280,18 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     accountSelected: "Ausgewähltes Konto",
     accountSelect: "Auswählen",
     accountMissing: "Noch kein Konto hinzugefügt",
+    methodOAuthDesc: "Anmeldung über ein Browser-Autorisierungsfenster",
+    methodDeviceDesc: "Gib den Code auf der {{site}}-Website auf einem beliebigen Gerät ein",
+    error: "Fehler",
+    codeExpired: "Der Code ist abgelaufen. Fordere einen neuen Code an.",
+    chooseMethod: "Wähle eine Anmeldemethode",
+    openLink: "Folge dem Link und gib den Code ein:",
+    openLoginPage: "Anmeldeseite öffnen →",
+    copied: "Kopiert!",
+    clickToCopy: "Klicken zum Kopieren",
+    waitingConfirmation: "Warte auf Bestätigung...",
+    requestNewCode: "Neuen Code anfordern",
+    loginSuccess: "Anmeldung erfolgreich!",
     memoryMin: "Minimum, GB",
     memoryMax: "Maximum, GB",
     memoryHint: "Das Minimum darf nicht größer als das Maximum sein. Ein üblicher Startwert ist `2G` und `4G`.",
@@ -284,6 +344,18 @@ export const ONBOARDING_COPY: Record<OnboardingLanguage, OnboardingCopy> = {
     accountSelected: "Cuenta seleccionada",
     accountSelect: "Seleccionar",
     accountMissing: "Todavía no se ha añadido una cuenta",
+    methodOAuthDesc: "Inicio de sesión mediante una ventana de autorización del navegador",
+    methodDeviceDesc: "Introduce el código en el sitio web de {{site}} desde cualquier dispositivo",
+    error: "Error",
+    codeExpired: "El código ha caducado. Solicita uno nuevo.",
+    chooseMethod: "Elige un método de inicio de sesión",
+    openLink: "Sigue el enlace e introduce el código:",
+    openLoginPage: "Abrir la página de inicio de sesión →",
+    copied: "¡Copiado!",
+    clickToCopy: "Haz clic para copiar",
+    waitingConfirmation: "Esperando confirmación...",
+    requestNewCode: "Solicitar un nuevo código",
+    loginSuccess: "¡Sesión iniciada!",
     memoryMin: "Mínimo, GB",
     memoryMax: "Máximo, GB",
     memoryHint: "El mínimo no debe ser mayor que el máximo. Un punto de partida habitual es `2G` y `4G`.",

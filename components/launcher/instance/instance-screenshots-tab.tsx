@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { formatBytes, formatDateTime } from "@/lib/format"
 import {
@@ -21,6 +22,7 @@ interface InstanceScreenshotsTabProps {
 }
 
 export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
+  const { t } = useTranslation()
   const [shots, setShots] = useState<ScreenshotInfo[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [viewIndex, setViewIndex] = useState<number | null>(null)
@@ -80,7 +82,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
       if (viewIndex === index) setViewIndex(null)
       await refresh()
     } else {
-      showAlert(result?.error ?? "Не удалось удалить скриншот")
+      showAlert(result?.error ?? t("screenshots.deleteError"))
     }
   }
 
@@ -95,7 +97,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
     if (result?.success) {
       await refresh()
     } else {
-      showAlert(result?.error ?? "Не удалось переименовать скриншот")
+      showAlert(result?.error ?? t("screenshots.renameError"))
     }
   }
 
@@ -110,22 +112,22 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
           <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-muted/50">
             <IconCamera className="h-9 w-9 text-muted-foreground/50" strokeWidth={1.5} />
           </div>
-          <div className="text-lg font-semibold text-foreground">Скриншотов пока нет</div>
+          <div className="text-lg font-semibold text-foreground">{t("screenshots.emptyTitle")}</div>
           <p className="max-w-sm text-sm text-muted-foreground">
-            Нажми F2 в игре, чтобы сделать скриншот. Все снимки экрана Minecraft из этой сборки будут появляться здесь.
+            {t("screenshots.emptyHint")}
           </p>
         </div>
       ) : (
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="mb-3 flex items-center justify-between">
-            <div className="text-sm font-semibold text-foreground">Скриншоты · {shots.length}</div>
+            <div className="text-sm font-semibold text-foreground">{t("screenshots.title", { count: shots.length })}</div>
             <button
               type="button"
               onClick={() => void refresh()}
               className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <IconRefresh className={cn("h-3.5 w-3.5", loading && "animate-spin")} strokeWidth={1.75} />
-              Обновить
+              {t("common.refresh")}
             </button>
           </div>
 
@@ -154,12 +156,12 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
                 <div className="flex items-center gap-2 px-3 py-2">
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-xs font-medium text-foreground" title={shot.name}>{shot.name}</div>
-                    <div className="text-[11px] text-muted-foreground">{formatDateTime(shot.lastModified)} · {formatBytes(shot.sizeBytes, "ru")}</div>
+                    <div className="text-[11px] text-muted-foreground">{formatDateTime(shot.lastModified)} · {formatBytes(shot.sizeBytes)}</div>
                   </div>
                   <button
                     type="button"
                     onClick={() => { setRenameDraft(shot.name.replace(/\.[a-zA-Z0-9]+$/, "")); setRenameFor(shot.name) }}
-                    title="Переименовать скриншот"
+                    title={t("screenshots.rename.tooltip")}
                     className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   >
                     <IconPencil className="h-4 w-4" strokeWidth={1.75} />
@@ -167,7 +169,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
                   <button
                     type="button"
                     onClick={() => void handleDelete(index)}
-                    title="Удалить скриншот"
+                    title={t("screenshots.delete.tooltip")}
                     className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                   >
                     <IconTrash className="h-4 w-4" strokeWidth={1.75} />
@@ -195,7 +197,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
                 type="button"
                 onClick={() => void handleDelete(viewIndex)}
                 className="flex h-9 w-9 items-center justify-center rounded-xl bg-destructive/10 text-destructive transition-colors hover:bg-destructive/20"
-                title="Удалить скриншот"
+                title={t("screenshots.delete.tooltip")}
               >
                 <IconTrash className="h-5 w-5" strokeWidth={1.75} />
               </button>
@@ -203,7 +205,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
                 type="button"
                 onClick={() => window.electronAPI?.openPath(shots[viewIndex]?.path ?? "")}
                 className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                title="Открыть папку со скриншотами"
+                title={t("screenshots.openFolder")}
               >
                 <IconFolderOpen className="h-5 w-5" strokeWidth={1.75} />
               </button>
@@ -211,7 +213,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
                 type="button"
                 onClick={() => setViewIndex(null)}
                 className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                title="Закрыть (Esc)"
+                title={t("screenshots.close")}
               >
                 <IconX className="h-5 w-5" strokeWidth={1.75} />
               </button>
@@ -259,12 +261,12 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
           onClick={() => setRenameFor(null)}
         >
           <div className="w-80 rounded-2xl border border-border bg-card p-4 shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-            <p className="text-sm font-semibold text-foreground mb-3">Переименовать скриншот</p>
+            <p className="text-sm font-semibold text-foreground mb-3">{t("screenshots.rename.title")}</p>
             <input
               autoFocus
               value={renameDraft}
               onChange={e => setRenameDraft(e.target.value)}
-              placeholder="Новое имя"
+              placeholder={t("screenshots.rename.placeholder")}
               onKeyDown={e => {
                 if (e.key === "Enter") void handleRename(renameFor)
                 if (e.key === "Escape") setRenameFor(null)
@@ -272,13 +274,13 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
               className="w-full rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm outline-none focus:border-primary mb-3"
             />
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setRenameFor(null)} className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-muted text-muted-foreground">Отмена</button>
+              <button type="button" onClick={() => setRenameFor(null)} className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-muted text-muted-foreground">{t("common.cancel")}</button>
               <button
                 type="button"
                 onClick={() => void handleRename(renameFor)}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground"
               >
-                Переименовать
+                {t("screenshots.rename.action")}
               </button>
             </div>
           </div>

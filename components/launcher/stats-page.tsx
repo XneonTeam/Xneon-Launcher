@@ -5,6 +5,7 @@ import {
   IconPackage, IconServer,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
+import { formatPlaytime, formatDateTime } from "@/lib/format"
 import type { StatsOverview } from "@xnlc/types"
 import { StatsRangePicker, type StatsRange } from "@/components/launcher/stats/stats-range-picker"
 
@@ -17,24 +18,6 @@ function defaultRange(): StatsRange {
   const to = new Date(now)
   to.setHours(23, 59, 59, 999)
   return { from: from.getTime(), to: to.getTime() }
-}
-
-function formatDuration(totalSeconds: number): string {
-  if (totalSeconds <= 0) return "0м"
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  if (hours > 0) return `${hours}ч ${minutes}м`
-  if (minutes > 0) return `${minutes}м`
-  return `${totalSeconds}с`
-}
-
-function formatDateTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleString(undefined, {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
 }
 
 function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
@@ -74,7 +57,7 @@ function DailyChart({ data }: { data: Array<{ date: string; seconds: number }> }
         <div className="pointer-events-none absolute -top-9 left-1/2 z-10 -translate-x-1/2 rounded-lg border border-border bg-popover px-3 py-1.5 text-xs font-medium text-popover-foreground shadow-lg whitespace-nowrap">
           {new Date(data[hoveredIndex].date + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" })}
           {" — "}
-          {data[hoveredIndex].seconds > 0 ? formatDuration(data[hoveredIndex].seconds) : t("stats.noPlaytime")}
+          {data[hoveredIndex].seconds > 0 ? formatPlaytime(data[hoveredIndex].seconds) : t("stats.noPlaytime")}
         </div>
       )}
       <div className="flex h-36 items-end gap-[3px]">
@@ -91,7 +74,7 @@ function DailyChart({ data }: { data: Array<{ date: string; seconds: number }> }
               onBlur={() => setHoveredIndex(null)}
               className="group relative flex-1 min-w-0"
               style={{ height: "100%" }}
-              aria-label={`${day.date}: ${formatDuration(day.seconds)}`}
+              aria-label={`${day.date}: ${formatPlaytime(day.seconds)}`}
             >
               <div className="absolute bottom-0 left-0 right-0 flex items-end" style={{ height: "100%" }}>
                 <div
@@ -144,7 +127,7 @@ function RankingList({ entries, emptyKey, maxSeconds }: { entries: RankingEntry[
             <div className="flex items-baseline justify-between gap-2">
               <span className="truncate text-sm font-medium text-foreground">{entry.name}</span>
               <span className="shrink-0 text-xs font-medium text-muted-foreground">
-                {formatDuration(entry.seconds)} · {t("stats.sessionsCount", { count: entry.sessions })}
+                {formatPlaytime(entry.seconds)} · {t("stats.sessionsCount", { count: entry.sessions })}
               </span>
             </div>
             <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -271,7 +254,7 @@ export function StatsPage() {
               <StatCard
                 icon={<IconClock className="h-3.5 w-3.5" strokeWidth={1.75} />}
                 label={t("stats.totalPlaytime")}
-                value={formatDuration(stats.totalPlaytime)}
+                value={formatPlaytime(stats.totalPlaytime)}
               />
               <StatCard
                 icon={<IconDeviceGamepad2 className="h-3.5 w-3.5" strokeWidth={1.75} />}
@@ -281,12 +264,12 @@ export function StatsPage() {
               <StatCard
                 icon={<IconChartBar className="h-3.5 w-3.5" strokeWidth={1.75} />}
                 label={t("stats.averageSession")}
-                value={formatDuration(stats.averageSession)}
+                value={formatPlaytime(stats.averageSession)}
               />
               <StatCard
                 icon={<IconHistory className="h-3.5 w-3.5" strokeWidth={1.75} />}
                 label={t("stats.lastSession")}
-                value={stats.lastSession ? formatDuration(stats.lastSession.duration) : "—"}
+                value={stats.lastSession ? formatPlaytime(stats.lastSession.duration) : "—"}
                 sub={stats.lastSession
                   ? `${stats.lastSession.buildName} · ${formatDateTime(stats.lastSession.endedAt)}`
                   : t("stats.noSessionsYet")}
@@ -315,7 +298,7 @@ export function StatsPage() {
               <StatCard
                 icon={<IconClock className="h-3.5 w-3.5" strokeWidth={1.75} />}
                 label={t("stats.totalServerUptime")}
-                value={formatDuration(stats.serverTotalUptime)}
+                value={formatPlaytime(stats.serverTotalUptime)}
               />
               <StatCard
                 icon={<IconServer className="h-3.5 w-3.5" strokeWidth={1.75} />}
@@ -325,12 +308,12 @@ export function StatsPage() {
               <StatCard
                 icon={<IconChartBar className="h-3.5 w-3.5" strokeWidth={1.75} />}
                 label={t("stats.averageSession")}
-                value={formatDuration(stats.serverAverageSession ?? 0)}
+                value={formatPlaytime(stats.serverAverageSession ?? 0)}
               />
               <StatCard
                 icon={<IconHistory className="h-3.5 w-3.5" strokeWidth={1.75} />}
                 label={t("stats.lastSession")}
-                value={stats.serverLastSession ? formatDuration(stats.serverLastSession.duration) : "—"}
+                value={stats.serverLastSession ? formatPlaytime(stats.serverLastSession.duration) : "—"}
                 sub={stats.serverLastSession
                   ? `${stats.serverLastSession.serverName} · ${formatDateTime(stats.serverLastSession.endedAt)}`
                   : t("stats.noServersYet")}
@@ -349,7 +332,7 @@ export function StatsPage() {
                   <h2 className="text-base font-semibold text-foreground">{t("stats.topServers")}</h2>
                   {stats.serverTotalUptime > 0 && (
                     <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                      {formatDuration(stats.serverTotalUptime)}
+                      {formatPlaytime(stats.serverTotalUptime)}
                     </span>
                   )}
                 </div>

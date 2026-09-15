@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import type { Account } from "@/src/AccountsContext"
 import { useLaunchControls } from "@/src/LaunchLogsContext"
-import { useBuildLaunch, saveLastLaunchedPrefs, formatLoaderLabel, normalizeJavaPath, loadLaunchSettings, resolveLaunchDimensions } from "@/src/hooks/use-build-launch"
+import { useBuildLaunch, saveLastLaunchedPrefs, formatLoaderLabel, normalizeJavaPath, loadLaunchSettings, resolveLaunchDimensions, toQuickPlayParams, type BuildLaunchParams, type QuickPlayLaunchRequest } from "@/src/hooks/use-build-launch"
 
 type UseHomeLaunchParams = {
   account?: Account
@@ -16,7 +16,7 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
   const { isRunning, setIsRunning, clearLogs, addLog, launchUi, patchLaunchUi } = useLaunchControls()
   const { launchInstance } = useBuildLaunch({ account })
 
-  const launchVanilla = useCallback(async () => {
+  const launchVanilla = useCallback(async (quickPlay?: QuickPlayLaunchRequest) => {
     if (!account || !window.electronAPI) return
 
     const usesSkinInjector = account.type === "xnskins" || account.type === "elyby"
@@ -25,6 +25,10 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
     const { width, height } = resolveLaunchDimensions(settings)
     const server = settings.savedAutoJoinServer === "true" ? (settings.savedServer ?? "") : ""
     const serverPort = settings.savedServerPort ?? ""
+    // Быстрая игра из карточки важнее авто-подключения из настроек.
+    const quickPlayParams = quickPlay
+      ? toQuickPlayParams(quickPlay)
+      : (server.trim() ? { quickPlayMultiplayer: `${server.trim()}:${serverPort.trim() || "25565"}` } : {})
 
     patchLaunchUi({
       isLaunching: true,
@@ -52,7 +56,7 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
       retroauthInjectorEnabled: usesSkinInjector,
       ...(normalizedJavaPath ? { javaPath: normalizedJavaPath } : {}),
       ...(settings.savedJavaArgs ? { javaArgs: settings.savedJavaArgs } : {}),
-      ...(server.trim() ? { quickPlayMultiplayer: `${server.trim()}:${serverPort.trim() || "25565"}` } : {}),
+      ...quickPlayParams,
     })
 
     patchLaunchUi(result.success
@@ -68,17 +72,18 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
     }
   }, [account, addLog, clearLogs, patchLaunchUi, selectedLoaderVersion, selectedModLoader, selectedVersion, setIsRunning, t])
 
-  const handlePlay = useCallback(async () => {
-    if (isRunning) {
-      return await window.electronAPI?.stopMinecraft()
-    }
-    if (!account || !window.electronAPI) return
+  /**
+   * Проверяет, что именно запускаем: сборку или ванильную версию.
+   * Возвращает null, если выбор некорректен (ошибка уже показана в UI).
+   */
+  const resolveLaunchTarget = useCallback(async (): Promise<{ build?: BuildLaunchParams } | null> => {
+    if (!window.electronAPI) return null
 
     if (selectedModLoader === "instance") {
       if (!selectedVersion) {
         patchLaunchUi({ isLaunching: false, phase: "idle", progress: null, status: "Не выбрана сборка" })
         addLog("[Лаунчер] Не выбрана сборка", "error")
-        return
+        return null
       }
 
       const builds = await window.electronAPI.loadBuilds() ?? []
@@ -86,21 +91,58 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
       if (!build) {
         patchLaunchUi({ isLaunching: false, phase: "idle", progress: null, status: "Сборка не найдена" })
         addLog(`[Лаунчер] Сборка "${selectedVersion}" не найдена`, "error")
-        return
+        return null
       }
 
-      await launchInstance(build)
-      return
+      return { build }
     }
 
     if (!selectedVersion) {
       patchLaunchUi({ isLaunching: false, phase: "idle", progress: null, status: "Не выбрана версия" })
       addLog("[Лаунчер] Не выбрана версия Minecraft", "error")
+      return null
+    }
+
+    return {}
+  }, [addLog, patchLaunchUi, selectedModLoader, selectedVersion])
+
+  const handlePlay = useCallback(async () => {
+    if (isRunning) {
+      return await window.electronAPI?.stopMinecraft()
+    }
+    if (!account || !window.electronAPI) return
+
+    const target = await resolveLaunchTarget()
+    if (!target) return
+
+    if (target.build) {
+      await launchInstance(target.build)
       return
     }
 
     await launchVanilla()
-  }, [isRunning, account, selectedModLoader, selectedVersion, patchLaunchUi, addLog, launchInstance, launchVanilla])
+  }, [isRunning, account, resolveLaunchTarget, launchInstance, launchVanilla])
+
+  /**
+   * Запуск из карточки быстрой игры. Идёт тем же путём, что и обычная кнопка
+   * «Играть»: с прогрессом, логами, статусом запущенной игры и настройками
+   * Java/инъекторов — отличается только адресом подключения.
+   */
+  const handleQuickPlay = useCallback(async (type: "singleplayer" | "multiplayer", address: string) => {
+    if (isRunning || launchUi.isLaunching || !account || !window.electronAPI) return
+
+    const target = await resolveLaunchTarget()
+    if (!target) return
+
+    const quickPlay: QuickPlayLaunchRequest = { type, address }
+
+    if (target.build) {
+      await launchInstance(target.build, { quickPlay })
+      return
+    }
+
+    await launchVanilla(quickPlay)
+  }, [isRunning, launchUi.isLaunching, account, resolveLaunchTarget, launchInstance, launchVanilla])
 
   const launchDetails = useMemo(() => {
     const parts: string[] = []
@@ -113,5 +155,5 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
     return parts.join(" · ")
   }, [launchUi.currentFile, launchUi.currentFileName, launchUi.totalFiles])
 
-  return { isRunning, launchUi, launchDetails, handlePlay }
+  return { isRunning, launchUi, launchDetails, handlePlay, handleQuickPlay }
 }

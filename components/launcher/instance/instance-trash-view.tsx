@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { IconTrash, IconRefresh, IconLoader2 } from "@tabler/icons-react"
 import { ActionConfirmDialog } from "./action-confirm-dialog"
 
@@ -16,6 +17,7 @@ interface InstanceTrashViewProps {
 }
 
 export function InstanceTrashView({ goToMyBuilds, onRestore }: InstanceTrashViewProps) {
+  const { t } = useTranslation()
   const [items, setItems] = useState<TrashItem[]>([])
   const [loading, setLoading] = useState(true)
   const [restoringName, setRestoringName] = useState<string | null>(null)
@@ -43,7 +45,7 @@ export function InstanceTrashView({ goToMyBuilds, onRestore }: InstanceTrashView
     try {
       const ok = await onRestore(item)
       if (!ok) {
-        setError("Не удалось восстановить сборку")
+        setError(t("trash.error.restore"))
         return
       }
       await loadTrash()
@@ -58,12 +60,12 @@ export function InstanceTrashView({ goToMyBuilds, onRestore }: InstanceTrashView
     try {
       const result = await window.electronAPI.deleteTrashItem(item.trashName)
       if (result && !result.success) {
-        setError(result.error ?? "Не удалось удалить сборку из корзины")
+        setError(result.error ?? t("trash.error.delete"))
         return
       }
       await loadTrash()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Не удалось удалить сборку из корзины")
+      setError(e instanceof Error ? e.message : t("trash.error.delete"))
     }
   }, [loadTrash])
 
@@ -72,19 +74,19 @@ export function InstanceTrashView({ goToMyBuilds, onRestore }: InstanceTrashView
     try {
       const result = await window.electronAPI.purgeBuildTrash()
       if (result && !result.success) {
-        setError(result.error ?? "Не удалось очистить корзину")
+        setError(result.error ?? t("trash.error.purge"))
         return
       }
       setItems([])
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Не удалось очистить корзину")
+      setError(e instanceof Error ? e.message : t("trash.error.purge"))
     }
   }, [])
 
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-        Загрузка...
+        {t("trash.loading")}
       </div>
     )
   }
@@ -92,7 +94,7 @@ export function InstanceTrashView({ goToMyBuilds, onRestore }: InstanceTrashView
   if (items.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-        Корзина пуста
+        {t("trash.empty")}
       </div>
     )
   }
@@ -100,11 +102,11 @@ export function InstanceTrashView({ goToMyBuilds, onRestore }: InstanceTrashView
   return (
     <div className="flex-1 space-y-3">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs text-muted-foreground">{items.length} элемент(ов)</p>
+        <p className="text-xs text-muted-foreground">{t("trash.itemsCount", { count: items.length })}</p>
         <button type="button" onClick={() => setPurgeOpen(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors">
           <IconTrash className="w-3.5 h-3.5" />
-          Очистить корзину
+          {t("trash.purge")}
         </button>
       </div>
 
@@ -119,7 +121,7 @@ export function InstanceTrashView({ goToMyBuilds, onRestore }: InstanceTrashView
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground truncate">{item.originalName}</p>
             <p className="text-xs text-muted-foreground">
-              Удалено {new Date(item.trashedAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+              {t("trash.deletedAt", { date: new Date(item.trashedAt).toLocaleDateString() })}
             </p>
           </div>
           <button type="button" onClick={() => handleRestore(item)} disabled={restoringName !== null}
@@ -127,7 +129,7 @@ export function InstanceTrashView({ goToMyBuilds, onRestore }: InstanceTrashView
             {restoringName === item.trashName
               ? <IconLoader2 className="w-3.5 h-3.5 animate-spin" />
               : <IconRefresh className="w-3.5 h-3.5" />}
-            Восстановить
+            {t("trash.restore")}
           </button>
           <button type="button" onClick={() => setPendingDelete(item)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors">
@@ -140,10 +142,10 @@ export function InstanceTrashView({ goToMyBuilds, onRestore }: InstanceTrashView
         open={pendingDelete !== null}
         onClose={() => setPendingDelete(null)}
         onConfirm={() => { if (pendingDelete) void handleDeleteForever(pendingDelete) }}
-        title="Удалить сборку навсегда?"
-        description={`Сборка «${pendingDelete?.originalName ?? ""}» и все её файлы будут удалены без возможности восстановления.`}
-        confirmText="Удалить навсегда"
-        cancelText="Отмена"
+        title={t("trash.deleteForever.title")}
+        description={t("trash.deleteForever.description", { name: pendingDelete?.originalName ?? "" })}
+        confirmText={t("trash.deleteForever.confirm")}
+        cancelText={t("common.cancel")}
         variant="danger"
         icon="warning"
       />
@@ -152,10 +154,10 @@ export function InstanceTrashView({ goToMyBuilds, onRestore }: InstanceTrashView
         open={purgeOpen}
         onClose={() => setPurgeOpen(false)}
         onConfirm={() => void handlePurgeAll()}
-        title="Очистить корзину?"
-        description={`Все ${items.length} сборок в корзине будут удалены без возможности восстановления.`}
-        confirmText="Очистить"
-        cancelText="Отмена"
+        title={t("trash.purgeConfirm.title")}
+        description={t("trash.purgeConfirm.description", { count: items.length })}
+        confirmText={t("trash.purgeConfirm.confirm")}
+        cancelText={t("common.cancel")}
         variant="danger"
         icon="warning"
       />
@@ -163,12 +165,12 @@ export function InstanceTrashView({ goToMyBuilds, onRestore }: InstanceTrashView
       <ActionConfirmDialog
         open={error !== null}
         onClose={() => setError(null)}
-        title="Ошибка"
+        title={t("trash.errorTitle")}
         description={error ?? ""}
         type="alert"
         variant="danger"
         icon="warning"
-        confirmText="Понятно"
+        confirmText={t("common.gotIt")}
       />
     </div>
   )

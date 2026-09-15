@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils"
 import { IconServer } from "@tabler/icons-react"
 import type { Build } from "./types"
+import { useTranslation } from "react-i18next"
 
 interface InstanceBuildServerProps {
   build: Build
@@ -8,6 +9,7 @@ interface InstanceBuildServerProps {
 }
 
 export function InstanceBuildServer({ build, updateBuild }: InstanceBuildServerProps) {
+  const { t } = useTranslation()
   const override = build.serverOverride === true
   const server = build.server ?? ""
   const port = build.serverPort ?? "25565"
@@ -18,10 +20,10 @@ export function InstanceBuildServer({ build, updateBuild }: InstanceBuildServerP
         <div>
           <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
             <IconServer className="h-5 w-5 text-primary" strokeWidth={1.75} />
-            Автоподключение к серверу
+            {t("build.server.title")}
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            При запуске этой сборки Minecraft автоматически подключится к указанному серверу. Если выключено — используется сервер из общих настроек лаунчера.
+            {t("build.server.desc")}
           </p>
         </div>
         <button
@@ -33,14 +35,14 @@ export function InstanceBuildServer({ build, updateBuild }: InstanceBuildServerP
           )}
         >
           <span className={cn("w-2 h-2 rounded-full", override ? "bg-primary-foreground" : "bg-muted-foreground/50")} />
-          {override ? "Свой сервер включён" : "Использовать настройки лаунчера"}
+          {override ? t("build.server.overrideOn") : t("build.java.useLauncher")}
         </button>
       </div>
 
       {override && (
         <div className="mt-6 grid gap-5">
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-muted-foreground">IP адрес</label>
+            <label className="block text-xs font-medium text-muted-foreground">{t("build.server.ip")}</label>
             <input
               type="text"
               value={server}
@@ -50,7 +52,7 @@ export function InstanceBuildServer({ build, updateBuild }: InstanceBuildServerP
             />
           </div>
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-muted-foreground">Порт</label>
+            <label className="block text-xs font-medium text-muted-foreground">{t("build.server.port")}</label>
             <input
               type="text"
               value={port}

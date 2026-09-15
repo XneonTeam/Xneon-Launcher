@@ -69,7 +69,7 @@ export function ModpackChangeVersionDialog({
         setVersions(list)
       } catch (err: any) {
         if (!active) return
-        setError(err?.message || "Не удалось загрузить версии модпака")
+        setError(err?.message || t("modpackVersion.loadFailed"))
       } finally {
         if (active) setLoading(false)
       }
@@ -116,7 +116,7 @@ export function ModpackChangeVersionDialog({
   const handleApply = async () => {
     if (!selectedVersion) return
     setApplying(true)
-    setApplyProgress("Подготовка к обновлению модпака...")
+    setApplyProgress(t("modpackVersion.preparing"))
     setImportProgress(null)
 
     try {
@@ -128,7 +128,7 @@ export function ModpackChangeVersionDialog({
           build.id
         )
         if (!res?.success) {
-          throw new Error(res?.error || "Ошибка применения версии")
+          throw new Error(res?.error || t("modpackVersion.applyError"))
         }
         onVersionChanged({
           modpackVersion: selectedVersion.name || selectedVersion.versionNumber || selectedVersion.id,
@@ -149,7 +149,7 @@ export function ModpackChangeVersionDialog({
           build.id
         )
         if (!res?.success) {
-          throw new Error(res?.error || "Ошибка применения версии")
+          throw new Error(res?.error || t("modpackVersion.applyError"))
         }
         onVersionChanged({
           modpackVersion: selectedVersion.name || selectedVersion.versionNumber || selectedVersion.id,
@@ -163,7 +163,7 @@ export function ModpackChangeVersionDialog({
       }
       onClose()
     } catch (err: any) {
-      setError(err?.message || "Не удалось сменить версию модпака")
+      setError(err?.message || t("modpackVersion.changeFailed"))
     } finally {
       setApplying(false)
       setApplyProgress(null)
@@ -189,10 +189,10 @@ export function ModpackChangeVersionDialog({
             </div>
             <div>
               <DialogTitle className="text-lg font-bold text-foreground">
-                Сменить версию модпака
+                {t("modpackVersion.title")}
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                Выберите версию {build.name} для переключения
+                {t("modpackVersion.desc", { name: build.name })}
               </DialogDescription>
             </div>
           </div>
@@ -205,7 +205,7 @@ export function ModpackChangeVersionDialog({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Поиск по версии Minecraft или названию..."
+              placeholder={t("modpackVersion.searchPlaceholder")}
               className="w-full pl-9 pr-3 py-2 rounded-xl bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
@@ -215,7 +215,7 @@ export function ModpackChangeVersionDialog({
           {loading && (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
               <IconLoader2 className="w-7 h-7 animate-spin text-primary" />
-              <span className="text-sm">Загрузка доступных версий...</span>
+              <span className="text-sm">{t("modpackVersion.loadingVersions")}</span>
             </div>
           )}
 
@@ -228,7 +228,7 @@ export function ModpackChangeVersionDialog({
 
           {!loading && !error && filteredVersions.length === 0 && (
             <div className="text-center py-16 text-muted-foreground text-sm">
-              Версии не найдены
+              {t("modpackVersion.noVersions")}
             </div>
           )}
 
@@ -276,7 +276,7 @@ export function ModpackChangeVersionDialog({
                       {isCurrent && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/15 text-green-500 flex items-center gap-1">
                           <IconCheck className="w-3 h-3" />
-                          Установлена
+                          {t("modpackVersion.installed")}
                         </span>
                       )}
                     </div>
@@ -331,10 +331,10 @@ export function ModpackChangeVersionDialog({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-foreground">
-                  {importProgress?.message || applyProgress || "Обновление модпака..."}
+                  {importProgress?.message || applyProgress || t("modpackVersion.updating")}
                 </p>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {applyingVersionLabel ? `Установка версии ${applyingVersionLabel}` : "Загрузка файлов..."}
+                  {applyingVersionLabel ? t("modpackVersion.installingVersion", { version: applyingVersionLabel }) : t("import.loadingFiles")}
                 </p>
               </div>
               <span className="shrink-0 text-sm font-semibold text-foreground">{progressPercent}%</span>
@@ -356,7 +356,7 @@ export function ModpackChangeVersionDialog({
             disabled={applying}
             className="px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
-            Отмена
+            {t("common.cancel")}
           </button>
 
           <button
@@ -373,12 +373,12 @@ export function ModpackChangeVersionDialog({
             {applying ? (
               <>
                 <IconLoader2 className="w-4 h-4 animate-spin" />
-                <span>{progressTotal > 0 ? `Обновление ${progressPercent}%` : "Обновление..."}</span>
+                <span>{progressTotal > 0 ? t("modpackVersion.updatingPercent", { percent: progressPercent }) : t("modpackVersion.updating")}</span>
               </>
             ) : (
               <>
                 <IconDownload className="w-4 h-4" />
-                <span>Применить версию</span>
+                <span>{t("modpackVersion.apply")}</span>
               </>
             )}
           </button>

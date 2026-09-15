@@ -10,7 +10,7 @@ import type {
   FTBFile,
 } from "@xnlc/mods" with { "resolution-mode": "import" }
 import type { BuildExportCategory, BuildContentUpdates, UpdateChannel, ModpackImportConflict, ModpackImportResult } from "@xnlc/types" with { "resolution-mode": "import" }
-import { getMainWindow } from "../runtime"
+import { getMainWindow, logRuntime } from "../runtime"
 import { getGameDir } from "../minecraft-core"
 import { dbHelpers } from "../../db"
 import { notifyStatsUpdated } from "../stats"
@@ -47,6 +47,7 @@ import {
 } from "./helpers"
 import { scanIntentDir } from "./scanner"
 import { checkContentUpdates, dismissContentUpdate, readUpdatesCache } from "./update-checker"
+import { pruneStaleLoaderProfiles, type LoaderPruneResult } from "./loader-profiles"
 
 export { ensureBuildIntentDir, getBuildIntentDirName, getBuildIntentPath, scanIntentDir }
 
@@ -288,6 +289,17 @@ export function registerBuildHandlers() {
 
   ipcMain.handle("build:set-intent-path", async (_event, dirName: string): Promise<void> => {
     await ensureBuildIntentDir(dirName)
+  })
+
+  // Смена загрузчика/его версии в сборке: убираем профили старых загрузчиков из
+  // <intent>/versions, иначе на следующем запуске они конфликтуют с новым.
+  ipcMain.handle("build:prune-loader-profiles", async (_event, dirName: string, modLoader?: string, loaderVersion?: string): Promise<LoaderPruneResult> => {
+    try {
+      return pruneStaleLoaderProfiles(getBuildIntentPath(dirName), modLoader, loaderVersion)
+    } catch (error) {
+      logRuntime(`[Builds] Failed to prune stale loader profiles for ${dirName}: ${toErrorMessage(error)}`)
+      return { removed: [], kept: [] }
+    }
   })
 
   ipcMain.handle("build:rename-intent", async (_event, oldName: string, newName: string): Promise<{ success: boolean; intentPath?: string; error?: string }> => {

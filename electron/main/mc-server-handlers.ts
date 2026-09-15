@@ -181,6 +181,48 @@ function saveServerProperties(propsPath: string, props: Record<string, string>):
   fs.writeFileSync(propsPath, lines.join("\n") + "\n", "utf-8")
 }
 
+/**
+ * Поля, которые живут одновременно и в server.properties, и в записи сервера.
+ * Если их не синхронизировать, старт сервера перезаписывает файл значениями из
+ * БД и правки пользователя «откатываются».
+ */
+function mirroredFieldsFromProperties(props: Record<string, string>): Partial<McServerRow> {
+  const fields: Partial<McServerRow> = {}
+
+  const port = Number.parseInt(props["server-port"] ?? "", 10)
+  if (Number.isInteger(port) && port > 0 && port <= 65535) fields.port = port
+
+  const onlineMode = props["online-mode"]
+  if (onlineMode !== undefined) fields.onlineMode = onlineMode.trim().toLowerCase() === "true" ? 1 : 0
+
+  const maxPlayers = Number.parseInt(props["max-players"] ?? "", 10)
+  if (Number.isInteger(maxPlayers) && maxPlayers >= 0) fields.maxPlayers = maxPlayers
+
+  return fields
+}
+
+function applyMirroredFieldsToProps(props: Record<string, string>, row: McServerRow): void {
+  props["server-port"] = String(row.port)
+  props["online-mode"] = row.onlineMode !== 0 ? "true" : "false"
+  props["max-players"] = String(row.maxPlayers ?? 20)
+}
+
+// Запись в server.properties идёт из нескольких мест (вкладка Properties,
+// настройки сервера, старт). Очередь на сервер исключает «гонку», когда два
+// чтения-изменения-записи накладываются и последняя запись теряет чужую правку.
+const serverFileLocks = new Map<string, Promise<void>>()
+
+function withServerFileLock<T>(id: string, task: () => Promise<T>): Promise<T> {
+  const previous = serverFileLocks.get(id) ?? Promise.resolve()
+  const run = previous.then(task, task)
+  const chain = run.then(() => undefined, () => undefined)
+  serverFileLocks.set(id, chain)
+  void chain.then(() => {
+    if (serverFileLocks.get(id) === chain) serverFileLocks.delete(id)
+  })
+  return run
+}
+
 export function registerMcServerHandlers() {
   ipcMain.handle("mc-server:list", async () => {
     const rows = await dbHelpers.listMcServers()
@@ -248,15 +290,20 @@ export function registerMcServerHandlers() {
     }
     await dbHelpers.updateMcServer(id, safe)
 
-    // If port changed, update server.properties
-    if (update.port !== undefined) {
-      const serverDir = getServerDir(id)
-      const propsPath = path.join(serverDir, "server.properties")
-      if (fs.existsSync(propsPath)) {
+    // Порт, online-mode и max-players живут ещё и в server.properties. Если их
+    // туда не продублировать, файл и лаунчер разъедутся, и при следующем старте
+    // сервер поднимется со старыми значениями.
+    const mirroredKeys = ["port", "onlineMode", "maxPlayers"]
+    if (mirroredKeys.some(key => update[key] !== undefined)) {
+      await withServerFileLock(id, async () => {
+        const propsPath = path.join(getServerDir(id), "server.properties")
+        if (!fs.existsSync(propsPath)) return
+        const row = await dbHelpers.getMcServer(id)
+        if (!row) return
         const props = loadServerProperties(propsPath)
-        props["server-port"] = String(update.port)
+        applyMirroredFieldsToProps(props, row)
         saveServerProperties(propsPath, props)
-      }
+      })
     }
   })
 
@@ -394,11 +441,24 @@ export function registerMcServerHandlers() {
   })
 
   ipcMain.handle("mc-server:start", async (_event, id: string) => {
-    const row = await dbHelpers.getMcServer(id)
-    if (!row) throw new Error("Server not found")
+    const currentRow = await dbHelpers.getMcServer(id)
+    if (!currentRow) throw new Error("Server not found")
+
+    const serverDir = getServerDir(id)
+
+    // server.properties — источник правды для порта, online-mode и max-players:
+    // переносим его значения в запись сервера, иначе старт откатил бы правки,
+    // сделанные во вкладке Properties (или руками в файле).
+    let row = await withServerFileLock(id, async () => {
+      const propsPath = path.join(serverDir, "server.properties")
+      const fromFile = mirroredFieldsFromProperties(loadServerProperties(propsPath))
+      if (Object.keys(fromFile).length > 0) {
+        await dbHelpers.updateMcServer(id, fromFile)
+      }
+      return (await dbHelpers.getMcServer(id)) ?? currentRow
+    })
 
     const serverInfo = rowToInfo(row)
-    const serverDir = getServerDir(id)
 
     // Auto-detect Java from settings or system
     const storedJava = row.javaPath && row.javaPath !== "auto" ? row.javaPath : null
@@ -438,13 +498,14 @@ export function registerMcServerHandlers() {
       fs.writeFileSync(eulaPath, "eula=true\n")
     }
 
-    // Write port to server.properties
-    const propsPath = path.join(serverDir, "server.properties")
-    const props = loadServerProperties(propsPath)
-    props["server-port"] = String(serverInfo.port)
-    if (row.onlineMode !== undefined) props["online-mode"] = row.onlineMode ? "true" : "false"
-    if (row.maxPlayers) props["max-players"] = String(row.maxPlayers)
-    saveServerProperties(propsPath, props)
+    // Дописываем в server.properties то, чего в нём ещё нет (первый запуск):
+    // значения приходят из записи сервера, которая уже синхронизирована с файлом.
+    await withServerFileLock(id, async () => {
+      const propsPath = path.join(serverDir, "server.properties")
+      const props = loadServerProperties(propsPath)
+      applyMirroredFieldsToProps(props, row)
+      saveServerProperties(propsPath, props)
+    })
 
     serverManager.start(
       id,
@@ -546,10 +607,19 @@ export function registerMcServerHandlers() {
   })
 
   ipcMain.handle("mc-server:write-properties", async (_event, id: string, properties: Record<string, string>) => {
-    const serverDir = getServerDir(id)
-    fs.mkdirSync(serverDir, { recursive: true })
-    const propsPath = path.join(serverDir, "server.properties")
-    saveServerProperties(propsPath, properties)
+    await withServerFileLock(id, async () => {
+      const serverDir = getServerDir(id)
+      fs.mkdirSync(serverDir, { recursive: true })
+      const propsPath = path.join(serverDir, "server.properties")
+      saveServerProperties(propsPath, properties)
+
+      // Файл — источник правды для этих полей: сразу переносим их в запись
+      // сервера, иначе старт сервера вернёт прежние значения из БД.
+      const mirrored = mirroredFieldsFromProperties(properties)
+      if (Object.keys(mirrored).length > 0) {
+        await dbHelpers.updateMcServer(id, mirrored)
+      }
+    })
   })
 
   // ── Player lists (whitelist, ops, banned, banned-ips) ───

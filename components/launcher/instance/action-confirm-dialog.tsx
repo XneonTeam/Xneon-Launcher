@@ -13,6 +13,7 @@ import {
   IconUnlink,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
+import { useTranslation } from "react-i18next"
 
 export interface ActionConfirmDialogProps {
   open: boolean
@@ -33,12 +34,15 @@ export function ActionConfirmDialog({
   onConfirm,
   title,
   description,
-  confirmText = "Продолжить",
-  cancelText = "Отмена",
+  confirmText,
+  cancelText,
   type = "confirm",
   variant = "warning",
   icon = "lock",
 }: ActionConfirmDialogProps) {
+  const { t } = useTranslation()
+  const resolvedConfirmText = confirmText ?? t("common.continue")
+  const resolvedCancelText = cancelText ?? t("common.cancel")
   const renderIcon = () => {
     switch (icon) {
       case "lock":
@@ -94,7 +98,7 @@ export function ActionConfirmDialog({
                 onClick={onClose}
                 className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
               >
-                {cancelText}
+                {resolvedCancelText}
               </button>
               <button
                 type="button"
@@ -109,7 +113,7 @@ export function ActionConfirmDialog({
                     : "bg-primary hover:bg-primary/90 shadow-[0_0_15px_var(--glow-primary)]"
                 )}
               >
-                {confirmText}
+                {resolvedConfirmText}
               </button>
             </>
           ) : (
@@ -118,7 +122,7 @@ export function ActionConfirmDialog({
               onClick={onClose}
               className="w-full px-4 py-2.5 rounded-xl text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_15px_var(--glow-primary)] transition-all active:scale-[0.98]"
             >
-              {confirmText || "Понятно"}
+              {resolvedConfirmText}
             </button>
           )}
         </div>

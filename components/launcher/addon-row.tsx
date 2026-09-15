@@ -114,7 +114,7 @@ export function AddonRow({
           <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1.5 min-w-0">
               <IconLoader2 className="h-3 w-3 shrink-0 animate-spin text-primary" strokeWidth={2} />
-              <span className="truncate">Установка...</span>
+              <span className="truncate">{t("common.installing")}</span>
             </span>
             <span className="shrink-0 font-mono tabular-nums">
               {percent !== null ? `${percent}%` : ""}

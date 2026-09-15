@@ -171,26 +171,62 @@ function parseMotdRaw(description: unknown): string {
   return JSON.stringify(description)
 }
 
-// ── Protocol version → name ──────────────────────────────
+// ── Protocol version → name ─────────────────────────────
+
+/**
+ * Соответствие protocol version → версия Minecraft.
+ * Если один протокол делят несколько версий, указана младшая из них
+ * (так же поступает и клиент Minecraft).
+ * Источник: https://minecraft.wiki/w/Protocol_version
+ */
+const PROTOCOL_VERSION_NAMES: Record<number, string> = {
+  47: "1.8",
+  107: "1.9", 108: "1.9.1", 109: "1.9.2", 110: "1.9.3",
+  210: "1.10",
+  315: "1.11", 316: "1.11.1",
+  335: "1.12", 338: "1.12.1", 340: "1.12.2",
+  393: "1.13", 401: "1.13.1", 404: "1.13.2",
+  477: "1.14", 480: "1.14.1", 485: "1.14.2", 490: "1.14.3", 498: "1.14.4",
+  573: "1.15", 575: "1.15.1", 578: "1.15.2",
+  735: "1.16", 736: "1.16.1", 751: "1.16.2", 753: "1.16.3", 754: "1.16.4",
+  755: "1.17", 756: "1.17.1",
+  757: "1.18", 758: "1.18.2",
+  759: "1.19", 760: "1.19.1", 761: "1.19.3", 762: "1.19.4",
+  763: "1.20", 764: "1.20.2", 765: "1.20.3", 766: "1.20.5",
+  767: "1.21", 768: "1.21.2", 769: "1.21.4", 770: "1.21.5", 771: "1.21.6",
+  772: "1.21.7", 773: "1.21.9", 774: "1.21.11",
+  775: "26.1", 776: "26.2",
+}
 
 function getProtocolVersionName(protocol: number): string {
-  const versions: Record<number, string> = {
-    47: "1.8.x",
-    107: "1.9", 110: "1.9.1", 210: "1.9.2",
-    315: "1.10", 316: "1.10.1",
-    335: "1.11", 336: "1.11.1", 338: "1.11.2",
-    340: "1.12", 341: "1.12.1", 342: "1.12.2",
-    393: "1.13", 401: "1.13.1", 404: "1.13.2",
-    477: "1.14", 480: "1.14.1", 485: "1.14.2", 490: "1.14.3", 498: "1.14.4",
-    573: "1.15", 575: "1.15.1", 578: "1.15.2",
-    736: "1.16", 737: "1.16.1", 753: "1.16.2", 754: "1.16.3", 756: "1.16.4", 757: "1.16.5",
-    758: "1.17", 759: "1.17.1",
-    760: "1.18", 761: "1.18.1", 762: "1.18.2",
-    763: "1.19", 764: "1.19.2", 765: "1.19.3", 766: "1.19.4",
-    767: "1.20", 768: "1.20.1", 769: "1.20.2", 770: "1.20.3", 771: "1.20.4", 772: "1.20.5", 773: "1.20.6",
-    774: "1.21", 775: "1.21.1", 776: "1.21.2", 777: "1.21.3", 778: "1.21.4", 779: "1.21.5",
-  }
-  return versions[protocol] || `Неизвестная (${protocol})`
+  return PROTOCOL_VERSION_NAMES[protocol] || `Неизвестная (${protocol})`
+}
+
+/** Убирает §-коды форматирования из строки версии. */
+function stripFormatting(value: string): string {
+  return value.replace(/§./g, "").trim()
+}
+
+/**
+ * Определяет версию сервера.
+ *
+ * Главный источник — `version.name` из ответа сервера: именно его показывает
+ * клиент Minecraft, и только там видно ПО сервера («Paper 26.2»). Поэтому
+ * собственный маппинг по protocol number используется лишь как запасной
+ * вариант — например, когда прокси отдаёт «Velocity» без номера версии.
+ */
+function resolveVersionName(version?: { name?: string; protocol?: number }): string {
+  const reported = typeof version?.name === "string" ? stripFormatting(version.name) : ""
+  const protocol = version?.protocol
+  const byProtocol = protocol ? PROTOCOL_VERSION_NAMES[protocol] : undefined
+
+  // «Paper 26.2», «1.8-1.21» — версия уже есть в имени
+  if (reported && /\d/.test(reported)) return reported
+  // Имя без номера версии («Velocity») — берём версию из протокола
+  if (byProtocol) return byProtocol
+  if (reported) return reported
+  if (protocol) return getProtocolVersionName(protocol)
+  return "Неизвестная"
 }
 
 // ── SRV lookup ────────────────────────────────────────────
@@ -332,10 +368,7 @@ export async function pingServer(input: string): Promise<ServerStatusResult> {
             const latency = Number(BigInt(Date.now()) - receivedTimestamp)
 
             const status = savedStatus!
-            const protocolVersion = status.version?.protocol
-            const versionName = protocolVersion
-              ? getProtocolVersionName(protocolVersion)
-              : status.version?.name || "Неизвестная"
+            const versionName = resolveVersionName(status.version)
 
             finish({
               online: true,

@@ -117,6 +117,7 @@ export interface IpcInvokeMap {
   "build:delete-content-from-intent": { args: [buildId: string, contentType: "mod" | "resourcepack" | "shader", fileName: string]; return: { success: boolean; error?: string } }
   "build:set-content-enabled": { args: [buildId: string, contentType: "mod" | "resourcepack" | "shader", fileName: string, enabled: boolean]; return: { success: boolean; fileName?: string; error?: string } }
   "build:set-intent-path": { args: [buildId: string, intentPath: string]; return: void }
+  "build:prune-loader-profiles": { args: [buildName: string, modLoader?: string, loaderVersion?: string]; return: { removed: string[]; kept: string[] } }
   "build:delete-intent": { args: [buildName: string]; return: { success: boolean; error?: string } }
   "build:import-modrinth": { args: [buildName: string, projectSlug: string, versionId?: string, targetBuildId?: string]; return: ModpackImportResult }
   "build:import-curseforge": { args: [buildName: string, modId: number, fileId: number, targetBuildId?: string]; return: ModpackImportResult }
@@ -178,7 +179,7 @@ export interface IpcInvokeMap {
   "mods:curseforge-changelog": { args: [modId: number, fileId: number]; return: string }
   "mods:curseforge-description": { args: [modId: number]; return: string }
   "mods:resolve-dependencies": { args: [version: ModVersion, source: "modrinth" | "curseforge"]; return: ModDependency[] }
-
+  "mods:check-loader-requirements": { args: [buildName: string, modLoader?: string, loaderVersion?: string]; return: { loaderId: string; loaderVersion?: string; checked: number; issues: Array<{ fileName: string; modName?: string; modId?: string; loaderId: string; requirement: string; buildLoaderVersion?: string; satisfied: boolean; reason?: string }> } }
   // ── Mods (FTB / Feed The Beast) ──
   "mods:ftb-search": { args: [query: string, page?: number]; return: ModSearchResponse }
   "mods:ftb-details": { args: [id: number]; return: ModDetails | null }

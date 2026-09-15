@@ -1,14 +1,15 @@
 import { memo, useCallback, useEffect, useState } from "react"
-import type { Dispatch, SetStateAction } from "react"
+import type { Dispatch, KeyboardEvent, SetStateAction } from "react"
 import { useTranslation } from "react-i18next"
 import type { Account } from "@/src/AccountsContext"
 import type { QuickPlayEntry } from "@xnlc/types"
 import type { WorldInfo } from "@xnlc/types"
 import { cn } from "@/lib/utils"
+import { parseMotd } from "@/lib/minecraft-motd"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ACCOUNT_TYPE_LABELS, MOD_LOADERS, type LaunchUiState } from "@/lib/home-page-shared"
-import { IconBolt, IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconFolder, IconLoader2, IconMap, IconPlayerPlay, IconPlayerStop, IconServer, IconWorld, IconX } from "@tabler/icons-react"
+import { IconBolt, IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconFolder, IconLoader2, IconMap, IconPlayerPlay, IconPlayerStop, IconRefresh, IconServer, IconUsers, IconX } from "@tabler/icons-react"
 import { LoaderIcon } from "@/components/launcher/instance/loader-icon"
 import { CachedAvatar } from "@/components/ui/cached-avatar"
 import type { LoaderVersionOption } from "@/src/hooks/use-loader-version-options"
@@ -40,6 +41,167 @@ type HomeControlsProps = {
 }
 
 const QUICK_PLAY_MAX = 10
+
+/** Сколько серверов из истории быстрой игры показываем (и пингуем) в сайдбаре. */
+const QUICK_PLAY_SERVERS = 3
+
+/** Структурно совпадает с `ServerStatusResult` из `@xnlc/servers` (тянуть его в рендерер нельзя). */
+type QuickPlayServerStatus = {
+  online: boolean
+  ip: string
+  port: number
+  players_online: number
+  players_max: number
+  motd_raw?: string
+  motd_clean?: string
+  version: string
+  latency_ms: number
+  icon?: string
+  error?: string
+}
+
+type PingState = { loading: boolean; result?: QuickPlayServerStatus }
+
+const entryKey = (entry: QuickPlayEntry) => `${entry.type}:${entry.address}`
+
+function latencyTone(ms: number) {
+  if (ms <= 90) return "text-emerald-400"
+  if (ms <= 200) return "text-yellow-400"
+  return "text-orange-400"
+}
+
+/** Стандартная иконка сервера — тот же ассет, что и во вкладке «Серверы». */
+const DEFAULT_SERVER_ICON = "./server-icon.png"
+
+function ServerFavicon({ icon, label }: { icon?: string; label: string }) {
+  const [customFailed, setCustomFailed] = useState(false)
+  const [defaultFailed, setDefaultFailed] = useState(false)
+
+  // Своя иконка есть не у всех серверов: ванильный сервер отдаёт favicon
+  // только если рядом с ним лежит server-icon.png. Тогда показываем
+  // стандартную иконку сервера, а не заглушку.
+  if (icon && !customFailed) {
+    return (
+      <img
+        src={icon}
+        alt={label}
+        onError={() => setCustomFailed(true)}
+        className="h-9 w-9 rounded-lg border border-border/60 object-cover"
+      />
+    )
+  }
+
+  if (!defaultFailed) {
+    return (
+      <img
+        src={DEFAULT_SERVER_ICON}
+        alt={label}
+        onError={() => setDefaultFailed(true)}
+        className="h-9 w-9 rounded-lg border border-border/60 object-cover"
+      />
+    )
+  }
+
+  return (
+    <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-muted/40">
+      <IconServer className="h-4 w-4 text-blue-400/70" />
+    </span>
+  )
+}
+
+function QuickPlayServerRow({ entry, ping, onLaunch, onRemove }: {
+  entry: QuickPlayEntry
+  ping?: PingState
+  onLaunch: () => void
+  onRemove: () => void
+}) {
+  const { t } = useTranslation()
+  const status = ping?.result
+  const online = status?.online === true
+  const latency = status?.latency_ms ?? 0
+  const tooltip = status?.motd_clean ? `${entry.address}\n${status.motd_clean}` : entry.address
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return
+    event.preventDefault()
+    onLaunch()
+  }
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onLaunch}
+      onKeyDown={handleKeyDown}
+      title={tooltip}
+      className="group flex cursor-pointer items-start gap-2 rounded-xl border border-border bg-card/80 p-2.5 transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:border-primary/60 focus-visible:outline-none"
+    >
+      <span className="relative flex-shrink-0">
+        <ServerFavicon icon={status?.icon} label={entry.label} />
+        <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/65 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+          <IconPlayerPlay className="h-4 w-4 text-primary" strokeWidth={2} fill="currentColor" />
+        </span>
+      </span>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-[13px] font-medium text-foreground transition-colors group-hover:text-primary">
+            {entry.label}
+          </span>
+          {online && (
+            <span className={cn("ml-auto flex-shrink-0 font-mono text-[10px] tabular-nums", latencyTone(latency))}>
+              {latency} ms
+            </span>
+          )}
+        </div>
+
+        {ping?.loading ? (
+          <span className="mt-0.5 animate-pulse text-[11px] text-muted-foreground">
+            {t("home.quickPlayPinging")}
+          </span>
+        ) : online ? (
+          <>
+            {status?.motd_raw ? (
+              <div className="mt-1 max-h-[27px] overflow-hidden [&_div]:text-[11px] [&_div]:leading-[13px]">
+                {parseMotd(status.motd_raw)}
+              </div>
+            ) : null}
+            <div className="mt-1 flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-emerald-400">
+                <IconUsers className="h-3 w-3" strokeWidth={2} />
+                {status?.players_online ?? 0}/{status?.players_max ?? 0}
+              </span>
+              {status?.version ? (
+                <span
+                  className="max-w-[130px] truncate rounded-md bg-muted/50 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                  title={status.version}
+                >
+                  {status.version}
+                </span>
+              ) : null}
+            </div>
+          </>
+        ) : (
+          <span className="mt-0.5 text-[11px] text-red-400/80" title={status?.error}>
+            {t("servers.offline")}
+          </span>
+        )}
+      </div>
+
+      <button
+        type="button"
+        aria-label={t("servers.delete")}
+        onClick={(event) => {
+          event.stopPropagation()
+          onRemove()
+        }}
+        className="p-0.5 rounded opacity-0 transition-opacity hover:bg-muted/60 group-hover:opacity-100 focus-visible:opacity-100"
+      >
+        <IconX className="w-3.5 h-3.5 text-muted-foreground" />
+      </button>
+    </div>
+  )
+}
 
 function WorldCarousel({ worlds, buildName, onPlay }: { worlds: WorldInfo[]; buildName?: string; onPlay: (folder: string) => void }) {
   const [index, setIndex] = useState(0)
@@ -118,9 +280,49 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
   const { t } = useTranslation()
   const [worlds, setWorlds] = useState<WorldInfo[]>([])
   const [entries, setEntries] = useState<QuickPlayEntry[]>([])
+  const [pings, setPings] = useState<Record<string, PingState>>({})
+  const [pinging, setPinging] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const buildName = selectedModLoader === "instance" ? selectedVersion : undefined
+
+  const pingEntries = useCallback(async (list: QuickPlayEntry[]) => {
+    const ping = window.electronAPI?.pingServer
+    const multiplayer = list.filter(entry => entry.type === "multiplayer")
+    if (!ping || multiplayer.length === 0) return
+
+    setPinging(true)
+    setPings(prev => {
+      const next = { ...prev }
+      for (const entry of multiplayer) next[entryKey(entry)] = { loading: true }
+      return next
+    })
+
+    await Promise.allSettled(multiplayer.map(async (entry) => {
+      const key = entryKey(entry)
+      let state: PingState
+      try {
+        state = { loading: false, result: await ping(entry.address) }
+      } catch (error) {
+        state = {
+          loading: false,
+          result: {
+            online: false,
+            ip: entry.address,
+            port: 0,
+            players_online: 0,
+            players_max: 0,
+            version: "",
+            latency_ms: 0,
+            error: error instanceof Error ? error.message : String(error),
+          },
+        }
+      }
+      setPings(prev => ({ ...prev, [key]: state }))
+    }))
+
+    setPinging(false)
+  }, [])
 
   const loadEntries = useCallback(async () => {
     if (!window.electronAPI) return
@@ -133,15 +335,16 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
       }
       const gameDir = buildName ? await window.electronAPI.getBuildIntentPath(buildName) : await window.electronAPI.getGameDir()
       const list = await window.electronAPI.quickPlayList(buildName, gameDir)
-      const mpEntries = list.filter(e => e.type === "multiplayer").slice(0, 3)
+      const mpEntries = list.filter(e => e.type === "multiplayer").slice(0, QUICK_PLAY_SERVERS)
       setEntries(mpEntries)
+      void pingEntries(mpEntries)
     } catch {
       setWorlds([])
       setEntries([])
     } finally {
       setLoading(false)
     }
-  }, [buildName])
+  }, [buildName, pingEntries])
 
   useEffect(() => { loadEntries() }, [loadEntries])
 
@@ -150,6 +353,11 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
     const gameDir = buildName ? await window.electronAPI.getBuildIntentPath(buildName) : await window.electronAPI.getGameDir()
     await window.electronAPI.quickPlayRemove(buildName, gameDir, entry)
     setEntries(prev => prev.filter(e => e.type !== entry.type || e.address !== entry.address))
+    setPings(prev => {
+      const next = { ...prev }
+      delete next[entryKey(entry)]
+      return next
+    })
   }, [buildName])
 
   const hasWorlds = worlds.length > 0
@@ -177,29 +385,27 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-1.5 px-1">
             <IconBolt className="w-3.5 h-3.5 text-primary" />
-            <span className="text-xs font-medium text-muted-foreground">{t("home.quickPlay")}</span>
+            <span className="flex-1 text-xs font-medium text-muted-foreground">{t("home.quickPlay")}</span>
+            <button
+              type="button"
+              onClick={() => void pingEntries(entries)}
+              disabled={pinging}
+              title={t("home.quickPlayRefresh")}
+              aria-label={t("home.quickPlayRefresh")}
+              className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
+            >
+              <IconRefresh className={cn("w-3.5 h-3.5", pinging && "animate-spin")} />
+            </button>
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5">
             {entries.map((entry) => (
-              <div key={`${entry.type}:${entry.address}`} className="group flex items-center gap-2 px-3 py-2 rounded-xl bg-card/80 border border-border hover:border-primary/40 hover:bg-muted/40 transition-colors">
-                <button
-                  type="button"
-                  onClick={() => onQuickPlayLaunch?.(entry.type, entry.address)}
-                  className="flex-1 flex items-center gap-2.5 min-w-0 text-left"
-                >
-                  {entry.type === "singleplayer"
-                    ? <IconWorld className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                    : <IconServer className="w-4 h-4 text-blue-400 flex-shrink-0" />}
-                  <span className="text-sm text-foreground truncate">{entry.label}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleRemove(entry)}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-muted/60 transition-opacity"
-                >
-                  <IconX className="w-3.5 h-3.5 text-muted-foreground" />
-                </button>
-              </div>
+              <QuickPlayServerRow
+                key={entryKey(entry)}
+                entry={entry}
+                ping={pings[entryKey(entry)]}
+                onLaunch={() => onQuickPlayLaunch?.(entry.type, entry.address)}
+                onRemove={() => void handleRemove(entry)}
+              />
             ))}
           </div>
         </div>
@@ -263,7 +469,7 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
                   )
                 })}
                 {accounts.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4">Нет аккаунтов</p>
+                  <p className="text-sm text-muted-foreground text-center py-4">{t("home.noAccounts")}</p>
                 )}
               </div>
             </DialogContent>
@@ -312,7 +518,7 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
               <SelectItem key={l.id} value={l.id}>
                 <span className="flex items-center gap-2">
                   <LoaderIcon loaderId={l.id} className="w-4 h-4 flex-shrink-0" />
-                  {l.name}
+                  {t(`home.modLoader.${l.id}`, l.name)}
                 </span>
               </SelectItem>
             ))}</SelectContent>

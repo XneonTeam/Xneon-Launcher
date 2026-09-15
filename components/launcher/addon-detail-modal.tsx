@@ -3,6 +3,7 @@ import remarkGfm from "remark-gfm"
 import rehypeRaw from "rehype-raw"
 import rehypeSanitize from "rehype-sanitize"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import {
   IconX,
@@ -104,8 +105,10 @@ export function AddonDetailModal({
   versionsLoaderFiltered = false,
   onShowAllVersions,
   allVersionsCount = 0,
-  targetLabel = "для вашей сборки",
+  targetLabel,
 }: AddonDetailModalProps) {
+  const { t } = useTranslation()
+  const resolvedTargetLabel = targetLabel ?? t("addon.target.build")
   const [selectedUpdateVersion, setSelectedUpdateVersion] = useState<ModVersion | null>(null)
   const showAllVersionsActive = versionsFallback === "otherMc" || versionsFallback === "otherLoader"
   const [install, setInstall] = useState<InstallState | null>(null)
@@ -198,7 +201,7 @@ export function AddonDetailModal({
         versionId: version.id,
         phase: "error",
         percent: null,
-        error: e instanceof Error ? e.message : "Не удалось установить версию",
+        error: e instanceof Error ? e.message : t("addon.install.failed"),
       })
       return
     }
@@ -263,7 +266,7 @@ export function AddonDetailModal({
                           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
                         >
                           <IconBrandGithub className="w-3.5 h-3.5" />
-                          <span>Исходный код</span>
+                          <span>{t("addon.links.source")}</span>
                         </a>
                       )}
                       {selectedDetails.links.wikiUrl && (
@@ -274,7 +277,7 @@ export function AddonDetailModal({
                           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
                         >
                           <IconBook className="w-3.5 h-3.5" />
-                          <span>Вики / Документация</span>
+                          <span>{t("addon.links.wiki")}</span>
                         </a>
                       )}
                       {selectedDetails.links.issuesUrl && (
@@ -285,7 +288,7 @@ export function AddonDetailModal({
                           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
                         >
                           <IconBug className="w-3.5 h-3.5" />
-                          <span>Багтрекер</span>
+                          <span>{t("addon.links.issues")}</span>
                         </a>
                       )}
                       {selectedDetails.links.discordUrl && (
@@ -296,7 +299,7 @@ export function AddonDetailModal({
                           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
                         >
                           <IconBrandDiscord className="w-3.5 h-3.5" />
-                          <span>Discord</span>
+                          <span>{t("addon.links.discord")}</span>
                         </a>
                       )}
                       {selectedDetails.links.websiteUrl && (
@@ -307,7 +310,7 @@ export function AddonDetailModal({
                           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
                         >
                           <IconExternalLink className="w-3.5 h-3.5" />
-                          <span>Страница проекта</span>
+                          <span>{t("addon.links.website")}</span>
                         </a>
                       )}
                     </div>
@@ -376,7 +379,7 @@ export function AddonDetailModal({
                   ))}
                 </div>
               ) : (
-                <p className="col-span-2 text-center text-muted-foreground py-12">Нет скриншотов</p>
+                <p className="col-span-2 text-center text-muted-foreground py-12">{t("addon.noScreenshots")}</p>
               )}
             </div>
           )}
@@ -402,16 +405,16 @@ export function AddonDetailModal({
                         return (
                           <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
                             <IconLoader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-                            <span>Загрузка списка изменений...</span>
+                            <span>{t("addon.changelog.loading")}</span>
                           </div>
                         )
                       }
-                      return <p className="text-sm text-muted-foreground">Нет changelog</p>
+                      return <p className="text-sm text-muted-foreground">{t("addon.changelog.empty")}</p>
                     })()}
                   </div>
                 ))
               ) : (
-                <p className="text-center text-muted-foreground py-12">Нет changelog</p>
+                <p className="text-center text-muted-foreground py-12">{t("addon.changelog.empty")}</p>
               )}
             </div>
           )}
@@ -422,7 +425,9 @@ export function AddonDetailModal({
                 <div className="flex items-center gap-2 rounded-xl border border-yellow-500/20 bg-yellow-500/5 px-3.5 py-2.5 text-xs text-yellow-500/90">
                   <IconAlertTriangle className="w-4 h-4 shrink-0" strokeWidth={1.75} />
                   <span>
-                    Показаны все версии проекта. Версии под другие сборки или загрузчики <span className="font-medium">не запустятся</span> в вашей сборке.
+                    {t("addon.versions.allNoteBefore")}{" "}
+                    <span className="font-medium">{t("addon.versions.allNoteEmphasis")}</span>{" "}
+                    {t("addon.versions.allNoteAfter")}
                   </span>
                 </div>
               )}
@@ -467,7 +472,7 @@ export function AddonDetailModal({
                           )}
                           {mismatch && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 font-medium">
-                              другой загрузчик
+                              {t("addon.otherLoader")}
                             </span>
                           )}
                           {ver.versionType && (
@@ -495,12 +500,12 @@ export function AddonDetailModal({
                         {installState?.phase === "running" ? (
                           <>
                             <IconLoader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} />
-                            Установка...
+                            {t("common.installing")}
                           </>
                         ) : (
                           <>
                             <IconDownload className="w-4 h-4" strokeWidth={1.75} />
-                            Скачать
+                            {t("addon.download")}
                           </>
                         )}
                       </button>
@@ -513,16 +518,16 @@ export function AddonDetailModal({
               ) : (
                 <div className="flex flex-col items-center justify-center py-14 text-center">
                   <IconPackage className="h-8 w-8 text-muted-foreground/60 mb-3" strokeWidth={1.5} />
-                  <p className="text-sm font-medium text-foreground">Нет версий {targetLabel}</p>
+                  <p className="text-sm font-medium text-foreground">{t("addon.versions.noneFor", { target: resolvedTargetLabel })}</p>
                   <div className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1.5">
                     {activeBuild ? (
                       <>
-                        <span>Не найдено версий для</span>
+                        <span>{t("addon.versions.notFoundFor")}</span>
                         <LoaderIcon loaderId={activeBuild.modLoader} className="w-3.5 h-3.5" />
                         <span>{loaderLabel(activeBuild.modLoader)} {activeBuild.version}</span>
                       </>
                     ) : (
-                      <span>Не найдено подходящих версий</span>
+                      <span>{t("addon.versions.noMatching")}</span>
                     )}
                   </div>
                   {onShowAllVersions && allVersionsCount > 0 && (
@@ -531,7 +536,7 @@ export function AddonDetailModal({
                       className="mt-4 flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-border bg-muted/40 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                     >
                       <IconAlertTriangle className="w-3.5 h-3.5" strokeWidth={1.75} />
-                      Показать все версии ({allVersionsCount})
+                      {t("addon.versions.showAll", { count: allVersionsCount })}
                     </button>
                   )}
                 </div>

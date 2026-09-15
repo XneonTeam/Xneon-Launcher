@@ -245,13 +245,13 @@ export function SettingsPage() {
 
   const handleChangeInstancesDir = async () => {
     if (!window.electronAPI) return
-    const picked = await window.electronAPI.pickFolder("Выбрать папку для сборок")
+    const picked = await window.electronAPI.pickFolder(t("settings.buildsFolder.pickTitle"))
     if (!picked) return
     const result = await window.electronAPI.setInstancesRoot(picked)
     if (result.success && result.root) {
       setInstancesRoot(result.root)
     } else if (result.error) {
-      console.warn("[Настройки] Не удалось сменить папку сборок:", result.error)
+      console.warn("[Settings] Failed to change builds folder:", result.error)
     }
   }
 
@@ -308,13 +308,13 @@ export function SettingsPage() {
             <section className="space-y-4">
               <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
                 <IconCloud className="w-5 h-5 text-primary" strokeWidth={1.5} />
-                Автоподключение к серверу
+                {t("settings.autoJoin.title")}
               </h3>
               <div className="p-4 rounded-xl border border-border bg-muted/30">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
-                    <div className="font-medium text-foreground">Автоподключение</div>
-                    <p className="text-sm text-muted-foreground mt-1">При запуске Minecraft автоматически подключится к указанному серверу.</p>
+                    <div className="font-medium text-foreground">{t("settings.autoJoin.label")}</div>
+                    <p className="text-sm text-muted-foreground mt-1">{t("settings.autoJoin.desc")}</p>
                   </div>
                   <button
                     onClick={() => setAutoJoinServer(!autoJoinServer)}
@@ -329,7 +329,7 @@ export function SettingsPage() {
                 {autoJoinServer && (
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="sm:col-span-2 space-y-1.5">
-                      <label className="block text-sm font-medium text-foreground">IP адрес</label>
+                      <label className="block text-sm font-medium text-foreground">{t("settings.autoJoin.ip")}</label>
                       <input
                         type="text"
                         value={serverAddress}
@@ -339,7 +339,7 @@ export function SettingsPage() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="block text-sm font-medium text-foreground">Порт</label>
+                      <label className="block text-sm font-medium text-foreground">{t("settings.autoJoin.port")}</label>
                       <input
                         type="text"
                         value={serverPort}
@@ -390,14 +390,14 @@ export function SettingsPage() {
             <section className="space-y-4">
               <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
                 <IconFolder className="w-5 h-5 text-primary" strokeWidth={1.75} />
-                Папка сборок
+                {t("settings.buildsFolder.title")}
               </h3>
               <div className="p-4 rounded-xl border border-border bg-muted/30">
-                <p className="text-sm text-muted-foreground mb-3">Сюда сохраняются файлы сборок (mods, resourcepacks, shaderpacks). При смене папки существующие сборки переносятся автоматически.</p>
+                <p className="text-sm text-muted-foreground mb-3">{t("settings.buildsFolder.desc")}</p>
                 <div className="flex items-center gap-3">
-                  <code className="flex-1 truncate rounded-lg bg-background/60 border border-border px-3 py-2 text-xs text-muted-foreground">{instancesRoot || "Загрузка…"}</code>
+                  <code className="flex-1 truncate rounded-lg bg-background/60 border border-border px-3 py-2 text-xs text-muted-foreground">{instancesRoot || t("settings.buildsFolder.loading")}</code>
                   <button type="button" onClick={() => void handleChangeInstancesDir()} className="px-3 py-2 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 shrink-0">
-                    Изменить
+                    {t("settings.buildsFolder.change")}
                   </button>
                 </div>
               </div>
