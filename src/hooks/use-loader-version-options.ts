@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react"
 
 type SupportedLoader = "vanilla" | "forge" | "fabric" | "liteloader" | "quilt" | "neoforge" | "optifine" | "instance" | "paper" | "purpur" | "folia" | "velocity" | "waterfall" | "sponge" | "spongevanilla" | "spongeforge" | "spongeneo"
 
+/** Модлоадеры: по умолчанию ставим самую свежую версию, а не recommended. */
+const MOD_LOADER_IDS = new Set(["fabric", "quilt", "forge", "neoforge", "liteloader", "optifine"])
+
 export type LoaderVersionOption = {
   value: string
   label: string
@@ -217,14 +220,18 @@ export function useLoaderVersionOptions(modLoader: string, mcVersion: string) {
     }
   }, [mcVersion, modLoader])
 
-  const recommendedLoaderVersion = useMemo(
-    () => loaderVersions.find(option => option.recommended)?.value ?? loaderVersions[0]?.value ?? "",
-    [loaderVersions],
-  )
+  // Список отсортирован по убыванию версии, поэтому loaderVersions[0] — самая свежая.
+  // Для модлоадеров по умолчанию берём именно её (latest), для серверных платформ
+  // оставляем рекомендованную сборку.
+  const defaultLoaderVersion = useMemo(() => {
+    if (loaderVersions.length === 0) return ""
+    if (MOD_LOADER_IDS.has(modLoader)) return loaderVersions[0]?.value ?? ""
+    return loaderVersions.find(option => option.recommended)?.value ?? loaderVersions[0]?.value ?? ""
+  }, [loaderVersions, modLoader])
 
   return {
     loaderVersions,
     loaderVersionsLoaded,
-    recommendedLoaderVersion,
+    defaultLoaderVersion,
   }
 }

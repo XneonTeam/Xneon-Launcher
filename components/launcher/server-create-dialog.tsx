@@ -89,7 +89,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
   const effectiveLoader = modloader === "sponge" ? "sponge" : modloader
   const { versions, versionsLoaded, selectedVersion, setSelectedVersion } = useHomeVersions(effectiveLoader)
   const loaderForOptions = modloader === "sponge" ? spongeType : modloader
-  const { loaderVersions, loaderVersionsLoaded, recommendedLoaderVersion } = useLoaderVersionOptions(loaderForOptions, selectedVersion)
+  const { loaderVersions, loaderVersionsLoaded, defaultLoaderVersion } = useLoaderVersionOptions(loaderForOptions, selectedVersion)
   const requiresLoaderVersion = !["vanilla", "spigot", "bukkit", "bungeecord"].includes(modloader)
 
   const [spongeSupported, setSpongeSupported] = useState<{
@@ -174,8 +174,8 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
   useEffect(() => {
     if (!requiresLoaderVersion || !loaderVersionsLoaded) return
     if (loaderVersions.some(v => v.value === modloaderVersion)) return
-    setModloaderVersion(recommendedLoaderVersion ?? "")
-  }, [loaderVersions, loaderVersionsLoaded, modloaderVersion, recommendedLoaderVersion, requiresLoaderVersion])
+    setModloaderVersion(defaultLoaderVersion ?? "")
+  }, [loaderVersions, loaderVersionsLoaded, modloaderVersion, defaultLoaderVersion, requiresLoaderVersion])
 
   useEffect(() => {
     if (!open) return

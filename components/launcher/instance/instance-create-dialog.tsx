@@ -49,7 +49,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
   })
   const [showIconPicker, setShowIconPicker] = useState(false)
   const { versions, versionsLoaded, selectedVersion: version, setSelectedVersion: setVersion } = useHomeVersions(modLoader)
-  const { loaderVersions, loaderVersionsLoaded, recommendedLoaderVersion } = useLoaderVersionOptions(modLoader, version)
+  const { loaderVersions, loaderVersionsLoaded, defaultLoaderVersion } = useLoaderVersionOptions(modLoader, version)
   const formFileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -90,8 +90,8 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
 
     if (!loaderVersionsLoaded) return
     if (loaderVersions.some(option => option.value === loaderVersion)) return
-    setLoaderVersion(recommendedLoaderVersion ?? "")
-  }, [loaderVersion, loaderVersions, loaderVersionsLoaded, modLoader, recommendedLoaderVersion])
+    setLoaderVersion(defaultLoaderVersion ?? "")
+  }, [loaderVersion, loaderVersions, loaderVersionsLoaded, modLoader, defaultLoaderVersion])
 
   const handleCreate = async () => {
     await onCreate({ name, description, version, modLoader, loaderVersion: loaderVersion || undefined, icon })
