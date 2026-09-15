@@ -39,7 +39,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
   const savedNameRef = useRef(activeBuild.name)
   const [showIconPicker, setShowIconPicker] = useState(false)
   const { visibleVersions, versionsLoaded } = useMinecraftVersionOptions()
-  const { loaderVersions, loaderVersionsLoaded, recommendedLoaderVersion } = useLoaderVersionOptions(activeBuild.modLoader, activeBuild.version)
+  const { loaderVersions, loaderVersionsLoaded, defaultLoaderVersion } = useLoaderVersionOptions(activeBuild.modLoader, activeBuild.version)
   const buildHasImage = !!activeBuild.icon
   const availableVersions = visibleVersions.includes(activeBuild.version)
     ? visibleVersions
@@ -175,8 +175,8 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
 
     if (!loaderVersionsLoaded) return
     if (loaderVersions.some(option => option.value === activeBuild.loaderVersion)) return
-    updateBuild(activeBuild.id, { loaderVersion: recommendedLoaderVersion || undefined })
-  }, [activeBuild.id, activeBuild.loaderVersion, loaderVersions, loaderVersionsLoaded, recommendedLoaderVersion, showLoaderVersionSelect, updateBuild])
+    updateBuild(activeBuild.id, { loaderVersion: defaultLoaderVersion || undefined })
+  }, [activeBuild.id, activeBuild.loaderVersion, loaderVersions, loaderVersionsLoaded, defaultLoaderVersion, showLoaderVersionSelect, updateBuild])
 
   return (
     <div className="flex-1 overflow-y-auto">

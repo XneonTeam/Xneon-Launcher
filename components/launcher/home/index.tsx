@@ -37,7 +37,7 @@ export function HomePage() {
   const [selectedLoaderVersion, setSelectedLoaderVersion] = useState(saved.loaderVersion ?? "")
   const [accountComboOpen, setAccountComboOpen] = useState(false)
   const { versions, versionsLoaded, selectedVersion, setSelectedVersion, buildIcons } = useHomeVersions(selectedModLoader, saved.version)
-  const { loaderVersions, loaderVersionsLoaded, recommendedLoaderVersion } = useLoaderVersionOptions(selectedModLoader, selectedVersion)
+  const { loaderVersions, loaderVersionsLoaded, defaultLoaderVersion } = useLoaderVersionOptions(selectedModLoader, selectedVersion)
   const account = activeAccount ?? accounts[0]
   const activeAvatarUrl = useMemo(() => account ? getAvatarUrl(account, account.username) : "", [account])
   const accountAvatarUrls = useMemo(() => Object.fromEntries(accounts.map(a => [a.id, getAvatarUrl(a, a.username)])), [accounts])
@@ -51,8 +51,8 @@ export function HomePage() {
 
     if (!loaderVersionsLoaded) return
     if (selectedLoaderVersion && loaderVersions.some(option => option.value === selectedLoaderVersion)) return
-    setSelectedLoaderVersion(recommendedLoaderVersion ?? "")
-  }, [loaderVersions, loaderVersionsLoaded, recommendedLoaderVersion, selectedLoaderVersion, selectedModLoader])
+    setSelectedLoaderVersion(defaultLoaderVersion ?? "")
+  }, [loaderVersions, loaderVersionsLoaded, defaultLoaderVersion, selectedLoaderVersion, selectedModLoader])
 
   useEffect(() => {
     saveHomeSelectionPrefs(selectedVersion, selectedModLoader, selectedLoaderVersion)
