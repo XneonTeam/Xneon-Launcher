@@ -19,7 +19,7 @@ import {
   loadModsModule,
 } from "./builds/helpers"
 import type { ModrinthVersionDetail, ModrinthManifestFile, CurseForgeManifestFile } from "@xnlc/mods" with { "resolution-mode": "import" }
-import type { McServerInfo, McServerState, McServerMetrics, McPlayerEntry } from "@xnlc/types" with { "resolution-mode": "import" }
+import type { McServerInfo, McServerState, McServerMetrics, McPlayerEntry, XnConnectState } from "@xnlc/types" with { "resolution-mode": "import" }
 import { logRuntime, sendToRenderer } from "./runtime"
 import { getMcServerDir } from "./paths"
 import { recordServerSession } from "./stats"
@@ -34,6 +34,12 @@ import { upsertActiveServerSession, takeActiveServerSession } from "./session-tr
 const METRICS_PUSH_INTERVAL_MS = 1000
 const metricsSubscribers = new Map<string, Set<number>>() // serverId → webContents.id
 let metricsTimer: ReturnType<typeof setInterval> | null = null
+
+/** Старты, которые ещё готовятся: serverId → токен отмены. */
+const pendingServerStarts = new Map<string, { cancelled: boolean }>()
+
+/** Идущие остановки: serverId → промис, чтобы N stop подряд выполнились как одна. */
+const pendingServerStops = new Map<string, Promise<void>>()
 
 function pushServerMetrics(): void {
   for (const [id, subscribers] of metricsSubscribers) {
@@ -283,10 +289,21 @@ export function registerMcServerHandlers() {
   })
 
   ipcMain.handle("mc-server:update", async (_event, id: string, update: Record<string, unknown>) => {
-    const allowed = ["name", "gameVersion", "modloader", "modloaderVersion", "port", "xmx", "xms", "extraJavaArgs", "javaPath", "autoRestart", "icon", "relayEnabled", "onlineMode", "maxPlayers"]
+    // ВАЖНО: список — единственный шлюз между renderer и БД. Поле категории
+    // ([group]) обязано быть здесь, иначе назначение/переименование/удаление
+    // категории молча теряется: UI обновляется оптимистично, а в БД ничего
+    // не пишется, и после перезагрузки серверы снова «Без категории».
+    const allowed = ["name", "gameVersion", "modloader", "modloaderVersion", "port", "xmx", "xms", "extraJavaArgs", "javaPath", "autoRestart", "icon", "relayEnabled", "onlineMode", "maxPlayers", "group"]
     const safe: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(update)) {
-      if (allowed.includes(key)) safe[key] = value
+      if (!allowed.includes(key)) continue
+      // Категория хранится как TEXT; пустая строка означает «без категории»,
+      // поэтому нормализуем её в NULL, чтобы rowToInfo вернул undefined.
+      if (key === "group") {
+        safe[key] = typeof value === "string" && value.trim() ? value.trim() : null
+        continue
+      }
+      safe[key] = value
     }
     await dbHelpers.updateMcServer(id, safe)
 
@@ -441,6 +458,19 @@ export function registerMcServerHandlers() {
   })
 
   ipcMain.handle("mc-server:start", async (_event, id: string) => {
+    // Повторный клик по «Запустить» не поднимает второй процесс.
+    if (pendingServerStarts.has(id) || serverManager.isRunning(id)) return
+
+    const token = { cancelled: false }
+    pendingServerStarts.set(id, token)
+    try {
+      await startMcServer(id, token)
+    } finally {
+      pendingServerStarts.delete(id)
+    }
+  })
+
+  async function startMcServer(id: string, token: { cancelled: boolean }): Promise<void> {
     const currentRow = await dbHelpers.getMcServer(id)
     if (!currentRow) throw new Error("Server not found")
 
@@ -459,6 +489,13 @@ export function registerMcServerHandlers() {
     })
 
     const serverInfo = rowToInfo(row)
+
+    /** Стоп пришёл во время подготовки старта: процесс не поднимаем. */
+    const cancelledByStop = () => token.cancelled
+    const finishCancelled = () => {
+      sendToRenderer("mc-server:state-change", { id, state: { status: "stopped" } satisfies McServerState })
+    }
+    if (cancelledByStop()) return finishCancelled()
 
     // Auto-detect Java from settings or system
     const storedJava = row.javaPath && row.javaPath !== "auto" ? row.javaPath : null
@@ -507,31 +544,62 @@ export function registerMcServerHandlers() {
       saveServerProperties(propsPath, props)
     })
 
+    // Ещё раз проверяем отмену прямо перед спавном.
+    if (cancelledByStop()) return finishCancelled()
+
     serverManager.start(
       id,
       serverInfo,
       javaPath,
       serverDir,
       (line) => sendToRenderer("mc-server:log", { id, line }),
-      attachServerUptimeTracking(id, serverInfo, (state) => sendToRenderer("mc-server:state-change", { id, state })),
+      attachServerUptimeTracking(id, serverInfo, (state) => {
+        sendToRenderer("mc-server:state-change", { id, state })
+        // Туннель поднимаем только когда сервер действительно запустился
+        // (маркер готовности в консоли): до этого порт ещё закрыт, и relay
+        // молотил бы ошибки подключения.
+        if (state.status === "running" && row.relayEnabled === 1) {
+          xnConnectManager.start(id, serverInfo.name, serverInfo.port).catch((err: any) => {
+            logRuntime(`[XN-Connect] Failed to start relay: ${err.message}`)
+          })
+        }
+        // Сервер умер сам (crash, /stop из консоли, закрытие процесса) —
+        // туннель тоже должен уйти, иначе он остаётся висеть без сервера.
+        if (state.status === "stopped" || state.status === "stopping") {
+          xnConnectManager.stop(id).catch(() => {})
+        }
+      }),
       resolvedJarPath,
     )
-
-    // Start relay if enabled
-    if (row.relayEnabled === 1) {
-      try {
-        await xnConnectManager.start(id, serverInfo.name, serverInfo.port)
-      } catch (err: any) {
-        logRuntime(`[XN-Connect] Failed to start relay: ${err.message}`)
-      }
-    }
-  })
+  }
 
   ipcMain.handle("mc-server:stop", async (_event, id: string) => {
-    sendToRenderer("mc-server:state-change", { id, state: { status: "stopping" } satisfies McServerState })
-    xnConnectManager.stop(id).catch(() => {})
-    await serverManager.stop(id)
-    sendToRenderer("mc-server:state-change", { id, state: { status: "stopped" } satisfies McServerState })
+    // Старт ещё готовится — отменяем его.
+    const pendingStart = pendingServerStarts.get(id)
+    if (pendingStart) pendingStart.cancelled = true
+
+    // Повторные stop не шлют команду и события заново.
+    const inFlight = pendingServerStops.get(id)
+    if (inFlight) return inFlight
+
+    if (!serverManager.isRunning(id)) {
+      // Гасить нечего — просто подтверждаем остановленное состояние.
+      sendToRenderer("mc-server:state-change", { id, state: { status: "stopped" } satisfies McServerState })
+      return
+    }
+
+    const task = (async () => {
+      sendToRenderer("mc-server:state-change", { id, state: { status: "stopping" } satisfies McServerState })
+      xnConnectManager.stop(id).catch(() => {})
+      await serverManager.stop(id)
+      sendToRenderer("mc-server:state-change", { id, state: { status: "stopped" } satisfies McServerState })
+    })()
+    pendingServerStops.set(id, task)
+    try {
+      await task
+    } finally {
+      pendingServerStops.delete(id)
+    }
   })
 
   ipcMain.handle("mc-server:kill", async (_event, id: string) => {
@@ -655,7 +723,7 @@ export function registerMcServerHandlers() {
     if (list.some((e: any) => e.name?.toLowerCase() === username.toLowerCase())) return
     list.push({ uuid: randomUUID(), name: username })
     writeJsonList(filePath, list)
-    if (serverManager.getState(id).status === "running") {
+    if (serverManager.isRunning(id)) {
       await serverManager.sendCommand(id, `whitelist add ${username}`)
     }
   })
@@ -666,7 +734,7 @@ export function registerMcServerHandlers() {
     const entry = list.find((e: any) => e.uuid === uuid)
     const filtered = list.filter((e: any) => e.uuid !== uuid)
     writeJsonList(filePath, filtered)
-    if (serverManager.getState(id).status === "running" && entry) {
+    if (serverManager.isRunning(id) && entry) {
       await serverManager.sendCommand(id, `whitelist remove ${entry.name}`)
     }
   })
@@ -682,7 +750,7 @@ export function registerMcServerHandlers() {
     if (list.some((e: any) => e.name?.toLowerCase() === username.toLowerCase())) return
     list.push({ uuid: randomUUID(), name: username, level: 4, bypassesPlayerLimit: false })
     writeJsonList(filePath, list)
-    if (serverManager.getState(id).status === "running") {
+    if (serverManager.isRunning(id)) {
       await serverManager.sendCommand(id, `op ${username}`)
     }
   })
@@ -693,7 +761,7 @@ export function registerMcServerHandlers() {
     const entry = list.find((e: any) => e.uuid === uuid)
     const filtered = list.filter((e: any) => e.uuid !== uuid)
     writeJsonList(filePath, filtered)
-    if (serverManager.getState(id).status === "running" && entry) {
+    if (serverManager.isRunning(id) && entry) {
       await serverManager.sendCommand(id, `deop ${entry.name}`)
     }
   })
@@ -709,7 +777,7 @@ export function registerMcServerHandlers() {
     if (list.some((e: any) => e.name?.toLowerCase() === username.toLowerCase())) return
     list.push({ uuid: randomUUID(), name: username, created: new Date().toISOString(), reason: "", expires: "", source: "Xneon Launcher" })
     writeJsonList(filePath, list)
-    if (serverManager.getState(id).status === "running") {
+    if (serverManager.isRunning(id)) {
       await serverManager.sendCommand(id, `ban ${username}`)
     }
   })
@@ -720,7 +788,7 @@ export function registerMcServerHandlers() {
     const entry = list.find((e: any) => e.uuid === uuid)
     const filtered = list.filter((e: any) => e.uuid !== uuid)
     writeJsonList(filePath, filtered)
-    if (serverManager.getState(id).status === "running" && entry) {
+    if (serverManager.isRunning(id) && entry) {
       await serverManager.sendCommand(id, `pardon ${entry.name}`)
     }
   })
@@ -736,7 +804,7 @@ export function registerMcServerHandlers() {
     if (list.some((e: any) => e.ip?.toLowerCase() === ip.toLowerCase())) return
     list.push({ ip, created: new Date().toISOString(), reason: "", expires: "", source: "Xneon Launcher" })
     writeJsonList(filePath, list)
-    if (serverManager.getState(id).status === "running") {
+    if (serverManager.isRunning(id)) {
       await serverManager.sendCommand(id, `ban-ip ${ip}`)
     }
   })
@@ -745,7 +813,7 @@ export function registerMcServerHandlers() {
     const filePath = getServerJsonPath(id, "banned-ips.json")
     const list = readJsonList(filePath).filter((e: any) => e.ip !== ip)
     writeJsonList(filePath, list)
-    if (serverManager.getState(id).status === "running") {
+    if (serverManager.isRunning(id)) {
       await serverManager.sendCommand(id, `pardon-ip ${ip}`)
     }
   })
@@ -786,9 +854,18 @@ export function registerMcServerHandlers() {
       })
     } catch {}
 
-    // XN-Connect relay address
-    const relayState = xnConnectManager.getState(id)
-    const relayAddress = relayState.status === "running" ? relayState.publicAddress : null
+    // Адрес XN Connect отдаём только если функция реально включена у сервера:
+    // иначе в шапке висел бы чип «XNEON» без адреса (или с адресом выключенной
+    // функции). Пока сервер остановлен, берём адрес уже созданного туннеля из
+    // API, чтобы его было видно и можно было скопировать.
+    let relayAddress: string | null = null
+    if (row.relayEnabled === 1) {
+      const relayState = xnConnectManager.getState(id)
+      relayAddress = relayState.status === "running" ? relayState.publicAddress : null
+      if (!relayAddress) {
+        relayAddress = await xnConnectManager.getTunnelAddress(row.name, port)
+      }
+    }
 
     return {
       local: `${localIp}:${port}`,
@@ -1171,9 +1248,20 @@ export function registerMcServerHandlers() {
     })
   })
 
+  // XN Connect живёт по жизненному циклу сервера: туннель поднимается только
+  // тогда, когда запущен сам Minecraft-сервер. Без этой проверки relay dial'ит
+  // закрытый локальный порт и висит в бесконечных реконнектах, а игроки видят
+  // публичный адрес, который никуда не ведёт.
   ipcMain.handle("xn-connect:start", async (_event, serverId: string) => {
     const row = await dbHelpers.getMcServer(serverId)
     if (!row) throw new Error("Server not found")
+
+    const state = serverManager.getState(serverId)
+    if (state.status !== "running" && state.status !== "starting") {
+      logRuntime(`[XN-Connect] Relay start skipped for "${row.name}": server is ${state.status}`)
+      return { status: "stopped" } satisfies XnConnectState
+    }
+
     return xnConnectManager.start(serverId, row.name, row.port)
   })
 

@@ -5,8 +5,12 @@ import fs from "fs"
 import os from "os"
 import type { McServerInfo, McServerState, McServerMetrics } from "@xnlc/types" with { "resolution-mode": "import" }
 import iconv from "iconv-lite"
+import { EULA_PROMPT_PATTERN, isStartupDoneLine, isStoppingLine } from "./startup-detection.js"
 
 const execAsync = promisify(exec)
+
+/** Фаза процесса сервера. `running` ставится только по маркеру готовности. */
+type ServerPhase = "starting" | "running" | "stopping"
 
 type RunningServer = {
   process: ChildProcess
@@ -14,18 +18,45 @@ type RunningServer = {
   stdinWriter: NodeJS.WritableStream
   logBuffer: string[]
   resolvedJarPath?: string
+  phase: ServerPhase
+  /** Момент, когда сервер подтвердил готовность (для логов/диагностики). */
+  readyAt?: number
+  /** Пишет строку в буфер и в консоль лаунчера. */
+  pushLine: (line: string) => void
+  /** Процесс убит лаунчером, а не завершился сам. */
+  killedByLauncher?: boolean
+  /** Промис текущей остановки: повторные stop() ждут его. */
+  stopPromise?: Promise<void>
 }
 
 const MAX_LOG_BUFFER = 2000
 const GRACEFUL_TIMEOUT_MS = 30_000
+// Сколько ждём фактической смерти процесса после SIGKILL. Перезапуск не должен
+// висеть вечно, но и стартовать второй процесс поверх живого нельзя.
+const KILL_TIMEOUT_MS = 5_000
+/**
+ * Страховка от «вечного starting»: если маркер готовности так и не появился
+ * (нестандартная сборка, кастомный jar), через это время считаем сервер
+ * запущенным и пишем предупреждение в консоль. Без такой страховки сервер
+ * оставался бы в starting навсегда — нам важнее не подвешивать UI.
+ */
+const STARTUP_FALLBACK_MS = 180_000
 
 export class ServerManager {
   private running = new Map<string, RunningServer>()
 
+  /**
+   * Текущее состояние сервера. `running` отдаётся только после того, как сервер
+   * подтвердил готовность строкой вида `Done (5.123s)! For help, type "help"`
+   * (startup-маркер, как это делают панели игровых серверов) — до этого он
+   * `starting`, даже если процесс уже запущен.
+   */
   getState(id: string): McServerState {
     const r = this.running.get(id)
     if (!r) return { status: "stopped" }
     if (!r.process.pid || r.process.killed) return { status: "stopped" }
+    if (r.phase === "starting") return { status: "starting", startTime: r.startTime }
+    if (r.phase === "stopping") return { status: "stopping" }
     return { status: "running", startTime: r.startTime, pid: r.process.pid }
   }
 
@@ -256,12 +287,19 @@ export class ServerManager {
     }
 
     const logBuffer: string[] = []
+    const pushLog = (line: string) => {
+      logBuffer.push(line)
+      if (logBuffer.length > MAX_LOG_BUFFER) logBuffer.shift()
+      onLog(line)
+    }
     const running: RunningServer = {
       process: child,
       startTime: Date.now(),
       stdinWriter: child.stdin,
       logBuffer,
       resolvedJarPath,
+      phase: "starting",
+      pushLine: pushLog,
     }
     this.running.set(id, running)
 
@@ -271,16 +309,55 @@ export class ServerManager {
 
     onStateChange({ status: "starting", startTime: running.startTime })
 
-    const pushLog = (line: string) => {
-      logBuffer.push(line)
-      if (logBuffer.length > MAX_LOG_BUFFER) logBuffer.shift()
-      onLog(line)
+    let readyFallbackTimer: NodeJS.Timeout | undefined
+    let readyLogged = false
+
+    /**
+     * Сервер реально поднялся. Вызывается по маркеру готовности из консоли
+     * или, в крайнем случае, по таймауту.
+     */
+    const markStarted = (reason: string) => {
+      if (running.phase !== "starting") return
+      running.phase = "running"
+      running.readyAt = Date.now()
+      if (readyFallbackTimer) {
+        clearTimeout(readyFallbackTimer)
+        readyFallbackTimer = undefined
+      }
+      if (readyLogged) return
+      readyLogged = true
+      const seconds = ((running.readyAt - running.startTime) / 1000).toFixed(1)
+      pushLog(`[XNL] Server is up in ${seconds}s — ${reason}`)
+      if (child.pid) {
+        onStateChange({ status: "running", startTime: running.startTime, pid: child.pid })
+      }
+    }
+
+    readyFallbackTimer = setTimeout(() => {
+      readyFallbackTimer = undefined
+      pushLog(`[XNL] Startup marker not seen in ${Math.round(STARTUP_FALLBACK_MS / 1000)}s — marking the server as running`)
+      markStarted("startup marker timeout")
+    }, STARTUP_FALLBACK_MS)
+
+    /** Консоль → лог + детект состояния (тот же принцип, что в egg-конфиге). */
+    const handleLine = (line: string) => {
+      pushLog(line)
+      if (running.phase === "starting") {
+        if (isStartupDoneLine(line)) {
+          markStarted("startup marker matched")
+        } else if (EULA_PROMPT_PATTERN.test(line)) {
+          pushLog("[XNL] Сервер требует согласия с EULA — примите его в лаунчере и запустите заново")
+        }
+      } else if (running.phase === "running" && isStoppingLine(line)) {
+        running.phase = "stopping"
+        onStateChange({ status: "stopping" })
+      }
     }
 
     child.stdout.on("data", (data: Buffer) => {
       const text = decodeOutput(data)
       for (const line of text.split("\n")) {
-        if (line.trim()) pushLog(line.trimEnd())
+        if (line.trim()) handleLine(line.trimEnd())
       }
     })
 
@@ -297,60 +374,111 @@ export class ServerManager {
       onStateChange({ status: "stopped" })
     })
 
-    child.on("close", (code) => {
-      pushLog(`[XNL] Server exited with code ${code}`)
+    child.on("close", (code, signal) => {
+      // Убитый процесс отдаёт code = null, поэтому показываем сигнал.
+      const how = signal ? `signal ${signal}` : `code ${code}`
+      // Краш на старте — только если это не наша остановка.
+      if (running.phase === "starting" && !running.killedByLauncher && code !== 0) {
+        pushLog(`[XNL] Server crashed during startup (${how}) — see the log above`)
+      }
+      if (readyFallbackTimer) clearTimeout(readyFallbackTimer)
+      if (running.killedByLauncher) {
+        pushLog(`[XNL] Server process stopped by the launcher${signal ? ` (${how})` : ""}`)
+      } else {
+        pushLog(`[XNL] Server exited with ${how}`)
+      }
       this.cleanup(id)
       this.running.delete(id)
       onStateChange({ status: "stopped" })
     })
-
-    // Emit running state after a brief delay to allow the process to start
-    setTimeout(() => {
-      if (child.pid && !child.killed) {
-        onStateChange({ status: "running", startTime: running.startTime, pid: child.pid })
-      }
-    }, 500)
   }
 
   async stop(id: string): Promise<void> {
     const r = this.running.get(id)
     if (!r) return
 
-    // Send "stop" command via stdin for graceful shutdown
-    try {
-      r.stdinWriter.write("stop\n")
-    } catch {}
+    // Повторные stop() ждут текущую остановку, а не шлют команду снова.
+    if (r.stopPromise) return r.stopPromise
 
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        // Force kill after timeout
+    r.phase = "stopping"
+
+    // Неготовому серверу stop слать нельзя: команда падает с NPE. Такой убиваем.
+    const ready = r.readyAt !== undefined
+
+    if (ready) {
+      // Одна команда stop — graceful shutdown.
+      try {
+        r.stdinWriter.write("stop\n")
+      } catch {}
+    } else {
+      r.pushLine('[XNL] Stop requested during startup — killing the process (no "stop" command sent)')
+    }
+
+    const stopPromise = new Promise<void>((resolve) => {
+      let settled = false
+      let graceTimer: NodeJS.Timeout | undefined
+      let killTimer: NodeJS.Timeout | undefined
+
+      // Запись убираем здесь, до resolve(): иначе следующий start() увидит её.
+      const finish = () => {
+        if (settled) return
+        settled = true
+        if (graceTimer) clearTimeout(graceTimer)
+        if (killTimer) clearTimeout(killTimer)
+        if (this.running.get(id) === r) this.running.delete(id)
+        resolve()
+      }
+
+      if (!ready) {
+        // Команду не слали, сохранять нечего — гасим сразу.
+        r.killedByLauncher = true
         try { r.process.kill("SIGKILL") } catch {}
-        resolve()
-      }, GRACEFUL_TIMEOUT_MS)
+        killTimer = setTimeout(finish, KILL_TIMEOUT_MS)
+      } else {
+        graceTimer = setTimeout(() => {
+          r.killedByLauncher = true
+          try { r.process.kill("SIGKILL") } catch {}
+          // Не дождались close — выходим по таймауту, чтобы не висеть.
+          killTimer = setTimeout(finish, KILL_TIMEOUT_MS)
+        }, GRACEFUL_TIMEOUT_MS)
+      }
 
-      r.process.once("close", () => {
-        clearTimeout(timer)
-        resolve()
-      })
+      r.process.once("close", finish)
     })
+
+    r.stopPromise = stopPromise
+    return stopPromise
   }
 
   async kill(id: string): Promise<void> {
     const r = this.running.get(id)
     if (!r) return
+    r.phase = "stopping"
+    r.killedByLauncher = true
     try { r.process.kill("SIGKILL") } catch {}
   }
 
   async sendCommand(id: string, command: string): Promise<void> {
     const r = this.running.get(id)
     if (!r) throw new Error("Server is not running")
+    // Неготовому серверу команда не дойдёт: её выполнит первый тик консоли.
+    if (r.phase !== "running") {
+      r.pushLine(`[XNL] Command "${command}" was not sent: the server is still starting`)
+      throw new Error("Server is still starting — the command was not sent")
+    }
     const line = command.endsWith("\n") ? command : `${command}\n`
     r.stdinWriter.write(line)
   }
 
+  /** Процесс сервера жив (в том числе пока он ещё грузится). */
   isRunning(id: string): boolean {
     const r = this.running.get(id)
     return !!r && !!r.process.pid && !r.process.killed
+  }
+
+  /** Сервер подтвердил готовность — можно считать его запущенным. */
+  isStarted(id: string): boolean {
+    return this.running.get(id)?.phase === "running"
   }
 
   private cleanup(id: string): void {

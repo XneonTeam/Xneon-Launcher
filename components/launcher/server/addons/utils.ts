@@ -25,6 +25,23 @@ export function normalizeContentIdentity(value?: string): string {
 }
 
 /**
+ * Семейства загрузчиков, внутри которых плагины взаимозаменяемы: Paper/Spigot/
+ * Purpur/Bukkit понимают одни и те же плагины, прокси — свои.
+ */
+const PLUGIN_LOADER_FAMILIES: readonly (readonly string[])[] = [
+  ["bukkit", "spigot", "paper", "purpur", "folia", "pufferfish"],
+  ["bungeecord", "waterfall", "velocity"],
+  ["sponge", "spongeapi"],
+]
+
+export function isPluginLoaderCompatible(loader: string, loaders: string[]): boolean {
+  if (loaders.includes(loader)) return true
+  const family = PLUGIN_LOADER_FAMILIES.find(group => group.includes(loader))
+  if (!family) return false
+  return loaders.some(candidate => family.includes(candidate))
+}
+
+/**
  * Совместима ли версия с сервером: подходит и версия Minecraft, и загрузчик.
  * Логика та же, что в инстансах (matchesBuildVersion) — версии под другие
  * загрузчики/версии игры не показываются вовсе.
@@ -40,10 +57,16 @@ export function isVersionCompatibleWithServer(version: ModVersion, gameVersion: 
   if (!loader) return true
   const loaders = (version.loaders ?? []).map(l => String(l).toLowerCase().trim()).filter(Boolean)
   if (loader === "vanilla") return loaders.length === 0
-  if (loaders.length === 0) return false
-  if (loaders.includes(loader)) return true
-  // paper/folia взаимозаменяемы
-  if (loader === "paper" && loaders.includes("folia")) return true
-  if (loader === "folia" && loaders.includes("paper")) return true
-  return false
+
+  const isPluginServer = getContentType(loader) === "plugin"
+
+  // CurseForge не проставляет загрузчик у файлов плагинов (classId = 5): в их
+  // gameVersions лежат только версии Minecraft, без Bukkit/Spigot/Paper. Поэтому
+  // пустой список загрузчиков на плагин-сервере — это норма, а не «другой
+  // загрузчик»; иначе все плагины CurseForge выглядели несовместимыми
+  // («Не найдено подходящих версий» при живых файлах под нужную версию).
+  if (loaders.length === 0) return isPluginServer
+
+  if (isPluginServer) return isPluginLoaderCompatible(loader, loaders)
+  return loaders.includes(loader)
 }

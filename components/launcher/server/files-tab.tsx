@@ -7,6 +7,7 @@ import {
   IconLoader2, IconChevronRight,
 } from "@tabler/icons-react"
 import type { McFsEntry } from "@xnlc/types"
+import { EmptyState } from "@/components/ui/empty-state"
 import { cn } from "@/lib/utils"
 import Editor from "react-simple-code-editor"
 import Prism from "prismjs"
@@ -499,12 +500,11 @@ export function FilesTab({ serverId }: FilesTabProps) {
               <IconLoader2 className="w-6 h-6 text-primary animate-spin" />
             </div>
           ) : sortedEntries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <IconFolder className="w-12 h-12 text-muted-foreground/20 mb-2" />
-              <p className="text-sm text-muted-foreground">
-                {search ? t("files.noResults") : t("files.empty")}
-              </p>
-            </div>
+            <EmptyState
+              variant={search ? "search" : "empty"}
+              title={search ? t("files.noResults") : t("files.empty")}
+              className="h-full"
+            />
           ) : (
             <div className="divide-y divide-border/50">
               {sortedEntries.map(entry => {

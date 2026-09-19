@@ -12,6 +12,7 @@ import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
 import { LoaderIcon } from "./instance/loader-icon"
 import { XnConnectLogo } from "./server/xn-connect-logo"
 import { IconPickerModal } from "./instance/icon-picker-modal"
+import { EntityIcon } from "./instance/entity-icon"
 import type { JavaInstallation } from "./settings/types"
 
 interface ServerCreateDialogProps {
@@ -374,7 +375,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                   title={t("servers.create.iconTitle")}
                 >
                   {icon ? (
-                    <img src={icon} alt="" className="w-full h-full object-cover" />
+                    <EntityIcon src={icon} className="w-full h-full p-2 text-primary" imgClassName="w-full h-full object-cover" />
                   ) : (
                     <div className="flex flex-col items-center justify-center text-muted-foreground group-hover:text-primary transition-colors">
                       <IconCamera className="w-6 h-6" />
@@ -544,9 +545,9 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                     </SelectTrigger>
                     <SelectContent>
                       {!versionsLoaded ? (
-                        <div className="px-3 py-2 text-sm text-muted-foreground">Loading...</div>
+                        <div className="px-3 py-2 text-sm text-muted-foreground">{t("servers.create.loading")}</div>
                       ) : versions.length === 0 ? (
-                        <div className="px-3 py-2 text-sm text-muted-foreground">No versions</div>
+                        <div className="px-3 py-2 text-sm text-muted-foreground">{t("home.noLoaderVersions")}</div>
                       ) : (
                         versions.map(v => (
                           <SelectItem key={v} value={v}>{v}</SelectItem>
@@ -619,9 +620,9 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                       </SelectTrigger>
                       <SelectContent>
                         {!loaderVersionsLoaded ? (
-                          <div className="px-3 py-2 text-sm text-muted-foreground">Loading...</div>
+                          <div className="px-3 py-2 text-sm text-muted-foreground">{t("servers.create.loading")}</div>
                         ) : loaderVersions.length === 0 ? (
-                          <div className="px-3 py-2 text-sm text-muted-foreground">No versions</div>
+                          <div className="px-3 py-2 text-sm text-muted-foreground">{t("home.noLoaderVersions")}</div>
                         ) : (
                           loaderVersions.map(v => (
                             <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>

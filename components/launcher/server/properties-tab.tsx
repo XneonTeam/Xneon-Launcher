@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useTranslation } from "react-i18next"
+import { EmptyState } from "@/components/ui/empty-state"
 import { IconCheck, IconLoader2, IconSearch, IconChevronDown, IconChevronRight, IconRefresh, IconWorld, IconDeviceGamepad, IconBolt, IconPackage, IconRadio, IconTool, IconAdjustments } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { McServerInfo } from "@xnlc/types"
@@ -341,10 +342,7 @@ export function PropertiesTab({ server, flushRef, onServerUpdated }: PropertiesT
         })}
 
         {filteredDefs.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <IconSearch className="w-8 h-8 text-muted-foreground/40 mb-2" />
-            <p className="text-sm text-muted-foreground">{t("properties.noResults")}</p>
-          </div>
+          <EmptyState compact title={t("properties.noResults")} className="py-10" />
         )}
       </div>
     </div>

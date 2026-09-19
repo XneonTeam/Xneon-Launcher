@@ -2,55 +2,93 @@ import net from "net"
 import dgram from "dgram"
 import type { Tunnel, Node } from "./api"
 
-// ── Protocol constants ───────────────────────────────────
+// ── Protocol constants (must match backend/internal/relay/protocol.go) ──
+// Header layout (15 bytes):
+//   [0..3]  payload size, uint32 LE
+//   [4]     frame type
+//   [5..14] first 10 bytes of the session id
 const FRAME_HEADER_SIZE = 15
 const FRAME_TUNNEL_ID_SIZE = 10
 const MAX_PAYLOAD_SIZE = 10 * 1024 * 1024
-const SEND_CHAN_SIZE = 2000
 
 const F_HANDSHAKE = 0x01
 const F_HANDSHAKE_RESP = 0x02
 const F_TCP = 0x03
 const F_UDP = 0x04
 const F_PING = 0x08
-const F_PONG = 0x09
 
-// ── Protocol helpers ─────────────────────────────────────
+// ── Timings ──────────────────────────────────────────────
+// IMPORTANT: the relay socket must never carry a Node idle timeout.
+// `net.createConnection({ timeout })` arms socket.setTimeout(), which stays
+// armed for the whole session and emits "timeout" after N ms without socket
+// activity. With timeout === ping interval (both 10s) the idle timer always
+// wins the race by ~1ms and the old handler destroyed the socket — the tunnel
+// flapped roughly every 10 seconds. Dead-peer detection is explicit below.
+const CONNECT_TIMEOUT_MS = 15000
+const HANDSHAKE_TIMEOUT_MS = 15000
+const PING_INTERVAL_MS = 10000
+const IDLE_TIMEOUT_MS = 45000
+const IDLE_CHECK_MS = 5000
+const RECONNECT_DELAY_MS = 1000
+const MAX_SOCKET_BUFFER = 16 * 1024 * 1024
+const MAX_DIAL_QUEUE_BYTES = 4 * 1024 * 1024
 
-function writeFrame(
-  writer: net.Socket,
-  type: number,
-  payload: Buffer,
-  sid: string,
-): boolean {
-  const hdr = Buffer.alloc(FRAME_HEADER_SIZE)
-  hdr.writeUInt32LE(payload.length, 0)
-  hdr[4] = type
-  const sidBuf = Buffer.from(sid, "utf-8")
-  sidBuf.copy(hdr, 5, 0, Math.min(sidBuf.length, FRAME_TUNNEL_ID_SIZE))
+const EMPTY = Buffer.alloc(0)
+
+// ── Frame encoding ───────────────────────────────────────
+
+// Encodes header + payload into a single buffer so a frame always hits the
+// socket as one write (no chance of two frames interleaving on the wire).
+function encodeFrame(type: number, payload: Buffer, sid: string): Buffer {
+  const frame = Buffer.allocUnsafe(FRAME_HEADER_SIZE + payload.length)
+  frame.writeUInt32LE(payload.length, 0)
+  frame[4] = type
+  Buffer.from(sid, "utf-8").copy(frame, 5, 0, FRAME_TUNNEL_ID_SIZE)
+  if (payload.length > 0) payload.copy(frame, FRAME_HEADER_SIZE)
+  return frame
+}
+
+function writeFrame(sock: net.Socket | null, type: number, payload: Buffer, sid: string): boolean {
+  if (!sock || sock.destroyed || !sock.writable) return false
   try {
-    writer.write(hdr)
-    if (payload.length > 0) writer.write(payload)
+    sock.write(encodeFrame(type, payload, sid))
     return true
   } catch {
     return false
   }
 }
 
-function readHandshake(conn: net.Socket): Promise<{ sid: string; ok: boolean }> {
+function frameTunnelKey(sid: string): Buffer {
+  const key = Buffer.alloc(FRAME_TUNNEL_ID_SIZE)
+  Buffer.from(sid, "utf-8").copy(key, 0, 0, FRAME_TUNNEL_ID_SIZE)
+  return key
+}
+
+// ── Handshake ────────────────────────────────────────────
+
+function readHandshake(conn: net.Socket, timeoutMs: number): Promise<{ sid: string; ok: boolean }> {
   return new Promise((resolve) => {
     let phase: "header" | "payload" = "header"
     let totalRead = 0
+    let settled = false
     const hdr = Buffer.alloc(FRAME_HEADER_SIZE)
     let payloadSize = 0
     let payload: Buffer | null = null
     let payloadRead = 0
 
-    const cleanup = () => {
+    const finish = (sid: string, ok: boolean) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
       conn.removeListener("data", onData)
       conn.removeListener("close", onClose)
       conn.removeListener("error", onError)
+      resolve({ sid, ok })
     }
+
+    // Without this a relay that accepts the TCP connection but never answers
+    // leaves the tunnel stuck in "starting" forever (no retry, no stop).
+    const timer = setTimeout(() => finish("", false), timeoutMs)
 
     const onData = (chunk: Buffer) => {
       let offset = 0
@@ -62,14 +100,12 @@ function readHandshake(conn: net.Socket): Promise<{ sid: string; ok: boolean }> 
           offset += toCopy
           if (totalRead === FRAME_HEADER_SIZE) {
             if (hdr[4] !== F_HANDSHAKE_RESP) {
-              cleanup()
-              resolve({ sid: "", ok: false })
+              finish("", false)
               return
             }
             payloadSize = hdr.readUInt32LE(0)
             if (payloadSize === 0 || payloadSize >= 1024) {
-              cleanup()
-              resolve({ sid: "", ok: true })
+              finish("", true)
               return
             }
             payload = Buffer.alloc(payloadSize)
@@ -82,16 +118,15 @@ function readHandshake(conn: net.Socket): Promise<{ sid: string; ok: boolean }> 
           payloadRead += toCopy
           offset += toCopy
           if (payloadRead === payloadSize) {
-            cleanup()
-            resolve({ sid: payload.toString("utf-8"), ok: true })
+            finish(payload.toString("utf-8"), true)
             return
           }
         }
       }
     }
 
-    const onClose = () => { cleanup(); resolve({ sid: "", ok: false }) }
-    const onError = () => { cleanup(); resolve({ sid: "", ok: false }) }
+    const onClose = () => finish("", false)
+    const onError = () => finish("", false)
 
     conn.on("data", onData)
     conn.once("close", onClose)
@@ -101,26 +136,40 @@ function readHandshake(conn: net.Socket): Promise<{ sid: string; ok: boolean }> 
 
 // ── Relay state ──────────────────────────────────────────
 
+type TcpEntry = {
+  socket: net.Socket | null
+  queue: Buffer[]
+  queuedBytes: number
+}
+
 type RelayState = {
   tunnel: Tunnel
   node: Node
   conn: net.Socket | null
-  writer: net.Socket | null
-  sendChan: { type: number; payload: Buffer }[]
   closed: boolean
   healthy: boolean
   sessionID: string
   sessionIDKey: Buffer
+  // Per-session connection maps. They MUST NOT be shared between relay
+  // sessions: the relay server numbers connection ids per session starting
+  // from 1, so a shared map makes a new session write player data into a
+  // local socket left over from the previous session (or from another node).
+  tcpConns: Map<number, TcpEntry>
+  udpConns: Map<number, dgram.Socket>
+  udpAddrs: Map<number, Buffer>
+  lastReadAt: number
+  // Incremented on every new relay session; stale callbacks from an old
+  // session compare it and bail out.
+  gen: number
 }
-
-// ── Multi-relay manager ──────────────────────────────────
 
 type MultiRelayManager = {
   tunnel: Tunnel
   states: RelayState[]
   stop: boolean
-  tcpConns: Map<number, net.Socket>
-  udpConns: Map<number, dgram.Socket>
+  waiters: Set<() => void>
+  reportedRunning: boolean
+  callbacks: RelayCallbacks
 }
 
 function nextBackoff(b: number): number {
@@ -129,18 +178,45 @@ function nextBackoff(b: number): number {
   return b
 }
 
-function waitOrStop(stop: () => boolean, ms: number): Promise<boolean> {
+function waitOrStop(mgr: MultiRelayManager, ms: number): Promise<boolean> {
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(false), ms)
-    const check = () => {
-      if (stop()) {
-        clearTimeout(timer)
-        resolve(true)
-      } else {
-        setTimeout(check, 100)
-      }
+    if (mgr.stop) return resolve(true)
+    let done = false
+    let timer: ReturnType<typeof setTimeout>
+    const finish = (stopped: boolean) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      mgr.waiters.delete(waiter)
+      resolve(stopped)
     }
-    check()
+    const waiter = () => finish(true)
+    timer = setTimeout(() => finish(false), ms)
+    mgr.waiters.add(waiter)
+  })
+}
+
+// ── Dial ─────────────────────────────────────────────────
+
+function dialRelay(node: Node): Promise<net.Socket | null> {
+  return new Promise((resolve) => {
+    let settled = false
+    const sock = net.createConnection({ host: node.host, port: node.port })
+    // Deliberately no `timeout` option here: see the note on CONNECT_TIMEOUT_MS.
+    const finish = (ok: boolean) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      sock.removeListener("connect", onConnect)
+      sock.removeListener("error", onError)
+      resolve(ok ? sock : null)
+    }
+    const onConnect = () => finish(true)
+    const onError = () => { sock.destroy(); finish(false) }
+    const timer = setTimeout(() => { sock.destroy(); finish(false) }, CONNECT_TIMEOUT_MS)
+
+    sock.once("connect", onConnect)
+    sock.once("error", onError)
   })
 }
 
@@ -157,65 +233,53 @@ async function runRelay(
     const addr = `${state.node.host}:${state.node.port}`
     onLog(`Connecting to relay ${addr}...`)
 
-    const conn = await new Promise<net.Socket | null>((resolve) => {
-      const s = net.createConnection({ host: state.node.host, port: state.node.port, timeout: 10000 }, () => resolve(s))
-      s.on("error", () => { s.destroy(); resolve(null) })
-      s.on("timeout", () => { s.destroy(); resolve(null) })
-    })
-
-    if (!conn || mgr.stop) {
-      if (conn) conn.destroy()
-      if (await waitOrStop(() => mgr.stop, backoff)) return
+    const conn = await dialRelay(state.node)
+    if (!conn) {
+      if (mgr.stop) return
+      onLog(`Relay unreachable: ${addr}`)
+      if (await waitOrStop(mgr, backoff)) return
       backoff = nextBackoff(backoff)
       continue
     }
+    if (mgr.stop) { conn.destroy(); return }
 
-    // Set TCP options
     conn.setNoDelay(true)
     conn.setKeepAlive(true, 30000)
+    // Guard against any inherited idle timer — this socket lives for hours.
+    conn.setTimeout(0)
 
-    // Send handshake
-    const accessTokenBuf = Buffer.from(mgr.tunnel.access_token, "utf-8")
-    const tunnelIdBuf = Buffer.from(mgr.tunnel.id, "utf-8")
-    const sidHdr = Buffer.alloc(FRAME_HEADER_SIZE)
-    sidHdr.writeUInt32LE(accessTokenBuf.length, 0)
-    sidHdr[4] = F_HANDSHAKE
-    tunnelIdBuf.copy(sidHdr, 5, 0, Math.min(tunnelIdBuf.length, FRAME_TUNNEL_ID_SIZE))
-
-    try {
-      conn.write(sidHdr)
-      conn.write(accessTokenBuf)
-    } catch {
+    if (!writeFrame(conn, F_HANDSHAKE, Buffer.from(mgr.tunnel.access_token, "utf-8"), mgr.tunnel.id)) {
       conn.destroy()
-      if (await waitOrStop(() => mgr.stop, backoff)) return
+      if (await waitOrStop(mgr, backoff)) return
       backoff = nextBackoff(backoff)
       continue
     }
 
-    // Read handshake response
-    const hs = await readHandshake(conn)
-    if (!hs.ok || mgr.stop) {
+    const hs = await readHandshake(conn, HANDSHAKE_TIMEOUT_MS)
+    if (mgr.stop) { conn.destroy(); return }
+    if (!hs.ok) {
+      onLog(`Relay handshake failed: ${addr}`)
       conn.destroy()
-      if (await waitOrStop(() => mgr.stop, backoff)) return
+      if (await waitOrStop(mgr, backoff)) return
       backoff = nextBackoff(backoff)
       continue
     }
 
     state.sessionID = hs.sid
-    state.sessionIDKey = Buffer.alloc(FRAME_TUNNEL_ID_SIZE)
-    Buffer.from(hs.sid, "utf-8").copy(state.sessionIDKey, 0, 0, Math.min(hs.sid.length, FRAME_TUNNEL_ID_SIZE))
+    state.sessionIDKey = frameTunnelKey(hs.sid)
     backoff = 1000
-    state.healthy = true
     onLog(`Relay connected: ${addr} session=${hs.sid}`)
 
-    // Handle relay session
+    // Announce again after a reconnect — the first call already told the
+    // manager, but a later successful reconnect is equally valid news.
+    const firstReport = !mgr.reportedRunning
+    mgr.reportedRunning = true
+    if (!firstReport) mgr.callbacks.onStateChange("running")
+
     await handleRelay(mgr, state, conn, onLog)
 
     onLog(`Relay disconnected: ${addr}`)
-    conn.destroy()
-    state.healthy = false
-
-    if (!mgr.stop) await new Promise(r => setTimeout(r, 1000))
+    if (!mgr.stop) await waitOrStop(mgr, RECONNECT_DELAY_MS)
   }
 }
 
@@ -227,66 +291,55 @@ async function handleRelay(
   conn: net.Socket,
   onLog: (line: string) => void,
 ): Promise<void> {
+  const gen = ++state.gen
   state.closed = false
   state.conn = conn
-  state.writer = conn
-  state.sendChan = []
+  state.healthy = true
+  state.lastReadAt = Date.now()
 
-  // Detect idle connections — if no data in/out for 60s, destroy
-  let idleTimer: ReturnType<typeof setTimeout> | null = null
-  const refreshIdle = () => {
-    if (idleTimer) clearTimeout(idleTimer)
-    idleTimer = setTimeout(() => {
-      if (!state.closed) {
-        onLog(`Relay idle timeout, reconnecting...`)
-        conn.destroy()
-      }
-    }, 60000)
-  }
-  refreshIdle()
+  const pingTimer = setInterval(() => {
+    if (state.closed || state.gen !== gen) return
+    if (!writeFrame(conn, F_PING, EMPTY, state.sessionID)) conn.destroy()
+  }, PING_INTERVAL_MS)
 
-  // Writer goroutine equivalent — ping + send channel
-  const writerDone = new Promise<void>((resolve) => {
-    let pingInterval: ReturnType<typeof setInterval> | null = null
-    let sendCheck: ReturnType<typeof setInterval> | null = null
-
-    const cleanup = () => {
-      if (pingInterval) clearInterval(pingInterval)
-      if (sendCheck) clearInterval(sendCheck)
-      if (idleTimer) clearTimeout(idleTimer)
-      resolve()
+  // Dead-peer detection with an explicit timer instead of socket.setTimeout,
+  // which would fire even while the link is perfectly healthy.
+  const idleTimer = setInterval(() => {
+    if (state.closed || state.gen !== gen) return
+    if (Date.now() - state.lastReadAt > IDLE_TIMEOUT_MS) {
+      onLog("Relay idle timeout, reconnecting...")
+      conn.destroy()
     }
+  }, IDLE_CHECK_MS)
 
-    pingInterval = setInterval(() => {
-      if (state.closed) { cleanup(); return }
-      if (!writeFrame(conn, F_PING, Buffer.alloc(0), state.sessionID)) {
-        cleanup()
-        return
-      }
-      refreshIdle()
-    }, 10000)
+  try {
+    await readLoop(mgr, state, conn, onLog, gen)
+  } finally {
+    clearInterval(pingTimer)
+    clearInterval(idleTimer)
+    state.closed = true
+    state.healthy = false
+    state.conn = null
+    // The relay server is gone, so every remote connection it multiplexed is
+    // gone too — and the next session restarts connection ids from 1. Closing
+    // the local sockets here both lets the Minecraft server see the players
+    // disconnect and prevents cid collisions with the next session.
+    closeLocalConns(state)
+    conn.destroy()
+  }
+}
 
-    sendCheck = setInterval(() => {
-      if (state.closed || state.sendChan.length === 0) return
-      while (state.sendChan.length > 0) {
-        const frame = state.sendChan.shift()!
-        if (!writeFrame(conn, frame.type, frame.payload, state.sessionID)) {
-          cleanup()
-          return
-        }
-      }
-    }, 5)
-  })
-
-  // Read loop
-  const readDone = readLoop(mgr, state, conn, onLog, () => {}, refreshIdle)
-
-  // Wait for any to finish
-  await Promise.race([writerDone, readDone])
-
-  if (idleTimer) clearTimeout(idleTimer)
-  state.closed = true
-  state.sendChan = []
+function closeLocalConns(state: RelayState): void {
+  for (const [, entry] of state.tcpConns) {
+    entry.queue.length = 0
+    try { entry.socket?.destroy() } catch {}
+  }
+  state.tcpConns.clear()
+  for (const [, sock] of state.udpConns) {
+    try { sock.close() } catch {}
+  }
+  state.udpConns.clear()
+  state.udpAddrs.clear()
 }
 
 // ── Read loop ────────────────────────────────────────────
@@ -296,8 +349,7 @@ function readLoop(
   state: RelayState,
   conn: net.Socket,
   onLog: (line: string) => void,
-  onError: (err: Error) => void,
-  onActivity?: () => void,
+  gen: number,
 ): Promise<void> {
   return new Promise((resolve) => {
     const hdr = Buffer.alloc(FRAME_HEADER_SIZE)
@@ -305,25 +357,27 @@ function readLoop(
     let payloadSize = 0
     let payloadBuf: Buffer | null = null
     let payloadOffset = 0
+    let finished = false
 
-    const addr = mgr.tunnel.local_ip || "127.0.0.1"
-    const localAddr = { host: addr, port: mgr.tunnel.local_port }
+    const localAddr = {
+      host: mgr.tunnel.local_ip || "127.0.0.1",
+      port: mgr.tunnel.local_port,
+    }
 
-    const cleanup = () => {
+    const finish = () => {
+      if (finished) return
+      finished = true
       conn.removeListener("data", onData)
-      conn.removeListener("close", onClose)
-      conn.removeListener("error", onErrorHandler)
+      conn.removeListener("close", finish)
+      conn.removeListener("error", finish)
       resolve()
     }
 
-    const onClose = () => cleanup()
-    const onErrorHandler = (err: Error) => { onError(err); cleanup() }
-
     const onData = (chunk: Buffer) => {
-      if (onActivity) onActivity()
+      if (state.gen !== gen) return
+      state.lastReadAt = Date.now()
       let offset = 0
       while (offset < chunk.length) {
-        // Reading header
         if (hdrOffset < FRAME_HEADER_SIZE) {
           const toCopy = Math.min(chunk.length - offset, FRAME_HEADER_SIZE - hdrOffset)
           chunk.copy(hdr, hdrOffset, offset, offset + toCopy)
@@ -332,12 +386,13 @@ function readLoop(
           if (hdrOffset === FRAME_HEADER_SIZE) {
             payloadSize = hdr.readUInt32LE(0)
             if (payloadSize > MAX_PAYLOAD_SIZE) {
-              onError(new Error(`payload too large: ${payloadSize}`))
-              cleanup()
+              onLog(`Relay frame too large: ${payloadSize}`)
+              conn.destroy()
+              finish()
               return
             }
             if (payloadSize === 0) {
-              processFrame(mgr, state, hdr, Buffer.alloc(0), localAddr, onLog)
+              processFrame(state, hdr, EMPTY, localAddr, onLog)
               hdrOffset = 0
               continue
             }
@@ -347,14 +402,13 @@ function readLoop(
           continue
         }
 
-        // Reading payload
         if (payloadBuf) {
           const toCopy = Math.min(chunk.length - offset, payloadSize - payloadOffset)
           chunk.copy(payloadBuf, payloadOffset, offset, offset + toCopy)
           payloadOffset += toCopy
           offset += toCopy
           if (payloadOffset === payloadSize) {
-            processFrame(mgr, state, hdr, payloadBuf, localAddr, onLog)
+            processFrame(state, hdr, payloadBuf, localAddr, onLog)
             hdrOffset = 0
             payloadBuf = null
             payloadOffset = 0
@@ -364,156 +418,202 @@ function readLoop(
     }
 
     conn.on("data", onData)
-    conn.once("close", onClose)
-    conn.once("error", onErrorHandler)
+    conn.once("close", finish)
+    conn.once("error", finish)
   })
 }
 
 // ── Process a single frame ───────────────────────────────
 
 function processFrame(
-  mgr: MultiRelayManager,
   state: RelayState,
   hdr: Buffer,
   payload: Buffer,
   localAddr: { host: string; port: number },
   onLog: (line: string) => void,
 ): void {
-  // Verify tunnel ID
-  const frameTunnelID = hdr.subarray(5, 5 + FRAME_TUNNEL_ID_SIZE)
-  if (!frameTunnelID.equals(state.sessionIDKey)) return
+  // Ignore frames that belong to a different session id.
+  if (!hdr.subarray(5, 5 + FRAME_TUNNEL_ID_SIZE).equals(state.sessionIDKey)) return
 
   switch (hdr[4]) {
     case F_TCP:
-      handleTCP(mgr, state, payload, localAddr, onLog)
+      handleTCP(state, payload, localAddr, onLog)
       break
     case F_UDP:
-      handleUDP(mgr, state, payload, localAddr, onLog)
+      handleUDP(state, payload, localAddr, onLog)
       break
   }
+}
+
+// ── Sending to the relay ─────────────────────────────────
+
+function sendToRelay(state: RelayState, type: number, payload: Buffer): void {
+  if (state.closed || !state.healthy) return
+  const conn = state.conn
+  if (!conn || conn.destroyed) return
+  // Backpressure guard: Node buffers writes in memory, so a relay that stops
+  // draining must not grow the process without bound.
+  if (conn.writableLength > MAX_SOCKET_BUFFER) {
+    conn.destroy()
+    return
+  }
+  if (!writeFrame(conn, type, payload, state.sessionID)) conn.destroy()
 }
 
 // ── TCP handling ─────────────────────────────────────────
 
 function handleTCP(
-  mgr: MultiRelayManager,
   state: RelayState,
   payload: Buffer,
   localAddr: { host: string; port: number },
   onLog: (line: string) => void,
 ): void {
-  if (payload.length < 5) return
+  if (payload.length < 4) return
   const cid = payload.readUInt32LE(0)
+  const data = payload.subarray(4)
 
-  const existing = mgr.tcpConns.get(cid)
-  if (existing) {
-    try {
-      existing.write(payload.subarray(4))
-    } catch {}
+  const entry = state.tcpConns.get(cid)
+  if (entry) {
+    // The dial may still be in flight (Node dials asynchronously, the read
+    // loop does not wait). Buffering here is what keeps a single player
+    // connection from being dialled twice in parallel.
+    if (entry.socket) {
+      if (data.length > 0) writeLocal(entry.socket, data, onLog)
+    } else if (data.length > 0) {
+      entry.queue.push(Buffer.from(data))
+      entry.queuedBytes += data.length
+      if (entry.queuedBytes > MAX_DIAL_QUEUE_BYTES) {
+        state.tcpConns.delete(cid)
+        onLog(`TCP queue overflow for ${localAddr.host}:${localAddr.port}`)
+      }
+    }
     return
   }
 
-  // New connection — dial local server
+  // Register a placeholder BEFORE dialling so concurrent frames for the same
+  // cid are queued instead of opening a second local connection.
+  const created: TcpEntry = { socket: null, queue: [], queuedBytes: 0 }
+  if (data.length > 0) {
+    created.queue.push(Buffer.from(data))
+    created.queuedBytes = data.length
+  }
+  state.tcpConns.set(cid, created)
+
   const localSocket = net.createConnection(localAddr, () => {
-    mgr.tcpConns.set(cid, localSocket)
-
-    localSocket.on("data", (d: Buffer) => {
-      if (state.closed || !state.healthy) return
-      const p = Buffer.alloc(4 + d.length)
-      p.writeUInt32LE(cid, 0)
-      d.copy(p, 4)
-      mgrSend(mgr, state, F_TCP, p)
-    })
-
-    localSocket.on("close", () => {
-      mgr.tcpConns.delete(cid)
-      // Send close signal
-      const p = Buffer.alloc(4)
-      p.writeUInt32LE(cid, 0)
-      mgrSend(mgr, state, F_TCP, p)
-    })
-
-    localSocket.on("error", () => {
-      mgr.tcpConns.delete(cid)
-    })
-
-    // Forward initial data
-    localSocket.write(payload.subarray(4))
+    if (state.closed || state.tcpConns.get(cid) !== created) {
+      localSocket.destroy()
+      return
+    }
+    created.socket = localSocket
+    for (const chunk of created.queue) writeLocal(localSocket, chunk, onLog)
+    created.queue.length = 0
+    created.queuedBytes = 0
   })
 
-  localSocket.on("error", (err) => {
-    onLog(`TCP dial error ${localAddr.host}:${localAddr.port}: ${err.message}`)
+  localSocket.setNoDelay(true)
+
+  localSocket.on("data", (d: Buffer) => {
+    if (state.closed || !state.healthy || state.tcpConns.get(cid) !== created) return
+    const p = Buffer.allocUnsafe(4 + d.length)
+    p.writeUInt32LE(cid, 0)
+    d.copy(p, 4)
+    sendToRelay(state, F_TCP, p)
+  })
+
+  localSocket.on("close", () => {
+    if (state.tcpConns.get(cid) === created) state.tcpConns.delete(cid)
+  })
+
+  localSocket.on("error", (err: NodeJS.ErrnoException) => {
+    if (state.tcpConns.get(cid) === created) state.tcpConns.delete(cid)
+    if (!state.closed) onLog(`TCP ${localAddr.host}:${localAddr.port}: ${err.code ?? err.message}`)
     localSocket.destroy()
   })
+}
+
+function writeLocal(sock: net.Socket, data: Buffer, onLog: (line: string) => void): void {
+  if (sock.destroyed || !sock.writable) return
+  try {
+    sock.write(data)
+  } catch (err: any) {
+    onLog(`TCP write failed: ${err?.message ?? err}`)
+  }
 }
 
 // ── UDP handling ─────────────────────────────────────────
 
 function handleUDP(
-  mgr: MultiRelayManager,
   state: RelayState,
   payload: Buffer,
   localAddr: { host: string; port: number },
   onLog: (line: string) => void,
 ): void {
-  if (payload.length < 11) return
+  if (payload.length < 10) return
   const cid = payload.readUInt32LE(0)
+  const data = payload.subarray(10)
 
-  const existing = mgr.udpConns.get(cid)
+  const existing = state.udpConns.get(cid)
   if (existing) {
-    try {
-      existing.send(payload.subarray(10), localAddr.port, localAddr.host)
-    } catch {}
+    if (data.length > 0) {
+      try { existing.send(data, localAddr.port, localAddr.host) } catch {}
+    }
     return
   }
 
-  const addrBytes = payload.subarray(4, 10)
+  const addrBytes = Buffer.from(payload.subarray(4, 10))
 
   const localSocket = dgram.createSocket("udp4")
   try {
     localSocket.connect(localAddr.port, localAddr.host)
-    mgr.udpConns.set(cid, localSocket)
-
-    localSocket.on("message", (d: Buffer) => {
-      if (state.closed || !state.healthy) return
-      const p = Buffer.alloc(10 + d.length)
-      p.writeUInt32LE(cid, 0)
-      addrBytes.copy(p, 4)
-      d.copy(p, 10)
-      mgrSend(mgr, state, F_UDP, p)
-    })
-
-    localSocket.on("close", () => {
-      mgr.udpConns.delete(cid)
-    })
-
-    localSocket.on("error", () => {
-      mgr.udpConns.delete(cid)
-    })
-
-    localSocket.send(payload.subarray(10), localAddr.port, localAddr.host)
   } catch (err: any) {
-    onLog(`UDP dial error ${localAddr.host}:${localAddr.port}: ${err.message}`)
+    onLog(`UDP dial error ${localAddr.host}:${localAddr.port}: ${err?.message ?? err}`)
+    try { localSocket.close() } catch {}
+    return
+  }
+
+  state.udpConns.set(cid, localSocket)
+  state.udpAddrs.set(cid, addrBytes)
+
+  localSocket.on("message", (d: Buffer) => {
+    if (state.closed || !state.healthy || state.udpConns.get(cid) !== localSocket) return
+    const p = Buffer.allocUnsafe(10 + d.length)
+    p.writeUInt32LE(cid, 0)
+    addrBytes.copy(p, 4)
+    d.copy(p, 10)
+    sendToRelay(state, F_UDP, p)
+  })
+
+  localSocket.on("close", () => {
+    if (state.udpConns.get(cid) === localSocket) {
+      state.udpConns.delete(cid)
+      state.udpAddrs.delete(cid)
+    }
+  })
+
+  localSocket.on("error", (err: any) => {
+    if (state.udpConns.get(cid) === localSocket) {
+      state.udpConns.delete(cid)
+      state.udpAddrs.delete(cid)
+    }
+    if (!state.closed) onLog(`UDP ${localAddr.host}:${localAddr.port}: ${err?.message ?? err}`)
+    try { localSocket.close() } catch {}
+  })
+
+  if (data.length > 0) {
+    try { localSocket.send(data, localAddr.port, localAddr.host) } catch {}
   }
 }
 
-// ── Multi-relay manager ──────────────────────────────────
-
-function mgrSend(mgr: MultiRelayManager, state: RelayState, type: number, payload: Buffer): void {
-  if (!state || state.closed || !state.healthy) return
-  if (state.sendChan.length >= SEND_CHAN_SIZE) return
-  state.sendChan.push({ type, payload })
-}
+// ── Manager ──────────────────────────────────────────────
 
 function mgrShutdown(mgr: MultiRelayManager): void {
   for (const s of mgr.states) {
-    if (s.conn) s.conn.destroy()
     s.closed = true
+    s.healthy = false
+    s.gen++
+    if (s.conn) s.conn.destroy()
+    closeLocalConns(s)
   }
-  for (const [, c] of mgr.tcpConns) { try { c.destroy() } catch {} }
-  for (const [, c] of mgr.udpConns) { try { c.close() } catch {} }
-  mgr.tcpConns.clear()
-  mgr.udpConns.clear()
 }
 
 // ── Public API ───────────────────────────────────────────
@@ -531,8 +631,9 @@ export async function runTunnel(
     tunnel,
     states: [],
     stop: false,
-    tcpConns: new Map(),
-    udpConns: new Map(),
+    waiters: new Set(),
+    reportedRunning: false,
+    callbacks,
   }
 
   const nodes = tunnel.nodes.length > 0
@@ -541,16 +642,20 @@ export async function runTunnel(
 
   for (const node of nodes) {
     if (node.status !== "online") continue
+    if (!node.host || !node.port) continue
     const state: RelayState = {
       tunnel,
       node,
       conn: null,
-      writer: null,
-      sendChan: [],
       closed: false,
       healthy: false,
       sessionID: "",
       sessionIDKey: Buffer.alloc(FRAME_TUNNEL_ID_SIZE),
+      tcpConns: new Map(),
+      udpConns: new Map(),
+      udpAddrs: new Map(),
+      lastReadAt: Date.now(),
+      gen: 0,
     }
     mgr.states.push(state)
     runRelay(mgr, state, callbacks.onLog).catch(() => {})
@@ -562,17 +667,23 @@ export async function runTunnel(
     return { stop: () => {} }
   }
 
-  // Wait for connection to establish
-  await new Promise(r => setTimeout(r, 2000))
-
-  const anyHealthy = mgr.states.some(s => s.healthy)
-  if (anyHealthy) {
-    callbacks.onStateChange("running")
+  const stop = () => {
+    if (mgr.stop) return
+    mgr.stop = true
+    for (const waiter of [...mgr.waiters]) waiter()
+    mgr.waiters.clear()
+    mgrShutdown(mgr)
   }
 
-  const stop = () => {
-    mgr.stop = true
-    mgrShutdown(mgr)
+  // Wait briefly for the first node to come up before reporting "running".
+  const deadline = Date.now() + 2000
+  while (!mgr.stop && !mgr.states.some(s => s.healthy) && Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 100))
+  }
+
+  if (!mgr.stop && !mgr.reportedRunning && mgr.states.some(s => s.healthy)) {
+    mgr.reportedRunning = true
+    callbacks.onStateChange("running")
   }
 
   return { stop }

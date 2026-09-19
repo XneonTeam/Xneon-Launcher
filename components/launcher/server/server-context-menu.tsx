@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
   IconTerminal, IconPlayerPlay, IconPlayerStop, IconFolder, IconCopy,
-  IconDownload, IconTrashFilled, IconX, IconWorldUpload, IconBox,
+  IconDownload, IconTrash, IconX, IconMap, IconPuzzle,
   IconPlug, IconSettings, IconBug, IconCategoryPlus,
 } from "@tabler/icons-react"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -57,8 +57,8 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
   }, [onClose])
 
   const EXPORT_CATEGORIES: Array<{ id: ServerExportCategory; label: string; description: string; icon: React.ReactNode }> = [
-    { id: "world", label: t("servers.export.world"), description: t("servers.export.worldDesc"), icon: <IconWorldUpload className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
-    { id: "mods", label: t("servers.export.mods"), description: t("servers.export.modsDesc"), icon: <IconBox className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
+    { id: "world", label: t("servers.export.world"), description: t("servers.export.worldDesc"), icon: <IconMap className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
+    { id: "mods", label: t("servers.export.mods"), description: t("servers.export.modsDesc"), icon: <IconPuzzle className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
     { id: "plugins", label: t("servers.export.plugins"), description: t("servers.export.pluginsDesc"), icon: <IconPlug className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
     { id: "configs", label: t("servers.export.configs"), description: t("servers.export.configsDesc"), icon: <IconSettings className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
     { id: "logs", label: t("servers.export.logs"), description: t("servers.export.logsDesc"), icon: <IconBug className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
@@ -134,7 +134,7 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
         <div className="mx-2 my-1 border-t border-border" />
         <button type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-destructive/15 text-destructive"
           onClick={() => { onDelete(); onClose() }}>
-          <IconTrashFilled className="w-4 h-4" />
+          <IconTrash className="w-4 h-4" strokeWidth={1.75} />
           {t("servers.contextDelete")}
         </button>
       </div>

@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback, useRef, useMemo, useDeferredValue } from "react"
 import { useTranslation } from "react-i18next"
 import {
-  IconSearch, IconUpload, IconPlug, IconLoader2,
+  IconSearch, IconUpload, IconPlug, IconPuzzle, IconLoader2,
 } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { EmptyState } from "@/components/ui/empty-state"
+import { SourceMark } from "@/components/launcher/source-mark"
 import { Spinner } from "../instance/spinner"
 import { Pagination } from "../instance/pagination"
-import { formatDownloads } from "../instance/utils"
+import { contentProjectKey, formatDownloads } from "../instance/utils"
 import { getSortLabels, SORT_OPTIONS_BY_SOURCE } from "../instance/sort-options"
 import { dataCache, MOD_SEARCH_CACHE_TTL } from "@/lib/swr"
 import type { McServerInfo, McFsEntry } from "@xnlc/types"
@@ -50,6 +52,16 @@ export function AddonsTab({ server }: AddonsTabProps) {
   const [selectedCategories, setSelectedCategories] = useState<SelectedAddonCategory[]>([])
 
   const searchVersionRef = useRef(0)
+
+  // Сортировки у платформ разные: при смене платформы сбрасываем недоступную,
+  // иначе на Modrinth оставалось бы «Избранное», которого там нет.
+  useEffect(() => {
+    const allowed = SORT_OPTIONS_BY_SOURCE[source]
+    if (!allowed.includes(sortBy)) {
+      setSortBy(allowed[0] ?? "downloads")
+      setPage(1)
+    }
+  }, [source, sortBy])
 
   // Показываем только совместимые версии — как в инстансах.
   const compatibleDetailVersions = useMemo(
@@ -118,6 +130,21 @@ export function AddonsTab({ server }: AddonsTabProps) {
       return fLower.includes(nameLower) || fLower.includes(project.slug?.toLowerCase() ?? "")
     })
   }, [resolvedPlugins, installedFiles])
+
+  /**
+   * Имя файла уже установленного плагина для открытого в окне проекта: по нему
+   * отмечаем текущую версию в списке (имя файла версии у платформы и на диске совпадает).
+   */
+  const installedFileName = useMemo(() => {
+    if (!selectedDetails) return undefined
+    const slug = selectedDetails.slug?.toLowerCase()
+    const name = selectedDetails.name.toLowerCase()
+    return installedFiles.find(f => {
+      if (f.isDir) return false
+      const fileLower = f.name.toLowerCase()
+      return (slug ? fileLower.includes(slug) : false) || fileLower.includes(name)
+    })?.name
+  }, [selectedDetails, installedFiles])
 
   const searchModrinth = useCallback((
     query: string, type: ModContentType, version: string | undefined,
@@ -210,7 +237,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
 
   const handleDownload = useCallback(async (project: ModSearchResult) => {
     if (!contentDir || installingSlug) return
-    setInstallingSlug(project.slug)
+    setInstallingSlug(contentProjectKey(project))
 
     try {
       let downloadUrl: string | null = null
@@ -330,17 +357,29 @@ export function AddonsTab({ server }: AddonsTabProps) {
         </div>
         <div className="flex items-center gap-2">
           <Select value={source} onValueChange={v => { setSource(v as SearchSource); setPage(1) }}>
-            <SelectTrigger className="w-[140px] h-8 text-xs">
+            {/* Ширина по содержимому: значок + «Обе платформы» должны влезать целиком */}
+            <SelectTrigger className="w-auto min-w-[150px] h-8 text-xs">
+              {/* Значок подставляет сам SelectValue из выбранного пункта — второй не нужен */}
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="both">{t("servers.addons.bothPlatforms")}</SelectItem>
-              <SelectItem value="modrinth">Modrinth</SelectItem>
-              <SelectItem value="curseforge">CurseForge</SelectItem>
+              <SelectItem value="both">
+                <span className="flex items-center gap-1.5">
+                  <SourceMark source="modrinth" />
+                  <SourceMark source="curseforge" />
+                  {t("servers.addons.bothPlatforms")}
+                </span>
+              </SelectItem>
+              <SelectItem value="modrinth">
+                <span className="flex items-center gap-1.5"><SourceMark source="modrinth" />Modrinth</span>
+              </SelectItem>
+              <SelectItem value="curseforge">
+                <span className="flex items-center gap-1.5"><SourceMark source="curseforge" />CurseForge</span>
+              </SelectItem>
             </SelectContent>
           </Select>
           <Select value={sortBy} onValueChange={v => { setSortBy(v as ModSort); setPage(1) }}>
-            <SelectTrigger className="w-[160px] h-8 text-xs">
+            <SelectTrigger className="w-auto min-w-[165px] h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -396,7 +435,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
                   key={project.id}
                   project={project}
                   installed={isInstalled(project)}
-                  installing={installingSlug === project.slug}
+                  installing={installingSlug === contentProjectKey(project)}
                   installLabel={t("servers.installModpack")}
                   onDetails={() => openDetails(project)}
                   onInstall={() => handleDownload(project)}
@@ -406,15 +445,13 @@ export function AddonsTab({ server }: AddonsTabProps) {
           ) : loading ? (
             <Spinner />
           ) : (search || selectedCategories.length > 0) ? (
-            <div className="flex h-full flex-col items-center justify-center">
-              <IconSearch className="mb-2 h-6 w-6 text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">{notFoundText}</p>
-            </div>
+            <EmptyState title={notFoundText} className="h-full" />
           ) : (
-            <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-border text-center">
-              <IconSearch className="mb-2 h-6 w-6 text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">{t("servers.addons.startSearch")}</p>
-            </div>
+            <EmptyState
+              title={t("servers.addons.startSearch")}
+              icon={IconSearch}
+              className="h-full rounded-2xl border border-dashed border-border"
+            />
           )}
         </div>
         <Pagination
@@ -434,12 +471,29 @@ export function AddonsTab({ server }: AddonsTabProps) {
         loadingModal={loadingDetail}
         onClose={closeDetails}
         targetLabel={t("addon.target.server")}
+        installedVersion={installedFileName}
         onInstallVersion={(ver) => (async () => {
-          if (!contentDir || !ver.downloadUrl || !selectedDetails) return false
-          setInstallingSlug(selectedDetails.slug)
+          if (!contentDir || !selectedDetails) return false
+          setInstallingSlug(contentProjectKey(selectedDetails))
           try {
+            let downloadUrl = ver.downloadUrl ?? null
+            // У версий CurseForge прямой ссылки в ответе нет — запрашиваем её
+            // отдельно, иначе кнопка «Скачать» молча ничего не делала.
+            if (!downloadUrl && selectedDetails.source === "curseforge" && selectedDetails.modId) {
+              downloadUrl = await window.electronAPI?.modsCurseforgeDownloadUrl(Number(ver.id), selectedDetails.modId) ?? null
+            }
+            // Если автор запретил раздачу через API, файл всё равно лежит на
+            // официальном CDN — собираем прямую ссылку по id (та же схема, что
+            // в curseforgeGetFiles).
+            if (!downloadUrl && selectedDetails.source === "curseforge" && ver.fileName) {
+              const fileId = Number(ver.id)
+              if (Number.isFinite(fileId) && fileId > 0) {
+                downloadUrl = `https://edge.forgecdn.net/files/${Math.floor(fileId / 1000)}/${fileId % 1000}/${encodeURIComponent(ver.fileName)}`
+              }
+            }
+            if (!downloadUrl) return false
             await window.electronAPI?.mcServerFsDownload(
-              server.id, contentDir, ver.downloadUrl, ver.fileName || `${selectedDetails.name}.jar`,
+              server.id, contentDir, downloadUrl, ver.fileName || `${selectedDetails.name}.jar`,
             )
             await loadInstalled()
             return true

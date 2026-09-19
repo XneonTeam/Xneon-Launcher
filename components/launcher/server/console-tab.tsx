@@ -31,13 +31,14 @@ export function ConsoleTab({ serverId, logs, isRunning, command, onCommandChange
   const commandHistoryRef = useRef<string[]>([])
   const historyIndexRef = useRef<number>(-1)
 
+  // Автоскролл включён — всегда держим низ консоли. Проверять «были ли мы у низа»
+  // здесь нельзя: к моменту эффекта контейнер уже вырос на всю новую порцию строк,
+  // и на пачке логов (запуск сервера, загрузка модов) условие не проходило —
+  // автоскролл переставал листать, хотя оставался включённым.
   useEffect(() => {
     if (!autoScroll || !scrollRef.current) return
     const el = scrollRef.current
-    const maxScroll = el.scrollHeight - el.clientHeight
-    if (maxScroll > 0 && el.scrollTop >= maxScroll - 80) {
-      el.scrollTop = maxScroll
-    }
+    el.scrollTop = el.scrollHeight
   }, [logs, autoScroll])
 
   const handleScroll = useCallback(() => {

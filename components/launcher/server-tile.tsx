@@ -5,6 +5,7 @@ import {
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { LoaderIcon, loaderLabel } from "./instance/loader-icon"
+import { EntityIcon } from "./instance/entity-icon"
 import { ServerContextMenu } from "./server/server-context-menu"
 import type { McServerInfo, McServerState } from "@xnlc/types"
 
@@ -25,13 +26,22 @@ export function ServerTile({ server, state, onClick, onStart, onStop, onDelete, 
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
 
   const isRunning = state.status === "running"
-  const isBusy = state.status === "starting" || state.status === "stopping"
+  const isStarting = state.status === "starting"
+  const isStopping = state.status === "stopping"
+  /** Гасим и стартующий сервер. */
+  const canStop = isRunning || isStarting
 
   const handlePlayStop = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (isBusy) return
-    if (isRunning) onStop()
-    else onStart()
+    if (isStopping) return
+    if (canStop) {
+      onStop()
+      return
+    }
+    // Play не только запускает сервер, но и открывает его страницу — иначе
+    // непонятно, что вообще произошло.
+    onStart()
+    onClick()
   }
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -54,7 +64,7 @@ export function ServerTile({ server, state, onClick, onStart, onStop, onDelete, 
         <div className="relative w-full" style={{ paddingBottom: "100%" }}>
           <div className="absolute inset-0">
             {server.icon ? (
-              <img src={server.icon} alt="" className="w-full h-full object-cover" />
+              <EntityIcon src={server.icon} className="w-full h-full p-2 text-primary" imgClassName="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10 flex items-center justify-center">
                 <LoaderIcon loaderId={server.modloader} className="w-10 h-10 text-primary/40" />
@@ -82,17 +92,17 @@ export function ServerTile({ server, state, onClick, onStart, onStop, onDelete, 
           {/* Play/Stop button */}
           <button
             onClick={handlePlayStop}
-            disabled={isBusy}
+            disabled={isStopping}
             className={cn(
               "absolute bottom-2 right-2 p-2 rounded-xl backdrop-blur-sm transition-all",
               "group-hover:scale-110",
-              isRunning
+              canStop
                 ? "bg-red-500/80 hover:bg-red-500 text-white shadow-lg shadow-red-500/20"
                 : "bg-primary/80 hover:bg-primary text-primary-foreground shadow-lg shadow-primary/20",
-              isBusy && "opacity-50 cursor-not-allowed"
+              isStopping && "opacity-50 cursor-not-allowed"
             )}
           >
-            {isRunning ? (
+            {canStop ? (
               <IconPlayerStop className="w-4 h-4" />
             ) : (
               <IconPlayerPlay className="w-4 h-4" />
@@ -116,9 +126,9 @@ export function ServerTile({ server, state, onClick, onStart, onStop, onDelete, 
           server={server}
           position={menuPos}
           isRunning={isRunning}
-          isBusy={isBusy}
+          isBusy={isStopping}
           onConnect={onClick}
-          onToggleRun={() => { if (isRunning) onStop(); else onStart() }}
+          onToggleRun={() => { if (canStop) onStop(); else onStart() }}
           onDelete={onDelete}
           onDuplicate={onDuplicate}
           onClose={() => setMenuOpen(false)}
