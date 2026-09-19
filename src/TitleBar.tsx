@@ -17,6 +17,12 @@ function formatRelativeTime(timestamp: number): string {
   return `${Math.floor(diffHours / 24)} д назад`
 }
 
+function formatSourceLabel(source: ActivityNotification["source"]): string {
+  if (source === "launch") return "Запуск"
+  if (source === "install") return "Установка"
+  return "Импорт"
+}
+
 function NotificationIcon({ notification }: { notification: ActivityNotification }) {
   if (notification.kind === "success") return <IconCheck className="h-4 w-4" />
   if (notification.kind === "error") return <IconX className="h-4 w-4" />
@@ -137,7 +143,7 @@ export function TitleBar() {
                               <p className="mt-2 truncate text-[11px] text-muted-foreground/90">{notification.itemName}</p>
                             )}
 
-                            {typeof notification.progress === "number" && (
+                            {typeof notification.progress === "number" ? (
                               <div className="mt-3">
                                 <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                                   <div
@@ -146,11 +152,20 @@ export function TitleBar() {
                                   />
                                 </div>
                                 <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
-                                  <span>{notification.source === "launch" ? "Запуск" : notification.source === "install" ? "Установка" : "Импорт"}</span>
+                                  <span>{formatSourceLabel(notification.source)}</span>
                                   <span>{notification.progress}%</span>
                                 </div>
                               </div>
-                            )}
+                            ) : notification.busy ? (
+                              // Этапы без байтов (поиск версии, окно зависимостей): процентов
+                              // ещё нет, но полоса должна показывать, что процесс идёт.
+                              <div className="mt-3">
+                                <div className="progress-indeterminate h-1.5 rounded-full bg-muted" />
+                                <div className="mt-1 text-[11px] text-muted-foreground">
+                                  {formatSourceLabel(notification.source)}
+                                </div>
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       </div>

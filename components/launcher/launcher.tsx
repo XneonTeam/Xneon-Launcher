@@ -26,6 +26,8 @@ export function Launcher({ onReady }: LauncherProps) {
   const [selectedTheme, setSelectedTheme] = useState(() => localStorage.getItem("theme") || "orange")
   const [showDbFallbackBanner, setShowDbFallbackBanner] = useState(false)
   const [selectedMcServer, setSelectedMcServer] = useState<McServerInfo | null>(null)
+  // Подсказка для страницы логов: открыта из-за краша игры.
+  const [logsFocus, setLogsFocus] = useState<{ crash: boolean; at: number } | null>(null)
 
   useEffect(() => {
     // Every page is mounted in this render; notify the parent once the frame
@@ -87,13 +89,41 @@ export function Launcher({ onReady }: LauncherProps) {
       setSelectedMcServer(null)
     }
 
+    // Play на карточке сборки открывает главную: там уже выбран загрузчик
+    // «Сборка» и сама сборка, остаётся нажать ИГРАТЬ.
+    const handleOpenHome = () => {
+      setSelectedMcServer(null)
+      setActiveTab("home")
+    }
+
+    // Краш игры: показываем логи, а страница логов сама подсветит ошибки.
+    const handleOpenLogs = (event: Event) => {
+      const detail = (event as CustomEvent<{ crash?: boolean }>).detail
+      setSelectedMcServer(null)
+      setLogsFocus(detail?.crash ? { crash: true, at: Date.now() } : null)
+      setActiveTab("logs")
+    }
+
     window.addEventListener("launcher:onboarding-reset", handleResetOnboarding)
-    return () => window.removeEventListener("launcher:onboarding-reset", handleResetOnboarding)
+    window.addEventListener("launcher:open-home", handleOpenHome)
+    window.addEventListener("launcher:open-logs", handleOpenLogs)
+    return () => {
+      window.removeEventListener("launcher:onboarding-reset", handleResetOnboarding)
+      window.removeEventListener("launcher:open-home", handleOpenHome)
+      window.removeEventListener("launcher:open-logs", handleOpenLogs)
+    }
   }, [])
 
   const finishOnboarding = useCallback(() => {
     setShowOnboarding(false)
     void window.electronAPI?.setSetting("onboardingCompleted", "true")
+  }, [])
+
+  // Ручной переход по вкладкам сбрасывает подсказку краша: иначе при возврате
+  // в логи фильтр «Ошибки» включился бы снова сам по себе.
+  const handleTabChange = useCallback((tab: TabId) => {
+    setLogsFocus(null)
+    setActiveTab(tab)
   }, [])
 
   useEffect(() => {
@@ -104,7 +134,7 @@ export function Launcher({ onReady }: LauncherProps) {
     switch (activeTab) {
       case "home": return <HomePage />
       case "builds": return <InstancePage />
-      case "logs": return <LogsPage />
+      case "logs": return <LogsPage focus={logsFocus} />
       case "stats": return <StatsPage />
       case "settings": return <SettingsPage />
       case "accounts": return <AccountsPage />
@@ -121,7 +151,7 @@ export function Launcher({ onReady }: LauncherProps) {
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-background">
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+      <Sidebar activeTab={activeTab} onTabChange={handleTabChange} />
 
       <main className="flex-1 min-h-0 overflow-hidden">
         <div className="h-full p-4 overflow-hidden flex flex-col">

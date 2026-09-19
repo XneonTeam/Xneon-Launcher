@@ -7,6 +7,7 @@ import { ipcMain } from "electron"
 import path from "path"
 import { getBuildIntentPath } from "./builds/helpers"
 import { checkLoaderRequirements, type LoaderRequirementReport } from "./mods-loader-requirements"
+import { inspectJarDependencies, type JarDependencyInspection } from "./mods-jar-deps"
 import type {
   ContentType,
   ModDetails,
@@ -219,6 +220,20 @@ export function registerModsHandlers(): void {
   )
 
   // ── Dependency Resolution ──────────────────────────────────
+  // CurseForge/Modrinth заполняют `dependencies` не у всех файлов: у jei под 26.2
+  // оба API отдают пустой список. Тогда читаем метаданные самого jar.
+  ipcMain.handle(
+    "mods:inspect-jar-dependencies",
+    async (_event, url: string, source: "modrinth" | "curseforge"): Promise<JarDependencyInspection> => {
+      try {
+        return await inspectJarDependencies(url, source)
+      } catch (err) {
+        console.error("[mods] Jar dependency inspection failed:", err)
+        return { modId: null, dependencies: [], declared: [] }
+      }
+    },
+  )
+
   ipcMain.handle(
     "mods:resolve-dependencies",
     async (_event, version: ModVersion, source: "modrinth" | "curseforge"): Promise<ModDependency[]> => {
