@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { IconCheck, IconLoader2, IconUserMinus, IconArrowLeft } from "@tabler/icons-react"
 import { MicrosoftIcon, ElyByIcon, XnSkinsIcon } from "./icons"
@@ -24,28 +25,31 @@ type Account = {
 
 type ProviderId = "microsoft" | "elyby" | "xnskins"
 
-const PROVIDERS: { id: ProviderId; title: string; description: string; color: string; siteName: string }[] = [
+// Описания провайдеров берём из i18n: заголовки — имена сервисов, они одинаковы
+// во всех языках, а пояснения к ним переводятся (те же ключи, что в разделе аккаунтов).
+const PROVIDERS: { id: ProviderId; title: string; descriptionKey: string; color: string; siteName: string }[] = [
   {
     id: "microsoft", title: "Microsoft",
-    description: "Official Mojang / Microsoft sign-in.",
+    descriptionKey: "accounts.microsoftDesc",
     color: "#2563EB",
     siteName: "Microsoft",
   },
   {
     id: "elyby", title: "Ely.By",
-    description: "Sign in with an Ely.By account.",
+    descriptionKey: "accounts.elyByDesc",
     color: "#217e5c",
     siteName: "Ely.by",
   },
   {
     id: "xnskins", title: "XN Skins",
-    description: "Sign in with XN Skins support.",
+    descriptionKey: "accounts.xneonSkinsDesc",
     color: "#f97316",
     siteName: "XN Skins",
   },
 ]
 
 export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, setActiveAccount, onProviderLogin, onOpenOffline }: StepAccountProps) {
+  const { t } = useTranslation()
   const [chosenProvider, setChosenProvider] = useState<ProviderId | null>(null)
   const [authLoading, setAuthLoading] = useState(false)
   const [authError, setAuthError] = useState("")
@@ -187,7 +191,7 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
                   : <XnSkinsIcon className="h-6 w-6" />}
               </div>
               <div className="font-medium text-foreground">{p.title}</div>
-              <div className="mt-1 text-sm text-muted-foreground">{p.description}</div>
+              <div className="mt-1 text-sm text-muted-foreground">{t(p.descriptionKey)}</div>
             </button>
           ))}
 

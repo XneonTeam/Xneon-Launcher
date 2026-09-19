@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from "react"
 import { useTranslation } from "react-i18next"
 import { useActivityCenter } from "./ActivityCenterContext"
-import { getStageLabel, INITIAL_LAUNCH_UI_STATE, LAUNCH_RE, RUNNING_RE, type LaunchUiState } from "@/lib/home-page-shared"
+import { getStageLabel, INITIAL_LAUNCH_UI_STATE, LAUNCH_RE, GAME_READY_RE, GAME_READY_FALLBACK_MS, type LaunchUiState } from "@/lib/home-page-shared"
 
 export type LogLevel = "info" | "warn" | "error" | "debug" | "game" | "launcher"
 
@@ -20,6 +20,8 @@ interface LaunchControlsValue {
   addLog: (text: string, level?: LogLevel) => void
   clearLogs: () => void
   isRunning: boolean
+  /** Игра реально поднялась (окно/звук/атласы), а не только запустился процесс. */
+  gameReady: boolean
   setIsRunning: (v: boolean) => void
   launchUi: LaunchUiState
   patchLaunchUi: (patch: Partial<LaunchUiState>) => void
@@ -98,6 +100,10 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
   const { pushNotification, upsertLiveNotification, removeLiveNotification } = useActivityCenter()
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [isRunning, setIsRunning] = useState(false)
+  // `isRunning` — «процесс игры жив» (с этого момента кнопка умеет останавливать),
+  // `gameReady` — «игра реально запустилась»: окно, звук, атласы. Между ними
+  // несколько секунд, и всё это время UI обязан показывать «Запускается...».
+  const [gameReady, setGameReady] = useState(false)
   const [launchUi, setLaunchUi] = useState<LaunchUiState>(INITIAL_LAUNCH_UI_STATE)
   const pendingLogsRef = useRef<LogEntry[]>([])
   const flushTimeoutRef = useRef<number | null>(null)
@@ -106,7 +112,13 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
   const pendingLaunchPatchRef = useRef<Partial<LaunchUiState> | null>(null)
   const launchFrameRef = useRef<number | null>(null)
   const isRunningRef = useRef(isRunning)
+  const gameReadyRef = useRef(false)
   const runningNotificationSentRef = useRef(false)
+  const readyFallbackTimerRef = useRef<number | null>(null)
+  // `t` меняет идентичность при смене языка. Если держать его в зависимостях
+  // эффектов ниже, смена языка пересоздаёт IPC-подписки и заново опрашивает
+  // `isMinecraftRunning`, ломая состояние активной установки.
+  const tRef = useRef(t)
 
   const flushPendingLogs = useCallback(() => {
     flushTimeoutRef.current = null
@@ -197,12 +209,75 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
     setLaunchUi(INITIAL_LAUNCH_UI_STATE)
   }, [])
 
+  /**
+   * Игра подтвердила, что поднялась (маркер в её логе) — либо сработала
+   * страховка по таймауту. Только тут показываем «Игра запущена» и уведомление:
+   * раньше это происходило сразу после спавна процесса, за ~8 секунд до того,
+   * как игра реально открывалась.
+   */
+  const markGameReady = useCallback(() => {
+    if (readyFallbackTimerRef.current !== null) {
+      window.clearTimeout(readyFallbackTimerRef.current)
+      readyFallbackTimerRef.current = null
+    }
+    setGameReady(true)
+    gameReadyRef.current = true
+    if (runningNotificationSentRef.current) return
+    runningNotificationSentRef.current = true
+    removeLiveNotification("minecraft-launch")
+    pushNotification({
+      kind: "success",
+      source: "launch",
+      title: "Minecraft started",
+      message: tRef.current("launcherStatus.running"),
+    })
+    patchLaunchUi({
+      isLaunching: false,
+      progress: 100,
+      status: tRef.current("launcherStatus.running"),
+      phase: "idle",
+    })
+  }, [patchLaunchUi, pushNotification, removeLiveNotification])
+
+  /**
+   * Единая точка смены «процесс игры жив»: сбрасывает/взводит ожидание
+   * готовности игры. Повторные true не продлевают ожидание.
+   */
+  const setIsRunningTracked = useCallback((value: boolean) => {
+    if (value && !isRunningRef.current) {
+      setGameReady(false)
+      gameReadyRef.current = false
+      if (readyFallbackTimerRef.current !== null) window.clearTimeout(readyFallbackTimerRef.current)
+      readyFallbackTimerRef.current = window.setTimeout(() => {
+        readyFallbackTimerRef.current = null
+        markGameReady()
+      }, GAME_READY_FALLBACK_MS)
+    }
+    if (!value) {
+      if (readyFallbackTimerRef.current !== null) {
+        window.clearTimeout(readyFallbackTimerRef.current)
+        readyFallbackTimerRef.current = null
+      }
+      setGameReady(false)
+      gameReadyRef.current = false
+    }
+    isRunningRef.current = value
+    setIsRunning(value)
+  }, [markGameReady])
+
   useEffect(() => {
     isRunningRef.current = isRunning
   }, [isRunning])
 
   useEffect(() => {
-    const isActiveLaunch = launchUi.isLaunching || launchUi.phase === "installing" || launchUi.phase === "launching"
+    tRef.current = t
+  }, [t])
+
+  useEffect(() => {
+    // Пока игра грузится, уведомление тоже держим живым: прогресса в процентах
+    // ещё нет, поэтому полоса будет бегущей, а не «100%».
+    const isBooting = isRunning && !gameReady
+    const isActiveLaunch = launchUi.isLaunching || launchUi.phase === "installing" || launchUi.phase === "launching" || isBooting
     if (!isActiveLaunch) {
       removeLiveNotification("minecraft-launch")
       return
@@ -213,11 +288,15 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
       source: "launch",
       title: launchUi.phase === "installing" ? "Minecraft setup in progress" : "Minecraft launch in progress",
       message: launchUi.status || "Preparing launcher activity...",
-      progress: typeof launchUi.progress === "number" ? Math.max(0, Math.min(100, Math.round(launchUi.progress))) : null,
+      progress: isBooting
+        ? null
+        : (typeof launchUi.progress === "number" ? Math.max(0, Math.min(100, Math.round(launchUi.progress))) : null),
       itemName: launchUi.currentFileName ?? null,
       busy: true,
     })
   }, [
+    gameReady,
+    isRunning,
     launchUi.currentFileName,
     launchUi.isLaunching,
     launchUi.phase,
@@ -227,19 +306,25 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
     upsertLiveNotification,
   ])
 
+  // Опрос состояния запуска делаем один раз при монтировании: `isMinecraftRunning`
+  // в main-процессе отражает активность launch-воркера, то есть возвращает true и
+  // во время установки/скачивания. Повторный опрос (например, после смены языка)
+  // помечал установку как «игра уже запущена» и подменял кнопку прогресса на «Стоп».
   useEffect(() => {
     void window.electronAPI?.isMinecraftRunning().then((running) => {
+      const ui = launchUiRef.current
+      if (ui.isLaunching || ui.phase === "installing" || ui.phase === "launching") return
       setIsRunning(!!running)
       if (running) {
         patchLaunchUi({
           isLaunching: false,
           phase: "idle",
           progress: 100,
-          status: t("launcherStatus.running"),
+          status: tRef.current("launcherStatus.running"),
         })
       }
     })
-  }, [patchLaunchUi, t])
+  }, [patchLaunchUi])
 
   useEffect(() => {
     const offProgress = window.electronAPI?.onMinecraftProgress?.((progress) => {
@@ -249,14 +334,14 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
         patch.phase = "installing"
       }
       if (progress.type || progress.installationPhase) {
-        patch.status = getStageLabel(progress.type, progress.installationPhase)
+        patch.status = getStageLabel(progress.type, progress.installationPhase, tRef.current)
       }
       if (progress.fileName) patch.currentFileName = progress.fileName
       patchLaunchUi(patch)
     })
     const offDownload = window.electronAPI?.onMinecraftDownloadStatus?.((progress) => {
       const patch: Partial<LaunchUiState> = {
-        status: getStageLabel(progress.type, progress.installationPhase),
+        status: getStageLabel(progress.type, progress.installationPhase, tRef.current),
       }
       if (typeof progress.percent === "number") {
         patch.progress = progress.percent
@@ -280,6 +365,9 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
     })
     const offDebug = window.electronAPI?.onMinecraftDebug?.((message) => {
       if (message && !shouldIgnoreDebugLog(message)) addLog(message)
+      // Пока процесс жив, но игра не подтвердила готовность, статус не трогаем:
+      // иначе «Игра запускается...» тут же затиралась очередной debug-строкой.
+      if (isRunningRef.current && !gameReadyRef.current) return
       if (message && shouldPromoteDebugStatus(message, launchUiRef.current.phase)) {
         patchLaunchUi({
           status: message,
@@ -289,42 +377,60 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
     })
     const offData = window.electronAPI?.onMinecraftData?.((line) => {
       if (line?.trim()) addLog(line.trimEnd())
-      if (line && RUNNING_RE.test(line)) {
-        if (!isRunningRef.current) {
-          setIsRunning(true)
-          isRunningRef.current = true
-        }
-        if (!runningNotificationSentRef.current) {
-          runningNotificationSentRef.current = true
-          removeLiveNotification("minecraft-launch")
-          pushNotification({
-            kind: "success",
-            source: "launch",
-            title: "Minecraft started",
-            message: t("launcherStatus.running"),
-          })
-        }
-        patchLaunchUi({
-          isLaunching: false,
-          progress: 100,
-          status: t("launcherStatus.running"),
-          phase: "idle",
-        })
-      }
+      // Процесс жив с момента спавна, но «запущено» показываем только когда игра
+      // реально поднялась (маркер в её логе) — либо по страховочному таймауту.
+      if (line && GAME_READY_RE.test(line)) markGameReady()
     })
-    const offClose = window.electronAPI?.onMinecraftClose?.((code) => {
-      addLog(`[Процесс завершен с кодом ${code}]`, code === 0 ? "info" : "error")
-      setIsRunning(false)
+    const offClose = window.electronAPI?.onMinecraftClose?.((info) => {
+      const code = info?.code ?? 0
+      const crashed = Boolean(info?.crashed)
+      const crashReport = info?.crashReport
+      // Остановку из лаунчера не помечаем ошибкой: taskkill тоже даёт код 1,
+      // и красная строка «завершен с кодом 1» пугала пользователя на ровном месте.
+      const stoppedByLauncher = Boolean(info?.stoppedByLauncher)
+
+      if (stoppedByLauncher) {
+        addLog(tRef.current("logs.stoppedByLauncher"), "info")
+      } else {
+        addLog(`[Процесс завершен с кодом ${code}]`, code === 0 ? "info" : "error")
+      }
+      setIsRunningTracked(false)
       runningNotificationSentRef.current = false
       removeLiveNotification("minecraft-launch")
-      pushNotification({
-        kind: code === 0 ? "info" : "error",
-        source: "launch",
-        title: code === 0 ? "Minecraft closed" : "Minecraft stopped with an error",
-        message: code === 0 ? "Game process finished normally." : `Exit code: ${code}`,
-      })
+
+      if (crashed) {
+        addLog(tRef.current("logs.crashLog", { code }), "error")
+        if (crashReport) addLog(`[Crash report] ${crashReport}`, "error")
+        pushNotification({
+          kind: "error",
+          source: "launch",
+          title: tRef.current("logs.crashTitle"),
+          message: tRef.current("logs.crashMessage"),
+        })
+      } else if (stoppedByLauncher) {
+        pushNotification({
+          kind: "info",
+          source: "launch",
+          title: tRef.current("logs.stoppedTitle"),
+          message: tRef.current("logs.stoppedMessage"),
+        })
+      } else {
+        pushNotification({
+          kind: code === 0 ? "info" : "error",
+          source: "launch",
+          title: code === 0 ? "Minecraft closed" : "Minecraft stopped with an error",
+          message: code === 0 ? "Game process finished normally." : `Exit code: ${code}`,
+        })
+      }
+
       resetLaunchUi()
       window.electronAPI?.restore()
+
+      // Краш — сразу открываем логи: разбираться нужно именно там. Обычный
+      // выход игру не прерывает, поэтому пользователя не дёргаем.
+      if (crashed) {
+        window.dispatchEvent(new CustomEvent("launcher:open-logs", { detail: { crash: true } }))
+      }
     })
 
     return () => {
@@ -335,7 +441,7 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
       offData?.()
       offClose?.()
     }
-  }, [addLog, patchLaunchUi, pushNotification, removeLiveNotification, resetLaunchUi, t])
+  }, [addLog, patchLaunchUi, pushNotification, removeLiveNotification, resetLaunchUi])
 
   useEffect(() => () => {
     if (flushTimeoutRef.current !== null) {
@@ -351,11 +457,12 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
     addLog,
     clearLogs,
     isRunning,
-    setIsRunning,
+    gameReady,
+    setIsRunning: setIsRunningTracked,
     launchUi,
     patchLaunchUi,
     resetLaunchUi,
-  }), [addLog, clearLogs, isRunning, launchUi, patchLaunchUi, resetLaunchUi])
+  }), [addLog, clearLogs, isRunning, gameReady, setIsRunningTracked, launchUi, patchLaunchUi, resetLaunchUi])
 
   return (
     <LaunchControlsContext.Provider value={controlsValue}>

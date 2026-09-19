@@ -4,6 +4,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  color-scheme: light;
   --background: oklch(0.98 0.01 260);
   --foreground: oklch(0.15 0.01 260);
   --card: oklch(1 0 0);
@@ -44,6 +45,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.08 0.01 260);
   --foreground: oklch(1 0 0);
   --card: oklch(0.09 0.01 260);
@@ -151,6 +153,51 @@
 @keyframes indeterminate-bar {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(400%); }
+}
+
+/*
+ * Этапы установки, у которых нет байтов (поиск версии, окно зависимостей):
+ * полоса бежит, иначе в панели не видно, что процесс вообще идёт.
+ */
+.progress-indeterminate {
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-indeterminate::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 25%;
+  border-radius: 9999px;
+  background: var(--primary);
+  animation: indeterminate-bar 1.1s ease-in-out infinite;
+}
+
+@keyframes launch-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+/*
+ * Полоса загрузки игры: ровно тот же бегущий градиентный сегмент, что на
+ * стартовом экране лаунчера (#splash .bar-fill в index.html). Показывается, пока
+ * процесс игры уже запущен, но окно ещё не открылось — процентов показывать
+ * нечем, а зелёное «готово» ставить рано.
+ */
+.progress-launch {
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-launch::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  animation: launch-slide 1.4s ease-in-out infinite;
 }
 
 ::-webkit-scrollbar {

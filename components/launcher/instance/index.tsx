@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { InstanceDetail } from "./instance-detail"
 import { InstanceList } from "./instance-list"
 import { InstanceModrinth } from "./instance-modrinth"
@@ -10,6 +10,7 @@ import { dataCache, MOD_SEARCH_CACHE_TTL } from "@/lib/swr"
 import { InstanceHeader } from "./instance-header"
 import { InstanceTrashView } from "./instance-trash-view"
 import { InstanceImportOverlay } from "./instance-import-overlay"
+import { InstanceTrashToast } from "./instance-trash-toast"
 import { InstanceModal } from "./instance-modal"
 import { ModpackConflictDialog } from "./modpack-conflict-dialog"
 import { useBuilds } from "./use-builds"
@@ -18,15 +19,16 @@ import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-op
 import { useAccounts } from "@/src/AccountsContext"
 import { useBuildLaunch } from "@/src/hooks/use-build-launch"
 import type { ViewMode, DetailTab, ModSearchResult, ModVersion, ModSort } from "./types"
-
-const MODRINTH_SORT_OPTIONS: ModSort[] = ["relevance", "downloads", "follows", "newest", "updated"]
-const CURSEFORGE_SORT_OPTIONS: ModSort[] = ["downloads", "newest", "updated", "featured", "rating"]
+import { SORT_OPTIONS_BY_SOURCE } from "./sort-options"
 
 export function InstancePage() {
   const [view, setView] = useState<ViewMode>("my")
   const [detailTab, setDetailTab] = useState<DetailTab>("general")
   const [createOpen, setCreateOpen] = useState(false)
   const [updatesCountByBuild, setUpdatesCountByBuild] = useState<Record<string, number>>({})
+  /** Имя только что удалённой сборки — для плашки с отменой. */
+  const [trashedNotice, setTrashedNotice] = useState<string | null>(null)
+  const trashedNoticeTimerRef = useRef<number | null>(null)
 
   const { activeAccount } = useAccounts()
   const { launchInstance } = useBuildLaunch({ account: activeAccount ?? undefined })
@@ -55,7 +57,7 @@ export function InstancePage() {
 
   const {
     builds, setBuilds, activeBuildId, setActiveBuildId, activeBuild,
-    fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, restoreBuildFromTrash, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, collapsedGroups, toggleGroupCollapse, groups,
+    fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, restoreBuildFromTrash, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, addCategory, collapsedGroups, toggleGroupCollapse, groups, categoryIcons, setCategoryIcon,
     updateBuild, addModToBuild, addLocalModToBuild,
     addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds,
     toggleItemEnabled, updateItemVersion,
@@ -252,6 +254,45 @@ export function InstancePage() {
     setView("my"); setActiveBuildId(null); setDetailTab("general"); resetModSearch()
   }, [resetModSearch, setActiveBuildId])
 
+  /**
+   * Плашка «сборка в корзине» с отменой. Список сборок держит свою такую же
+   * плашку; здесь она нужна для удаления прямо со страницы сборки.
+   */
+  const showTrashedNotice = useCallback((name: string) => {
+    setTrashedNotice(name)
+    if (trashedNoticeTimerRef.current !== null) window.clearTimeout(trashedNoticeTimerRef.current)
+    trashedNoticeTimerRef.current = window.setTimeout(() => setTrashedNotice(null), 8000)
+  }, [])
+
+  const undoTrashFromNotice = useCallback(() => {
+    if (trashedNoticeTimerRef.current !== null) window.clearTimeout(trashedNoticeTimerRef.current)
+    setTrashedNotice(null)
+    void undoTrashBuild()
+  }, [undoTrashBuild])
+
+  /**
+   * Удаление сборки с её же страницы: возвращаемся к списку сборок и показываем
+   * ту же плашку с отменой, что и при удалении из списка.
+   */
+  const trashBuildFromDetail = useCallback(async (id: string): Promise<boolean> => {
+    const name = builds.find(b => b.id === id)?.name
+    const ok = await trashBuild(id)
+    if (!ok) return false
+    setActiveBuildId(null)
+    setDetailTab("general")
+    resetModSearch()
+    setView("my")
+    if (name) showTrashedNotice(name)
+    return true
+  }, [builds, resetModSearch, setActiveBuildId, showTrashedNotice, trashBuild])
+
+  /**
+   * Активную сборку могли убрать не только кнопкой: синхронизация, импорт,
+   * откат правок. В любом таком случае вместо пустого detail-вида показываем
+   * список сборок.
+   */
+  const resolvedView: ViewMode = view === "detail" && !activeBuild ? "my" : view
+
   const handleOpenCreate = useCallback(() => setCreateOpen(true), [])
   const totalBuilds = builds.length
   const mrTotalPages = Math.max(1, Math.ceil(mrTotalHits / 20))
@@ -301,6 +342,7 @@ export function InstancePage() {
         goToMyBuilds={goToMyBuilds}
         updateBuild={updateBuild}
         renameBuild={renameBuild}
+        onTrash={trashBuildFromDetail}
         fileInputRef={fileInputRef}
         reloadBuilds={reloadBuilds}
         modSearch={modSearch}
@@ -346,7 +388,7 @@ export function InstancePage() {
   }
 
   return (
-    <div className="h-full flex flex-col animate-in fade-in-0 slide-in-from-bottom-4 duration-300">
+    <div className="relative h-full flex flex-col animate-in fade-in-0 slide-in-from-bottom-4 duration-300">
       <InstanceImportOverlay
         importProgress={importProgress}
         importError={importError}
@@ -355,7 +397,7 @@ export function InstancePage() {
       />
 
       <InstanceHeader
-        view={view}
+        view={resolvedView}
         setView={setView}
         onImportFile={handleImportFile}
         createOpen={createOpen}
@@ -364,7 +406,7 @@ export function InstancePage() {
         onImported={reloadBuilds}
       />
 
-      {view === "my" && (
+      {resolvedView === "my" && (
         <InstanceList
           builds={builds}
           totalBuilds={totalBuilds}
@@ -378,15 +420,18 @@ export function InstancePage() {
           onSetGroup={setBuildGroup}
           onRenameGroup={renameGroup}
           onDeleteGroup={deleteGroup}
+          onCreateCategory={addCategory}
           onOpen={openBuildDetail}
           groups={groups}
           collapsedGroups={collapsedGroups}
           onToggleGroupCollapse={toggleGroupCollapse}
+          categoryIcons={categoryIcons}
+          onSetCategoryIcon={setCategoryIcon}
           updatesCountByBuild={updatesCountByBuild}
         />
       )}
 
-      {view === "modrinth" && (
+      {resolvedView === "modrinth" && (
         <InstanceModrinth
           search={mrSearch}
           setSearch={setMrSearch}
@@ -395,7 +440,7 @@ export function InstancePage() {
           downloadingSlug={downloadingSlug}
           sortBy={mrSortBy}
           setSortBy={setMrSortBy}
-          sortOptions={MODRINTH_SORT_OPTIONS}
+          sortOptions={SORT_OPTIONS_BY_SOURCE.modrinth}
           selectedVersion={selectedVersion}
           setSelectedVersion={setSelectedVersion}
           versionsLoaded={versionsLoaded}
@@ -410,7 +455,7 @@ export function InstancePage() {
         />
       )}
 
-      {view === "curseforge" && (
+      {resolvedView === "curseforge" && (
         <InstanceCurseForge
           cfSearch={cfSearch}
           setCfSearch={setCfSearch}
@@ -419,7 +464,7 @@ export function InstancePage() {
           cfDownloadingId={cfDownloadingId}
           sortBy={cfSortBy}
           setSortBy={setCfSortBy}
-          sortOptions={CURSEFORGE_SORT_OPTIONS}
+          sortOptions={SORT_OPTIONS_BY_SOURCE.curseforge}
           selectedVersion={selectedVersion}
           setSelectedVersion={setSelectedVersion}
           versionsLoaded={versionsLoaded}
@@ -434,14 +479,14 @@ export function InstancePage() {
         />
       )}
 
-      {view === "trash" && (
+      {resolvedView === "trash" && (
         <InstanceTrashView
           goToMyBuilds={goToMyBuilds}
           onRestore={restoreBuildFromTrash}
         />
       )}
 
-      {view === "ftb" && (
+      {resolvedView === "ftb" && (
         <InstanceFtb
           ftbSearch={ftbSearch}
           setFtbSearch={setFtbSearch}
@@ -454,6 +499,10 @@ export function InstancePage() {
           onOpenDetails={openProjectModal}
           onDownload={downloadFromFtb}
         />
+      )}
+
+      {trashedNotice && (
+        <InstanceTrashToast name={trashedNotice} onUndo={undoTrashFromNotice} />
       )}
 
       <InstanceModal

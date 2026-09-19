@@ -21,6 +21,9 @@ export function createWindow() {
       nodeIntegration: false,
       sandbox: false,
       devTools: isDev,
+      // Нужен читалке новостей: статья открывается модалом внутри окна лаунчера
+      // (`<webview>`), а не отдельным окном или системным браузером.
+      webviewTag: true,
     },
   })
 
@@ -85,6 +88,13 @@ export function createWindow() {
 export function registerWindowLifecycle() {
   // Suppress Chromium GPU disk cache errors (cache folder access denied in dev)
   app.commandLine.appendSwitch("disable-gpu-shader-disk-cache")
+
+  // Гостевая страница читалки новостей — чужой документ, свои `::-webkit-scrollbar`
+  // мы внедряем в него сами. На Windows Chromium 121+ рисует нативные
+  // «Fluent»-скроллбары, а в режиме наложения (overlay) они игнорируют
+  // кастомные стили — отключаем их, чтобы скроллбар в читалке выглядел
+  // так же, как во всём лаунчере.
+  app.commandLine.appendSwitch("disable-features", "FluentScrollbar,FluentOverlayScrollbars")
 
   ipcMain.handle("window:is-maximized", () => getMainWindow()?.isMaximized() ?? false)
 
