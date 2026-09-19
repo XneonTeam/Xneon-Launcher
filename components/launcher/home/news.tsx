@@ -3,6 +3,7 @@ import type { CSSProperties } from "react"
 import { useTranslation } from "react-i18next"
 import { IconCoffee, IconInfoCircle, IconLayoutGrid, IconNews, IconPhoto, IconRefresh } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
+import { NewsReaderModal } from "@/components/launcher/news-reader-modal"
 import { formatDate, NEWS_CARD_STYLE, NEWS_CARD_TEXT_HEIGHT, NEWS_GRID_GAP, NEWS_GRID_OVERSCAN_ROWS, NEWS_SCROLL_STYLE, type NewsEntry } from "@/lib/home-page-shared"
 
 const REFRESH_INTERVAL = 30 * 60 * 1000
@@ -37,7 +38,7 @@ function writeNewsCache(entries: NewsEntry[]) {
   }
 }
 
-const NewsCard = memo(function NewsCard({ entry, height }: { entry: NewsEntry; height?: number }) {
+const NewsCard = memo(function NewsCard({ entry, height, onRead }: { entry: NewsEntry; height?: number; onRead: (entry: NewsEntry) => void }) {
   const { t } = useTranslation()
   const imgUrl = entry.playPageImage?.url ?? entry.newsPageImage?.url
   const tag = entry.tag ?? entry.category ?? entry.newsType?.[0]
@@ -54,14 +55,22 @@ const NewsCard = memo(function NewsCard({ entry, height }: { entry: NewsEntry; h
         {entry.text && <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{entry.text}</p>}
         <div className="flex items-center justify-between mt-auto pt-1">
           <span className="text-xs text-muted-foreground/70">{formatDate(entry.date)}</span>
-          {entry.readMoreLink && <button type="button" onClick={() => entry.readMoreLink && window.open(entry.readMoreLink)} className="text-xs text-primary hover:text-primary/80 transition-colors font-medium">{t("home.readMore")}</button>}
+          {entry.readMoreLink && (
+            <button
+              type="button"
+              onClick={() => onRead(entry)}
+              className="text-xs text-primary hover:text-primary/80 transition-colors font-medium"
+            >
+              {t("home.readMore")}
+            </button>
+          )}
         </div>
       </div>
     </div>
   )
 })
 
-const VirtualNewsGrid = memo(function VirtualNewsGrid({ entries }: { entries: NewsEntry[] }) {
+const VirtualNewsGrid = memo(function VirtualNewsGrid({ entries, onRead }: { entries: NewsEntry[]; onRead: (entry: NewsEntry) => void }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<number | null>(null)
   const [viewport, setViewport] = useState({ scrollTop: 0, height: 0, width: 0 })
@@ -102,7 +111,7 @@ const VirtualNewsGrid = memo(function VirtualNewsGrid({ entries }: { entries: Ne
   return (
     <div ref={scrollRef} onScroll={scheduleViewportUpdate} className="overflow-y-auto flex-1 px-4 pb-4 pr-5" style={NEWS_SCROLL_STYLE}>
       <div style={{ height: startRow * rowHeight }} />
-      <div className="grid grid-cols-2 gap-3">{visibleEntries.map(entry => <NewsCard key={entry.id} entry={entry} height={cardHeight} />)}</div>
+      <div className="grid grid-cols-2 gap-3">{visibleEntries.map(entry => <NewsCard key={entry.id} entry={entry} height={cardHeight} onRead={onRead} />)}</div>
       <div style={{ height: Math.max(0, (rowCount - endRow) * rowHeight) }} />
     </div>
   )
@@ -128,6 +137,10 @@ export const NewsSection = memo(function NewsSection() {
   const [loading, setLoading] = useState(!cachedNews)
   const [refreshing, setRefreshing] = useState(false)
   const [filter, setFilter] = useState<"all" | "java">("java")
+  // Новость, открытая в читалке: статья показывается модалом внутри окна лаунчера.
+  const [readerEntry, setReaderEntry] = useState<NewsEntry | null>(null)
+  const handleRead = useCallback((entry: NewsEntry) => setReaderEntry(entry), [])
+  const handleReaderClose = useCallback(() => setReaderEntry(null), [])
 
   useEffect(() => {
     if (cachedNews) { setNews(cachedNews); setLoading(false); if (!isNewsCacheFresh()) { fetchNewsDirect().then(setNews).catch(() => {}) }; return }
@@ -197,8 +210,10 @@ export const NewsSection = memo(function NewsSection() {
               <p className="text-sm text-muted-foreground">{t("home.newsError")}</p>
             </div>
           </div>
-        ) : <VirtualNewsGrid entries={filtered} />}
+        ) : <VirtualNewsGrid entries={filtered} onRead={handleRead} />}
       </div>
+
+      <NewsReaderModal entry={readerEntry} onClose={handleReaderClose} />
     </div>
   )
 })

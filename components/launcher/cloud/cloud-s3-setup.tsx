@@ -2,6 +2,7 @@ import { useState } from "react"
 import { IconLoader2 } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { ModalLayer } from "@/components/ui/modal-layer"
 
 type Props = {
   onClose: () => void
@@ -26,8 +27,8 @@ export function S3SetupModal({ onClose, onConnect, connecting }: Props) {
   const inputClass = "w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/50 transition-colors"
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="w-full max-w-sm mx-4 rounded-2xl bg-card border border-border shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+    <ModalLayer onClose={onClose} className="bg-black/50">
+      <div className="w-full max-w-sm mx-4 rounded-2xl bg-card border border-border shadow-xl overflow-hidden">
         <div className="p-5">
           <h3 className="text-lg font-semibold text-foreground mb-1">S3 Storage</h3>
           <p className="text-sm text-muted-foreground mb-4">{t("cloud.s3.desc")}</p>
@@ -91,6 +92,6 @@ export function S3SetupModal({ onClose, onConnect, connecting }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </ModalLayer>
   )
 }

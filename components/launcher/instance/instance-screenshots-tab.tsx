@@ -16,6 +16,7 @@ import {
 } from "@tabler/icons-react"
 import type { Build, ScreenshotInfo } from "./types"
 import { useAlertDialog } from "@/lib/use-alert-dialog"
+import { ModalLayer } from "@/components/ui/modal-layer"
 
 interface InstanceScreenshotsTabProps {
   build: Build
@@ -62,12 +63,11 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
     return () => { cancelled = true }
   }, [viewIndex, shots, build.name])
 
-  // Keyboard navigation in the lightbox: Esc / ← / →
+  // Keyboard navigation in the lightbox: ← / →
   useEffect(() => {
     if (viewIndex === null) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setViewIndex(null)
-      else if (e.key === "ArrowLeft" && viewIndex > 0) setViewIndex(viewIndex - 1)
+      if (e.key === "ArrowLeft" && viewIndex > 0) setViewIndex(viewIndex - 1)
       else if (e.key === "ArrowRight" && shots && viewIndex < shots.length - 1) setViewIndex(viewIndex + 1)
     }
     window.addEventListener("keydown", onKey)
@@ -184,7 +184,10 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
 
       {/* Lightbox */}
       {viewIndex !== null && shots && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-sm animate-in fade-in-0">
+        <ModalLayer
+          onClose={() => { if (!renameFor) setViewIndex(null) }}
+          className="flex-col items-stretch justify-start bg-background/95 backdrop-blur-sm animate-in fade-in-0"
+        >
           <div className="flex items-center justify-between px-5 py-3">
             <div className="min-w-0">
               <div className="truncate text-sm font-medium text-foreground">{shots[viewIndex]?.name}</div>
@@ -251,16 +254,16 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
               </button>
             )}
           </div>
-        </div>
+        </ModalLayer>
       )}
 
       {/* Rename dialog */}
       {renameFor && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-background/70 backdrop-blur-sm animate-in fade-in-0"
-          onClick={() => setRenameFor(null)}
+        <ModalLayer
+          onClose={() => setRenameFor(null)}
+          className="z-[60] bg-background/70 backdrop-blur-sm animate-in fade-in-0"
         >
-          <div className="w-80 rounded-2xl border border-border bg-card p-4 shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+          <div className="w-80 rounded-2xl border border-border bg-card p-4 shadow-2xl animate-in zoom-in-95">
             <p className="text-sm font-semibold text-foreground mb-3">{t("screenshots.rename.title")}</p>
             <input
               autoFocus
@@ -284,7 +287,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
               </button>
             </div>
           </div>
-        </div>
+        </ModalLayer>
       )}
 
       {alertDialog}
