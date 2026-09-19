@@ -437,6 +437,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
                   installed={isInstalled(project)}
                   installing={installingSlug === contentProjectKey(project)}
                   installLabel={t("servers.installModpack")}
+                  projectKind={contentType === "plugin" ? "plugin" : "mod"}
                   onDetails={() => openDetails(project)}
                   onInstall={() => handleDownload(project)}
                 />
@@ -471,6 +472,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
         loadingModal={loadingDetail}
         onClose={closeDetails}
         targetLabel={t("addon.target.server")}
+        projectKind={contentType === "plugin" ? "plugin" : "mod"}
         installedVersion={installedFileName}
         onInstallVersion={(ver) => (async () => {
           if (!contentDir || !selectedDetails) return false

@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { EmptyState } from "@/components/ui/empty-state"
-import { IconDownload, IconInfoCircle, IconLoader2 } from "@tabler/icons-react"
+import { IconDownload, IconInfoCircle, IconLoader2, IconExternalLink } from "@tabler/icons-react"
+import { openProjectPage, projectPageUrl } from "@/lib/project-links"
 import { Spinner } from "./spinner"
 import { formatDownloads } from "./utils"
 import { InstanceBrowseToolbar } from "./instance-browse-toolbar"
@@ -97,6 +98,17 @@ export function InstanceCurseForge({
                   </div>
 
                   <div className="ml-auto flex flex-shrink-0 items-center gap-2">
+                    {projectPageUrl(pack, "modpack") && (
+                      <button
+                        type="button"
+                        onClick={() => openProjectPage(pack, "modpack")}
+                        title={t("common.openOnSite")}
+                        aria-label={t("common.openOnSite")}
+                        className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted/50 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      >
+                        <IconExternalLink className="w-4 h-4" strokeWidth={1.75} />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => onOpenDetails(pack)}

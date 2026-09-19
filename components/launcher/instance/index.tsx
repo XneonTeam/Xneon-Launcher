@@ -118,7 +118,7 @@ export function InstancePage() {
     loadingModal, displayedModalVersions, displayResults,
     modalVersionsFallback, showAllModalVersions, setShowAllModalVersions, allModalVersionsCount,
     modalVersionsLoaderFiltered,
-    modFileInputRef, openProjectModal, closeModal, resetModSearch,
+    modFileInputRef, openProjectModal, closeModal, resetModSearch, detailsKind,
     isInstalledFn,
   } = useModSearch(activeBuild, detailTab, view, activeBuildId)
 
@@ -336,6 +336,7 @@ export function InstancePage() {
   if (view === "detail" && activeBuild) {
     return (
       <InstanceDetail
+        detailsKind={detailsKind}
         activeBuild={activeBuild}
         detailTab={detailTab}
         setDetailTab={setDetailTab}
@@ -450,7 +451,7 @@ export function InstancePage() {
           page={mrPage}
           totalPages={mrTotalPages}
           onPageChange={setMrPage}
-          onOpenDetails={openProjectModal}
+          onOpenDetails={(project) => openProjectModal(project, "modpack")}
           onDownload={downloadFromModrinth}
         />
       )}
@@ -474,7 +475,7 @@ export function InstancePage() {
           page={cfPage}
           totalPages={cfTotalPages}
           onPageChange={setCfPage}
-          onOpenDetails={openProjectModal}
+          onOpenDetails={(project) => openProjectModal(project, "modpack")}
           onDownload={downloadFromCurseforge}
         />
       )}
@@ -496,7 +497,7 @@ export function InstancePage() {
           page={ftbPage}
           totalPages={ftbTotalPages}
           onPageChange={setFtbPage}
-          onOpenDetails={openProjectModal}
+          onOpenDetails={(project) => openProjectModal(project, "modpack")}
           onDownload={downloadFromFtb}
         />
       )}
@@ -517,6 +518,7 @@ export function InstancePage() {
         allVersionsCount={allModalVersionsCount}
         onInstallVersion={handleInstallModalVersion}
         onClose={closeModal}
+        projectKind={detailsKind}
       />
 
       <ModpackConflictDialog

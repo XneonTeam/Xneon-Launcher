@@ -1,4 +1,5 @@
 import { AddonDetailModal } from "@/components/launcher/addon-detail-modal"
+import type { ProjectKind } from "@/lib/project-links"
 import type { Build, ModDetails, ModalTab, ModVersion } from "./types"
 
 interface InstanceModalProps {
@@ -21,6 +22,8 @@ interface InstanceModalProps {
   versionsLoaderFiltered?: boolean
   onShowAllVersions?: () => void
   allVersionsCount?: number
+  /** Тип открытого проекта — для ссылки на страницу площадки. */
+  projectKind?: ProjectKind
 }
 
 /**

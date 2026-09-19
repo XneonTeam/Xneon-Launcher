@@ -1454,6 +1454,7 @@
   "addon.download": "Descargar",
   "addon.installed": "Instalada",
   "common.installing": "Instalando...",
+  "common.openOnSite": "Abrir en el sitio",
   "common.continue": "Continuar",
   "home.noAccounts": "Sin cuentas",
   "settings.themes.presets": "Temas predefinidos",

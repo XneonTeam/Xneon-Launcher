@@ -1455,6 +1455,7 @@
   "addon.download": "Завантажити",
   "addon.installed": "Встановлено",
   "common.installing": "Встановлення...",
+  "common.openOnSite": "Відкрити на сайті",
   "common.continue": "Продовжити",
   "home.noAccounts": "Немає акаунтів",
   "settings.themes.presets": "Готові теми",

@@ -5,6 +5,7 @@ import type { ModLoaderFilter, ModCategory } from "@xnlc/types"
 import { dataCache, STALE_SEARCH_MS, MOD_SEARCH_CACHE_TTL } from "@/lib/swr"
 import { SORT_OPTIONS_BY_SOURCE } from "./sort-options"
 import { groupVersionsByCompatibility, isProjectCompatibleWithBuild } from "./utils"
+import type { ProjectKind } from "@/lib/project-links"
 
 export type SelectedModCategory = { name: string; source?: "modrinth" | "curseforge" }
 
@@ -289,7 +290,9 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
     loadCategories()
   }, [view, modSource, detailTab])
 
-  const openProjectModal = useCallback(async (item: ModSearchResult) => {
+  const [detailsKind, setDetailsKind] = useState<ProjectKind>("mod")
+  const openProjectModal = useCallback(async (item: ModSearchResult, kind: ProjectKind = "mod") => {
+    setDetailsKind(kind)
     setModalTab("description"); setLoadingModal(true)
     setSelectedDetails({
       id: item.id, slug: item.slug, name: item.name, summary: item.summary,
@@ -334,6 +337,6 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
     allModalVersionsCount: modalVersionGroups.all.length,
     modalVersionsLoaderFiltered: requireLoaderMatch,
     isInstalledFn,
-    modFileInputRef, openProjectModal, openCFModal: openProjectModal, closeModal, resetModSearch,
+    modFileInputRef, openProjectModal, openCFModal: openProjectModal, closeModal, resetModSearch, detailsKind,
   }
 }
