@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm"
 import rehypeRaw from "rehype-raw"
 import rehypeSanitize from "rehype-sanitize"
 import { cn } from "@/lib/utils"
+import { ModalLayer } from "@/components/ui/modal-layer"
 import { ChangelogContent } from "./changelog-content"
 import { PlatformBadge } from "@/components/launcher/platform-icon"
 import type { Build, ModVersion } from "./types"
@@ -211,13 +212,12 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
   if (!open) return null
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm"
-      onClick={() => onOpenChange(false)}
+    <ModalLayer
+      className="z-[60] bg-background/80 backdrop-blur-sm"
+      onClose={() => onOpenChange(false)}
     >
       <div
         className="w-full max-w-2xl max-h-[85vh] mx-4 rounded-2xl bg-card border border-border shadow-2xl overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="p-5 border-b border-border flex-shrink-0">
           <div className="flex items-center justify-between gap-3">
@@ -391,14 +391,14 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
                                   {isIndeterminate ? "" : `${progress.percent}%`}
                                 </span>
                               </div>
-                              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                                <div
-                                  className={cn(
-                                    "h-full rounded-full bg-primary transition-[width] duration-200 ease-out",
-                                    isIndeterminate && "animate-pulse",
-                                  )}
-                                  style={{ width: isIndeterminate ? "100%" : `${Math.max(2, progress?.percent ?? 0)}%` }}
-                                />
+                              <div className={cn("h-1.5 w-full rounded-full bg-muted", isIndeterminate && "progress-indeterminate")}>
+                                {/* Подготовка идёт без байтов — полоса бежит; со скачиванием заполняется. */}
+                                {!isIndeterminate && (
+                                  <div
+                                    className="h-full rounded-full bg-primary transition-[width] duration-200 ease-out"
+                                    style={{ width: `${Math.max(2, progress?.percent ?? 0)}%` }}
+                                  />
+                                )}
                               </div>
                             </div>
                           )}
@@ -441,6 +441,6 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
           </div>
         )}
       </div>
-    </div>
+    </ModalLayer>
   )
 })

@@ -163,11 +163,38 @@ export async function modrinthSearch(
   };
 }
 
+/** Размер страницы версий Modrinth (максимум, который принимает API). */
+const MR_VERSIONS_PAGE_SIZE = 100;
+/** Предохранитель от бесконечной пагинации: 10 страниц по 100 версий. */
+const MR_VERSIONS_MAX = 1000;
+
+/**
+ * Все версии проекта.
+ *
+ * `/project/{id}/version` отдаёт версии постранично, и раньше клиент запрашивал
+ * только первые 100. У проектов с длинной историей (Jade — 333 версии) нужные
+ * файлы могли не попасть в список, и модалка писала «нет версий» для сборки,
+ * под которую файлы на самом деле есть. Поэтому идём по страницам до конца.
+ */
+async function fetchAllMrProjectVersions(slug: string): Promise<any[]> {
+  const all: any[] = [];
+  while (all.length < MR_VERSIONS_MAX) {
+    const page = (await mrFetch(
+      `/project/${slug}/version?limit=${MR_VERSIONS_PAGE_SIZE}&offset=${all.length}`,
+    )) as any[];
+    const batch = Array.isArray(page) ? page : [];
+    all.push(...batch);
+    // Неполная страница означает конец списка.
+    if (batch.length < MR_VERSIONS_PAGE_SIZE) break;
+  }
+  return all;
+}
+
 export async function modrinthGetDetails(slug: string): Promise<ModDetails | null> {
   try {
     const [projectData, versionsData] = await Promise.all([
       mrFetch(`/project/${slug}`),
-      mrFetch(`/project/${slug}/version?limit=100`),
+      fetchAllMrProjectVersions(slug),
     ]);
 
     const p = projectData as any;
@@ -205,7 +232,7 @@ export async function modrinthGetDetails(slug: string): Promise<ModDetails | nul
 
 export async function modrinthGetVersions(slug: string): Promise<ModVersion[]> {
   try {
-    const data = (await mrFetch(`/project/${slug}/version?limit=100`)) as any[];
+    const data = await fetchAllMrProjectVersions(slug);
     return (Array.isArray(data) ? data : []).map(normalizeMrVersion);
   } catch {
     return [];

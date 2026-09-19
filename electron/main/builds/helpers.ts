@@ -6,6 +6,7 @@ import { dbHelpers, type BuildJson } from "../../db"
 import { ensureSharedGameLinksSync } from "../shared-game-cache"
 import { fetchWithRetry } from "@xnlc/core/retry"
 import { getLauncherDataRoot } from "../paths"
+import { getCachedJarPath } from "../jar-cache"
 
 export function getBaseDataRoot(): string {
   return getLauncherDataRoot()
@@ -65,18 +66,26 @@ export async function downloadBuffer(url: string, signal?: AbortSignal, progress
     const reader = res.body.getReader()
     const chunks: Buffer[] = []
     let received = 0
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      if (value) {
-        received += value.length
-        chunks.push(Buffer.from(value))
-        if (totalHeader > 0) {
-          sendToRenderer("content:download-progress", { fileName: progressFileName, current: received, total: totalHeader })
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (value) {
+          received += value.length
+          chunks.push(Buffer.from(value))
+          if (totalHeader > 0) {
+            sendToRenderer("content:download-progress", { fileName: progressFileName, current: received, total: totalHeader })
+          }
         }
       }
+      return Buffer.concat(chunks)
+    } finally {
+      // Поток закрыт — сообщаем об этом рендереру (в том числе при ошибке),
+      // иначе живое уведомление об установке остаётся висеть на последнем проценте.
+      if (totalHeader > 0) {
+        sendToRenderer("content:download-progress", { fileName: progressFileName, current: received, total: totalHeader, done: true })
+      }
     }
-    return Buffer.concat(chunks)
   }
 
   return Buffer.from(await res.arrayBuffer())
@@ -113,6 +122,13 @@ export async function saveRemoteContentToIntent(dirName: string, contentType: "m
     await fs.mkdir(targetDir, { recursive: true }).catch(() => {})
     const safeFileName = sanitizeFileName(fileName)
     const filePath = path.join(targetDir, safeFileName)
+    // Файл уже скачан, когда мы читали зависимости из его метаданных, — второй раз
+    // те же байты не тянем.
+    const cached = await getCachedJarPath(url)
+    if (cached) {
+      await fs.copyFile(cached, filePath)
+      return filePath
+    }
     await fs.writeFile(filePath, await downloadBuffer(url, undefined, safeFileName))
     return filePath
   } catch {
@@ -126,8 +142,13 @@ export async function saveLocalContentToIntent(dirName: string, contentType: "mo
     const targetDir = path.join(intentPath, getContentDirectoryName(contentType))
     await fs.mkdir(targetDir, { recursive: true }).catch(() => {})
     const destPath = path.join(targetDir, sanitizeFileName(path.basename(localFilePath)))
+    // Ресурспак или шейдер можно бросить распакованной папкой — тогда копируем
+    // папку целиком, Minecraft читает её так же, как архив.
+    const source = await fs.stat(localFilePath).catch(() => null)
+    if (!source) return null
     try { await fs.access(destPath) } catch {
-      await fs.copyFile(localFilePath, destPath)
+      if (source.isDirectory()) await fs.cp(localFilePath, destPath, { recursive: true })
+      else await fs.copyFile(localFilePath, destPath)
     }
     return destPath
   } catch {
@@ -402,12 +423,29 @@ export function readArchiveEntryAsDataUrl(zip: AdmZipType, entryName?: string | 
   }
 }
 
+type AdmZipToBuffer = {
+  (): Buffer
+  (
+    onSuccess: (data: Buffer) => void,
+    onFail: (error: Error) => void,
+    onItemStart?: (name: string) => void,
+    onItemEnd?: (name: string) => void,
+  ): void
+}
+
 export type AdmZipType = {
   getEntries(): { entryName: string; isDirectory: boolean; getData(): Buffer }[]
   getEntry(name: string): { getData(): Buffer } | null
   addLocalFolder(localPath: string, readstream?: unknown, filter?: (entryPath: string) => boolean): void
+  addLocalFolderAsync(
+    localPath: string,
+    callback: (result?: boolean, errorMessage?: string) => void,
+    zipPath?: string,
+    filter?: (entryPath: string) => boolean,
+  ): void
+  addFile(entryName: string, content: Buffer): void
   writeZip(outputPath: string, keepOrder?: boolean): void
-  toBuffer(): Buffer
+  toBuffer: AdmZipToBuffer
 }
 type AdmZipConstructor = new (data?: Buffer) => AdmZipType
 
