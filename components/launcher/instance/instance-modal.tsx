@@ -11,6 +11,8 @@ interface InstanceModalProps {
   onInstallVersion: (version: ModVersion) => Promise<boolean | void> | void
   onClose: () => void
   activeBuild?: Build
+  /** Версия мода, уже стоящая в сборке: помечаем её в списке версий */
+  installedVersion?: string
   /** Обновление до выбранной версии. Вернуть false, если установка отложена */
   onUpdateModpack?: (version: ModVersion) => Promise<boolean | void> | void
   /** Какие версии показаны: точное совпадение, другой MC, другой загрузчик и т.д. */

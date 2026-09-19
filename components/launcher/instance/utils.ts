@@ -96,6 +96,44 @@ export function groupVersionsByCompatibility(
   return { exact, byLoader, all: versions }
 }
 
+/**
+ * Ключ версии для сравнения: «1.10.7+1.21.11-neoforge» → «1.10.7»,
+ * «Iris 1.10.7 for NeoForge 1.21.11» → «1.10.7».
+ */
+export function versionKey(value?: string | null): string {
+  if (!value) return ""
+  const text = String(value)
+  const match = text.match(/\d+(?:\.\d+)+/)
+  return match ? match[0] : text.trim().toLowerCase()
+}
+
+/**
+ * Совпадает ли версия из каталога с установленной.
+ * В сборке хранится версия из метаданных jar («1.10.7+1.21.11-neoforge»), а в
+ * каталоге версия названа иначе («Iris 1.10.7 for NeoForge 1.21.11»), поэтому
+ * сравниваем и точно, и по главной части номера.
+ */
+export function isInstalledVersion(version: ModVersion, installed?: string | null): boolean {
+  if (!installed) return false
+  const target = String(installed).trim().toLowerCase()
+  const variants = [version.id, version.name, version.versionNumber, version.fileName]
+    .filter(Boolean) as string[]
+  if (variants.some(item => item.trim().toLowerCase() === target)) return true
+  const key = versionKey(installed)
+  return Boolean(key) && variants.some(item => versionKey(item) === key)
+}
+
+/**
+ * Ключ проекта для состояния установки. Идентичность — `(источник, id проекта)`:
+ * у Modrinth это project_id, у CurseForge modId. Slug — только запасной вариант
+ * для записей, где id нет: одинаковые slug на разных платформах давали «двойную
+ * установку», а slug вообще может сменить автор проекта.
+ */
+export function contentProjectKey(project: { source?: string | null; projectId?: string | null; modId?: number | null; slug?: string | null; id?: string | null }): string {
+  const id = project.projectId ?? (project.modId != null ? String(project.modId) : null) ?? project.slug ?? project.id ?? ""
+  return `${project.source ?? ""}:${id}`
+}
+
 export function pickCompatibleVersion(versions: ModVersion[] | undefined, build: Build, requireLoaderMatch = true): ModVersion | undefined {
   if (!versions?.length) return undefined
 

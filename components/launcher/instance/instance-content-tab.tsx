@@ -1,6 +1,8 @@
-import { memo, useEffect, useMemo, useState, useDeferredValue, useCallback } from "react"
+import { memo, useEffect, useMemo, useRef, useState, useDeferredValue, useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import { IconSearch, IconUpload, IconTrash, IconRefresh, IconList, IconPower, IconCheck, IconChevronDown, IconChevronRight, IconDownload, IconArrowRight, IconX, IconArrowUpCircle, IconLock, IconAlertTriangle } from "@tabler/icons-react"
+import { useActivityCenter } from "@/src/ActivityCenterContext"
+import { EmptyState } from "@/components/ui/empty-state"
+import { IconSearch, IconUpload, IconTrash, IconRefresh, IconList, IconPower, IconCheck, IconChevronDown, IconChevronRight, IconDownload, IconArrowRight, IconX, IconArrowUpCircle, IconLock, IconAlertTriangle, IconPuzzle, IconPhoto, IconSparkles } from "@tabler/icons-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeRaw from "rehype-raw"
@@ -10,8 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Spinner } from "./spinner"
+import { ModalLayer } from "@/components/ui/modal-layer"
 import { Pagination } from "./pagination"
-import { formatDownloads, matchesBuildVersion } from "./utils"
+import { contentProjectKey, formatDownloads, isInstalledVersion, matchesBuildVersion } from "./utils"
 import { InstanceUpdatesDialog } from "./instance-updates-dialog"
 import { LoaderIcon } from "./loader-icon"
 import { ChangelogContent } from "./changelog-content"
@@ -19,7 +22,7 @@ import { AddonRow } from "@/components/launcher/addon-row"
 import { ProviderIcon } from "@/components/launcher/provider-icon"
 import { SourceMark } from "@/components/launcher/source-mark"
 import type { Build, BuildMod, ModSearchResult, ModSort, SearchSource, ModVersion } from "./types"
-import type { ModCategory } from "@xnlc/types"
+import type { ContentDropKind, ContentDropRejectReason, ModCategory } from "@xnlc/types"
 import type { SelectedModCategory } from "./use-mod-search"
 import { getSortLabels, SORT_OPTIONS_BY_SOURCE } from "./sort-options"
 
@@ -88,8 +91,9 @@ interface InstanceContentTabProps {
   setInstallingModSlug: (slug: string | null) => void
   addModToBuild: (buildId: string, mod: ModSearchResult) => void
   addContentToBuild: (buildId: string, type: "resourcepacks" | "shaders", mod: ModSearchResult) => void | Promise<void>
+  installContentToBuild: (mod: ModSearchResult, type: "resourcepacks" | "shaders", onPhase?: (phase: "resolving" | "confirm" | "downloading" | "deps" | null) => void) => void | Promise<void>
   removeContentFromBuild: (buildId: string, type: "mods" | "resourcepacks" | "shaders", item: Build["mods"][number]) => Promise<boolean>
-  installModToBuild: (mod: ModSearchResult) => void | Promise<void>
+  installModToBuild: (mod: ModSearchResult, onPhase?: (phase: "resolving" | "confirm" | "downloading" | "deps" | null) => void) => void | Promise<void>
   setBuilds: React.Dispatch<React.SetStateAction<Build[]>>
   toggleItemEnabled: (buildId: string, type: "mods" | "resourcepacks" | "shaders", itemId: string) => void | Promise<boolean>
   updateItemVersion: (buildId: string, type: "mods" | "resourcepacks" | "shaders", itemId: string, newVersion: ModVersion) => Promise<boolean>
@@ -124,6 +128,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   setInstallingModSlug,
   addModToBuild,
   addContentToBuild,
+  installContentToBuild,
   removeContentFromBuild,
   installModToBuild,
   setBuilds,
@@ -131,13 +136,100 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   updateItemVersion,
 }: InstanceContentTabProps) {
   const { t } = useTranslation()
+  const { pushNotification } = useActivityCenter()
   const installedItems = type === "mods" ? activeBuild.mods : type === "resourcepacks" ? activeBuild.resourcepacks : activeBuild.shaders
   const emptyStateText = type === "mods" ? t("builds.findMods") : type === "resourcepacks" ? t("builds.findResourcePacks") : t("builds.findShaders")
+  /** Иконка типа контента — та же, что у вкладки: моды/ресурспаки/шейдеры. */
+  const typeIcon = type === "mods" ? IconPuzzle : type === "resourcepacks" ? IconPhoto : IconSparkles
   const notFoundText = type === "mods" ? t("builds.noModsFound") : type === "resourcepacks" ? t("builds.noResourcePacksFound") : t("builds.noShadersFound")
   const deferredResults = useDeferredValue(displayResults)
 
   const [removingSlug, setRemovingSlug] = useState<string | null>(null)
   const [installedSearch, setInstalledSearch] = useState("")
+
+  // Перетаскивание файлов прямо в панель «Встановлено»: файл кладём в сборку как
+  // есть — без проверок зависимостей и без запросов к API. Единственное, что
+  // читаем, — метаданные архива (имя, версия, автор), они нужны для списка.
+  const dragDepthRef = useRef(0)
+  const [dragActive, setDragActive] = useState(false)
+  const [rejectedEntries, setRejectedEntries] = useState<Array<{ name: string; reason: ContentDropRejectReason }>>([])
+  const contentKind: ContentDropKind = type === "mods" ? "mod" : type === "resourcepacks" ? "resourcepack" : "shader"
+
+  const handleDragEnter = useCallback((event: React.DragEvent) => {
+    if (!Array.from(event.dataTransfer?.types ?? []).includes("Files")) return
+    event.preventDefault()
+    dragDepthRef.current += 1
+    setDragActive(true)
+  }, [])
+
+  const handleDragOver = useCallback((event: React.DragEvent) => {
+    if (!Array.from(event.dataTransfer?.types ?? []).includes("Files")) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = "copy"
+  }, [])
+
+  const handleDragLeave = useCallback((event: React.DragEvent) => {
+    // Счётчик нужен, чтобы подсветка не мигала при проходе курсора по дочерним
+    // узлам, но если курсор реально ушёл за пределы панели — снимаем сразу.
+    const nextTarget = event.relatedTarget as Node | null
+    if (nextTarget && event.currentTarget.contains(nextTarget)) return
+    dragDepthRef.current = 0
+    setDragActive(false)
+  }, [])
+
+  // Бросок мимо панели или за пределы окна: подсветка не должна залипать.
+  useEffect(() => {
+    if (!dragActive) return
+    const reset = () => {
+      dragDepthRef.current = 0
+      setDragActive(false)
+    }
+    window.addEventListener("dragend", reset)
+    window.addEventListener("drop", reset)
+    return () => {
+      window.removeEventListener("dragend", reset)
+      window.removeEventListener("drop", reset)
+    }
+  }, [dragActive])
+
+  const handleDrop = useCallback(async (event: React.DragEvent) => {
+    event.preventDefault()
+    dragDepthRef.current = 0
+    setDragActive(false)
+
+    const files = Array.from(event.dataTransfer?.files ?? [])
+    if (files.length === 0) return
+
+    // Папку от файла отличает только main, поэтому расклад «подходит / не
+    // подходит» спрашиваем у него, а не гадаем по расширению в рендерере.
+    const entries = files.map(file => ({ file, path: window.electronAPI?.getFilePath(file) ?? "" }))
+    const paths = entries.map(entry => entry.path).filter(Boolean)
+    const classification = paths.length > 0
+      ? await window.electronAPI?.classifyDropPaths(paths, contentKind)
+      : null
+
+    if (!classification) {
+      // Разобрать не удалось — просто кладём файлы, как раньше.
+      for (const entry of entries) await Promise.resolve(onUploadFile(entry.file))
+      return
+    }
+
+    if (classification.rejected.length > 0) {
+      setRejectedEntries(classification.rejected.map(entry => ({ name: entry.name, reason: entry.reason })))
+      pushNotification({
+        kind: "error",
+        source: "install",
+        title: t("builds.dropUnsupported"),
+        message: classification.rejected.map(entry => entry.name).join(", "),
+      })
+    }
+
+    const acceptedPaths = new Set(classification.accepted.map(entry => entry.path))
+    for (const entry of entries) {
+      if (!acceptedPaths.has(entry.path)) continue
+      await Promise.resolve(onUploadFile(entry.file))
+    }
+  }, [contentKind, onUploadFile, pushNotification, t])
   const deferredInstalledSearch = useDeferredValue(installedSearch)
   const filteredInstalled = useMemo(() => {
     const q = deferredInstalledSearch.trim().toLowerCase()
@@ -156,6 +248,8 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   const [cfChangelogs, setCfChangelogs] = useState<Record<string, string>>({})
   const [loadingPickerChangelog, setLoadingPickerChangelog] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState<{ fileName: string; current: number; total: number } | null>(null)
+  // Этап установки: до байтов идёт сетевой этап (версии, зависимости) — его показываем словами.
+  const [installPhase, setInstallPhase] = useState<"resolving" | "confirm" | "downloading" | "deps" | null>(null)
   const [catDialogOpen, setCatDialogOpen] = useState(false)
   const [draftCats, setDraftCats] = useState<SelectedModCategory[]>([])
   const contentType = type === "mods" ? "mod" : type === "resourcepacks" ? "resourcepack" : "shader"
@@ -268,17 +362,29 @@ export const InstanceContentTab = memo(function InstanceContentTab({
         </div>
         <div className="flex items-center gap-2">
           <Select value={modSource} onValueChange={(v) => setModSource(v as SearchSource)}>
-            <SelectTrigger className="w-[140px] h-8 text-xs">
+            {/* Ширина по содержимому: значок + «Обе платформы» должны влезать целиком */}
+            <SelectTrigger className="w-auto min-w-[150px] h-8 text-xs">
+              {/* Значок подставляет сам SelectValue из выбранного пункта — второй не нужен */}
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="both">{t("servers.addons.bothPlatforms")}</SelectItem>
-              <SelectItem value="modrinth">Modrinth</SelectItem>
-              <SelectItem value="curseforge">CurseForge</SelectItem>
+              <SelectItem value="both">
+                <span className="flex items-center gap-1.5">
+                  <SourceMark source="modrinth" />
+                  <SourceMark source="curseforge" />
+                  {t("servers.addons.bothPlatforms")}
+                </span>
+              </SelectItem>
+              <SelectItem value="modrinth">
+                <span className="flex items-center gap-1.5"><SourceMark source="modrinth" />Modrinth</span>
+              </SelectItem>
+              <SelectItem value="curseforge">
+                <span className="flex items-center gap-1.5"><SourceMark source="curseforge" />CurseForge</span>
+              </SelectItem>
             </SelectContent>
           </Select>
           <Select value={modSortBy} onValueChange={(v) => setModSortBy(v as ModSort)}>
-            <SelectTrigger className="w-[160px] h-8 text-xs">
+            <SelectTrigger className="w-auto min-w-[165px] h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -486,7 +592,22 @@ export const InstanceContentTab = memo(function InstanceContentTab({
         )}
 
         <div className="grid gap-3 min-h-0 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
-          <div className="flex flex-col min-h-0 rounded-2xl border border-border bg-card/50 p-4">
+          <div
+            className={cn(
+              "relative flex flex-col min-h-0 rounded-2xl border bg-card/50 p-4 transition-colors",
+              dragActive ? "border-dashed border-primary bg-primary/5" : "border-border",
+            )}
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            {dragActive && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl bg-background/75 backdrop-blur-[1px]">
+                <IconUpload className="mb-2 h-6 w-6 text-primary" strokeWidth={1.75} />
+                <p className="text-sm font-medium text-foreground">{t("builds.dropToAdd")}</p>
+              </div>
+            )}
             <div className="mb-2 flex items-center justify-between gap-3 shrink-0">
               <h3 className="text-sm font-medium text-foreground">{t("builds.installed")}</h3>
               <div className="flex items-center gap-1.5">
@@ -540,15 +661,18 @@ export const InstanceContentTab = memo(function InstanceContentTab({
 
             <div className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1">
               {installedItems.length === 0 ? (
-                <div className="flex min-h-[180px] flex-col items-center justify-center rounded-2xl border border-dashed border-border text-center">
-                  <IconSearch className="mb-2 h-6 w-6 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">{emptyStateText}</p>
-                </div>
+                <EmptyState
+                  variant="empty"
+                  icon={typeIcon}
+                  title={emptyStateText}
+                  className="min-h-[180px] rounded-2xl border border-dashed border-border"
+                />
               ) : filteredInstalled.length === 0 ? (
-                <div className="flex min-h-[120px] flex-col items-center justify-center rounded-2xl border border-dashed border-border text-center">
-                  <IconSearch className="mb-2 h-5 w-5 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">{t("builds.searchInstalledNoMatch")}</p>
-                </div>
+                <EmptyState
+                  compact
+                  title={t("builds.searchInstalledNoMatch")}
+                  className="min-h-[120px] rounded-2xl border border-dashed border-border"
+                />
               ) : filteredInstalled.map((item) => {
                 const isEnabled = item.enabled ?? true
                 return (
@@ -648,8 +772,10 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                 <div className="grid min-w-0 gap-2 pb-2">
                   {deferredResults.map(project => {
                     const installed = isInstalledFn?.(project) ?? false
-                    const isInstalling = installingModSlug === project.slug
-                    const percent = isInstalling && downloadProgress && downloadProgress.total > 0
+                    const isInstalling = installingModSlug === contentProjectKey(project)
+                    // Проценты берём только после сетевого этапа: иначе на «поиске версии»
+                    // показывался бы чужой прогресс от прошлой установки.
+                    const percent = isInstalling && installPhase !== "resolving" && downloadProgress && downloadProgress.total > 0
                       ? Math.min(100, Math.round((downloadProgress.current / downloadProgress.total) * 100))
                       : null
                     return (
@@ -659,6 +785,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                         installed={installed}
                         installing={isInstalling}
                         percent={percent}
+                        phase={isInstalling ? installPhase : null}
                         showCategories={type === "mods"}
                         installDisabled={installingModSlug !== null}
                         installLabel={t("builds.add")}
@@ -667,11 +794,15 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                           : undefined}
                         onDetails={() => openProjectModal(project)}
                         onInstall={() => {
-                          setInstallingModSlug(project.slug)
+                          setInstallingModSlug(contentProjectKey(project))
+                          setInstallPhase("resolving")
+                          // Чужой прогресс от предыдущей загрузки не должен висеть на новой карточке.
+                          setDownloadProgress(null)
                           const task = type === "mods"
-                            ? installModToBuild(project)
-                            : addContentToBuild(activeBuild.id, type, project)
+                            ? installModToBuild(project, setInstallPhase)
+                            : installContentToBuild(project, type, setInstallPhase)
                           Promise.resolve(task).finally(() => {
+                            setInstallPhase(null)
                             setTimeout(() => setInstallingModSlug(null), 500)
                           })
                         }}
@@ -682,15 +813,13 @@ export const InstanceContentTab = memo(function InstanceContentTab({
               ) : modLoading ? (
                 <Spinner />
               ) : (modSearch || (modCategories?.length ?? 0) > 0) ? (
-                <div className="flex h-full flex-col items-center justify-center">
-                  <IconSearch className="mb-2 h-6 w-6 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">{notFoundText}</p>
-                </div>
+                <EmptyState title={notFoundText} className="h-full" />
               ) : (
-                <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-border text-center">
-                  <IconSearch className="mb-2 h-6 w-6 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">{t("addon.search.startHint")}</p>
-                </div>
+                <EmptyState
+                  title={t("addon.search.startHint")}
+                  icon={IconSearch}
+                  className="h-full rounded-2xl border border-dashed border-border"
+                />
               )}
             </div>
             <Pagination
@@ -703,13 +832,12 @@ export const InstanceContentTab = memo(function InstanceContentTab({
         </div>
       </div>
 
-      {versionPickerItem !== null && (        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm"
-          onClick={() => { setVersionPickerItem(null); setSelectedPickerVersion(null) }}
+      {versionPickerItem !== null && (        <ModalLayer
+          className="z-[60] bg-background/80 backdrop-blur-sm"
+          onClose={() => { setVersionPickerItem(null); setSelectedPickerVersion(null) }}
         >
           <div
             className="w-full max-w-2xl max-h-[80vh] mx-4 rounded-2xl bg-card border border-border shadow-2xl overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="p-5 border-b border-border flex-shrink-0">
               <div className="flex items-center justify-between">
@@ -735,10 +863,17 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                 <p className="py-6 text-center text-sm text-muted-foreground">{t("addon.versions.unavailable")}</p>
               ) : (
                 <div className="space-y-2">
-                  {versionPickerVersions.map((ver) => {
-                    const isCurrent = versionPickerItem && (ver.name === versionPickerItem.version || ver.id === versionPickerItem.version)
+                  {(() => {
+                    // Установленная версия хранится как номер из jar, а в каталоге версия
+                    // названа иначе — сравниваем общим помощником (см. utils).
+                    const installed = versionPickerItem?.version
+                    // Всё, что ниже текущей версии в списке (он отсортирован от новых к старым), — старее.
+                    const installedIndex = versionPickerVersions.findIndex(ver => isInstalledVersion(ver, installed))
+
+                    return versionPickerVersions.map((ver, index) => {
+                    const isCurrent = isInstalledVersion(ver, installed)
                     const isSelected = selectedPickerVersion?.id === ver.id
-                    const isOlder = versionPickerItem?.version && ver.name < versionPickerItem.version
+                    const isOlder = installedIndex >= 0 ? index > installedIndex : false
 
                     return (
                       <button
@@ -876,12 +1011,13 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                         )}
                       </button>
                     )
-                  })}
+                    })
+                  })()}
                 </div>
               )}
             </div>
           </div>
-        </div>
+        </ModalLayer>
       )}
 
       <InstanceUpdatesDialog
@@ -890,6 +1026,34 @@ export const InstanceContentTab = memo(function InstanceContentTab({
         onOpenChange={setUpdatesOpen}
         updateItemVersion={updateItemVersion}
       />
+
+      <Dialog open={rejectedEntries.length > 0} onOpenChange={open => { if (!open) setRejectedEntries([]) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("builds.dropRejectedTitle")}</DialogTitle>
+            <DialogDescription>
+              {type === "mods" ? t("builds.dropHintMods") : t("builds.dropHintContent")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-1 max-h-64 space-y-2 overflow-y-auto pr-1">
+            {rejectedEntries.map((entry, index) => (
+              <div key={`${entry.name}-${index}`} className="rounded-xl border border-border bg-muted/20 px-3 py-2">
+                <p className="truncate text-sm font-medium text-foreground">{entry.name}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{t(`builds.dropReject.${entry.reason}`)}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setRejectedEntries([])}
+              className="rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              {t("common.gotIt")}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 })

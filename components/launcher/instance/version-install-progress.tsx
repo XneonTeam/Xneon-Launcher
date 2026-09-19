@@ -48,14 +48,14 @@ export function VersionInstallProgress({ state }: { state: InstallState }) {
           {indeterminate ? "" : `${state.percent}%`}
         </span>
       </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-        <div
-          className={cn(
-            "h-full rounded-full bg-primary transition-[width] duration-200 ease-out",
-            indeterminate && "animate-pulse",
-          )}
-          style={{ width: indeterminate ? "100%" : `${width}%` }}
-        />
+      <div className={cn("h-1.5 w-full rounded-full bg-muted", indeterminate && "progress-indeterminate")}>
+        {/* Размер файла неизвестен — полоса бежит; иначе заполняется процентами. */}
+        {!indeterminate && (
+          <div
+            className="h-full rounded-full bg-primary transition-[width] duration-200 ease-out"
+            style={{ width: `${width}%` }}
+          />
+        )}
       </div>
     </div>
   )

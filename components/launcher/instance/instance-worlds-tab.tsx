@@ -24,8 +24,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Checkbox } from "@/components/ui/checkbox"
 import { formatDownloads } from "./utils"
 import { Pagination } from "./pagination"
+import { EmptyState } from "@/components/ui/empty-state"
 import { InstanceModal } from "./instance-modal"
 import { CategoryBadge } from "./category-badge"
+import { ModalLayer } from "@/components/ui/modal-layer"
 import { useAlertDialog } from "@/lib/use-alert-dialog"
 import type { Build, DatapackInfo, ModalTab, ModDetails, ModSearchResult, ModVersion, Source, WorldInfo, ModSort } from "./types"
 
@@ -833,14 +835,14 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                                 {percent !== null ? `${percent}%` : ""}
                               </span>
                             </div>
-                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                              <div
-                                className={cn(
-                                  "h-full rounded-full bg-primary transition-[width] duration-200 ease-out",
-                                  percent === null && "animate-pulse",
-                                )}
-                                style={{ width: percent === null ? "100%" : `${Math.max(2, percent)}%` }}
-                              />
+                            <div className={cn("h-1.5 w-full rounded-full bg-muted", percent === null && "progress-indeterminate")}>
+                              {/* Размер архива ещё неизвестен — полоса бежит; с байтами заполняется. */}
+                              {percent !== null && (
+                                <div
+                                  className="h-full rounded-full bg-primary transition-[width] duration-200 ease-out"
+                                  style={{ width: `${Math.max(2, percent)}%` }}
+                                />
+                              )}
                             </div>
                           </div>
                         )}
@@ -1201,7 +1203,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                   )}
 
                   {!searching && results && results.length === 0 && (
-                    <div className="mt-3 py-4 text-center text-sm text-muted-foreground">{t("worlds.ui.nothingFound")}</div>
+                    <EmptyState compact title={t("worlds.ui.nothingFound")} className="mt-3 py-4" />
                   )}
 
                   {!searching && results && results.length > 0 && (
@@ -1256,7 +1258,10 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
 
       {/* Copy / import name prompt modal */}
       {namePrompt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+        <ModalLayer
+          onClose={() => { if (!promptBusy) setNamePrompt(null) }}
+          className="bg-background/80 backdrop-blur-sm animate-in fade-in-0"
+        >
           <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-2xl border border-border animate-in zoom-in-95">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">
@@ -1304,12 +1309,15 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
               </button>
             </div>
           </div>
-        </div>
+        </ModalLayer>
       )}
 
       {/* Delete confirm modal */}
       {deleteOpen && selectedWorld && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+        <ModalLayer
+          onClose={() => { if (!deleting) setDeleteOpen(false) }}
+          className="bg-background/80 backdrop-blur-sm animate-in fade-in-0"
+        >
           <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-2xl border border-border animate-in zoom-in-95">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">{t("worlds.ui.deleteTitle")}</h3>
@@ -1343,7 +1351,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
               </button>
             </div>
           </div>
-        </div>
+        </ModalLayer>
       )}
 
       {/* Datapack or Map details modal */}
