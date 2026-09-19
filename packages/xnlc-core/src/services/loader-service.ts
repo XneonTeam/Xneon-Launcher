@@ -237,6 +237,7 @@ export class XnlcLoaderService {
     const actualLoaderType = this.loaderResolver.determineLoaderType(mcVersion, loaderType, loaderVersion);
     const parsedOptifine = loaderType === "optifine" ? parseOptifineFilename(loaderVersion) : null;
     switch (actualLoaderType) {
+      // Имена профилей — исторический формат `<загрузчик>-<версия>-<mc>`.
       case "neoforge":
         return `neoforge-${loaderVersion}-${mcVersion}`;
       case "forge":

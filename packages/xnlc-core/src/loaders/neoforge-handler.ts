@@ -139,6 +139,11 @@ export class NeoForgeHandler implements ILoaderHandler {
 
     const profileName = `neoforge-${neoforgeVersion}-${mcVersion}`;
     resolvedJson.id = profileName;
+    // В classpath должен идти ВАНИЛЬНЫЙ клиент, а не jar профиля: последний — уже
+    // пропатченный клиент с классами Minecraft, и вместе с модулем `minecraft`
+    // (его подставляет ForgeWrapper) они конфликтуют. Без этого поля сборщик
+    // classpath берёт имя профиля и кладёт патченный jar.
+    resolvedJson.jar = mcVersion;
     resolvedJson.releaseTime = metaNeo.releaseTime;
     resolvedJson.time = new Date().toISOString();
     resolvedJson.type = "modified";
