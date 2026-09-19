@@ -547,7 +547,23 @@ export function cancelImport(): boolean {
 export function getLoaderSelectionFromModrinthDeps(deps: Record<string, string>): { modLoader: string; loaderVersion?: string } {
   if (deps["fabric-loader"]) return { modLoader: "fabric", loaderVersion: deps["fabric-loader"] }
   if (deps["quilt-loader"]) return { modLoader: "quilt", loaderVersion: deps["quilt-loader"] }
+  // NeoForge проверяем раньше Forge: в манифестах встречаются оба ключа сразу.
   if (deps["neoforge"]) return { modLoader: "neoforge", loaderVersion: deps["neoforge"] }
+  if (deps["forge"]) return { modLoader: "forge", loaderVersion: deps["forge"] }
+  return { modLoader: "vanilla" }
+}
+
+/**
+ * Загрузчик по списку `loaders` из Modrinth API. Нужен как запасной путь:
+ * в манифестах .mrpack бывает только `minecraft`, а загрузчик виден лишь
+ * в самом проекте — из-за этого Forge-пак ставился как vanilla.
+ */
+export function getLoaderSelectionFromModrinthLoaders(loaders: string[] | undefined): { modLoader: string; loaderVersion?: string } {
+  const list = (loaders ?? []).map((loader) => loader.toLowerCase())
+  if (list.includes("fabric")) return { modLoader: "fabric" }
+  if (list.includes("quilt")) return { modLoader: "quilt" }
+  if (list.includes("neoforge")) return { modLoader: "neoforge" }
+  if (list.includes("forge")) return { modLoader: "forge" }
   return { modLoader: "vanilla" }
 }
 
@@ -560,6 +576,7 @@ export function getLoaderSelectionFromCurseManifest(loaderRaw: string): { modLoa
   if (loaderType === "fabric") return { modLoader: "fabric", loaderVersion }
   if (loaderType === "quilt") return { modLoader: "quilt", loaderVersion }
   if (loaderType === "neoforge") return { modLoader: "neoforge", loaderVersion }
+  if (loaderType === "forge") return { modLoader: "forge", loaderVersion }
   return { modLoader: "vanilla" }
 }
 

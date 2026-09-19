@@ -1,4 +1,5 @@
 import { ComponentData, VersionJson, VersionJsonArguments, VersionJsonLibrary } from "../types/index.js";
+import { checkRules, getOSInfo, type RuleCheck } from "../utils/index.js";
 
 interface GradleParts {
   groupId: string;
@@ -6,6 +7,15 @@ interface GradleParts {
   version: string;
   classifier?: string;
 }
+
+/**
+ * Ревизия формата профилей, которые собирает ProfileBuilder. Профили без этого
+ * поля (собранные прошлыми версиями лаунчера) и профили со старой ревизией
+ * пересобираются: иначе в кэше остаётся сломанный набор библиотек — как было с
+ * JNA для Forge на Windows. Поднимать значение нужно только при изменении
+ * логики сборки профиля.
+ */
+export const PROFILE_REVISION = 1;
 
 function parseGradleSpecifier(name: string): GradleParts | null {
   const normalized = name.replace(/@[^:]+$/, "");
@@ -132,13 +142,34 @@ export class ProfileBuilder {
 
     if (existingIndex < 0) {
       this.libraries.push(lib);
-    } else {
-      const existing = this.libraries[existingIndex];
-      const existingParsed = parseGradleSpecifier(existing.name);
-      if (existingParsed && compareVersions(parsed.version, existingParsed.version) > 0) {
-        this.libraries[existingIndex] = lib;
-      }
+      return;
     }
+
+    const existing = this.libraries[existingIndex];
+    const existingParsed = parseGradleSpecifier(existing.name);
+    const newApplies = this.appliesToThisOS(lib);
+    const existingApplies = this.appliesToThisOS(existing);
+
+    // Библиотека с чужими правилами ОС не должна вытеснять рабочую: у jna ванильная
+    // 5.10.0 (allow + disallow osx) заменялась на 5.13.0 (только macOS), и на Windows
+    // в classpath не оставалось JNA — моды вроде Crash Assistant падали с
+    // NoClassDefFoundError: com/sun/jna/Platform.
+    if (newApplies && !existingApplies) {
+      this.libraries[existingIndex] = lib;
+      return;
+    }
+    if (!newApplies && existingApplies) {
+      return;
+    }
+    if (existingParsed && compareVersions(parsed.version, existingParsed.version) > 0) {
+      this.libraries[existingIndex] = lib;
+    }
+  }
+
+  /** Подходит ли библиотека текущей ОС по правилам rules. */
+  private appliesToThisOS(lib: VersionJsonLibrary): boolean {
+    if (!lib.rules || lib.rules.length === 0) return true;
+    return checkRules(lib.rules as RuleCheck[], getOSInfo());
   }
 
   build(): VersionJson {
@@ -157,6 +188,7 @@ export class ProfileBuilder {
       mods: this.mods.length > 0 ? this.mods : undefined,
       mavenFiles: this.mavenFiles.length > 0 ? this.mavenFiles : undefined,
       agents: this.agents.length > 0 ? this.agents : undefined,
+      xnlcProfileRevision: PROFILE_REVISION,
     };
 
     if (this.minecraftVersion) versionJson.jar = this.minecraftVersion;

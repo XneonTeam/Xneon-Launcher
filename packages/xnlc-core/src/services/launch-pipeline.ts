@@ -35,6 +35,10 @@ import {
 } from "./shared-helpers.js";
 import { XnlcVersionService } from "./version-service.js";
 import { XnlcLoaderService } from "./loader-service.js";
+import { PROFILE_REVISION } from "../core/profile-builder.js";
+
+/** Загрузчики, чьи профили собирает ProfileBuilder (для них проверяем ревизию). */
+const PROFILE_BUILDER_LOADERS = new Set(["forge", "neoforge", "optifine", "liteloader"]);
 
 export class XnlcLaunchPipeline {
   constructor(
@@ -233,6 +237,15 @@ export class XnlcLaunchPipeline {
     }
 
     const current = this.readVersionJson(versionJsonPath);
+
+    // Профили, собранные ProfileBuilder, могли остаться от старой версии лаунчера
+    // со сломанным набором библиотек (например без JNA для Forge на Windows) —
+    // пересобираем их при устаревшей ревизии.
+    if (PROFILE_BUILDER_LOADERS.has(loaderType) && (current.xnlcProfileRevision ?? 0) < PROFILE_REVISION) {
+      await this.loaderService.installLoader(mcVersion, loaderType, loaderVersion, onProgress);
+      return;
+    }
+
     if (loaderType === "optifine" && this.shouldRepairOptifineProfile(current)) {
       await this.loaderService.installLoader(mcVersion, loaderType, loaderVersion, onProgress);
       return;
