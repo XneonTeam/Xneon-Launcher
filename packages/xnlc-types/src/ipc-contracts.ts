@@ -105,6 +105,8 @@ export interface IpcInvokeMap {
   "db:save-account": { args: [account: DbAccount]; return: void }
   "db:remove-account": { args: [id: string]; return: void }
   "db:load-builds": { args: []; return: DbBuild[] }
+  "db:load-builds-light": { args: []; return: DbBuild[] }
+  "db:load-build-content": { args: [buildId: string]; return: { mods: unknown[]; resourcepacks: unknown[]; shaders: unknown[]; installedMods: Record<string, string> } | null }
   "db:save-builds": { args: [builds: DbBuild[]]; return: void }
   "db:update-build-fields": { args: [buildId: string, fields: Partial<DbBuild>]; return: void }
   "db:is-fallback-storage": { args: []; return: { isFallback: boolean } }
@@ -366,6 +368,8 @@ export interface ElectronAPIExplicit {
   saveAccount: (account: DbAccount) => Promise<void>
   removeAccount: (id: string) => Promise<void>
   loadBuilds: () => Promise<DbBuild[]>
+  loadBuildsLight: () => Promise<DbBuild[]>
+  loadBuildContent: (buildId: string) => Promise<{ mods: unknown[]; resourcepacks: unknown[]; shaders: unknown[]; installedMods: Record<string, string> } | null>
   saveBuilds: (builds: DbBuild[]) => Promise<void>
   updateBuildFields: (buildId: string, fields: Partial<DbBuild>) => Promise<void>
   dbIsFallbackStorage: () => Promise<{ isFallback: boolean }>

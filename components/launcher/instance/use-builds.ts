@@ -12,6 +12,49 @@ import { useTranslation } from "react-i18next"
 type BuildContentListKey = "mods" | "resourcepacks" | "shaders"
 type BuildContentKind = "mod" | "resourcepack" | "shader"
 
+/**
+ * Кэш лёгкого списка сборок на уровне модуля: список живёт дольше компонента,
+ * поэтому повторный вход во вкладку отрисовывается сразу, без чтения БД.
+ */
+let buildsLightCache: Build[] | null = null
+
+/** Когда список последний раз читался из БД (мс, performance.now()). */
+let buildsLightCacheAt = 0
+
+/** TTL кэша: частые возвраты во вкладку не должны дёргать БД повторно. */
+const BUILDS_CACHE_TTL_MS = 3000
+
+/**
+ * Тяжёлый контент сборок (mods/resourcepacks/shaders/installedMods). У модпаков
+ * это десятки мегабайт — грузим по требованию (для открытой сборки) и держим
+ * в памяти, чтобы переключение вкладок не читало их заново.
+ */
+const buildContentCache = new Map<string, {
+  mods: BuildMod[]
+  resourcepacks: BuildMod[]
+  shaders: BuildMod[]
+  installedMods: Record<string, string>
+}>()
+
+export function getCachedBuildsLight(): Build[] | null {
+  return buildsLightCache
+}
+
+export function updateCachedBuildContent(buildId: string, content: {
+  mods: BuildMod[]
+  resourcepacks: BuildMod[]
+  shaders: BuildMod[]
+  installedMods: Record<string, string>
+}) {
+  buildContentCache.set(buildId, content)
+  if (buildsLightCache) {
+    buildsLightCache = buildsLightCache.map(build => build.id === buildId ? { ...build, ...content } : build)
+  }
+}
+
+/** Сборка без тяжёлого контента: поля-списки пустые, счётчики — из лёгкого запроса. */
+type BuildWithCounts = Build & { modsCount?: number; resourcepacksCount?: number; shadersCount?: number }
+
 const CONTENT_KIND_BY_KEY: Record<BuildContentListKey, BuildContentKind> = {
   mods: "mod",
   resourcepacks: "resourcepack",
@@ -27,8 +70,9 @@ export function useBuilds() {
   const {
     declaredCategories, addCategory, renameCategory: renameDeclaredCategory, dropCategory: dropDeclaredCategory,
   } = useCategoryList("builds")
-  const [buildsState, setBuildsState] = useState<Build[]>(loadBuilds)
+  const [buildsState, setBuildsState] = useState<Build[]>(() => buildsLightCache ?? [])
   const [activeBuildId, setActiveBuildId] = useState<string | null>(null)
+  const activeBuildIdRef = useRef<string | null>(null)
   const [buildsHydrated, setBuildsHydrated] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const saveTimeoutRef = useRef<number | null>(null)
@@ -136,6 +180,59 @@ export function useBuilds() {
     }
   }, [])
 
+  /**
+   * Догружает тяжёлый контент сборки (mods/resourcepacks/shaders) по требованию —
+   * когда сборку открыли. Список сборок держит только счётчики, поэтому вход во
+   * вкладку не тянет десятки мегабайт.
+   */
+  const ensureBuildContent = useCallback(async (buildId: string): Promise<void> => {
+    const cached = buildContentCache.get(buildId)
+    if (cached) {
+      setBuilds(prev => prev.map(build => build.id === buildId
+        ? { ...build, mods: cached.mods, resourcepacks: cached.resourcepacks, shaders: cached.shaders, installedMods: cached.installedMods }
+        : build))
+      return
+    }
+    try {
+      const content = await window.electronAPI?.loadBuildContent?.(buildId)
+      if (!content) return
+      const parsed = {
+        mods: Array.isArray(content.mods) ? content.mods as BuildMod[] : [],
+        resourcepacks: Array.isArray(content.resourcepacks) ? content.resourcepacks as BuildMod[] : [],
+        shaders: Array.isArray(content.shaders) ? content.shaders as BuildMod[] : [],
+        installedMods: content.installedMods ?? {},
+      }
+      const [mods, resourcepacks, shaders] = await Promise.all([
+        enrichBuildModNames(parsed.mods),
+        enrichBuildModNames(parsed.resourcepacks),
+        enrichBuildModNames(parsed.shaders),
+      ])
+      const enriched = { ...parsed, mods, resourcepacks, shaders }
+      updateCachedBuildContent(buildId, enriched)
+      setBuilds(prev => prev.map(build => build.id === buildId ? { ...build, ...enriched } : build))
+    } catch {
+      // Контент не критичен для отрисовки: при ошибке оставляем счётчики.
+    }
+  }, [setBuilds])
+
+  // Открыли сборку — подгружаем её контент и обновляем счётчики из скана папки.
+  useEffect(() => {
+    activeBuildIdRef.current = activeBuildId
+    if (!activeBuildId) return
+    void ensureBuildContent(activeBuildId)
+    const target = buildsRef.current.find(build => build.id === activeBuildId)
+    if (!target) return
+    void syncBuildContent(target).then(synced => {
+      updateCachedBuildContent(activeBuildId, {
+        mods: synced.mods,
+        resourcepacks: synced.resourcepacks,
+        shaders: synced.shaders,
+        installedMods: synced.installedMods ?? {},
+      })
+      setBuilds(prev => prev.map(build => build.id === activeBuildId ? { ...build, ...synced } : build))
+    })
+  }, [activeBuildId, ensureBuildContent, syncBuildContent, setBuilds])
+
   const reloadBuilds = useCallback(async () => {
     // Flush pending save before reloading so in-memory changes aren't lost.
     if (saveTimeoutRef.current !== null) {
@@ -148,7 +245,10 @@ export function useBuilds() {
     isReloadingRef.current = true
     const seq = ++reloadSeqRef.current
     try {
-      const dbBuilds = await window.electronAPI?.loadBuilds()
+      const rawBuilds = await (window.electronAPI?.loadBuildsLight
+        ? window.electronAPI.loadBuildsLight()
+        : window.electronAPI?.loadBuilds() ?? Promise.resolve([]))
+      const dbBuilds = (rawBuilds ?? []) as BuildWithCounts[]
       if (!dbBuilds?.length) {
         setBuildsHydrated(true)
         window.dispatchEvent(new Event("app:hydrated"))
@@ -156,25 +256,23 @@ export function useBuilds() {
         return
       }
 
-      const processed = dbBuilds.map(build => {
-        const b = build as Build
+      const processed: Build[] = dbBuilds.map(build => {
+        const b = build as BuildWithCounts
         const inMemoryBuild = buildsRef.current.find(existing => existing.id === build.id || existing.name === build.name)
+        // Тяжёлый контент из памяти/кэша: приходит не из лёгкого запроса, а из
+        // buildContentCache (или из уже загруженного состояния).
+        const cached = buildContentCache.get(build.id)
         const normalized = {
           ...build,
-          mods: Array.isArray(b.mods) ? b.mods : inMemoryBuild?.mods ?? [],
-          resourcepacks: Array.isArray(b.resourcepacks) ? b.resourcepacks : inMemoryBuild?.resourcepacks ?? [],
-          shaders: Array.isArray(b.shaders) ? b.shaders : inMemoryBuild?.shaders ?? [],
+          mods: cached?.mods ?? (Array.isArray(b.mods) ? b.mods : inMemoryBuild?.mods ?? []),
+          resourcepacks: cached?.resourcepacks ?? (Array.isArray(b.resourcepacks) ? b.resourcepacks : inMemoryBuild?.resourcepacks ?? []),
+          shaders: cached?.shaders ?? (Array.isArray(b.shaders) ? b.shaders : inMemoryBuild?.shaders ?? []),
           intentPath: b.intentPath ?? inMemoryBuild?.intentPath ?? "",
-          installedMods: b.installedMods ?? inMemoryBuild?.installedMods ?? {},
+          installedMods: cached?.installedMods ?? b.installedMods ?? inMemoryBuild?.installedMods ?? {},
+          modsCount: b.modsCount ?? inMemoryBuild?.mods.length ?? 0,
+          resourcepacksCount: b.resourcepacksCount ?? inMemoryBuild?.resourcepacks.length ?? 0,
+          shadersCount: b.shadersCount ?? inMemoryBuild?.shaders.length ?? 0,
         } as Build
-
-        // Preserve fresh in-memory metadata during immediate reloads after install.
-        if (inMemoryBuild) {
-          normalized.mods = inMemoryBuild.mods
-          normalized.resourcepacks = inMemoryBuild.resourcepacks
-          normalized.shaders = inMemoryBuild.shaders
-          normalized.installedMods = inMemoryBuild.installedMods ?? normalized.installedMods
-        }
 
         // Правки пользователя, ещё не доехавшие до БД, должны победить снапшот БД —
         // иначе отвязка модпака и прочие изменения откатываются. Применяем по ключам,
@@ -189,14 +287,19 @@ export function useBuilds() {
         return normalized
       })
 
+      // Лёгкий список кэшируем на уровне модуля: следующий вход во вкладку
+      // отрисуется мгновенно, без обращения к БД.
+      buildsLightCache = processed
+      buildsLightCacheAt = performance.now()
+
       // Устанавливаем сборки сразу — UI отрисовывается без ожидания сканирования
       setBuilds(processed)
 
-      // Синхронизация контента в фоне — обновляет сборки по мере готовности.
-      // Гвардия поколений: если с момента старта был запущен новый reload,
-      // результат устаревшего скана отбрасываем — иначе зависший на 429 платформы
-      // скан может «воскресить» только что удалённый мод.
-      void Promise.all(processed.map(async (normalized) => {
+      // Сканирование папки игры (файловая система) выполняем только для открытой
+      // сборки: раньше оно запускалось для всех сразу и тормозило вход во вкладку.
+      const activeId = activeBuildIdRef.current
+      const toSync = activeId ? processed.filter(build => build.id === activeId) : []
+      void Promise.all(toSync.map(async (normalized) => {
         const synced = await syncBuildContent(normalized)
         if (seq !== reloadSeqRef.current) return
         setBuilds(prev => prev.map(b => {
@@ -263,8 +366,16 @@ export function useBuilds() {
   const activeBuild = useMemo(() => builds.find(b => b.id === activeBuildId) ?? null, [builds, activeBuildId])
 
   useEffect(() => {
+    // Свежий кэш — рисуем список сразу и не читаем БД: с прошлого входа ничего
+    // не менялось. Так переключение вкладок не ждёт даже лёгкий запрос.
+    if (buildsLightCache && performance.now() - buildsLightCacheAt < BUILDS_CACHE_TTL_MS) {
+      setBuilds(buildsLightCache)
+      setBuildsHydrated(true)
+      window.dispatchEvent(new Event("app:hydrated"))
+      return
+    }
     void reloadBuilds()
-  }, [reloadBuilds])
+  }, [reloadBuilds, setBuilds])
 
   useEffect(() => {
     const handler = (e: Event) => {

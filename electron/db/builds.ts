@@ -143,6 +143,109 @@ export async function loadBuilds(): Promise<BuildJson[]> {
   return rows.map(rowToBuild)
 }
 
+/**
+ * Список сборок без тяжёлого контента: `mods`/`resourcepacks`/`shaders`/`installedMods`
+ * у модпаков занимают десятки мегабайт (183 МБ текста на 17 сборок) — их чтение и
+ * передача в renderer давали 1.5–2 секунды на каждый заход во вкладку.
+ * Списку нужны только счётчики, сами списки грузятся по требованию через
+ * {@link loadBuildContent}.
+ */
+export type BuildLightJson = Omit<BuildJson, "mods" | "resourcepacks" | "shaders" | "installedMods"> & {
+  modsCount: number
+  resourcepacksCount: number
+  shadersCount: number
+}
+
+/** Колонки без тяжёлых JSON-полей. */
+const LIGHT_COLUMNS = `id, name, description, version, modLoader, loaderVersion, icon, coverImage,
+  createdAt, source, projectSlug, modpackVersion, modpackVersionId, locked, modId, fileId,
+  intentPath, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax,
+  serverOverride, server, serverPort, [group], preLaunchCommand, postLaunchCommand,
+  wrapperCommand, customEnv, windowOverride, windowWidth, windowHeight`
+
+export async function loadBuildsLight(): Promise<BuildLightJson[]> {
+  if (!isDbAvailable()) {
+    return Array.from(inMemoryBuilds.values())
+      .sort((a, b) => (b as BuildJson).createdAt.localeCompare((a as BuildJson).createdAt))
+      .map(build => {
+        const full = build as BuildJson
+        return {
+          ...full,
+          mods: undefined as never,
+          resourcepacks: undefined,
+          shaders: undefined,
+          installedMods: undefined,
+          modsCount: Array.isArray(full.mods) ? full.mods.length : 0,
+          resourcepacksCount: Array.isArray(full.resourcepacks) ? full.resourcepacks.length : 0,
+          shadersCount: Array.isArray(full.shaders) ? full.shaders.length : 0,
+        } as BuildLightJson
+      })
+  }
+
+  const rows = queryAll<Record<string, unknown>>(
+    `SELECT ${LIGHT_COLUMNS} FROM builds ORDER BY createdAt DESC`,
+  )
+  if (!Array.isArray(rows)) return []
+
+  return rows.map(row => {
+    const light = rowToBuild({ ...row, mods: "[]", resourcepacks: "[]", shaders: "[]", installedMods: "{}" } as unknown as BuildRow)
+    return {
+      ...light,
+      mods: undefined as never,
+      resourcepacks: undefined,
+      shaders: undefined,
+      installedMods: undefined,
+      // Счётчики не считаем в SQL: json_array_length заставляет SQLite парсить
+      // все тяжёлые JSON (183 МБ) и съедает ~100 мс из 130. Реальные списки
+      // приходят вместе с контентом сборки, а длина — из загруженного состояния.
+      modsCount: 0,
+      resourcepacksCount: 0,
+      shadersCount: 0,
+    } as BuildLightJson
+  })
+}
+
+/** Тяжёлый контент одной сборки — по требованию, когда открыт её экран. */
+export async function loadBuildContent(buildId: string): Promise<{
+  mods: unknown[]
+  resourcepacks: unknown[]
+  shaders: unknown[]
+  installedMods: Record<string, string>
+} | null> {
+  if (!isDbAvailable()) {
+    const build = inMemoryBuilds.get(buildId) as BuildJson | undefined
+    if (!build) return null
+    return {
+      mods: build.mods ?? [],
+      resourcepacks: build.resourcepacks ?? [],
+      shaders: build.shaders ?? [],
+      installedMods: build.installedMods ?? {},
+    }
+  }
+
+  const rows = queryAll<{ mods: string; resourcepacks: string; shaders: string; installedMods: string }>(
+    "SELECT mods, COALESCE(resourcepacks, '[]') AS resourcepacks, COALESCE(shaders, '[]') AS shaders, COALESCE(installedMods, '{}') AS installedMods FROM builds WHERE id = ?",
+    [buildId],
+  )
+  const row = Array.isArray(rows) ? rows[0] : undefined
+  if (!row) return null
+
+  return {
+    mods: safeParse(row.mods, []),
+    resourcepacks: safeParse(row.resourcepacks, []),
+    shaders: safeParse(row.shaders, []),
+    installedMods: safeParse(row.installedMods, {}) as Record<string, string>,
+  }
+}
+
+function safeParse<T>(value: string | null | undefined, fallback: T): T {
+  try {
+    return JSON.parse(value || "null") ?? fallback
+  } catch {
+    return fallback
+  }
+}
+
 export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
   if (!isDbAvailable()) {
     inMemoryBuilds.clear()
