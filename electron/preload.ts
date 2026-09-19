@@ -18,6 +18,7 @@ import type {
   BuildIntentScanResult,
   ModpackImportResult,
   ImportProgress,
+  ContentDownloadProgress,
   ModContentType,
   ModSort,
   ModLoaderFilter,
@@ -26,6 +27,10 @@ import type {
   ModDetails,
   ModVersion,
   ModDependency,
+  JarDependencyInspection,
+  ContentFileMetadata,
+  ContentDropKind,
+  ContentDropClassification,
   ModSearchResult,
   FTBVersionManifest,
   CleanupFn,
@@ -50,17 +55,12 @@ import type {
   StorageCleanTarget,
   StorageCleanResult,
   CloudUploadCategory,
+  MinecraftCloseInfo,
 } from '@xnlc/types' with { 'resolution-mode': 'import' }
 import type { ServerStatusResult } from '@xnlc/servers'
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): CleanupFn {
   const handler = (_: Electron.IpcRendererEvent, payload: T) => callback(payload)
-  ipcRenderer.on(channel, handler)
-  return () => ipcRenderer.removeListener(channel, handler)
-}
-
-function subscribeVoid(channel: string, callback: (payload: number) => void): CleanupFn {
-  const handler = (_: Electron.IpcRendererEvent, payload: number) => callback(payload)
   ipcRenderer.on(channel, handler)
   return () => ipcRenderer.removeListener(channel, handler)
 }
@@ -136,6 +136,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   modsCurseforgeDescription: (modId: number) => ipcRenderer.invoke('mods:curseforge-description', modId) as Promise<string>,
   modsModrinthCheckUpdates: (hashes: string[], loaders?: string[], gameVersions?: string[]) => ipcRenderer.invoke('mods:modrinth-check-updates', hashes, loaders, gameVersions) as Promise<Record<string, ModVersion>>,
   modsResolveDependencies: (version: ModVersion, source: "modrinth" | "curseforge") => ipcRenderer.invoke('mods:resolve-dependencies', version, source) as Promise<ModDependency[]>,
+  // Зависимости из метаданных jar: у новых файлов CurseForge/Modrinth список пустой,
+  // а сам мод требует fabric-api и падает без него.
+  modsInspectJarDependencies: (url: string, source: "modrinth" | "curseforge") => ipcRenderer.invoke('mods:inspect-jar-dependencies', url, source) as Promise<JarDependencyInspection>,
   checkBuildLoaderRequirements: (buildName: string, modLoader?: string, loaderVersion?: string) => ipcRenderer.invoke('mods:check-loader-requirements', buildName, modLoader, loaderVersion) as Promise<{ loaderId: string; loaderVersion?: string; checked: number; issues: Array<{ fileName: string; modName?: string; modId?: string; loaderId: string; requirement: string; buildLoaderVersion?: string; satisfied: boolean; reason?: string }> }>,
   modsFtbSearch: (query: string, page?: number) => ipcRenderer.invoke('mods:ftb-search', query, page) as Promise<ModSearchResponse>,
   modsFtbDetails: (id: number) => ipcRenderer.invoke('mods:ftb-details', id) as Promise<ModDetails | null>,
@@ -196,7 +199,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onMinecraftDebug: (callback: (message: string) => void) => subscribe('minecraft:debug', callback),
   onMinecraftData: (callback: (message: string) => void) => subscribe('minecraft:data', callback),
   onMinecraftDownloadStatus: (callback: (progress: MinecraftProgress) => void) => subscribe('minecraft:download-progress', callback),
-  onMinecraftClose: (callback: (code: number) => void) => subscribeVoid('minecraft:close', callback),
+  onMinecraftClose: (callback: (info: MinecraftCloseInfo) => void) => subscribe<MinecraftCloseInfo>('minecraft:close', callback),
 
   // ── Settings ───────────────────────────────────────────
   getSetting: (key: string) => ipcRenderer.invoke('settings:get', key) as Promise<string | undefined>,
@@ -215,6 +218,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setInstancesRoot: (newRoot: string) => ipcRenderer.invoke('build:set-instances-root', newRoot) as Promise<{ success: boolean; root?: string; error?: string }>,
   saveModToIntent: (buildId: string, url: string, fileName: string) => ipcRenderer.invoke('build:save-mod-to-intent', buildId, url, fileName) as Promise<string | null>,
   saveLocalModToIntent: (buildId: string, localFilePath: string) => ipcRenderer.invoke('build:save-local-mod-to-intent', buildId, localFilePath) as Promise<string | null>,
+  // Метаданные локального файла: нужны, чтобы брошенный в панель мод появлялся
+  // со своим именем/версией/автором, а не с именем файла.
+  readLocalContentMetadata: (localFilePath: string) => ipcRenderer.invoke('build:read-local-content-metadata', localFilePath) as Promise<ContentFileMetadata | null>,
+  // Что можно принять из перетащенного, а что нет: папку от файла отличает main.
+  classifyDropPaths: (paths: string[], kind: ContentDropKind) => ipcRenderer.invoke('build:classify-drop-paths', paths, kind) as Promise<ContentDropClassification>,
   saveContentToIntent: (buildId: string, contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string) => ipcRenderer.invoke('build:save-content-to-intent', buildId, contentType, url, fileName) as Promise<string | null>,
   saveLocalContentToIntent: (buildId: string, contentType: "mod" | "resourcepack" | "shader", localFilePath: string) => ipcRenderer.invoke('build:save-local-content-to-intent', buildId, contentType, localFilePath) as Promise<string | null>,
   deleteContentFromIntent: (buildId: string, contentType: "mod" | "resourcepack" | "shader", fileName: string) => ipcRenderer.invoke('build:delete-content-from-intent', buildId, contentType, fileName) as Promise<{ success: boolean; error?: string }>,
@@ -229,7 +237,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openAndImportModpack: (nameOverride?: string) => invoke<ModpackImportResult & { name?: string; description?: string; icon?: string; source?: 'modrinth' | 'curseforge'; intentPath?: string }>('build:open-and-import')(nameOverride),
   cancelImportModpack: invoke<{ success: boolean }>('build:cancel-import'),
   onImportProgress: (callback: (progress: ImportProgress) => void) => subscribe('import:progress', callback),
-  onContentDownloadProgress: (callback: (progress: { fileName: string; current: number; total: number }) => void) => subscribe('content:download-progress', callback),
+  onBuildExportProgress: (callback: (progress: { current: number; total: number }) => void) => subscribe('build:export-progress', callback),
+  onContentDownloadProgress: (callback: (progress: ContentDownloadProgress) => void) => subscribe('content:download-progress', callback),
 
   // ── Content Updates ──────────────────────────────────────
   checkBuildContentUpdates: (buildId: string, channel?: UpdateChannel) => ipcRenderer.invoke('build:check-content-updates', buildId, channel) as Promise<BuildContentUpdates>,
@@ -259,6 +268,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── AI ─────────────────────────────────────────────────
   getAiConfig: invoke<{ apiKey: string; endpoint: string; model: string }>('ai:get-config'),
   saveAiConfig: (config: { apiKey: string; endpoint: string; model: string }) => ipcRenderer.invoke('ai:save-config', config) as Promise<void>,
+  listAiModels: (override?: { apiKey?: string; endpoint?: string }) => ipcRenderer.invoke('ai:list-models', override) as Promise<{ success: boolean; models?: string[]; error?: string }>,
   analyzeCrash: (logContent: string, sessionId: string) => ipcRenderer.invoke('ai:analyze-crash', logContent, sessionId) as Promise<{ success: boolean; analysis?: string; error?: string }>,
   analyzeCrashStream: (requestId: string, logContent: string) => ipcRenderer.invoke('ai:analyze-crash-stream', requestId, logContent) as Promise<{ success: boolean; analysis?: string; error?: string }>,
   aiChatSend: (sessionId: string, userMessage: string) => ipcRenderer.invoke('ai:chat-send', sessionId, userMessage) as Promise<{ success: boolean; analysis?: string; error?: string }>,

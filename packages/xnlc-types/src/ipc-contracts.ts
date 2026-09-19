@@ -25,6 +25,7 @@ import type {
   BuildIntentScanResult,
   ModpackImportResult,
   ImportProgress,
+  ContentDownloadProgress,
   CloudUser,
   CloudFile,
   CloudStorageInfo,
@@ -50,6 +51,10 @@ import type {
   ModDetails,
   ModVersion,
   ModDependency,
+  JarDependencyInspection,
+  ContentFileMetadata,
+  ContentDropKind,
+  ContentDropClassification,
   ModSearchResult,
   FTBVersionManifest,
 } from "./mod-types.js"
@@ -57,6 +62,7 @@ import type {
 import type {
   MinecraftLaunchParams,
   MinecraftProgress,
+  MinecraftCloseInfo,
   JavaProgress,
 } from "./launch-types.js"
 
@@ -112,6 +118,8 @@ export interface IpcInvokeMap {
   "build:set-instances-root": { args: [newRoot: string]; return: { success: boolean; root?: string; error?: string } }
   "build:save-mod-to-intent": { args: [buildId: string, url: string, fileName: string]; return: string | null }
   "build:save-local-mod-to-intent": { args: [buildId: string, localFilePath: string]; return: string | null }
+  "build:read-local-content-metadata": { args: [localFilePath: string]; return: ContentFileMetadata | null }
+  "build:classify-drop-paths": { args: [paths: string[], kind: ContentDropKind]; return: ContentDropClassification }
   "build:save-content-to-intent": { args: [buildId: string, contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string]; return: string | null }
   "build:save-local-content-to-intent": { args: [buildId: string, contentType: "mod" | "resourcepack" | "shader", localFilePath: string]; return: string | null }
   "build:delete-content-from-intent": { args: [buildId: string, contentType: "mod" | "resourcepack" | "shader", fileName: string]; return: { success: boolean; error?: string } }
@@ -150,6 +158,7 @@ export interface IpcInvokeMap {
   // ── AI ──
   "ai:get-config": { args: []; return: { apiKey: string; endpoint: string; model: string } }
   "ai:save-config": { args: [config: { apiKey: string; endpoint: string; model: string }]; return: void }
+  "ai:list-models": { args: [override?: { apiKey?: string; endpoint?: string }]; return: { success: boolean; models?: string[]; error?: string } }
   "ai:analyze-crash": { args: [logContent: string, sessionId?: string]; return: { success: boolean; analysis?: string; error?: string } }
   "ai:analyze-crash-stream": { args: [requestId: string, logContent: string]; return: { success: boolean; analysis?: string; error?: string } }
   "ai:chat-send": { args: [sessionId: string, userMessage: string]; return: { success: boolean; analysis?: string; error?: string } }
@@ -179,6 +188,7 @@ export interface IpcInvokeMap {
   "mods:curseforge-changelog": { args: [modId: number, fileId: number]; return: string }
   "mods:curseforge-description": { args: [modId: number]; return: string }
   "mods:resolve-dependencies": { args: [version: ModVersion, source: "modrinth" | "curseforge"]; return: ModDependency[] }
+  "mods:inspect-jar-dependencies": { args: [url: string, source: "modrinth" | "curseforge"]; return: JarDependencyInspection }
   "mods:check-loader-requirements": { args: [buildName: string, modLoader?: string, loaderVersion?: string]; return: { loaderId: string; loaderVersion?: string; checked: number; issues: Array<{ fileName: string; modName?: string; modId?: string; loaderId: string; requirement: string; buildLoaderVersion?: string; satisfied: boolean; reason?: string }> } }
   // ── Mods (FTB / Feed The Beast) ──
   "mods:ftb-search": { args: [query: string, page?: number]; return: ModSearchResponse }
@@ -322,9 +332,10 @@ export interface IpcEventMap {
   "minecraft:debug": string
   "minecraft:data": string
   "minecraft:download-progress": MinecraftProgress
-  "minecraft:close": number
+  "minecraft:close": MinecraftCloseInfo
   "auth:progress": string
   "import:progress": ImportProgress
+  "build:export-progress": { current: number; total: number }
   "cloud:upload-progress": { id: string; percent: number; stage: "zip" | "upload" }
   "mc-server:download-progress": McServerDownloadProgress
   "xn-connect:usage-updated": XnConnectUsage
@@ -372,6 +383,7 @@ export interface ElectronAPIExplicit {
   modsCurseforgeDownloadUrl: (fileId: number, modId: number) => Promise<string | null>
   modsCurseforgeFeatured: (gameVersion?: string) => Promise<{ popular: ModSearchResult[]; trending: ModSearchResult[] }>
   modsResolveDependencies: (version: ModVersion, source: "modrinth" | "curseforge") => Promise<ModDependency[]>
+  modsInspectJarDependencies: (url: string, source: "modrinth" | "curseforge") => Promise<JarDependencyInspection>
   modsFtbSearch: (query: string, page?: number) => Promise<ModSearchResponse>
   modsFtbDetails: (id: number) => Promise<ModDetails | null>
   modsFtbVersion: (id: number, versionId: number) => Promise<FTBVersionManifest | null>
@@ -413,7 +425,7 @@ export interface ElectronAPIExplicit {
   onMinecraftDebug: (callback: (message: string) => void) => CleanupFn
   onMinecraftData: (callback: (message: string) => void) => CleanupFn
   onMinecraftDownloadStatus: (callback: (progress: MinecraftProgress) => void) => CleanupFn
-  onMinecraftClose: (callback: (code: number) => void) => CleanupFn
+  onMinecraftClose: (callback: (info: MinecraftCloseInfo) => void) => CleanupFn
   onAuthProgress: (callback: (msg: string) => void) => CleanupFn
   onCliLaunchBuild: (callback: (buildName: string) => void) => CleanupFn
   getSetting: (key: string) => Promise<string | undefined>
@@ -424,6 +436,8 @@ export interface ElectronAPIExplicit {
   setInstancesRoot: (newRoot: string) => Promise<{ success: boolean; root?: string; error?: string }>
   saveModToIntent: (buildId: string, url: string, fileName: string) => Promise<string | null>
   saveLocalModToIntent: (buildId: string, localFilePath: string) => Promise<string | null>
+  readLocalContentMetadata: (localFilePath: string) => Promise<ContentFileMetadata | null>
+  classifyDropPaths: (paths: string[], kind: ContentDropKind) => Promise<ContentDropClassification>
   saveContentToIntent: (buildId: string, contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string) => Promise<string | null>
   saveLocalContentToIntent: (buildId: string, contentType: "mod" | "resourcepack" | "shader", localFilePath: string) => Promise<string | null>
   deleteContentFromIntent: (buildId: string, contentType: "mod" | "resourcepack" | "shader", fileName: string) => Promise<{ success: boolean; error?: string }>
@@ -436,7 +450,8 @@ export interface ElectronAPIExplicit {
   openAndImportModpack: (nameOverride?: string) => Promise<ModpackImportResult & { name?: string; description?: string; icon?: string; source?: "modrinth" | "curseforge"; intentPath?: string }>
   cancelImportModpack: () => Promise<{ success: boolean }>
   onImportProgress: (callback: (progress: ImportProgress) => void) => CleanupFn
-  onContentDownloadProgress: (callback: (progress: { fileName: string; current: number; total: number }) => void) => CleanupFn
+  onBuildExportProgress: (callback: (progress: { current: number; total: number }) => void) => CleanupFn
+  onContentDownloadProgress: (callback: (progress: ContentDownloadProgress) => void) => CleanupFn
   openExternal: (url: string) => Promise<void>
   openLauncherFolder: () => Promise<void>
   openPath: (dirPath: string) => Promise<void>
@@ -499,6 +514,7 @@ export interface ElectronAPIExplicit {
 export interface ElectronAPIExtra {
   getAiConfig: () => Promise<{ apiKey: string; endpoint: string; model: string }>
   saveAiConfig: (config: { apiKey: string; endpoint: string; model: string }) => Promise<void>
+  listAiModels: (override?: { apiKey?: string; endpoint?: string }) => Promise<{ success: boolean; models?: string[]; error?: string }>
   analyzeCrash: (logContent: string, sessionId: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
   analyzeCrashStream: (requestId: string, logContent: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
   aiChatSend: (sessionId: string, userMessage: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
@@ -527,7 +543,7 @@ export interface ElectronAPIExtra {
   cloudGetQuota: (providerId: string) => Promise<{ used: number; total: number } | null>
   cloudUploadBuild: (providerId: string, buildName: string, uploadId?: string, categories?: CloudUploadCategory[]) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
   cloudUploadServer: (providerId: string, serverId: string, serverName: string, uploadId?: string, categories?: CloudUploadCategory[]) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
-  onContentDownloadProgress: (callback: (progress: { fileName: string; current: number; total: number }) => void) => () => void
+  onContentDownloadProgress: (callback: (progress: ContentDownloadProgress) => void) => () => void
   onCloudUploadProgress: (callback: (data: { id: string; percent: number; stage: "zip" | "upload" }) => void) => () => void
   getFilePath: (file: File) => string
   cloudUploadAccount: (providerId: string, account: { id: string; type: string; username: string; uuid?: string }) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>

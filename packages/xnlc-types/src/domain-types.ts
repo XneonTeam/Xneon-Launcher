@@ -329,6 +329,11 @@ export type ContentDownloadProgress = {
   fileName: string
   current: number
   total: number
+  /**
+   * `true` — поток по файлу закрыт (успешно или с ошибкой). Без этого признака
+   * живое уведомление об установке остаётся висеть на последнем проценте.
+   */
+  done?: boolean
 }
 
 // ── Skins ─────────────────────────────────────────────────
