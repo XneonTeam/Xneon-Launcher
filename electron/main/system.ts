@@ -131,6 +131,9 @@ export function registerSystemHandlers() {
   ipcMain.handle("db:remove-account", async (_event, id: string) => dbHelpers.removeAccount(id))
   ipcMain.handle("db:reorder-accounts", async (_event, ids: string[]) => dbHelpers.reorderAccounts(ids))
   ipcMain.handle("db:load-builds", async () => dbHelpers.loadBuilds())
+  // Лёгкий список для интерфейса: без тяжёлых mods/shaders (они грузятся по сборке).
+  ipcMain.handle("db:load-builds-light", async () => dbHelpers.loadBuildsLight())
+  ipcMain.handle("db:load-build-content", async (_event, buildId: string) => dbHelpers.loadBuildContent(buildId))
   ipcMain.handle("db:save-builds", async (_event, builds) => {
     const incoming = Array.isArray(builds) ? builds : []
     const previousBuilds = await dbHelpers.loadBuilds()

@@ -3,7 +3,7 @@ import { initDatabaseCore, flushDatabasePersistence, flushDatabasePersistenceSyn
 import { initializeSchema } from "./migrations"
 import { ensureInMemorySettingsDefaults } from "./settings"
 import { loadAccounts, saveAccount, removeAccount, reorderAccounts, type DbAccount } from "./accounts"
-import { loadBuilds, saveAllBuilds, updateBuildPlaytime, updateBuildFields, type BuildJson } from "./builds"
+import { loadBuilds, loadBuildsLight, loadBuildContent, saveAllBuilds, updateBuildPlaytime, updateBuildFields, type BuildJson } from "./builds"
 import { getSetting, setSetting } from "./settings"
 import { getCloudConfig, setCloudConfig, removeCloudConfig } from "./cloud"
 import { getResources, upsertResource, setResourceCurseforge, markResourcesCurseforgeChecked, type ResourceRow } from "./resources"
@@ -31,6 +31,8 @@ export const dbHelpers = {
   removeAccount,
   reorderAccounts,
   loadBuilds,
+  loadBuildsLight,
+  loadBuildContent,
   saveAllBuilds,
   updateBuildPlaytime,
   updateBuildFields,
