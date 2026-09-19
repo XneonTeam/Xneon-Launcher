@@ -100,37 +100,63 @@ function substituteLaunchVars(command: string, ctx: LaunchVarContext): string {
  * separates tokens, single/double quotes group tokens, backslash escapes
  * the next character inside quotes.
  */
+/**
+ * Разбор строки команды на аргументы.
+ *
+ * Обратный слэш — обычный символ пути, а не escape-последовательность: иначе
+ * `"C:\path\to\file"` терял разделители и превращался в `C:pathtofile`. Кавычку
+ * экранирует только нечётное число слэшей перед ней — как в правилах разбора
+ * командной строки Windows.
+ */
 function splitCommandLine(input: string): string[] {
   const argv: string[] = []
   let current = ""
-  let escape = false
   let inQuotes: string | null = null
-  for (let i = 0; i < input.length; i++) {
+  let i = 0
+
+  while (i < input.length) {
     const c = input[i]
-    if (escape) {
-      current += c
-      escape = false
-    } else if (inQuotes) {
-      if (c === "\\") {
-        escape = true
-      } else if (c === inQuotes) {
-        inQuotes = null
-      } else {
-        current += c
+
+    if (c === "\\") {
+      let slashes = 0
+      while (i < input.length && input[i] === "\\") {
+        slashes += 1
+        i += 1
       }
-    } else {
-      if (c === " ") {
-        if (current.length > 0) {
-          argv.push(current)
-          current = ""
+      const next = input[i]
+      if (next === '"' || next === "'") {
+        current += "\\".repeat(Math.floor(slashes / 2))
+        if (slashes % 2 === 1) {
+          current += next
+          i += 1
         }
-      } else if (c === '"' || c === "'") {
-        inQuotes = c
       } else {
-        current += c
+        current += "\\".repeat(slashes)
       }
+      continue
     }
+
+    if (c === '"' || c === "'") {
+      if (inQuotes === c) inQuotes = null
+      else if (!inQuotes) inQuotes = c
+      else current += c
+      i += 1
+      continue
+    }
+
+    if (!inQuotes && (c === " " || c === "\t")) {
+      if (current.length > 0) {
+        argv.push(current)
+        current = ""
+      }
+      i += 1
+      continue
+    }
+
+    current += c
+    i += 1
   }
+
   if (current.length > 0) argv.push(current)
   return argv
 }
@@ -160,22 +186,27 @@ function runLaunchCommand(
 
   debug(`[Command] ${command}`)
 
-  let spawnTarget = { cmd: program, args: argv }
-  if (isBatchFile(program)) {
-    const comspec = process.env.ComSpec ?? "cmd.exe"
-    const inner = `"${program}"${argv.map((a) => ` "${a.replace(/"/g, '""')}"`).join("")}`
-    spawnTarget = { cmd: comspec, args: ["/d", "/s", "/c", `"${inner}"`] }
-  }
-
+  // Команду выполняем через шелл: иначе не работают перенаправления и пайпы, а
+  // кавычки в путях ломались — cmd получал токены по отдельности, переэкранировал
+  // их и падал с «syntax is incorrect» (при этом код считался успешным).
   try {
-    const result = spawnSync(spawnTarget.cmd, spawnTarget.args, {
-      cwd,
-      env,
-      encoding: "utf-8",
-      shell: false,
-      timeout: 10 * 60 * 1000,
-      stdio: ["inherit", "pipe", "pipe"],
-    })
+    const result = process.platform === "win32"
+      ? spawnSync(command, {
+          cwd,
+          env,
+          encoding: "utf-8",
+          shell: true,
+          timeout: 10 * 60 * 1000,
+          stdio: ["inherit", "pipe", "pipe"],
+        })
+      : spawnSync("/bin/sh", ["-c", command], {
+          cwd,
+          env,
+          encoding: "utf-8",
+          shell: false,
+          timeout: 10 * 60 * 1000,
+          stdio: ["inherit", "pipe", "pipe"],
+        })
     if (result.status !== 0) {
       const stderr = (result.stderr ?? "").trim()
       if (stderr) debug(`[Command] stderr: ${stderr}`)
@@ -525,6 +556,17 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
   } else if (qpOptions.quickPlayMultiplayer) {
     extraGameArgs.push("--quickPlayMultiplayer", qpOptions.quickPlayMultiplayer)
     debug(`Quick Play: multiplayer server=${qpOptions.quickPlayMultiplayer}`)
+  }
+
+  // Размер окна — это program-аргументы лаунчера, в version.json их нет,
+  // поэтому передаём явно. Раньше width/height доходили только до подстановки
+  // ${resolution_width}, которой ванильные версии не пользуются, и настройка
+  // «Размер окна» не влияла ни на что.
+  const windowWidth = payload.options.width
+  const windowHeight = payload.options.height
+  if (typeof windowWidth === "number" && windowWidth > 0 && typeof windowHeight === "number" && windowHeight > 0) {
+    extraGameArgs.push("--width", String(Math.round(windowWidth)), "--height", String(Math.round(windowHeight)))
+    debug(`Window size: ${Math.round(windowWidth)}x${Math.round(windowHeight)}`)
   }
 
   debug("Calling XNLC launch pipeline")

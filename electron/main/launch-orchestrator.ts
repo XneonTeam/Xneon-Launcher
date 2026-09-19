@@ -10,11 +10,12 @@ import { fork, type ChildProcess } from "child_process"
 import type { LoaderType, ResolvedLaunchRequest } from "@xnlc/core" with { "resolution-mode": "import" }
 import { getMainWindow, sendToRenderer, logRuntime, logRuntimeDebug } from "./runtime"
 import { dbHelpers, type DbAccount } from "../db"
-import { getGameStartTimestamp, setDiscordActivity } from "./discord-rpc"
+import { resetGameStartTimestamp, setDiscordActivity } from "./discord-rpc"
 import { getBuildIntentPath } from "./builds"
 import { pruneStaleLoaderProfiles } from "./builds/loader-profiles"
 import { recordGameSession } from "./stats"
 import { setActiveGameSession } from "./session-tracker"
+import { detectMinecraftCrash } from "./crash-detect"
 
 type LaunchAccountPayload = {
   type: "elyby" | "xnskins" | "microsoft" | "offline"
@@ -41,6 +42,8 @@ export class LaunchOrchestrator {
   private minecraftPid: number | null = null
   private buildLaunchTimestamps = new Map<string, number>()
   private vanillaLaunchTimestamp: number | null = null
+  /** Игру остановили мы сами (Стоп/новый запуск) — это не краш. */
+  private stoppedWorkers = new WeakSet<ChildProcess>()
 
   // ---------- State queries ----------
 
@@ -56,6 +59,11 @@ export class LaunchOrchestrator {
   }
 
   stop(): void {
+    // Остановка — намеренная: процесс игры убивается через taskkill, и это тоже
+    // даёт ненулевой код выхода. Без пометки воркера автопереход в логи считал
+    // бы нажатие «Стоп» крашем игры.
+    if (this.launchWorker) this.stoppedWorkers.add(this.launchWorker)
+
     if (!this.launchWorker || this.launchWorker.killed) {
       this.clearState()
       return
@@ -127,6 +135,13 @@ export class LaunchOrchestrator {
       const pruned = pruneStaleLoaderProfiles(gameDir, request.loaderType, request.loaderVersion)
       if (pruned.removed.length > 0) {
         logRuntime(`[Minecraft] Removed stale loader profiles: ${pruned.removed.join(", ")}`)
+        // Удаление показываем отдельным шагом прогресса: при смене загрузчика
+        // иначе видно только «устанавливается загрузчик», а старый профиль
+        // исчезает молча.
+        this.emitToRenderer("minecraft:download-progress", {
+          installationPhase: "removing-previous-loader",
+          removedLoaders: pruned.removed,
+        })
       }
     }
 
@@ -137,6 +152,13 @@ export class LaunchOrchestrator {
     logRuntimeDebug(`[Minecraft] Starting launch worker path=${workerPath}`)
     logRuntime(`[Minecraft] Launch request mc=${request.mcVersion} loader=${request.loaderType} loaderVersion=${request.loaderVersion ?? ""} gameDir=${gameDir} account=${launchAccount.type}:${launchAccount.username} retroauth=${String(retroauthEnabled)}`)
 
+    // Два JVM на один инстанс конфликтуют за файлы игры, поэтому прошлый запуск
+    // гасим явно (и помечаем его как остановленный, а не упавший).
+    if (this.isActive()) {
+      logRuntime(`[Minecraft] Previous launch is still active — stopping it before the new one`)
+      this.stop()
+    }
+
     const worker = fork(workerPath, [], {
       stdio: ["pipe", "pipe", "pipe", "ipc"],
       env: process.env,
@@ -146,6 +168,8 @@ export class LaunchOrchestrator {
 
     return new Promise<LaunchResultPayload>((resolve) => {
       let settled = false
+      // Момент запуска: по нему отличаем crash-report этой сессии от старых.
+      const launchStartedAt = Date.now()
 
       const settle = (result: LaunchResultPayload): void => {
         if (settled) return
@@ -196,8 +220,22 @@ export class LaunchOrchestrator {
           case "stderr":
             this.emitDebug(payload.data ?? "")
             return
-          case "close":
-            logRuntime(`[Minecraft] Worker reported close code=${typeof payload.code === "number" ? payload.code : 0}`)
+          case "close": {
+            const exitCode = typeof payload.code === "number" ? payload.code : 0
+            // Краш — это ненулевой код выхода ИЛИ свежий crash-report. Обычный
+            // выход из игры (крестик, «Выйти в меню») сюда не попадает, поэтому
+            // на него лаунчер не будет перекидывать во вкладку логов.
+            // Намеренную остановку тоже не считаем крашем: taskkill даёт код 1.
+            const stoppedByUs = this.stoppedWorkers.has(worker)
+            const crash = stoppedByUs
+              ? { crashed: false, crashReport: null }
+              : detectMinecraftCrash(gameDir, launchStartedAt, exitCode)
+            if (stoppedByUs) {
+              logRuntime(`[Minecraft] Process stopped from the launcher (code=${exitCode})`)
+            } else if (crash.crashed) {
+              logRuntime(`[Minecraft] Crash detected code=${exitCode} report=${crash.crashReport ?? "none"}`)
+            }
+            logRuntime(`[Minecraft] Worker reported close code=${exitCode}`)
             if (request.buildName) {
               const startTime = this.buildLaunchTimestamps.get(request.buildName)
               if (startTime) {
@@ -243,8 +281,14 @@ export class LaunchOrchestrator {
             setActiveGameSession(null)
             this.clearState()
             this.setPresenceMenu()
-            this.emitToRenderer("minecraft:close", typeof payload.code === "number" ? payload.code : 0)
+            this.emitToRenderer("minecraft:close", {
+              code: exitCode,
+              crashed: crash.crashed,
+              stoppedByLauncher: stoppedByUs,
+              ...(crash.crashReport ? { crashReport: crash.crashReport } : {}),
+            })
             return
+          }
           case "error":
             logRuntime(`[Minecraft] Worker reported error ${payload.error ?? "Launch failed"}`)
             settle({ success: false, error: payload.error ?? "Launch failed" })
@@ -334,9 +378,10 @@ export class LaunchOrchestrator {
   }
 
   private setPresenceMenu(): void {
+    // A finished game must not leave its elapsed timer running in the menu.
+    resetGameStartTimestamp()
     setDiscordActivity({
       state: "В меню",
-      startTimestamp: getGameStartTimestamp(),
     })
   }
 }

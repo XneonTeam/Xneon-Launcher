@@ -13,7 +13,7 @@ type UseHomeLaunchParams = {
 
 export function useHomeLaunch({ account, selectedVersion, selectedModLoader, selectedLoaderVersion }: UseHomeLaunchParams) {
   const { t } = useTranslation()
-  const { isRunning, setIsRunning, clearLogs, addLog, launchUi, patchLaunchUi } = useLaunchControls()
+  const { isRunning, setIsRunning, clearLogs, addLog, launchUi, patchLaunchUi, gameReady } = useLaunchControls()
   const { launchInstance } = useBuildLaunch({ account })
 
   const launchVanilla = useCallback(async (quickPlay?: QuickPlayLaunchRequest) => {
@@ -60,7 +60,7 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
     })
 
     patchLaunchUi(result.success
-      ? { isLaunching: false, phase: "idle", progress: 100, status: t("launcherStatus.running") }
+      ? { isLaunching: false, phase: "idle", progress: 100, status: t("launcherStatus.starting") }
       : { isLaunching: false, status: result.error ?? "Ошибка запуска" })
     if (!result.success) addLog(`[Лаунчер] ${result.error ?? "Ошибка запуска"}`, "error")
     if (result.success) {
@@ -108,8 +108,14 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
 
   const handlePlay = useCallback(async () => {
     if (isRunning) {
+      // Процесс стартует раньше, чем открывается окно игры: пока игра не
+      // подтвердила готовность, кнопка — «Запускается...», и клик ничего не гасит.
+      if (!gameReady) return
       return await window.electronAPI?.stopMinecraft()
     }
+    // Пока идёт запуск/установка, повторный клик ничего не делает: раньше он
+    // уходил во второй launch и два JVM дрались за одну папку инстанса.
+    if (launchUi.isLaunching) return
     if (!account || !window.electronAPI) return
 
     const target = await resolveLaunchTarget()
@@ -121,7 +127,7 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
     }
 
     await launchVanilla()
-  }, [isRunning, account, resolveLaunchTarget, launchInstance, launchVanilla])
+  }, [isRunning, gameReady, launchUi.isLaunching, account, resolveLaunchTarget, launchInstance, launchVanilla])
 
   /**
    * Запуск из карточки быстрой игры. Идёт тем же путём, что и обычная кнопка
