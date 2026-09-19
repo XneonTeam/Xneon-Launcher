@@ -5,6 +5,7 @@ import rehypeSanitize from "rehype-sanitize"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
+import { openProjectPage, projectPageUrl, type ProjectKind } from "@/lib/project-links"
 import {
   IconX,
   IconFileText,
@@ -87,6 +88,8 @@ export interface AddonDetailModalProps {
   allVersionsCount?: number
   /** Цель установки — для текста пустого состояния: «для вашей сборки» / «для вашего сервера». */
   targetLabel?: string
+  /** Тип проекта — для ссылки на страницу площадки. */
+  projectKind?: ProjectKind
 }
 
 /**
@@ -110,8 +113,10 @@ export function AddonDetailModal({
   onShowAllVersions,
   allVersionsCount = 0,
   targetLabel,
+  projectKind = "mod",
 }: AddonDetailModalProps) {
   const { t } = useTranslation()
+  const siteUrl = selectedDetails ? projectPageUrl(selectedDetails, projectKind) : null
   const resolvedTargetLabel = targetLabel ?? t("addon.target.build")
   const [selectedUpdateVersion, setSelectedUpdateVersion] = useState<ModVersion | null>(null)
   const showAllVersionsActive = versionsFallback === "otherMc" || versionsFallback === "otherLoader"
@@ -316,6 +321,17 @@ export function AddonDetailModal({
                           <IconExternalLink className="w-3.5 h-3.5" />
                           <span>{t("addon.links.website")}</span>
                         </a>
+                      )}
+                      {/* Страница проекта на площадке (Modrinth/CurseForge/FTB). */}
+                      {siteUrl && (
+                        <button
+                          type="button"
+                          onClick={() => openProjectPage(selectedDetails, projectKind)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
+                        >
+                          <IconExternalLink className="w-3.5 h-3.5" />
+                          <span>{t("common.openOnSite")}</span>
+                        </button>
                       )}
                     </div>
                   )}

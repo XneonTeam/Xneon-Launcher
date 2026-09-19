@@ -86,7 +86,7 @@ interface InstanceContentTabProps {
   setModPage: (page: number) => void
   displayResults: ModSearchResult[]
   isInstalledFn?: (project: ModSearchResult) => boolean
-  openProjectModal: (item: ModSearchResult) => void
+  openProjectModal: (item: ModSearchResult, kind?: "mod" | "resourcepack" | "shader" | "modpack" | "datapack" | "plugin") => void
   installingModSlug: string | null
   setInstallingModSlug: (slug: string | null) => void
   addModToBuild: (buildId: string, mod: ModSearchResult) => void
@@ -789,10 +789,11 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                         showCategories={type === "mods"}
                         installDisabled={installingModSlug !== null}
                         installLabel={t("builds.add")}
+                        projectKind={type === "mods" ? "mod" : type === "resourcepacks" ? "resourcepack" : "shader"}
                         confirmMessage={isLocked
                           ? t("buildDetail.lockedInstallConfirm", { name: project.name })
                           : undefined}
-                        onDetails={() => openProjectModal(project)}
+                        onDetails={() => openProjectModal(project, type === "mods" ? "mod" : type === "resourcepacks" ? "resourcepack" : "shader")}
                         onInstall={() => {
                           setInstallingModSlug(contentProjectKey(project))
                           setInstallPhase("resolving")

@@ -1,9 +1,10 @@
 import { useTranslation } from "react-i18next"
-import { IconInfoCircle, IconCheck, IconPlus, IconLoader2 } from "@tabler/icons-react"
+import { IconInfoCircle, IconCheck, IconPlus, IconLoader2, IconExternalLink } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { CategoryBadge } from "./instance/category-badge"
 import { SourceMark } from "@/components/launcher/source-mark"
 import { formatDownloads } from "./instance/utils"
+import { openProjectPage, projectPageUrl, type ProjectKind } from "@/lib/project-links"
 import type { ModSearchResult } from "@xnlc/types"
 
 export interface AddonRowProps {
@@ -25,6 +26,8 @@ export interface AddonRowProps {
   installDisabled?: boolean
   /** Текст кнопки установки. */
   installLabel: string
+  /** Тип проекта — от него зависит путь на сайте площадки. */
+  projectKind?: ProjectKind
   /** Если задано и установка запрещена — спросить подтверждение перед установкой. */
   confirmMessage?: string
   onDetails: () => void
@@ -43,11 +46,13 @@ export function AddonRow({
   showCategories = true,
   installDisabled = false,
   installLabel,
+  projectKind = "mod",
   confirmMessage,
   onDetails,
   onInstall,
 }: AddonRowProps) {
   const { t } = useTranslation()
+  const siteUrl = projectPageUrl(project, projectKind)
 
   // Словами о текущем этапе: сетевые шаги не показывают байты, но время занимают.
   const phaseLabel = phase === "resolving"
@@ -86,6 +91,18 @@ export function AddonRow({
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* Страница проекта на сайте площадки: из каталога раньше её открыть было нельзя. */}
+          {siteUrl && (
+            <button
+              type="button"
+              onClick={() => openProjectPage(project, projectKind)}
+              title={t("common.openOnSite")}
+              aria-label={t("common.openOnSite")}
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+            >
+              <IconExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
+            </button>
+          )}
           <button
             type="button"
             onClick={onDetails}

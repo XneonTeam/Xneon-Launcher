@@ -59,6 +59,8 @@ interface DepConfirmState {
 
 interface InstanceDetailProps {
   activeBuild: Build
+  /** Тип проекта, открытого в окне «Подробнее» — для ссылки на страницу площадки. */
+  detailsKind?: "mod" | "resourcepack" | "shader" | "modpack" | "datapack" | "plugin"
   detailTab: DetailTab
   setDetailTab: (tab: DetailTab) => void
   goToMyBuilds: () => void
@@ -88,7 +90,7 @@ interface InstanceDetailProps {
   setModPage: (page: number) => void
   displayResults: ModSearchResult[]
   isInstalledFn: (project: ModSearchResult) => boolean
-  openProjectModal: (item: ModSearchResult) => void
+  openProjectModal: (item: ModSearchResult, kind?: "mod" | "resourcepack" | "shader" | "modpack" | "datapack" | "plugin") => void
   installingModSlug: string | null
   setInstallingModSlug: (slug: string | null) => void
   addModToBuild: (buildId: string, mod: ModSearchResult) => void
@@ -118,6 +120,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
   renameBuild,
   onTrash,
   fileInputRef,
+    detailsKind,
     modSearch,
     setModSearch,
     modSource,
