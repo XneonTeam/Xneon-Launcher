@@ -73,6 +73,14 @@ cloud-server/
 .dsh-vision-router/
 plans/
 
+# Electron Debug MCP (CDP-отладка лаунчера из DSH/Cursor):
+# сторонний сервер github.com/amafjarkasi/electron-mcp-server, ставится локально
+.electron-mcp/
+
+# Локальные артефакты проверок: скриншоты и временные файлы тестов
+.shots/
+.tmp-*
+
 # Cloud server data
 data/
 *.db
