@@ -124,7 +124,18 @@ export class VersionResolver {
       return lib.natives[os] != null || lib.natives[modernKey] != null;
     };
 
-    // Prefer the entry that matches the current OS; if both (or neither) do,
+    // Правила `rules` тоже отсекают чужую ОС: у jna ванильная 5.10.0 (allow +
+    // disallow osx) вытеснялась версией только для macOS, и Windows оставался без
+    // JNA (моды с oshi падали с NoClassDefFoundError: com/sun/jna/Platform).
+    const appliesByRules = (lib: VersionJsonLibrary): boolean => {
+      if (!lib.rules || lib.rules.length === 0) return true;
+      return checkRules(lib.rules as VersionJsonRule[], osInfo);
+    };
+
+    const usableHere = (lib: VersionJsonLibrary): boolean =>
+      appliesByRules(lib) && (!lib.natives || matchesCurrentOS(lib));
+
+    // Prefer the entry that is usable on this OS; if both (or neither) are,
     // prefer the later one (last-wins).
     const setBetter = (key: string, lib: VersionJsonLibrary): void => {
       const existing = merged.get(key);
@@ -132,14 +143,14 @@ export class VersionResolver {
         merged.set(key, lib);
         return;
       }
-      const existingMatches = matchesCurrentOS(existing);
-      const newMatches = matchesCurrentOS(lib);
-      if (newMatches && !existingMatches) {
+      const existingUsable = usableHere(existing);
+      const newUsable = usableHere(lib);
+      if (newUsable && !existingUsable) {
         merged.set(key, lib);
-      } else if (!newMatches && existingMatches) {
-        // keep existing (it matches OS)
+      } else if (!newUsable && existingUsable) {
+        // keep existing (it works on this OS)
       } else {
-        // both (or neither) match — last-wins
+        // both (or neither) usable — last-wins
         merged.set(key, lib);
       }
     };
