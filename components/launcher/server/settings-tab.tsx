@@ -5,14 +5,19 @@ import type { McServerInfo, XnConnectState, XnConnectUsage } from "@xnlc/types"
 import type { JavaInstallation } from "@/components/launcher/settings/types"
 import { cn } from "@/lib/utils"
 import { MemorySlider } from "@/components/ui/memory-slider"
+import { ModalLayer } from "@/components/ui/modal-layer"
 import { useMemoryOptions } from "@/src/hooks/use-memory-options"
+import { useMcServerState } from "@/src/hooks/use-mc-servers"
 import { XnConnectLogo } from "./xn-connect-logo"
 
 interface SettingsTabProps {
   server: McServerInfo
+  /** Свежая запись сервера после сохранения — чтобы родитель не жил со старым
+   *  снапшотом (иначе тумблер XN Connect при возврате на вкладку откатывался). */
+  onServerUpdated?: (server: McServerInfo) => void
 }
 
-export function SettingsTab({ server }: SettingsTabProps) {
+export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
   const { t } = useTranslation()
   const [name, setName] = useState(server.name)
   const [xmx, setXmx] = useState(String(server.xmx))
@@ -28,6 +33,11 @@ export function SettingsTab({ server }: SettingsTabProps) {
   const [relayToggling, setRelayToggling] = useState(false)
   const [relayState, setRelayState] = useState<XnConnectState>({ status: "stopped" })
   const [usage, setUsage] = useState<XnConnectUsage | null>(null)
+  const [tunnelAddress, setTunnelAddress] = useState<string | null>(null)
+  const { state: serverState } = useMcServerState(server.id)
+  // XN Connect включается и выключается вместе с сервером: пока процесс сервера
+  // не запущен, тумблер — это только настройка «использовать XN Connect».
+  const serverIsLive = serverState.status === "running" || serverState.status === "starting"
   const { maxMb, snapPoints } = useMemoryOptions()
 
   const isAuto = !javaPath || javaPath === "auto"
@@ -38,10 +48,14 @@ export function SettingsTab({ server }: SettingsTabProps) {
       await window.electronAPI?.mcServerUpdate(server.id, update)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+      // Родитель держит свой снапшот сервера: без обновления он остаётся со
+      // старыми значениями, и при перемонтировании вкладки мы читаем их заново.
+      const fresh = await window.electronAPI?.mcServerGet(server.id)
+      if (fresh) onServerUpdated?.(fresh)
     } finally {
       setSaving(false)
     }
-  }, [server.id])
+  }, [server.id, onServerUpdated])
 
   const handleSaveName = () => {
     if (name.trim() && name !== server.name) save({ name: name.trim() })
@@ -75,10 +89,15 @@ export function SettingsTab({ server }: SettingsTabProps) {
 
     try {
       await save({ relayEnabled: next ? 1 : 0 })
-      if (next) {
-        await window.electronAPI?.xnConnectStart(server.id)
-      } else {
+      // Выключение действует сразу. Включение решает main-процесс: он поднимает
+      // туннель только если сервер уже запущен, иначе туннель начнёт работу
+      // вместе со стартом сервера (см. mc-server:start).
+      if (!next) {
         await window.electronAPI?.xnConnectStop(server.id)
+        setRelayState({ status: "stopped" })
+      } else {
+        const started = await window.electronAPI?.xnConnectStart(server.id)
+        if (started) setRelayState(started)
       }
     } catch (e) {
       console.error("[XN-Connect] Toggle error:", e)
@@ -102,6 +121,20 @@ export function SettingsTab({ server }: SettingsTabProps) {
       unsubUsage?.()
     }
   }, [server.id])
+
+  // Адрес туннеля должен быть виден и при остановленном сервере: пока relay не
+  // запущен, берём адрес уже созданного туннеля из API.
+  useEffect(() => {
+    if (!relayEnabled) {
+      setTunnelAddress(null)
+      return
+    }
+    let cancelled = false
+    window.electronAPI?.mcServerGetAddresses(server.id).then(addrs => {
+      if (!cancelled) setTunnelAddress(addrs?.custom ?? null)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [server.id, relayEnabled, relayState.status])
 
   const handlePickJava = (path: string) => {
     setJavaPath(path)
@@ -301,8 +334,27 @@ export function SettingsTab({ server }: SettingsTabProps) {
         </div>
         {relayEnabled && (
           <div className="text-xs text-muted-foreground space-y-1">
+            {(relayState.status === "running" ? relayState.publicAddress : tunnelAddress) && (
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-foreground/80">
+                  {relayState.status === "running" ? relayState.publicAddress : tunnelAddress}
+                </span>
+                <button
+                  onClick={() => {
+                    const addr = relayState.status === "running" ? relayState.publicAddress : tunnelAddress
+                    if (addr) navigator.clipboard.writeText(addr)
+                  }}
+                  className="w-6 h-6 rounded-md bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                  title={t("servers.settings.xnconnect.copy")}
+                >
+                  <IconClipboard className="w-3.5 h-3.5" strokeWidth={1.5} />
+                </button>
+              </div>
+            )}
             {relayState.status === "stopped" && (
-              <span className="text-orange-400">{t("servers.statusStopped")}</span>
+              serverIsLive
+                ? <span className="text-orange-400">{t("servers.statusStopped")}</span>
+                : <span>{t("servers.settings.xnconnect.serverOffline")}</span>
             )}
             {relayState.status === "auth_required" && (
               <span className="text-yellow-400">{t("servers.settings.xnconnect.authWaiting")}</span>
@@ -311,10 +363,7 @@ export function SettingsTab({ server }: SettingsTabProps) {
               <span className="text-blue-400">{t("servers.statusStarting")}</span>
             )}
             {relayState.status === "running" && (
-              <div>
-                <span className="text-green-400">{t("servers.settings.xnconnect.active")}</span>
-                <span className="font-mono">{relayState.publicAddress}</span>
-              </div>
+              <span className="text-green-400">{t("servers.settings.xnconnect.active")}</span>
             )}
           </div>
         )}
@@ -346,7 +395,14 @@ export function SettingsTab({ server }: SettingsTabProps) {
 
       {/* XN-Connect Auth Modal */}
       {relayState.status === "auth_required" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+        <ModalLayer
+          onClose={() => {
+            window.electronAPI?.xnConnectStop(server.id)
+            setRelayEnabled(false)
+            save({ relayEnabled: 0 })
+          }}
+          className="bg-background/80 backdrop-blur-sm animate-in fade-in-0"
+        >
           <div className="w-full max-w-md p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
@@ -411,12 +467,12 @@ export function SettingsTab({ server }: SettingsTabProps) {
               </a>
             </div>
           </div>
-        </div>
+        </ModalLayer>
       )}
 
       {/* Java modal */}
       {showJavaModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+        <ModalLayer onClose={() => setShowJavaModal(false)} className="bg-background/80 backdrop-blur-sm animate-in fade-in-0">
           <div className="w-full max-w-lg p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-semibold text-foreground">Java</h3>
@@ -506,7 +562,7 @@ export function SettingsTab({ server }: SettingsTabProps) {
               {t("servers.cancel")}
             </button>
           </div>
-        </div>
+        </ModalLayer>
       )}
     </div>
   )

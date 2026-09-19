@@ -252,7 +252,7 @@ export function ServersBrowseToolbar({
 
       <Select value={selectedVersion} onValueChange={setSelectedVersion}>
         <SelectTrigger className="w-[180px] h-10 rounded-xl bg-muted/50 border-border text-foreground">
-          <SelectValue placeholder={versionsLoaded ? t("builds.version") : "Loading..."} />
+          <SelectValue placeholder={versionsLoaded ? t("builds.version") : t("home.loadingVersions")} />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">{t("servers.allVersions")}</SelectItem>

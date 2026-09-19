@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next"
-import { IconDownload, IconLoader2, IconCircleX, IconInfoCircle } from "@tabler/icons-react"
+import { EmptyState } from "@/components/ui/empty-state"
+import { IconDownload, IconLoader2, IconInfoCircle } from "@tabler/icons-react"
 import { Spinner } from "./instance/spinner"
 import { formatDownloads } from "./instance/utils"
 import { ServersBrowseToolbar } from "./servers-browse-toolbar"
@@ -89,12 +90,7 @@ export function ServersBrowse({
         {loading ? (
           <Spinner />
         ) : results.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-            <div className="flex flex-col items-center gap-2">
-              <IconCircleX className="w-8 h-8 text-muted-foreground/50" />
-              {t("builds.noResults")}
-            </div>
-          </div>
+          <EmptyState title={t("builds.noResults")} className="h-full" />
         ) : (
           <div className="grid gap-3">
             {results.map(project => {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IconPlus, IconServer, IconTrash, IconLayoutGrid, IconLayoutList, IconPlayerPlay, IconPlayerStop, IconTerminal, IconFolder, IconPencil, IconChevronDown, IconChevronRight } from "@tabler/icons-react"
+import { IconPlus, IconServer, IconTrash, IconLayoutGrid, IconLayoutList, IconPlayerPlay, IconPlayerStop, IconTerminal, IconPencil, IconChevronDown, IconChevronRight, IconPhoto } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { useMcServers, useMcServerState } from "@/src/hooks/use-mc-servers"
 import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
@@ -10,10 +10,15 @@ import { ServerContextMenu } from "./server/server-context-menu"
 import { ServerCreateDialog } from "./server-create-dialog"
 import { ServerPackInstallDialog, type PackInstallTarget } from "./server-pack-install-dialog"
 import { ServerTrashView } from "./server-trash-view"
-import { CategoryAssignMenu } from "./category-assign-menu"
+import { CategoryAssignModal } from "./category-assign-modal"
+import { IconPickerModal } from "./instance/icon-picker-modal"
+import { ModalLayer } from "@/components/ui/modal-layer"
 import { ServersBrowse } from "./servers-browse"
+import { SORT_OPTIONS_BY_SOURCE } from "./instance/sort-options"
 import { InstanceModal } from "./instance/instance-modal"
 import { LoaderIcon, loaderLabel } from "./instance/loader-icon"
+import { usePersistentLayout } from "@/src/hooks/use-persistent-layout"
+import { EntityIcon } from "./instance/entity-icon"
 import { PlatformBadge } from "./platform-icon"
 import type { McServerInfo, ModCategory } from "@xnlc/types"
 import type { SelectedModCategory } from "./instance/use-mod-search"
@@ -23,24 +28,24 @@ interface ServersPageProps {
   onSelectServer?: (server: McServerInfo) => void
 }
 
-const MODRINTH_SORT_OPTIONS: ModSort[] = ["relevance", "downloads", "follows", "newest", "updated"]
-const CURSEFORGE_SORT_OPTIONS: ModSort[] = ["downloads", "newest", "updated", "featured", "rating"]
 const PAGE_SIZE = 20
 
 export function ServersPage({ onSelectServer }: ServersPageProps) {
   const { t } = useTranslation()
   const { servers, loading, createServer, deleteServer, duplicateServer, reload,
-    setServerGroup, renameGroup, deleteGroup, groups, collapsedGroups, toggleGroupCollapse } = useMcServers()
+    setServerGroup, renameGroup, deleteGroup, addCategory, groups, collapsedGroups, toggleGroupCollapse,
+    categoryIcons, setCategoryIcon } = useMcServers()
   const { visibleVersions, versionsLoaded } = useMinecraftVersionOptions()
   const [showCreate, setShowCreate] = useState(false)
   const [view, setView] = useState<"servers" | "trash" | "modrinth" | "curseforge">("servers")
-  const [layoutMode, setLayoutMode] = useState<"grid" | "list">("grid")
+  const [layoutMode, changeLayout] = usePersistentLayout("xneon-launcher:serversLayout")
   // Категории/группы серверов: меню действий над группой + назначение сервера в группу.
   const [groupMenu, setGroupMenu] = useState<{ name: string; x: number; y: number } | null>(null)
   const [renameGroupFor, setRenameGroupFor] = useState<string | null>(null)
   const [renameGroupDraft, setRenameGroupDraft] = useState("")
-  const [assignMenu, setAssignMenu] = useState<{ serverId: string; x: number; y: number } | null>(null)
-
+  const [assignMenu, setAssignMenu] = useState<{ serverId: string } | null>(null)
+  // Категория, для которой сейчас выбирают иконку (null — пикер закрыт).
+  const [iconPickerFor, setIconPickerFor] = useState<string | null>(null)
   // ── Marketplace state ──
   const [mrSearch, setMrSearch] = useState("")
   const [cfSearch, setCfSearch] = useState("")
@@ -269,14 +274,24 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
     return map
   }, [servers])
 
+  // Сколько серверов в каждой категории — показываем в модале категорий.
+  const groupCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const server of servers) {
+      if (server.group) counts[server.group] = (counts[server.group] ?? 0) + 1
+    }
+    return counts
+  }, [servers])
+
   const sortedGroupKeys = useMemo(() => {
-    const keys = Array.from(groupedServers.keys())
-    const named = keys.filter(k => k !== "").sort((a, b) => a.localeCompare(b))
-    // «Без группы» — всегда последней; показываем её только если есть именованные группы.
-    if (named.length > 0 && groupedServers.has("")) named.push("")
-    else if (named.length === 0 && groupedServers.has("")) named.push("")
+    // Плюс созданные категории: пустая категория тоже должна быть видна в списке.
+    const named = Array.from(new Set<string>([...groupedServers.keys(), ...groups]))
+      .filter(k => k !== "")
+      .sort((a, b) => a.localeCompare(b))
+    // «Без группы» — всегда последней; показываем её только если есть серверы без группы.
+    if (groupedServers.has("")) named.push("")
     return named
-  }, [groupedServers])
+  }, [groupedServers, groups])
 
   const handleGroupContextMenu = useCallback((e: React.MouseEvent, group: string) => {
     e.preventDefault()
@@ -297,9 +312,12 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
     setAssignMenu(null)
   }, [setServerGroup])
 
+  // Меню категории закрывается любым кликом/скроллом. Модалу категорий это не нужно:
+  // он портальный, закрывается сам (клик по фону, Esc, кнопка) — иначе клик внутри
+  // модала (переименование, иконка) закрывал бы его сразу.
   useEffect(() => {
-    if (!groupMenu && !assignMenu) return
-    const close = () => { setGroupMenu(null); setAssignMenu(null) }
+    if (!groupMenu) return
+    const close = () => setGroupMenu(null)
     window.addEventListener("click", close)
     window.addEventListener("scroll", close, true)
     window.addEventListener("keydown", close)
@@ -308,7 +326,7 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
       window.removeEventListener("scroll", close, true)
       window.removeEventListener("keydown", close)
     }
-  }, [groupMenu, assignMenu])
+  }, [groupMenu])
 
   return (
     <div className="flex flex-col h-full gap-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
@@ -320,9 +338,7 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
           </div>
           <div>
             <h1 className="text-xl font-bold text-foreground">{t("servers.title")}</h1>
-            <p className="text-sm text-muted-foreground">
-              {t("servers.onlineCount", { count: servers.length })}
-            </p>
+            <p className="text-sm text-muted-foreground">{t("servers.subtitle")}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -360,7 +376,7 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
               <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-muted border border-border">
                 <button
                   type="button"
-                  onClick={() => setLayoutMode("grid")}
+                  onClick={() => changeLayout("grid")}
                   className={cn(
                     "p-1.5 rounded-md transition-colors",
                     layoutMode === "grid" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80",
@@ -371,7 +387,7 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setLayoutMode("list")}
+                  onClick={() => changeLayout("list")}
                   className={cn(
                     "p-1.5 rounded-md transition-colors",
                     layoutMode === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80",
@@ -406,7 +422,7 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
           installingKey={mrInstallingKey}
           sortBy={mrSortBy}
           setSortBy={setMrSortBy}
-          sortOptions={MODRINTH_SORT_OPTIONS}
+          sortOptions={SORT_OPTIONS_BY_SOURCE.modrinth}
           selectedVersion={selectedVersion}
           setSelectedVersion={setSelectedVersion}
           versionsLoaded={versionsLoaded}
@@ -432,7 +448,7 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
           installingKey={cfInstallingKey}
           sortBy={cfSortBy}
           setSortBy={setCfSortBy}
-          sortOptions={CURSEFORGE_SORT_OPTIONS}
+          sortOptions={SORT_OPTIONS_BY_SOURCE.curseforge}
           selectedVersion={selectedVersion}
           setSelectedVersion={setSelectedVersion}
           versionsLoaded={versionsLoaded}
@@ -494,7 +510,10 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
                           ? <IconChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
                           : <IconChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
                       ) : <div className="w-4" />}
-                      <IconFolder className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      {/* Иконку категории задаёт пользователь в контекстном меню категории. */}
+                      {groupKey !== "" && categoryIcons[groupKey] && (
+                        <EntityIcon src={categoryIcons[groupKey]} className="w-4 h-4 shrink-0 rounded p-0.5 text-primary" imgClassName="w-4 h-4 shrink-0 rounded object-contain" />
+                      )}
                       <span className={cn(
                         "text-sm font-semibold",
                         groupKey ? "text-foreground" : "text-muted-foreground italic",
@@ -508,6 +527,11 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
                           className="flex items-center gap-0.5 opacity-0 group-hover/head:opacity-100 transition-opacity"
                           onClick={(e) => e.stopPropagation()}
                         >
+                          <button type="button" title={t("categoryMenu.icon")}
+                            onClick={() => setIconPickerFor(groupKey)}
+                            className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
+                            <IconPhoto className="w-3.5 h-3.5" />
+                          </button>
                           <button type="button" title={t("servers.renameGroup", "Переименовать категорию")}
                             onClick={() => { setRenameGroupFor(groupKey); setRenameGroupDraft(groupKey) }}
                             className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
@@ -532,7 +556,7 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
                               onClick={() => onSelectServer?.(server)}
                               onDelete={() => deleteServer(server.id)}
                               onDuplicate={() => void duplicateServer(server.id)}
-                              onAssignGroup={(x, y) => setAssignMenu({ serverId: server.id, x, y })}
+                              onAssignGroup={() => setAssignMenu({ serverId: server.id })}
                             />
                           ))}
                         </div>
@@ -545,7 +569,7 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
                               onClick={() => onSelectServer?.(server)}
                               onDelete={() => deleteServer(server.id)}
                               onDuplicate={() => void duplicateServer(server.id)}
-                              onAssignGroup={(x, y) => setAssignMenu({ serverId: server.id, x, y })}
+                              onAssignGroup={() => setAssignMenu({ serverId: server.id })}
                             />
                           ))}
                         </div>
@@ -567,6 +591,12 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
           onClick={(e) => e.stopPropagation()}
         >
           <button type="button"
+            onClick={() => { setIconPickerFor(groupMenu.name); setGroupMenu(null) }}
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-foreground hover:bg-muted">
+            <IconPhoto className="w-4 h-4 text-muted-foreground" />
+            {t("categoryMenu.icon")}
+          </button>
+          <button type="button"
             onClick={() => { setRenameGroupFor(groupMenu.name); setRenameGroupDraft(groupMenu.name); setGroupMenu(null) }}
             className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-foreground hover:bg-muted">
             <IconPencil className="w-4 h-4 text-muted-foreground" />
@@ -581,21 +611,40 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
         </div>
       )}
 
-      {/* Assign server to category */}
+      {/* Перемещение сервера в категорию — модальное окно категорий */}
       {assignMenu && (
-        <CategoryAssignMenu
-          position={{ x: assignMenu.x, y: assignMenu.y }}
+        <CategoryAssignModal
+          open
+          itemName={servers.find(s => s.id === assignMenu.serverId)?.name ?? ""}
+          scope="servers"
           groups={groups}
+          icons={categoryIcons}
+          counts={groupCounts}
           current={servers.find(s => s.id === assignMenu.serverId)?.group ?? ""}
           onAssign={(group) => handleAssignGroup(assignMenu.serverId, group)}
+          onCreate={addCategory}
+          onSetIcon={setCategoryIcon}
+          onRename={(oldName, newName) => void renameGroup(oldName, newName)}
+          onDelete={(group) => void deleteGroup(group)}
           onClose={() => setAssignMenu(null)}
         />
       )}
 
+      {/* Category icon picker: те же встроенные логотипы, что у сборок и серверов */}
+      <IconPickerModal
+        open={iconPickerFor !== null}
+        onOpenChange={(open) => { if (!open) setIconPickerFor(null) }}
+        value={iconPickerFor ? (categoryIcons[iconPickerFor] ?? "") : ""}
+        onChange={(icon) => { if (iconPickerFor) setCategoryIcon(iconPickerFor, icon) }}
+        title={t("categoryMenu.icon")}
+        description={t("categoryMenu.iconDesc")}
+        removeLabel={t("categoryMenu.iconRemove")}
+      />
+
       {/* Rename category dialog */}
       {renameGroupFor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60" onClick={() => setRenameGroupFor(null)}>
-          <div className="w-[320px] rounded-2xl border border-border bg-card p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <ModalLayer onClose={() => setRenameGroupFor(null)} className="bg-background/60">
+          <div className="w-[320px] rounded-2xl border border-border bg-card p-4 shadow-2xl">
             <h3 className="text-sm font-semibold text-foreground">{t("servers.renameGroup", "Переименовать категорию")}</h3>
             <input
               autoFocus
@@ -618,7 +667,7 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
               </button>
             </div>
           </div>
-        </div>
+        </ModalLayer>
       )}
 
       {/* Create dialog */}
@@ -675,15 +724,23 @@ function ServerListRow({ server, onClick, onDelete, onDuplicate, onAssignGroup }
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
 
   const isRunning = state.status === "running"
-  const isBusy = state.status === "starting" || state.status === "stopping"
+  const isStarting = state.status === "starting"
+  const isStopping = state.status === "stopping"
+  /** Гасим и стартующий сервер. */
+  const canStop = isRunning || isStarting
 
   const loaderName = loaderLabel(server.modloader)
 
   const handlePlayStop = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (isBusy) return
-    if (isRunning) stop()
-    else start()
+    if (isStopping) return
+    if (canStop) {
+      stop()
+      return
+    }
+    // Как и в плитке: запуск сразу открывает страницу сервера.
+    start()
+    onClick()
   }
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -702,7 +759,7 @@ function ServerListRow({ server, onClick, onDelete, onDuplicate, onAssignGroup }
       >
         <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
           {server.icon ? (
-            <img src={server.icon} alt="" className="w-full h-full object-cover" />
+            <EntityIcon src={server.icon} className="w-full h-full p-1 text-primary" imgClassName="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10 flex items-center justify-center">
               <IconServer className="w-5 h-5 text-primary/40" />
@@ -727,16 +784,16 @@ function ServerListRow({ server, onClick, onDelete, onDuplicate, onAssignGroup }
           )}
           <button
             onClick={handlePlayStop}
-            disabled={isBusy}
+            disabled={isStopping}
             className={cn(
               "p-2 rounded-xl transition-all",
-              isRunning
+              canStop
                 ? "bg-red-500/80 hover:bg-red-500 text-white"
                 : "bg-primary/80 hover:bg-primary text-primary-foreground",
-              isBusy && "opacity-50 cursor-not-allowed"
+              isStopping && "opacity-50 cursor-not-allowed"
             )}
           >
-            {isRunning ? (
+            {canStop ? (
               <IconPlayerStop className="w-4 h-4" />
             ) : (
               <IconPlayerPlay className="w-4 h-4" />
@@ -750,9 +807,9 @@ function ServerListRow({ server, onClick, onDelete, onDuplicate, onAssignGroup }
           server={server}
           position={menuPos}
           isRunning={isRunning}
-          isBusy={isBusy}
+          isBusy={isStopping}
           onConnect={onClick}
-          onToggleRun={() => { if (isRunning) stop(); else start() }}
+          onToggleRun={() => { if (canStop) stop(); else start() }}
           onDelete={onDelete}
           onDuplicate={onDuplicate}
           onClose={() => setMenuOpen(false)}

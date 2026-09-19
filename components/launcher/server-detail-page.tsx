@@ -9,6 +9,7 @@ import {
 import { useMcServerState, useMcServerLogs, useMcServerMetrics, useMcServerDownloadProgress } from "@/src/hooks/use-mc-servers"
 import { cn } from "@/lib/utils"
 import { IconPickerModal } from "@/components/launcher/instance/icon-picker-modal"
+import { EntityIcon } from "@/components/launcher/instance/entity-icon"
 import { LoaderIcon, loaderLabel } from "./instance/loader-icon"
 import type { McServerInfo } from "@xnlc/types"
 import { ConsoleTab } from "./server/console-tab"
@@ -53,12 +54,12 @@ interface ServerDetailPageProps {
 export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDetailPageProps) {
   const { t } = useTranslation()
   const { state, start, stop } = useMcServerState(server.id)
-  const { logs, clearLogs } = useMcServerLogs(server.id)
+  const { logs, clearLogs, resetForRestart } = useMcServerLogs(server.id)
   const metrics = useMcServerMetrics(server.id, state.status === "running")
   const downloadProgress = useMcServerDownloadProgress(server.id)
   const [activeTab, setActiveTab] = useState<ServerTab>("console")
   const [command, setCommand] = useState("")
-  const [addresses, setAddresses] = useState<{ local: string; public: string | null; custom: string } | null>(null)
+  const [addresses, setAddresses] = useState<{ local: string; public: string | null; custom: string | null } | null>(null)
   const [copiedAddr, setCopiedAddr] = useState<string | null>(null)
   const [eulaAccepted, setEulaAccepted] = useState(true)
   const [showEula, setShowEula] = useState(false)
@@ -77,16 +78,10 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
       setEulaAccepted(accepted)
     })
 
-    // Auto-start relay if enabled — so the address shows immediately
-    if (server.relayEnabled) {
-      window.electronAPI?.xnConnectStatus(server.id).then(relayState => {
-        if (relayState.status === "stopped") {
-          window.electronAPI?.xnConnectStart(server.id)
-        } else if (relayState.status === "limit_reached") {
-          setLimitState({ used: relayState.used, max: relayState.max })
-        }
-      })
-    }
+    // XN Connect не запускается отсюда: туннель поднимается вместе с самим
+    // сервером (mc-server:start) и гасится вместе с ним (mc-server:stop/kill).
+    // Раньше туннель включался уже при открытии страницы, даже если сервер
+    // остановлен, — relay стучался в закрытый порт и мигал реконнектами.
 
     // Re-fetch addresses when relay state changes
     const unsubXn = window.electronAPI?.onXnConnectState((data) => {
@@ -133,33 +128,61 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
   const isStarting = state.status === "starting"
   const isStopping = state.status === "stopping"
   const isDownloading = downloadProgress !== null && downloadProgress.phase !== "done" && downloadProgress.phase !== "error"
-  const isBusy = isStarting || isStopping || isDownloading
+  // Локальная «занятость»: состояние из main приходит с задержкой.
+  const [pending, setPending] = useState<null | "start" | "stop">(null)
+  const pendingRef = useRef<null | "start" | "stop">(null)
+  const isStartingLike = isStarting || pending === "start"
+  const isStoppingLike = isStopping || pending === "stop"
+  const isBusy = isStartingLike || isStoppingLike || isDownloading
+
+  /** Пока действие не завершилось, второе такое же не уходит. */
+  const runAction = async (kind: "start" | "stop", fn: () => unknown) => {
+    if (pendingRef.current === kind) return
+    pendingRef.current = kind
+    setPending(kind)
+    try {
+      await fn()
+    } finally {
+      // Если запросили противоположное действие, маркер уже перезаписан.
+      if (pendingRef.current === kind) {
+        pendingRef.current = null
+        setPending(null)
+      }
+    }
+  }
 
   const handleSendCommand = async () => {
     if (!command.trim()) return
-    await window.electronAPI?.mcServerSendCommand(server.id, command.trim())
-    setCommand("")
+    try {
+      await window.electronAPI?.mcServerSendCommand(server.id, command.trim())
+      setCommand("")
+    } catch {
+      // Причина отказа уже выведена в консоль сервера.
+    }
   }
 
   const handleStartStop = async () => {
-    if (isRunning) {
-      stop()
+    // Гасим и запущенный, и ещё стартующий сервер.
+    if (isRunning || isStartingLike) {
+      await runAction("stop", () => stop())
       return
     }
-    if (isBusy) return
+    if (isStoppingLike || isDownloading) return
     if (!eulaAccepted) {
       setShowEula(true)
       return
     }
     await propertiesFlushRef.current?.().catch(() => {})
-    start()
+    await runAction("start", () => start())
   }
 
   const handleRestart = async () => {
     if (!isRunning || isBusy) return
+    // Консоль чистится сразу, иначе в ней останется лог прошлой сессии.
+    resetForRestart()
     await propertiesFlushRef.current?.().catch(() => {})
-    await stop()
-    start()
+    await runAction("stop", () => stop())
+    await runAction("start", () => start())
   }
 
   const loaderName = loaderLabel(server.modloader)
@@ -195,7 +218,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
           className="relative w-16 h-16 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 border border-border bg-muted/70 hover:border-primary/50 transition-colors cursor-pointer group"
         >
           {icon ? (
-            <img src={icon} alt="" className="w-full h-full object-cover" />
+            <EntityIcon src={icon} className="w-full h-full p-2 text-primary" imgClassName="w-full h-full object-cover" />
           ) : (
             <>
               <LoaderIcon loaderId={server.modloader} className="w-10 h-10 text-primary/60" />
@@ -219,20 +242,20 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
             <div className={cn(
               "flex items-center gap-1.5 rounded-full px-3 py-0.5 text-xs font-medium",
               isRunning && "bg-green-500/15 text-green-400 border border-green-500/20",
-              isStarting && "bg-yellow-500/15 text-yellow-400 border border-yellow-500/20",
-              isStopping && "bg-orange-500/15 text-orange-400 border border-orange-500/20",
+              isStartingLike && "bg-yellow-500/15 text-yellow-400 border border-yellow-500/20",
+              isStoppingLike && "bg-orange-500/15 text-orange-400 border border-orange-500/20",
               !isRunning && !isBusy && "bg-muted/60 text-muted-foreground border border-border",
             )}>
               <div className={cn(
                 "h-2 w-2 rounded-full",
                 isRunning && "bg-green-400",
-                isStarting && "bg-yellow-400 animate-pulse",
-                isStopping && "bg-orange-400",
+                isStartingLike && "bg-yellow-400 animate-pulse",
+                isStoppingLike && "bg-orange-400",
                 !isRunning && !isBusy && "bg-muted-foreground/50",
               )} />
               {isRunning && t("servers.statusRunning")}
-              {isStarting && t("servers.statusStarting")}
-              {isStopping && t("servers.statusStopping")}
+              {isStartingLike && t("servers.statusStarting")}
+              {isStoppingLike && t("servers.statusStopping")}
               {!isRunning && !isBusy && t("servers.statusStopped")}
             </div>
             {isRunning && (
@@ -278,20 +301,20 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
           </button>
           <button
             onClick={handleStartStop}
-            disabled={isBusy}
+            disabled={isStoppingLike || isDownloading}
             className={cn(
               "p-2 rounded-xl transition-all active:scale-[0.98]",
-              isRunning
+              isRunning || isStartingLike
                 ? "bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20"
                 : "bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_15px_var(--glow-primary)]",
-              isBusy && "opacity-50 cursor-not-allowed active:scale-100"
+              (isStoppingLike || isDownloading) && "opacity-50 cursor-not-allowed active:scale-100"
             )}
-            title={isRunning ? t("servers.stop") : t("servers.start")}
+            title={isRunning || isStartingLike ? t("servers.stop") : t("servers.start")}
           >
-            {isRunning ? (
-              <IconPlayerStop className="w-4 h-4" />
-            ) : isBusy ? (
+            {isStoppingLike || isDownloading ? (
               <IconRefresh className="w-4 h-4 animate-spin" />
+            ) : isRunning || isStartingLike ? (
+              <IconPlayerStop className="w-4 h-4" />
             ) : (
               <IconPlayerPlay className="w-4 h-4" />
             )}
@@ -330,7 +353,11 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
           {addresses.public && (
             <AddressChip label="Public" value={addresses.public} copied={copiedAddr === addresses.public} onCopy={handleCopyAddr} />
           )}
-          <AddressChip label="Xneon" value={addresses.custom} copied={copiedAddr === addresses.custom} onCopy={handleCopyAddr} />
+          {addresses.custom ? (
+            // Чип показываем только когда адрес XN Connect реально есть: если
+            // функция выключена у сервера, никакого «XNEON» в шапке быть не должно.
+            <AddressChip label="Xneon" value={addresses.custom} copied={copiedAddr === addresses.custom} onCopy={handleCopyAddr} />
+          ) : null}
         </div>
       )}
 
@@ -392,7 +419,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
           />
         )}
         {activeTab === "settings" && (
-          <SettingsTab server={server} />
+          <SettingsTab server={server} onServerUpdated={onServerUpdated} />
         )}
         {activeTab === "players" && (
           <PlayersTab serverId={server.id} />

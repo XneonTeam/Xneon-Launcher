@@ -151,6 +151,16 @@ export class XnConnectManager {
         return relay.state
       }
 
+      // The user may stop the server while the tunnel is being prepared.
+      // Bail out instead of leaving an orphan relay running.
+      if (relay.stop) {
+        logRuntime(`[XN-Connect] Cancelled before relay start`)
+        this.cleanup(serverId)
+        relay.state = { status: "stopped" }
+        sendToRenderer("xn-connect:state", { serverId, state: relay.state })
+        return relay.state
+      }
+
       // 2. Load tunnels
       logRuntime(`[XN-Connect] Loading tunnels...`)
       const tunnels = await apiGetTunnels(token, apiUrl)
@@ -244,6 +254,17 @@ export class XnConnectManager {
       const { stop } = await runTunnel(tunnel, callbacks)
       relay.stopFn = stop
 
+      // Stopped while the relay was starting up: tear the runner down now,
+      // otherwise it keeps a relay session alive that nothing can reach.
+      if (relay.stop) {
+        logRuntime(`[XN-Connect] Cancelled during relay start`)
+        stop()
+        this.cleanup(serverId)
+        relay.state = { status: "stopped" }
+        sendToRenderer("xn-connect:state", { serverId, state: relay.state })
+        return relay.state
+      }
+
       // Wait a moment for connection to establish
       await new Promise(r => setTimeout(r, 1500))
 
@@ -264,6 +285,25 @@ export class XnConnectManager {
       relay.state = { status: "stopped" }
       sendToRenderer("xn-connect:state", { serverId, state: relay.state })
       return relay.state
+    }
+  }
+
+  // Public address of the tunnel that belongs to a launcher server, resolved
+  // from the API without starting anything. Lets the UI show the XN Connect
+  // address while the server is still stopped. Returns null when there is no
+  // token, the API is unreachable, or the tunnel has not been created yet.
+  async getTunnelAddress(serverName: string, port: number): Promise<string | null> {
+    try {
+      const token = await apiLoadToken()
+      if (!token) return null
+
+      const tunnels = await apiGetTunnels(token, DEFAULT_API_URL)
+      const tunnel = apiFindServerTunnel(tunnels, serverName, port)
+      if (!tunnel || apiIsTunnelBlocked(tunnel) || !tunnel.public_host) return null
+
+      return `${tunnel.public_host}:${tunnel.public_port}`
+    } catch {
+      return null
     }
   }
 

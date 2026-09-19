@@ -1,11 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { McServerInfo, McServerState } from "@xnlc/types"
+import { useCategoryIcons } from "@/src/hooks/use-category-icons"
+import { useCategoryList } from "@/src/hooks/use-category-list"
 
 export function useMcServers() {
   const [servers, setServers] = useState<McServerInfo[]>([])
   const [loading, setLoading] = useState(true)
   // Свёрнутые категории (как группы у сборок) — состояние только в UI.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  // Иконки категорий — их можно задать в контекстном меню категории.
+  const { categoryIcons, setCategoryIcon, renameCategoryIcon, dropCategoryIcon } = useCategoryIcons("servers")
+  // Созданные вручную категории: без этого пустая категория исчезала бы сразу.
+  const {
+    declaredCategories, addCategory, renameCategory: renameDeclaredCategory, dropCategory: dropDeclaredCategory,
+  } = useCategoryList("servers")
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -81,7 +89,9 @@ export function useMcServers() {
       return next
     })
     await Promise.all(affected.map(id => window.electronAPI?.mcServerUpdate(id, { group: target })))
-  }, [servers])
+    renameCategoryIcon(oldName, target)
+    renameDeclaredCategory(oldName, target)
+  }, [servers, renameCategoryIcon, renameDeclaredCategory])
 
   /** Удаляет категорию: серверы остаются, но становятся без группы. */
   const deleteGroup = useCallback(async (group: string) => {
@@ -94,7 +104,9 @@ export function useMcServers() {
       return next
     })
     await Promise.all(affected.map(id => window.electronAPI?.mcServerUpdate(id, { group: null })))
-  }, [servers])
+    dropCategoryIcon(group)
+    dropDeclaredCategory(group)
+  }, [servers, dropCategoryIcon, dropDeclaredCategory])
 
   const toggleGroupCollapse = useCallback((group: string) => {
     setCollapsedGroups(prev => {
@@ -106,12 +118,13 @@ export function useMcServers() {
   }, [])
 
   const groups = useMemo(() => {
-    const set = new Set<string>()
+    // Созданные категории + категории, в которых уже есть серверы.
+    const set = new Set<string>(declaredCategories)
     for (const s of servers) { if (s.group) set.add(s.group) }
     return Array.from(set).sort((a, b) => a.localeCompare(b))
-  }, [servers])
+  }, [servers, declaredCategories])
 
-  return { servers, loading, reload, createServer, deleteServer, updateServer, restoreServer, listTrash, purgeTrash, permanentDelete, duplicateServer, setServerGroup, renameGroup, deleteGroup, groups, collapsedGroups, toggleGroupCollapse }
+  return { servers, loading, reload, createServer, deleteServer, updateServer, restoreServer, listTrash, purgeTrash, permanentDelete, duplicateServer, setServerGroup, renameGroup, deleteGroup, addCategory, groups, collapsedGroups, toggleGroupCollapse, categoryIcons, setCategoryIcon }
 }
 
 export function useMcServerState(id: string | null) {
@@ -136,24 +149,68 @@ export function useMcServerState(id: string | null) {
   return { state, start, stop, kill }
 }
 
+/**
+ * Буфер логов в main-процессе создаётся заново на каждый запуск сервера, поэтому
+ * и консоль обязана начинаться с чистого листа: без сброса по статусу "starting"
+ * перезапуск выглядел бы как непрерывный лог всех предыдущих сессий.
+ */
 export function useMcServerLogs(id: string | null) {
   const [logs, setLogs] = useState<string[]>([])
+  // Поколение консоли: нужно, чтобы ещё не вернувшийся начальный запрос буфера
+  // не вернул в консоль строки предыдущего запуска после сброса.
+  const generationRef = useRef(0)
+  // Перезапуск: пока гасится старая сессия, консоль уже очищена, и её хвост
+  // (Saving chunks, "Server exited with code 0") не должен снова в неё попасть.
+  const mutedRef = useRef(false)
 
   useEffect(() => {
     if (!id) return
+    const generation = ++generationRef.current
+    mutedRef.current = false
+    setLogs([])
+
     window.electronAPI?.mcServerLogs(id).then(initial => {
-      if (initial) setLogs(initial)
+      if (generation === generationRef.current && initial) setLogs(initial)
     })
 
-    const unsub = window.electronAPI?.onMcServerLog((data) => {
-      if (data.id === id) setLogs(prev => [...prev, data.line])
+    const unsubLog = window.electronAPI?.onMcServerLog((data) => {
+      if (data.id !== id || mutedRef.current) return
+      setLogs(prev => [...prev, data.line])
     })
-    return () => unsub?.()
+
+    const unsubState = window.electronAPI?.onMcServerStateChange((data) => {
+      if (data.id !== id) return
+      if (data.state.status === "starting") {
+        // Новая сессия началась — консоль обязана быть пустой, а приём строк снова открыт.
+        mutedRef.current = false
+        generationRef.current++
+        setLogs([])
+      } else if (data.state.status === "stopped") {
+        // Старт после перезапуска мог не состояться: иначе консоль молчала бы навсегда.
+        mutedRef.current = false
+      }
+    })
+
+    return () => {
+      unsubLog?.()
+      unsubState?.()
+      mutedRef.current = false
+    }
   }, [id])
 
-  const clearLogs = useCallback(() => setLogs([]), [])
+  const clearLogs = useCallback(() => {
+    generationRef.current++
+    setLogs([])
+  }, [])
 
-  return { logs, clearLogs }
+  /** Перезапуск: чистим консоль сразу по нажатию и глушим хвост прошлой сессии. */
+  const resetForRestart = useCallback(() => {
+    mutedRef.current = true
+    generationRef.current++
+    setLogs([])
+  }, [])
+
+  return { logs, clearLogs, resetForRestart }
 }
 
 export function useMcServerMetrics(id: string | null, isRunning: boolean) {

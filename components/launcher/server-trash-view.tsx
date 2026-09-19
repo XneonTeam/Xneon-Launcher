@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next"
 import { IconTrash, IconRefresh, IconServer } from "@tabler/icons-react"
 import type { McServerInfo } from "@xnlc/types"
 import { cn } from "@/lib/utils"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ModalLayer } from "@/components/ui/modal-layer"
 import { Checkbox } from "@/components/ui/checkbox"
 import { LoaderIcon, loaderLabel } from "./instance/loader-icon"
 import { XnConnectLogo } from "./server/xn-connect-logo"
@@ -65,9 +67,7 @@ export function ServerTrashView({ onBack }: ServerTrashViewProps) {
 
   if (items.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-        {t("servers.trash.empty")}
-      </div>
+      <EmptyState variant="trash" title={t("servers.trash.empty")} className="flex-1" />
     )
   }
 
@@ -116,7 +116,10 @@ export function ServerTrashView({ onBack }: ServerTrashViewProps) {
 
       {/* Delete-forever confirmation with optional XN Connect tunnel cleanup */}
       {confirmTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+        <ModalLayer
+          onClose={() => { setConfirmTarget(null); setConfirmItem(null) }}
+          className="bg-background/80 backdrop-blur-sm animate-in fade-in-0"
+        >
           <div className="w-full max-w-md p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center flex-shrink-0">
@@ -153,7 +156,7 @@ export function ServerTrashView({ onBack }: ServerTrashViewProps) {
               </button>
             </div>
           </div>
-        </div>
+        </ModalLayer>
       )}
     </div>
   )

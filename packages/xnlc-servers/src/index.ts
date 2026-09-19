@@ -6,6 +6,15 @@
 // Server process management
 export { ServerManager, serverManager } from "./server-manager.js"
 
+// Детект готовности сервера по маркеру в консоли (startup-детект)
+export {
+  STARTUP_DONE_PATTERNS,
+  STOPPING_PATTERNS,
+  EULA_PROMPT_PATTERN,
+  isStartupDoneLine,
+  isStoppingLine,
+} from "./startup-detection.js"
+
 // JAR downloading & installation
 export {
   ensureServerJar,
