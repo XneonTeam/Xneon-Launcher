@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils"
 import {
   IconFolder, IconFile, IconDownload, IconTrash, IconLoader2,
   IconRefresh, IconUpload, IconArrowUp, IconLayoutGrid, IconColorSwatch,
-  IconUser, IconHome, IconCloud, IconServer, IconBox, IconPalette,
-  IconWallpaper, IconWorldUpload, IconSettings, IconBug, IconPlug, IconCheck,
+  IconUser, IconHome, IconCloud, IconServer, IconPuzzle, IconPhoto, IconSparkles, IconMap,
+  IconSettings, IconBug, IconPlug, IconCheck,
 } from "@tabler/icons-react"
 import { formatBytes, timeAgo } from "./utils"
 import { useAccounts, type Account } from "@/src/AccountsContext"
@@ -15,6 +15,7 @@ import { getAvatarUrl, getAccountTypeInfo, type AccountType } from "../accounts-
 import type { CloudUploadCategory } from "@xnlc/types"
 import { useAlertDialog } from "@/lib/use-alert-dialog"
 import { ActionConfirmDialog } from "@/components/launcher/instance/action-confirm-dialog"
+import { ModalLayer } from "@/components/ui/modal-layer"
 
 const AVATAR_API = "https://mcskinapi-three.vercel.app/avatar"
 const FALLBACK_AVATAR = `${AVATAR_API}/Steve?skin_type=microsoft`
@@ -555,8 +556,8 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
   }, [uploading])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0" onClick={onClose}>
-      <div className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+    <ModalLayer onClose={onClose} className="bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+      <div className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
         <div className="flex border-b border-border">
           <button onClick={() => setTab("builds")}
             className={cn("flex-1 px-4 py-3 text-sm font-medium transition-colors",
@@ -716,7 +717,7 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
           </button>
         </div>
       </div>
-    </div>
+    </ModalLayer>
   )
 }
 
@@ -746,17 +747,17 @@ function SelectiveImportModal({
 
   const categories = isServer
     ? [
-        { id: "world", label: t("cloud.cat.world"), desc: t("cloud.cat.worldDesc"), icon: <IconWorldUpload className="w-4 h-4" /> },
-        { id: "mods", label: t("cloud.cat.mods"), desc: t("cloud.cat.modsDesc"), icon: <IconBox className="w-4 h-4" /> },
+        { id: "world", label: t("cloud.cat.world"), desc: t("cloud.cat.worldDesc"), icon: <IconMap className="w-4 h-4" /> },
+        { id: "mods", label: t("cloud.cat.mods"), desc: t("cloud.cat.modsDesc"), icon: <IconPuzzle className="w-4 h-4" /> },
         { id: "plugins", label: t("cloud.cat.plugins"), desc: t("cloud.cat.pluginsDesc"), icon: <IconPlug className="w-4 h-4" /> },
         { id: "configs", label: t("cloud.cat.configs"), desc: t("cloud.cat.configsDesc"), icon: <IconSettings className="w-4 h-4" /> },
         { id: "logs", label: t("cloud.cat.logs"), desc: t("cloud.cat.logsDesc"), icon: <IconBug className="w-4 h-4" /> },
       ]
     : [
-        { id: "mods", label: t("cloud.cat.mods"), desc: t("cloud.cat.modsDesc"), icon: <IconBox className="w-4 h-4" /> },
-        { id: "resourcepacks", label: t("cloud.cat.resourcepacks"), desc: t("cloud.cat.resourcepacksDesc"), icon: <IconPalette className="w-4 h-4" /> },
-        { id: "shaderpacks", label: t("cloud.cat.shaderpacks"), desc: t("cloud.cat.shaderpacksDesc"), icon: <IconWallpaper className="w-4 h-4" /> },
-        { id: "saves", label: t("cloud.cat.saves"), desc: t("cloud.cat.savesDesc"), icon: <IconWorldUpload className="w-4 h-4" /> },
+        { id: "mods", label: t("cloud.cat.mods"), desc: t("cloud.cat.modsDesc"), icon: <IconPuzzle className="w-4 h-4" /> },
+        { id: "resourcepacks", label: t("cloud.cat.resourcepacks"), desc: t("cloud.cat.resourcepacksDesc"), icon: <IconPhoto className="w-4 h-4" /> },
+        { id: "shaderpacks", label: t("cloud.cat.shaderpacks"), desc: t("cloud.cat.shaderpacksDesc"), icon: <IconSparkles className="w-4 h-4" /> },
+        { id: "saves", label: t("cloud.cat.saves"), desc: t("cloud.cat.savesDesc"), icon: <IconMap className="w-4 h-4" /> },
         { id: "data", label: t("cloud.cat.data"), desc: t("cloud.cat.dataDesc"), icon: <IconSettings className="w-4 h-4" /> },
         { id: "logs", label: t("cloud.cat.logsCache"), desc: t("cloud.cat.logsDesc"), icon: <IconBug className="w-4 h-4" /> },
       ]
@@ -797,8 +798,8 @@ function SelectiveImportModal({
     : file.name.replace(/\.zip$/i, "")
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0" onClick={onClose}>
-      <div className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+    <ModalLayer onClose={onClose} className="bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+      <div className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
         <div className="p-4 border-b border-border">
           <h3 className="font-semibold text-foreground text-base">{t("cloud.importTitle", { name })}</h3>
           <p className="text-xs text-muted-foreground mt-1">
@@ -860,7 +861,7 @@ function SelectiveImportModal({
       </div>
 
       {alertDialog}
-    </div>
+    </ModalLayer>
   )
 }
 
@@ -888,17 +889,17 @@ function SelectiveUploadModal({
 
   const categories = isServer
     ? [
-        { id: "world", labelKey: "upload.cat.world", descKey: "upload.cat.worldDesc", icon: <IconWorldUpload className="w-4 h-4" /> },
-        { id: "mods", labelKey: "upload.cat.mods", descKey: "upload.cat.modsDesc", icon: <IconBox className="w-4 h-4" /> },
+        { id: "world", labelKey: "upload.cat.world", descKey: "upload.cat.worldDesc", icon: <IconMap className="w-4 h-4" /> },
+        { id: "mods", labelKey: "upload.cat.mods", descKey: "upload.cat.modsDesc", icon: <IconPuzzle className="w-4 h-4" /> },
         { id: "plugins", labelKey: "upload.cat.plugins", descKey: "upload.cat.pluginsDesc", icon: <IconPlug className="w-4 h-4" /> },
         { id: "configs", labelKey: "upload.cat.configs", descKey: "upload.cat.configsDesc", icon: <IconSettings className="w-4 h-4" /> },
         { id: "logs", labelKey: "upload.cat.logs", descKey: "upload.cat.logsDesc", icon: <IconBug className="w-4 h-4" /> },
       ]
     : [
-        { id: "mods", labelKey: "upload.cat.mods", descKey: "upload.cat.modsDesc", icon: <IconBox className="w-4 h-4" /> },
-        { id: "resourcepacks", labelKey: "upload.cat.resourcepacks", descKey: "upload.cat.resourcepacksDesc", icon: <IconPalette className="w-4 h-4" /> },
-        { id: "shaderpacks", labelKey: "upload.cat.shaderpacks", descKey: "upload.cat.shaderpacksDesc", icon: <IconWallpaper className="w-4 h-4" /> },
-        { id: "saves", labelKey: "upload.cat.saves", descKey: "upload.cat.savesDesc", icon: <IconWorldUpload className="w-4 h-4" /> },
+        { id: "mods", labelKey: "upload.cat.mods", descKey: "upload.cat.modsDesc", icon: <IconPuzzle className="w-4 h-4" /> },
+        { id: "resourcepacks", labelKey: "upload.cat.resourcepacks", descKey: "upload.cat.resourcepacksDesc", icon: <IconPhoto className="w-4 h-4" /> },
+        { id: "shaderpacks", labelKey: "upload.cat.shaderpacks", descKey: "upload.cat.shaderpacksDesc", icon: <IconSparkles className="w-4 h-4" /> },
+        { id: "saves", labelKey: "upload.cat.saves", descKey: "upload.cat.savesDesc", icon: <IconMap className="w-4 h-4" /> },
         { id: "data", labelKey: "upload.cat.data", descKey: "upload.cat.dataDesc", icon: <IconSettings className="w-4 h-4" /> },
         { id: "logs", labelKey: "upload.cat.logs", descKey: "upload.cat.logsDesc", icon: <IconBug className="w-4 h-4" /> },
       ]
@@ -932,8 +933,8 @@ function SelectiveUploadModal({
   const pct = progress?.percent ?? 0
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0" onClick={uploading ? undefined : onClose}>
-      <div className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+    <ModalLayer onClose={() => { if (!uploading) onClose() }} className="bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+      <div className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
         <div className="p-4 border-b border-border">
           <h3 className="font-semibold text-foreground text-base">{t("upload.title", { name })}</h3>
           <p className="text-xs text-muted-foreground mt-1">
@@ -1021,6 +1022,6 @@ function SelectiveUploadModal({
           </button>
         </div>
       </div>
-    </div>
+    </ModalLayer>
   )
 }

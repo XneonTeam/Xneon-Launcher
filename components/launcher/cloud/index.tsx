@@ -118,19 +118,21 @@ export function CloudPage() {
 
   if (connected) {
     return (
-      <div className="relative overflow-hidden rounded-2xl bg-card border border-border h-[calc(100vh-5rem)] flex flex-col">
-        <div className="absolute -top-32 -right-32 w-64 h-64 bg-accent/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
-        <div className="relative z-10 p-4 flex flex-col h-full">
+      /* Нормальное окно раздела: без карточки, рамки и размытых пятен */
+      <div className="flex h-full min-h-0 flex-col animate-in fade-in-0 duration-300">
+        <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <button onClick={() => setConnected(null)}
                 className="w-9 h-9 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center">
                 <IconArrowLeft className="w-5 h-5" strokeWidth={1.5} />
               </button>
+              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                <IconCloud className="w-5 h-5 text-primary" />
+              </div>
               <div>
-                <h2 className="text-xl font-semibold text-foreground">{connected.name}</h2>
-                <p className="text-sm text-muted-foreground">{t("cloud.connected")}</p>
+                <h2 className="text-xl font-bold text-foreground">{connected.name}</h2>
+                <p className="mt-0.5 text-sm text-muted-foreground">{t("cloud.connected")}</p>
               </div>
             </div>
             <button onClick={handleDisconnect}
@@ -148,10 +150,8 @@ export function CloudPage() {
   }
 
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-card border border-border h-[calc(100vh-5rem)] flex flex-col">
-      <div className="absolute -top-32 -right-32 w-64 h-64 bg-accent/5 rounded-full blur-3xl" />
-      <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
-
+    /* Нормальное окно раздела: без карточки, рамки и размытых пятен */
+    <div className="flex h-full min-h-0 flex-col animate-in fade-in-0 duration-300">
       {showWebdav && (
         <WebDavSetupModal
           onClose={() => setShowWebdav(false)}
@@ -168,10 +168,16 @@ export function CloudPage() {
         />
       )}
 
-      <div className="relative z-10 p-4 flex flex-col h-full">
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-foreground">{t("cloud.title")}</h2>
-          <p className="text-sm text-muted-foreground mt-1">{t("cloud.selectProvider")}</p>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="mb-6 flex items-center gap-3">
+          {/* Значок у заголовка — как у остальных разделов лаунчера */}
+          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+            <IconCloud className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-foreground">{t("cloud.title")}</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">{t("cloud.selectProvider")}</p>
+          </div>
         </div>
 
         {checking ? (
@@ -179,17 +185,19 @@ export function CloudPage() {
             <IconLoader2 className="w-8 h-8 text-muted-foreground animate-spin" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {providers.map(p => (
-              <CloudProviderCard
-                key={p.id}
-                id={p.id}
-                name={p.name}
-                onConnect={handleConnect}
-                connecting={connecting === p.id}
-                isConnected={connectedIds.has(p.id)}
-              />
-            ))}
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {providers.map(p => (
+                <CloudProviderCard
+                  key={p.id}
+                  id={p.id}
+                  name={p.name}
+                  onConnect={handleConnect}
+                  connecting={connecting === p.id}
+                  isConnected={connectedIds.has(p.id)}
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>
