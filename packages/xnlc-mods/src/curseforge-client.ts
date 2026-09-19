@@ -339,12 +339,44 @@ export async function curseforgeSearch(
   }
 }
 
+/** Размер страницы в `/mods/{id}/files`: больше 50 CurseForge не отдаёт. */
+const CF_FILES_PAGE_SIZE = 50;
+/** Предохранитель от бесконечной пагинации: 20 страниц по 50 файлов. */
+const CF_FILES_MAX = 1000;
+
+/**
+ * Все файлы проекта.
+ *
+ * `/mods/{id}/files` отдаёт файлы постранично, и раньше клиент запрашивал только
+ * первую страницу из 30 записей. У проектов с длинной историей (Jade — 398
+ * файлов) свежие сборки под нужную версию Minecraft оказываются за пределами
+ * этого окна: модалка писала «нет версий для NeoForge 1.21.11», хотя файлы есть.
+ * Поэтому идём по страницам до конца списка.
+ */
+async function fetchAllCFModFiles(modId: number): Promise<any[]> {
+  const files: any[] = [];
+  let index = 0;
+  while (files.length < CF_FILES_MAX) {
+    const page = (await cfFetch(`/mods/${modId}/files`, {
+      pageSize: String(CF_FILES_PAGE_SIZE),
+      index: String(index),
+    })) as { data?: any[]; pagination?: { totalCount?: number } };
+    const batch = page.data ?? [];
+    files.push(...batch);
+    const total = page.pagination?.totalCount ?? files.length;
+    index += batch.length;
+    // Пустая страница или достигнут конец списка — дальше запрашивать нечего.
+    if (batch.length === 0 || files.length >= total) break;
+  }
+  return files;
+}
+
 export async function curseforgeGetDetails(modId: number): Promise<ModDetails | null> {
   try {
     const modRes = (await cfFetch(`/mods/${modId}`)) as { data?: any };
-    const filesRes = (await cfFetch(`/mods/${modId}/files`, { pageSize: "30" })) as { data?: any[] };
     const mod = modRes.data;
     if (!mod) return null;
+    const files = await fetchAllCFModFiles(mod.id ?? modId);
 
     return {
       id: `cf-${mod.id}`,
@@ -355,7 +387,7 @@ export async function curseforgeGetDetails(modId: number): Promise<ModDetails | 
       iconUrl: mod.links?.iconUrl ?? mod.logo?.thumbnailUrl ?? "",
       downloadCount: mod.downloadCount ?? 0,
       categories: normalizeCFCategories(mod.categories ?? []).slice(0, 5),
-      versions: (filesRes.data ?? []).map(normalizeCFVersion),
+      versions: files.map(normalizeCFVersion),
       gallery: (mod.screenshots ?? []).map((s: any) => ({
         url: s.url ?? s.thumbnailUrl ?? "",
         title: s.title ?? "",

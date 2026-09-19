@@ -1,4 +1,5 @@
 import { queryAll, run, persistDatabase, isDbAvailable, inMemoryBuilds } from "./core"
+import { logRuntime } from "../main/runtime"
 
 export type BuildJson = {
   id: string
@@ -32,6 +33,18 @@ export type BuildJson = {
   server?: string
   serverPort?: string
   group?: string
+  /** Команда перед запуском (поддерживает $INST_* плейсхолдеры). */
+  preLaunchCommand?: string
+  /** Команда после выхода из игры. */
+  postLaunchCommand?: string
+  /** Обёртка вокруг java (optirun, primusrun, ...). */
+  wrapperCommand?: string
+  /** Дополнительные переменные окружения, по одной KEY=VALUE в строке. */
+  customEnv?: string
+  /** Переопределение размера окна для этой сборки. */
+  windowOverride?: boolean
+  windowWidth?: number
+  windowHeight?: number
 }
 
 type BuildRow = {
@@ -66,6 +79,13 @@ type BuildRow = {
   server: string | null
   serverPort: string | null
   group: string | null
+  preLaunchCommand: string | null
+  postLaunchCommand: string | null
+  wrapperCommand: string | null
+  customEnv: string | null
+  windowOverride: number | null
+  windowWidth: number | null
+  windowHeight: number | null
 }
 
 function rowToBuild(row: BuildRow): BuildJson {
@@ -102,6 +122,13 @@ function rowToBuild(row: BuildRow): BuildJson {
     server: row.server || undefined,
     serverPort: row.serverPort || undefined,
     group: row.group || undefined,
+    preLaunchCommand: row.preLaunchCommand || undefined,
+    postLaunchCommand: row.postLaunchCommand || undefined,
+    wrapperCommand: row.wrapperCommand || undefined,
+    customEnv: row.customEnv || undefined,
+    windowOverride: row.windowOverride === 1,
+    windowWidth: row.windowWidth ?? undefined,
+    windowHeight: row.windowHeight ?? undefined,
   }
 }
 
@@ -123,6 +150,17 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
       inMemoryBuilds.set(build.id, build)
     }
     return
+  }
+
+  // saveAllBuilds затирает таблицу целиком (DELETE + вставка), поэтому пустой
+  // список от renderer'а со сбитым состоянием стирал все сборки. Пустую запись
+  // поверх непустой таблицы игнорируем.
+  if (builds.length === 0) {
+    const existing = queryAll<BuildRow>("SELECT id FROM builds LIMIT 1")
+    if (Array.isArray(existing) && existing.length > 0) {
+      logRuntime("[db] saveAllBuilds: пустой список поверх непустой таблицы — запись пропущена")
+      return
+    }
   }
 
   run("BEGIN")
@@ -161,6 +199,13 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
         build.server ?? "",
         build.serverPort ?? "",
         build.group ?? "",
+        build.preLaunchCommand ?? "",
+        build.postLaunchCommand ?? "",
+        build.wrapperCommand ?? "",
+        build.customEnv ?? "",
+        build.windowOverride ? 1 : 0,
+        build.windowWidth ?? null,
+        build.windowHeight ?? null,
       ]
       for (let i = 0; i < params.length; i++) {
         const v = params[i]
@@ -170,8 +215,8 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
         }
       }
       run(`
-        INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, modpackVersion, modpackVersionId, locked, modId, fileId, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax, serverOverride, server, serverPort, [group])
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, modpackVersion, modpackVersionId, locked, modId, fileId, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax, serverOverride, server, serverPort, [group], preLaunchCommand, postLaunchCommand, wrapperCommand, customEnv, windowOverride, windowWidth, windowHeight)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, params)
     }
     run("COMMIT")
@@ -242,6 +287,13 @@ export async function updateBuildFields(buildId: string, fields: Partial<BuildJs
     server: "server",
     serverPort: "serverPort",
     group: "group",
+    preLaunchCommand: "preLaunchCommand",
+    postLaunchCommand: "postLaunchCommand",
+    wrapperCommand: "wrapperCommand",
+    customEnv: "customEnv",
+    windowOverride: "windowOverride",
+    windowWidth: "windowWidth",
+    windowHeight: "windowHeight",
   }
 
   const sets: string[] = []
@@ -255,7 +307,7 @@ export async function updateBuildFields(buildId: string, fields: Partial<BuildJs
     } else if (key === "locked") {
       // undefined означает «по умолчанию» (для модпаков инстанс заблокирован)
       stored = value === undefined ? null : value ? 1 : 0
-    } else if (key === "javaOverride" || key === "serverOverride") {
+    } else if (key === "javaOverride" || key === "serverOverride" || key === "windowOverride") {
       stored = value ? 1 : 0
     } else if (value === undefined) {
       stored = null

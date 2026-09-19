@@ -1,6 +1,7 @@
 import path from "path"
 import fs from "fs/promises"
 import { formatDisplayNameFromFileName } from "./helpers"
+import { readContentMetadataFromPath } from "./metadata"
 import { resolveContentEntries } from "./content-resolver"
 import type { ImportModEntry, ScannedBuildContent } from "./helpers"
 
@@ -9,9 +10,31 @@ type IntentContentFile = {
   filePath: string
   name: string
   enabled: boolean
+  /** Папка-ресурспак/папка-шейдер: метаданные читаются из неё, хэшировать нечего. */
+  isDirectory?: boolean
 }
 
-async function listIntentContentFiles(dir: string, parentPath = ""): Promise<IntentContentFile[]> {
+/**
+ * Папка-ресурспак (`pack.mcmeta`) или папка-шейдер (`shaders/`) — это полноценный
+ * контент: Minecraft читает такую папку наравне с архивом. Без этой проверки
+ * брошенная папка копировалась на диск, но исчезала из списка при следующем скане.
+ */
+async function isContentFolder(dirPath: string): Promise<boolean> {
+  const markers = ["pack.mcmeta", "shaders.properties", path.join("shaders", "shaders.properties"), "shaders"]
+
+  for (const marker of markers) {
+    try {
+      await fs.access(path.join(dirPath, marker))
+      return true
+    } catch {
+      // маркера нет — проверяем следующий
+    }
+  }
+
+  return false
+}
+
+async function listIntentContentFiles(dir: string, parentPath = "", foldersAsContent = false): Promise<IntentContentFile[]> {
   try { await fs.access(dir) } catch { return [] }
 
   const files: IntentContentFile[] = []
@@ -23,7 +46,16 @@ async function listIntentContentFiles(dir: string, parentPath = ""): Promise<Int
     const filePath = path.join(dir, entry.name)
 
     if (entry.isDirectory()) {
-      files.push(...await listIntentContentFiles(filePath, nextRelativePath))
+      // В resourcepacks/shaderpacks папка верхнего уровня — сам контент, а не
+      // контейнер: внутрь не заходим. В mods папки остаются контейнерами.
+      if (foldersAsContent && !parentPath) {
+        const rawName = entry.name.endsWith(".disabled") ? entry.name.slice(0, -".disabled".length) : entry.name
+        if (await isContentFolder(filePath)) {
+          files.push({ slug: rawName, filePath, name: rawName, enabled: !entry.name.endsWith(".disabled"), isDirectory: true })
+          continue
+        }
+      }
+      files.push(...await listIntentContentFiles(filePath, nextRelativePath, foldersAsContent))
       continue
     }
 
@@ -48,15 +80,15 @@ export async function scanIntentDir(intentPath: string, onProgress?: (processed:
   const installedMods: Record<string, string> = {}
 
   const dirs = [
-    { dir: path.join(intentPath, "mods"), target: mods, map: installedMods },
-    { dir: path.join(intentPath, "resourcepacks"), target: resourcepacks, map: null },
-    { dir: path.join(intentPath, "shaderpacks"), target: shaders, map: null },
+    { dir: path.join(intentPath, "mods"), target: mods, map: installedMods, foldersAsContent: false },
+    { dir: path.join(intentPath, "resourcepacks"), target: resourcepacks, map: null, foldersAsContent: true },
+    { dir: path.join(intentPath, "shaderpacks"), target: shaders, map: null, foldersAsContent: true },
   ]
 
   const filesByDir = new Map<string, Awaited<ReturnType<typeof listIntentContentFiles>>>()
   let total = 0
-  for (const { dir } of dirs) {
-    const files = await listIntentContentFiles(dir)
+  for (const { dir, foldersAsContent } of dirs) {
+    const files = await listIntentContentFiles(dir, "", foldersAsContent)
     filesByDir.set(dir, files)
     total += files.length
   }
@@ -69,14 +101,20 @@ export async function scanIntentDir(intentPath: string, onProgress?: (processed:
   for (const { dir, target, map } of dirs) {
     const files = filesByDir.get(dir) ?? []
     const dirStart = processed
+    const folderFiles = files.filter((file) => file.isDirectory)
+    const archiveFiles = files.filter((file) => !file.isDirectory)
+    // Папки в resolver не отдаём: там хэширование файла, а папку хэшировать нельзя.
     const resolved = await resolveContentEntries(
-      files.map((file) => file.filePath),
-      (done) => { processed = Math.min(total, dirStart + done); report() },
+      archiveFiles.map((file) => file.filePath),
+      (done) => { processed = Math.min(total, dirStart + folderFiles.length + done); report() },
     )
 
-    for (const { slug, filePath, name, enabled } of files) {
+    for (const { slug, filePath, name, enabled, isDirectory } of files) {
       const entry = resolved[filePath]
       const fileName = path.basename(name)
+      // Папка-ресурспак/шейдер: метаданные (имя, версия, описание, иконка) читаем
+      // прямо из неё — так в списке видны настоящие данные, а не имя папки.
+      const folderMetadata = isDirectory ? await readContentMetadataFromPath(filePath) : null
       const modEntry: ImportModEntry = entry
         ? {
             id: entry.sha1,
@@ -105,6 +143,15 @@ export async function scanIntentDir(intentPath: string, onProgress?: (processed:
             source: "local",
             enabled,
           }
+
+      if (folderMetadata && !entry) {
+        modEntry.name = folderMetadata.name || modEntry.name
+        modEntry.description = folderMetadata.description || modEntry.description
+        modEntry.icon_url = folderMetadata.icon_url ?? modEntry.icon_url
+        modEntry.version = folderMetadata.version || modEntry.version
+        modEntry.author = folderMetadata.author ?? modEntry.author
+      }
+
       target.push(modEntry)
       if (map !== null) {
         map[slug] = filePath
@@ -112,6 +159,9 @@ export async function scanIntentDir(intentPath: string, onProgress?: (processed:
     }
   }
 
+  // Папки не проходили через resolver, поэтому их «обработку» учитываем отдельно.
+  processed = total
+  report()
   onProgress?.(total, total)
   return { mods, resourcepacks, shaders, installedMods }
 }

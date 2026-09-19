@@ -413,8 +413,10 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
   }, [importFtbProject])
 
   const handleImportFile = useCallback(async (overrideName?: string) => {
+    // Оверлей прогресса показываем не здесь, а с первым событием из main (уже
+    // после системного окна выбора файла): иначе лаунчер затемнялся, пока
+    // пользователь ещё только выбирает архив.
     beginImportSession("local")
-    safeSetImportProgress({ current: 0, total: 1, message: t("import.openingFile"), source: "local" })
     try {
       const result = await window.electronAPI?.openAndImportModpack(overrideName)
       if (!result) {

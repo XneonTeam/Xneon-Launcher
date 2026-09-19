@@ -10,10 +10,12 @@ import type {
   FTBFile,
 } from "@xnlc/mods" with { "resolution-mode": "import" }
 import type { BuildExportCategory, BuildContentUpdates, UpdateChannel, ModpackImportConflict, ModpackImportResult } from "@xnlc/types" with { "resolution-mode": "import" }
-import { getMainWindow, logRuntime } from "../runtime"
+import { getMainWindow, logRuntime, sendToRenderer } from "../runtime"
 import { getGameDir } from "../minecraft-core"
 import { dbHelpers } from "../../db"
 import { notifyStatsUpdated } from "../stats"
+import { readContentMetadataFromPath, type ModMetadata } from "./metadata"
+import { classifyContentDropPaths, type ContentDropClassification, type ContentDropKind } from "./content-drop"
 import {
   ensureBuildIntentDir,
   getBuildIntentDirName,
@@ -67,7 +69,7 @@ function escapeHtml(value: string): string {
 }
 
 type PackIdentity = {
-  source: "modrinth" | "curseforge" | "ftb"
+  source: "modrinth" | "curseforge" | "ftb" | "local"
   projectSlug?: string
   modId?: number
 }
@@ -200,7 +202,7 @@ type OpenImportResult = ImportResult & {
   name?: string
   description?: string
   icon?: string
-  source?: "modrinth" | "curseforge"
+  source?: "modrinth" | "curseforge" | "local"
   intentPath?: string
 }
 
@@ -269,6 +271,24 @@ export function registerBuildHandlers() {
 
   ipcMain.handle("build:save-local-mod-to-intent", async (_event, dirName: string, localFilePath: string): Promise<string | null> => {
     return saveLocalContentToIntent(dirName, "mod", localFilePath)
+  })
+
+  // Метаданные локального файла (fabric.mod.json / mods.toml / pack.mcmeta /
+  // shaders.properties): нужны, чтобы мод, брошенный в панель, появлялся в списке
+  // со своим именем, версией и автором, а не с именем файла.
+  ipcMain.handle("build:read-local-content-metadata", async (_event, localFilePath: string): Promise<ModMetadata | null> => {
+    try {
+      return await readContentMetadataFromPath(localFilePath)
+    } catch (error) {
+      logRuntime(`[Builds] Failed to read metadata from ${localFilePath}: ${toErrorMessage(error)}`)
+      return null
+    }
+  })
+
+  // Разбор того, что перетащили в панель: что можно принять, а что нет и почему.
+  // Решение принимает main, потому что только он видит, папка это или файл.
+  ipcMain.handle("build:classify-drop-paths", async (_event, paths: string[], kind: ContentDropKind): Promise<ContentDropClassification> => {
+    return classifyContentDropPaths(paths ?? [], kind)
   })
 
   ipcMain.handle("build:save-content-to-intent", async (_event, dirName: string, contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string): Promise<string | null> => {
@@ -525,14 +545,58 @@ export function registerBuildHandlers() {
 
       // `addLocalFolder` passes full zip paths like `<build>/<relative path>`; we need the
       // top-level entry name (the first segment after the build folder) to decide inclusion.
-      zip.addLocalFolder(intentPath, path.basename(intentPath), (filename: string) => {
-        const topName = entryTopName(filename, path.basename(intentPath))
+      const buildDirName = path.basename(intentPath)
+      const filter = (filename: string) => {
+        const topName = entryTopName(filename, buildDirName)
         if (categories == null) {
           return !LOG_ENTRIES.has(topName) && !SHARED_GAME_ENTRIES.has(topName)
         }
-        return matchExportCategory(filename, path.basename(intentPath), categories) && !SHARED_GAME_ENTRIES.has(topName)
+        return matchExportCategory(filename, buildDirName, categories) && !SHARED_GAME_ENTRIES.has(topName)
+      }
+
+      // Асинхронно: синхронные addLocalFolder/toBuffer морозили main-процесс на весь
+      // объём сборки (event loop не тикал вообще), и лаунчер выглядел зависшим.
+      // Вариант ...Async2 в adm-zip 0.6.0 сломан (дублирует путь), берём addLocalFolderAsync.
+      await new Promise<void>((resolve, reject) => {
+        zip.addLocalFolderAsync(
+          intentPath,
+          (_result, errorMessage) => errorMessage ? reject(new Error(errorMessage)) : resolve(),
+          buildDirName,
+          filter,
+        )
       })
-      await fs.writeFile(picked.filePath, zip.toBuffer())
+
+      // Манифест в корне делает архив самодостаточным: при импорте из него
+      // берутся версия, загрузчик и иконка сборки.
+      const buildRow = (await dbHelpers.loadBuilds()).find((b) => b.name === dirName)
+      zip.addFile("xnlauncher.json", Buffer.from(JSON.stringify({
+        format: "xnlauncher-build",
+        formatVersion: 1,
+        name: buildNameLabel || dirName,
+        description: buildRow?.description ?? "",
+        minecraftVersion: buildRow?.version ?? "",
+        modLoader: buildRow?.modLoader ?? "vanilla",
+        loaderVersion: buildRow?.loaderVersion ?? "",
+        icon: buildRow?.icon ?? "",
+        exportedAt: new Date().toISOString(),
+        categories: categories ?? null,
+      }, null, 2), "utf-8"))
+
+      const totalEntries = zip.getEntries().length
+      let packed = 0
+      const buffer = await new Promise<Buffer>((resolve, reject) => {
+        zip.toBuffer(
+          (data: Buffer) => resolve(data),
+          (error: Error) => reject(error),
+          () => {
+            packed++
+            if (packed === 1 || packed % 5 === 0 || packed === totalEntries) {
+              sendToRenderer("build:export-progress", { current: packed, total: totalEntries })
+            }
+          },
+        )
+      })
+      await fs.writeFile(picked.filePath, buffer)
       return { success: true, path: picked.filePath }
     } catch (error) {
       return opFailure(error)
@@ -944,11 +1008,74 @@ export function registerBuildHandlers() {
         pendingLocalImport = null
       }
       throwIfImportCancelled(signal)
+      // Файл выбран — только теперь показываем прогресс: до этого оверлей
+      // затемнял лаунчер, пока пользователь ещё выбирал архив в системном окне.
+      sendImportProgress(0, 100, "Чтение архива...")
       const AdmZip = await loadAdmZip()
       const fileData = await fs.readFile(selectedFile)
       const zip = new AdmZip(fileData)
       const mrpackIndex = zip.getEntry("modrinth.index.json")
       const manifestEntry = zip.getEntry("manifest.json")
+
+      // Наш собственный экспорт сборки: в корне архива лежит xnlauncher.json.
+      const xnManifestEntry = zip.getEntry("xnlauncher.json")
+      if (xnManifestEntry) {
+        const manifest = JSON.parse(xnManifestEntry.getData().toString("utf-8")) as Record<string, unknown>
+        const str = (value: unknown, fallback = "") => (typeof value === "string" ? value : fallback)
+        const buildName = nameOverride?.trim()
+          || str(manifest.name).trim()
+          || path.basename(selectedFile, path.extname(selectedFile))
+
+        const conflict = await guardAgainstOverwrite(buildName, { source: "local" })
+        if (conflict) {
+          pendingLocalImport = { filePath: selectedFile }
+          return { ...conflict, name: buildName, description: str(manifest.description), source: "local" }
+        }
+        pendingLocalImport = null
+
+        const intentPath = await ensureBuildIntentDir(buildName)
+
+        // Архив собран как <папка сборки>/… — срезаем общий корень, чтобы файлы
+        // легли прямо в intent-директорию.
+        const files = zip.getEntries().filter((entry) => !entry.isDirectory && entry.entryName !== "xnlauncher.json")
+        const roots = new Set(files.map((entry) => entry.entryName.split("/").filter(Boolean)[0] ?? ""))
+        const root = roots.size === 1 ? Array.from(roots)[0] : ""
+        const strip = root ? root.length + 1 : 0
+
+        sendImportProgress(0, files.length || 1, "Распаковка сборки...")
+
+        let unpacked = 0
+        for (const entry of files) {
+          throwIfImportCancelled(signal)
+          const rel = sanitizeRelativeContentPath(entry.entryName.slice(strip))
+          if (!rel || rel.split(/[\\/]/).includes("..")) continue
+          const dest = path.join(intentPath, rel)
+          await fs.mkdir(path.dirname(dest), { recursive: true }).catch(() => {})
+          await fs.writeFile(dest, entry.getData())
+          unpacked++
+          if (unpacked % 10 === 0 || unpacked === files.length) {
+            sendImportProgress(unpacked, files.length, `Распаковка сборки (${unpacked}/${files.length})...`)
+          }
+        }
+
+        const scanned = await scanIntentDir(intentPath, (done, total) => {
+          const fraction = total > 0 ? done / total : 1
+          sendImportProgress(Math.min(99, Math.round(fraction * 100)), 100, `Сканирование сборки (${done}/${total})...`)
+        })
+
+        return {
+          success: true,
+          name: buildName,
+          description: str(manifest.description),
+          icon: str(manifest.icon),
+          version: str(manifest.minecraftVersion),
+          modLoader: str(manifest.modLoader, "vanilla"),
+          loaderVersion: str(manifest.loaderVersion) || undefined,
+          source: "local",
+          intentPath,
+          ...scanned,
+        }
+      }
 
       if (mrpackIndex) {
         const index = JSON.parse(mrpackIndex.getData().toString("utf-8"))

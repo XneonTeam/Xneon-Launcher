@@ -218,6 +218,16 @@ function migrateBuilds() {
   addColumnIfMissing("builds", "server", "server TEXT NOT NULL DEFAULT ''")
   addColumnIfMissing("builds", "serverPort", "serverPort TEXT NOT NULL DEFAULT ''")
   addColumnIfMissing("builds", "[group]", "[group] TEXT")
+  // Настройки запуска сборки: команды до/после запуска, обёртка, переменные
+  // окружения и переопределение размера окна. Без этих колонок UI их показывал,
+  // но запись молча терялась — после перезапуска поля оказывались пустыми.
+  addColumnIfMissing("builds", "preLaunchCommand", "preLaunchCommand TEXT NOT NULL DEFAULT ''")
+  addColumnIfMissing("builds", "postLaunchCommand", "postLaunchCommand TEXT NOT NULL DEFAULT ''")
+  addColumnIfMissing("builds", "wrapperCommand", "wrapperCommand TEXT NOT NULL DEFAULT ''")
+  addColumnIfMissing("builds", "customEnv", "customEnv TEXT NOT NULL DEFAULT ''")
+  addColumnIfMissing("builds", "windowOverride", "windowOverride INTEGER NOT NULL DEFAULT 0")
+  addColumnIfMissing("builds", "windowWidth", "windowWidth INTEGER")
+  addColumnIfMissing("builds", "windowHeight", "windowHeight INTEGER")
 }
 
 function migrateResources() {
