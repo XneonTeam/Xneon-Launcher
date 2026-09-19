@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { IconTrash, IconRefresh, IconLoader2 } from "@tabler/icons-react"
 import { ActionConfirmDialog } from "./action-confirm-dialog"
+import { EmptyState } from "@/components/ui/empty-state"
+import { EntityIcon } from "./entity-icon"
 
 interface TrashItem {
   trashName: string
@@ -93,9 +95,7 @@ export function InstanceTrashView({ goToMyBuilds, onRestore }: InstanceTrashView
 
   if (items.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-        {t("trash.empty")}
-      </div>
+      <EmptyState variant="trash" title={t("trash.empty")} className="flex-1" />
     )
   }
 
@@ -115,7 +115,7 @@ export function InstanceTrashView({ goToMyBuilds, onRestore }: InstanceTrashView
           className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:bg-muted/50 transition-colors">
           <div className="w-9 h-9 rounded-lg bg-muted/60 flex items-center justify-center shrink-0 overflow-hidden">
             {item.icon
-              ? <img src={item.icon} alt="" className="w-9 h-9 object-cover" />
+              ? <EntityIcon src={item.icon} className="w-9 h-9 p-1 text-primary" imgClassName="w-9 h-9 object-cover" />
               : <IconTrash className="w-4 h-4 text-muted-foreground" />}
           </div>
           <div className="flex-1 min-w-0">

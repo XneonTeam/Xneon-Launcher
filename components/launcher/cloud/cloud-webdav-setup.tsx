@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { IconLoader2 } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
+import { ModalLayer } from "@/components/ui/modal-layer"
 
 type Props = {
   onClose: () => void
@@ -20,8 +21,8 @@ export function WebDavSetupModal({ onClose, onConnect, connecting }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="w-full max-w-sm mx-4 rounded-2xl bg-card border border-border shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+    <ModalLayer onClose={onClose} className="bg-black/50">
+      <div className="w-full max-w-sm mx-4 rounded-2xl bg-card border border-border shadow-xl overflow-hidden">
         <div className="p-5">
           <h3 className="text-lg font-semibold text-foreground mb-1">WebDAV</h3>
           <p className="text-sm text-muted-foreground mb-4">{t("cloud.webdav.desc")}</p>
@@ -59,6 +60,6 @@ export function WebDavSetupModal({ onClose, onConnect, connecting }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </ModalLayer>
   )
 }

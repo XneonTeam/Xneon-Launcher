@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
+import { ModalLayer } from "@/components/ui/modal-layer"
 import { SkinViewer3D } from "@/components/ui/skin-viewer-3d"
 import { batchRenderCapes } from "@/lib/batch-cape-renderer"
 import { localFileToBlobUrl } from "@/lib/local-file-url"
@@ -93,7 +94,7 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <ModalLayer onClose={onClose} className="z-50">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-3xl max-h-[85vh] mx-4 bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
         <input
@@ -263,6 +264,6 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
           </button>
         </div>
       </div>
-    </div>
+    </ModalLayer>
   )
 }
