@@ -103,6 +103,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadBuilds: invoke<DbBuild[]>('db:load-builds'),
   loadBuildsLight: invoke<DbBuild[]>('db:load-builds-light'),
   loadBuildContent: (buildId: string) => ipcRenderer.invoke('db:load-build-content', buildId) as Promise<{ mods: unknown[]; resourcepacks: unknown[]; shaders: unknown[]; installedMods: Record<string, string> } | null>,
+  fetchMissingBuildMods: (buildName: string) => ipcRenderer.invoke('build:fetch-missing-mods', buildName) as Promise<{ success: boolean; downloaded?: number; failed?: number; missing?: number; error?: string }>,
   saveBuilds: (builds: DbBuild[]) => ipcRenderer.invoke('db:save-builds', builds) as Promise<void>,
   updateBuildFields: (buildId: string, fields: Partial<DbBuild>) => ipcRenderer.invoke('db:update-build-fields', buildId, fields) as Promise<void>,
   dbIsFallbackStorage: invoke<{ isFallback: boolean }>('db:is-fallback-storage'),
