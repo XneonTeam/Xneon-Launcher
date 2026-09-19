@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
   IconRefresh, IconTrash, IconFolder, IconCoffee, IconChevronDown, IconChevronRight,
-  IconBox, IconPalette, IconWallpaper, IconWorldUpload, IconSettings, IconBug,
+  IconPuzzle, IconPhoto, IconSparkles, IconMap, IconSettings, IconBug,
   IconDatabase, IconAlertTriangle, IconPackage, IconFolderOpen, IconServer,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
@@ -64,10 +64,10 @@ function BuildStorageRow({ entry, onClean, cleaning }: {
   ]
 
   const breakdown: Array<{ icon: React.ReactNode; label: string; size: number }> = [
-    { icon: <IconBox className="h-3.5 w-3.5 text-primary" strokeWidth={1.75} />, label: t("storage.category.mods"), size: entry.mods },
-    { icon: <IconPalette className="h-3.5 w-3.5 text-violet-500" strokeWidth={1.75} />, label: t("storage.category.resourcepacks"), size: entry.resourcepacks },
-    { icon: <IconWallpaper className="h-3.5 w-3.5 text-sky-500" strokeWidth={1.75} />, label: t("storage.category.shaderpacks"), size: entry.shaderpacks },
-    { icon: <IconWorldUpload className="h-3.5 w-3.5 text-green-500" strokeWidth={1.75} />, label: t("storage.category.saves"), size: entry.saves },
+    { icon: <IconPuzzle className="h-3.5 w-3.5 text-primary" strokeWidth={1.75} />, label: t("storage.category.mods"), size: entry.mods },
+    { icon: <IconPhoto className="h-3.5 w-3.5 text-violet-500" strokeWidth={1.75} />, label: t("storage.category.resourcepacks"), size: entry.resourcepacks },
+    { icon: <IconSparkles className="h-3.5 w-3.5 text-sky-500" strokeWidth={1.75} />, label: t("storage.category.shaderpacks"), size: entry.shaderpacks },
+    { icon: <IconMap className="h-3.5 w-3.5 text-green-500" strokeWidth={1.75} />, label: t("storage.category.saves"), size: entry.saves },
     { icon: <IconSettings className="h-3.5 w-3.5 text-yellow-500" strokeWidth={1.75} />, label: t("storage.category.config"), size: entry.config },
     { icon: <IconBug className="h-3.5 w-3.5 text-red-400" strokeWidth={1.75} />, label: t("storage.category.logsAndCache"), size: entry.logs + entry.crashReports + entry.cache },
   ]
@@ -164,8 +164,8 @@ function ServerStorageRow({ entry }: { entry: ServerStorageEntry }) {
   ]
 
   const breakdown: Array<{ icon: React.ReactNode; label: string; size: number }> = [
-    { icon: <IconWorldUpload className="h-3.5 w-3.5 text-green-500" strokeWidth={1.75} />, label: t("storage.category.world"), size: entry.world },
-    { icon: <IconBox className="h-3.5 w-3.5 text-primary" strokeWidth={1.75} />, label: t("storage.category.mods"), size: entry.mods },
+    { icon: <IconMap className="h-3.5 w-3.5 text-green-500" strokeWidth={1.75} />, label: t("storage.category.world"), size: entry.world },
+    { icon: <IconPuzzle className="h-3.5 w-3.5 text-primary" strokeWidth={1.75} />, label: t("storage.category.mods"), size: entry.mods },
     { icon: <IconSettings className="h-3.5 w-3.5 text-yellow-500" strokeWidth={1.75} />, label: t("storage.category.config"), size: entry.config },
     { icon: <IconBug className="h-3.5 w-3.5 text-red-400" strokeWidth={1.75} />, label: t("storage.category.logsAndCache"), size: entry.logs + entry.cache },
     { icon: <IconServer className="h-3.5 w-3.5 text-sky-500" strokeWidth={1.75} />, label: t("storage.category.plugins"), size: entry.plugins },
