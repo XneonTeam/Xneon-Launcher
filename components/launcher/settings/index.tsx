@@ -2,11 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { changeLanguage } from "@/src/i18n"
 import { cn } from "@/lib/utils"
-import { IconCpu, IconDeviceDesktop, IconShield, IconCloud, IconFolder, IconPlayerPlay } from "@tabler/icons-react"
+import { IconCpu, IconDeviceDesktop, IconShield, IconCloud, IconFolder, IconPlayerPlay, IconSettings } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MemorySlider } from "@/components/ui/memory-slider"
-import { useMemoryOptions } from "@/src/hooks/use-memory-options"
-import { memoryToMb, mbToMemory } from "@/lib/memory"
 import { settingsTabs, presetThemes, applyTheme } from "./data"
 import { SettingsTabs } from "./settings-tabs"
 import { SettingsResolution } from "./settings-resolution"
@@ -19,11 +16,11 @@ import { SettingsAbout } from "./settings-language-about"
 import { SettingsUpdate } from "./settings-update"
 import { SettingsAi } from "./settings-ai"
 import { SettingsStorage } from "./settings-storage"
+import { RamAllocation } from "@/components/launcher/ram-allocation"
 import type { SettingsTab, JavaInstallation } from "./types"
 
 export function SettingsPage() {
   const { t } = useTranslation()
-  const { maxMb, snapPoints } = useMemoryOptions()
   const settingsHydratedRef = useRef(false)
   const pendingSettingsRef = useRef<Record<string, number>>({})
   const lastPersistedSettingsRef = useRef<Record<string, string>>({})
@@ -256,12 +253,18 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="relative h-[calc(100vh-5rem)] overflow-hidden rounded-2xl bg-card border border-border transition-all duration-300 animate-in fade-in-0 slide-in-from-bottom-4">
-      <div className="absolute -top-32 -right-32 w-64 h-64 bg-accent/5 rounded-full blur-3xl" />
-      <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
-
-      <div className="relative z-10 p-6 h-full flex flex-col">
-        <h2 className="text-xl font-semibold text-foreground mb-4">{t("settings.title")}</h2>
+    <div className="flex h-full min-h-0 flex-col animate-in fade-in-0 duration-300">
+      <div className="flex h-full min-h-0 flex-col">
+        {/* Значок у заголовка — как у остальных разделов лаунчера */}
+        <div className="mb-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+            <IconSettings className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-foreground">{t("settings.title")}</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">{t("settings.subtitle")}</p>
+          </div>
+        </div>
 
         <SettingsTabs tabs={settingsTabs} activeTab={activeSettingsTab} setActiveTab={setActiveSettingsTab} t={t} />
 
@@ -284,26 +287,8 @@ export function SettingsPage() {
               />
             </section>
 
-            <section className="space-y-4">
-              <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
-                <IconCpu className="w-5 h-5 text-primary" strokeWidth={1.75} />
-                {t("settings.ram")}
-              </h3>
-              <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-2.5">
-                <label className="block text-sm font-medium text-foreground">{t("settings.ram.allocated")}</label>
-                <MemorySlider
-                  value={memoryToMb(memoryMax)}
-                  min={512}
-                  max={maxMb}
-                  step={64}
-                  snapPoints={snapPoints}
-                  snapRange={512}
-                  unit="MB"
-                  onChange={(v) => setMemoryMax(mbToMemory(v))}
-                />
-                <p className="text-xs text-muted-foreground">{t("settings.ram.desc")}</p>
-              </div>
-            </section>
+            {/* Общий блок с первоначальной настройкой: RamAllocation */}
+            <RamAllocation memoryMax={memoryMax} onChange={setMemoryMax} />
 
             <section className="space-y-4">
               <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
