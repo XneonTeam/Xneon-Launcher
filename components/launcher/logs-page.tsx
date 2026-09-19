@@ -316,7 +316,7 @@ const LogRow = memo(function LogRow({ entry, label }: { entry: LogEntry; label: 
 
 // --- LogsPage ---
 
-export function LogsPage() {
+export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | null } = {}) {
   const { logs, clearLogs, isRunning } = useLaunchLogs()
   const [copied, setCopied] = useState(false)
   const [shareState, setShareState] = useState<"idle" | "loading" | "done" | "error">("idle")
@@ -327,6 +327,7 @@ export function LogsPage() {
   const [autoScroll, setAutoScroll] = useState(true)
   const [aiDialogOpen, setAiDialogOpen] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
+  const [crashFocus, setCrashFocus] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
 
@@ -349,14 +350,32 @@ export function LogsPage() {
     return entries
   }, [logs, filter, deferredSearch])
 
+  // Автоскролл включён — всегда держим низ логов. Проверять «были ли мы у низа»
+  // здесь нельзя: к моменту эффекта контейнер уже вырос на всю новую порцию строк,
+  // и на пачке логов условие не проходило — автоскролл переставал листать,
+  // хотя оставался включённым.
   useEffect(() => {
     if (!autoScroll || !containerRef.current || filtered.length === 0) return
     const el = containerRef.current
-    const maxScroll = el.scrollHeight - el.clientHeight
-    if (maxScroll > 0 && el.scrollTop >= maxScroll - 80) {
-      el.scrollTop = maxScroll
-    }
+    el.scrollTop = el.scrollHeight
   }, [filtered, autoScroll])
+
+  // Открыто из-за краша игры: сразу включаем автоскролл, а фильтр «Ошибки»
+  // переключаем, когда строки краша доедут до состояния — лог приходит пакетами,
+  // и в момент открытия вкладки их там ещё может не быть.
+  useEffect(() => {
+    if (!focus?.crash) return
+    setAutoScroll(true)
+    setCrashFocus(true)
+  }, [focus?.at, focus?.crash])
+
+  useEffect(() => {
+    if (!crashFocus) return
+    if (levelCounts.error > 0) {
+      setFilter("error")
+      setCrashFocus(false)
+    }
+  }, [crashFocus, levelCounts.error])
 
   useEffect(() => {
     if (!fullscreen || aiDialogOpen) return
@@ -434,14 +453,7 @@ export function LogsPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-foreground">{t("logs.title")}</h1>
-            <p className="text-sm text-muted-foreground">
-              {isRunning
-                ? <span className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
-                    {t("logs.running", { count: logs.length })}
-                  </span>
-                : t("logs.entries", { count: logs.length })}
-            </p>
+            <p className="text-sm text-muted-foreground">{t("logs.subtitle")}</p>
           </div>
         </div>
 
@@ -499,6 +511,11 @@ export function LogsPage() {
           <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={t("logs.search")}
             className="w-full pl-9 pr-4 py-2 rounded-xl bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary" />
+        </div>
+
+        <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-muted/50 text-xs text-muted-foreground flex-shrink-0">
+          {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />}
+          {isRunning ? t("logs.running", { count: logs.length }) : t("logs.entries", { count: logs.length })}
         </div>
 
         <button type="button" onClick={() => setAutoScroll(v => !v)}

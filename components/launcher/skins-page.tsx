@@ -306,14 +306,15 @@ export function SkinsPage() {
       <div className="flex-1 flex flex-col min-h-0">
         {/* Page Header */}
         <div className="flex items-center gap-3 mb-6 shrink-0">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10 flex items-center justify-center">
+          {/* Как везде в лаунчере: значок в плашке bg-primary/20 и обычный заголовок */}
+          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
             <IconShirt className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-foreground tracking-tight">
+            <h1 className="text-xl font-bold text-foreground">
               {t("skins.title", "Скины")}
             </h1>
-            <p className="text-xs text-muted-foreground/60">
+            <p className="mt-0.5 text-sm text-muted-foreground">
               {t("skins.subtitle", "Управляйте внешним видом персонажа")}
             </p>
           </div>
@@ -354,14 +355,15 @@ export function SkinsPage() {
 
       {/* Page Header */}
       <div className="flex items-center gap-3 mb-5 shrink-0">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10 flex items-center justify-center">
+        {/* Как везде в лаунчере: значок в плашке bg-primary/20 и обычный заголовок */}
+        <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
           <IconShirt className="w-5 h-5 text-primary" />
         </div>
         <div>
-          <h1 className="text-lg font-bold text-foreground tracking-tight">
+          <h1 className="text-xl font-bold text-foreground">
             {t("skins.title", "Скины")}
           </h1>
-          <p className="text-xs text-muted-foreground/60">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             {t("skins.subtitle", "Управляйте внешним видом персонажа")}
           </p>
         </div>
