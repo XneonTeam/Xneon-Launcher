@@ -71,6 +71,19 @@ export type JavaProgress = {
   total?: number
 }
 
+/**
+ * Итог завершения процесса игры. `crashed` — игра упала (ненулевой код выхода
+ * или свежий crash-report в `<gameDir>/crash-reports`), а не вышла штатно.
+ */
+export type MinecraftCloseInfo = {
+  code: number
+  crashed: boolean
+  /** Путь к crash-report, если игра успела его записать. */
+  crashReport?: string
+  /** Процесс остановил сам лаунчер (Стоп/новый запуск) — это не краш. */
+  stoppedByLauncher?: boolean
+}
+
 export type LaunchRequestOptions = {
   mcVersion?: string
   version?: string

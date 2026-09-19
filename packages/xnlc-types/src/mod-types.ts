@@ -45,6 +45,55 @@ export interface ModDependency {
   iconUrl?: string
 }
 
+/** Зависимость, объявленная в метаданных jar (fabric.mod.json, quilt.mod.json, mods.toml). */
+export interface JarDeclaredDependency {
+  modId: string
+  versionRange?: string
+}
+
+/**
+ * Разбор зависимостей из метаданных скачанного jar. Нужен потому, что
+ * CurseForge и Modrinth заполняют `dependencies` не у всех файлов.
+ */
+export interface JarDependencyInspection {
+  /** id самого мода из метаданных (например, `jei`). */
+  modId: string | null
+  /** Зависимости, уже сопоставленные с проектами источника. */
+  dependencies: ModDependency[]
+  /** Все установимые id до сопоставления — видно, что не нашлось. */
+  declared: JarDeclaredDependency[]
+}
+
+/**
+ * Метаданные локального файла контента (jar/zip), прочитанные из архива:
+ * fabric.mod.json, quilt.mod.json, mods.toml, pack.mcmeta или shaders.properties.
+ */
+export interface ContentFileMetadata {
+  name?: string
+  version?: string
+  description?: string
+  /** Иконка из архива как data URL. */
+  icon_url?: string
+  author?: string
+}
+
+/** Тип контента сборки, для которого проверяется брошенный файл. */
+export type ContentDropKind = "mod" | "resourcepack" | "shader"
+
+/** Почему файл не приняли: текст собирает рендерер на языке пользователя. */
+export type ContentDropRejectReason = "notFound" | "folderNotAllowed" | "wrongExtension" | "empty"
+
+export interface ContentDropEntry {
+  path: string
+  name: string
+  isDirectory: boolean
+}
+
+export interface ContentDropClassification {
+  accepted: ContentDropEntry[]
+  rejected: Array<ContentDropEntry & { reason: ContentDropRejectReason }>
+}
+
 export interface ModVersion {
   id: string
   name: string
