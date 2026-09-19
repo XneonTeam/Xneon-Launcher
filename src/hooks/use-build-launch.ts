@@ -217,7 +217,7 @@ export function useBuildLaunch({ account }: { account?: Account }) {
     })
 
     patchLaunchUi(result.success
-      ? { isLaunching: false, phase: "idle", progress: 100, status: t("launcherStatus.running") }
+      ? { isLaunching: false, phase: "idle", progress: 100, status: t("launcherStatus.starting") }
       : { isLaunching: false, status: result.error ?? "Ошибка запуска" })
     if (!result.success) addLog(`[Лаунчер] ${result.error ?? "Ошибка запуска"}`, "error")
     if (result.success) {

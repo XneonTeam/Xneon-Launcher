@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { parseMotd } from "@/lib/minecraft-motd"
+import { ModalLayer } from "@/components/ui/modal-layer"
 import {
   IconChevronDown,
   IconChevronUp,
@@ -356,6 +357,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
             <button
               onClick={() => void connectToServer(server)}
               disabled={connectingIp === server.ip}
+              title={t("servers.connectHint")}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary text-xs font-medium transition-colors disabled:opacity-50"
             >
               <IconPlugConnected className="w-3.5 h-3.5" strokeWidth={1.75} />
@@ -383,7 +385,8 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-semibold text-foreground">{t("servers.title")}</h2>
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-sm text-muted-foreground mt-1">{t("servers.tabSubtitle")}</p>
+              <p className="text-xs text-muted-foreground/70 mt-0.5">
                 {servers.filter((s) => s.status?.online).length} / {servers.length} {t("servers.online")}
               </p>
             </div>
@@ -464,13 +467,12 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
       </div>
 
       {showAddModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
-          onClick={() => setShowAddModal(false)}
+        <ModalLayer
+          className="bg-background/80 backdrop-blur-sm"
+          onClose={() => setShowAddModal(false)}
         >
           <div
             className="w-full max-w-md mx-4 p-6 rounded-2xl bg-card border border-border shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">{t("servers.addServer")}</h3>
@@ -537,7 +539,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
               </div>
             </div>
           </div>
-        </div>
+        </ModalLayer>
       )}
     </div>
   )

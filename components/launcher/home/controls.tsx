@@ -4,13 +4,16 @@ import { useTranslation } from "react-i18next"
 import type { Account } from "@/src/AccountsContext"
 import type { QuickPlayEntry } from "@xnlc/types"
 import type { WorldInfo } from "@xnlc/types"
+import { useLaunchControls } from "@/src/LaunchLogsContext"
 import { cn } from "@/lib/utils"
 import { parseMotd } from "@/lib/minecraft-motd"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ACCOUNT_TYPE_LABELS, MOD_LOADERS, type LaunchUiState } from "@/lib/home-page-shared"
-import { IconBolt, IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconFolder, IconLoader2, IconMap, IconPlayerPlay, IconPlayerStop, IconRefresh, IconServer, IconUsers, IconX } from "@tabler/icons-react"
+import { IconBolt, IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconFolder, IconLoader2, IconMap, IconPlayerPlay, IconPlayerStop, IconRefresh, IconServer, IconUsers } from "@tabler/icons-react"
 import { LoaderIcon } from "@/components/launcher/instance/loader-icon"
+import { EntityIcon } from "@/components/launcher/instance/entity-icon"
+import { isBuiltinLogo } from "@/components/launcher/instance/builtin-logos"
 import { CachedAvatar } from "@/components/ui/cached-avatar"
 import type { LoaderVersionOption } from "@/src/hooks/use-loader-version-options"
 
@@ -41,9 +44,12 @@ type HomeControlsProps = {
 }
 
 const QUICK_PLAY_MAX = 10
-
 /** Сколько серверов из истории быстрой игры показываем (и пингуем) в сайдбаре. */
 const QUICK_PLAY_SERVERS = 3
+/** Записей на странице в быстрой игре: и миров, и серверов. */
+const QUICK_PLAY_PER_PAGE = 2
+
+type QuickPlayTab = "servers" | "worlds"
 
 /** Структурно совпадает с `ServerStatusResult` из `@xnlc/servers` (тянуть его в рендерер нельзя). */
 type QuickPlayServerStatus = {
@@ -81,6 +87,9 @@ function ServerFavicon({ icon, label }: { icon?: string; label: string }) {
   // только если рядом с ним лежит server-icon.png. Тогда показываем
   // стандартную иконку сервера, а не заглушку.
   if (icon && !customFailed) {
+    if (isBuiltinLogo(icon)) {
+      return <EntityIcon src={icon} className="h-9 w-9 rounded-lg border border-border/60 p-1 text-primary" />
+    }
     return (
       <img
         src={icon}
@@ -109,11 +118,10 @@ function ServerFavicon({ icon, label }: { icon?: string; label: string }) {
   )
 }
 
-function QuickPlayServerRow({ entry, ping, onLaunch, onRemove }: {
+function QuickPlayServerRow({ entry, ping, onLaunch }: {
   entry: QuickPlayEntry
   ping?: PingState
   onLaunch: () => void
-  onRemove: () => void
 }) {
   const { t } = useTranslation()
   const status = ping?.result
@@ -187,85 +195,58 @@ function QuickPlayServerRow({ entry, ping, onLaunch, onRemove }: {
           </span>
         )}
       </div>
-
-      <button
-        type="button"
-        aria-label={t("servers.delete")}
-        onClick={(event) => {
-          event.stopPropagation()
-          onRemove()
-        }}
-        className="p-0.5 rounded opacity-0 transition-opacity hover:bg-muted/60 group-hover:opacity-100 focus-visible:opacity-100"
-      >
-        <IconX className="w-3.5 h-3.5 text-muted-foreground" />
-      </button>
     </div>
   )
 }
 
-function WorldCarousel({ worlds, buildName, onPlay }: { worlds: WorldInfo[]; buildName?: string; onPlay: (folder: string) => void }) {
-  const [index, setIndex] = useState(0)
-  const world = worlds[index]
-
-  if (!world) return null
+function QuickPlayWorldRow({ world, onPlay }: {
+  world: WorldInfo
+  onPlay: () => void
+}) {
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return
+    event.preventDefault()
+    onPlay()
+  }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div
-        className="group relative overflow-hidden rounded-2xl border border-border bg-card/60 hover:border-primary/50 hover:bg-muted/40 transition-all text-left w-full"
-      >
-        <div className="relative h-32 w-full overflow-hidden bg-muted/30">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onPlay}
+      onKeyDown={handleKeyDown}
+      title={`${world.name} (${world.folder})`}
+      className="group flex cursor-pointer items-start gap-2 rounded-xl border border-border bg-card/80 p-2.5 transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:border-primary/60 focus-visible:outline-none"
+    >
+      <span className="relative flex-shrink-0">
+        <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-border/60 bg-muted/40">
           {world.iconDataUrl ? (
             <img src={world.iconDataUrl} alt="" className="h-full w-full object-cover" style={{ imageRendering: "pixelated" }} />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-emerald-500/10 to-muted/30">
-              <IconMap className="h-10 w-10 text-emerald-400/30" strokeWidth={1.5} />
-            </div>
+            <IconMap className="h-4 w-4 text-emerald-400/70" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent" />
-          {buildName && (
-            <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-background/70 backdrop-blur-sm border border-border/50">
-              <IconFolder className="w-3 h-3 text-muted-foreground" />
-              <span className="text-[10px] font-medium text-muted-foreground truncate max-w-[140px]">{buildName}</span>
-            </div>
-          )}
-          {worlds.length > 1 && (
-            <div className="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-1 rounded-lg bg-background/70 backdrop-blur-sm border border-border/50">
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setIndex(i => (i - 1 + worlds.length) % worlds.length) }}
-                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <IconChevronLeft className="w-3.5 h-3.5" />
-              </button>
-              <span className="text-[10px] text-muted-foreground font-mono min-w-[20px] text-center">
-                {index + 1}/{worlds.length}
-              </span>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setIndex(i => (i + 1) % worlds.length) }}
-                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <IconChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <button
-              type="button"
-              onClick={() => onPlay(world.folder)}
-              className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg shadow-primary/30 group-hover:scale-110 hover:bg-primary/90"
-            >
-              <IconPlayerPlay className="h-6 w-6 ml-0.5" strokeWidth={2} fill="currentColor" />
-            </button>
-          </div>
-        </div>
-        <div className="px-3 py-2.5">
-          <div className="text-sm font-semibold text-foreground truncate">{world.name}</div>
-          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span className="capitalize">{world.gameMode}</span>
-            {world.mcVersion && <><span>·</span><span>{world.mcVersion}</span></>}
-          </div>
+        </span>
+        <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/65 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+          <IconPlayerPlay className="h-4 w-4 text-primary" strokeWidth={2} fill="currentColor" />
+        </span>
+      </span>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-[13px] font-medium text-foreground transition-colors group-hover:text-primary">
+          {world.name}
+        </span>
+
+        <div className="mt-1 flex items-center gap-1.5">
+          {world.gameMode ? (
+            <span className="rounded-md bg-muted/50 px-1.5 py-0.5 text-[10px] capitalize text-muted-foreground">
+              {world.gameMode}
+            </span>
+          ) : null}
+          {world.mcVersion ? (
+            <span className="rounded-md bg-muted/50 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              {world.mcVersion}
+            </span>
+          ) : null}
         </div>
       </div>
     </div>
@@ -283,6 +264,8 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
   const [pings, setPings] = useState<Record<string, PingState>>({})
   const [pinging, setPinging] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [tab, setTab] = useState<QuickPlayTab | null>(null)
+  const [page, setPage] = useState(0)
 
   const buildName = selectedModLoader === "instance" ? selectedVersion : undefined
 
@@ -348,20 +331,22 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
 
   useEffect(() => { loadEntries() }, [loadEntries])
 
-  const handleRemove = useCallback(async (entry: QuickPlayEntry) => {
-    if (!window.electronAPI) return
-    const gameDir = buildName ? await window.electronAPI.getBuildIntentPath(buildName) : await window.electronAPI.getGameDir()
-    await window.electronAPI.quickPlayRemove(buildName, gameDir, entry)
-    setEntries(prev => prev.filter(e => e.type !== entry.type || e.address !== entry.address))
-    setPings(prev => {
-      const next = { ...prev }
-      delete next[entryKey(entry)]
-      return next
-    })
-  }, [buildName])
-
   const hasWorlds = worlds.length > 0
   const hasEntries = entries.length > 0
+
+  // Явный выбор вкладки; пока пользователь не кликал, показываем серверы,
+  // если они есть (иначе — миры).
+  const activeTab: QuickPlayTab = tab ?? (hasEntries ? "servers" : "worlds")
+  const totalPages = Math.max(
+    1,
+    Math.ceil((activeTab === "servers" ? entries.length : worlds.length) / QUICK_PLAY_PER_PAGE),
+  )
+  // Список мог сократиться (удалили сервер, перезагрузили миры) — страницу
+  // прижимаем к последней существующей, а не показываем пустоту.
+  const safePage = Math.min(page, totalPages - 1)
+  const pageStart = safePage * QUICK_PLAY_PER_PAGE
+  const visibleWorlds = worlds.slice(pageStart, pageStart + QUICK_PLAY_PER_PAGE)
+  const visibleServers = entries.slice(pageStart, pageStart + QUICK_PLAY_PER_PAGE)
 
   if (!hasWorlds && !hasEntries && !loading) return null
 
@@ -373,41 +358,112 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
         </div>
       )}
 
-      {hasWorlds && (
-        <WorldCarousel
-          worlds={worlds}
-          buildName={buildName}
-          onPlay={(folder) => onQuickPlayLaunch?.("singleplayer", folder)}
-        />
-      )}
-
-      {hasEntries && (
-        <div className="flex flex-col gap-1.5">
+      {(hasWorlds || hasEntries) && (
+        <div className="flex flex-col gap-2">
+          {/* Один заголовок на всю быструю игру: и мир, и сервер запускаются
+              через --quickPlay*, поэтому подпись не должна висеть только на
+              списке серверов. */}
           <div className="flex items-center gap-1.5 px-1">
             <IconBolt className="w-3.5 h-3.5 text-primary" />
             <span className="flex-1 text-xs font-medium text-muted-foreground">{t("home.quickPlay")}</span>
-            <button
-              type="button"
-              onClick={() => void pingEntries(entries)}
-              disabled={pinging}
-              title={t("home.quickPlayRefresh")}
-              aria-label={t("home.quickPlayRefresh")}
-              className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
-            >
-              <IconRefresh className={cn("w-3.5 h-3.5", pinging && "animate-spin")} />
-            </button>
+            {hasEntries && activeTab === "servers" && (
+              <button
+                type="button"
+                onClick={() => void pingEntries(entries)}
+                disabled={pinging}
+                title={t("home.quickPlayRefresh")}
+                aria-label={t("home.quickPlayRefresh")}
+                className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
+              >
+                <IconRefresh className={cn("w-3.5 h-3.5", pinging && "animate-spin")} />
+              </button>
+            )}
           </div>
-          <div className="flex flex-col gap-1.5">
-            {entries.map((entry) => (
-              <QuickPlayServerRow
-                key={entryKey(entry)}
-                entry={entry}
-                ping={pings[entryKey(entry)]}
-                onLaunch={() => onQuickPlayLaunch?.(entry.type, entry.address)}
-                onRemove={() => void handleRemove(entry)}
-              />
-            ))}
+
+          {/* Переключатель групп + постраничная навигация по 2 записи */}
+          <div className="flex items-center gap-1.5 px-1">
+            {worlds.length > 0 && entries.length > 0 ? (
+              <div className="flex items-center gap-0.5 rounded-lg border border-border bg-muted/30 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => { setTab("servers"); setPage(0) }}
+                  className={cn(
+                    "flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors",
+                    activeTab === "servers" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <IconServer className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  {t("servers.title")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setTab("worlds"); setPage(0) }}
+                  className={cn(
+                    "flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors",
+                    activeTab === "worlds" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <IconMap className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  {t("builds.tab.worlds")}
+                </button>
+              </div>
+            ) : (
+              <span className="text-[11px] font-medium text-muted-foreground">
+                {activeTab === "servers" ? t("servers.title") : t("builds.tab.worlds")}
+              </span>
+            )}
+
+            {totalPages > 1 && (
+              <div className="ml-auto flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => setPage(Math.max(0, safePage - 1))}
+                  disabled={safePage === 0}
+                  aria-label={t("home.quickPlayPrev")}
+                  className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  <IconChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <span className="min-w-[26px] text-center font-mono text-[10px] tabular-nums text-muted-foreground">
+                  {safePage + 1}/{totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage(Math.min(totalPages - 1, safePage + 1))}
+                  disabled={safePage >= totalPages - 1}
+                  aria-label={t("home.quickPlayNext")}
+                  className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  <IconChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
+
+          {activeTab === "worlds" && hasWorlds && (
+            <div className="flex flex-col gap-1.5">
+              {visibleWorlds.map((world) => (
+                <QuickPlayWorldRow
+                  key={world.folder}
+                  world={world}
+                  onPlay={() => onQuickPlayLaunch?.("singleplayer", world.folder)}
+                />
+              ))}
+            </div>
+          )}
+
+          {activeTab === "servers" && hasEntries && (
+            <div className="flex flex-col gap-1.5">
+              {visibleServers.map((entry) => (
+                <QuickPlayServerRow
+                  key={entryKey(entry)}
+                  entry={entry}
+                  ping={pings[entryKey(entry)]}
+                  onLaunch={() => onQuickPlayLaunch?.(entry.type, entry.address)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -417,6 +473,7 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
 export const HomeControls = memo(function HomeControls(props: HomeControlsProps) {
   const { t } = useTranslation()
   const handleOpenLauncherFolder = useCallback(() => { void window.electronAPI?.openLauncherFolder() }, [])
+  const { gameReady } = useLaunchControls()
   const {
     accounts, account, accountComboOpen, setAccountComboOpen, setActiveAccount,
     versions, versionsLoaded, selectedVersion, setSelectedVersion, buildIcons,
@@ -427,7 +484,10 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
   const showLoaderVersionSelect = selectedModLoader !== "vanilla" && selectedModLoader !== "instance"
   const loaderVersionSelectionPending = showLoaderVersionSelect && (!loaderVersionsLoaded || !selectedLoaderVersion)
   const noVersionsAvailable = versionsLoaded && versions.length === 0
-  const playDisabled = (launchUi.isLaunching && !isRunning) || loaderVersionSelectionPending || noVersionsAvailable
+  // Процесс уже жив, но игра ещё грузится (окно/звук/атласы не поднялись):
+  // показываем «Запускается...» и не превращаем кнопку в kill-switch.
+  const isBooting = isRunning && !gameReady
+  const playDisabled = isBooting || (launchUi.isLaunching && !isRunning) || loaderVersionSelectionPending || noVersionsAvailable
 
   return (
     <div className="w-72 flex-shrink-0 flex flex-col justify-start gap-4 px-1">
@@ -454,7 +514,7 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
               <DialogHeader className="px-5 pt-5 pb-3">
                 <DialogTitle>{t("home.account")}</DialogTitle>
               </DialogHeader>
-              <div className="flex flex-col gap-1 px-3 pb-3 max-h-[400px] overflow-y-auto scrollbar-thin">
+              <div className="flex flex-col gap-1 px-3 pb-3 max-h-[400px] overflow-y-auto">
                 {accounts.map(acc => {
                   const isActive = acc.id === account?.id
                   return (
@@ -501,7 +561,7 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
                   : versions.map(v => <SelectItem key={v} value={v}>
                     <span className="flex items-center gap-2">
                       {buildIcons[v] ? (
-                        <img src={buildIcons[v]} alt="" className="w-4 h-4 rounded-sm object-cover shrink-0" />
+                        <EntityIcon src={buildIcons[v]} className="w-4 h-4 rounded-sm text-primary shrink-0" imgClassName="w-4 h-4 rounded-sm object-cover shrink-0" />
                       ) : null}
                       {v}
                     </span>
@@ -513,7 +573,7 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
         <div className="relative z-10">
           <label className="block text-xs font-medium text-muted-foreground mb-1.5">{t("home.modLoader")}</label>
           <Select value={selectedModLoader} onValueChange={setSelectedModLoader}>
-            <SelectTrigger className="w-full h-[42px] rounded-xl bg-muted/50 border border-border text-foreground text-sm"><SelectValue placeholder="Mod Loader" /></SelectTrigger>
+            <SelectTrigger className="w-full h-[42px] rounded-xl bg-muted/50 border border-border text-foreground text-sm"><SelectValue placeholder={t("home.modLoader")} /></SelectTrigger>
             <SelectContent>{MOD_LOADERS.map(l => (
               <SelectItem key={l.id} value={l.id}>
                 <span className="flex items-center gap-2">
@@ -526,35 +586,51 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
         </div>
         {showLoaderVersionSelect && (
           <div className="relative z-10">
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Loader Version</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">{t("home.loaderVersion")}</label>
             <Select value={selectedLoaderVersion} onValueChange={setSelectedLoaderVersion} disabled={!loaderVersionsLoaded || loaderVersions.length === 0}>
-              <SelectTrigger className="w-full h-[42px] rounded-xl bg-muted/50 border border-border text-foreground text-sm"><SelectValue placeholder={loaderVersionsLoaded ? "Loader Version" : "Loading..."} /></SelectTrigger>
+              <SelectTrigger className="w-full h-[42px] rounded-xl bg-muted/50 border border-border text-foreground text-sm"><SelectValue placeholder={loaderVersionsLoaded ? t("home.loaderVersion") : t("home.loadingVersions")} /></SelectTrigger>
               <SelectContent>
-                {!loaderVersionsLoaded ? <div className="px-3 py-2 text-sm text-muted-foreground">Loading...</div>
-                  : loaderVersions.length === 0 ? <div className="px-3 py-2 text-sm text-muted-foreground">No versions available</div>
+                {!loaderVersionsLoaded ? <div className="px-3 py-2 text-sm text-muted-foreground">{t("home.loaderVersionLoading")}</div>
+                  : loaderVersions.length === 0 ? <div className="px-3 py-2 text-sm text-muted-foreground">{t("home.noLoaderVersions")}</div>
                   : loaderVersions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
               </SelectContent>
             </Select>
             {loaderVersionSelectionPending && (
               <p className="mt-1 text-[11px] text-muted-foreground">
-                {!loaderVersionsLoaded ? "Loading available loader versions..." : "Choose a loader version before launch"}
+                {!loaderVersionsLoaded ? t("home.loaderVersionLoading") : t("home.chooseLoaderVersion")}
               </p>
             )}
           </div>
         )}
       </div>
 
-      <button type="button" onClick={onPlay} disabled={playDisabled} className={cn("relative w-full py-4 rounded-2xl font-bold text-lg text-primary-foreground overflow-hidden", !launchUi.isLaunching && isRunning ? "bg-red-600 hover:bg-red-500" : "bg-primary hover:bg-primary/90", "transition-colors duration-200 group", "active:scale-[0.98]", "disabled:opacity-70 disabled:cursor-not-allowed")}>
+      <button type="button" onClick={onPlay} disabled={playDisabled} className={cn("relative w-full py-4 rounded-2xl font-bold text-lg text-primary-foreground overflow-hidden", !launchUi.isLaunching && isRunning && !isBooting ? "bg-red-600 hover:bg-red-500" : "bg-primary hover:bg-primary/90", "transition-colors duration-200 group", "active:scale-[0.98]", "disabled:opacity-70 disabled:cursor-not-allowed")}>
         <span className="relative z-10 flex items-center justify-center gap-3">
-          {launchUi.isLaunching ? <><IconLoader2 className="w-5 h-5 animate-spin" />{launchUi.phase === "installing" && launchUi.progress !== null ? `${t("home.installing")} ${launchUi.progress}%` : t("home.launching")}</>
-            : !launchUi.isLaunching && isRunning ? <><IconPlayerStop className="w-5 h-5" strokeWidth={1.75} />{t("home.stop")}</>
+          {launchUi.isLaunching || isBooting ? <><IconLoader2 className="w-5 h-5 animate-spin" />{launchUi.phase === "installing" && launchUi.progress !== null ? `${t("home.installing")} ${launchUi.progress}%` : t("home.launching")}</>
+            : isRunning ? <><IconPlayerStop className="w-5 h-5" strokeWidth={1.75} />{t("home.stop")}</>
             : <><IconPlayerPlay className="w-5 h-5" strokeWidth={1.75} />{t("home.play")}</>}
         </span>
       </button>
 
       {(launchUi.status || launchUi.progress !== null) && (
         <div className="relative z-50 px-1 flex flex-col gap-2">
-          {launchUi.progress !== null && <div className="h-1.5 rounded-full bg-muted overflow-hidden"><div className={cn("h-full transition-[width] duration-200", isRunning ? "bg-green-500" : "bg-primary")} style={{ width: `${Math.max(0, Math.min(100, isRunning ? 100 : launchUi.progress))}%` }} /></div>}
+          {launchUi.progress !== null && (
+            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+              {gameReady ? (
+                // Полностью запущено — зелёная шкала на 100%.
+                <div className="h-full w-full rounded-full bg-green-500 transition-colors" />
+              ) : isBooting ? (
+                // Процесс есть, окно ещё грузится: тот же бегущий градиентный
+                // сегмент, что на стартовом экране лаунчера, вместо зелёного.
+                <div className="progress-launch h-full w-full rounded-full" />
+              ) : (
+                <div
+                  className="h-full rounded-full bg-primary transition-[width] duration-200"
+                  style={{ width: `${Math.max(0, Math.min(100, launchUi.progress))}%` }}
+                />
+              )}
+            </div>
+          )}
           {launchUi.status && <p className="text-[11px] text-muted-foreground line-clamp-2">{launchUi.status}</p>}
           {launchDetails && <p className="text-[11px] text-muted-foreground/80 line-clamp-2">{launchDetails}</p>}
         </div>

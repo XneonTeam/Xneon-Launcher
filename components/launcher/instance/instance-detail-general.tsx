@@ -20,11 +20,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BUILD_MOD_LOADERS } from "./constants"
 import { LoaderIcon } from "./loader-icon"
 import { IconPickerModal } from "./icon-picker-modal"
+import { EntityIcon } from "./entity-icon"
 import { PlatformBadge } from "@/components/launcher/platform-icon"
 import { ModpackChangeVersionDialog } from "./modpack-change-version-dialog"
 import { ActionConfirmDialog } from "./action-confirm-dialog"
 import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
+import { useActivityCenter } from "@/src/ActivityCenterContext"
 import { formatPlaytime } from "@/lib/format"
 import type { Build } from "./types"
 
@@ -32,10 +34,13 @@ interface InstanceDetailGeneralProps {
   activeBuild: Build
   updateBuild: (id: string, fields: Partial<Build>) => void
   renameBuild: (id: string, newName: string) => Promise<{ success: boolean; error?: string }>
+  /** Перемещение сборки в корзину (с восстановлением со страницы «Корзина»). */
+  onTrash: (id: string) => Promise<boolean>
 }
 
-export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }: InstanceDetailGeneralProps) {
+export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, onTrash }: InstanceDetailGeneralProps) {
   const { t } = useTranslation()
+  const { pushNotification } = useActivityCenter()
   const savedNameRef = useRef(activeBuild.name)
   const [showIconPicker, setShowIconPicker] = useState(false)
   const { visibleVersions, versionsLoaded } = useMinecraftVersionOptions()
@@ -48,6 +53,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
   const showLoaderVersionSelect = activeBuild.modLoader !== "vanilla" && activeBuild.modLoader !== "instance"
 
   const [showChangeVersionDialog, setShowChangeVersionDialog] = useState(false)
+  const [showTrashDialog, setShowTrashDialog] = useState(false)
   const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false)
   const [showRepairConfirm, setShowRepairConfirm] = useState(false)
   const [dialogAlert, setDialogAlert] = useState<{ title: string; message: string } | null>(null)
@@ -154,8 +160,20 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
    */
   const pruneStaleLoaders = useCallback((modLoader: string, loaderVersion?: string) => {
     if (!activeBuild.name) return
-    void window.electronAPI?.pruneLoaderProfiles(activeBuild.name, modLoader, loaderVersion).catch(() => {})
-  }, [activeBuild.name])
+    void window.electronAPI?.pruneLoaderProfiles(activeBuild.name, modLoader, loaderVersion)
+      .then((result) => {
+        if (!result?.removed?.length) return
+        // Профиль прежнего загрузчика реально стёрт с диска — показываем это,
+        // иначе из интерфейса непонятно, что старый загрузчик удалён.
+        pushNotification({
+          kind: "info",
+          source: "install",
+          title: t("launchStage.removedPreviousLoaderTitle"),
+          message: t("launchStage.removedPreviousLoaderMessage", { loaders: result.removed.join(", ") }),
+        })
+      })
+      .catch(() => {})
+  }, [activeBuild.name, pushNotification, t])
 
   const handleModLoaderChange = useCallback((value: string) => {
     updateBuild(activeBuild.id, { modLoader: value, loaderVersion: undefined })
@@ -192,7 +210,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
               onClick={() => setShowIconPicker(true)}
             >
               {buildHasImage ? (
-                <img src={activeBuild.icon} alt="" className="h-full w-full object-cover" />
+                <EntityIcon src={activeBuild.icon} className="h-full w-full p-3 text-primary" imgClassName="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
                   <IconCamera className="h-10 w-10 text-muted-foreground/50" />
@@ -256,7 +274,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-3 min-w-0">
                     {activeBuild.icon ? (
-                      <img src={activeBuild.icon} alt="" className="w-10 h-10 rounded-xl object-cover shrink-0" />
+                      <EntityIcon src={activeBuild.icon} className="w-10 h-10 p-0.5 rounded-xl text-primary" imgClassName="w-10 h-10 rounded-xl object-cover shrink-0" />
                     ) : (
                       <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-base shrink-0">
                         {activeBuild.name[0]}
@@ -361,7 +379,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
                   <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("builds.version")}</label>
                   <Select value={activeBuild.version} onValueChange={(value) => updateBuild(activeBuild.id, { version: value })}>
                     <SelectTrigger className="h-10 w-full rounded-xl border-border bg-muted/40 text-foreground">
-                      <SelectValue placeholder={versionsLoaded ? t("builds.version") : "Loading..."} />
+                      <SelectValue placeholder={versionsLoaded ? t("builds.version") : t("home.loadingVersions")} />
                     </SelectTrigger>
                     <SelectContent>
                       {availableVersions.map((item) => (
@@ -392,14 +410,14 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
 
                 {showLoaderVersionSelect && (
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Loader Version</label>
+                    <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("home.loaderVersion")}</label>
                     <Select value={activeBuild.loaderVersion ?? ""} onValueChange={handleLoaderVersionChange} disabled={!loaderVersionsLoaded || loaderVersions.length === 0}>
                       <SelectTrigger className="h-10 w-full rounded-xl border-border bg-muted/40 text-foreground">
-                        <SelectValue placeholder={loaderVersionsLoaded ? "Loader Version" : "Loading..."} />
+                        <SelectValue placeholder={loaderVersionsLoaded ? t("home.loaderVersion") : t("home.loadingVersions")} />
                       </SelectTrigger>
                       <SelectContent>
-                        {!loaderVersionsLoaded ? <div className="px-3 py-2 text-sm text-muted-foreground">Loading...</div>
-                          : loaderVersions.length === 0 ? <div className="px-3 py-2 text-sm text-muted-foreground">No versions available</div>
+                        {!loaderVersionsLoaded ? <div className="px-3 py-2 text-sm text-muted-foreground">{t("home.loaderVersionLoading")}</div>
+                          : loaderVersions.length === 0 ? <div className="px-3 py-2 text-sm text-muted-foreground">{t("home.noLoaderVersions")}</div>
                           : loaderVersions.map((item) => (
                             <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
                           ))}
@@ -411,16 +429,28 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
             )}
 
             <div className="flex items-center justify-between gap-3 pt-2 border-t border-border/50 flex-wrap">
-              {activeBuild.intentPath && (
+              <div className="flex items-center gap-4">
+                {activeBuild.intentPath && (
+                  <button
+                    type="button"
+                    onClick={() => window.electronAPI?.openPath(activeBuild.intentPath!)}
+                    className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-3.5 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                  >
+                    <IconFolderOpen className="h-4 w-4" strokeWidth={1.75} />
+                    {t("buildDetail.openGameFolder")}
+                  </button>
+                )}
+                {/* Удаление сборки перенесено сюда из контекстного меню списка:
+                    на странице сборки действие должно быть под рукой. */}
                 <button
                   type="button"
-                  onClick={() => window.electronAPI?.openPath(activeBuild.intentPath!)}
-                  className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-3.5 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                  onClick={() => setShowTrashDialog(true)}
+                  className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3.5 py-2 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
                 >
-                  <IconFolderOpen className="h-4 w-4" strokeWidth={1.75} />
-                  {t("buildDetail.openGameFolder")}
+                  <IconTrash className="h-4 w-4" strokeWidth={1.75} />
+                  {t("instanceList.toTrash")}
                 </button>
-              )}
+              </div>
             </div>
           </div>
         </div>
@@ -473,6 +503,18 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild }:
         cancelText={t("common.cancel")}
         variant="info"
         icon="repair"
+      />
+
+      <ActionConfirmDialog
+        open={showTrashDialog}
+        onClose={() => setShowTrashDialog(false)}
+        onConfirm={() => { void onTrash(activeBuild.id) }}
+        title={t("buildDetail.trashTitle")}
+        description={t("buildDetail.trashDesc", { name: activeBuild.name })}
+        confirmText={t("buildDetail.trashConfirm")}
+        cancelText={t("common.cancel")}
+        variant="danger"
+        icon="warning"
       />
 
       {dialogAlert && (

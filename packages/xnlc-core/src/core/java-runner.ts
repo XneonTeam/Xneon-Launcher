@@ -6,6 +6,7 @@
 
 import { spawn } from "child_process";
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import { LaunchResult } from "../types/index.js";
 import { getLogsDir, cleanEnvForGame } from "../utils/index.js";
@@ -55,13 +56,35 @@ function isBatchFile(program: string): boolean {
   return process.platform === "win32" && /\.(bat|cmd)$/i.test(program);
 }
 
-function resolveSpawnTarget(program: string, args: string[]): { cmd: string; args: string[] } {
+/** Аргумент для @argfile Java: пробелы и кавычки требуют экранирования. */
+function quoteArgForArgFile(arg: string): string {
+  if (!/[\s"']/.test(arg)) return arg;
+  return `"${arg.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+function resolveSpawnTarget(program: string, args: string[]): { cmd: string; args: string[]; shell?: boolean; cleanupPath?: string } {
   if (!isBatchFile(program)) {
     return { cmd: program, args };
   }
-  const comspec = process.env.ComSpec ?? "cmd.exe";
+
   const inner = `"${program}"${args.map((a) => ` "${a.replace(/"/g, '""')}"`).join("")}`;
-  return { cmd: comspec, args: ["/d", "/s", "/c", `"${inner}"`] };
+
+  // cmd.exe ограничен ~8191 символами и на командную строку, и на строку внутри
+  // .cmd — обёртка с модовым classpath падала («Слишком длинная командная
+  // строка» / «Слишком длинная входная строка»). Аргументы java укладываем в
+  // @argfile: java @args.txt читает их сам (так же делают Forge и NeoForge).
+  if (inner.length > 6000) {
+    const [javaPath, ...javaArgs] = args;
+    if (javaPath) {
+      const argFile = path.join(os.tmpdir(), `xnlc-launch-${process.pid}-${Date.now()}.txt`);
+      fs.writeFileSync(argFile, javaArgs.map(quoteArgForArgFile).join("\n"), "utf-8");
+      return { cmd: program, args: [javaPath, `@${argFile}`], shell: true, cleanupPath: argFile };
+    }
+  }
+
+  // shell: true — Node сам корректно соберёт вызов cmd.exe; ручные кавычки
+  // давали двойное экранирование («""путь"" не является командой»).
+  return { cmd: program, args, shell: true };
 }
 
 export class JavaRunner {
@@ -147,6 +170,7 @@ export class JavaRunner {
       cwd: options?.cwd ?? gameDir,
       stdio: ["pipe", "pipe", "pipe"],
       env,
+      shell: target.shell === true,
     });
     this.currentProcess = child;
 
@@ -176,6 +200,10 @@ export class JavaRunner {
     child.on("close", (code) => {
       this.currentProcess = null;
       logStream.end();
+      // Временный .cmd для длинной команды больше не нужен.
+      if (target.cleanupPath) {
+        try { fs.rmSync(target.cleanupPath, { force: true }); } catch { /* не критично */ }
+      }
       if (code !== 0) {
         console.error(`Minecraft exited with code ${code}`);
       }

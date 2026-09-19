@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 import { memoryToMb, mbToMemory } from "@/lib/memory"
 import { IconFolderPlus, IconLoader2, IconSettings, IconX } from "@tabler/icons-react"
 import { MemorySlider } from "@/components/ui/memory-slider"
+import { ModalLayer } from "@/components/ui/modal-layer"
 import { useMemoryOptions } from "@/src/hooks/use-memory-options"
 import type { JavaInstallation } from "@/components/launcher/settings/types"
 import type { Build } from "./types"
@@ -135,7 +136,7 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
       )}
 
       {showJavaModal && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+        <ModalLayer onClose={() => setShowJavaModal(false)} className="bg-background/80 backdrop-blur-sm animate-in fade-in-0">
           <div className="w-full max-w-lg p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-semibold text-foreground">{t("build.java.path")}</h3>
@@ -231,7 +232,7 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
               {t("common.cancel")}
             </button>
           </div>
-        </div>,
+        </ModalLayer>,
         document.body
       )}
     </div>

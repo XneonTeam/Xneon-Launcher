@@ -256,18 +256,34 @@ export class JavaManager {
       throw new Error(`No downloadable files in manifest for ${platformKey}/${component}`);
     }
 
-    let downloadedBytes = 0;
+    // Прогресс считается по сумме скачанных байт всех файлов рантайма: у задач
+    // есть только собственный `downloaded`, поэтому агрегируем их статусы.
+    // Раньше здесь стояла заглушка, из-за которой полоса загрузки Java в
+    // лаунчере не двигалась вообще.
+    const tasks = job["tasks"] as DownloadTask[];
+    let lastPercent = -1;
+    const reportProgress = () => {
+      if (!onProgress || totalBytes <= 0) return;
+      const downloadedBytes = tasks.reduce((sum, task) => sum + (task.status?.downloaded ?? 0), 0);
+      const percent = Math.max(0, Math.min(100, Math.round((downloadedBytes / totalBytes) * 100)));
+      if (percent === lastPercent) return;
+      lastPercent = percent;
+      onProgress(percent);
+    }
+
     if (onProgress) {
-      for (const task of job["tasks"] as DownloadTask[]) {
+      for (const task of tasks) {
         const originalOnProgress = task.options.onProgress;
         task.options.onProgress = (p) => {
           if (originalOnProgress) originalOnProgress(p);
-          downloadedBytes += (p.downloaded ?? 0) - (p.total ?? 0) > 0 ? 0 : 0; // placeholder
+          reportProgress();
         };
       }
+      reportProgress();
     }
 
     await job.execute();
+    onProgress?.(100);
 
     // Set executable flags on unix
     if (os.platform() !== "win32") {

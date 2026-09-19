@@ -33,7 +33,20 @@ export const NEWS_GRID_GAP = 12
 export const NEWS_CARD_TEXT_HEIGHT = 140
 export const NEWS_GRID_OVERSCAN_ROWS = 3
 export const LAUNCH_RE = /launching|starting|started|spawn|запуск/i
-export const RUNNING_RE = /render|game|world|player/i
+
+/**
+ * Игра реально поднялась: окно создано, звук и атласы инициализированы.
+ * Раньше тут было `/render|game|world|player/i` — слишком широко, из-за чего
+ * лаунчер объявлял «игра запущена», когда процесс только-только стартовал.
+ */
+export const GAME_READY_RE = /Sound engine started|OpenAL initialized|Created: \d+x\d+x\d+ .*-atlas|Narrator library for .* successfully loaded/i
+
+/**
+ * Страховка на случай нестандартной сборки, которая не печатает маркеры выше:
+ * через это время живой процесс всё равно считается запущенной игрой, иначе
+ * кнопка навсегда осталась бы в состоянии «Запускается...».
+ */
+export const GAME_READY_FALLBACK_MS = 45_000
 export const INITIAL_LAUNCH_UI_STATE: LaunchUiState = {
   isLaunching: false,
   status: "",
@@ -104,24 +117,39 @@ export function filterMinecraftVersions(
     .map((version) => version.version)
 }
 
-export function getStageLabel(stage?: string, installationPhase?: string) {
-  if (installationPhase) {
-    switch (installationPhase) {
-      case "downloading-vanilla": return "Скачивается Minecraft..."
-      case "downloading-installer": return "Скачивается установщик..."
-      case "extracting-installer": return "Распаковывается установщик..."
-      case "installing-loader": return "Устанавливается мод-лоадер..."
-      case "downloading-libraries": return "Скачиваются библиотеки..."
-      case "downloading-assets": return "Скачиваются ресурсы..."
-      case "downloading-client": return "Скачивается клиент игры..."
-      case "installing": return "Установка..."
-      default: return "Подготовка запуска..."
-    }
-  }
-  switch (stage) {
-    case "libraries": return "Скачиваются библиотеки..."
-    case "assets": return "Скачиваются ресурсы..."
-    case "game": return "Скачиваются файлы игры..."
-    default: return "Подготовка запуска..."
-  }
+/** Переводчик из react-i18next: этапы запуска должны быть локализованы. */
+export type StageTranslate = (key: string, options?: Record<string, unknown>) => string
+
+/**
+ * Фазы установки из main-процесса (`installationPhase`). Отдельная фаза
+ * `removing-previous-loader` приходит, когда перед запуском удаляется профиль
+ * прежнего загрузчика — иначе при смене версии пользователь видел только
+ * «устанавливается загрузчик» и не понимал, куда делся старый.
+ */
+const INSTALLATION_PHASE_KEYS: Record<string, string> = {
+  "downloading-vanilla": "launchStage.downloadingVanilla",
+  "downloading-installer": "launchStage.downloadingInstaller",
+  "extracting-installer": "launchStage.extractingInstaller",
+  "removing-previous-loader": "launchStage.removingPreviousLoader",
+  "installing-loader": "launchStage.installingLoader",
+  "downloading-libraries": "launchStage.downloadingLibraries",
+  "downloading-assets": "launchStage.downloadingAssets",
+  "downloading-client": "launchStage.downloadingClient",
+  "installing": "launchStage.installing",
+}
+
+/** Этапы обычной загрузки, которые приходят в `type` у прогресса. */
+const STAGE_KEYS: Record<string, string> = {
+  libraries: "launchStage.downloadingLibraries",
+  assets: "launchStage.downloadingAssets",
+  game: "launchStage.downloadingGame",
+}
+
+export function getStageLabel(stage: string | undefined, installationPhase: string | undefined, t: StageTranslate) {
+  const key = installationPhase
+    ? INSTALLATION_PHASE_KEYS[installationPhase]
+    : stage
+      ? STAGE_KEYS[stage]
+      : undefined
+  return t(key ?? "launchStage.preparing")
 }

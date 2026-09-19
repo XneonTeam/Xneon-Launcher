@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useAccounts } from "@/src/AccountsContext"
 import { getAvatarUrl } from "@/lib/home-page-shared"
 import { useHomeLaunch } from "@/src/hooks/use-home-launch"
@@ -30,6 +30,21 @@ function saveHomeSelectionPrefs(version: string, modLoader: string, loaderVersio
   }
 }
 
+/**
+ * Одноразовая заявка на авто-запуск сборки: её кладёт кнопка Play на карточке
+ * сборки. Читаем и сразу снимаем — повторный запуск при следующем заходе на
+ * главную не нужен.
+ */
+function consumeAutoLaunchBuild(): string | null {
+  try {
+    const value = localStorage.getItem("xneon-launcher:autoLaunchBuild")
+    if (value) localStorage.removeItem("xneon-launcher:autoLaunchBuild")
+    return value
+  } catch {
+    return null
+  }
+}
+
 export function HomePage() {
   const saved = getSavedLaunchPrefs()
   const { accounts, activeAccount, setActiveAccount } = useAccounts()
@@ -42,6 +57,30 @@ export function HomePage() {
   const activeAvatarUrl = useMemo(() => account ? getAvatarUrl(account, account.username) : "", [account])
   const accountAvatarUrls = useMemo(() => Object.fromEntries(accounts.map(a => [a.id, getAvatarUrl(a, a.username)])), [accounts])
   const { isRunning, launchUi, launchDetails, handlePlay, handleQuickPlay } = useHomeLaunch({ account, selectedVersion, selectedModLoader, selectedLoaderVersion })
+
+  // Play на карточке сборки привёл сюда с заявкой на запуск: ждём, пока выбор
+  // сборки реально применится (список сборок грузится асинхронно), и стартуем
+  // один раз. Если игра уже запущена — заявку просто гасим, без сюрпризов.
+  const [autoLaunchBuild] = useState(() => consumeAutoLaunchBuild())
+  const autoLaunchHandledRef = useRef(false)
+
+  useEffect(() => {
+    if (!autoLaunchBuild || autoLaunchHandledRef.current) return
+    if (selectedModLoader !== "instance") return
+    if (!versionsLoaded || selectedVersion !== autoLaunchBuild) return
+
+    autoLaunchHandledRef.current = true
+    if (isRunning || launchUi.isLaunching) return
+    void handlePlay()
+  }, [
+    autoLaunchBuild,
+    handlePlay,
+    isRunning,
+    launchUi.isLaunching,
+    selectedModLoader,
+    selectedVersion,
+    versionsLoaded,
+  ])
 
   useEffect(() => {
     if (selectedModLoader === "vanilla" || selectedModLoader === "instance") {
