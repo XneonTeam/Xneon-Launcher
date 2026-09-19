@@ -49,6 +49,7 @@ import {
   type ImportModEntry,
 } from "./helpers"
 import { scanIntentDir } from "./scanner"
+import { collectMissingFiles, downloadMissingModFiles, readMissingModsConfig } from "./missing-mods"
 import { checkContentUpdates, dismissContentUpdate, readUpdatesCache } from "./update-checker"
 import { pruneStaleLoaderProfiles, type LoaderPruneResult } from "./loader-profiles"
 
@@ -59,6 +60,30 @@ export { ensureBuildIntentDir, getBuildIntentDirName, getBuildIntentPath, scanIn
  * из-за конфликта имён. Позволяет продолжить установку без повторного выбора файла.
  */
 let pendingLocalImport: { filePath: string } | null = null
+
+/**
+ * Догружает «core»-файлы, которые пак требует через мод Missing Mods Checker:
+ * в `.mrpack` их нет (Modrinth не распространяет), но есть ссылки на CurseForge.
+ * Без этого игра открывала окно мода и ждала пользователя — выглядело как
+ * зависший запуск.
+ */
+export async function fetchMissingPackMods(intentPath: string, signal?: AbortSignal): Promise<{ downloaded: number; failed: number; missing: number }> {
+  const entries = readMissingModsConfig(intentPath)
+  if (entries.length === 0) return { downloaded: 0, failed: 0, missing: 0 }
+  const missing = collectMissingFiles(intentPath, entries)
+  if (missing.length === 0) return { downloaded: 0, failed: 0, missing: 0 }
+
+  sendImportProgress(95, 100, `Докачивание обязательных модов (0/${missing.length})...`)
+  const result = await downloadMissingModFiles(intentPath, missing, {
+    signal,
+    onProgress: (done, total, current) => {
+      sendImportProgress(95, 100, `Докачивание обязательных модов (${done}/${total}): ${current}`)
+    },
+    loadModsModule: async () => (await loadModsModule()) as never,
+  })
+  logRuntime(`[modpack] Обязательные файлы: докачано ${result.downloaded}, ошибок ${result.failed} из ${missing.length}`)
+  return { downloaded: result.downloaded, failed: result.failed, missing: missing.length }
+}
 
 function escapeHtml(value: string): string {
   return value
@@ -687,6 +712,16 @@ export function registerBuildHandlers() {
     }
   })
 
+  // Ручной запуск докачивания «core»-файлов пака (Missing Mods Checker).
+  ipcMain.handle("build:fetch-missing-mods", async (_event, buildName: string) => {
+    try {
+      const intentPath = await ensureBuildIntentDir(buildName)
+      return { success: true as const, ...(await fetchMissingPackMods(intentPath)) }
+    } catch (error) {
+      return { success: false as const, error: toErrorMessage(error) }
+    }
+  })
+
   ipcMain.handle(
     "content:install-remote",
     async (_event, contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string): Promise<{ success: boolean; filePath?: string; error?: string }> => {
@@ -787,6 +822,7 @@ export function registerBuildHandlers() {
       throwIfImportCancelled(signal)
       sendImportProgress(92, 100, "Распаковка файлов сборки...")
       await copyOverrideEntries(zip, intentPath)
+      await fetchMissingPackMods(intentPath, signal)
       const scanned = await scanIntentDir(intentPath, (done, total) => {
         const fraction = total > 0 ? done / total : 1
         sendImportProgress(Math.min(99, Math.round(92 + fraction * 7)), 100, `Сканирование сборки (${done}/${total})...`)
@@ -1138,6 +1174,7 @@ export function registerBuildHandlers() {
         throwIfImportCancelled(signal)
         sendImportProgress(92, 100, "Распаковка файлов сборки...")
         await copyOverrideEntries(zip, intentPath)
+        await fetchMissingPackMods(intentPath, signal)
         const scanned = await scanIntentDir(intentPath, (done, total) => {
           const fraction = total > 0 ? done / total : 1
           sendImportProgress(Math.min(99, Math.round(92 + fraction * 7)), 100, `Сканирование сборки (${done}/${total})...`)

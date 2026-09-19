@@ -107,6 +107,7 @@ export interface IpcInvokeMap {
   "db:load-builds": { args: []; return: DbBuild[] }
   "db:load-builds-light": { args: []; return: DbBuild[] }
   "db:load-build-content": { args: [buildId: string]; return: { mods: unknown[]; resourcepacks: unknown[]; shaders: unknown[]; installedMods: Record<string, string> } | null }
+  "build:fetch-missing-mods": { args: [buildName: string]; return: { success: boolean; downloaded?: number; failed?: number; missing?: number; error?: string } }
   "db:save-builds": { args: [builds: DbBuild[]]; return: void }
   "db:update-build-fields": { args: [buildId: string, fields: Partial<DbBuild>]; return: void }
   "db:is-fallback-storage": { args: []; return: { isFallback: boolean } }
@@ -370,6 +371,7 @@ export interface ElectronAPIExplicit {
   loadBuilds: () => Promise<DbBuild[]>
   loadBuildsLight: () => Promise<DbBuild[]>
   loadBuildContent: (buildId: string) => Promise<{ mods: unknown[]; resourcepacks: unknown[]; shaders: unknown[]; installedMods: Record<string, string> } | null>
+  fetchMissingBuildMods: (buildName: string) => Promise<{ success: boolean; downloaded?: number; failed?: number; missing?: number; error?: string }>
   saveBuilds: (builds: DbBuild[]) => Promise<void>
   updateBuildFields: (buildId: string, fields: Partial<DbBuild>) => Promise<void>
   dbIsFallbackStorage: () => Promise<{ isFallback: boolean }>
