@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils"
 import { formatPlaytime, formatDateTime } from "@/lib/format"
 import type { StatsOverview } from "@xnlc/types"
 import { StatsRangePicker, type StatsRange } from "@/components/launcher/stats/stats-range-picker"
+import { EntityIcon } from "@/components/launcher/instance/entity-icon"
+import { isBuiltinLogo } from "@/components/launcher/instance/builtin-logos"
 
 const DAY_MS = 86_400_000
 
@@ -35,6 +37,9 @@ function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: s
 
 function EntryIcon({ icon, fallback }: { icon?: string; fallback: React.ReactNode }) {
   if (icon) {
+    if (isBuiltinLogo(icon)) {
+      return <EntityIcon src={icon} className="h-9 w-9 shrink-0 rounded-lg p-1 text-primary" />
+    }
     const hasImg = icon.trimStart().startsWith("http") || icon.startsWith("data:")
     if (hasImg) {
       return <img src={icon} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />

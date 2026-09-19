@@ -97,7 +97,7 @@ export function SkinPreviewPanel({
             <DialogHeader className="px-5 pt-5 pb-3">
               <DialogTitle>{t("home.account", "Аккаунт")}</DialogTitle>
             </DialogHeader>
-            <div className="flex flex-col gap-1 px-3 pb-3 max-h-[400px] overflow-y-auto scrollbar-thin">
+            <div className="flex flex-col gap-1 px-3 pb-3 max-h-[400px] overflow-y-auto">
               {skinAccounts.map((acc) => {
                 const isActive = acc.id === account?.id
                 return (
