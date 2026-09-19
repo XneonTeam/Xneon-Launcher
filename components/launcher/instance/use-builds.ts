@@ -55,6 +55,16 @@ export function updateCachedBuildContent(buildId: string, content: {
 /** Сборка без тяжёлого контента: поля-списки пустые, счётчики — из лёгкого запроса. */
 type BuildWithCounts = Build & { modsCount?: number; resourcepacksCount?: number; shadersCount?: number }
 
+/** Поля сборки, которые сохраняются точечно (без тяжёлого контента). */
+const LIGHT_BUILD_FIELDS = [
+  "name", "description", "version", "modLoader", "loaderVersion", "icon", "coverImage",
+  "createdAt", "source", "projectSlug", "modpackVersion", "modpackVersionId", "locked",
+  "modId", "fileId", "intentPath", "playtime", "javaOverride", "javaPath", "javaArgs",
+  "memoryMin", "memoryMax", "serverOverride", "server", "serverPort", "group",
+  "preLaunchCommand", "postLaunchCommand", "wrapperCommand", "customEnv",
+  "windowOverride", "windowWidth", "windowHeight",
+] as const
+
 const CONTENT_KIND_BY_KEY: Record<BuildContentListKey, BuildContentKind> = {
   mods: "mod",
   resourcepacks: "resourcepack",
@@ -80,6 +90,11 @@ export function useBuilds() {
   const isReloadingRef = useRef(false)
   const reloadSeqRef = useRef(0)
   const lastSavedSnapshotRef = useRef("")
+  /** Что уже записано в БД: лёгкие поля — по значению, контент — по ссылке на массив. */
+  const savedLightFieldsRef = useRef<Map<string, Record<string, unknown>>>(new Map())
+  const savedContentRef = useRef<Map<string, { mods: BuildMod[]; resourcepacks: BuildMod[]; shaders: BuildMod[]; installedMods: Record<string, string> }>>(new Map())
+  /** Несохранённые правки — дописываются при уходе с вкладки. */
+  const pendingPatchesRef = useRef<Array<{ id: string; fields: Record<string, unknown> }>>([])
 
   /**
    * Правки, сделанные пользователем в UI, но ещё не записанные в БД (сохранение
@@ -295,6 +310,16 @@ export function useBuilds() {
       // Устанавливаем сборки сразу — UI отрисовывается без ожидания сканирования
       setBuilds(processed)
 
+      // Запоминаем, что уже лежит в БД, чтобы точечное сохранение не писало всё заново.
+      savedLightFieldsRef.current = new Map(processed.map(build => [
+        build.id,
+        Object.fromEntries(LIGHT_BUILD_FIELDS.map(key => [key, (build as unknown as Record<string, unknown>)[key]])),
+      ]))
+      savedContentRef.current = new Map(processed.map(build => [
+        build.id,
+        { mods: build.mods, resourcepacks: build.resourcepacks, shaders: build.shaders, installedMods: build.installedMods ?? {} },
+      ]))
+
       // Сканирование папки игры (файловая система) выполняем только для открытой
       // сборки: раньше оно запускалось для всех сразу и тормозило вход во вкладку.
       const activeId = activeBuildIdRef.current
@@ -388,31 +413,54 @@ export function useBuilds() {
     return () => window.removeEventListener("cloud:imported", handler)
   }, [reloadBuilds])
 
+  /**
+   * Точечное сохранение: раньше на каждое изменение делался JSON.stringify всего
+   * списка и полная перезапись таблицы через IPC — у модпаков это десятки мегабайт
+   * (только моды одной сборки весят 20+ МБ), из-за чего был заметный пролаг при
+   * уходе с вкладки. Теперь для каждой сборки пишем только изменившиеся поля,
+   * а тяжёлый контент сравниваем по ссылке на массив, а не по содержимому.
+   */
   useEffect(() => {
-    if (!buildsHydrated || isReloadingRef.current) {
-      return
-    }
+    if (!buildsHydrated || isReloadingRef.current) return
 
-    const nextSnapshot = JSON.stringify(builds)
-    if (lastSavedSnapshotRef.current === nextSnapshot) {
-      return
+    const patches: Array<{ id: string; fields: Record<string, unknown>; build: Build }> = []
+    for (const build of builds) {
+      const fields: Record<string, unknown> = {}
+      const savedLight = savedLightFieldsRef.current.get(build.id)
+      for (const key of LIGHT_BUILD_FIELDS) {
+        const value = (build as unknown as Record<string, unknown>)[key]
+        if (!savedLight || savedLight[key] !== value) fields[key] = value
+      }
+      const savedContent = savedContentRef.current.get(build.id)
+      if (!savedContent || savedContent.mods !== build.mods) fields.mods = build.mods
+      if (!savedContent || savedContent.resourcepacks !== build.resourcepacks) fields.resourcepacks = build.resourcepacks
+      if (!savedContent || savedContent.shaders !== build.shaders) fields.shaders = build.shaders
+      if (!savedContent || savedContent.installedMods !== build.installedMods) fields.installedMods = build.installedMods ?? {}
+      if (Object.keys(fields).length > 0) patches.push({ id: build.id, fields, build })
     }
+    if (patches.length === 0) return
 
-    if (saveTimeoutRef.current !== null) {
-      window.clearTimeout(saveTimeoutRef.current)
-    }
-    const snapshotIds = builds.map(b => b.id)
+    if (saveTimeoutRef.current !== null) window.clearTimeout(saveTimeoutRef.current)
+    // Держим патчи, чтобы успеть дописать их при уходе с вкладки (unmount).
+    pendingPatchesRef.current = patches.map(patch => ({ id: patch.id, fields: patch.fields }))
     saveTimeoutRef.current = window.setTimeout(() => {
       saveTimeoutRef.current = null
-      lastSavedSnapshotRef.current = nextSnapshot
+      pendingPatchesRef.current = []
       void (async () => {
         try {
-          await window.electronAPI?.saveBuilds(builds as unknown as Parameters<NonNullable<Window["electronAPI"]>["saveBuilds"]>[0])
-          // Правки уехали в БД — буфер для записанных сборок больше не нужен,
-          // иначе он навсегда перекрывал бы изменения из внешних источников.
-          // Чистим только после подтверждённой записи, чтобы не потерять правку,
-          // если запись не успела/упала.
-          for (const id of snapshotIds) pendingEditsRef.current.delete(id)
+          for (const patch of patches) {
+            await window.electronAPI?.updateBuildFields?.(patch.id, patch.fields as never)
+            const light = savedLightFieldsRef.current.get(patch.id) ?? {}
+            for (const key of Object.keys(patch.fields)) light[key] = patch.fields[key]
+            savedLightFieldsRef.current.set(patch.id, light)
+            savedContentRef.current.set(patch.id, {
+              mods: patch.build.mods,
+              resourcepacks: patch.build.resourcepacks,
+              shaders: patch.build.shaders,
+              installedMods: patch.build.installedMods ?? {},
+            })
+            pendingEditsRef.current.delete(patch.id)
+          }
         } catch (error) {
           console.error("[Builds] Debounced save failed:", error)
         }
@@ -420,10 +468,18 @@ export function useBuilds() {
     }, 200)
   }, [builds, buildsHydrated])
 
+  // Уходим с вкладки — дописываем несохранённые правки, иначе последнее изменение
+  // (например, только что переименованная сборка) терялось.
   useEffect(() => () => {
     if (saveTimeoutRef.current !== null) {
       window.clearTimeout(saveTimeoutRef.current)
+      saveTimeoutRef.current = null
     }
+    for (const patch of pendingPatchesRef.current) {
+      void window.electronAPI?.updateBuildFields?.(patch.id, patch.fields as never)
+      pendingEditsRef.current.delete(patch.id)
+    }
+    pendingPatchesRef.current = []
   }, [])
 
   const createBuild = useCallback(async (params: { name: string; description: string; version: string; modLoader: string; loaderVersion?: string; icon: string }) => {

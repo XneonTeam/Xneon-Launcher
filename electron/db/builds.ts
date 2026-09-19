@@ -268,8 +268,33 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
 
   run("BEGIN")
   try {
+    // Перед полной перезаписью запоминаем тяжёлый контент: интерфейс может
+    // присылать «лёгкие» сборки (списки грузятся по требованию), и тогда пустые
+    // mods/resourcepacks/shaders означают «не загружено», а не «удалено».
+    const previousContent = new Map<string, { mods: string; resourcepacks: string; shaders: string; installedMods: string }>()
+    for (const row of queryAll<{ id: string; mods: string; resourcepacks: string; shaders: string; installedMods: string }>(
+      "SELECT id, mods, COALESCE(resourcepacks,'[]') AS resourcepacks, COALESCE(shaders,'[]') AS shaders, COALESCE(installedMods,'{}') AS installedMods FROM builds",
+    )) {
+      previousContent.set(row.id, row)
+    }
+    const keepOr = (incoming: unknown, previous: string | undefined, fallback: string): string => {
+      const isEmpty = Array.isArray(incoming)
+        ? incoming.length === 0
+        : !incoming || (typeof incoming === "object" && Object.keys(incoming as Record<string, unknown>).length === 0)
+      if (isEmpty && previous) {
+        try {
+          const parsed = JSON.parse(previous)
+          const parsedEmpty = Array.isArray(parsed) ? parsed.length === 0 : !parsed || Object.keys(parsed).length === 0
+          if (!parsedEmpty) return previous
+        } catch {
+          // повреждённый JSON — пишем то, что пришло
+        }
+      }
+      return JSON.stringify(incoming ?? JSON.parse(fallback))
+    }
     run("DELETE FROM builds")
     for (const build of builds) {
+      const previous = previousContent.get(build.id)
       const params: unknown[] = [
         build.id,
         build.name,
@@ -279,11 +304,11 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
         build.loaderVersion ?? null,
         build.icon,
         build.coverImage ?? null,
-        JSON.stringify(build.mods),
-        JSON.stringify(build.resourcepacks ?? []),
-        JSON.stringify(build.shaders ?? []),
+        keepOr(build.mods, previous?.mods, "[]"),
+        keepOr(build.resourcepacks, previous?.resourcepacks, "[]"),
+        keepOr(build.shaders, previous?.shaders, "[]"),
         build.intentPath ?? "",
-        JSON.stringify(build.installedMods ?? {}),
+        keepOr(build.installedMods, previous?.installedMods, "{}"),
         build.createdAt,
         build.source,
         build.projectSlug ?? null,
@@ -401,11 +426,41 @@ export async function updateBuildFields(buildId: string, fields: Partial<BuildJs
 
   const sets: string[] = []
   const params: unknown[] = []
+  // Защита от затирания контента: интерфейс грузит список сборок без тяжёлых
+  // списков (mods/resourcepacks/shaders), поэтому пустой массив в запросе почти
+  // всегда означает «не загружено», а не «пользователь всё удалил». Если в БД
+  // контент есть, а пришёл пустой — такой столбец не трогаем.
+  const existing = queryAll<{ mods: string; resourcepacks: string; shaders: string; installedMods: string }>(
+    "SELECT mods, COALESCE(resourcepacks,'[]') AS resourcepacks, COALESCE(shaders,'[]') AS shaders, COALESCE(installedMods,'{}') AS installedMods FROM builds WHERE id = ?",
+    [buildId],
+  )
+  const existingRow = Array.isArray(existing) ? existing[0] : undefined
+  const contentKeys = new Set(["mods", "resourcepacks", "shaders", "installedMods"])
+  const isEmptyPayload = (value: unknown): boolean => {
+    if (Array.isArray(value)) return value.length === 0
+    if (value && typeof value === "object") return Object.keys(value as Record<string, unknown>).length === 0
+    return value === undefined || value === null
+  }
+  const hasStoredContent = (key: string): boolean => {
+    if (!existingRow) return false
+    const raw = (existingRow as unknown as Record<string, string>)[key] ?? ""
+    try {
+      const parsed = JSON.parse(raw || (key === "installedMods" ? "{}" : "[]"))
+      return Array.isArray(parsed) ? parsed.length > 0 : parsed && Object.keys(parsed).length > 0
+    } catch {
+      return false
+    }
+  }
+
   for (const [key, value] of Object.entries(fields)) {
     const column = columnMap[key]
     if (!column) continue
+    if (contentKeys.has(key) && isEmptyPayload(value) && hasStoredContent(key)) {
+      logRuntime(`[db] updateBuildFields: пустой ${key} для ${buildId} поверх непустого — пропущено`)
+      continue
+    }
     let stored: unknown = value
-    if (key === "mods" || key === "resourcepacks" || key === "shaders" || key === "installedMods") {
+    if (contentKeys.has(key)) {
       stored = JSON.stringify(value ?? (key === "installedMods" ? {} : []))
     } else if (key === "locked") {
       // undefined означает «по умолчанию» (для модпаков инстанс заблокирован)
