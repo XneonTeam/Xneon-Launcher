@@ -43,6 +43,7 @@ import {
   finishImportSession,
   cancelImport,
   getLoaderSelectionFromModrinthDeps,
+  getLoaderSelectionFromModrinthLoaders,
   getLoaderSelectionFromCurseManifest,
   type ScannedBuildContent,
   type ImportModEntry,
@@ -737,7 +738,12 @@ export function registerBuildHandlers() {
       const files: ModrinthManifestFile[] = (index.files as ModrinthManifestFile[] ?? []).filter((f) => f.env?.client !== "unsupported")
       const gameVersion: string = version.game_versions?.[0] ?? index.dependencies?.minecraft ?? ""
       const deps: Record<string, string> = index.dependencies ?? {}
-      const loaderSelection = getLoaderSelectionFromModrinthDeps(deps)
+      let loaderSelection = getLoaderSelectionFromModrinthDeps(deps)
+      // Манифест не назвал загрузчик (у Forge-паков так бывает) — берём его из
+      // самого проекта Modrinth, иначе сборка создавалась как vanilla.
+      if (loaderSelection.modLoader === "vanilla") {
+        loaderSelection = getLoaderSelectionFromModrinthLoaders(version.loaders)
+      }
       let modLoader = loaderSelection.modLoader
       const loaderVersion = loaderSelection.loaderVersion
       if (deps["fabric-loader"]) {

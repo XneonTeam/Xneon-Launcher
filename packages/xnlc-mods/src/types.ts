@@ -164,6 +164,7 @@ export interface ModrinthVersionDetail {
   version_number?: string;
   version_type?: string;
   game_versions?: string[];
+  loaders?: string[];
   files?: ModrinthVersionFile[];
 }
 
