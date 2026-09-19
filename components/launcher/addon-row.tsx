@@ -13,6 +13,12 @@ export interface AddonRowProps {
   installing: boolean
   /** Процент загрузки, если известен. */
   percent?: number | null
+  /**
+   * На каком этапе установка. До скачивания идёт сетевой этап (поиск версии,
+   * резолв зависимостей) — он занимает секунды, и о нём нужно сказать словами,
+   * иначе полоска просто «висит», а потом резко прыгает на 100%.
+   */
+  phase?: "resolving" | "confirm" | "downloading" | "deps" | null
   /** Показывать ли бейджи категорий (в сборках — только для вкладки «Моды»). */
   showCategories?: boolean
   /** Блокирует кнопку установки, если уже что-то ставится. */
@@ -33,6 +39,7 @@ export function AddonRow({
   installed,
   installing,
   percent = null,
+  phase = null,
   showCategories = true,
   installDisabled = false,
   installLabel,
@@ -41,6 +48,15 @@ export function AddonRow({
   onInstall,
 }: AddonRowProps) {
   const { t } = useTranslation()
+
+  // Словами о текущем этапе: сетевые шаги не показывают байты, но время занимают.
+  const phaseLabel = phase === "resolving"
+    ? t("mods.install.phaseResolving")
+    : phase === "confirm"
+      ? t("mods.install.phaseConfirm")
+      : phase === "deps"
+        ? t("mods.install.phaseDeps")
+        : t("common.installing")
 
   return (
     <div
@@ -114,20 +130,21 @@ export function AddonRow({
           <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1.5 min-w-0">
               <IconLoader2 className="h-3 w-3 shrink-0 animate-spin text-primary" strokeWidth={2} />
-              <span className="truncate">{t("common.installing")}</span>
+              <span className="truncate">{phaseLabel}</span>
             </span>
             <span className="shrink-0 font-mono tabular-nums">
               {percent !== null ? `${percent}%` : ""}
             </span>
           </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className={cn(
-                "h-full rounded-full bg-primary transition-[width] duration-200 ease-out",
-                percent === null && "animate-pulse",
-              )}
-              style={{ width: percent === null ? "100%" : `${Math.max(2, percent)}%` }}
-            />
+          <div className={cn("h-1.5 w-full rounded-full bg-muted", percent === null && "progress-indeterminate")}>
+            {/* Пока байтов нет (поиск версии, окно зависимостей) полоса бежит,
+                как только пошёл прогресс — заполняется процентами. */}
+            {percent !== null && (
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-200 ease-out"
+                style={{ width: `${Math.max(2, percent)}%` }}
+              />
+            )}
           </div>
         </div>
       )}

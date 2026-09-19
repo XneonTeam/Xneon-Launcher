@@ -5,6 +5,8 @@ import type { Build, BuildMod, ModSearchResult, ModDependency, ModVersion } from
 import type { BuildExportCategory } from "@xnlc/types"
 import { enrichBuildModNames } from "@/lib/modrinth-metadata"
 import { useActivityCenter } from "@/src/ActivityCenterContext"
+import { useCategoryIcons } from "@/src/hooks/use-category-icons"
+import { useCategoryList } from "@/src/hooks/use-category-list"
 import { useTranslation } from "react-i18next"
 
 type BuildContentListKey = "mods" | "resourcepacks" | "shaders"
@@ -18,7 +20,13 @@ const CONTENT_KIND_BY_KEY: Record<BuildContentListKey, BuildContentKind> = {
 
 export function useBuilds() {
   const { t } = useTranslation()
-  const { pushNotification, upsertLiveNotification, removeLiveNotification } = useActivityCenter()
+  const { pushNotification, beginContentInstall, endContentInstall } = useActivityCenter()
+  // Иконки категорий — их можно задать в контекстном меню категории.
+  const { categoryIcons, setCategoryIcon, renameCategoryIcon, dropCategoryIcon } = useCategoryIcons("builds")
+  // Созданные вручную категории: без этого пустая категория исчезала бы сразу.
+  const {
+    declaredCategories, addCategory, renameCategory: renameDeclaredCategory, dropCategory: dropDeclaredCategory,
+  } = useCategoryList("builds")
   const [buildsState, setBuildsState] = useState<Build[]>(loadBuilds)
   const [activeBuildId, setActiveBuildId] = useState<string | null>(null)
   const [buildsHydrated, setBuildsHydrated] = useState(false)
@@ -530,11 +538,15 @@ export function useBuilds() {
 
   const renameGroup = useCallback((oldName: string, newName: string) => {
     setBuilds(prev => prev.map(b => b.group === oldName ? { ...b, group: newName || undefined } : b))
-  }, [])
+    renameCategoryIcon(oldName, newName)
+    renameDeclaredCategory(oldName, newName)
+  }, [renameCategoryIcon, renameDeclaredCategory])
 
   const deleteGroup = useCallback((group: string) => {
     setBuilds(prev => prev.map(b => b.group === group ? { ...b, group: undefined } : b))
-  }, [])
+    dropCategoryIcon(group)
+    dropDeclaredCategory(group)
+  }, [dropCategoryIcon, dropDeclaredCategory])
 
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
 
@@ -548,10 +560,11 @@ export function useBuilds() {
   }, [])
 
   const groups = useMemo(() => {
-    const set = new Set<string>()
+    // Созданные категории + категории, в которых уже есть сборки.
+    const set = new Set<string>(declaredCategories)
     for (const b of builds) { if (b.group) set.add(b.group) }
     return Array.from(set).sort((a, b) => a.localeCompare(b))
-  }, [builds])
+  }, [builds, declaredCategories])
 
   const addModToBuild = useCallback(async (buildId: string, mod: ModSearchResult) => {
     const targetBuild = builds.find(b => b.id === buildId)
@@ -609,23 +622,21 @@ export function useBuilds() {
     }
 
     void (async () => {
-      const liveKey = `install-mod-${mod.slug}`
       try {
-        upsertLiveNotification(liveKey, {
-          kind: "progress",
-          source: "install",
+        // Уведомление ведём от начала до конца операции: проценты в него дописывает
+        // обработчик прогресса из main, а снимаем его мы — сразу по завершении.
+        beginContentInstall({
           title: t("builds.mod.installing"),
           message: t("builds.mod.downloading", { name: mod.name }),
-          progress: 0,
           itemName: mod.name,
-          busy: true,
         })
 
         if (mod.source === "modrinth") {
-          const versions = await window.electronAPI?.modsModrinthVersions(mod.slug)
+          // Версии берём по project_id: slug — «мягкий» идентификатор, автор может его сменить.
+          const versions = await window.electronAPI?.modsModrinthVersions(mod.projectId ?? mod.slug)
           const selectedVersion = targetBuild ? pickCompatibleVersion(versions, targetBuild) : versions?.find(version => version.files?.[0]?.url)
           if (!selectedVersion?.files?.[0]?.url) {
-            removeLiveNotification(liveKey)
+            endContentInstall()
             return
           }
 
@@ -658,7 +669,7 @@ export function useBuilds() {
           }
         } else {
           if (!mod.modId) {
-            removeLiveNotification(liveKey)
+            endContentInstall()
             return
           }
           const details = await window.electronAPI?.modsCurseforgeDetails(mod.modId)
@@ -666,13 +677,13 @@ export function useBuilds() {
             ? pickCompatibleVersion(details?.versions ?? [], targetBuild)
             : details?.versions?.find(version => Number(version.id) === mod.primaryFileId) ?? details?.versions?.[0]
           if (!selectedVersion) {
-            removeLiveNotification(liveKey)
+            endContentInstall()
             return
           }
 
           const url = await window.electronAPI?.modsCurseforgeDownloadUrl(Number(selectedVersion.id), mod.modId)
           if (!url) {
-            removeLiveNotification(liveKey)
+            endContentInstall()
             return
           }
 
@@ -711,7 +722,7 @@ export function useBuilds() {
           shaders: bb.shaders,
         }))
 
-        removeLiveNotification(liveKey)
+        endContentInstall()
         pushNotification({
           kind: "success",
           source: "install",
@@ -720,7 +731,7 @@ export function useBuilds() {
         })
         void reloadBuilds()
       } catch {
-        removeLiveNotification(liveKey)
+        endContentInstall()
         pushNotification({
           kind: "error",
           source: "install",
@@ -729,7 +740,36 @@ export function useBuilds() {
         })
       }
     })()
-  }, [builds, reloadBuilds, upsertLiveNotification, removeLiveNotification, pushNotification])
+  }, [beginContentInstall, builds, endContentInstall, pushNotification, reloadBuilds])
+
+  /**
+   * Локальный файл копируется на диск, но запись в список должна попасть в БД
+   * немедленно: reloadBuilds() читает снапшот из БД и без этой записи откатывал бы
+   * только что добавленный элемент (папка-ресурспак копировалась, а в списке не
+   * появлялась). Источник истины здесь — сама БД, а не состояние React: так
+   * добавление не зависит от гонки с debounce-сохранением и переживает дроп
+   * нескольких файлов подряд.
+   */
+  const persistLocalAddition = useCallback(async (
+    buildId: string,
+    apply: (build: Build) => Build,
+  ): Promise<Build[] | null> => {
+    try {
+      const dbBuilds = (await window.electronAPI?.loadBuilds() ?? []) as Build[]
+      if (!dbBuilds.length) return null
+      const next = dbBuilds.map(build => build.id === buildId ? apply(build) : build)
+      await window.electronAPI?.saveBuilds(next as unknown as Parameters<NonNullable<Window["electronAPI"]>["saveBuilds"]>[0])
+      // Память держим в согласии с БД и помечаем снапшот сохранённым: иначе
+      // отложенная запись debounce'а отправит в БД свой (более старый) снапшот
+      // и затрёт только что добавленный элемент.
+      lastSavedSnapshotRef.current = JSON.stringify(next)
+      setBuilds(next)
+      return next
+    } catch (error) {
+      console.error("[Builds] Failed to persist local content:", error)
+      return null
+    }
+  }, [setBuilds])
 
   const addLocalModToBuild = useCallback(async (buildId: string, file: File) => {
     const modName = file.name.replace(/\.jar$|\.zip$/i, "").replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase())
@@ -739,37 +779,50 @@ export function useBuilds() {
     if (localPath && buildName) {
       try { savedPath = await window.electronAPI?.saveLocalModToIntent(buildName, localPath) ?? "" } catch {}
     }
-    setBuilds(prev => prev.map(b => {
-      if (b.id !== buildId || b.mods.some(m => m.slug === file.name)) return b
+    // Мод бросили как есть — никаких проверок зависимостей и запросов к API.
+    // Читаем только метаданные архива, чтобы в списке были имя, версия и автор.
+    const metadata = localPath ? await window.electronAPI?.readLocalContentMetadata(localPath) : null
+
+    const addMod = (b: Build): Build => {
+      if (b.mods.some(m => m.slug === file.name)) return b
       return {
         ...b,
         installedMods: { ...(b.installedMods ?? {}), [file.name]: savedPath },
-        mods: [...b.mods, { id: crypto.randomUUID(), slug: file.name, name: modName, description: t("builds.mod.local"), version: "local" }],
+        mods: [...b.mods, {
+          id: crypto.randomUUID(),
+          slug: file.name,
+          name: metadata?.name || modName,
+          description: metadata?.description || t("builds.mod.local"),
+          icon_url: metadata?.icon_url,
+          version: metadata?.version || "local",
+          author: metadata?.author,
+        }],
       }
-    }))
-    void reloadBuilds()
-  }, [builds, reloadBuilds])
+    }
+
+    setBuilds(prev => prev.map(b => b.id === buildId ? addMod(b) : b))
+    // Запись в БД + синхронизация памяти: reloadBuilds() здесь не нужен, потому
+    // что метаданные уже прочитаны из архива.
+    await persistLocalAddition(buildId, addMod)
+  }, [builds, t, persistLocalAddition])
 
   const addContentToBuild = useCallback(async (buildId: string, type: Exclude<BuildContentListKey, "mods">, mod: ModSearchResult) => {
     const build = builds.find(b => b.id === buildId)
     if (!build?.name) return
 
     const contentTypeLabel = type === "resourcepacks" ? t("builds.content.resourcepack") : t("builds.content.shader")
-    const liveKey = `install-content-${mod.slug}`
 
-    upsertLiveNotification(liveKey, {
-      kind: "progress",
-      source: "install",
+    // Уведомление ведём от клика до конца операции: проценты в него дописывает
+    // обработчик прогресса из main, а снимаем его мы — сразу по завершении.
+    beginContentInstall({
       title: t("builds.content.installing", { type: contentTypeLabel }),
       message: t("builds.mod.downloading", { name: mod.name }),
-      progress: 0,
       itemName: mod.name,
-      busy: true,
     })
 
     try {
       const versions = mod.source === "modrinth"
-        ? await window.electronAPI?.modsModrinthVersions(mod.slug)
+        ? await window.electronAPI?.modsModrinthVersions(mod.projectId ?? mod.slug)
         : mod.modId
           ? await window.electronAPI?.modsCurseforgeDetails(mod.modId).then(details => details?.versions ?? [])
           : []
@@ -791,13 +844,13 @@ export function useBuilds() {
       }
 
       if (!fileUrl) {
-        removeLiveNotification(liveKey)
+        endContentInstall()
         return
       }
 
       const savedPath = await window.electronAPI?.saveContentToIntent?.(build.name, CONTENT_KIND_BY_KEY[type], fileUrl, fileName)
       if (!savedPath) {
-        removeLiveNotification(liveKey)
+        endContentInstall()
         pushNotification({
           kind: "error",
           source: "install",
@@ -829,7 +882,7 @@ export function useBuilds() {
         }
       }) as Build[])
 
-      removeLiveNotification(liveKey)
+      endContentInstall()
       pushNotification({
         kind: "success",
         source: "install",
@@ -838,7 +891,7 @@ export function useBuilds() {
       })
       void reloadBuilds()
     } catch {
-      removeLiveNotification(liveKey)
+      endContentInstall()
       pushNotification({
         kind: "error",
         source: "install",
@@ -846,7 +899,7 @@ export function useBuilds() {
         message: mod.name,
       })
     }
-  }, [builds, reloadBuilds, upsertLiveNotification, removeLiveNotification, pushNotification])
+  }, [beginContentInstall, builds, endContentInstall, reloadBuilds, pushNotification])
 
   const addLocalContentToBuild = useCallback(async (buildId: string, type: Exclude<BuildContentListKey, "mods">, file: File) => {
     const build = builds.find(b => b.id === buildId)
@@ -857,24 +910,31 @@ export function useBuilds() {
     if (!savedPath) return
 
     const itemName = file.name.replace(/\.jar$|\.zip$/i, "").replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+    // Как и у модов: файл просто кладём в сборку, метаданные читаем из архива
+    // (pack.mcmeta у ресурспаков, shaders.properties у шейдеров).
+    const metadata = await window.electronAPI?.readLocalContentMetadata?.(localPath)
     const fallbackEntry: BuildMod = {
       id: crypto.randomUUID(),
       slug: file.name,
-      name: itemName,
-      description: type === "resourcepacks" ? t("builds.content.localResourcepack") : t("builds.content.localShader"),
-      version: "local",
+      name: metadata?.name || itemName,
+      description: metadata?.description || (type === "resourcepacks" ? t("builds.content.localResourcepack") : t("builds.content.localShader")),
+      icon_url: metadata?.icon_url,
+      version: metadata?.version || "local",
+      author: metadata?.author,
     }
 
-    setBuilds(prev => prev.map(b => {
-      if (b.id !== buildId) return b
+    const addContent = (b: Build): Build => {
       if (b[type].some(item => item.slug === file.name)) return b
       return {
         ...b,
         [type]: [...b[type], fallbackEntry],
       }
-    }) as Build[])
-    void reloadBuilds()
-  }, [builds, reloadBuilds])
+    }
+
+    setBuilds(prev => prev.map(b => b.id === buildId ? addContent(b) : b))
+    // Запись в БД + синхронизация памяти (см. addLocalModToBuild).
+    await persistLocalAddition(buildId, addContent)
+  }, [builds, t, persistLocalAddition])
 
   const removeContentFromBuild = useCallback(async (buildId: string, type: BuildContentListKey, item: BuildMod) => {
     const build = builds.find(b => b.id === buildId)
@@ -966,5 +1026,5 @@ export function useBuilds() {
     }
   }, [builds, reloadBuilds])
 
-  return { builds, setBuilds, activeBuildId, setActiveBuildId, activeBuild, fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, restoreBuildFromTrash, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, collapsedGroups, toggleGroupCollapse, groups, updateBuild, addModToBuild, addLocalModToBuild, addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds, toggleItemEnabled, updateItemVersion }
+  return { builds, setBuilds, activeBuildId, setActiveBuildId, activeBuild, fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, restoreBuildFromTrash, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, addCategory, collapsedGroups, toggleGroupCollapse, groups, categoryIcons, setCategoryIcon, updateBuild, addModToBuild, addLocalModToBuild, addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds, toggleItemEnabled, updateItemVersion }
 }

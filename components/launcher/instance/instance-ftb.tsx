@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next"
+import { EmptyState } from "@/components/ui/empty-state"
 import { IconDownload, IconInfoCircle, IconLoader2, IconSearch } from "@tabler/icons-react"
 import { Spinner } from "./spinner"
 import { formatDownloads } from "./utils"
@@ -52,7 +53,7 @@ export function InstanceFtb({
         {ftbLoading ? (
           <Spinner />
         ) : ftbResults.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-sm text-muted-foreground">{t("builds.noResults")}</div>
+          <EmptyState title={t("builds.noResults")} className="h-full" />
         ) : (
           <div className="grid gap-3">
             {ftbResults.map(pack => (

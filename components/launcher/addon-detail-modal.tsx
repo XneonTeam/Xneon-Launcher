@@ -11,6 +11,7 @@ import {
   IconPhoto,
   IconHistory,
   IconDownload,
+  IconCheck,
   IconAlertTriangle,
   IconPackage,
   IconLoader2,
@@ -24,7 +25,7 @@ import { Spinner } from "./instance/spinner"
 import { LoaderIcon } from "./instance/loader-icon"
 import { ChangelogContent } from "./instance/changelog-content"
 import { MOD_LOADERS } from "./instance/constants"
-import { matchesBuildLoader } from "./instance/utils"
+import { isInstalledVersion, matchesBuildLoader } from "./instance/utils"
 import { VersionInstallProgress, type InstallState } from "./instance/version-install-progress"
 import type { Build, ModDetails, ModalTab, ModVersion } from "./instance/types"
 
@@ -74,6 +75,8 @@ export interface AddonDetailModalProps {
   onClose: () => void
   /** Сборка, для которой открыт мод. Нужна только для подсказок по загрузчику (инстансы). */
   activeBuild?: Build
+  /** Версия этого мода, уже стоящая в сборке: помечаем её в списке версий. */
+  installedVersion?: string
   /** Обновление до выбранной версии. Вернуть false, если установка отложена. */
   onUpdateModpack?: (version: ModVersion) => Promise<boolean | void> | void
   /** Какие версии показаны: точное совпадение, другой MC, другой загрузчик и т.д. */
@@ -100,6 +103,7 @@ export function AddonDetailModal({
   onInstallVersion,
   onClose,
   activeBuild,
+  installedVersion,
   onUpdateModpack,
   versionsFallback = "none",
   versionsLoaderFiltered = false,
@@ -439,6 +443,7 @@ export function AddonDetailModal({
                     : false
                   const installState = install?.versionId === ver.id ? install : null
                   const busy = install?.phase === "running"
+                  const isCurrent = isInstalledVersion(ver, installedVersion)
                   return (
                   <div
                     key={ver.id}
@@ -452,12 +457,22 @@ export function AddonDetailModal({
                             ? "border-green-500/25 bg-green-500/5"
                             : installState
                               ? "border-primary/40 bg-primary/5"
-                              : "bg-muted/20 border-border hover:bg-muted/30"
+                              : isCurrent
+                                ? "border-primary/40 bg-primary/5"
+                                : "bg-muted/20 border-border hover:bg-muted/30"
                     )}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-foreground truncate">{ver.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-foreground truncate">{ver.name}</p>
+                          {isCurrent && (
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                              <IconCheck className="w-3 h-3" />
+                              {t("addon.versions.current")}
+                            </span>
+                          )}
+                        </div>
                         <div className="flex flex-wrap items-center gap-2 mt-1">
                           <span className="text-xs text-muted-foreground">
                             {ver.gameVersion ?? ""}
@@ -489,10 +504,10 @@ export function AddonDetailModal({
                       </div>
                       <button
                         onClick={() => void runVersionInstall(ver, () => onInstallVersion(ver))}
-                        disabled={busy}
+                        disabled={busy || isCurrent}
                         className={cn(
                           "flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors shrink-0 ml-3",
-                          busy
+                          busy || isCurrent
                             ? "bg-muted text-muted-foreground cursor-not-allowed"
                             : "bg-primary text-primary-foreground hover:bg-primary/90"
                         )}
@@ -501,6 +516,11 @@ export function AddonDetailModal({
                           <>
                             <IconLoader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} />
                             {t("common.installing")}
+                          </>
+                        ) : isCurrent ? (
+                          <>
+                            <IconCheck className="w-4 h-4" strokeWidth={2} />
+                            {t("addon.installed")}
                           </>
                         ) : (
                           <>
