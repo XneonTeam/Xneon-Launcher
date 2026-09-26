@@ -60,7 +60,9 @@ async function listIntentContentFiles(dir: string, parentPath = "", foldersAsCon
     }
 
     if (!entry.isFile()) continue
-    if (!/\.(jar|zip)(\.disabled)?$/i.test(entry.name)) continue
+    // `.litemod` принимается дропом (см. content-drop.ts), поэтому сканер обязан
+    // его видеть: иначе принятый файл исчезал из списка после первого rescan.
+    if (!/\.(jar|zip|litemod)(\.disabled)?$/i.test(entry.name)) continue
 
     const name = entry.name.endsWith(".disabled")
       ? entry.name.slice(0, -".disabled".length)
@@ -87,27 +89,48 @@ export async function scanIntentDir(intentPath: string, onProgress?: (processed:
 
   const filesByDir = new Map<string, Awaited<ReturnType<typeof listIntentContentFiles>>>()
   let total = 0
-  for (const { dir, foldersAsContent } of dirs) {
+  // Три каталога читаем параллельно: раньше это были три последовательных
+  // обхода (readdir + resolver) на каждое открытие сборки.
+  await Promise.all(dirs.map(async ({ dir, foldersAsContent }) => {
     const files = await listIntentContentFiles(dir, "", foldersAsContent)
     filesByDir.set(dir, files)
     total += files.length
-  }
+  }))
 
-  let processed = 0
+  // Прогресс считаем по сумме обработанных файлов во всех каталогах.
+  const progressByDir = new Map<string, number>()
   const report = () => {
-    try { onProgress?.(processed, total) } catch {}
+    let processed = 0
+    for (const { dir } of dirs) processed += progressByDir.get(dir) ?? 0
+    try { onProgress?.(Math.min(processed, total), total) } catch {}
   }
 
-  for (const { dir, target, map } of dirs) {
+  const resolvedByDir = new Map<string, Awaited<ReturnType<typeof resolveContentEntries>>>()
+  await Promise.all(dirs.map(async ({ dir }) => {
     const files = filesByDir.get(dir) ?? []
-    const dirStart = processed
     const folderFiles = files.filter((file) => file.isDirectory)
     const archiveFiles = files.filter((file) => !file.isDirectory)
     // Папки в resolver не отдаём: там хэширование файла, а папку хэшировать нельзя.
-    const resolved = await resolveContentEntries(
+    progressByDir.set(dir, folderFiles.length)
+    if (archiveFiles.length === 0) {
+      resolvedByDir.set(dir, {})
+      report()
+      return
+    }
+    resolvedByDir.set(dir, await resolveContentEntries(
       archiveFiles.map((file) => file.filePath),
-      (done) => { processed = Math.min(total, dirStart + folderFiles.length + done); report() },
-    )
+      (done) => {
+        progressByDir.set(dir, folderFiles.length + done)
+        report()
+      },
+    ))
+    progressByDir.set(dir, files.length)
+    report()
+  }))
+
+  for (const { dir, target, map } of dirs) {
+    const files = filesByDir.get(dir) ?? []
+    const resolved = resolvedByDir.get(dir) ?? {}
 
     for (const { slug, filePath, name, enabled, isDirectory } of files) {
       const entry = resolved[filePath]
@@ -160,7 +183,7 @@ export async function scanIntentDir(intentPath: string, onProgress?: (processed:
   }
 
   // Папки не проходили через resolver, поэтому их «обработку» учитываем отдельно.
-  processed = total
+  for (const { dir } of dirs) progressByDir.set(dir, (filesByDir.get(dir) ?? []).length)
   report()
   onProgress?.(total, total)
   return { mods, resourcepacks, shaders, installedMods }
