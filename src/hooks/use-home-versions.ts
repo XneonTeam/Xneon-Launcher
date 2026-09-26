@@ -45,9 +45,7 @@ export function useHomeVersions(selectedModLoader: string, initialVersion?: stri
         try {
           // Лёгкий список: главной нужны только имена и иконки, тяжёлый контент
           // сборок (десятки мегабайт) здесь ни к чему.
-          const builds = await (window.electronAPI?.loadBuildsLight
-            ? window.electronAPI.loadBuildsLight()
-            : window.electronAPI?.loadBuilds() ?? Promise.resolve([])) ?? []
+          const builds = (await window.electronAPI?.loadBuildsLight()) ?? []
           const buildNames = builds.map(b => b.name)
           const icons: Record<string, string> = {}
           for (const b of builds) { if (b.icon) icons[b.name] = b.icon }

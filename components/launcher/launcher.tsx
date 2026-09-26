@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useState } from "react"
+import { Suspense, lazy, useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { AccountsPage } from "./accounts-page"
 import { HomePage } from "./home-page"
-import { InstancePage } from "./instance"
+import { ErrorBoundary } from "@/components/ui/error-boundary"
 import { LogsPage } from "./logs-page"
 import { SettingsPage } from "./settings"
+import { AccountsPage } from "./accounts-page"
 import { CloudPage } from "./cloud"
-import { SkinsPage } from "./skins-page"
 import { ServersPage } from "./servers-page"
 import { ServerDetailPage } from "./server-detail-page"
 import { StatsPage } from "./stats-page"
@@ -14,6 +13,72 @@ import { OnboardingModal } from "./onboarding-modal"
 import { Sidebar, type TabId } from "./sidebar"
 import { applyTheme, presetThemes } from "./settings/data"
 import type { McServerInfo } from "@xnlc/types"
+
+/**
+ * Code-splitting только там, где он реально что-то даёт.
+ *
+ * В стартовом графе лежат лёгкие страницы (логи, статистика, настройки,
+ * аккаунты, облако, серверы): их модули грузятся один раз вместе со стартом,
+ * поэтому переход на вкладку мгновенный. Lazy оставлен для двух страниц с
+ * по-настоящему тяжёлыми зависимостями — скинов (three + skinview3d, ~505 КБ)
+ * и сборок (react-markdown/rehype и вся система контента, ~280 КБ + 284 КБ).
+ *
+ * Почему не lazy на всё: каждый lazy-заход — это водопад запросов
+ * (чанк страницы → её импорты). Замер первого входа в «Настройки» после
+ * перезагрузки давал ~330 мс при 11 запросах модулей, тогда как сами модули
+ * крошечные. Профит от такого дробления нулевой, а задержка заметная.
+ */
+const InstancePage = lazy(() => import("./instance").then((m) => ({ default: m.InstancePage })))
+/**
+ * Страница скинов тянет three.js (~505 КБ) и включает обе вкладки — «Избранное»
+ * и «Библиотеку» каталога Laby, поэтому грузится лениво одним чанком.
+ */
+const SkinsPage = lazy(() => import("./skins-page").then((m) => ({ default: m.SkinsPage })))
+
+/**
+ * Прогрев тяжёлых lazy-страниц в простое: к моменту клика чанк уже в кеше,
+ * поэтому переход быстрый, а старт не утяжеляется (модули не в стартовом графе).
+ */
+function prefetchHeavyPages(): void {
+  const load = () => {
+    void import("./instance").catch(() => {})
+    void import("./skins-page").catch(() => {})
+  }
+  const idle = (globalThis as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback
+  if (typeof idle === "function") {
+    idle(load, { timeout: 3000 })
+  } else {
+    window.setTimeout(load, 1500)
+  }
+}
+
+/**
+ * Заглушка на время загрузки lazy-страницы.
+ *
+ * Раньше здесь был пустой `<div>` — при первом заходе на тяжёлую вкладку
+ * пользователь видел чёрный экран без каких-либо признаков загрузки. Теперь это
+ * скелет: он не «мигает» спиннером на весь экран, но показывает, что страница
+ * открывается.
+ */
+function PageFallback() {
+  return (
+    <div className="flex h-full w-full flex-col gap-4 p-1 animate-pulse" aria-busy="true" aria-live="polite">
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-xl bg-muted/60" />
+        <div className="flex flex-col gap-2">
+          <div className="h-4 w-40 rounded-md bg-muted/60" />
+          <div className="h-3 w-56 rounded-md bg-muted/40" />
+        </div>
+      </div>
+      <div className="h-10 w-full max-w-md rounded-xl bg-muted/40" />
+      <div className="grid flex-1 content-start gap-3 min-h-0 overflow-hidden sm:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div key={index} className="h-24 rounded-2xl border border-border/60 bg-muted/20" />
+        ))}
+      </div>
+    </div>
+  )
+}
 
 interface LauncherProps {
   onReady?: () => void
@@ -28,6 +93,12 @@ export function Launcher({ onReady }: LauncherProps) {
   const [selectedMcServer, setSelectedMcServer] = useState<McServerInfo | null>(null)
   // Подсказка для страницы логов: открыта из-за краша игры.
   const [logsFocus, setLogsFocus] = useState<{ crash: boolean; at: number } | null>(null)
+  /**
+   * Счётчик «вернись к корню раздела». Растёт при повторном клике по уже активному
+   * пункту меню: страницы, у которых есть вложенный экран (карточка сборки,
+   * файловый браузер облака), по нему возвращаются на свой список.
+   */
+  const [sectionResetToken, setSectionResetToken] = useState(0)
 
   useEffect(() => {
     // Every page is mounted in this render; notify the parent once the frame
@@ -35,6 +106,11 @@ export function Launcher({ onReady }: LauncherProps) {
     const id = window.setTimeout(() => onReady?.(), 0)
     return () => window.clearTimeout(id)
   }, [onReady])
+
+  // Тяжёлые страницы прогреваем в простое — переход на них не ждёт сеть.
+  useEffect(() => {
+    prefetchHeavyPages()
+  }, [])
 
   useEffect(() => {
     const theme = presetThemes.find((item) => item.id === selectedTheme)
@@ -123,8 +199,22 @@ export function Launcher({ onReady }: LauncherProps) {
   // в логи фильтр «Ошибки» включился бы снова сам по себе.
   const handleTabChange = useCallback((tab: TabId) => {
     setLogsFocus(null)
+
+    // Повторный клик по активному разделу — возврат к его корню: из карточки
+    // сборки в список сборок, из конкретного сервера в список серверов, из
+    // файлового браузера облака к списку хранилищ.
+    if (tab === activeTab) {
+      // «Серверы» сбрасывают и выбранный сервер, и внутреннюю вкладку страницы
+      // (корзина, Modrinth, CurseForge) — за это отвечает sectionResetToken.
+      if (tab === "servers") {
+        setSelectedMcServer(null)
+        setSectionResetToken((token) => token + 1)
+      } else if (tab === "builds" || tab === "cloud") setSectionResetToken((token) => token + 1)
+      return
+    }
+
     setActiveTab(tab)
-  }, [])
+  }, [activeTab])
 
   useEffect(() => {
     onReady?.()
@@ -133,17 +223,17 @@ export function Launcher({ onReady }: LauncherProps) {
   const renderPage = () => {
     switch (activeTab) {
       case "home": return <HomePage />
-      case "builds": return <InstancePage />
+      case "builds": return <InstancePage rootResetToken={sectionResetToken} />
       case "logs": return <LogsPage focus={logsFocus} />
       case "stats": return <StatsPage />
       case "settings": return <SettingsPage />
       case "accounts": return <AccountsPage />
-      case "cloud": return <CloudPage />
+      case "cloud": return <CloudPage rootResetToken={sectionResetToken} />
       case "servers":
         if (selectedMcServer) {
           return <ServerDetailPage server={selectedMcServer} onBack={() => setSelectedMcServer(null)} onServerUpdated={setSelectedMcServer} />
         }
-        return <ServersPage onSelectServer={setSelectedMcServer} />
+        return <ServersPage onSelectServer={setSelectedMcServer} rootResetToken={sectionResetToken} />
       case "skins": return <SkinsPage />
       default: return null
     }
@@ -156,7 +246,17 @@ export function Launcher({ onReady }: LauncherProps) {
       <main className="flex-1 min-h-0 overflow-hidden">
         <div className="h-full p-4 overflow-hidden flex flex-col">
           <div className="h-full w-full flex flex-col">
-            {renderPage()}
+            {/*
+              Граница ошибок вокруг страниц: без неё исключение в рендере
+              размонтировало всё дерево, и вместо интерфейса оставался пустой
+              (чёрный) экран. resetKey = активная вкладка: сбой одной страницы
+              не «залипает» при переходе на другую.
+            */}
+            <ErrorBoundary resetKey={activeTab} label={`page:${activeTab}`}>
+              <Suspense fallback={<PageFallback />}>
+                {renderPage()}
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </div>
       </main>

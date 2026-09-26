@@ -21,8 +21,13 @@ let buildsLightCache: Build[] | null = null
 /** Когда список последний раз читался из БД (мс, performance.now()). */
 let buildsLightCacheAt = 0
 
-/** TTL кэша: частые возвраты во вкладку не должны дёргать БД повторно. */
-const BUILDS_CACHE_TTL_MS = 3000
+/**
+ * TTL кэша: как часто обновлять список в фоне. Данные показываются из кэша
+ * сразу и независимо от этого срока (см. stale-while-revalidate ниже) — TTL
+ * влияет только на то, когда запускать фоновое обновление. Прежние 3 секунды
+ * означали, что почти каждый возврат во вкладку тянул список из БД заново.
+ */
+const BUILDS_CACHE_TTL_MS = 5 * 60_000
 
 /**
  * Тяжёлый контент сборок (mods/resourcepacks/shaders/installedMods). У модпаков
@@ -109,6 +114,13 @@ export function useBuilds() {
     setBuildsState(prev => {
       const next = typeof value === "function" ? value(prev) : value
       buildsRef.current = next
+      // Кэш списка держим в согласии с тем, что реально на экране. Раньше он
+      // обновлялся только при чтении из БД: созданная, скопированная или
+      // удалённая сборка меняла состояние, но не кэш, и возврат во вкладку
+      // подставлял устаревший снапшот — новая сборка «пропадала», а удалённая
+      // возвращалась обратно. Время чтения из БД при этом не трогаем: TTL
+      // продолжает управлять фоновым обновлением (stale-while-revalidate).
+      if (next.length > 0) buildsLightCache = next
       return next
     })
   }, [])
@@ -260,14 +272,23 @@ export function useBuilds() {
     isReloadingRef.current = true
     const seq = ++reloadSeqRef.current
     try {
-      const rawBuilds = await (window.electronAPI?.loadBuildsLight
-        ? window.electronAPI.loadBuildsLight()
-        : window.electronAPI?.loadBuilds() ?? Promise.resolve([]))
-      const dbBuilds = (rawBuilds ?? []) as BuildWithCounts[]
-      if (!dbBuilds?.length) {
+      // Лёгкий список: контент сборок приходит из buildContentCache или уже
+      // загруженного состояния, а не из этого запроса.
+      const rawBuilds = await window.electronAPI?.loadBuildsLight()
+      const dbBuilds = (Array.isArray(rawBuilds) ? rawBuilds : []) as BuildWithCounts[]
+
+      // Пустой ответ — это либо «сборок действительно нет», либо сбой IPC /
+      // недоступная БД (они тоже отдают пустой список). Раньше в обоих случаях
+      // вызывался setBuilds([]), и уже показанный список исчезал: интерфейс
+      // «выгружался» и грузился заново. Теперь непустой список сохраняем.
+      if (dbBuilds.length === 0) {
         setBuildsHydrated(true)
         window.dispatchEvent(new Event("app:hydrated"))
-        setBuilds([])
+        if (buildsRef.current.length === 0) {
+          setBuilds([])
+        } else {
+          console.warn("[Builds] Пустой ответ БД — сохраняю уже загруженный список")
+        }
         return
       }
 
@@ -383,20 +404,70 @@ export function useBuilds() {
           }
         }))
       })()
+    } catch (error) {
+      // Сбой IPC или БД: оставляем уже показанный список как есть. Раньше
+      // исключение уходило наружу (unhandled rejection), а список мог очиститься.
+      console.error("[Builds] Не удалось обновить список сборок:", error)
     } finally {
       isReloadingRef.current = false
     }
   }, [syncBuildContent])
 
+  /**
+   * Точечная пересинхронизация ОДНОЙ сборки после установки/удаления/обновления
+   * контента.
+   *
+   * Раньше в этих местах вызывался полный `reloadBuilds()`: он перечитывал
+   * список всех сборок из БД, перезаписывал их состояние в памяти и запускал
+   * фоновое сетевое обогащение имён модов по всем сборкам сразу. Здесь
+   * обновляется только изменённая сборка — правки касаются ровно её.
+   */
+  const refreshBuildContent = useCallback(async (buildId: string) => {
+    const current = buildsRef.current.find(build => build.id === buildId)
+    if (!current) return
+    try {
+      const synced = await syncBuildContent(current)
+      setBuilds(prev => prev.map(build => {
+        if (build.id !== synced.id) return build
+        // Скан асинхронный: пока он шёл, пользователь мог снова изменить поля.
+        // Накладываем актуальный буфер поверх результата, чтобы поздний ответ
+        // скана не откатил эти правки.
+        const pending = pendingEditsRef.current.get(synced.id)
+        if (!pending) return synced
+        const merged = { ...synced } as Record<string, unknown>
+        for (const key of Object.keys(pending) as (keyof Build)[]) {
+          merged[key as string] = pending[key]
+        }
+        return merged as Build
+      }))
+      // Снапшот сохранённого контента держим в согласии с новым состоянием,
+      // иначе debounce-эффект записи посчитает его изменившимся и запишет заново.
+      savedContentRef.current.set(synced.id, {
+        mods: synced.mods,
+        resourcepacks: synced.resourcepacks,
+        shaders: synced.shaders,
+        installedMods: synced.installedMods ?? {},
+      })
+    } catch {
+      // Синхронизация вторична: состояние в памяти уже обновлено точечно.
+    }
+  }, [syncBuildContent, setBuilds])
+
   const activeBuild = useMemo(() => builds.find(b => b.id === activeBuildId) ?? null, [builds, activeBuildId])
 
   useEffect(() => {
-    // Свежий кэш — рисуем список сразу и не читаем БД: с прошлого входа ничего
-    // не менялось. Так переключение вкладок не ждёт даже лёгкий запрос.
-    if (buildsLightCache && performance.now() - buildsLightCacheAt < BUILDS_CACHE_TTL_MS) {
+    // Кэш показываем сразу и в любом случае: список не должен «выгружаться» на
+    // время обновления. Раньше при протухшем кэше (TTL был 3 с) сначала шёл
+    // запрос в БД, и до его ответа на экране не было данных.
+    if (buildsLightCache) {
       setBuilds(buildsLightCache)
       setBuildsHydrated(true)
       window.dispatchEvent(new Event("app:hydrated"))
+      // Устаревшие данные обновляем в фоне — уже показанный список при этом
+      // остаётся на экране (stale-while-revalidate).
+      if (performance.now() - buildsLightCacheAt >= BUILDS_CACHE_TTL_MS) {
+        void reloadBuilds()
+      }
       return
     }
     void reloadBuilds()
@@ -447,8 +518,10 @@ export function useBuilds() {
       saveTimeoutRef.current = null
       pendingPatchesRef.current = []
       void (async () => {
-        try {
-          for (const patch of patches) {
+        for (const patch of patches) {
+          // Одна сборка не должна блокировать сохранение остальных: раньше
+          // ошибка любого патча прерывала весь цикл, и правки после неё терялись.
+          try {
             await window.electronAPI?.updateBuildFields?.(patch.id, patch.fields as never)
             const light = savedLightFieldsRef.current.get(patch.id) ?? {}
             for (const key of Object.keys(patch.fields)) light[key] = patch.fields[key]
@@ -460,9 +533,9 @@ export function useBuilds() {
               installedMods: patch.build.installedMods ?? {},
             })
             pendingEditsRef.current.delete(patch.id)
+          } catch (error) {
+            console.error("[Builds] Debounced save failed for build", patch.id, error)
           }
-        } catch (error) {
-          console.error("[Builds] Debounced save failed:", error)
         }
       })()
     }, 200)
@@ -491,15 +564,29 @@ export function useBuilds() {
       intentPath = await window.electronAPI?.getBuildIntentPath(trimmedName) ?? ""
       await window.electronAPI?.setBuildIntentPath(trimmedName, intentPath)
     } catch {}
-    setBuilds(prev => [{
+    const newBuild: Build = {
       id, name: trimmedName, description: params.description.trim(),
       version: params.version, modLoader: params.modLoader, loaderVersion: params.loaderVersion,
       icon: params.icon, coverImage: params.icon || undefined,
       mods: [], resourcepacks: [], shaders: [],
       createdAt: new Date().toISOString(), source: "local",
       intentPath, installedMods: {}, playtime: 0,
-    }, ...prev])
-  }, [])
+    }
+    setBuilds(prev => [newBuild, ...prev])
+
+    // Запись в БД сразу и явной вставкой: debounce-сохранение работает патчами
+    // (`UPDATE ... WHERE id = ?`), а по несуществующей строке это no-op — сборка
+    // жила только в памяти и пропадала после перезапуска лаунчера.
+    try {
+      await window.electronAPI?.insertBuild?.(newBuild as unknown as Parameters<NonNullable<Window["electronAPI"]>["insertBuild"]>[0])
+      savedLightFieldsRef.current.set(id, Object.fromEntries(
+        LIGHT_BUILD_FIELDS.map(key => [key, (newBuild as unknown as Record<string, unknown>)[key]]),
+      ))
+      savedContentRef.current.set(id, { mods: newBuild.mods, resourcepacks: newBuild.resourcepacks, shaders: newBuild.shaders, installedMods: newBuild.installedMods ?? {} })
+    } catch (error) {
+      console.error("[Builds] Не удалось записать новую сборку в БД", id, error)
+    }
+  }, [setBuilds])
 
   const deleteBuild = useCallback(async (id: string) => {
     const build = builds.find(b => b.id === id)
@@ -590,7 +677,8 @@ export function useBuilds() {
           return [restored, ...prev]
         })
         try {
-          const existing = await window.electronAPI?.loadBuilds() ?? []
+          // Лёгкий список: контент остальных сборок сохранит saveAllBuilds.
+          const existing = await window.electronAPI?.loadBuildsLight() ?? []
           if (!existing.some(b => b.id === restored.id)) {
             await window.electronAPI?.saveBuilds([
               restored,
@@ -627,15 +715,51 @@ export function useBuilds() {
       resourcepacks: source.resourcepacks.map(m => ({ ...m, id: crypto.randomUUID() })),
       shaders: source.shaders.map(m => ({ ...m, id: crypto.randomUUID() })),
     }
+    // Путь новой сборки нужен сразу, а не после копирования папки: у модпака
+// `build:copy` копирует десятки тысяч файлов, и ожидание этой операции
+// задерживало появление карточки в списке. `getBuildIntentPath` возвращает тот
+// же каталог, который наполнит `build:copy`, поэтому путь сразу верный.
+    let intentPath = newBuild.intentPath
     try {
-      const result = await window.electronAPI?.copyBuild?.(source.name, newName)
-      if (result?.success) {
-        newBuild.intentPath = result.intentPath ?? newBuild.intentPath
-      }
+      intentPath = await window.electronAPI?.getBuildIntentPath(newName) ?? intentPath
     } catch {}
+    newBuild.intentPath = intentPath
+
+    // Сборка попадает в интерфейс (и в кэш списка) немедленно...
     setBuilds(prev => [newBuild, ...prev])
+
+    // ...а запись в БД — сразу за этим: debounce-патчи работают через
+    // `UPDATE ... WHERE id = ?` и новую строку не создадут.
+    try {
+      await window.electronAPI?.insertBuild?.(newBuild as unknown as Parameters<NonNullable<Window["electronAPI"]>["insertBuild"]>[0])
+      savedLightFieldsRef.current.set(newBuild.id, Object.fromEntries(
+        LIGHT_BUILD_FIELDS.map(key => [key, (newBuild as unknown as Record<string, unknown>)[key]]),
+      ))
+      savedContentRef.current.set(newBuild.id, {
+        mods: newBuild.mods, resourcepacks: newBuild.resourcepacks, shaders: newBuild.shaders, installedMods: newBuild.installedMods ?? {},
+      })
+    } catch (error) {
+      console.error("[Builds] Не удалось записать копию сборки в БД", newBuild.id, error)
+    }
+
+    // Копирование файлов идёт в фоне — интерфейс его не ждёт.
+    void (async () => {
+      try {
+        const result = await window.electronAPI?.copyBuild?.(source.name, newName)
+        if (result?.success && result.intentPath && result.intentPath !== newBuild.intentPath) {
+          const resolved = result.intentPath
+          setBuilds(prev => prev.map(build => build.id === newBuild.id ? { ...build, intentPath: resolved } : build))
+          try {
+            await window.electronAPI?.updateBuildFields?.(newBuild.id, { intentPath: resolved } as never)
+          } catch {}
+        }
+      } catch (error) {
+        console.error("[Builds] Не удалось скопировать папку сборки", newName, error)
+      }
+    })()
+
     return newBuild
-  }, [builds])
+  }, [builds, setBuilds])
 
   const exportBuildZip = useCallback(async (id: string, categories?: BuildExportCategory[]): Promise<{ success: boolean; path?: string; error?: string }> => {
     const build = builds.find(b => b.id === id)
@@ -896,7 +1020,7 @@ export function useBuilds() {
           title: t("builds.mod.installed"),
           message: mod.name,
         })
-        void reloadBuilds()
+        void refreshBuildContent(buildId)
       } catch {
         endContentInstall()
         pushNotification({
@@ -907,7 +1031,7 @@ export function useBuilds() {
         })
       }
     })()
-  }, [beginContentInstall, builds, endContentInstall, pushNotification, reloadBuilds])
+  }, [beginContentInstall, builds, endContentInstall, pushNotification, refreshBuildContent])
 
   /**
    * Локальный файл копируется на диск, но запись в список должна попасть в БД
@@ -922,13 +1046,24 @@ export function useBuilds() {
     apply: (build: Build) => Build,
   ): Promise<Build[] | null> => {
     try {
-      const dbBuilds = (await window.electronAPI?.loadBuilds() ?? []) as Build[]
-      if (!dbBuilds.length) return null
-      const next = dbBuilds.map(build => build.id === buildId ? apply(build) : build)
-      await window.electronAPI?.saveBuilds(next as unknown as Parameters<NonNullable<Window["electronAPI"]>["saveBuilds"]>[0])
-      // Память держим в согласии с БД и помечаем снапшот сохранённым: иначе
-      // отложенная запись debounce'а отправит в БД свой (более старый) снапшот
+      // Источник контента — состояние в памяти: точечная запись избавляет от
+      // чтения всего массива сборок из БД (раньше здесь грузился полный список
+      // вместе с тяжёлым JSON контента).
+      const current = buildsRef.current.find(build => build.id === buildId)
+      if (!current) return null
+      const updated = apply(current)
+      const content = {
+        mods: updated.mods,
+        resourcepacks: updated.resourcepacks,
+        shaders: updated.shaders,
+        installedMods: updated.installedMods ?? {},
+      }
+      await window.electronAPI?.updateBuildFields?.(buildId, content as never)
+      const next = buildsRef.current.map(build => (build.id === buildId ? updated : build))
+      // Память держим в согласии с записанным: помечаем контент и снапшот
+      // сохранёнными, иначе отложенный debounce отправит более старый снапшот
       // и затрёт только что добавленный элемент.
+      savedContentRef.current.set(buildId, content)
       lastSavedSnapshotRef.current = JSON.stringify(next)
       setBuilds(next)
       return next
@@ -939,7 +1074,7 @@ export function useBuilds() {
   }, [setBuilds])
 
   const addLocalModToBuild = useCallback(async (buildId: string, file: File) => {
-    const modName = file.name.replace(/\.jar$|\.zip$/i, "").replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+    const modName = file.name.replace(/\.jar$|\.zip$|\.litemod$/i, "").replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase())
     const localPath = window.electronAPI?.getFilePath(file)
     let savedPath = ""
     const buildName = builds.find(b => b.id === buildId)?.name
@@ -1056,7 +1191,7 @@ export function useBuilds() {
         title: type === "resourcepacks" ? t("builds.content.installedResourcepack") : t("builds.content.installedShader"),
         message: mod.name,
       })
-      void reloadBuilds()
+      void refreshBuildContent(buildId)
     } catch {
       endContentInstall()
       pushNotification({
@@ -1066,7 +1201,7 @@ export function useBuilds() {
         message: mod.name,
       })
     }
-  }, [beginContentInstall, builds, endContentInstall, reloadBuilds, pushNotification])
+  }, [beginContentInstall, builds, endContentInstall, refreshBuildContent, pushNotification])
 
   const addLocalContentToBuild = useCallback(async (buildId: string, type: Exclude<BuildContentListKey, "mods">, file: File) => {
     const build = builds.find(b => b.id === buildId)
@@ -1122,9 +1257,9 @@ export function useBuilds() {
         installedMods: type === "mods" ? nextInstalledMods : b.installedMods,
       }
     }) as Build[])
-    void reloadBuilds()
+    void refreshBuildContent(buildId)
     return true
-  }, [builds, reloadBuilds])
+  }, [builds, refreshBuildContent])
 
   const toggleItemEnabled = useCallback(async (buildId: string, type: BuildContentListKey, itemId: string) => {
     const build = builds.find(b => b.id === buildId)
@@ -1186,12 +1321,12 @@ export function useBuilds() {
           ),
         }
       }))
-      void reloadBuilds()
+      void refreshBuildContent(buildId)
       return true
     } catch {
       return false
     }
-  }, [builds, reloadBuilds])
+  }, [builds, refreshBuildContent])
 
   return { builds, setBuilds, activeBuildId, setActiveBuildId, activeBuild, fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, restoreBuildFromTrash, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, addCategory, collapsedGroups, toggleGroupCollapse, groups, categoryIcons, setCategoryIcon, updateBuild, addModToBuild, addLocalModToBuild, addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds, toggleItemEnabled, updateItemVersion }
 }
