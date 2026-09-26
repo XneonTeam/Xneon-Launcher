@@ -1,6 +1,6 @@
 import crypto from "node:crypto"
 import type { DbAccount } from "@xnlc/types" with { "resolution-mode": "import" }
-import { queryAll, run, persistDatabase, isDbAvailable, inMemoryAccounts } from "./core"
+import { queryAll, run, prepare, transactionImmediate, isDbAvailable, inMemoryAccounts } from "./core"
 
 export type { DbAccount }
 
@@ -106,8 +106,6 @@ export async function saveAccount(account: DbAccount): Promise<void> {
     INSERT OR REPLACE INTO accounts (id, type, username, isActive, uuid, accessToken, refreshToken, clientId, skinUrl, sortOrder)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, accountParams)
-
-  persistDatabase()
 }
 
 export async function removeAccount(id: string): Promise<void> {
@@ -117,7 +115,6 @@ export async function removeAccount(id: string): Promise<void> {
   }
 
   run("DELETE FROM accounts WHERE id = ?", [id])
-  persistDatabase()
 }
 
 export async function reorderAccounts(ids: string[]): Promise<void> {
@@ -130,8 +127,12 @@ export async function reorderAccounts(ids: string[]): Promise<void> {
     }
     return
   }
-  for (let i = 0; i < ids.length; i++) {
-    run("UPDATE accounts SET sortOrder = ? WHERE id = ?", [i, ids[i]])
-  }
-  persistDatabase()
+
+  // Один коммит на весь список вместо N отдельных записей.
+  transactionImmediate(() => {
+    const update = prepare("UPDATE accounts SET sortOrder = ? WHERE id = ?")
+    for (let i = 0; i < ids.length; i++) {
+      update.run(i, ids[i])
+    }
+  })
 }

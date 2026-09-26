@@ -1,4 +1,4 @@
-import { queryAll, run, persistDatabase, isDbAvailable, inMemoryBuilds } from "./core"
+import { queryAll, run, prepare, transactionImmediate, isDbAvailable, inMemoryBuilds } from "./core"
 import { logRuntime } from "../main/runtime"
 
 export type BuildJson = {
@@ -45,6 +45,8 @@ export type BuildJson = {
   windowOverride?: boolean
   windowWidth?: number
   windowHeight?: number
+  /** Аккаунт по умолчанию для этой сборки (поле живёт в типах @xnlc/types). */
+  defaultAccountId?: string
 }
 
 type BuildRow = {
@@ -205,6 +207,52 @@ export async function loadBuildsLight(): Promise<BuildLightJson[]> {
   })
 }
 
+/**
+ * Точечный поиск сборки по имени: только id и имя, без чтения тяжёлого контента.
+ * Нужен горячим путям вроде записи статистики при выходе из игры.
+ */
+export async function findBuildByName(name: string): Promise<{ id: string; name: string } | null> {
+  if (!name) return null
+  if (!isDbAvailable()) {
+    for (const build of inMemoryBuilds.values()) {
+      const candidate = build as BuildJson
+      if (candidate.name === name) return { id: candidate.id, name: candidate.name }
+    }
+    return null
+  }
+
+  const rows = queryAll<{ id: string; name: string }>("SELECT id, name FROM builds WHERE name = ? LIMIT 1", [name])
+  return Array.isArray(rows) && rows[0] ? rows[0] : null
+}
+
+/** Точечный поиск лёгких полей сборки по id (без mods/resourcepacks/shaders). */
+export async function findBuildById(buildId: string): Promise<BuildLightJson | null> {
+  if (!buildId) return null
+  if (!isDbAvailable()) {
+    const build = inMemoryBuilds.get(buildId) as BuildJson | undefined
+    if (!build) return null
+    return { ...build, mods: undefined as never, resourcepacks: undefined, shaders: undefined, installedMods: undefined, modsCount: 0, resourcepacksCount: 0, shadersCount: 0 } as BuildLightJson
+  }
+
+  const rows = queryAll<Record<string, unknown>>(
+    `SELECT ${LIGHT_COLUMNS} FROM builds WHERE id = ? LIMIT 1`,
+    [buildId],
+  )
+  const row = Array.isArray(rows) ? rows[0] : undefined
+  if (!row) return null
+  const light = rowToBuild({ ...row, mods: "[]", resourcepacks: "[]", shaders: "[]", installedMods: "{}" } as unknown as BuildRow)
+  return {
+    ...light,
+    mods: undefined as never,
+    resourcepacks: undefined,
+    shaders: undefined,
+    installedMods: undefined,
+    modsCount: 0,
+    resourcepacksCount: 0,
+    shadersCount: 0,
+  } as BuildLightJson
+}
+
 /** Тяжёлый контент одной сборки — по требованию, когда открыт её экран. */
 export async function loadBuildContent(buildId: string): Promise<{
   mods: unknown[]
@@ -246,30 +294,25 @@ function safeParse<T>(value: string | null | undefined, fallback: T): T {
   }
 }
 
-export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
+export async function saveAllBuilds(builds: Array<BuildJson | BuildLightJson>): Promise<void> {
   if (!isDbAvailable()) {
-    inMemoryBuilds.clear()
     for (const build of builds) {
       inMemoryBuilds.set(build.id, build)
     }
     return
   }
 
-  // saveAllBuilds затирает таблицу целиком (DELETE + вставка), поэтому пустой
-  // список от renderer'а со сбитым состоянием стирал все сборки. Пустую запись
-  // поверх непустой таблицы игнорируем.
-  if (builds.length === 0) {
-    const existing = queryAll<BuildRow>("SELECT id FROM builds LIMIT 1")
-    if (Array.isArray(existing) && existing.length > 0) {
-      logRuntime("[db] saveAllBuilds: пустой список поверх непустой таблицы — запись пропущена")
-      return
-    }
-  }
+  if (builds.length === 0) return
 
-  run("BEGIN")
-  try {
-    // Перед полной перезаписью запоминаем тяжёлый контент: интерфейс может
-    // присылать «лёгкие» сборки (списки грузятся по требованию), и тогда пустые
+  // ВАЖНО: это upsert, а не «перезапись таблицы». Раньше здесь стоял
+  // `DELETE FROM builds` перед вставкой, и сохранение списка, в котором чего-то
+  // не хватало (устаревший список в renderer, сбой IPC, второй экземпляр),
+  // стирало из БД все сборки, которых в этом списке не было. Удаление сборки —
+  // всегда явное (`deleteBuild` / `build:delete-intent` / корзина), поэтому
+  // массовое сохранение не имеет права ничего удалять.
+  transactionImmediate(() => {
+    // Тяжёлый контент уже сохранённых сборок: интерфейс может присылать «лёгкие»
+    // сборки (списки грузятся по требованию), и тогда пустые
     // mods/resourcepacks/shaders означают «не загружено», а не «удалено».
     const previousContent = new Map<string, { mods: string; resourcepacks: string; shaders: string; installedMods: string }>()
     for (const row of queryAll<{ id: string; mods: string; resourcepacks: string; shaders: string; installedMods: string }>(
@@ -292,71 +335,146 @@ export async function saveAllBuilds(builds: BuildJson[]): Promise<void> {
       }
       return JSON.stringify(incoming ?? JSON.parse(fallback))
     }
-    run("DELETE FROM builds")
+    // Принимаем и «лёгкие» сборки (без mods/resourcepacks/shaders/installedMods):
+    // реальный контент подставляет keepOr из уже лежащего в БД previousContent.
     for (const build of builds) {
-      const previous = previousContent.get(build.id)
-      const params: unknown[] = [
-        build.id,
-        build.name,
-        build.description,
-        build.version,
-        build.modLoader,
-        build.loaderVersion ?? null,
-        build.icon,
-        build.coverImage ?? null,
-        keepOr(build.mods, previous?.mods, "[]"),
-        keepOr(build.resourcepacks, previous?.resourcepacks, "[]"),
-        keepOr(build.shaders, previous?.shaders, "[]"),
-        build.intentPath ?? "",
-        keepOr(build.installedMods, previous?.installedMods, "{}"),
-        build.createdAt,
-        build.source,
-        build.projectSlug ?? null,
-        build.modpackVersion ?? null,
-        build.modpackVersionId ?? null,
-        build.locked === undefined ? null : (build.locked ? 1 : 0),
-        build.modId ?? null,
-        build.fileId ?? null,
-        build.playtime ?? 0,
-        build.javaOverride ? 1 : 0,
-        build.javaPath ?? "",
-        build.javaArgs ?? "",
-        build.memoryMin ?? "",
-        build.memoryMax ?? "",
-        build.serverOverride ? 1 : 0,
-        build.server ?? "",
-        build.serverPort ?? "",
-        build.group ?? "",
-        build.preLaunchCommand ?? "",
-        build.postLaunchCommand ?? "",
-        build.wrapperCommand ?? "",
-        build.customEnv ?? "",
-        build.windowOverride ? 1 : 0,
-        build.windowWidth ?? null,
-        build.windowHeight ?? null,
-      ]
-      for (let i = 0; i < params.length; i++) {
-        const v = params[i]
-        if (v === undefined || (typeof v === "object" && v !== null) || typeof v === "boolean" || typeof v === "bigint") {
-          console.error(`[DB] saveAllBuilds param ${i + 1} for build ${build.id} has unexpected type: ${typeof v}, value: ${JSON.stringify(v)}, coercing to null`)
-          params[i] = null
-        }
-      }
-      run(`
-        INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, modpackVersion, modpackVersionId, locked, modId, fileId, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax, serverOverride, server, serverPort, [group], preLaunchCommand, postLaunchCommand, wrapperCommand, customEnv, windowOverride, windowWidth, windowHeight)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, params)
+      INSERT_BUILD_STATEMENT.run(...buildInsertParams(build, previousContent.get(build.id), keepOr))
     }
-    run("COMMIT")
-    persistDatabase()
-  } catch (error) {
-    try {
-      run("ROLLBACK")
-    } catch {
-      // ignore rollback errors
+  })
+}
+
+/**
+ * Точки вставки строки `builds`: одна и та же колонка/порядок обязаны совпадать
+ * у массового сохранения и у точечной вставки новой сборки.
+ */
+const INSERT_BUILD_SQL = `
+  INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, modpackVersion, modpackVersionId, locked, modId, fileId, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax, serverOverride, server, serverPort, [group], preLaunchCommand, postLaunchCommand, wrapperCommand, customEnv, windowOverride, windowWidth, windowHeight)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+/** Ленивое подготовленное выражение: `prepare` требует инициализированной БД. */
+let insertBuildStatement: ReturnType<typeof prepare> | null = null
+const INSERT_BUILD_STATEMENT = {
+  run(...params: unknown[]): unknown {
+    if (!insertBuildStatement) insertBuildStatement = prepare(INSERT_BUILD_SQL)
+    return insertBuildStatement.run(...params)
+  },
+}
+
+/** Параметры одной строки `builds`; `previous` — уже лежащий в БД контент. */
+function buildInsertParams(
+  build: BuildJson | BuildLightJson,
+  previous: { mods: string; resourcepacks: string; shaders: string; installedMods: string } | undefined,
+  keepOr: (incoming: unknown, previous: string | undefined, fallback: string) => string,
+): unknown[] {
+  const content = build as Partial<BuildJson>
+  const params: unknown[] = [
+    build.id,
+    build.name,
+    build.description,
+    build.version,
+    build.modLoader,
+    build.loaderVersion ?? null,
+    build.icon,
+    build.coverImage ?? null,
+    keepOr(content.mods, previous?.mods, "[]"),
+    keepOr(content.resourcepacks, previous?.resourcepacks, "[]"),
+    keepOr(content.shaders, previous?.shaders, "[]"),
+    build.intentPath ?? "",
+    keepOr(content.installedMods, previous?.installedMods, "{}"),
+    build.createdAt,
+    build.source,
+    build.projectSlug ?? null,
+    build.modpackVersion ?? null,
+    build.modpackVersionId ?? null,
+    build.locked === undefined ? null : (build.locked ? 1 : 0),
+    build.modId ?? null,
+    build.fileId ?? null,
+    build.playtime ?? 0,
+    build.javaOverride ? 1 : 0,
+    build.javaPath ?? "",
+    build.javaArgs ?? "",
+    build.memoryMin ?? "",
+    build.memoryMax ?? "",
+    build.serverOverride ? 1 : 0,
+    build.server ?? "",
+    build.serverPort ?? "",
+    build.group ?? "",
+    build.preLaunchCommand ?? "",
+    build.postLaunchCommand ?? "",
+    build.wrapperCommand ?? "",
+    build.customEnv ?? "",
+    build.windowOverride ? 1 : 0,
+    build.windowWidth ?? null,
+    build.windowHeight ?? null,
+  ]
+  for (let i = 0; i < params.length; i++) {
+    const v = params[i]
+    if (v === undefined || (typeof v === "object" && v !== null) || typeof v === "boolean" || typeof v === "bigint") {
+      console.error(`[DB] saveAllBuilds param ${i + 1} for build ${build.id} has unexpected type: ${typeof v}, value: ${JSON.stringify(v)}, coercing to null`)
+      params[i] = null
     }
-    throw error
   }
+  return params
+}
+
+/**
+ * Вставка одной новой сборки.
+ *
+ * Нужна там, где сборка появляется в интерфейсе впервые (создание с нуля,
+ * создание копии): раньше такие сборки писались только через debounce-патчи,
+ * а те делают `UPDATE ... WHERE id = ?` — по несуществующей строке это no-op.
+ * Сборка жила в памяти до перезапуска и пропадала после него, хотя папка
+ * интента уже была создана.
+ */
+export async function insertBuild(build: BuildJson): Promise<void> {
+  if (!build?.id) return
+  if (!isDbAvailable()) {
+    inMemoryBuilds.set(build.id, build)
+    return
+  }
+
+  // Контент существующей строки (повторная вставка того же id) не теряем.
+  const previous = queryAll<{ mods: string; resourcepacks: string; shaders: string; installedMods: string }>(
+    "SELECT COALESCE(mods,'[]') AS mods, COALESCE(resourcepacks,'[]') AS resourcepacks, COALESCE(shaders,'[]') AS shaders, COALESCE(installedMods,'{}') AS installedMods FROM builds WHERE id = ?",
+    [build.id],
+  )[0]
+  const keepOr = (incoming: unknown, prev: string | undefined, fallback: string): string => {
+    const isEmpty = Array.isArray(incoming)
+      ? incoming.length === 0
+      : !incoming || (typeof incoming === "object" && Object.keys(incoming as Record<string, unknown>).length === 0)
+    if (isEmpty && prev) {
+      try {
+        const parsed = JSON.parse(prev)
+        const parsedEmpty = Array.isArray(parsed) ? parsed.length === 0 : !parsed || Object.keys(parsed).length === 0
+        if (!parsedEmpty) return prev
+      } catch {
+        // повреждённый JSON — пишем то, что пришло
+      }
+    }
+    return JSON.stringify(incoming ?? JSON.parse(fallback))
+  }
+
+  transactionImmediate(() => {
+    INSERT_BUILD_STATEMENT.run(...buildInsertParams(build, previous, keepOr))
+  })
+}
+
+/**
+ * Точечное удаление записи сборки.
+ *
+ * Полное удаление сборки (папка + статистика) должно убирать и её запись из БД:
+ * список сборок читается из БД, поэтому оставшаяся запись возвращала удалённую
+ * сборку в список при следующем reload (папка интента при этом создавалась пустой).
+ */
+export async function deleteBuild(buildId: string): Promise<void> {
+  if (!buildId) return
+  if (!isDbAvailable()) {
+    inMemoryBuilds.delete(buildId)
+    return
+  }
+
+  run("DELETE FROM builds WHERE id = ?", [buildId])
 }
 
 export async function updateBuildPlaytime(buildId: string, seconds: number): Promise<void> {
@@ -369,8 +487,31 @@ export async function updateBuildPlaytime(buildId: string, seconds: number): Pro
   }
 
   run("UPDATE builds SET playtime = playtime + ? WHERE id = ?", [seconds, buildId])
-  persistDatabase()
 }
+
+/**
+ * Текстовые колонки `builds`, объявленные NOT NULL: сброс такого поля обязан
+ * писать пустую строку, а не NULL (иначе UPDATE падает и патч правок теряется).
+ */
+const NOT_NULL_TEXT_COLUMNS = new Set([
+  "name",
+  "description",
+  "version",
+  "modLoader",
+  "icon",
+  "intentPath",
+  "source",
+  "javaPath",
+  "javaArgs",
+  "memoryMin",
+  "memoryMax",
+  "server",
+  "serverPort",
+  "preLaunchCommand",
+  "postLaunchCommand",
+  "wrapperCommand",
+  "customEnv",
+])
 
 /**
  * Точечное обновление полей одной сборки без перезаписи всего массива.
@@ -426,16 +567,25 @@ export async function updateBuildFields(buildId: string, fields: Partial<BuildJs
 
   const sets: string[] = []
   const params: unknown[] = []
+  const contentKeys = new Set(["mods", "resourcepacks", "shaders", "installedMods"])
   // Защита от затирания контента: интерфейс грузит список сборок без тяжёлых
   // списков (mods/resourcepacks/shaders), поэтому пустой массив в запросе почти
   // всегда означает «не загружено», а не «пользователь всё удалил». Если в БД
   // контент есть, а пришёл пустой — такой столбец не трогаем.
-  const existing = queryAll<{ mods: string; resourcepacks: string; shaders: string; installedMods: string }>(
-    "SELECT mods, COALESCE(resourcepacks,'[]') AS resourcepacks, COALESCE(shaders,'[]') AS shaders, COALESCE(installedMods,'{}') AS installedMods FROM builds WHERE id = ?",
-    [buildId],
-  )
-  const existingRow = Array.isArray(existing) ? existing[0] : undefined
-  const contentKeys = new Set(["mods", "resourcepacks", "shaders", "installedMods"])
+  //
+  // Тяжёлые колонки читаем только тогда, когда запрос действительно их меняет:
+  // смена иконки или описания не должна тянуть из БД десятки мегабайт JSON.
+  const requestedContentKeys = Object.keys(fields).filter((key) => contentKeys.has(key))
+  let existingRow: Record<string, string> | undefined
+  if (requestedContentKeys.length > 0) {
+    const selection = requestedContentKeys
+      .map((key) => key === "installedMods"
+        ? "COALESCE(installedMods,'{}') AS installedMods"
+        : `COALESCE(${key},'[]') AS ${key}`)
+      .join(", ")
+    const existing = queryAll<Record<string, string>>(`SELECT ${selection} FROM builds WHERE id = ?`, [buildId])
+    existingRow = Array.isArray(existing) ? existing[0] : undefined
+  }
   const isEmptyPayload = (value: unknown): boolean => {
     if (Array.isArray(value)) return value.length === 0
     if (value && typeof value === "object") return Object.keys(value as Record<string, unknown>).length === 0
@@ -443,7 +593,7 @@ export async function updateBuildFields(buildId: string, fields: Partial<BuildJs
   }
   const hasStoredContent = (key: string): boolean => {
     if (!existingRow) return false
-    const raw = (existingRow as unknown as Record<string, string>)[key] ?? ""
+    const raw = existingRow[key] ?? ""
     try {
       const parsed = JSON.parse(raw || (key === "installedMods" ? "{}" : "[]"))
       return Array.isArray(parsed) ? parsed.length > 0 : parsed && Object.keys(parsed).length > 0
@@ -468,7 +618,13 @@ export async function updateBuildFields(buildId: string, fields: Partial<BuildJs
     } else if (key === "javaOverride" || key === "serverOverride" || key === "windowOverride") {
       stored = value ? 1 : 0
     } else if (value === undefined) {
-      stored = null
+      // Часть текстовых колонок объявлена NOT NULL DEFAULT '' (javaPath,
+      // javaArgs, memory*, server, команды запуска). Запись NULL падала с
+      // «NOT NULL constraint failed», причём падал весь патч целиком — правки
+      // сборки молча не сохранялись (в логах «Debounced save failed»).
+      // Пустая строка читается обратно как undefined (`row.x || undefined`),
+      // поэтому смысл сброса сохраняется.
+      stored = NOT_NULL_TEXT_COLUMNS.has(column) ? "" : null
     }
     sets.push(`${column === "group" ? "[group]" : column} = ?`)
     params.push(stored)
@@ -476,6 +632,7 @@ export async function updateBuildFields(buildId: string, fields: Partial<BuildJs
 
   if (sets.length === 0) return
   params.push(buildId)
+  // Чтение «existing» и запись идут по одному соединению без await между ними,
+  // поэтому промежуточная правка из другого обработчика невозможна.
   run(`UPDATE builds SET ${sets.join(", ")} WHERE id = ?`, params)
-  persistDatabase()
 }
