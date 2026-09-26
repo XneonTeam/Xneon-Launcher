@@ -15,6 +15,17 @@ import {
 import { URLS } from "../constants/urls.js";
 
 export class LibrariesManager {
+  /**
+   * Кэш результата `resolveLibraries`.
+   *
+   * Разбор VersionJson — чистая функция от самого объекта (правила по OS,
+   * natives, дедупликация путей), но за один запуск её вызывают не менее пяти
+   * раз: `launch-pipeline` для classpath, `libraries-manager` в countTotalFiles
+   * и countTotalSize, `natives-extractor` дважды. Ключ — сам объект версии
+   * (WeakMap не мешает сборке мусора), поэтому повторные вызовы бесплатны.
+   */
+  private readonly resolveCache = new WeakMap<VersionJson, ResolvedLibrary[]>();
+
   constructor(
     private gameDir: string,
     private osInfo: OSInfo,
@@ -24,6 +35,15 @@ export class LibrariesManager {
    * Resolves libraries from a version JSON (including inherited components)
    */
   resolveLibraries(versionJson: VersionJson): ResolvedLibrary[] {
+    const cached = this.resolveCache.get(versionJson);
+    if (cached) return cached;
+
+    const resolved = this.resolveLibrariesUncached(versionJson);
+    this.resolveCache.set(versionJson, resolved);
+    return resolved;
+  }
+
+  private resolveLibrariesUncached(versionJson: VersionJson): ResolvedLibrary[] {
     const libraries: VersionJsonLibrary[] = versionJson.libraries || [];
     const resolved: ResolvedLibrary[] = [];
     const seenPaths = new Set<string>();
