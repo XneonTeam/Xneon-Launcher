@@ -2,11 +2,9 @@ import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { CatalogFiltersDialog, countActiveFilters, EMPTY_FILTERS, type CatalogFilters } from "./catalog-filters-dialog"
+import { LABY_TREND_ORDERS } from "@xnlc/skins"
 import type { LabyOrder, LabyTag } from "@xnlc/types"
 import { IconChevronDown, IconClock, IconCrown, IconFlame, IconSearch, IconX } from "@tabler/icons-react"
-
-/** Периоды трендов — та же тройка, что Laby предлагает на своём сайте. */
-const TREND_ORDERS: LabyOrder[] = ["trending_24h", "trending_7d", "trending_30d"]
 
 const ORDER_LABEL_KEY: Record<LabyOrder, string> = {
   trending_24h: "laby.order.trending",
@@ -65,7 +63,7 @@ export function CatalogToolbar({
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  const isTrend = TREND_ORDERS.includes(order)
+  const isTrend = LABY_TREND_ORDERS.includes(order)
   // В режиме тренда кнопка показывает выбранный период, иначе — «Тренды дня».
   const trendOrder: LabyOrder = isTrend ? order : "trending_24h"
   const trendLabel = t(ORDER_LABEL_KEY[trendOrder], ORDER_FALLBACK[trendOrder])
@@ -142,7 +140,7 @@ export function CatalogToolbar({
                 role="menu"
                 className="absolute left-0 top-full z-50 mt-1.5 min-w-[170px] overflow-hidden rounded-xl border border-border bg-popover p-1 shadow-lg"
               >
-                {TREND_ORDERS.map((value) => {
+                {LABY_TREND_ORDERS.map((value) => {
                   const selected = order === value
                   return (
                     <button
