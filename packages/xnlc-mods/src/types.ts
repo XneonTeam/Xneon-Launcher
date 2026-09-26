@@ -31,7 +31,14 @@ export interface ModSearchResult {
   loaders?: string[];
 }
 
-export type ModLoaderFilter = "vanilla" | "fabric" | "neoforge" | "quilt";
+/**
+ * Загрузчики, по которым можно фильтровать поиск.
+ *
+ * `forge` обязателен: без него фильтр Forge молча не применялся (facets в
+ * Modrinth просто не добавлялись), и в выборке оказывались моды любых
+ * загрузчиков. Значения держим идентичными `ModLoaderFilter` из `@xnlc/types`.
+ */
+export type ModLoaderFilter = "vanilla" | "forge" | "fabric" | "quilt" | "neoforge";
 
 export interface ModSearchResponse {
   results: ModSearchResult[];

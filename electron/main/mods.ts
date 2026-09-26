@@ -28,7 +28,17 @@ let modsModulePromise: Promise<ModsModule> | null = null
 
 function loadModsModule(): Promise<ModsModule> {
   if (!modsModulePromise) {
-    modsModulePromise = import("@xnlc/mods")
+    modsModulePromise = import("@xnlc/mods").then(async (mods) => {
+      // Каталог FTB — это ~90 запросов манифестов, поэтому кэшируем его и на диске:
+      // иначе после каждого перезапуска лаунчера вкладка FTB ждала бы загрузку заново.
+      try {
+        const { app } = await import("electron")
+        mods.setFtbCatalogCacheFile(path.join(app.getPath("userData"), "ftb-catalog.json"))
+      } catch {
+        // кэш не критичен
+      }
+      return mods
+    })
   }
   return modsModulePromise
 }
@@ -170,13 +180,37 @@ export function registerModsHandlers(): void {
   // ── FTB (Feed The Beast) ──────────────────────────────────
   ipcMain.handle(
     "mods:ftb-search",
-    async (event, query: string, page?: number): Promise<ModSearchResponse> => {
+    async (
+      event,
+      query: string,
+      page?: number,
+      options?: { sortBy?: string; categories?: string[]; gameVersion?: string; loader?: string },
+    ): Promise<ModSearchResponse> => {
       try {
         const mods = await loadModsModule()
-        return await mods.ftbSearch(query, { page: page ?? 0 }) as ModSearchResponse
+        return await mods.ftbSearch(query, {
+          page: page ?? 0,
+          sortBy: options?.sortBy as never,
+          categories: options?.categories,
+          gameVersion: options?.gameVersion,
+          loader: options?.loader,
+        }) as ModSearchResponse
       } catch (err) {
         console.error("FTB search error:", err)
         return { results: [], totalCount: 0 }
+      }
+    },
+  )
+
+  ipcMain.handle(
+    "mods:ftb-catalog-facets",
+    async (): Promise<{ categories: string[]; gameVersions: string[]; loaders: string[] }> => {
+      try {
+        const mods = await loadModsModule()
+        return await mods.ftbCatalogFacets() as { categories: string[]; gameVersions: string[]; loaders: string[] }
+      } catch (err) {
+        console.error("FTB facets error:", err)
+        return { categories: [], gameVersions: [], loaders: [] }
       }
     },
   )

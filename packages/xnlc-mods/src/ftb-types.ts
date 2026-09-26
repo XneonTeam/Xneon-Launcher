@@ -42,6 +42,12 @@ export interface FTBVersion {
   name: string
   type: string
   updated: number
+  /**
+   * Таргеты версии: `minecraft:1.21.1`, `neoforge:21.1.51`, `java:21.0.4`.
+   * По ним определяем версию игры и загрузчик пака (`normalizeFTBProject`).
+   * У старых ответов поля может не быть — отсюда `optional`.
+   */
+  targets?: FTBTarget[]
 }
 
 export interface FTBModpackManifest {
