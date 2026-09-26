@@ -336,7 +336,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Skins ──────────────────────────────────────────────
   skinsGetProfile: (accountId?: string) => ipcRenderer.invoke('skins:get-profile', accountId) as Promise<McProfile | null>,
-  skinsUploadSkin: (filePath: string, variant: "classic" | "slim", accountId?: string) => ipcRenderer.invoke('skins:upload-skin', { filePath, variant, accountId }) as Promise<boolean>,
   skinsDeleteSkin: (accountId?: string) => ipcRenderer.invoke('skins:delete-skin', accountId) as Promise<boolean>,
   skinsSetCape: (capeId: string | null, accountId?: string) => ipcRenderer.invoke('skins:set-cape', { capeId, accountId }) as Promise<boolean>,
   skinsListLibrary: (accountId: string) => ipcRenderer.invoke('skins:list-library', accountId) as Promise<LibrarySkin[]>,
@@ -344,7 +343,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   skinsDeleteFromLibrary: (id: string) => ipcRenderer.invoke('skins:delete-from-library', id) as Promise<boolean>,
   skinsUpdateVariant: (id: string, variant: "classic" | "slim", capeId?: string | null, name?: string) => ipcRenderer.invoke('skins:update-variant', { id, variant, capeId, name }) as Promise<boolean>,
   skinsApplyLibrarySkin: (skinId: string, accountId: string) => ipcRenderer.invoke('skins:apply-library-skin', { skinId, accountId }) as Promise<boolean>,
-  skinsImportFromUrl: (url: string, name: string, variant: "classic" | "slim", accountId: string) => ipcRenderer.invoke('skins:import-from-url', { url, name, variant, accountId }) as Promise<LibrarySkin | null>,
 
   // ── Laby (каталог скинов) ──────────────────────────────
   labyCatalog: (page: number, size?: number, order?: LabyOrder, tags?: string[] | null, query?: string | null) =>
