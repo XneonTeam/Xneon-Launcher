@@ -2,7 +2,9 @@ import { app, BrowserWindow, ipcMain, Menu, shell } from "electron"
 import path from "path"
 import { isDev, setMainWindow, getMainWindow, logRuntime, logRuntimeDebug, initRuntimePaths, sendToRenderer } from "./runtime"
 import { initDatabase } from "../db"
+import { cleanupOrphanGameSessions } from "./stats"
 import { loadInstancesRoot } from "./builds/helpers"
+import { migrateIntentDirNames } from "./builds/dir-migration"
 
 export function createWindow() {
   logRuntime("[Window] Creating browser window")
@@ -135,7 +137,22 @@ export function registerWindowLifecycle() {
       }),
     ])
 
-    loadInstancesRoot().catch(() => {})
+    // Каталог инстансов нужен миграции: она переименовывает папки сборок,
+    // созданные старым (слишком строгим) правилом санитайзера имён.
+    await loadInstancesRoot().catch(() => {})
+    const renamedIntentDirs = await migrateIntentDirNames().catch(() => 0)
+    if (renamedIntentDirs > 0) {
+      logRuntime(`[App] intent dirs migrated: ${renamedIntentDirs}`)
+    }
+
+    // Уборка осиротевшей статистики: сборок нет в БД, но сборки из корзины
+    // восстановимы — их сессии защищены снапшотами до очистки корзины.
+    try {
+      const removedSessions = await cleanupOrphanGameSessions()
+      if (removedSessions > 0) logRuntime(`[DB] Очищено записей статистики удалённых сборок: ${removedSessions}`)
+    } catch (error) {
+      logRuntime(`[DB] Не удалось очистить статистику удалённых сборок: ${error instanceof Error ? error.message : String(error)}`)
+    }
 
     // CLI: --launch <buildName> (e.g. from a desktop shortcut) triggers a build launch in the renderer.
     const launchArgIndex = process.argv.indexOf("--launch")

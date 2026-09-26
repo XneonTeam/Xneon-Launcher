@@ -5,6 +5,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
+import type { ReactNode } from "react"
 import {
   IconLock,
   IconAlertTriangle,
@@ -26,6 +27,8 @@ export interface ActionConfirmDialogProps {
   type?: "confirm" | "alert"
   variant?: "warning" | "danger" | "info"
   icon?: "lock" | "warning" | "info" | "repair" | "unlink"
+  /** Дополнительный блок между описанием и кнопками (например, переключатель). */
+  extra?: ReactNode
 }
 
 export function ActionConfirmDialog({
@@ -39,6 +42,7 @@ export function ActionConfirmDialog({
   type = "confirm",
   variant = "warning",
   icon = "lock",
+  extra,
 }: ActionConfirmDialogProps) {
   const { t } = useTranslation()
   const resolvedConfirmText = confirmText ?? t("common.continue")
@@ -89,6 +93,8 @@ export function ActionConfirmDialog({
         <div className="rounded-xl bg-muted/50 border border-border p-4 text-sm text-muted-foreground leading-relaxed max-h-56 overflow-y-auto whitespace-pre-line text-left">
           {description}
         </div>
+
+        {extra}
 
         <div className="flex gap-2 pt-2">
           {type === "confirm" ? (

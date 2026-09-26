@@ -49,8 +49,9 @@ import {
   type ImportModEntry,
 } from "./helpers"
 import { scanIntentDir } from "./scanner"
+import { readTrashSnapshot } from "./trash-meta"
 import { collectMissingFiles, downloadMissingModFiles, readMissingModsConfig } from "./missing-mods"
-import { checkContentUpdates, dismissContentUpdate, readUpdatesCache } from "./update-checker"
+import { checkContentUpdates, dismissContentUpdate, readUpdatesCache, readUpdatesCounts } from "./update-checker"
 import { pruneStaleLoaderProfiles, type LoaderPruneResult } from "./loader-profiles"
 
 export { ensureBuildIntentDir, getBuildIntentDirName, getBuildIntentPath, scanIntentDir }
@@ -116,13 +117,14 @@ function makeUniqueBuildName(base: string, builds: Array<{ name: string }>): str
  * Проверяет, не занято ли имя сборки и не установлен ли уже такой модпак.
  * Возвращает конфликт, если импорт может перезаписать существующий инстанс.
  */
-async function findPackConflict(name: string, identity: PackIdentity): Promise<{
+export async function findPackConflict(name: string, identity: PackIdentity): Promise<{
   kind: "duplicate" | "name"
   existingName: string
   existingBuildId: string
   suggestedName: string
 } | null> {
-  const builds = await dbHelpers.loadBuilds()
+  // Лёгкий список: для поиска конфликта нужны только имя, источник и id пакета.
+  const builds = await dbHelpers.loadBuildsLight()
   const norm = (value: string) => value.trim().toLowerCase()
 
   let byPack: (typeof builds)[number] | undefined
@@ -135,11 +137,16 @@ async function findPackConflict(name: string, identity: PackIdentity): Promise<{
   }
 
   const byName = builds.find((b) => norm(b.name) === norm(name))
-  const existing = byPack ?? byName
+
+  // Совпадение по самому модпаку считаем конфликтом, только если имя не меняли.
+  // Иначе сценарий «Создать копию» зацикливался: импорт запускался под новым
+  // именем, снова находил ту же сборку по modId и опять открывал этот диалог.
+  const duplicate = byPack && norm(byPack.name) === norm(name) ? byPack : undefined
+  const existing = duplicate ?? byName
   if (!existing) return null
 
   return {
-    kind: byPack ? "duplicate" : "name",
+    kind: duplicate ? "duplicate" : "name",
     existingName: existing.name,
     existingBuildId: existing.id,
     suggestedName: makeUniqueBuildName(name, builds),
@@ -147,23 +154,54 @@ async function findPackConflict(name: string, identity: PackIdentity): Promise<{
 }
 
 /**
- * Удаляет сессии статистики, привязанные к сборке.
+ * Убирает статистику удалённой сборки по метаданным из корзины.
  *
- * Важно: сессии в БД хранятся с `buildId` = UUID сборки (см. launch-orchestrator),
- * а хендлеры удаления/корзины получают только ИМЯ сборки (dirName). Поэтому сначала
- * резолвим сборку по имени, чтобы передать настоящие id и name — иначе записи
- * остаются «фантомами» в статистике после удаления сборки.
+ * `id` из снапшота удаляем строго по нему, а по именам (реальное имя сборки и
+ * имя папки) чистим только осиротевшие записи — см. `deleteGameSessionsForDeletedBuild`.
  */
-async function clearBuildSessions(dirNameOrTrashName: string): Promise<void> {
+async function clearTrashedBuildSessions(
+  dirNameOrTrashName: string,
+  snapshot: { id?: string; name?: string } | null,
+): Promise<void> {
   try {
-    const builds = await dbHelpers.loadBuilds()
-    const target = builds.find((b) => b.name === dirNameOrTrashName)
-    if (target) {
-      await dbHelpers.deleteGameSessionsForBuild(target.id, target.name)
+    const names = [dirNameOrTrashName, snapshot?.name].filter((v): v is string => !!v)
+    await dbHelpers.deleteGameSessionsForDeletedBuild({
+      ids: snapshot?.id ? [snapshot.id] : [],
+      names,
+    })
+    // Запись сборки в БД тоже убираем: иначе удалённая сборка возвращается в
+    // список при следующем reloadBuilds (папка интента создаётся заново пустой).
+    if (snapshot?.id) await dbHelpers.deleteBuild(snapshot.id)
+  } catch {
+    // статистика не критична для удаления сборки
+  }
+}
+
+/**
+ * Убирает статистику сборки, которую удаляют мимо корзины.
+ *
+ * Здесь сборка обычно ещё есть в БД (запись чистится после ответа хендлера),
+ * поэтому id резолвим по имени. Совпадение по санитизированному имени добавляет
+ * только имя: под ту же папку может попасть другая, одноимённая сборка.
+ */
+async function clearBuildSessionsForDir(dirName: string): Promise<void> {
+  try {
+    const builds = await dbHelpers.loadBuildsLight()
+    const names: string[] = [dirName]
+    const ids: string[] = []
+    const exact = builds.find((b) => b.name === dirName)
+    if (exact) {
+      ids.push(exact.id)
+      names.push(exact.name)
     } else {
-      // Сборки уже нет в БД — подчищаем хотя бы по сохранённому имени
-      await dbHelpers.deleteGameSessionsForBuild(dirNameOrTrashName, dirNameOrTrashName)
+      for (const build of builds) {
+        if (getBuildIntentDirName(build.name) === dirName) names.push(build.name)
+      }
     }
+    await dbHelpers.deleteGameSessionsForDeletedBuild({ ids, names })
+    // Полное удаление сборки убирает и её запись из БД — иначе сборка
+    // возвращается в список при следующем reloadBuilds.
+    for (const id of ids) await dbHelpers.deleteBuild(id)
   } catch {
     // статистика не критична для удаления сборки
   }
@@ -244,6 +282,13 @@ export function registerBuildHandlers() {
 
   ipcMain.handle("build:get-content-updates-cache", async (): Promise<Record<string, BuildContentUpdates>> => {
     return readUpdatesCache()
+  })
+
+  // Бейджи в списке сборок и на вкладках нуждаются только в количестве
+  // обновлений. Полный кэш — это мегабайты (иконки модов) и его передача в
+  // renderer на каждое изменение списка сборок стоила дороже самой проверки.
+  ipcMain.handle("build:get-content-updates-counts", async (): Promise<Record<string, { mods: number; resourcepacks: number; shaders: number }>> => {
+    return readUpdatesCounts()
   })
 
   ipcMain.handle("build:dismiss-content-update", async (_event, buildId: string, itemId: string): Promise<void> => {
@@ -379,7 +424,7 @@ export function registerBuildHandlers() {
       try { await fs.access(intentPath); await fs.rm(intentPath, { recursive: true, force: true }) } catch {}
 
       // Clean up stats sessions and notify
-      await clearBuildSessions(dirName)
+      await clearBuildSessionsForDir(dirName)
       notifyStatsUpdated()
 
       return { success: true }
@@ -417,6 +462,17 @@ export function registerBuildHandlers() {
         } catch { /* снапшот не критичен для самого перемещения */ }
       }
 
+      // Запись сборки в БД убираем сразу: снапшот рядом с папкой хранит все
+      // метаданные, поэтому восстановление из корзины вернёт сборку целиком, а
+      // оставшаяся запись иначе возвращала бы удалённую сборку в список.
+      const metadataId = metadata && typeof metadata.id === "string" ? metadata.id : undefined
+      if (metadataId) await dbHelpers.deleteBuild(metadataId).catch(() => {})
+
+      // Сессии в статистике остаются (их убирает только очистка корзины), но
+      // имя и иконка сборки теперь берутся из снапшота — просим страницу
+      // статистики перечитать данные, иначе она покажет старую карточку.
+      notifyStatsUpdated()
+
       return { success: true, trashName }
     } catch (error) {
       return { success: false, error: toErrorMessage(error) }
@@ -448,6 +504,24 @@ export function registerBuildHandlers() {
         await fs.rm(snapshotPath, { force: true })
       } catch { /* снапшота может не быть у старых записей корзины */ }
 
+      // Запись в БД удаляется при отправке в корзину, поэтому восстанавливаем её
+      // здесь же из снапшота — иначе сборка вернулась бы только в UI и пропала
+      // при следующем reloadBuilds (список читается из БД).
+      if (build && typeof build.id === "string" && typeof build.name === "string") {
+        // Путь в снапшоте мог быть записан до переименования папок — берём текущий.
+        build.intentPath = intentPath
+        try {
+          const existing = await dbHelpers.loadBuildsLight()
+          if (!existing.some((item) => item.id === build!.id)) {
+            await dbHelpers.saveAllBuilds([build as never, ...(existing as never[])])
+          }
+        } catch { /* запись восстановит вызывающая сторона */ }
+      }
+
+      // Сборка вернулась в БД: статистика снова должна брать имя и иконку из неё,
+      // а не из снапшота корзины (снапшот уже удалён выше).
+      notifyStatsUpdated()
+
       return { success: true, build }
     } catch (error) {
       if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -461,24 +535,21 @@ export function registerBuildHandlers() {
     try {
       const trashRoot = path.join(getInstancesRoot(), "intents", ".trash")
       const entries = await fs.readdir(trashRoot, { withFileTypes: true }).catch(() => [])
-      const names: string[] = []
+      // Снапшоты читаем до удаления корзины: по ним находим статистику сборок,
+      // чьи имена папок санитизированы (`Create+` → `Create_`).
+      const targets: Array<{ name: string; snapshot: { id?: string; name?: string } | null }> = []
       for (const entry of entries) {
         if (!entry.isDirectory()) continue
         const match = entry.name.match(/^(\d+)-(.+)$/)
-        if (match) {
-          names.push(match[2])
-        }
+        if (!match) continue
+        targets.push({ name: match[2], snapshot: await readTrashSnapshot(entry.name) })
       }
       await fs.rm(trashRoot, { recursive: true, force: true }).catch(() => {})
 
-      if (names.length > 0) {
-        // Резолвим имена сборок в настоящие id, иначе сессии в статистике не найдутся
-        const builds = await dbHelpers.loadBuilds().catch(() => [])
-        const ids = new Set<string>(names)
-        for (const build of builds) {
-          if (names.includes(build.name)) ids.add(build.id)
+      if (targets.length > 0) {
+        for (const target of targets) {
+          await clearTrashedBuildSessions(target.name, target.snapshot)
         }
-        await dbHelpers.deleteGameSessionsForBuildNames([...ids]).catch(() => {})
         notifyStatsUpdated()
       }
 
@@ -488,24 +559,27 @@ export function registerBuildHandlers() {
     }
   })
 
-  ipcMain.handle("build:list-trash", async (): Promise<Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string }>> => {
+  ipcMain.handle("build:list-trash", async (): Promise<Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string; modLoader?: string }>> => {
     try {
       const trashRoot = path.join(getInstancesRoot(), "intents", ".trash")
       const entries = await fs.readdir(trashRoot, { withFileTypes: true }).catch(() => [])
-      const items: Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string }> = []
+      const items: Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string; modLoader?: string }> = []
       for (const entry of entries) {
         if (!entry.isDirectory()) continue
         const match = entry.name.match(/^(\d+)-(.+)$/)
         if (!match) continue
-        // Иконка сборки живёт в снапшоте метаданных рядом с папкой в корзине
-        // (`<trashName>.json`), иначе в списке корзины показывалась бы заглушка.
-        let icon: string | undefined
-        try {
-          const raw = await fs.readFile(path.join(trashRoot, `${entry.name}.json`), "utf-8")
-          const parsed = JSON.parse(raw) as { icon?: string; iconUrl?: string }
-          icon = parsed.icon || parsed.iconUrl || undefined
-        } catch { /* снапшота может не быть у старых записей корзины */ }
-        items.push({ trashName: entry.name, originalName: match[2], trashedAt: Number(match[1]), icon })
+        // Имя, иконка и загрузчик сборки живут в снапшоте метаданных рядом с папкой
+        // в корзине (`<trashName>.json`): имя папки санитизировано, поэтому в списке
+        // корзины показывалось бы `Prominence_ II_ ...` вместо настоящего имени, а
+        // без загрузчика не рисовалась бы плашка-заглушка как в списке сборок.
+        const snapshot = await readTrashSnapshot(entry.name)
+        items.push({
+          trashName: entry.name,
+          originalName: snapshot?.name ?? match[2],
+          trashedAt: Number(match[1]),
+          icon: snapshot?.icon,
+          modLoader: snapshot?.modLoader,
+        })
       }
       return items
     } catch {
@@ -518,13 +592,15 @@ export function registerBuildHandlers() {
       const trashPath = path.join(getInstancesRoot(), "intents", ".trash", trashName)
       const match = trashName.match(/^(\d+)-(.+)$/)
       const originalName = match ? match[2] : null
+      // Снапшот читаем до удаления: в нём настоящие id и имя сборки.
+      const snapshot = await readTrashSnapshot(trashName)
 
       await fs.rm(trashPath, { recursive: true, force: true })
       // Снапшот метаданных лежит рядом с папкой отдельным файлом — удаляем вместе с ней.
       await fs.rm(path.join(getInstancesRoot(), "intents", ".trash", `${trashName}.json`), { force: true }).catch(() => {})
 
-      if (originalName) {
-        await clearBuildSessions(originalName)
+      if (originalName || snapshot) {
+        await clearTrashedBuildSessions(snapshot?.name ?? originalName ?? "", snapshot)
         notifyStatsUpdated()
       }
 
@@ -593,8 +669,8 @@ export function registerBuildHandlers() {
       })
 
       // Манифест в корне делает архив самодостаточным: при импорте из него
-      // берутся версия, загрузчик и иконка сборки.
-      const buildRow = (await dbHelpers.loadBuilds()).find((b) => b.name === dirName)
+      // берутся версия, загрузчик и иконка сборки. Достаточно лёгких полей.
+      const buildRow = (await dbHelpers.loadBuildsLight()).find((b) => b.name === dirName)
       zip.addFile("xnlauncher.json", Buffer.from(JSON.stringify({
         format: "xnlauncher-build",
         formatVersion: 1,

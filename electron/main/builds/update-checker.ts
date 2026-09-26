@@ -210,26 +210,95 @@ async function runPool<T>(items: T[], limit: number, worker: (item: T) => Promis
   await Promise.all(lanes)
 }
 
+/**
+ * Разобранный кэш держим в памяти: строка в `settings` весит мегабайты
+ * (иконки модов — это data-URL), а `JSON.parse` на каждый запрос бейджей
+ * обновлений занимал десятки миллисекунд на главном процессе. Писатель у
+ * ключа единственный — этот модуль, поэтому инвалидация не нужна: кэш
+ * обновляется вместе с записью.
+ */
+let updatesCacheMemo: Record<string, BuildContentUpdates> | null = null
+
+/** Отдаёт иконку в компактном виде: data-URL (base64) в кэш не кладём. */
+function compactIconUrl(iconUrl: string | undefined): string | undefined {
+  if (!iconUrl) return undefined
+  // Иконки из JAR встраиваются как `data:` и весят десятки килобайт каждая:
+  // на ~200 обновлений это ~5 МБ в одной строке настроек. В интерфейсе такая
+  // иконка всё равно берётся из списка модов сборки, а сетевые URL дешёвые.
+  return iconUrl.startsWith("data:") ? undefined : iconUrl
+}
+
+function compactUpdatesForCache(result: BuildContentUpdates): BuildContentUpdates {
+  return {
+    ...result,
+    updates: result.updates.map((update) => {
+      const iconUrl = compactIconUrl(update.iconUrl)
+      return iconUrl === update.iconUrl ? update : { ...update, iconUrl }
+    }),
+  }
+}
+
+/** Размер строки кэша, после которого она переписывается в сжатом виде. */
+const CACHE_COMPACT_THRESHOLD = 1_000_000
+
 export async function readUpdatesCache(): Promise<Record<string, BuildContentUpdates>> {
+  if (updatesCacheMemo) return updatesCacheMemo
   try {
     const raw = await dbHelpers.getSetting(CACHE_SETTINGS_KEY)
-    if (!raw) return {}
+    if (!raw) {
+      updatesCacheMemo = {}
+      return updatesCacheMemo
+    }
     const parsed = JSON.parse(raw) as Record<string, BuildContentUpdates>
-    return parsed && typeof parsed === "object" ? parsed : {}
+    updatesCacheMemo = parsed && typeof parsed === "object" ? parsed : {}
+    // Разовая миграция: раньше в кэш попадали data-URL иконки модов, из-за чего
+    // строка настроек разрасталась до мегабайт и переписывалась при каждом
+    // обновлении. Сжимаем существующий кэш в фоне, не задерживая вызывающего.
+    if (raw.length > CACHE_COMPACT_THRESHOLD) {
+      void writeUpdatesCache(updatesCacheMemo).catch(() => {})
+    }
+    return updatesCacheMemo
   } catch {
     return {}
   }
 }
 
+/** Только счётчики обновлений: интерфейсу для бейджей не нужен весь кэш. */
+export async function readUpdatesCounts(): Promise<Record<string, { mods: number; resourcepacks: number; shaders: number }>> {
+  const cache = await readUpdatesCache()
+  const counts: Record<string, { mods: number; resourcepacks: number; shaders: number }> = {}
+  for (const [buildId, entry] of Object.entries(cache)) {
+    const byType = { mods: 0, resourcepacks: 0, shaders: 0 }
+    for (const update of entry?.updates ?? []) {
+      if (update.contentType === "mods") byType.mods += 1
+      else if (update.contentType === "resourcepacks") byType.resourcepacks += 1
+      else if (update.contentType === "shaders") byType.shaders += 1
+    }
+    counts[buildId] = byType
+  }
+  return counts
+}
+
 async function writeUpdatesCache(cache: Record<string, BuildContentUpdates>): Promise<void> {
-  await dbHelpers.setSetting(CACHE_SETTINGS_KEY, JSON.stringify(cache))
+  // Сжимаем весь кэш, а не только что записанную сборку: иначе старые записи
+  // с иконками оставались бы в строке до следующей проверки каждой из них.
+  const compacted: Record<string, BuildContentUpdates> = {}
+  for (const [buildId, entry] of Object.entries(cache)) {
+    compacted[buildId] = compactUpdatesForCache(entry)
+  }
+  updatesCacheMemo = compacted
+  await dbHelpers.setSetting(CACHE_SETTINGS_KEY, JSON.stringify(compacted))
 }
 
 export async function checkContentUpdates(buildId: string, channel: UpdateChannel = "release"): Promise<BuildContentUpdates> {
-  const builds = await dbHelpers.loadBuilds()
-  const build = builds.find((b) => b.id === buildId)
+  // Раньше здесь читался весь список сборок вместе с их JSON-контентом
+  // (десятки мегабайт на ~20 сборок) ради одной строки.
+  const light = (await dbHelpers.loadBuildsLight()).find((b) => b.id === buildId)
   const result: BuildContentUpdates = { buildId, channel, checkedAt: Date.now(), updates: [] }
-  if (!build) return result
+  if (!light) return result
+
+  const content = await dbHelpers.loadBuildContent(buildId)
+  const build = { ...light, ...(content ?? { mods: [], resourcepacks: [], shaders: [], installedMods: {} }) } as BuildJson
 
   // Связанные с модпаком сборки управляются целиком через смену версии модпака,
   // поэтому поштучное обновление отдельных модов для них отключается
@@ -329,7 +398,7 @@ export async function checkContentUpdates(buildId: string, channel: UpdateChanne
 
   try {
     const cache = await readUpdatesCache()
-    cache[buildId] = result
+    cache[buildId] = compactUpdatesForCache(result)
     await writeUpdatesCache(cache)
   } catch (error) {
     console.warn("[Updates] Failed to persist updates cache:", error)
