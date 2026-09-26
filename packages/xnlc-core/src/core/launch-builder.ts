@@ -98,15 +98,6 @@ export class LaunchBuilder {
     return paths.join(path.delimiter);
   }
 
-  private writeClasspathFile(classpath: string, versionId: string): string | null {
-    if (classpath.length <= 8000) return null;
-
-    const cpFile = path.join(getVersionDir(this.gameDir, versionId), "classpath.txt");
-    fs.writeFileSync(cpFile, classpath, "utf-8");
-    console.log(`[LaunchBuilder] Classpath written to file (${classpath.length} chars): ${cpFile}`);
-    return cpFile;
-  }
-
   private buildJvmArgs(versionJson: VersionJson, context: any): string[] {
     const args: string[] = [];
 
@@ -126,13 +117,17 @@ export class LaunchBuilder {
         }
         filtered.push(rawJvmArgs[i]);
       }
+      // Памятью управляет только лаунчер: аргументы version.json добавляются ПОСЛЕ
+      // наших -Xms/-Xmx, а JVM применяет последнее значение — поэтому чужой -Xmx из
+      // JSON (например -Xmx4G в custom-версии через `+jvmArgs`) молча перебивал
+      // настройку «Оперативная память». Такие аргументы отбрасываем.
       const jvmArgs = this.replacePlaceholderArgs(
         filtered,
         {
           classpath: typeof context.classpath === 'string' ? context.classpath.replace(/\\/g, '/') : context.classpath,
           natives_directory: context.nativesDir,
         }
-      );
+      ).filter((arg) => !/^-Xm[sx]/.test(arg));
       args.push(...jvmArgs);
     }
 

@@ -231,11 +231,29 @@ const versionHandlers: IpcHandlerDef[] = [
 
 // ---------- Launch Handlers ----------
 
+/**
+ * Переводит параметры запуска из IPC-контракта (`MinecraftLaunchParams`, где память
+ * лежит вложенным объектом `memory: { min, max }`) в плоский вид `LaunchRequestOptions`
+ * (`memoryMin`/`memoryMax`), который понимает `resolveLaunchRequest`.
+ *
+ * Без этого перевода `resolveLaunchRequest` не находил `memoryMin`/`memoryMax` и всегда
+ * подставлял свои дефолты `512M`/`4G`: настройка «Оперативная память» и пер-сборочный
+ * оверрайд Java игнорировались, а игра получала `-Xms512M -Xmx4G`.
+ */
+export function toLaunchRequestOptions(params: MinecraftLaunchParams) {
+  const legacy = params as MinecraftLaunchParams & { memoryMin?: string; memoryMax?: string }
+  return {
+    ...legacy,
+    memoryMin: params.memory?.min || legacy.memoryMin,
+    memoryMax: params.memory?.max || legacy.memoryMax,
+  }
+}
+
 const launchHandlers: IpcHandlerDef[] = [
   rawHandler("minecraft:launch", async (...args: unknown[]): Promise<LaunchResultPayload> => {
     const options = args[0] as MinecraftLaunchParams
     const { resolveLaunchRequest } = await loadXnlcModule()
-    const request = resolveLaunchRequest(options as any)
+    const request = resolveLaunchRequest(toLaunchRequestOptions(options))
 
     try {
       if (isLaunchActive()) {
@@ -245,6 +263,8 @@ const launchHandlers: IpcHandlerDef[] = [
       if ("error" in request) {
         return { success: false, error: request.error }
       }
+
+      logRuntimeDebug(`[Minecraft] Launch memory: -Xms${request.memoryMin} -Xmx${request.memoryMax}`)
 
       const launchAccount = await resolveLaunchAccount(options.account as any)
       if (!launchAccount) {
