@@ -7,6 +7,8 @@ import { formatDownloads } from "./utils"
 import { InstanceBrowseToolbar } from "./instance-browse-toolbar"
 import { CategoryBadge } from "./category-badge"
 import { Pagination } from "./pagination"
+import type { CategoriesDialogCategory } from "./categories-dialog"
+import type { SelectedModCategory } from "./use-mod-search"
 import type { ModSearchResult, ModSort } from "./types"
 
 interface InstanceCurseForgeProps {
@@ -29,6 +31,9 @@ interface InstanceCurseForgeProps {
   onPageChange: (page: number) => void
   onOpenDetails: (pack: ModSearchResult) => void
   onDownload: (pack: ModSearchResult) => void
+  categories?: CategoriesDialogCategory[]
+  selectedCategories?: SelectedModCategory[]
+  onApplyCategories?: (value: SelectedModCategory[]) => void
 }
 
 export function InstanceCurseForge({
@@ -51,6 +56,9 @@ export function InstanceCurseForge({
   onPageChange,
   onOpenDetails,
   onDownload,
+  categories,
+  selectedCategories,
+  onApplyCategories,
 }: InstanceCurseForgeProps) {
   const { t } = useTranslation()
 
@@ -69,6 +77,9 @@ export function InstanceCurseForge({
         versionOptions={versionOptions}
         selectedModLoader={selectedModLoader}
         setSelectedModLoader={setSelectedModLoader}
+        categories={categories}
+        selectedCategories={selectedCategories}
+        onApplyCategories={onApplyCategories}
       />
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden">

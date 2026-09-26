@@ -19,5 +19,6 @@ export const SORT_OPTIONS_BY_SOURCE: Record<SearchSource, ModSort[]> = {
   modrinth: ["relevance", "downloads", "follows", "newest", "updated"],
   curseforge: ["featured", "follows", "downloads", "updated"],
   both: ["downloads", "follows", "updated", "newest"],
-  ftb: ["downloads", "follows", "updated", "newest"],
+  // У FTB нет «подписчиков», зато «по релевантности» = порядок каталога от API.
+  ftb: ["relevance", "downloads", "updated", "newest"],
 }

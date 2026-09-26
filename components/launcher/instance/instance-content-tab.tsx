@@ -2,24 +2,24 @@ import { memo, useEffect, useMemo, useRef, useState, useDeferredValue, useCallba
 import { useTranslation } from "react-i18next"
 import { useActivityCenter } from "@/src/ActivityCenterContext"
 import { EmptyState } from "@/components/ui/empty-state"
-import { IconSearch, IconUpload, IconTrash, IconRefresh, IconList, IconPower, IconCheck, IconChevronDown, IconChevronRight, IconDownload, IconArrowRight, IconX, IconArrowUpCircle, IconLock, IconAlertTriangle, IconPuzzle, IconPhoto, IconSparkles } from "@tabler/icons-react"
+import { IconSearch, IconUpload, IconTrash, IconRefresh, IconPower, IconCheck, IconDownload, IconArrowRight, IconX, IconArrowUpCircle, IconLock, IconAlertTriangle, IconPuzzle, IconPhoto, IconSparkles } from "@tabler/icons-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeRaw from "rehype-raw"
 import rehypeSanitize from "rehype-sanitize"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Spinner } from "./spinner"
 import { ModalLayer } from "@/components/ui/modal-layer"
 import { Pagination } from "./pagination"
+import { MODS_PER_PAGE } from "./constants"
 import { contentProjectKey, formatDownloads, isInstalledVersion, matchesBuildVersion } from "./utils"
 import { InstanceUpdatesDialog } from "./instance-updates-dialog"
+import { CategoriesDialog } from "./categories-dialog"
 import { LoaderIcon } from "./loader-icon"
 import { ChangelogContent } from "./changelog-content"
 import { AddonRow } from "@/components/launcher/addon-row"
-import { ProviderIcon } from "@/components/launcher/provider-icon"
 import { SourceMark } from "@/components/launcher/source-mark"
 import type { Build, BuildMod, ModSearchResult, ModSort, SearchSource, ModVersion } from "./types"
 import type { ContentDropKind, ContentDropRejectReason, ModCategory } from "@xnlc/types"
@@ -146,6 +146,8 @@ export const InstanceContentTab = memo(function InstanceContentTab({
 
   const [removingSlug, setRemovingSlug] = useState<string | null>(null)
   const [installedSearch, setInstalledSearch] = useState("")
+  /** Страница списка установленного контента (0-based, как в Pagination). */
+  const [installedPage, setInstalledPage] = useState(0)
 
   // Перетаскивание файлов прямо в панель «Встановлено»: файл кладём в сборку как
   // есть — без проверок зависимостей и без запросов к API. Единственное, что
@@ -240,6 +242,27 @@ export const InstanceContentTab = memo(function InstanceContentTab({
       (i.slug ?? "").toLowerCase().includes(q)
     )
   }, [installedItems, deferredInstalledSearch])
+
+  /**
+   * Пагинация списка установленного контента. Раньше левая половина рендерила
+   * все элементы сразу: на модпаке в 163 мода это сотни карточек с иконками и
+   * обработчиками в DOM, что заметно тормозило открытие вкладки. Правая
+   * половина (результаты поиска) пагинацию уже имела — приводим к одному виду.
+   */
+  const installedTotalPages = Math.max(1, Math.ceil(filteredInstalled.length / MODS_PER_PAGE))
+  // Страница могла «повиснуть» после удаления модов или смены фильтра —
+  // подрезаем её к актуальному числу страниц вместо пустого экрана.
+  const installedPageSafe = Math.min(installedPage, installedTotalPages - 1)
+  const pagedInstalled = useMemo(
+    () => filteredInstalled.slice(installedPageSafe * MODS_PER_PAGE, (installedPageSafe + 1) * MODS_PER_PAGE),
+    [filteredInstalled, installedPageSafe],
+  )
+
+  // Новый поисковый запрос, другая сборка или другой тип контента — всегда
+  // начинаем с первой страницы.
+  useEffect(() => {
+    setInstalledPage(0)
+  }, [deferredInstalledSearch, activeBuild.id, type])
   const [versionPickerItem, setVersionPickerItem] = useState<BuildMod | null>(null)
   const [versionPickerVersions, setVersionPickerVersions] = useState<ModVersion[]>([])
   const [versionPickerLoading, setVersionPickerLoading] = useState(false)
@@ -250,12 +273,9 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   const [downloadProgress, setDownloadProgress] = useState<{ fileName: string; current: number; total: number } | null>(null)
   // Этап установки: до байтов идёт сетевой этап (версии, зависимости) — его показываем словами.
   const [installPhase, setInstallPhase] = useState<"resolving" | "confirm" | "downloading" | "deps" | null>(null)
-  const [catDialogOpen, setCatDialogOpen] = useState(false)
-  const [draftCats, setDraftCats] = useState<SelectedModCategory[]>([])
   const contentType = type === "mods" ? "mod" : type === "resourcepacks" ? "resourcepack" : "shader"
   type ContentCategory = ModCategory & { source?: "modrinth" | "curseforge" }
   const filteredCategories = useMemo(() => (categories ?? []).filter(c => c.projectType === contentType) as ContentCategory[], [categories, contentType])
-  const [collapsedSourceGroups, setCollapsedSourceGroups] = useState<Set<string>>(() => new Set())
   const [updatesOpen, setUpdatesOpen] = useState(false)
   const [updatesCount, setUpdatesCount] = useState(0)
   const [loaderRequirementReport, setLoaderRequirementReport] = useState<BuildLoaderRequirementReport | null>(null)
@@ -284,9 +304,14 @@ export const InstanceContentTab = memo(function InstanceContentTab({
 
   const refreshUpdatesCount = useCallback(async () => {
     try {
-      const cache = await window.electronAPI?.getContentUpdatesCache()
-      const entry = cache?.[activeBuild.id]
-      const count = entry?.updates.filter((u) => u.contentType === type).length ?? 0
+      // Счётчики, а не весь кэш: полный ответ весит мегабайты (data-URL иконки).
+      const counts = await window.electronAPI?.getContentUpdatesCounts?.()
+      const entry = counts?.[activeBuild.id]
+      const count = type === "mods"
+        ? (entry?.mods ?? 0)
+        : type === "resourcepacks"
+          ? (entry?.resourcepacks ?? 0)
+          : (entry?.shaders ?? 0)
       setUpdatesCount(count)
     } catch {
       // ignore
@@ -368,18 +393,19 @@ export const InstanceContentTab = memo(function InstanceContentTab({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              {/* Порядок пунктов: Modrinth → CurseForge → обе платформы (и Modrinth по умолчанию). */}
+              <SelectItem value="modrinth">
+                <span className="flex items-center gap-1.5"><SourceMark source="modrinth" />Modrinth</span>
+              </SelectItem>
+              <SelectItem value="curseforge">
+                <span className="flex items-center gap-1.5"><SourceMark source="curseforge" />CurseForge</span>
+              </SelectItem>
               <SelectItem value="both">
                 <span className="flex items-center gap-1.5">
                   <SourceMark source="modrinth" />
                   <SourceMark source="curseforge" />
                   {t("servers.addons.bothPlatforms")}
                 </span>
-              </SelectItem>
-              <SelectItem value="modrinth">
-                <span className="flex items-center gap-1.5"><SourceMark source="modrinth" />Modrinth</span>
-              </SelectItem>
-              <SelectItem value="curseforge">
-                <span className="flex items-center gap-1.5"><SourceMark source="curseforge" />CurseForge</span>
               </SelectItem>
             </SelectContent>
           </Select>
@@ -393,141 +419,12 @@ export const InstanceContentTab = memo(function InstanceContentTab({
               ))}
             </SelectContent>
           </Select>
-          <Dialog open={catDialogOpen} onOpenChange={(open) => {
-            if (open) setDraftCats(modCategories ?? [])
-            setCatDialogOpen(open)
-          }}>
-            <DialogTrigger asChild>
-              <button
-                type="button"
-                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                  (modCategories?.length ?? 0) > 0
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-foreground hover:bg-muted/80"
-                }`}
-              >
-                <IconList className="w-4 h-4" strokeWidth={1.75} />
-                {(modCategories?.length ?? 0) > 0 ? t("servers.addons.categoriesCount", { count: modCategories!.length }) : t("servers.addons.categories")}
-              </button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md max-h-[70vh] flex flex-col">
-              <DialogHeader>
-                <DialogTitle>{t("servers.addons.categoriesTitle")}</DialogTitle>
-                <DialogDescription>{t("servers.addons.categoriesDesc")}</DialogDescription>
-              </DialogHeader>
-              <div className="flex flex-col gap-1 overflow-y-auto flex-1 min-h-0 pr-1">
-                {filteredCategories.length === 0 && (
-                  <p className="text-xs text-muted-foreground py-2">{t("servers.addons.noCategories")}</p>
-                )}
-                {(() => {
-                  const groups = new Map<string, ContentCategory[]>()
-                  for (const cat of filteredCategories) {
-                    const key = cat.source ?? "both"
-                    const list = groups.get(key)
-                    if (list) list.push(cat)
-                    else groups.set(key, [cat])
-                  }
-                  const groupLabels: Record<string, string> = { modrinth: "Modrinth", curseforge: "CurseForge", both: t("servers.addons.bothPlatforms") }
-                  return [...groups.entries()].map(([key, cats]) => {
-                    const collapsed = collapsedSourceGroups.has(key)
-                    return (
-                      <div key={key} className="flex flex-col gap-0.5">
-                        <button
-                          type="button"
-                          onClick={() => setCollapsedSourceGroups(prev => {
-                            const next = new Set(prev)
-                            if (next.has(key)) next.delete(key)
-                            else next.add(key)
-                            return next
-                          })}
-                          className="flex w-full items-center gap-2 px-2 py-2 rounded-xl bg-muted/60 border border-border/70 hover:bg-muted/90 text-xs font-semibold text-foreground transition-colors"
-                        >
-                          {collapsed
-                            ? <IconChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-                            : <IconChevronDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />}
-                          {key === "both" ? (
-                            <span className="inline-flex items-center gap-1">
-                              <ProviderIcon source="modrinth" />
-                              <ProviderIcon source="curseforge" />
-                            </span>
-                          ) : (
-                            <ProviderIcon source={key} />
-                          )}
-                          <span className="min-w-0 flex-1 text-left truncate">{groupLabels[key] ?? key}</span>
-                          <span className="rounded-full bg-background border border-border px-2 py-0.5 text-[10px] font-normal text-muted-foreground">{cats.length}</span>
-                        </button>
-                        {!collapsed && cats.map((cat) => {
-                          const checked = draftCats.some(c => c.name === cat.name)
-                          const hasSvg = cat.icon && cat.icon.trimStart().startsWith("<svg")
-                          const hasImg = cat.icon && !hasSvg && cat.icon.startsWith("http")
-                          return (
-                            <label
-                              key={`${key}:${cat.name}`}
-                              className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted/50 cursor-pointer text-sm"
-                            >
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={(v) => {
-                                  if (v) setDraftCats((prev) => [...prev, { name: cat.name, source: cat.source }])
-                                  else setDraftCats((prev) => prev.filter((c) => c.name !== cat.name))
-                                }}
-                              />
-                              {hasSvg && (
-                                <span
-                                  className="w-4 h-4 shrink-0 text-muted-foreground [&_svg]:w-full [&_svg]:h-full"
-                                  dangerouslySetInnerHTML={{ __html: cat.icon }}
-                                />
-                              )}
-                              {hasImg && (
-                                <img
-                                  src={cat.icon}
-                                  alt=""
-                                  className="w-4 h-4 shrink-0 rounded-sm object-contain"
-                                />
-                              )}
-                              <span className="flex-1">{cat.name}</span>
-                              {cat.header !== "categories" && (
-                                <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">{cat.header}</span>
-                              )}
-                            </label>
-                          )
-                        })}
-                      </div>
-                    )
-                  })
-                })()}
-              </div>
-              {(draftCats.length > 0) && (
-                <button
-                  type="button"
-                  onClick={() => setDraftCats([])}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
-                >
-                  {t("buildDetail.resetAll")}
-                </button>
-              )}
-              <div className="flex justify-end gap-2 mt-3">
-                <button
-                  type="button"
-                  onClick={() => setCatDialogOpen(false)}
-                  className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {t("common.cancel")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setModCategories?.(draftCats)
-                    setCatDialogOpen(false)
-                  }}
-                  className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-                >
-                  <IconSearch className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  {t("buildDetail.search.submit")}
-                </button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <CategoriesDialog
+            categories={filteredCategories}
+            selected={modCategories ?? []}
+            onApply={(value) => setModCategories?.(value)}
+            triggerClassName="px-4 py-2.5 rounded-xl text-sm"
+          />
           <button
             type="button"
             onClick={() => modFileInputRef.current?.click()}
@@ -673,7 +570,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                   title={t("builds.searchInstalledNoMatch")}
                   className="min-h-[120px] rounded-2xl border border-dashed border-border"
                 />
-              ) : filteredInstalled.map((item) => {
+              ) : pagedInstalled.map((item) => {
                 const isEnabled = item.enabled ?? true
                 return (
                 <div key={item.id} className={`rounded-xl border p-3 transition-opacity ${isEnabled ? 'border-border bg-muted/20' : 'border-border/50 bg-muted/10 opacity-55'}`}>
@@ -689,7 +586,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                     </button>
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-background border border-border">
                       {item.icon_url ? (
-                        <img src={item.icon_url} alt="" className="h-full w-full object-cover" />
+                        <img src={item.icon_url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                       ) : (
                         <span className="text-sm font-semibold text-muted-foreground">{item.name[0]}</span>
                       )}
@@ -757,6 +654,13 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                 </div>
               )})}
             </div>
+
+            <Pagination
+              currentPage={installedPageSafe}
+              totalPages={installedTotalPages}
+              onPageChange={setInstalledPage}
+              className="mt-3 shrink-0"
+            />
           </div>
 
           <div className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-border bg-card/40 p-4">
