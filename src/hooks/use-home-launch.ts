@@ -87,9 +87,7 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
       }
 
       // Лёгкий список: для запуска нужны версия/загрузчик/путь, а не контент сборки.
-      const builds = await (window.electronAPI.loadBuildsLight
-        ? window.electronAPI.loadBuildsLight()
-        : window.electronAPI.loadBuilds()) ?? []
+      const builds = (await window.electronAPI?.loadBuildsLight()) ?? []
       const build = builds.find((item) => item.name === selectedVersion)
       if (!build) {
         patchLaunchUi({ isLaunching: false, phase: "idle", progress: null, status: "Сборка не найдена" })
