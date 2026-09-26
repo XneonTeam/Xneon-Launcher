@@ -1,4 +1,4 @@
-import { queryAll, run, persistDatabase, isDbAvailable } from "./core"
+import { queryAll, run, isDbAvailable, transactionImmediate } from "./core"
 
 export type FileSnapshotRow = {
   path: string
@@ -19,5 +19,20 @@ export async function upsertFileSnapshot(snapshot: FileSnapshotRow): Promise<voi
     INSERT OR REPLACE INTO file_snapshots (path, size, mtime, sha1)
     VALUES (?, ?, ?, ?)
   `, [snapshot.path, snapshot.size, snapshot.mtime, snapshot.sha1])
-  persistDatabase()
+}
+
+/**
+ * Батч-версия {@link upsertFileSnapshot}: холодный скан пишет снапшот на каждый
+ * новый файл, и поштучные коммиты давали столько же fsync'ов.
+ */
+export async function upsertFileSnapshots(snapshots: FileSnapshotRow[]): Promise<void> {
+  if (!isDbAvailable() || snapshots.length === 0) return
+  transactionImmediate(() => {
+    for (const snapshot of snapshots) {
+      run(`
+        INSERT OR REPLACE INTO file_snapshots (path, size, mtime, sha1)
+        VALUES (?, ?, ?, ?)
+      `, [snapshot.path, snapshot.size, snapshot.mtime, snapshot.sha1])
+    }
+  })
 }
