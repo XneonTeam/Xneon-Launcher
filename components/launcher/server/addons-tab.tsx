@@ -38,7 +38,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
   const [totalHits, setTotalHits] = useState(0)
   const [page, setPage] = useState(1)
   const [sortBy, setSortBy] = useState<ModSort>("downloads")
-  const [source, setSource] = useState<SearchSource>("both")
+  const [source, setSource] = useState<SearchSource>("modrinth")
   const [installingSlug, setInstallingSlug] = useState<string | null>(null)
   const [installedFiles, setInstalledFiles] = useState<McFsEntry[]>([])
   const [resolvedPlugins, setResolvedPlugins] = useState<Array<{ name: string; sha1: string; projectId?: string; versionId?: string }>>([])
@@ -363,18 +363,19 @@ export function AddonsTab({ server }: AddonsTabProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              {/* Порядок пунктов: Modrinth → CurseForge → обе платформы (и Modrinth по умолчанию). */}
+              <SelectItem value="modrinth">
+                <span className="flex items-center gap-1.5"><SourceMark source="modrinth" />Modrinth</span>
+              </SelectItem>
+              <SelectItem value="curseforge">
+                <span className="flex items-center gap-1.5"><SourceMark source="curseforge" />CurseForge</span>
+              </SelectItem>
               <SelectItem value="both">
                 <span className="flex items-center gap-1.5">
                   <SourceMark source="modrinth" />
                   <SourceMark source="curseforge" />
                   {t("servers.addons.bothPlatforms")}
                 </span>
-              </SelectItem>
-              <SelectItem value="modrinth">
-                <span className="flex items-center gap-1.5"><SourceMark source="modrinth" />Modrinth</span>
-              </SelectItem>
-              <SelectItem value="curseforge">
-                <span className="flex items-center gap-1.5"><SourceMark source="curseforge" />CurseForge</span>
               </SelectItem>
             </SelectContent>
           </Select>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { IconPlus, IconServer, IconTrash, IconLayoutGrid, IconLayoutList, IconPlayerPlay, IconPlayerStop, IconTerminal, IconPencil, IconChevronDown, IconChevronRight, IconPhoto } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
@@ -26,11 +26,17 @@ import type { ModDetails, ModSearchResult, ModSort, ModVersion, ModalTab } from 
 
 interface ServersPageProps {
   onSelectServer?: (server: McServerInfo) => void
+  /**
+   * Счётчик из launcher.tsx: меняется при повторном клике по разделу «Серверы»
+   * в сайдбаре и возвращает страницу к списку серверов (из корзины, Modrinth,
+   * CurseForge). Первый рендер и обычные ре-рендеры сброса не делают.
+   */
+  rootResetToken?: number
 }
 
 const PAGE_SIZE = 20
 
-export function ServersPage({ onSelectServer }: ServersPageProps) {
+export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps) {
   const { t } = useTranslation()
   const { servers, loading, createServer, deleteServer, duplicateServer, reload,
     setServerGroup, renameGroup, deleteGroup, addCategory, groups, collapsedGroups, toggleGroupCollapse,
@@ -148,6 +154,20 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
     const t = setTimeout(() => void fetchCfModpacks(cfSearch, cfPage), 350)
     return () => clearTimeout(t)
   }, [fetchCfModpacks, cfSearch, cfPage, view])
+
+  /**
+   * Повторный клик по «Серверам» в сайдбаре возвращает к списку серверов:
+   * внутренняя вкладка (корзина, Modrinth, CurseForge) живёт в состоянии этой
+   * страницы, поэтому сброс выбранного сервера в launcher.tsx её не менял —
+   * раздел выглядел «застрявшим» на маркетплейсе.
+   */
+  const rootResetRef = useRef(rootResetToken ?? 0)
+  useEffect(() => {
+    if (rootResetToken === undefined || rootResetToken === rootResetRef.current) return
+    rootResetRef.current = rootResetToken
+    setView("servers")
+    void reload()
+  }, [rootResetToken, reload])
 
   useEffect(() => { setMrPage(0) }, [mrSearch, mrSortBy, selectedModLoader, selectedVersion, modCategories, catsKey])
   useEffect(() => { setCfPage(0) }, [cfSearch, cfSortBy, selectedModLoader, selectedVersion, modCategories, catsKey])
@@ -411,7 +431,10 @@ export function ServersPage({ onSelectServer }: ServersPageProps) {
       </div>
 
       {view === "trash" ? (
-        <ServerTrashView onBack={() => setView("servers")} />
+        // Возврат из корзины обязан перечитать список: восстановленный сервер
+        // меняет БД, а состояние хука осталось с момента загрузки вкладки —
+        // без reload сервер не появлялся в списке до перезахода на вкладку.
+        <ServerTrashView onBack={() => { setView("servers"); void reload() }} />
       ) : view === "modrinth" ? (
         <ServersBrowse
           source="modrinth"
