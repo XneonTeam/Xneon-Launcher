@@ -1,5 +1,6 @@
 import fs from "fs/promises"
 import path from "path"
+import { app } from "electron"
 
 const CLIENT_ID = "1279183673660538972"
 const RETRY_DELAY_MS = 15_000
@@ -7,6 +8,7 @@ let rpc: any = null
 let connected = false
 let connecting = false
 let retryTimer: NodeJS.Timeout | null = null
+let shuttingDown = false
 let pendingActivity: DiscordActivity | null = null
 let lastActivity: DiscordActivity | null = null
 let gameStartTimestamp: number | undefined = undefined
@@ -98,6 +100,12 @@ async function loginWithRuntimeDir(runtimeDir?: string): Promise<any> {
     // activity must be flushed here even if the "ready" event raced us.
     connected = true
     return client
+  } catch (error) {
+    // login() мог успеть поднять IPC-соединение и навесить слушателей: без
+    // destroy() каждая неудачная попытка утекала, а retry раз в 15 секунд
+    // создавал новый клиент.
+    try { await client.destroy() } catch { /* клиент мог не успеть создать соединение */ }
+    throw error
   } finally {
     if (previousRuntimeDir === undefined) {
       delete process.env.XDG_RUNTIME_DIR
@@ -108,7 +116,7 @@ async function loginWithRuntimeDir(runtimeDir?: string): Promise<any> {
 }
 
 function scheduleRetry(): void {
-  if (retryTimer) return
+  if (retryTimer || shuttingDown) return
   retryTimer = setTimeout(() => {
     retryTimer = null
     if (!connected) {
@@ -128,7 +136,7 @@ function flushPendingActivity(): void {
 }
 
 export async function initDiscordRpc(): Promise<void> {
-  if (connected || connecting) return
+  if (connected || connecting || shuttingDown) return
   connecting = true
 
   try {
@@ -296,3 +304,27 @@ export function isDiscordRpcConnected(): boolean {
 setTimeout(() => {
   setDiscordActivity({ state: "В меню" })
 }, 1500)
+
+/**
+ * Корректно останавливает RPC при выходе приложения: уничтожает клиент (вместе
+ * с IPC-соединением и слушателями) и снимает retry-таймер, чтобы после
+ * `before-quit` не оставалось живых подписок и повторных попыток подключения.
+ */
+export function shutdownDiscordRpc(): void {
+  shuttingDown = true
+  if (retryTimer) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
+  const client = rpc
+  rpc = null
+  connected = false
+  pendingActivity = null
+  if (client) {
+    try { void client.destroy() } catch { /* клиент мог быть уже уничтожен */ }
+  }
+}
+
+app.on("before-quit", () => {
+  shutdownDiscordRpc()
+})

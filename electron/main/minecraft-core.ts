@@ -5,7 +5,7 @@
 
 import type * as XnlcCoreNS from "@xnlc/core" with { "resolution-mode": "import" }
 import type { XnlcHandler, ResolvedLaunchRequest } from "@xnlc/core" with { "resolution-mode": "import" }
-import { logRuntimeDebug } from "./runtime"
+import { logRuntime, logRuntimeDebug } from "./runtime"
 import { LaunchOrchestrator, getLaunchOrchestrator } from "./launch-orchestrator"
 import { dbHelpers, type DbAccount } from "../db"
 
@@ -49,6 +49,15 @@ export async function getHandler(): Promise<XnlcHandler> {
   return handler
 }
 
+/**
+ * Выполняет действие с контекстом XnlcHandler, подменяя ошибку на fallback.
+ *
+ * Fallback осмыслен для «списков» (версии загрузчиков, настройки): пустой
+ * результат там означает «нет данных», и UI это переживает. Но сбой не должен
+ * быть незаметным — раньше он уходил только в консоль main, которую пользователь
+ * не видит. Теперь пишем и в runtime-лог лаунчера (страница «Логи»), поэтому
+ * проблема с @xnlc/core или сетью видна в интерфейсе.
+ */
 export async function callHandler<T>(
   label: string,
   fallback: T,
@@ -57,7 +66,8 @@ export async function callHandler<T>(
   try {
     return await action(await getHandler())
   } catch (error) {
-    console.error(`Failed to ${label}:`, error)
+    const message = error instanceof Error ? error.message : String(error)
+    logRuntime(`[IPC] Failed to ${label}: ${message} — верну значение по умолчанию`)
     return fallback
   }
 }
