@@ -40,6 +40,9 @@ importers:
       '@xnlc/servers':
         specifier: workspace:*
         version: link:packages/xnlc-servers
+      '@xnlc/skins':
+        specifier: workspace:*
+        version: link:packages/xnlc-skins
       '@xnlc/types':
         specifier: workspace:*
         version: link:packages/xnlc-types
@@ -232,6 +235,15 @@ importers:
       toml:
         specifier: ^5.0.0
         version: 5.0.0
+
+  packages/xnlc-skins:
+    dependencies:
+      '@xnlc/core':
+        specifier: workspace:*
+        version: link:../xnlc-core
+      '@xnlc/types':
+        specifier: workspace:*
+        version: link:../xnlc-types
 
   packages/xnlc-types: {}
 

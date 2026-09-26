@@ -23,6 +23,7 @@
     "@xnlc/mods": "workspace:*",
     "@xnlc/nbt": "workspace:*",
     "@xnlc/servers": "workspace:*",
+    "@xnlc/skins": "workspace:*",
     "@xnlc/types": "workspace:*",
     "adm-zip": "^0.6.0",
     "axios": "^1.18.1",
@@ -56,7 +57,8 @@
     "build": "pnpm run typecheck && vite build && pnpm run build:electron",
     "package": "pnpm run build && electron-builder",
     "typecheck": "tsc --noEmit",
-    "test:xn-auth": "node scripts/test-xn-auth.mjs"
+    "test:xn-auth": "node scripts/test-xn-auth.mjs",
+    "test:skins": "node scripts/test-skins.mjs"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.0",
