@@ -15,6 +15,8 @@ const XSTS_AUTH_URL = "https://xsts.auth.xboxlive.com/xsts/authorize"
 const MS_TOKEN_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
 const MS_SCOPE = "XboxLive.SignIn XboxLive.offline_access"
 const FORM_HEADERS = { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" }
+/** Верхняя граница размера файла, который `read-local-file` отдаёт в renderer. */
+const MAX_LOCAL_READ_BYTES = 16 * 1024 * 1024
 
 type XToken = { token: string; uhs: string }
 
@@ -102,10 +104,157 @@ async function ensureValidToken(account: { id: string; type: string; accessToken
   return null
 }
 
+/**
+ * Аккаунт вместе с рабочим токеном Minecraft Services.
+ *
+ * Токен Microsoft живёт ~24 часа, поэтому одного `account.accessToken` мало:
+ * если он пуст, пробуем обновить его по refresh-токену. Раньше эту логику
+ * знал только `skins:get-profile`, а применение скина шло напрямую по
+ * сохранённому токену и молча падало после его протухания.
+ */
+export async function resolveSkinAccount(accountId?: string): Promise<{ account: any; accessToken: string } | null> {
+  const account = await getAccountById(accountId)
+  if (!account) return null
+  const accessToken = await ensureValidToken(account as any, dbHelpers.saveAccount as any)
+  if (!accessToken) return null
+  return { account, accessToken }
+}
+
+/**
+ * Отправляет текстуру в Minecraft Services и (по желанию) надевает плащ.
+ * Общий путь для скинов из «Избранного» и из каталога Laby.
+ *
+ * На 401 один раз обновляем токен и повторяем: именно так ведёт себя
+ * `skins:get-profile`, и без этого повторного захода скин не надевался до
+ * перезапуска лаунчера.
+ */
+export async function uploadSkinTexture(params: {
+  accountId?: string
+  buffer: Buffer
+  variant: "classic" | "slim"
+  capeId?: string | null
+}): Promise<boolean> {
+  const resolved = await resolveSkinAccount(params.accountId)
+  if (!resolved) return false
+
+  const send = async (token: string) => {
+    const blob = new Blob([new Uint8Array(params.buffer)], { type: "image/png" })
+    const formData = new FormData()
+    formData.append("variant", params.variant.toUpperCase())
+    formData.append("file", blob, "skin.png")
+    return fetchWithRetry(`${MC_PROFILE_URL}/skins`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    })
+  }
+
+  try {
+    let res = await send(resolved.accessToken)
+    if (res.status === 401 && resolved.account.type === "microsoft" && resolved.account.refreshToken) {
+      const refreshed = await refreshMicrosoftMcToken(resolved.account.refreshToken)
+      if (refreshed) {
+        await dbHelpers.saveAccount({
+          ...resolved.account,
+          accessToken: refreshed.accessToken,
+          refreshToken: refreshed.refreshToken,
+        } as any)
+        res = await send(refreshed.accessToken)
+      }
+    }
+    if (!res.ok) return false
+
+    if (params.capeId) {
+      await fetchWithRetry(`${MC_PROFILE_URL}/capes/active`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${resolved.accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ capeId: params.capeId }),
+      })
+    }
+
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Кладёт готовую текстуру в `<data>/skins` и заводит запись в «Избранном».
+ * Используется импортом из каталога Laby: текстура приходит буфером, а не
+ * файлом на диске, поэтому `skins:save-to-library` тут не подходит.
+ */
+export async function writeSkinFileToLibrary(params: {
+  name: string
+  variant: "classic" | "slim"
+  accountId: string
+  capeId?: string | null
+  buffer: Buffer
+  /** Идентификатор источника (`laby:<hash>`), если текстура пришла из каталога. */
+  sourceId?: string | null
+}): Promise<LibrarySkin | null> {
+  try {
+    const dataDir = await dbHelpers.getLauncherDirectory()
+    const skinsDir = path.join(dataDir, "skins")
+    await fs.mkdir(skinsDir, { recursive: true })
+
+    const id = crypto.randomUUID()
+    const destPath = path.join(skinsDir, `${id}.png`)
+    await fs.writeFile(destPath, params.buffer)
+
+    const skin: LibrarySkin = {
+      id,
+      accountId: params.accountId,
+      name: params.name,
+      filePath: destPath,
+      variant: params.variant,
+      capeId: params.capeId ?? null,
+      createdAt: new Date().toISOString(),
+      sourceId: params.sourceId ?? null,
+    }
+
+    await dbHelpers.saveSkinToLibrary({
+      id: skin.id,
+      accountId: skin.accountId,
+      name: skin.name,
+      filePath: skin.filePath,
+      variant: skin.variant,
+      capeId: skin.capeId,
+      createdAt: skin.createdAt,
+      sourceId: skin.sourceId ?? null,
+    })
+
+    return skin
+  } catch {
+    return null
+  }
+}
+
 export function registerSkinsHandlers() {
+  /**
+   * Отдаёт renderer'у содержимое файла в base64.
+   *
+   * Раньше путь приходил из renderer'а и никак не проверялся: любой код в окне
+   * (в том числе из XSS в описании мода) мог прочитать произвольный файл на
+   * диске. Единственный потребитель — превью скинов из библиотеки, а лаунчер
+   * сам складывает их в `<data>/skins` (`skins:save-to-library`,
+   * `skins:import-from-url`), поэтому читаем только оттуда и только картинки
+   * разумного размера.
+   */
   ipcMain.handle("read-local-file", async (_event, filePath: string) => {
     try {
-      const buffer = await fs.readFile(filePath)
+      if (typeof filePath !== "string" || !filePath) return null
+      const dataDir = await dbHelpers.getLauncherDirectory()
+      const skinsDir = path.resolve(dataDir, "skins")
+      const resolved = path.resolve(filePath)
+      const relative = path.relative(skinsDir, resolved)
+      // Выход за пределы каталога скинов (в том числе через `..`) запрещён.
+      if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) return null
+      const stat = await fs.stat(resolved)
+      if (!stat.isFile() || stat.size > MAX_LOCAL_READ_BYTES) return null
+      const buffer = await fs.readFile(resolved)
       return buffer.toString("base64")
     } catch {
       return null
@@ -183,25 +332,13 @@ export function registerSkinsHandlers() {
   })
 
   ipcMain.handle("skins:upload-skin", async (_event, params: { filePath: string; variant: "classic" | "slim"; accountId?: string }) => {
-    const account = await getAccountById(params.accountId)
-    const accessToken = account?.accessToken
-    if (!accessToken) return false
-
     try {
       const fileBuffer = await fs.readFile(params.filePath)
-      const fileName = path.basename(params.filePath)
-      const blob = new Blob([fileBuffer], { type: "image/png" })
-
-      const formData = new FormData()
-      formData.append("variant", params.variant.toUpperCase())
-      formData.append("file", blob, fileName)
-
-      const res = await fetchWithRetry(`${MC_PROFILE_URL}/skins`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}` },
-        body: formData,
+      return await uploadSkinTexture({
+        accountId: params.accountId,
+        buffer: fileBuffer,
+        variant: params.variant,
       })
-      return res.ok
     } catch {
       return false
     }
@@ -263,42 +400,20 @@ export function registerSkinsHandlers() {
       variant: r.variant as "classic" | "slim",
       capeId: r.capeId ?? null,
       createdAt: r.createdAt,
+      sourceId: r.sourceId ?? null,
     }))
   })
 
   ipcMain.handle("skins:save-to-library", async (_event, params: { filePath: string; name: string; variant: "classic" | "slim"; accountId: string; capeId?: string | null }) => {
     try {
-      const dataDir = await dbHelpers.getLauncherDirectory()
-      const skinsDir = path.join(dataDir, "skins")
-      await fs.mkdir(skinsDir, { recursive: true })
-
-      const ext = path.extname(params.filePath) || ".png"
-      const id = crypto.randomUUID()
-      const destPath = path.join(skinsDir, `${id}${ext}`)
-
-      await fs.copyFile(params.filePath, destPath)
-
-      const skin: LibrarySkin = {
-        id,
-        accountId: params.accountId,
+      const buffer = await fs.readFile(params.filePath)
+      return await writeSkinFileToLibrary({
         name: params.name,
-        filePath: destPath,
         variant: params.variant,
+        accountId: params.accountId,
         capeId: params.capeId ?? null,
-        createdAt: new Date().toISOString(),
-      }
-
-      await dbHelpers.saveSkinToLibrary({
-        id: skin.id,
-        accountId: skin.accountId,
-        name: skin.name,
-        filePath: skin.filePath,
-        variant: skin.variant,
-        capeId: skin.capeId,
-        createdAt: skin.createdAt,
+        buffer,
       })
-
-      return skin
     } catch {
       return null
     }
@@ -306,8 +421,9 @@ export function registerSkinsHandlers() {
 
   ipcMain.handle("skins:delete-from-library", async (_event, id: string) => {
     try {
-      const rows = await dbHelpers.loadSkinLibrary("")
-      const skin = rows.find((r) => r.id === id)
+      // Ищем запись по id, а не по списку аккаунта: прежний вызов
+      // `loadSkinLibrary("")` не находил ничего, и PNG оставался на диске.
+      const skin = await dbHelpers.findLibrarySkinById(id)
       if (skin?.filePath) {
         await fs.unlink(skin.filePath).catch(() => {})
       }
@@ -334,43 +450,18 @@ export function registerSkinsHandlers() {
   })
 
   ipcMain.handle("skins:apply-library-skin", async (_event, params: { skinId: string; accountId: string }) => {
-    const account = await getAccountById(params.accountId)
-    const accessToken = account?.accessToken
-    if (!accessToken) return false
-
     try {
       const rows = await dbHelpers.loadSkinLibrary(params.accountId)
       const skin = rows.find((r) => r.id === params.skinId)
       if (!skin) return false
 
       const fileBuffer = await fs.readFile(skin.filePath)
-      const fileName = path.basename(skin.filePath)
-      const blob = new Blob([fileBuffer], { type: "image/png" })
-
-      const formData = new FormData()
-      formData.append("variant", skin.variant.toUpperCase())
-      formData.append("file", blob, fileName)
-
-      const res = await fetchWithRetry(`${MC_PROFILE_URL}/skins`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}` },
-        body: formData,
+      return await uploadSkinTexture({
+        accountId: params.accountId,
+        buffer: fileBuffer,
+        variant: skin.variant as "classic" | "slim",
+        capeId: skin.capeId ?? null,
       })
-      if (!res.ok) return false
-
-      // Apply cape if the skin has one
-      if (skin.capeId) {
-        await fetchWithRetry(`${MC_PROFILE_URL}/capes/active`, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ capeId: skin.capeId }),
-        })
-      }
-
-      return true
     } catch {
       return false
     }
@@ -378,39 +469,19 @@ export function registerSkinsHandlers() {
 
   ipcMain.handle("skins:import-from-url", async (_event, params: { url: string; name: string; variant: "classic" | "slim"; accountId: string }) => {
     try {
-      const dataDir = await dbHelpers.getLauncherDirectory()
-      const skinsDir = path.join(dataDir, "skins")
-      await fs.mkdir(skinsDir, { recursive: true })
-
       const res = await fetchWithRetry(params.url)
       if (!res.ok) return null
 
       const buffer = Buffer.from(await res.arrayBuffer())
-      const id = crypto.randomUUID()
-      const destPath = path.join(skinsDir, `${id}.png`)
-      await fs.writeFile(destPath, buffer)
+      if (buffer.length === 0 || buffer.length > MAX_LOCAL_READ_BYTES) return null
 
-      const skin: LibrarySkin = {
-        id,
-        accountId: params.accountId,
+      return await writeSkinFileToLibrary({
         name: params.name,
-        filePath: destPath,
         variant: params.variant,
+        accountId: params.accountId,
         capeId: null,
-        createdAt: new Date().toISOString(),
-      }
-
-      await dbHelpers.saveSkinToLibrary({
-        id: skin.id,
-        accountId: skin.accountId,
-        name: skin.name,
-        filePath: skin.filePath,
-        variant: skin.variant,
-        capeId: null,
-        createdAt: skin.createdAt,
+        buffer,
       })
-
-      return skin
     } catch {
       return null
     }
