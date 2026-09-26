@@ -1,14 +1,12 @@
-import { toErrorMessage, opFailure } from "../../errors"
+import { opFailure } from "../../errors"
 import { shell } from "electron"
-import http from "http"
 import { URL } from "url"
 import fs from "fs/promises"
 import path from "path"
 import type { CloudProvider, CloudAuthResult, CloudFileListResult, CloudUploadResult, CloudDownloadResult, CloudStorageQuota, CloudFileInfo } from "../provider"
-import { callbackSuccessPage, callbackErrorPage } from "../callback-page"
 import { getCloudCredentials } from "../credentials"
-import { generatePkcePair } from "../pkce"
-import { dbHelpers } from "../../../db"
+import { readCloudToken, writeCloudToken, clearCloudToken } from "../token-store"
+import { runOAuthLoopback } from "../oauth-loopback"
 import { fetchWithRetry } from "@xnlc/core/retry"
 
 const REDIRECT_PORT = 18936
@@ -28,18 +26,8 @@ type OneDriveConfig = {
   expires_at?: number
 }
 
-async function readConfig(): Promise<OneDriveConfig | null> {
-  try {
-    const raw = await dbHelpers.getCloudConfig("onedrive")
-    if (raw) return JSON.parse(raw) as OneDriveConfig
-  } catch { /* noop */ }
-  return null
-}
-
-async function writeConfig(config: OneDriveConfig): Promise<void> {
-  const raw = JSON.stringify(config)
-  await dbHelpers.setCloudConfig("onedrive", raw)
-}
+const readConfig = () => readCloudToken<OneDriveConfig>("onedrive")
+const writeConfig = (config: OneDriveConfig) => writeCloudToken("onedrive", config)
 
 async function refreshAccessToken(config: OneDriveConfig): Promise<OneDriveConfig> {
   if (!config.refresh_token) throw new Error("No refresh token")
@@ -115,61 +103,48 @@ export class OneDriveProvider implements CloudProvider {
     const existing = await readConfig()
     const clientId = authData?.client_id || existing?.client_id || ONEDRIVE_CLIENT_ID
     if (!clientId) return { success: false, error: "Укажите client_id приложения Azure AD" }
-    const { verifier, challenge } = generatePkcePair()
 
-    return new Promise((resolve) => {
-      const authUrl = new URL(AUTH_ENDPOINT)
-      authUrl.searchParams.set("client_id", clientId)
-      authUrl.searchParams.set("response_type", "code")
-      authUrl.searchParams.set("redirect_uri", REDIRECT_URI)
-      authUrl.searchParams.set("scope", SCOPES)
-      authUrl.searchParams.set("code_challenge", challenge)
-      authUrl.searchParams.set("code_challenge_method", "S256")
-      authUrl.searchParams.set("prompt", "select_account")
-
-      const server = http.createServer(async (req, res) => {
-        const url = new URL(req.url || "/", REDIRECT_URI)
-        const code = url.searchParams.get("code")
-        if (!code) { res.writeHead(400); res.end("No code"); return }
-
-        try {
-          const body = new URLSearchParams({ client_id: clientId, grant_type: "authorization_code", code, redirect_uri: REDIRECT_URI, code_verifier: verifier, scope: SCOPES })
-          const tokenRes = await fetch(TOKEN_ENDPOINT, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body,
-          })
-          if (!tokenRes.ok) {
-            let detail = ""
-            try { detail = await tokenRes.text() } catch { /* noop */ }
-            throw new Error(`Token exchange failed: ${tokenRes.status}${detail ? ` — ${detail}` : ""}`)
-          }
-          const data = await tokenRes.json() as { access_token: string; expires_in: number; refresh_token?: string }
-          await writeConfig({
-            client_id: clientId,
-            access_token: data.access_token,
-            refresh_token: data.refresh_token,
-            expires_at: Date.now() + data.expires_in * 1000,
-          })
-          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-          res.end(callbackSuccessPage("OneDrive"))
-          server.close()
-          resolve({ success: true, provider: "onedrive" })
-        } catch (e) {
-          res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" })
-          res.end(callbackErrorPage("OneDrive", toErrorMessage(e)))
-          server.close()
-          resolve({ success: false, error: toErrorMessage(e) })
+    // Общий loopback-каркас (см. oauth-loopback.ts).
+    return runOAuthLoopback({
+      providerLabel: "OneDrive",
+      providerId: "onedrive",
+      port: REDIRECT_PORT,
+      buildAuthUrl: ({ challenge }) => {
+        const authUrl = new URL(AUTH_ENDPOINT)
+        authUrl.searchParams.set("client_id", clientId)
+        authUrl.searchParams.set("response_type", "code")
+        authUrl.searchParams.set("redirect_uri", REDIRECT_URI)
+        authUrl.searchParams.set("scope", SCOPES)
+        authUrl.searchParams.set("code_challenge", challenge)
+        authUrl.searchParams.set("code_challenge_method", "S256")
+        authUrl.searchParams.set("prompt", "select_account")
+        return authUrl.toString()
+      },
+      exchange: async (code, verifier) => {
+        const tokenRes = await fetch(TOKEN_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ client_id: clientId, grant_type: "authorization_code", code, redirect_uri: REDIRECT_URI, code_verifier: verifier, scope: SCOPES }),
+        })
+        if (!tokenRes.ok) {
+          let detail = ""
+          try { detail = await tokenRes.text() } catch { /* noop */ }
+          throw new Error(`Token exchange failed: ${tokenRes.status}${detail ? ` — ${detail}` : ""}`)
         }
-      })
-      server.listen(REDIRECT_PORT, () => { shell.openExternal(authUrl.toString()) })
-      setTimeout(() => { server.close(); resolve({ success: false, error: "Timeout" }) }, 120000)
+        const data = await tokenRes.json() as { access_token: string; expires_in: number; refresh_token?: string }
+        await writeConfig({
+          client_id: clientId,
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          expires_at: Date.now() + data.expires_in * 1000,
+        })
+      },
     })
   }
 
   async isAuthenticated(): Promise<boolean> { return (await getValidConfig()) !== null }
   async logout(): Promise<void> {
-    try { await dbHelpers.removeCloudConfig("onedrive") } catch { /* noop */ }
+    await clearCloudToken("onedrive")
   }
 
   async ensureBaseFolder(): Promise<void> {

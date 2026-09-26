@@ -3,7 +3,7 @@ import fs from "fs/promises"
 import path from "path"
 import crypto from "crypto"
 import type { CloudProvider, CloudAuthResult, CloudFileListResult, CloudUploadResult, CloudDownloadResult, CloudStorageQuota, CloudFileInfo } from "../provider"
-import { dbHelpers } from "../../../db"
+import { readCloudToken, writeCloudToken, clearCloudToken } from "../token-store"
 import { fetchWithRetry } from "@xnlc/core/retry"
 
 const BASE_PREFIX = "xneon-launcher/"
@@ -21,15 +21,13 @@ let cachedConfig: S3Config | null = null
 
 async function readConfig(): Promise<S3Config | null> {
   if (cachedConfig) return cachedConfig
-  try {
-    const raw = await dbHelpers.getCloudConfig("s3")
-    if (raw) { cachedConfig = JSON.parse(raw) as S3Config; return cachedConfig }
-  } catch { /* noop */ }
-  return null
+  const config = await readCloudToken<S3Config>("s3")
+  if (config) cachedConfig = config
+  return config
 }
 
 async function writeConfig(config: S3Config): Promise<void> {
-  await dbHelpers.setCloudConfig("s3", JSON.stringify(config))
+  await writeCloudToken("s3", config)
   cachedConfig = config
 }
 
@@ -198,7 +196,7 @@ export class S3Provider implements CloudProvider {
   }
 
   async logout(): Promise<void> {
-    try { await dbHelpers.removeCloudConfig("s3") } catch { /* noop */ }
+    await clearCloudToken("s3")
     cachedConfig = null
   }
 

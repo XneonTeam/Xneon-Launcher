@@ -1,16 +1,14 @@
-import { toErrorMessage, opFailure } from "../../errors"
-import { BrowserWindow, shell } from "electron"
-import http from "http"
+import { opFailure } from "../../errors"
+import { BrowserWindow } from "electron"
 import https from "https"
 import { createReadStream } from "fs"
 import { URL } from "url"
 import fs from "fs/promises"
 import path from "path"
 import type { CloudProvider, CloudAuthResult, CloudFileListResult, CloudUploadResult, CloudDownloadResult, CloudStorageQuota, CloudFileInfo } from "../provider"
-import { callbackSuccessPage, callbackErrorPage } from "../callback-page"
 import { getCloudCredentials } from "../credentials"
-import { generatePkcePair } from "../pkce"
-import { dbHelpers } from "../../../db"
+import { readCloudToken, writeCloudToken, clearCloudToken } from "../token-store"
+import { runOAuthLoopback } from "../oauth-loopback"
 import { fetchWithRetry } from "@xnlc/core/retry"
 
 const credentials = getCloudCredentials()
@@ -36,19 +34,12 @@ function isValidToken(data: TokenData | null): data is TokenData {
   return !!data.access_token
 }
 
+/** Токен и его обновление — в общем хранилище (см. token-store.ts). */
 async function readToken(): Promise<TokenData | null> {
-  try {
-    const raw = await dbHelpers.getCloudConfig("google-drive")
-    const data = JSON.parse(raw ?? "null") as TokenData
-    if (isValidToken(data)) return data
-  } catch { /* noop */ }
-  return null
+  const data = await readCloudToken<TokenData>("google-drive")
+  return isValidToken(data) ? data : null
 }
-
-async function writeToken(data: TokenData): Promise<void> {
-  const raw = JSON.stringify(data)
-  await dbHelpers.setCloudConfig("google-drive", raw)
-}
+const writeToken = (data: TokenData) => writeCloudToken("google-drive", data)
 
 async function refreshAccessToken(token: TokenData): Promise<TokenData> {
   if (!token.refresh_token) throw new Error("No refresh token")
@@ -156,65 +147,45 @@ export class GoogleDriveProvider implements CloudProvider {
   readonly name = "Google Drive"
 
   async authenticate(): Promise<CloudAuthResult> {
-    return new Promise((resolve) => {
-      const { verifier, challenge } = generatePkcePair()
-      const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth")
-      authUrl.searchParams.set("client_id", GOOGLE_CLIENT_ID)
-      authUrl.searchParams.set("redirect_uri", GOOGLE_REDIRECT_URI)
-      authUrl.searchParams.set("response_type", "code")
-      authUrl.searchParams.set("scope", GOOGLE_SCOPES)
-      authUrl.searchParams.set("access_type", "offline")
-      authUrl.searchParams.set("prompt", "consent")
-      authUrl.searchParams.set("code_challenge", challenge)
-      authUrl.searchParams.set("code_challenge_method", "S256")
-
-      const server = http.createServer(async (req, res) => {
-        const url = new URL(req.url || "/", `http://localhost:${GOOGLE_REDIRECT_PORT}`)
-        const code = url.searchParams.get("code")
-        if (!code) {
-          res.writeHead(400)
-          res.end("No code")
-          return
-        }
-
-        try {
-          const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
-              code,
-              client_id: GOOGLE_CLIENT_ID,
-              client_secret: GOOGLE_CLIENT_SECRET,
-              grant_type: "authorization_code",
-              redirect_uri: GOOGLE_REDIRECT_URI,
-              code_verifier: verifier,
-            }),
-          })
-          if (!tokenRes.ok) throw new Error("Token exchange failed")
-          const data = await tokenRes.json() as { access_token: string; refresh_token: string; expires_in: number }
-          await writeToken({
-            access_token: data.access_token,
-            refresh_token: data.refresh_token,
-            expires_at: Date.now() + data.expires_in * 1000,
-          })
-
-          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-          res.end(callbackSuccessPage("Google Drive"))
-          server.close()
-          resolve({ success: true, provider: "google-drive" })
-        } catch (e) {
-          res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" })
-          res.end(callbackErrorPage("Google Drive", toErrorMessage(e)))
-          server.close()
-          resolve({ success: false, error: toErrorMessage(e) })
-        }
-      })
-
-      server.listen(GOOGLE_REDIRECT_PORT, () => {
-        shell.openExternal(authUrl.toString())
-      })
-
-      setTimeout(() => { server.close(); resolve({ success: false, error: "Timeout" }) }, 120000)
+    // Общий loopback-каркас (см. oauth-loopback.ts): сервер, таймер, страницы
+    // ответа и закрытие — в одном месте, провайдер отдаёт только свои параметры.
+    return runOAuthLoopback({
+      providerLabel: "Google Drive",
+      providerId: "google-drive",
+      port: GOOGLE_REDIRECT_PORT,
+      buildAuthUrl: ({ challenge }) => {
+        const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth")
+        authUrl.searchParams.set("client_id", GOOGLE_CLIENT_ID)
+        authUrl.searchParams.set("redirect_uri", GOOGLE_REDIRECT_URI)
+        authUrl.searchParams.set("response_type", "code")
+        authUrl.searchParams.set("scope", GOOGLE_SCOPES)
+        authUrl.searchParams.set("access_type", "offline")
+        authUrl.searchParams.set("prompt", "consent")
+        authUrl.searchParams.set("code_challenge", challenge)
+        authUrl.searchParams.set("code_challenge_method", "S256")
+        return authUrl.toString()
+      },
+      exchange: async (code, verifier) => {
+        const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            code,
+            client_id: GOOGLE_CLIENT_ID,
+            client_secret: GOOGLE_CLIENT_SECRET,
+            grant_type: "authorization_code",
+            redirect_uri: GOOGLE_REDIRECT_URI,
+            code_verifier: verifier,
+          }),
+        })
+        if (!tokenRes.ok) throw new Error("Token exchange failed")
+        const data = await tokenRes.json() as { access_token: string; refresh_token: string; expires_in: number }
+        await writeToken({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          expires_at: Date.now() + data.expires_in * 1000,
+        })
+      },
     })
   }
 
@@ -227,7 +198,7 @@ export class GoogleDriveProvider implements CloudProvider {
   }
 
   async logout(): Promise<void> {
-    try { await dbHelpers.removeCloudConfig("google-drive") } catch { /* noop */ }
+    await clearCloudToken("google-drive")
   }
 
   async ensureBaseFolder(): Promise<void> {

@@ -3,7 +3,7 @@ import { parentPort, workerData } from "worker_threads"
 import path from "path"
 import fs from "fs/promises"
 import AdmZip from "adm-zip"
-import { META_ICON_ENTRY } from "./archive-meta"
+import { META_ICON_ENTRY, META_NAME_ENTRY } from "./archive-meta"
 
 interface ZipWorkerData {
   intentPath: string
@@ -12,6 +12,8 @@ interface ZipWorkerData {
   categories?: string[]
   /** Иконка сборки (data-URL). Хранится в БД, а не в интенте, поэтому кладётся в архив отдельно. */
   icon?: string
+  /** Настоящее имя сборки/сервера: имя файла архива санитизировано и теряет `:`, `?`, `*`. */
+  name?: string
 }
 
 interface ZipWorkerResult {
@@ -20,46 +22,15 @@ interface ZipWorkerResult {
   error?: string
 }
 
-/**
- * Категории содержимого архива. Дублирует набор из builds/index.ts (BuildExportCategory)
- * плюс серверные категории, потому что worker исполняется в отдельном потоке и не может
- * импортировать модули main-процесса.
- */
-const CATEGORY_DIRS: Record<string, string[]> = {
-  mods: ["mods"],
-  resourcepacks: ["resourcepacks"],
-  shaderpacks: ["shaderpacks"],
-  saves: ["saves"],
-  world: ["world", "world_nether", "world_the_end"],
-  plugins: ["plugins"],
-  configs: ["config", "eula.txt", "server.properties", "whitelist.json", "ops.json", "banned-players.json", "banned-ips.json", "usercache.json"],
-  data: ["config", "options.txt", "servers.dat"],
-  logs: ["logs", "crash-reports", ".cache", ".fabric", ".quilt"],
-}
+import { EXPORT_CATEGORY_DIRS, SHARED_GAME_ENTRIES, categoriesOf as categoriesOfEntry } from "./categories.js"
 
-/**
- * Папки, которые идентичны во всех сборках и подключены junction-ссылкой
- * на общий кэш игр (см. shared-game-cache.ts). Их содержимое
- * восстанавливается при установке, поэтому в архив оно не попадает никогда.
- */
-const SHARED_GAME_ENTRIES = new Set(["versions", "libraries", "assets"])
-
-/**
- * Категории, которым принадлежит запись. Для файла в корне интента (нет папки)
- * верхним уровнем считается само имя файла — так `eula.txt` попадает в `configs`.
- */
+/** Категории, которым принадлежит запись. См. categories.ts. */
 function categoriesOf(relPath: string): string[] {
-  const segments = relPath.replace(/\\/g, "/").split("/").filter(Boolean)
-  const key = segments[0] ?? ""
-  const matched: string[] = []
-  for (const [cat, dirs] of Object.entries(CATEGORY_DIRS)) {
-    if (dirs.includes(key)) matched.push(cat)
-  }
-  return matched
+  return categoriesOfEntry(relPath, EXPORT_CATEGORY_DIRS)
 }
 
 async function run(): Promise<void> {
-  const { intentPath, archivePath, categories, icon } = workerData as ZipWorkerData
+  const { intentPath, archivePath, categories, icon, name } = workerData as ZipWorkerData
   const post = (stage: "scan" | "compress", percent: number) => {
     parentPort?.postMessage({ type: "zip-progress", stage, percent } satisfies ZipProgressMessage)
   }
@@ -97,6 +68,11 @@ async function run(): Promise<void> {
     // восстановлении из облака иконка не терялась. Пустую иконку не пишем.
     if (icon && icon.trim()) {
       zip.addFile(META_ICON_ENTRY, Buffer.from(icon, "utf-8"))
+    }
+
+    // Настоящее имя сборки: по имени файла архива оно уже не восстановится.
+    if (name && name.trim()) {
+      zip.addFile(META_NAME_ENTRY, Buffer.from(name, "utf-8"))
     }
 
     await fs.mkdir(path.dirname(archivePath), { recursive: true })
