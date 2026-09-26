@@ -280,6 +280,9 @@ function createIndexes() {
   // Аналогично: очистка статистики сервера по serverName
   run("CREATE INDEX IF NOT EXISTS idx_server_sessions_serverName ON server_sessions (serverName)")
   run("CREATE INDEX IF NOT EXISTS idx_skin_library_accountId ON skin_library (accountId, createdAt DESC)")
+  // Поиск «этот скин каталога уже сохранён» идёт по паре (accountId, sourceId):
+  // без индекса он сканировал все скины аккаунта при каждом добавлении в избранное.
+  run("CREATE INDEX IF NOT EXISTS idx_skin_library_source ON skin_library (accountId, sourceId)")
   run("CREATE INDEX IF NOT EXISTS idx_mc_servers_trashedAt ON mc_servers (trashedAt)")
   run("CREATE INDEX IF NOT EXISTS idx_resources_updatedAt ON resources (updatedAt DESC)")
 }
