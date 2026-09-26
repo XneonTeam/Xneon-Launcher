@@ -73,7 +73,7 @@ export function AddonRow({
       <div className="flex min-w-0 items-center gap-3.5">
         <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-muted flex-shrink-0">
           {project.iconUrl ? (
-            <img src={project.iconUrl} alt="" className="h-full w-full object-cover" />
+            <img src={project.iconUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
           ) : (
             <span className="text-sm font-bold text-muted-foreground">{project.name[0]}</span>
           )}

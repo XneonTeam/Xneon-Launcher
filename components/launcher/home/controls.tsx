@@ -315,6 +315,10 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
         const worldsList = await window.electronAPI.listWorlds(buildName)
         const sorted = [...worldsList].sort((a, b) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0))
         setWorlds(sorted.slice(0, QUICK_PLAY_MAX))
+      } else {
+        // У ванильной версии миров сборки нет: без сброса остался бы список
+        // от предыдущей выбранной сборки.
+        setWorlds([])
       }
       const gameDir = buildName ? await window.electronAPI.getBuildIntentPath(buildName) : await window.electronAPI.getGameDir()
       const list = await window.electronAPI.quickPlayList(buildName, gameDir)
@@ -366,7 +370,7 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
           <div className="flex items-center gap-1.5 px-1">
             <IconBolt className="w-3.5 h-3.5 text-primary" />
             <span className="flex-1 text-xs font-medium text-muted-foreground">{t("home.quickPlay")}</span>
-            {hasEntries && activeTab === "servers" && (
+            {activeTab === "servers" && (
               <button
                 type="button"
                 onClick={() => void pingEntries(entries)}
@@ -380,38 +384,34 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
             )}
           </div>
 
-          {/* Переключатель групп + постраничная навигация по 2 записи */}
+          {/* Переключатель групп виден всегда, даже если одна из групп пуста:
+              иначе при одном мире и без серверов вкладок не было вообще, а
+              вместо них висела одна подпись. */}
           <div className="flex items-center gap-1.5 px-1">
-            {worlds.length > 0 && entries.length > 0 ? (
-              <div className="flex items-center gap-0.5 rounded-lg border border-border bg-muted/30 p-0.5">
-                <button
-                  type="button"
-                  onClick={() => { setTab("servers"); setPage(0) }}
-                  className={cn(
-                    "flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors",
-                    activeTab === "servers" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <IconServer className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  {t("servers.title")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setTab("worlds"); setPage(0) }}
-                  className={cn(
-                    "flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors",
-                    activeTab === "worlds" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <IconMap className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  {t("builds.tab.worlds")}
-                </button>
-              </div>
-            ) : (
-              <span className="text-[11px] font-medium text-muted-foreground">
-                {activeTab === "servers" ? t("servers.title") : t("builds.tab.worlds")}
-              </span>
-            )}
+            <div className="flex items-center gap-0.5 rounded-lg border border-border bg-muted/30 p-0.5">
+              <button
+                type="button"
+                onClick={() => { setTab("servers"); setPage(0) }}
+                className={cn(
+                  "flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors",
+                  activeTab === "servers" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <IconServer className="h-3.5 w-3.5" strokeWidth={1.75} />
+                {t("servers.title")}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setTab("worlds"); setPage(0) }}
+                className={cn(
+                  "flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors",
+                  activeTab === "worlds" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <IconMap className="h-3.5 w-3.5" strokeWidth={1.75} />
+                {t("builds.tab.worlds")}
+              </button>
+            </div>
 
             {totalPages > 1 && (
               <div className="ml-auto flex items-center gap-0.5">
@@ -440,7 +440,7 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
             )}
           </div>
 
-          {activeTab === "worlds" && hasWorlds && (
+          {activeTab === "worlds" && (hasWorlds ? (
             <div className="flex flex-col gap-1.5">
               {visibleWorlds.map((world) => (
                 <QuickPlayWorldRow
@@ -450,9 +450,11 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
                 />
               ))}
             </div>
-          )}
+          ) : (
+            <p className="py-4 text-center text-[11px] text-muted-foreground">{t("home.quickPlayNoWorlds")}</p>
+          ))}
 
-          {activeTab === "servers" && hasEntries && (
+          {activeTab === "servers" && (hasEntries ? (
             <div className="flex flex-col gap-1.5">
               {visibleServers.map((entry) => (
                 <QuickPlayServerRow
@@ -463,7 +465,9 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
                 />
               ))}
             </div>
-          )}
+          ) : (
+            <p className="py-4 text-center text-[11px] text-muted-foreground">{t("home.quickPlayNoServers")}</p>
+          ))}
         </div>
       )}
     </div>

@@ -148,9 +148,16 @@ export function AddonDetailModal({
     if (doneTimerRef.current !== null) window.clearTimeout(doneTimerRef.current)
   }, [])
 
-  // Автоматическая загрузка ченджлогов для версий CurseForge.
+  // Автоматическая загрузка ченджлогов для версий: ни CurseForge, ни FTB не кладут
+  // их в список версий — у обеих площадок для этого отдельный запрос.
   useEffect(() => {
-    if (selectedDetails?.source !== "curseforge" || !selectedDetails.modId) return
+    const source = selectedDetails?.source
+    if (!selectedDetails || (source !== "curseforge" && source !== "ftb")) return
+
+    const projectId = source === "curseforge"
+      ? selectedDetails.modId
+      : Number(selectedDetails.projectId ?? selectedDetails.id)
+    if (!projectId || Number.isNaN(projectId)) return
 
     const targetVersions = modalTab === "changelog"
       ? displayedModalVersions.slice(0, 5)
@@ -166,10 +173,18 @@ export function AddonDetailModal({
 
     Promise.all(
       versionsToFetch.map(async (v) => {
-        const fileId = Number(v.id)
-        if (!fileId || isNaN(fileId)) return null
         try {
-          const text = await window.electronAPI?.modsCurseforgeChangelog(selectedDetails.modId!, fileId)
+          let text: string | undefined
+          if (source === "curseforge") {
+            const fileId = Number(v.id)
+            if (!fileId || isNaN(fileId)) return null
+            text = await window.electronAPI?.modsCurseforgeChangelog(projectId, fileId)
+          } else {
+            // Версии FTB приходят с id вида `ftb-<versionId>`.
+            const versionId = Number(String(v.id).replace(/^ftb-/, ""))
+            if (!versionId || isNaN(versionId)) return null
+            text = await window.electronAPI?.modsFtbChangelog(projectId, versionId)
+          }
           return { id: v.id, text: text || "" }
         } catch {
           return null
@@ -186,7 +201,7 @@ export function AddonDetailModal({
     })
 
     return () => { cancelled = true }
-  }, [modalTab, selectedDetails?.id, selectedDetails?.modId, displayedModalVersions, selectedUpdateVersion])
+  }, [modalTab, selectedDetails?.id, selectedDetails?.modId, selectedDetails?.projectId, selectedDetails?.source, displayedModalVersions, selectedUpdateVersion])
 
   const runVersionInstall = useCallback(async (
     version: ModVersion,
@@ -362,7 +377,7 @@ export function AddonDetailModal({
               )}
             >
               <Icon className="w-4 h-4" strokeWidth={1.75} />
-              {id}
+              {t(`addon.tab.${id}`)}
               {modalTab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full" />}
             </button>
           ))}

@@ -38,7 +38,10 @@ export function InstanceImportOverlay({
   const progressLabel = formatProgressLabel(t, importProgress.message, importProgress.source)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/78 p-4 backdrop-blur-sm">
+    // Фон затемняем как в обычных диалогах приложения (`bg-black/50`): прежний
+    // `bg-background/78` на тёмной теме давал почти чёрный экран, и было похоже,
+    // будто интерфейс пропал.
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-card shadow-2xl">
         <div className="border-b border-border px-5 py-4">
           <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">{t("import.modpackImport")}</p>

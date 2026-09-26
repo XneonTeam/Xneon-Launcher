@@ -83,6 +83,13 @@ const CONTENT_INSTALL_LIVE_KEY = "content-download"
 /** Страховка на случай, когда поток прогресса пришёл без владельца и оборвался. */
 const CONTENT_DOWNLOAD_IDLE_MS = 30_000
 
+/**
+ * То же для импорта, запущенного не из интерфейса (восстановление сборки из
+ * облака и т.п.): закрыть запись интерфейсу некому, поэтому снимаем её сами —
+ * по паузе в событиях или сразу после «Готово!».
+ */
+const IMPORT_IDLE_MS = 60_000
+
 function createNotification(input: ActivityNotificationInput, read: boolean, liveKey?: string): ActivityNotification {
   return {
     id: crypto.randomUUID(),
@@ -115,6 +122,14 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
   const contentDownloadTimerRef = useRef<number | null>(null)
   /** Установка, которая прямо сейчас владеет живым уведомлением прогресса. */
   const contentInstallRef = useRef<ContentInstallState | null>(null)
+  /** Таймер-страховка для импорта, запущенного не из интерфейса (восстановление из облака и т.п.). */
+  const importTimerRef = useRef<number | null>(null)
+  /** Внешний импорт идёт: события по отдельным файлам в это время не показываем. */
+  const externalImportRef = useRef(false)
+  /** Байты по каждому файлу текущей пачки: процент считаем по сумме, а не по одному файлу. */
+  const downloadFilesRef = useRef(new Map<string, { current: number; total: number }>())
+  /** Показываемый процент пачки — только растёт (файлы качаются параллельно). */
+  const downloadPercentRef = useRef(0)
   // Читаем актуальное состояние панели из ref, чтобы публикация уведомлений не
   // меняла идентичность коллбэков: иначе открытие панели пересоздавало IPC-подписки
   // (см. LaunchLogsContext) и состояние активной установки/запуска.
@@ -207,24 +222,54 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
   }, [removeLiveNotification])
 
   useEffect(() => {
+    const clearImportTimer = () => {
+      if (importTimerRef.current !== null) {
+        window.clearTimeout(importTimerRef.current)
+        importTimerRef.current = null
+      }
+    }
+    const scheduleImportRemoval = (delay: number) => {
+      clearImportTimer()
+      importTimerRef.current = window.setTimeout(() => {
+        importTimerRef.current = null
+        externalImportRef.current = false
+        removeLiveNotification("modpack-import")
+      }, delay)
+    }
+
     const off = window.electronAPI?.onImportProgress((progress) => {
       const source = importSessionSourceRef.current
-      if (!source) return
       const total = Math.max(progress.total, 1)
       const current = Math.max(0, Math.min(progress.current, total))
       const percent = Math.max(0, Math.min(100, Math.round((current / total) * 100)))
+      const finished = progress.current >= progress.total || percent >= 100
+
+      // Импорт может запускать и main (восстановление сборки из облака, импорт из
+      // другого лаунчера): сессии в renderer тогда нет, но прогресс приходит, и
+      // раньше он молча отбрасывался — в панели оставались только проценты
+      // отдельных файлов, которые качаются параллельно и потому «прыгали».
+      externalImportRef.current = !source
+
       upsertLiveNotification("modpack-import", {
         kind: "progress",
         source: "import",
-        title: getImportTitle(source),
+        title: source ? getImportTitle(source) : "Импорт сборки",
         message: progress.message,
         progress: percent,
-        busy: true,
+        busy: !finished,
       })
+
+      if (!source) {
+        // Сессию закрывает интерфейс; для внешнего импорта запись снимаем сами.
+        scheduleImportRemoval(finished ? 1_500 : IMPORT_IDLE_MS)
+      }
     })
 
-    return () => off?.()
-  }, [upsertLiveNotification])
+    return () => {
+      clearImportTimer()
+      off?.()
+    }
+  }, [upsertLiveNotification, removeLiveNotification])
 
   useEffect(() => {
     const clearTimer = () => {
@@ -238,44 +283,64 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
       clearTimer()
       contentDownloadTimerRef.current = window.setTimeout(() => {
         contentDownloadTimerRef.current = null
+        // Пачка закончилась: следующая начнёт шкалу заново.
+        downloadFilesRef.current.clear()
+        downloadPercentRef.current = 0
         removeLiveNotification("content-download")
       }, delay)
     }
 
     const off = window.electronAPI?.onContentDownloadProgress?.((progress) => {
       if (!progress) return
-      if (importSessionSourceRef.current) return
+      // Пока идёт импорт (свой или запущенный main), проценты отдельных файлов
+      // не показываем: у импорта своя шкала этапов.
+      if (importSessionSourceRef.current || externalImportRef.current) return
 
       const total = Math.max(progress.total, 1)
       const current = Math.max(0, Math.min(progress.current, total))
-      const percent = Math.max(0, Math.min(100, Math.round((current / total) * 100)))
 
       // Установка из интерфейса владеет записью сама: здесь только проценты.
       // В одной установке файлов может быть несколько (мод и его зависимости),
       // поэтому завершение отдельного файла запись не закрывает — иначе она
       // мигала бы между файлами и снималась бы раньше времени.
       if (contentInstallRef.current) {
-        if (!progress.done) updateContentInstall({ progress: percent })
+        if (!progress.done) updateContentInstall({ progress: Math.round((current / total) * 100) })
         return
       }
 
-      // Установка без владельца: показываем её сами и убираем сразу по последнему
-      // файлу, без паузы — «100%» не должно висеть ни секунды.
-      if (progress.done) {
-        clearTimer()
-        removeLiveNotification(CONTENT_INSTALL_LIVE_KEY)
-        return
+      // Установка без владельца (восстановление сборки, распаковка архива,
+      // установка из другого раздела): ведём ОДНУ запись на всю пачку файлов.
+      // Файлы качаются параллельно (5 потоков), поэтому процент одного файла
+      // скакал вверх-вниз, пока остальные ещё грузились. Считаем по сумме байт
+      // всех файлов пачки и не даём шкале уменьшаться.
+      if (progress.fileName) {
+        downloadFilesRef.current.set(progress.fileName, {
+          current: progress.done ? total : current,
+          total,
+        })
       }
+      let sumCurrent = 0
+      let sumTotal = 0
+      for (const file of downloadFilesRef.current.values()) {
+        sumCurrent += Math.min(file.current, file.total)
+        sumTotal += file.total
+      }
+      const overall = sumTotal > 0 ? Math.round((sumCurrent / sumTotal) * 100) : 0
+      const shown = Math.max(downloadPercentRef.current, overall)
+      downloadPercentRef.current = shown
 
       upsertLiveNotification(CONTENT_INSTALL_LIVE_KEY, {
         kind: "progress",
         source: "install",
         title: "Установка контента",
-        message: "Установка...",
-        progress: percent,
-        busy: true,
+        message: progress.fileName ? `Загрузка: ${progress.fileName}` : "Установка...",
+        progress: shown,
+        itemName: progress.fileName || null,
+        busy: !progress.done,
       })
-      scheduleRemoval(CONTENT_DOWNLOAD_IDLE_MS)
+      // Файл закрыт — держим запись ещё немного: следующий файл пачки просто
+      // продолжит её, а по-настоящему одинокая загрузка исчезнет сама.
+      scheduleRemoval(progress.done ? 1_200 : CONTENT_DOWNLOAD_IDLE_MS)
     })
 
     return () => {

@@ -376,40 +376,38 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="relative overflow-hidden rounded-2xl bg-card border border-border">
-        <div className="absolute -top-32 -right-32 w-64 h-64 bg-accent/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
+    <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
+      {/* Заголовок вкладки — как в «Мирах» и остальном лаунчере: плоский
+          контейнер с линией-разделителем, без отдельной закруглённой карточки
+          вокруг всей вкладки и без размытых декоративных пятен. */}
+      <div className="flex items-center justify-between border-b border-border pb-2.5 shrink-0 pr-1">
+        <div>
+          <h2 className="text-xl font-semibold text-foreground">{t("servers.title")}</h2>
+          <p className="text-sm text-muted-foreground mt-1">{t("servers.tabSubtitle")}</p>
+          <p className="text-xs text-muted-foreground/70 mt-0.5">
+            {servers.filter((s) => s.status?.online).length} / {servers.length} {t("servers.online")}
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => void fetchAll()}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+          >
+            <IconRefresh className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
+            {t("servers.refresh")}
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            <IconPlus className="w-3.5 h-3.5" strokeWidth={1.75} />
+            {t("servers.addServer")}
+          </button>
+        </div>
+      </div>
 
-        <div className="relative z-10 p-4 flex flex-col min-h-full">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">{t("servers.title")}</h2>
-              <p className="text-sm text-muted-foreground mt-1">{t("servers.tabSubtitle")}</p>
-              <p className="text-xs text-muted-foreground/70 mt-0.5">
-                {servers.filter((s) => s.status?.online).length} / {servers.length} {t("servers.online")}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => void fetchAll()}
-                disabled={refreshing}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors text-sm disabled:opacity-50"
-              >
-                <IconRefresh className={cn("w-4 h-4", refreshing && "animate-spin")} />
-                {t("servers.refresh")}
-              </button>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-all duration-200 shadow-[0_0_15px_var(--glow-primary)]"
-              >
-                <IconPlus className="w-5 h-5" />
-                {t("servers.addServer")}
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 mt-4">
+          <div className="flex items-center gap-3">
             <div className="flex-1 relative">
               <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
@@ -422,14 +420,30 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
             </div>
           </div>
 
-          <div className="flex-1 space-y-4 mt-4">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
             {filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mb-4">
-                  <IconServer className="w-7 h-7 text-muted-foreground/40" />
+              // Пустое состояние в том же оформлении, что и вкладка «Миры»:
+              // крупная иконка в цветной плашке, жирный заголовок и действие.
+              <div className="flex h-full flex-col items-center justify-center gap-4 text-center max-w-md mx-auto py-12">
+                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10 text-primary border border-primary/20">
+                  <IconServer className="h-10 w-10" strokeWidth={1.75} />
                 </div>
-                <p className="text-sm text-muted-foreground">{t("servers.noServers")}</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">{t("servers.noServersDesc")}</p>
+                <div>
+                  <div className="text-xl font-bold text-foreground">{t("servers.noServers")}</div>
+                  <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
+                    {t("servers.noServersDesc")}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-2.5 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(true)}
+                    className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
+                  >
+                    <IconPlus className="h-4 w-4" strokeWidth={2} />
+                    {t("servers.addServer")}
+                  </button>
+                </div>
               </div>
             ) : (
               <>
@@ -463,8 +477,6 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
               </>
             )}
           </div>
-        </div>
-      </div>
 
       {showAddModal && (
         <ModalLayer
