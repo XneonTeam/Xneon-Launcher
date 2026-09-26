@@ -84,7 +84,8 @@ async function sumSubdirs(root: string, names: string[]): Promise<number> {
 }
 
 async function scanBuilds(): Promise<BuildStorageEntry[]> {
-  const builds = await dbHelpers.loadBuilds()
+  // Лёгкий список: для подсчёта размеров нужны только id/имя/иконка/версия.
+  const builds = await dbHelpers.loadBuildsLight()
   const entries: BuildStorageEntry[] = []
 
   for (const build of builds) {
@@ -326,8 +327,8 @@ async function cleanStorage(target: StorageCleanTarget): Promise<StorageCleanRes
       return { success: true, freedBytes: size }
     }
 
-    const builds = await dbHelpers.loadBuilds()
-    const build = builds.find((b) => b.id === target.buildId)
+    // Точечное чтение: нужны только id и имя сборки.
+    const build = await dbHelpers.findBuildById(target.buildId)
     if (!build) return { success: false, freedBytes: 0, error: "Сборка не найдена" }
     const intentPath = getBuildIntentPath(build.name)
 

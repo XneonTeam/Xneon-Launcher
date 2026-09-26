@@ -3,6 +3,7 @@ import { app, dialog, ipcMain, shell } from "electron"
 import os from "os"
 import path from "path"
 import fs from "fs/promises"
+import fsSync from "fs"
 import { dbHelpers, isUsingFallbackStorage } from "../db"
 import { getMainWindow } from "./runtime"
 import { discoverAllInstances, discoverGdLauncherInstances, discoverInstancesFromPath, importLauncherInstance } from "./import"
@@ -108,6 +109,202 @@ async function findJavaInWindowsRegistry(): Promise<string[]> {
   return found
 }
 
+type JavaDetectEntry = { path: string; version: string; label: string; fullVersion?: string; vendor?: string; arch?: string }
+
+/**
+ * Кэш результата поиска установленных Java.
+ *
+ * Скан стоит дорого: 8 запросов в реестр, перебор каталогов и последовательный
+ * запуск `java -XshowSettings:properties` (до 6 с таймаута) на каждый найденный
+ * `java.exe` — на машине с несколькими JDK это 10–20 процессов и до 30 секунд.
+ * Раньше он выполнялся заново на каждый вызов, а зовут его шесть компонентов
+ * (настройки лаунчера, настройки инстанса, диалоги создания сервера и установки
+ * пака, вкладка сервера — местами дважды подряд).
+ */
+const JAVA_DETECT_TTL_MS = 5 * 60_000
+let javaDetectCache: { at: number; value: JavaDetectEntry[] } | null = null
+let javaDetectInFlight: Promise<JavaDetectEntry[]> | null = null
+
+/** Полный скан без кэша — сюда попадает только первый вызов или явное обновление. */
+async function scanJavaInstallations(): Promise<JavaDetectEntry[]> {
+  const found: JavaDetectEntry[] = []
+  const visited = new Set<string>()
+  const tryJava = async (javaExe: string) => {
+    const normalized = path.normalize(javaExe)
+    if (visited.has(normalized)) return
+    visited.add(normalized)
+    if (!(await fileExists(normalized))) return
+    const info = await getJavaInstallationInfo(normalized)
+    if (!info) return
+    const labelParts = [makeJavaLabel(info.version)]
+    if (info.arch) labelParts.push(`${info.arch}-бит`)
+    if (info.vendor) labelParts.push(info.vendor)
+    found.push({
+      path: normalized,
+      version: info.version,
+      label: labelParts.join(" · "),
+      fullVersion: info.fullVersion,
+      vendor: info.vendor,
+      arch: info.arch,
+    })
+  }
+
+  if (process.platform === "win32") {
+    for (const home of await findJavaInWindowsRegistry()) {
+      await tryJava(path.join(home, "bin", "java.exe"))
+      await tryJava(path.join(home, "bin", "javaw.exe"))
+    }
+    const bases = [
+      "C:\\Program Files\\Java",
+      "C:\\Program Files\\Eclipse Adoptium",
+      "C:\\Program Files\\Microsoft",
+      "C:\\Program Files\\Zulu",
+      "C:\\Program Files\\BellSoft",
+      "C:\\Program Files\\Amazon Corretto",
+      "C:\\Program Files\\OpenJDK",
+    ]
+    for (const base of bases) {
+      if (!(await fileExists(base))) continue
+      let dirs: string[] = []
+      try { dirs = await fs.readdir(base) } catch { continue }
+      for (const dir of dirs) await tryJava(path.join(base, dir, "bin", "java.exe"))
+    }
+    try {
+      const { stdout } = await execAsync("where java 2>nul", { timeout: 3000, encoding: "cp866" })
+      for (const line of stdout.split("\n")) {
+        const p = line.trim()
+        if (p) await tryJava(p)
+      }
+    } catch {}
+  } else if (process.platform === "darwin") {
+    const jvmBase = "/Library/Java/JavaVirtualMachines"
+    if (await fileExists(jvmBase)) {
+      let dirs: string[] = []
+      try { dirs = await fs.readdir(jvmBase) } catch { dirs = [] }
+      for (const dir of dirs) await tryJava(path.join(jvmBase, dir, "Contents", "Home", "bin", "java"))
+    }
+    for (const p of ["/opt/homebrew/opt/openjdk/bin/java", "/usr/local/opt/openjdk/bin/java"]) await tryJava(p)
+    try {
+      const { stdout } = await execAsync("/usr/libexec/java_home -V 2>&1", { timeout: 3000 })
+      for (const m of stdout.matchAll(/^\s+(\/\S+)/gm)) await tryJava(path.join(m[1], "bin", "java"))
+    } catch {}
+  } else {
+    const jvmBase = "/usr/lib/jvm"
+    if (await fileExists(jvmBase)) {
+      let dirs: string[] = []
+      try { dirs = await fs.readdir(jvmBase) } catch { dirs = [] }
+      for (const dir of dirs) await tryJava(path.join(jvmBase, dir, "bin", "java"))
+    }
+    for (const p of ["/usr/bin/java", "/usr/local/bin/java"]) await tryJava(p)
+    try {
+      const { stdout } = await execAsync("which java 2>/dev/null", { timeout: 3000 })
+      if (stdout.trim()) await tryJava(stdout.trim())
+    } catch {}
+  }
+
+  return found
+}
+
+/**
+ * Отдаёт закэшированный результат; параллельные вызовы разделяют один скан
+ * (in-flight), а `force` заставляет перечитать список (кнопка «Обновить» —
+ * например, после установки новой Java).
+ */
+async function detectJavaInstallations(force = false): Promise<JavaDetectEntry[]> {
+  if (!force && javaDetectCache && Date.now() - javaDetectCache.at < JAVA_DETECT_TTL_MS) {
+    return javaDetectCache.value
+  }
+  if (javaDetectInFlight) return javaDetectInFlight
+
+  const run = scanJavaInstallations().then((value) => {
+    javaDetectCache = { at: Date.now(), value }
+    return value
+  })
+  const tracked = run.finally(() => {
+    if (javaDetectInFlight === tracked) javaDetectInFlight = null
+  })
+  javaDetectInFlight = tracked
+  return tracked
+}
+
+/**
+ * Быстрый поиск любого java-бинаря без запуска процесса: JAVA_HOME, типовые
+ * каталоги установки, на Windows — ещё и PATH через `where`.
+ *
+ * Единая реализация для всего main-процесса: раньше такая же функция жила ещё
+ * и в `mc-server-handlers.ts`, и списки каталогов приходилось править дважды.
+ * Для полного списка с версиями используйте {@link detectJavaInstallations}.
+ */
+export function findJavaBinarySync(): string | null {
+  const isWin = process.platform === "win32"
+  const javaExe = isWin ? "java.exe" : "java"
+
+  const javaHome = process.env.JAVA_HOME
+  if (javaHome) {
+    const candidate = path.join(javaHome, "bin", javaExe)
+    if (fsSync.existsSync(candidate)) return candidate
+  }
+
+  if (isWin) {
+    const bases = [
+      "C:\\Program Files\\Java",
+      "C:\\Program Files\\Eclipse Adoptium",
+      "C:\\Program Files\\Microsoft",
+      "C:\\Program Files\\Zulu",
+      "C:\\Program Files\\BellSoft",
+      "C:\\Program Files\\Amazon Corretto",
+      "C:\\Program Files\\OpenJDK",
+    ]
+    for (const base of bases) {
+      if (!fsSync.existsSync(base)) continue
+      try {
+        for (const dir of fsSync.readdirSync(base)) {
+          const candidate = path.join(base, dir, "bin", javaExe)
+          if (fsSync.existsSync(candidate)) return candidate
+        }
+      } catch {}
+    }
+    // PATH: `where java` дешевле, чем запуск java -version.
+    try {
+      const { execFileSync } = require("child_process") as typeof import("child_process")
+      const output = execFileSync("where", ["java"], { encoding: "utf8", timeout: 3000, stdio: ["ignore", "pipe", "ignore"] })
+      const first = output.split(/\r?\n/).map((line) => line.trim()).find(Boolean)
+      if (first && fsSync.existsSync(first)) return first
+    } catch {}
+  } else if (process.platform === "darwin") {
+    const candidates = [
+      "/Library/Java/JavaVirtualMachines",
+      "/opt/homebrew/opt/openjdk/bin/java",
+      "/usr/local/opt/openjdk/bin/java",
+    ]
+    for (const candidate of candidates) {
+      if (candidate.endsWith("java")) {
+        if (fsSync.existsSync(candidate)) return candidate
+      } else if (fsSync.existsSync(candidate)) {
+        try {
+          for (const dir of fsSync.readdirSync(candidate)) {
+            const binary = path.join(candidate, dir, "Contents", "Home", "bin", "java")
+            if (fsSync.existsSync(binary)) return binary
+          }
+        } catch {}
+      }
+    }
+  } else {
+    const bases = ["/usr/lib/jvm", "/usr/local/sdkman/candidates/java/current"]
+    for (const base of bases) {
+      if (!fsSync.existsSync(base)) continue
+      try {
+        for (const dir of fsSync.readdirSync(base)) {
+          const candidate = path.join(base, dir, "bin", "java")
+          if (fsSync.existsSync(candidate)) return candidate
+        }
+      } catch {}
+    }
+  }
+
+  return null
+}
+
 export function registerSystemHandlers() {
   ipcMain.handle("system:get-total-memory", () => os.totalmem())
 
@@ -130,17 +327,26 @@ export function registerSystemHandlers() {
   ipcMain.handle("db:save-account", async (_event, account) => dbHelpers.saveAccount(account))
   ipcMain.handle("db:remove-account", async (_event, id: string) => dbHelpers.removeAccount(id))
   ipcMain.handle("db:reorder-accounts", async (_event, ids: string[]) => dbHelpers.reorderAccounts(ids))
-  ipcMain.handle("db:load-builds", async () => dbHelpers.loadBuilds())
   // Лёгкий список для интерфейса: без тяжёлых mods/shaders (они грузятся по сборке).
   ipcMain.handle("db:load-builds-light", async () => dbHelpers.loadBuildsLight())
   ipcMain.handle("db:load-build-content", async (_event, buildId: string) => dbHelpers.loadBuildContent(buildId))
   ipcMain.handle("db:save-builds", async (_event, builds) => {
     const incoming = Array.isArray(builds) ? builds : []
-    const previousBuilds = await dbHelpers.loadBuilds()
+    // Снапшот для сверки профилей загрузчика — только лёгкие поля: тяжёлый
+    // контент при массовом сохранении не нужен (его сохраняет сам saveAllBuilds).
+    const previousBuilds = await dbHelpers.loadBuildsLight()
     await dbHelpers.saveAllBuilds(incoming)
     // Массовое сохранение — вторая (подстраховывающая) точка, где может
     // проехать смена версии загрузчика: импорт/восстановление модпака и т.п.
     void cleanupReplacedLoaderArtifactsForBuilds(previousBuilds, incoming)
+  })
+  // Вставка новой сборки (создание с нуля, копия): до этого канала UI писал
+  // новую сборку только debounce-патчами, а те делают UPDATE по id и по
+  // несуществующей строке молча ничего не делают — сборка пропадала после
+  // перезапуска, хотя папка интента уже была создана.
+  ipcMain.handle("db:insert-build", async (_event, build) => {
+    if (!build || typeof build !== "object") return
+    await dbHelpers.insertBuild(build as Parameters<typeof dbHelpers.insertBuild>[0])
   })
   // Мгновенная точечная запись полей одной сборки (без debounce на стороне UI):
   // нужна для правок вроде отвязки/привязки модпака, которые не должны теряться
@@ -153,8 +359,8 @@ export function registerSystemHandlers() {
     // описания или иконки.
     const selectionChange = isLoaderSelectionFieldChange(fields)
     const previous = selectionChange
-      ? (await dbHelpers.loadBuilds()).find(build => build.id === buildId)
-      : undefined
+      ? await dbHelpers.findBuildById(buildId)
+      : null
     await dbHelpers.updateBuildFields(buildId, fields as Parameters<typeof dbHelpers.updateBuildFields>[1])
 
     if (previous) {
@@ -188,7 +394,9 @@ export function registerSystemHandlers() {
     const sourceInstances = (await discoverGdLauncherInstances()).filter((entry) => selectedIds.has(entry.id))
     if (sourceInstances.length === 0) return { success: true, imported: 0 }
 
-    const existingBuilds = await dbHelpers.loadBuilds()
+    // Лёгкий список: нужны только имена, а saveAllBuilds сам сохранит тяжёлый
+    // контент уже существующих сборок из БД.
+    const existingBuilds = await dbHelpers.loadBuildsLight()
     const existingNames = new Set(existingBuilds.map((build) => build.name.trim().toLowerCase()))
 
     const importedBuilds = []
@@ -211,7 +419,7 @@ export function registerSystemHandlers() {
     const allInstances = (await discoverAllInstances()).filter((entry) => selectedIds.has(entry.id))
     if (allInstances.length === 0) return { success: true, imported: 0 }
 
-    const existingBuilds = await dbHelpers.loadBuilds()
+    const existingBuilds = await dbHelpers.loadBuildsLight()
     const existingNames = new Set(existingBuilds.map((build) => build.name.trim().toLowerCase()))
 
     const importedBuilds = []
@@ -245,83 +453,10 @@ export function registerSystemHandlers() {
     await shell.openPath(dirPath)
   })
 
-  ipcMain.handle("java:detect", async (): Promise<{ path: string; version: string; label: string; fullVersion?: string; vendor?: string; arch?: string }[]> => {
-    const found: { path: string; version: string; label: string; fullVersion?: string; vendor?: string; arch?: string }[] = []
-    const visited = new Set<string>()
-    const tryJava = async (javaExe: string) => {
-      const normalized = path.normalize(javaExe)
-      if (visited.has(normalized)) return
-      visited.add(normalized)
-      if (!(await fileExists(normalized))) return
-      const info = await getJavaInstallationInfo(normalized)
-      if (!info) return
-      const labelParts = [makeJavaLabel(info.version)]
-      if (info.arch) labelParts.push(`${info.arch}-бит`)
-      if (info.vendor) labelParts.push(info.vendor)
-      found.push({
-        path: normalized,
-        version: info.version,
-        label: labelParts.join(" · "),
-        fullVersion: info.fullVersion,
-        vendor: info.vendor,
-        arch: info.arch,
-      })
-    }
-
-    if (process.platform === "win32") {
-      for (const home of await findJavaInWindowsRegistry()) {
-        await tryJava(path.join(home, "bin", "java.exe"))
-        await tryJava(path.join(home, "bin", "javaw.exe"))
-      }
-      const bases = [
-        "C:\\Program Files\\Java",
-        "C:\\Program Files\\Eclipse Adoptium",
-        "C:\\Program Files\\Microsoft",
-        "C:\\Program Files\\Zulu",
-        "C:\\Program Files\\BellSoft",
-        "C:\\Program Files\\Amazon Corretto",
-        "C:\\Program Files\\OpenJDK",
-      ]
-      for (const base of bases) {
-        if (!(await fileExists(base))) continue
-        let dirs: string[] = []
-        try { dirs = await fs.readdir(base) } catch { continue }
-        for (const dir of dirs) await tryJava(path.join(base, dir, "bin", "java.exe"))
-      }
-      try {
-        const { stdout } = await execAsync("where java 2>nul", { timeout: 3000, encoding: "cp866" })
-        for (const line of stdout.split("\n")) {
-          const p = line.trim()
-          if (p) await tryJava(p)
-        }
-      } catch {}
-    } else if (process.platform === "darwin") {
-      const jvmBase = "/Library/Java/JavaVirtualMachines"
-      if (await fileExists(jvmBase)) {
-        let dirs: string[] = []
-        try { dirs = await fs.readdir(jvmBase) } catch { dirs = [] }
-        for (const dir of dirs) await tryJava(path.join(jvmBase, dir, "Contents", "Home", "bin", "java"))
-      }
-      for (const p of ["/opt/homebrew/opt/openjdk/bin/java", "/usr/local/opt/openjdk/bin/java"]) await tryJava(p)
-      try {
-        const { stdout } = await execAsync("/usr/libexec/java_home -V 2>&1", { timeout: 3000 })
-        for (const m of stdout.matchAll(/^\s+(\/\S+)/gm)) await tryJava(path.join(m[1], "bin", "java"))
-      } catch {}
-    } else {
-      const jvmBase = "/usr/lib/jvm"
-      if (await fileExists(jvmBase)) {
-        let dirs: string[] = []
-        try { dirs = await fs.readdir(jvmBase) } catch { dirs = [] }
-        for (const dir of dirs) await tryJava(path.join(jvmBase, dir, "bin", "java"))
-      }
-      for (const p of ["/usr/bin/java", "/usr/local/bin/java"]) await tryJava(p)
-      try {
-        const { stdout } = await execAsync("which java 2>/dev/null", { timeout: 3000 })
-        if (stdout.trim()) await tryJava(stdout.trim())
-      } catch {}
-    }
-
-    return found
+  ipcMain.handle("java:detect", async (_event, force?: boolean): Promise<JavaDetectEntry[]> => {
+    // Кэш + in-flight: повторные вызовы из разных экранов больше не запускают
+    // скан реестра и java.exe заново (см. detectJavaInstallations).
+    return detectJavaInstallations(force === true)
   })
 
   ipcMain.handle("common:pick-folder", async (_event, title?: string): Promise<string | null> => {
