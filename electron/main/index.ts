@@ -1,4 +1,5 @@
 try { require("dotenv/config") } catch {}
+import { app } from "electron"
 import "./auth"
 
 import { registerModsHandlers } from "./mods"
@@ -13,9 +14,12 @@ import { registerQuickPlayHandlers } from "./quick-play"
 import { registerUpdater } from "./updater"
 import { registerAiAgent } from "./ai-agent"
 import { registerSkinsHandlers } from "./skins"
+import { registerLabyHandlers } from "./laby"
 import { registerMcServerHandlers } from "./mc-server-handlers"
 import { registerStatsHandlers } from "./stats"
 import { registerStorageHandlers } from "./storage"
+import { xnConnectManager } from "./xn-connect-manager"
+import { registerXnConnectHandlers } from "./xn-connect-handlers"
 
 registerWindowLifecycle()
 registerSystemHandlers()
@@ -30,10 +34,21 @@ registerQuickPlayHandlers()
 registerUpdater()
 registerAiAgent()
 registerSkinsHandlers()
+registerLabyHandlers()
 registerMcServerHandlers()
 registerStatsHandlers()
 registerStorageHandlers()
+// XN-Connect: каналы в своём модуле (раньше жили внутри mc-server-handlers).
+registerXnConnectHandlers()
 
 import("@xnlc/mods").catch(() => {})
 import("./discord-rpc.js").catch(() => {})
+
+/**
+ * При выходе закрываем туннели XN-Connect: метод существовал, но не вызывался,
+ * и relay-сессии оставались висеть после закрытия лаунчера.
+ */
+app.on("before-quit", () => {
+  void xnConnectManager.stopAll().catch(() => {})
+})
 
