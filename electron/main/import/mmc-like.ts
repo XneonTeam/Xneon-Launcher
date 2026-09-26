@@ -2,7 +2,7 @@ import path from "path"
 import fs from "fs/promises"
 import { app } from "electron"
 import type { LauncherInstance } from "./helpers"
-import { fileExists, getInstanceContentDirs, countFilesInDirs, isSupportedImportedLoader } from "./helpers"
+import { fileExists, getInstanceContentDirs, countFilesInDirs, isSupportedImportedLoader, discoverInstancesFromDirs } from "./helpers"
 
 type MmcLikeType = "multimc" | "polymc" | "prism"
 
@@ -170,31 +170,16 @@ async function readMmcLikeInstance(instanceDir: string, type: MmcLikeType): Prom
 }
 
 export async function discoverMmcLikeInstances(customPath?: string): Promise<LauncherInstance[]> {
-  const instances: LauncherInstance[] = []
   const mmcLikeConfigs = await getMmcLikeInstancesDirs(customPath)
-
-  console.log('[MultiMC/PolyMC/Prism] Found configs:', mmcLikeConfigs)
-
-  for (const { type, dirs } of mmcLikeConfigs) {
-    console.log(`[${type}] Checking dirs:`, dirs)
-    for (const instancesDir of dirs) {
-      if (!(await fileExists(instancesDir))) continue
-      let entries
-      try { entries = await fs.readdir(instancesDir, { withFileTypes: true }) } catch { continue }
-      const dirs2 = entries.filter(e => e.isDirectory()).map(e => path.join(instancesDir, e.name))
-
-      console.log(`[${type}] Found dirs in ${instancesDir}:`, dirs2.length)
-
-      for (const dir of dirs2) {
-        const inst = await readMmcLikeInstance(dir, type)
-        if (inst) {
-          console.log(`[${type}] Found instance:`, inst.name, inst.id)
-          instances.push(inst)
-        }
-      }
-    }
-  }
-
+  // Обход каталогов инстансов — общий скелет (см. discoverInstancesFromDirs):
+  // раньше он был скопирован в четырёх импортёрах.
+  const instances = await discoverInstancesFromDirs(
+    mmcLikeConfigs.flatMap(({ dirs }) => dirs),
+    (dir) => {
+      const type = mmcLikeConfigs.find((config) => config.dirs.includes(path.dirname(dir)))?.type ?? "multimc"
+      return readMmcLikeInstance(dir, type)
+    },
+  )
   console.log('[MultiMC/PolyMC/Prism] Total instances found:', instances.length)
-  return instances.sort((a, b) => a.name.localeCompare(b.name, "ru"))
+  return instances
 }

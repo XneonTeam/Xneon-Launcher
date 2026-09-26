@@ -2,7 +2,7 @@ import path from "path"
 import fs from "fs/promises"
 import { app } from "electron"
 import type { LauncherInstance } from "./helpers"
-import { fileExists, uniqPaths, getInstanceContentDirs, countFilesInDirs, resolveInstanceIconPath } from "./helpers"
+import { fileExists, uniqPaths, getInstanceContentDirs, countFilesInDirs, resolveInstanceIconPath, discoverInstancesFromDirs } from "./helpers"
 
 type XLauncherInstanceJson = {
   name?: string
@@ -99,17 +99,5 @@ async function readXLauncherInstance(instanceDir: string): Promise<LauncherInsta
 }
 
 export async function discoverXLauncherInstances(customPath?: string): Promise<LauncherInstance[]> {
-  const instances: LauncherInstance[] = []
-  for (const instancesDir of await getXLauncherInstancesDirs(customPath)) {
-    let entries
-    try { entries = await fs.readdir(instancesDir, { withFileTypes: true }) } catch { continue }
-    const dirs = entries.filter(e => e.isDirectory()).map(e => path.join(instancesDir, e.name))
-
-    for (const dir of dirs) {
-      const instance = await readXLauncherInstance(dir)
-      if (instance) instances.push(instance)
-    }
-  }
-
-  return instances.sort((a, b) => a.name.localeCompare(b.name, "ru"))
+  return discoverInstancesFromDirs(await getXLauncherInstancesDirs(customPath), readXLauncherInstance)
 }

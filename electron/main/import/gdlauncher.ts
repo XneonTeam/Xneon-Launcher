@@ -2,7 +2,7 @@ import path from "path"
 import fs from "fs/promises"
 import { app } from "electron"
 import type { LauncherInstance } from "./helpers"
-import { fileExists, getInstanceContentDirs, countFilesInDirs, resolveInstanceIconPath, isSupportedImportedLoader } from "./helpers"
+import { fileExists, getInstanceContentDirs, countFilesInDirs, resolveInstanceIconPath, isSupportedImportedLoader, discoverInstancesFromDirs } from "./helpers"
 
 type GdLauncherInstanceJson = {
   name?: string
@@ -74,15 +74,5 @@ async function readGdLauncherInstance(instanceDir: string): Promise<LauncherInst
 export async function discoverGdLauncherInstances(customPath?: string): Promise<LauncherInstance[]> {
   const instancesDir = getGdLauncherInstancesDir(customPath)
   if (!(await fileExists(instancesDir))) return []
-
-  let entries
-  try { entries = await fs.readdir(instancesDir, { withFileTypes: true }) } catch { return [] }
-  const dirs = entries.filter(e => e.isDirectory()).map(e => path.join(instancesDir, e.name))
-
-  const results: LauncherInstance[] = []
-  for (const dir of dirs) {
-    const instance = await readGdLauncherInstance(dir)
-    if (instance) results.push(instance)
-  }
-  return results.sort((a, b) => a.name.localeCompare(b.name, "ru"))
+  return discoverInstancesFromDirs([instancesDir], readGdLauncherInstance)
 }

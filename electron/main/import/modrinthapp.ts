@@ -2,7 +2,7 @@ import path from "path"
 import fs from "fs/promises"
 import { app } from "electron"
 import type { LauncherInstance } from "./helpers"
-import { fileExists, getInstanceContentDirs, countFilesInDirs, resolveInstanceIconPath, isSupportedImportedLoader, readSqliteDb } from "./helpers"
+import { fileExists, getInstanceContentDirs, countFilesInDirs, resolveInstanceIconPath, isSupportedImportedLoader, readSqliteDb, discoverInstancesFromDirs } from "./helpers"
 
 type ModrinthProfileRow = {
   path: string
@@ -90,12 +90,8 @@ export async function discoverModrinthAppInstances(customPath?: string): Promise
     } catch { /* ignore */ }
   }
 
-  const instances: LauncherInstance[] = []
-  let entries
-  try { entries = await fs.readdir(profilesDir, { withFileTypes: true }) } catch { return [] }
-  const dirs = entries.filter(entry => entry.isDirectory()).map(entry => path.join(profilesDir, entry.name))
-
-  for (const dir of dirs) {
+  // Обход каталогов профилей — общий скелет (см. discoverInstancesFromDirs).
+  return discoverInstancesFromDirs([profilesDir], async (dir): Promise<LauncherInstance | null> => {
     const dirName = path.basename(dir)
     const dbRow = profileMap.get(dirName) || profileMap.get(dir)
 
@@ -133,13 +129,13 @@ export async function discoverModrinthAppInstances(customPath?: string): Promise
       } catch { /* no index file or parse error */ }
     }
 
-    if (!isSupportedImportedLoader(modLoader)) continue
+    if (!isSupportedImportedLoader(modLoader)) return null
 
     const modsDirs = await getInstanceContentDirs(dir, "mods")
     const rpDirs = await getInstanceContentDirs(dir, "resourcepacks")
     const spDirs = await getInstanceContentDirs(dir, "shaderpacks")
 
-    instances.push({
+    return {
       id: `modrinthapp:${dirName}`,
       name: dbRow?.name?.trim() || dirName,
       version,
@@ -151,8 +147,6 @@ export async function discoverModrinthAppInstances(customPath?: string): Promise
       modCount: await countFilesInDirs(modsDirs),
       resourcepackCount: await countFilesInDirs(rpDirs),
       shaderCount: await countFilesInDirs(spDirs),
-    })
-  }
-
-  return instances.sort((a, b) => a.name.localeCompare(b.name, "ru"))
+    }
+  })
 }
