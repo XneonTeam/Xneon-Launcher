@@ -68,6 +68,8 @@ export type DbBuild = {
   source: "local" | "modrinth" | "curseforge"
   projectSlug?: string
   modpackVersion?: string
+  /** Id конкретной версии модпака на площадке (только у связанных модпаков). */
+  modpackVersionId?: string
   modId?: number
   fileId?: number
   /** Whether the build is linked/locked to an official modpack */
@@ -97,6 +99,23 @@ export type DbBuild = {
   defaultAccountId?: string
   /** Group/category label for organizing builds (e.g. "Моды для сервера") */
   group?: string
+  /** Переопределение размера окна для этой сборки. */
+  windowOverride?: boolean
+  windowWidth?: number
+  windowHeight?: number
+}
+
+/**
+ * Сборка без тяжёлого контента: списку нужны только счётчики.
+ *
+ * `mods`/`resourcepacks`/`shaders`/`installedMods` у модпаков занимают десятки
+ * мегабайт, поэтому `db:load-builds-light` отдаёт эту форму, а сами списки
+ * приезжают отдельно через `db:load-build-content` при открытии сборки.
+ */
+export type DbBuildLight = Omit<DbBuild, "mods" | "resourcepacks" | "shaders" | "installedMods"> & {
+  modsCount: number
+  resourcepacksCount: number
+  shadersCount: number
 }
 
 // ── World / Save Management ─────────────────────────────────
@@ -350,6 +369,11 @@ export type LibrarySkin = {
   variant: "classic" | "slim"
   capeId: string | null
   createdAt: string
+  /**
+   * Идентификатор скина в каталоге. У новых записей — с префиксом источника
+   * (`laby:<image_hash>`), у сохранённых ранее из Craftdex — голый UUID.
+   */
+  sourceId?: string | null
 }
 
 // ── Quick Play ─────────────────────────────────────────────
@@ -432,6 +456,10 @@ export type StatsOverview = {
   serverLastSession?: ServerSessionInfo | null
   dailyServerUptime?: Array<{ date: string; seconds: number }>
   topServers: Array<{ serverId: string; name: string; icon?: string; seconds: number; sessions: number }>
+  /** Игра запущена прямо сейчас — timestamp старта (иначе null). По нему страница статистики включает локальный тик вместо поллинга. */
+  gameActiveStartedAt?: number | null
+  /** Сколько собственных серверов работает прямо сейчас. */
+  activeServerSessions?: number
 }
 
 // ── Storage / Disk Manager ──────────────────────────────────
