@@ -21,6 +21,8 @@ import {
 import type { ModrinthVersionDetail, ModrinthManifestFile, CurseForgeManifestFile } from "@xnlc/mods" with { "resolution-mode": "import" }
 import type { McServerInfo, McServerState, McServerMetrics, McPlayerEntry, XnConnectState } from "@xnlc/types" with { "resolution-mode": "import" }
 import { logRuntime, sendToRenderer } from "./runtime"
+import { getGameDir, loadXnlcModule } from "./minecraft-core"
+import { findJavaBinarySync } from "./system"
 import { getMcServerDir } from "./paths"
 import { recordServerSession } from "./stats"
 import { upsertActiveServerSession, takeActiveServerSession } from "./session-tracker"
@@ -42,15 +44,32 @@ const pendingServerStarts = new Map<string, { cancelled: boolean }>()
 const pendingServerStops = new Map<string, Promise<void>>()
 
 function pushServerMetrics(): void {
+  let pruned = false
   for (const [id, subscribers] of metricsSubscribers) {
-    if (subscribers.size === 0) continue
+    if (subscribers.size === 0) {
+      metricsSubscribers.delete(id)
+      pruned = true
+      continue
+    }
     // Мгновенное чтение из кэша — без спавна процессов и без await.
     const metrics = serverManager.getMetricsSync(id)
-    for (const webContentsId of subscribers) {
+    for (const webContentsId of [...subscribers]) {
       const wc = webContents.fromId(webContentsId)
-      if (wc && !wc.isDestroyed()) wc.send("mc-server:metrics", { id, metrics })
+      if (!wc || wc.isDestroyed()) {
+        // Окно закрылось, не отписавшись: подписчика обязательно убираем, иначе
+        // набор никогда не опустеет и таймер метрик будет тикать вечно.
+        subscribers.delete(webContentsId)
+        pruned = true
+        continue
+      }
+      wc.send("mc-server:metrics", { id, metrics })
+    }
+    if (subscribers.size === 0) {
+      metricsSubscribers.delete(id)
+      pruned = true
     }
   }
+  if (pruned) stopMetricsTimerIfIdle()
 }
 
 function ensureMetricsTimer(): void {
@@ -123,6 +142,26 @@ function rowToInfo(row: McServerRow): McServerInfo {
 
 function getServerDir(id: string): string {
   return getMcServerDir(id)
+}
+
+/**
+ * Разрешает путь внутри папки сервера.
+ *
+ * Раньше каждый из fs-хендлеров повторял `path.join(dir, rel)` и проверку
+ * `result.startsWith(dir)`. Такая проверка ненадёжна: для папки
+ * `.../mc-servers/abc` путь `.../mc-servers/abc-other/секрет` тоже начинается
+ * с той же строки и проходил её. Здесь сравниваем через `path.relative` —
+ * выход за пределы каталога (в том числе через `..`) отсекается, а путь
+ * нормализуется.
+ */
+function resolveInsideServer(serverDir: string, relativePath: string): string {
+  const resolvedRoot = path.resolve(serverDir)
+  const resolved = path.resolve(resolvedRoot, relativePath || ".")
+  const relative = path.relative(resolvedRoot, resolved)
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("Path traversal not allowed")
+  }
+  return resolved
 }
 
 function escapePropertiesValue(value: string): string {
@@ -497,22 +536,37 @@ export function registerMcServerHandlers() {
     }
     if (cancelledByStop()) return finishCancelled()
 
+    // Прогресс подготовки: нужен уже на этапе Java (её скачивание может быть
+    // первым шагом, до загрузки ядра).
+    const sendProgress = (progress: DownloadProgress) => {
+      sendToRenderer("mc-server:download-progress", { id, progress })
+    }
+
     // Auto-detect Java from settings or system
     const storedJava = row.javaPath && row.javaPath !== "auto" ? row.javaPath : null
     let javaPath: string | undefined = storedJava ?? (await dbHelpers.getSetting("javaPath")) ?? undefined
     if (!javaPath) {
       // Try to find java in common locations
-      javaPath = findJavaPath() ?? undefined
+      javaPath = findJavaBinarySync() ?? undefined
     }
     if (!javaPath) {
-      throw new Error("Java not found. Please set Java path in settings.")
+      // Java на машине нет и вручную не выбрана — скачиваем рантайм Mojang
+      // (как это делает запуск клиента). Без этого сервер не стартовал вовсе:
+      // путь к Java нужен и для установки ядра (инсталляторы Forge/NeoForge).
+      const required = requiredJavaForMcVersion(serverInfo.gameVersion)
+      sendProgress({ phase: "downloading", message: `Java не найдена — скачиваю рантайм (Java ${required})...`, percent: 0 })
+      try {
+        const runtime = await ensureServerJava(serverInfo.gameVersion, (percent) => {
+          sendProgress({ phase: "downloading", message: `Скачивание Java ${required}...`, percent })
+        })
+        javaPath = runtime.path
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        throw new Error(`Java не найдена, и не удалось скачать рантайм: ${message}`)
+      }
     }
 
     // Ensure server JAR exists — download if needed
-    const sendProgress = (progress: DownloadProgress) => {
-      sendToRenderer("mc-server:download-progress", { id, progress })
-    }
-
     let resolvedJarPath: string
     try {
       resolvedJarPath = await ensureServerJar(
@@ -712,111 +766,103 @@ export function registerMcServerHandlers() {
     return path.join(getServerDir(id), filename)
   }
 
-  ipcMain.handle("mc-server:get-whitelist", async (_event, id: string): Promise<McPlayerEntry[]> => {
-    const list = readJsonList(getServerJsonPath(id, "whitelist.json"))
-    return list.map((e: any) => ({ name: e.name ?? "", uuid: e.uuid ?? "" }))
-  })
+  /**
+   * Списки игроков (whitelist, ops, banned, banned-ips) устроены одинаково:
+   * прочитать JSON, изменить запись, записать файл и — если сервер запущен —
+   * отправить ту же операцию командой в консоль. Раньше это были 11 отдельных
+   * хендлеров с дословно скопированным каркасом, поэтому любая правка (сверка
+   * по UUID, формат записи) вносилась в каждый из них.
+   *
+   * Теперь список описывается один раз: имена каналов, файл, поле-идентификатор
+   * и команды серверу. `keyField` — поле для сверки и удаления (uuid у игроков,
+   * ip у адресов), `nameField` — отображаемое имя.
+   */
+  type PlayerListSpec = {
+    file: string
+    keyField: "uuid" | "ip"
+    nameField: "name" | "ip"
+    channels: { get: string; add: string; remove: string }
+    commands: { add: (name: string) => string; remove: (name: string) => string }
+    /** Дополнительные поля новой записи (уровень оператора, причина бана...). */
+    extraFields?: () => Record<string, unknown>
+  }
 
-  ipcMain.handle("mc-server:add-whitelist", async (_event, id: string, username: string) => {
-    const filePath = getServerJsonPath(id, "whitelist.json")
-    const list = readJsonList(filePath)
-    if (list.some((e: any) => e.name?.toLowerCase() === username.toLowerCase())) return
-    list.push({ uuid: randomUUID(), name: username })
-    writeJsonList(filePath, list)
+  const PLAYER_LISTS: PlayerListSpec[] = [
+    {
+      file: "whitelist.json",
+      keyField: "uuid",
+      nameField: "name",
+      channels: { get: "mc-server:get-whitelist", add: "mc-server:add-whitelist", remove: "mc-server:remove-whitelist" },
+      commands: { add: (name) => `whitelist add ${name}`, remove: (name) => `whitelist remove ${name}` },
+    },
+    {
+      file: "ops.json",
+      keyField: "uuid",
+      nameField: "name",
+      channels: { get: "mc-server:get-ops", add: "mc-server:add-op", remove: "mc-server:remove-op" },
+      commands: { add: (name) => `op ${name}`, remove: (name) => `deop ${name}` },
+      extraFields: () => ({ level: 4, bypassesPlayerLimit: false }),
+    },
+    {
+      file: "banned-players.json",
+      keyField: "uuid",
+      nameField: "name",
+      channels: { get: "mc-server:get-banned", add: "mc-server:ban-player", remove: "mc-server:unban-player" },
+      commands: { add: (name) => `ban ${name}`, remove: (name) => `pardon ${name}` },
+      extraFields: () => ({ created: new Date().toISOString(), reason: "", expires: "", source: "Xneon Launcher" }),
+    },
+    {
+      file: "banned-ips.json",
+      keyField: "ip",
+      nameField: "ip",
+      channels: { get: "mc-server:get-banned-ips", add: "mc-server:ban-ip", remove: "mc-server:unban-ip" },
+      commands: { add: (ip) => `ban-ip ${ip}`, remove: (ip) => `pardon-ip ${ip}` },
+      extraFields: () => ({ created: new Date().toISOString(), reason: "", expires: "", source: "Xneon Launcher" }),
+    },
+  ]
+
+  /** Отправляет команду серверу, если он запущен (иначе правки файла достаточно). */
+  async function runPlayerListCommand(id: string, command: string): Promise<void> {
+    if (!command) return
     if (serverManager.isRunning(id)) {
-      await serverManager.sendCommand(id, `whitelist add ${username}`)
+      await serverManager.sendCommand(id, command)
     }
-  })
+  }
 
-  ipcMain.handle("mc-server:remove-whitelist", async (_event, id: string, uuid: string) => {
-    const filePath = getServerJsonPath(id, "whitelist.json")
-    const list = readJsonList(filePath)
-    const entry = list.find((e: any) => e.uuid === uuid)
-    const filtered = list.filter((e: any) => e.uuid !== uuid)
-    writeJsonList(filePath, filtered)
-    if (serverManager.isRunning(id) && entry) {
-      await serverManager.sendCommand(id, `whitelist remove ${entry.name}`)
-    }
-  })
+  for (const spec of PLAYER_LISTS) {
+    ipcMain.handle(spec.channels.get, async (_event, id: string): Promise<McPlayerEntry[]> => {
+      const list = readJsonList(getServerJsonPath(id, spec.file))
+      return list.map((entry: any) => ({
+        name: entry[spec.nameField] ?? "",
+        uuid: spec.keyField === "uuid" ? (entry.uuid ?? "") : "",
+      }))
+    })
 
-  ipcMain.handle("mc-server:get-ops", async (_event, id: string): Promise<McPlayerEntry[]> => {
-    const list = readJsonList(getServerJsonPath(id, "ops.json"))
-    return list.map((e: any) => ({ name: e.name ?? "", uuid: e.uuid ?? "" }))
-  })
+    ipcMain.handle(spec.channels.add, async (_event, id: string, value: string) => {
+      const filePath = getServerJsonPath(id, spec.file)
+      const list = readJsonList(filePath)
+      // Дубликат по имени/адресу не добавляем (как и ванильный сервер).
+      if (list.some((entry: any) => entry[spec.nameField]?.toLowerCase() === value.toLowerCase())) return
+      list.push({
+        [spec.keyField]: spec.keyField === "uuid" ? randomUUID() : value,
+        [spec.nameField]: value,
+        ...(spec.extraFields?.() ?? {}),
+      })
+      writeJsonList(filePath, list)
+      await runPlayerListCommand(id, spec.commands.add(value))
+    })
 
-  ipcMain.handle("mc-server:add-op", async (_event, id: string, username: string) => {
-    const filePath = getServerJsonPath(id, "ops.json")
-    const list = readJsonList(filePath)
-    if (list.some((e: any) => e.name?.toLowerCase() === username.toLowerCase())) return
-    list.push({ uuid: randomUUID(), name: username, level: 4, bypassesPlayerLimit: false })
-    writeJsonList(filePath, list)
-    if (serverManager.isRunning(id)) {
-      await serverManager.sendCommand(id, `op ${username}`)
-    }
-  })
+    ipcMain.handle(spec.channels.remove, async (_event, id: string, value: string) => {
+      const filePath = getServerJsonPath(id, spec.file)
+      const list = readJsonList(filePath)
+      // У игроков приходит uuid, у адресов — сам ip; в обоих случаях это
+      // значение keyField.
+      const entry = list.find((item: any) => item[spec.keyField] === value)
+      writeJsonList(filePath, list.filter((item: any) => item[spec.keyField] !== value))
+      await runPlayerListCommand(id, entry ? spec.commands.remove(entry[spec.nameField]) : "")
+    })
+  }
 
-  ipcMain.handle("mc-server:remove-op", async (_event, id: string, uuid: string) => {
-    const filePath = getServerJsonPath(id, "ops.json")
-    const list = readJsonList(filePath)
-    const entry = list.find((e: any) => e.uuid === uuid)
-    const filtered = list.filter((e: any) => e.uuid !== uuid)
-    writeJsonList(filePath, filtered)
-    if (serverManager.isRunning(id) && entry) {
-      await serverManager.sendCommand(id, `deop ${entry.name}`)
-    }
-  })
-
-  ipcMain.handle("mc-server:get-banned", async (_event, id: string): Promise<McPlayerEntry[]> => {
-    const list = readJsonList(getServerJsonPath(id, "banned-players.json"))
-    return list.map((e: any) => ({ name: e.name ?? "", uuid: e.uuid ?? "" }))
-  })
-
-  ipcMain.handle("mc-server:ban-player", async (_event, id: string, username: string) => {
-    const filePath = getServerJsonPath(id, "banned-players.json")
-    const list = readJsonList(filePath)
-    if (list.some((e: any) => e.name?.toLowerCase() === username.toLowerCase())) return
-    list.push({ uuid: randomUUID(), name: username, created: new Date().toISOString(), reason: "", expires: "", source: "Xneon Launcher" })
-    writeJsonList(filePath, list)
-    if (serverManager.isRunning(id)) {
-      await serverManager.sendCommand(id, `ban ${username}`)
-    }
-  })
-
-  ipcMain.handle("mc-server:unban-player", async (_event, id: string, uuid: string) => {
-    const filePath = getServerJsonPath(id, "banned-players.json")
-    const list = readJsonList(filePath)
-    const entry = list.find((e: any) => e.uuid === uuid)
-    const filtered = list.filter((e: any) => e.uuid !== uuid)
-    writeJsonList(filePath, filtered)
-    if (serverManager.isRunning(id) && entry) {
-      await serverManager.sendCommand(id, `pardon ${entry.name}`)
-    }
-  })
-
-  ipcMain.handle("mc-server:get-banned-ips", async (_event, id: string): Promise<McPlayerEntry[]> => {
-    const list = readJsonList(getServerJsonPath(id, "banned-ips.json"))
-    return list.map((e: any) => ({ name: e.ip ?? "", uuid: "" }))
-  })
-
-  ipcMain.handle("mc-server:ban-ip", async (_event, id: string, ip: string) => {
-    const filePath = getServerJsonPath(id, "banned-ips.json")
-    const list = readJsonList(filePath)
-    if (list.some((e: any) => e.ip?.toLowerCase() === ip.toLowerCase())) return
-    list.push({ ip, created: new Date().toISOString(), reason: "", expires: "", source: "Xneon Launcher" })
-    writeJsonList(filePath, list)
-    if (serverManager.isRunning(id)) {
-      await serverManager.sendCommand(id, `ban-ip ${ip}`)
-    }
-  })
-
-  ipcMain.handle("mc-server:unban-ip", async (_event, id: string, ip: string) => {
-    const filePath = getServerJsonPath(id, "banned-ips.json")
-    const list = readJsonList(filePath).filter((e: any) => e.ip !== ip)
-    writeJsonList(filePath, list)
-    if (serverManager.isRunning(id)) {
-      await serverManager.sendCommand(id, `pardon-ip ${ip}`)
-    }
-  })
 
   ipcMain.handle("mc-server:get-addresses", async (_event, id: string) => {
     const row = await dbHelpers.getMcServer(id)
@@ -877,9 +923,7 @@ export function registerMcServerHandlers() {
   // ── Server Files ─────────────────────────────────────────
 
   ipcMain.handle("mc-server:fs-list", async (_event, id: string, relativePath: string) => {
-    const serverDir = getServerDir(id)
-    const targetDir = path.join(serverDir, relativePath)
-    if (!targetDir.startsWith(serverDir)) throw new Error("Path traversal not allowed")
+    const targetDir = resolveInsideServer(getServerDir(id), relativePath)
     if (!fs.existsSync(targetDir)) return []
     const entries = fs.readdirSync(targetDir, { withFileTypes: true })
     return entries.map(entry => {
@@ -895,9 +939,7 @@ export function registerMcServerHandlers() {
   })
 
   ipcMain.handle("mc-server:fs-read", async (_event, id: string, relativePath: string) => {
-    const serverDir = getServerDir(id)
-    const filePath = path.join(serverDir, relativePath)
-    if (!filePath.startsWith(serverDir)) throw new Error("Path traversal not allowed")
+    const filePath = resolveInsideServer(getServerDir(id), relativePath)
     if (!fs.existsSync(filePath)) return null
     const stat = fs.statSync(filePath)
     if (stat.size > 2 * 1024 * 1024) return { error: "File too large (>2MB)" }
@@ -905,17 +947,13 @@ export function registerMcServerHandlers() {
   })
 
   ipcMain.handle("mc-server:fs-write", async (_event, id: string, relativePath: string, content: string) => {
-    const serverDir = getServerDir(id)
-    const filePath = path.join(serverDir, relativePath)
-    if (!filePath.startsWith(serverDir)) throw new Error("Path traversal not allowed")
+    const filePath = resolveInsideServer(getServerDir(id), relativePath)
     fs.mkdirSync(path.dirname(filePath), { recursive: true })
     fs.writeFileSync(filePath, content, "utf-8")
   })
 
   ipcMain.handle("mc-server:fs-delete", async (_event, id: string, relativePath: string) => {
-    const serverDir = getServerDir(id)
-    const targetPath = path.join(serverDir, relativePath)
-    if (!targetPath.startsWith(serverDir)) throw new Error("Path traversal not allowed")
+    const targetPath = resolveInsideServer(getServerDir(id), relativePath)
     if (!fs.existsSync(targetPath)) return
     const stat = fs.statSync(targetPath)
     if (stat.isDirectory()) {
@@ -927,24 +965,18 @@ export function registerMcServerHandlers() {
 
   ipcMain.handle("mc-server:fs-rename", async (_event, id: string, oldPath: string, newPath: string) => {
     const serverDir = getServerDir(id)
-    const fullOld = path.join(serverDir, oldPath)
-    const fullNew = path.join(serverDir, newPath)
-    if (!fullOld.startsWith(serverDir) || !fullNew.startsWith(serverDir)) throw new Error("Path traversal not allowed")
+    const fullOld = resolveInsideServer(serverDir, oldPath)
+    const fullNew = resolveInsideServer(serverDir, newPath)
     if (!fs.existsSync(fullOld)) throw new Error("Source path does not exist")
     fs.renameSync(fullOld, fullNew)
   })
 
   ipcMain.handle("mc-server:fs-mkdir", async (_event, id: string, relativePath: string) => {
-    const serverDir = getServerDir(id)
-    const targetDir = path.join(serverDir, relativePath)
-    if (!targetDir.startsWith(serverDir)) throw new Error("Path traversal not allowed")
-    fs.mkdirSync(targetDir, { recursive: true })
+    fs.mkdirSync(resolveInsideServer(getServerDir(id), relativePath), { recursive: true })
   })
 
   ipcMain.handle("mc-server:fs-stat", async (_event, id: string, relativePath: string) => {
-    const serverDir = getServerDir(id)
-    const targetPath = path.join(serverDir, relativePath)
-    if (!targetPath.startsWith(serverDir)) throw new Error("Path traversal not allowed")
+    const targetPath = resolveInsideServer(getServerDir(id), relativePath)
     if (!fs.existsSync(targetPath)) return null
     const stat = fs.statSync(targetPath)
     return {
@@ -956,9 +988,7 @@ export function registerMcServerHandlers() {
   })
 
   ipcMain.handle("mc-server:fs-download", async (_event, id: string, relativePath: string, url: string, fileName: string) => {
-    const serverDir = getServerDir(id)
-    const targetDir = path.join(serverDir, relativePath)
-    if (!targetDir.startsWith(serverDir)) throw new Error("Path traversal not allowed")
+    const targetDir = resolveInsideServer(getServerDir(id), relativePath)
     try {
       await fs.promises.mkdir(targetDir, { recursive: true })
       const safeFileName = sanitizeFileName(fileName)
@@ -972,9 +1002,7 @@ export function registerMcServerHandlers() {
   })
 
   ipcMain.handle("mc-server:resolve-installed", async (_event, id: string, relativePath: string) => {
-    const serverDir = getServerDir(id)
-    const targetDir = path.join(serverDir, relativePath)
-    if (!targetDir.startsWith(serverDir)) throw new Error("Path traversal not allowed")
+    const targetDir = resolveInsideServer(getServerDir(id), relativePath)
     if (!fs.existsSync(targetDir)) return []
     const entries = fs.readdirSync(targetDir, { withFileTypes: true })
     const jars = entries.filter(e => !e.isDirectory() && /\.(jar|zip)$/i.test(e.name))
@@ -1166,8 +1194,13 @@ export function registerMcServerHandlers() {
           const url = f.downloads?.[0]
           if (!rel || !url) continue
           const safeRel = sanitizeRelativeContentPath(rel)
-          const targetPath = path.join(serverDir, safeRel)
-          if (!targetPath.startsWith(serverDir)) continue
+          let targetPath: string
+          try {
+            targetPath = resolveInsideServer(serverDir, safeRel)
+          } catch {
+            // Запись за пределами папки сервера — пропускаем такой файл.
+            continue
+          }
           const fileName = path.basename(safeRel)
           fs.mkdirSync(path.dirname(targetPath), { recursive: true })
           sendPackProgress(`${downloaded}/${total} файлов`, downloaded, total)
@@ -1240,48 +1273,6 @@ export function registerMcServerHandlers() {
     }
   })
 
-  // ── XN-Connect Relay ────────────────────────────────────
-
-  ipcMain.handle("xn-connect:authorize", async () => {
-    return xnConnectManager.authorize((state) => {
-      sendToRenderer("xn-connect:auth-state", { state })
-    })
-  })
-
-  // XN Connect живёт по жизненному циклу сервера: туннель поднимается только
-  // тогда, когда запущен сам Minecraft-сервер. Без этой проверки relay dial'ит
-  // закрытый локальный порт и висит в бесконечных реконнектах, а игроки видят
-  // публичный адрес, который никуда не ведёт.
-  ipcMain.handle("xn-connect:start", async (_event, serverId: string) => {
-    const row = await dbHelpers.getMcServer(serverId)
-    if (!row) throw new Error("Server not found")
-
-    const state = serverManager.getState(serverId)
-    if (state.status !== "running" && state.status !== "starting") {
-      logRuntime(`[XN-Connect] Relay start skipped for "${row.name}": server is ${state.status}`)
-      return { status: "stopped" } satisfies XnConnectState
-    }
-
-    return xnConnectManager.start(serverId, row.name, row.port)
-  })
-
-  ipcMain.handle("xn-connect:stop", async (_event, serverId: string) => {
-    await xnConnectManager.stop(serverId)
-  })
-
-  ipcMain.handle("xn-connect:status", async (_event, serverId: string) => {
-    return xnConnectManager.getState(serverId)
-  })
-
-  ipcMain.handle("xn-connect:usage", async () => {
-    // Always fetch fresh data from the API so limit checks are accurate;
-    // fall back to cache when the API is unreachable
-    try {
-      return await xnConnectManager.refreshUsage()
-    } catch {
-      return xnConnectManager.getUsage()
-    }
-  })
 }
 
 async function applyServerOverrides(zip: {
@@ -1290,78 +1281,57 @@ async function applyServerOverrides(zip: {
   for (const entry of zip.getEntries()) {
     if (entry.entryName.startsWith("server-overrides/") && !entry.isDirectory) {
       const relPath = entry.entryName.replace(/^server-overrides\//, "")
-      const destPath = path.join(serverDir, relPath)
-      if (!destPath.startsWith(serverDir)) continue
+      let destPath: string
+      try {
+        destPath = resolveInsideServer(serverDir, relPath)
+      } catch {
+        // Запись за пределами папки сервера — пропускаем.
+        continue
+      }
       fs.mkdirSync(path.dirname(destPath), { recursive: true })
       fs.writeFileSync(destPath, entry.getData())
     }
   }
 }
 
-function findJavaPath(): string | null {
-  const isWin = process.platform === "win32"
-  const javaExe = isWin ? "java.exe" : "java"
-
-  // Check JAVA_HOME
-  const javaHome = process.env.JAVA_HOME
-  if (javaHome) {
-    const candidate = path.join(javaHome, "bin", javaExe)
-    if (fs.existsSync(candidate)) return candidate
-  }
-
-  // Check common locations
-  if (isWin) {
-    const bases = [
-      "C:\\Program Files\\Java",
-      "C:\\Program Files\\Eclipse Adoptium",
-      "C:\\Program Files\\Microsoft",
-      "C:\\Program Files\\Zulu",
-      "C:\\Program Files\\BellSoft",
-      "C:\\Program Files\\Amazon Corretto",
-      "C:\\Program Files\\OpenJDK",
-    ]
-    for (const base of bases) {
-      if (!fs.existsSync(base)) continue
-      try {
-        const dirs = fs.readdirSync(base)
-        for (const dir of dirs) {
-          const candidate = path.join(base, dir, "bin", javaExe)
-          if (fs.existsSync(candidate)) return candidate
-        }
-      } catch {}
-    }
-  } else if (process.platform === "darwin") {
-    const candidates = [
-      "/Library/Java/JavaVirtualMachines",
-      "/opt/homebrew/opt/openjdk/bin/java",
-      "/usr/local/opt/openjdk/bin/java",
-    ]
-    for (const p of candidates) {
-      if (p.endsWith("java")) {
-        if (fs.existsSync(p)) return p
-      } else if (fs.existsSync(p)) {
-        try {
-          const dirs = fs.readdirSync(p)
-          for (const dir of dirs) {
-            const candidate = path.join(p, dir, "Contents", "Home", "bin", "java")
-            if (fs.existsSync(candidate)) return candidate
-          }
-        } catch {}
-      }
-    }
-  } else {
-    const bases = ["/usr/lib/jvm", "/usr/local/sdkman/candidates/java/current"]
-    for (const base of bases) {
-      if (!fs.existsSync(base)) continue
-      try {
-        const dirs = fs.readdirSync(base)
-        for (const dir of dirs) {
-          const candidate = path.join(base, dir, "bin", "java")
-          if (fs.existsSync(candidate)) return candidate
-        }
-      } catch {}
-    }
-  }
-
-  return null
+/**
+ * Требуемая версия Java для версии Minecraft (как в манифесте Mojang):
+ * ≤ 1.16.5 → 8, 1.17 → 16, 1.18–1.20.4 → 17, 1.20.5+ → 21.
+ * Снапшоты и нестандартные id трактуем как современные.
+ */
+export function requiredJavaForMcVersion(mcVersion: string): number {
+  const match = /^(\d+)\.(\d+)(?:\.(\d+))?/.exec((mcVersion ?? "").trim())
+  if (!match) return 21
+  const major = Number(match[1])
+  const minor = Number(match[2])
+  const patch = Number(match[3] ?? 0)
+  if (major !== 1) return 21
+  if (minor <= 16) return 8
+  if (minor === 17) return 16
+  if (minor < 20 || (minor === 20 && patch < 5)) return 17
+  return 21
 }
+
+/**
+ * Java для запуска сервера.
+ *
+ * Если на машине нет ни одной Java и вручную она не выбрана, рантайм
+ * скачивается тем же механизмом, что и при запуске клиента (`JavaManager` из
+ * @xnlc/core) — в общий каталог `<gameDir>/runtime`, поэтому клиент и сервер
+ * переиспользуют одну установку. Раньше старт сервера в этой ситуации просто
+ * падал с «Java not found. Please set Java path in settings», из-за чего без
+ * установленной вручную Java сервер нельзя было запустить вообще (ядро даже не
+ * начинало скачиваться, потому что путь к Java нужен уже для инсталляторов).
+ */
+export async function ensureServerJava(
+  mcVersion: string,
+  onProgress: (percent: number) => void,
+): Promise<{ path: string; version?: number }> {
+  const core = await loadXnlcModule()
+  const manager = new core.JavaManager(new core.Downloader(), await getGameDir())
+  const required = requiredJavaForMcVersion(mcVersion)
+  logRuntime(`[Server] Java не найдена — скачиваю рантайм (Java ${required})`)
+  const runtime = await manager.findOrDownloadJava(required, undefined, onProgress)
+  return { path: runtime.path, version: runtime.version }
+}
+

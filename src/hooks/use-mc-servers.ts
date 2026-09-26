@@ -3,6 +3,12 @@ import type { McServerInfo, McServerState } from "@xnlc/types"
 import { useCategoryIcons } from "@/src/hooks/use-category-icons"
 import { useCategoryList } from "@/src/hooks/use-category-list"
 
+/**
+ * Потолок консоли сервера в renderer. Буфер в main ограничен отдельно, но и
+ * здесь нужен свой предел: строки копятся через push-события часами.
+ */
+const MAX_SERVER_LOG_LINES = 5000
+
 export function useMcServers() {
   const [servers, setServers] = useState<McServerInfo[]>([])
   const [loading, setLoading] = useState(true)
@@ -19,9 +25,22 @@ export function useMcServers() {
     setLoading(true)
     try {
       const list = await window.electronAPI?.mcServerList()
-      setServers(list ?? [])
-    } catch {
-      setServers([])
+      const incoming = Array.isArray(list) ? list : []
+      // Пустой ответ — это либо «серверов нет», либо сбой IPC / недоступная БД
+      // (они тоже отдают пустой список). Раньше в обоих случаях список
+      // очищался, и уже показанные серверы исчезали с экрана. Непустой
+      // показанный список в таком случае сохраняем — как сделано для сборок.
+      if (incoming.length === 0) {
+        setServers(prev => {
+          if (prev.length === 0) return prev
+          console.warn("[Servers] Пустой ответ БД — сохраняю уже загруженный список")
+          return prev
+        })
+      } else {
+        setServers(incoming)
+      }
+    } catch (error) {
+      console.error("[Servers] Не удалось обновить список серверов:", error)
     }
     setLoading(false)
   }, [])
@@ -175,7 +194,16 @@ export function useMcServerLogs(id: string | null) {
 
     const unsubLog = window.electronAPI?.onMcServerLog((data) => {
       if (data.id !== id || mutedRef.current) return
-      setLogs(prev => [...prev, data.line])
+      // Консоль сервера живёт часами и может печатать десятки строк в секунду
+      // (моды, отладка): без потолка массив и DOM росли безгранично. Держим
+      // последние MAX_SERVER_LOG_LINES строк — старые всё равно не видны.
+      setLogs(prev => {
+        const next = prev.length >= MAX_SERVER_LOG_LINES
+          ? prev.slice(prev.length - MAX_SERVER_LOG_LINES + 1)
+          : prev.slice()
+        next.push(data.line)
+        return next
+      })
     })
 
     const unsubState = window.electronAPI?.onMcServerStateChange((data) => {
