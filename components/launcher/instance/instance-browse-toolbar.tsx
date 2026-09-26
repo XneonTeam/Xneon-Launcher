@@ -2,6 +2,9 @@ import { useTranslation } from "react-i18next"
 import { IconSearch } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { LoaderIcon } from "./loader-icon"
+import { CategoriesDialog, type CategoriesDialogCategory } from "./categories-dialog"
+import { getSortLabels } from "./sort-options"
+import type { SelectedModCategory } from "./use-mod-search"
 import type { ModSort } from "./types"
 
 interface InstanceBrowseToolbarProps {
@@ -17,9 +20,14 @@ interface InstanceBrowseToolbarProps {
   versionOptions: string[]
   selectedModLoader: string
   setSelectedModLoader: (value: string) => void
+  /** Категории площадки — если переданы, в тулбаре появляется модалка фильтра. */
+  categories?: CategoriesDialogCategory[]
+  selectedCategories?: SelectedModCategory[]
+  onApplyCategories?: (value: SelectedModCategory[]) => void
 }
 
-const MOD_LOADER_OPTIONS = [
+/** Список загрузчиков для фильтра — общий у браузеров модпаков и FTB. */
+export const MOD_LOADER_OPTIONS = [
   { id: "all", label: "all" },
   { id: "vanilla", label: "Vanilla" },
   { id: "forge", label: "Forge" },
@@ -41,8 +49,12 @@ export function InstanceBrowseToolbar({
   versionOptions,
   selectedModLoader,
   setSelectedModLoader,
+  categories,
+  selectedCategories,
+  onApplyCategories,
 }: InstanceBrowseToolbarProps) {
   const { t } = useTranslation()
+  const sortLabels = getSortLabels(t)
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -63,10 +75,19 @@ export function InstanceBrowseToolbar({
         </SelectTrigger>
         <SelectContent>
           {sortOptions.map(option => (
-            <SelectItem key={option} value={option}>{t(`mods.sort.${option}`)}</SelectItem>
+            <SelectItem key={option} value={option}>{sortLabels[option]}</SelectItem>
           ))}
         </SelectContent>
       </Select>
+
+      {categories && onApplyCategories && (
+        <CategoriesDialog
+          categories={categories}
+          selected={selectedCategories ?? []}
+          onApply={onApplyCategories}
+          triggerClassName="px-4 py-2.5 rounded-xl text-sm"
+        />
+      )}
 
       <Select value={selectedVersion} onValueChange={setSelectedVersion}>
         <SelectTrigger className="w-[180px] h-10 rounded-xl bg-muted/50 border-border text-foreground">

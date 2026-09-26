@@ -7,6 +7,8 @@ import { formatDownloads } from "./utils"
 import { InstanceBrowseToolbar } from "./instance-browse-toolbar"
 import { CategoryBadge } from "./category-badge"
 import { Pagination } from "./pagination"
+import type { CategoriesDialogCategory } from "./categories-dialog"
+import type { SelectedModCategory } from "./use-mod-search"
 import type { ModSearchResult, ModSort } from "./types"
 
 interface InstanceModrinthProps {
@@ -29,6 +31,9 @@ interface InstanceModrinthProps {
   onPageChange: (page: number) => void
   onOpenDetails: (project: ModSearchResult) => void
   onDownload: (project: ModSearchResult) => void
+  categories?: CategoriesDialogCategory[]
+  selectedCategories?: SelectedModCategory[]
+  onApplyCategories?: (value: SelectedModCategory[]) => void
 }
 
 export function InstanceModrinth({
@@ -51,6 +56,9 @@ export function InstanceModrinth({
   onPageChange,
   onOpenDetails,
   onDownload,
+  categories,
+  selectedCategories,
+  onApplyCategories,
 }: InstanceModrinthProps) {
   const { t } = useTranslation()
 
@@ -69,6 +77,9 @@ export function InstanceModrinth({
         versionOptions={versionOptions}
         selectedModLoader={selectedModLoader}
         setSelectedModLoader={setSelectedModLoader}
+        categories={categories}
+        selectedCategories={selectedCategories}
+        onApplyCategories={onApplyCategories}
       />
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden">

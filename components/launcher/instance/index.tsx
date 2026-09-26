@@ -14,14 +14,15 @@ import { InstanceTrashToast } from "./instance-trash-toast"
 import { InstanceModal } from "./instance-modal"
 import { ModpackConflictDialog } from "./modpack-conflict-dialog"
 import { useBuilds } from "./use-builds"
-import { useModSearch } from "./use-mod-search"
+import { useModSearch, type SelectedModCategory } from "./use-mod-search"
+import type { CategoriesDialogCategory } from "./categories-dialog"
 import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
 import { useAccounts } from "@/src/AccountsContext"
 import { useBuildLaunch } from "@/src/hooks/use-build-launch"
 import type { ViewMode, DetailTab, ModSearchResult, ModVersion, ModSort } from "./types"
 import { SORT_OPTIONS_BY_SOURCE } from "./sort-options"
 
-export function InstancePage() {
+export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
   const [view, setView] = useState<ViewMode>("my")
   const [detailTab, setDetailTab] = useState<DetailTab>("general")
   const [createOpen, setCreateOpen] = useState(false)
@@ -54,6 +55,26 @@ export function InstancePage() {
   const [mrTotalHits, setMrTotalHits] = useState(0)
   const [cfTotalHits, setCfTotalHits] = useState(0)
   const [ftbTotalHits, setFtbTotalHits] = useState(0)
+  /**
+   * Категории модпаков по площадкам и выбранные фильтры. Списки тегов у Modrinth и
+   * CurseForge раздельные, а категории модов и модпаков — разные наборы, поэтому
+   * берём из общего ответа только `projectType === "modpack"`.
+   */
+  const [mrPackCategories, setMrPackCategories] = useState<CategoriesDialogCategory[]>([])
+  const [cfPackCategories, setCfPackCategories] = useState<CategoriesDialogCategory[]>([])
+  const [mrPackCatsSelected, setMrPackCatsSelected] = useState<SelectedModCategory[]>([])
+  const [cfPackCatsSelected, setCfPackCatsSelected] = useState<SelectedModCategory[]>([])
+  /**
+   * FTB: сортировка и фильтры работают не параметрами запроса (их у API нет), а по
+   * полному каталогу `/public/modpack/all`, который main тянет и кэширует целиком.
+   */
+  const [ftbSortBy, setFtbSortBy] = useState<ModSort>("relevance")
+  const [ftbGameVersion, setFtbGameVersion] = useState("all")
+  const [ftbGameVersions, setFtbGameVersions] = useState<string[]>([])
+  const [ftbLoader, setFtbLoader] = useState("all")
+  const [ftbLoaders, setFtbLoaders] = useState<string[]>([])
+  const [ftbCategories, setFtbCategories] = useState<CategoriesDialogCategory[]>([])
+  const [ftbPackCatsSelected, setFtbPackCatsSelected] = useState<SelectedModCategory[]>([])
 
   const {
     builds, setBuilds, activeBuildId, setActiveBuildId, activeBuild,
@@ -65,10 +86,13 @@ export function InstancePage() {
 
   const refreshUpdatesCount = useCallback(async () => {
     try {
-      const cache = await window.electronAPI?.getContentUpdatesCache()
+      // Только счётчики: полный кэш обновлений — это мегабайты JSON с иконками,
+      // и его передача в renderer на каждое изменение списка сборок была дороже
+      // самой проверки обновлений.
+      const cachedCounts = await window.electronAPI?.getContentUpdatesCounts?.()
       const counts: Record<string, number> = {}
-      for (const [buildId, entry] of Object.entries(cache ?? {})) {
-        const count = entry?.updates?.length ?? 0
+      for (const [buildId, entry] of Object.entries(cachedCounts ?? {})) {
+        const count = (entry?.mods ?? 0) + (entry?.resourcepacks ?? 0) + (entry?.shaders ?? 0)
         if (count > 0) {
           const b = builds.find(item => item.id === buildId)
           const isLinked = b && (b.source === "modrinth" || b.source === "curseforge") && b.locked !== false
@@ -132,7 +156,8 @@ export function InstancePage() {
     setMrLoading(true)
     try {
       const searchQuery = query.trim()
-      const key = `modrinth:search:modpack:${searchQuery}:${selectedVersion === "all" ? "" : selectedVersion}:${selectedModLoader === "all" ? "" : selectedModLoader}:${mrSortBy}:${currentPage}`
+      const categories = mrPackCatsSelected.map(c => c.name)
+      const key = `modrinth:search:modpack:${searchQuery}:${selectedVersion === "all" ? "" : selectedVersion}:${selectedModLoader === "all" ? "" : selectedModLoader}:${mrSortBy}:${currentPage}:${categories.join(",")}`
       const resp = await dataCache.getOrFetch(
         key,
         () => window.electronAPI?.modsModrinthSearch(
@@ -142,6 +167,7 @@ export function InstancePage() {
           selectedModLoader === "all" ? undefined : selectedModLoader as "vanilla" | "fabric" | "quilt" | "neoforge",
           mrSortBy,
           currentPage,
+          categories.length > 0 ? categories : undefined,
         ) ?? null,
         { ttl: MOD_SEARCH_CACHE_TTL, persist: true },
       )
@@ -153,13 +179,14 @@ export function InstancePage() {
       setMrTotalHits(0)
     }
     finally { setMrLoading(false) }
-  }, [mrSortBy, selectedModLoader, selectedVersion])
+  }, [mrPackCatsSelected, mrSortBy, selectedModLoader, selectedVersion])
 
   const fetchCfModpacks = useCallback(async (query: string, currentPage: number) => {
     setCfLoading(true)
     try {
       const searchQuery = query.trim()
-      const key = `curseforge:search:modpack:${searchQuery}:${selectedVersion === "all" ? "" : selectedVersion}:${selectedModLoader === "all" ? "" : selectedModLoader}:${cfSortBy}:${currentPage}`
+      const categories = cfPackCatsSelected.map(c => c.name)
+      const key = `curseforge:search:modpack:${searchQuery}:${selectedVersion === "all" ? "" : selectedVersion}:${selectedModLoader === "all" ? "" : selectedModLoader}:${cfSortBy}:${currentPage}:${categories.join(",")}`
       const resp = await dataCache.getOrFetch(
         key,
         () => window.electronAPI?.modsCurseforgeSearch(
@@ -169,6 +196,7 @@ export function InstancePage() {
           selectedModLoader === "all" ? undefined : selectedModLoader,
           cfSortBy,
           currentPage,
+          categories.length > 0 ? categories : undefined,
         ) ?? null,
         { ttl: MOD_SEARCH_CACHE_TTL, persist: true },
       )
@@ -180,7 +208,7 @@ export function InstancePage() {
       setCfTotalHits(0)
     }
     finally { setCfLoading(false) }
-  }, [cfSortBy, selectedModLoader, selectedVersion])
+  }, [cfPackCatsSelected, cfSortBy, selectedModLoader, selectedVersion])
 
   useEffect(() => {
     if (view !== "modrinth") return
@@ -194,7 +222,27 @@ export function InstancePage() {
     }
   }, [view, mrPage])
 
-  useEffect(() => { setMrPage(0) }, [mrSearch, mrSortBy, selectedModLoader, selectedVersion])
+  // Категории модпаков: из общего списка площадки берём только projectType === "modpack".
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      const [modrinth, curseforge] = await Promise.all([
+        window.electronAPI?.modsModrinthCategories?.() ?? Promise.resolve([]),
+        window.electronAPI?.modsCurseforgeCategories?.() ?? Promise.resolve([]),
+      ])
+      if (cancelled) return
+      setMrPackCategories((modrinth as CategoriesDialogCategory[])
+        .filter(c => c.projectType === "modpack")
+        .map(c => ({ ...c, source: "modrinth" as const })))
+      setCfPackCategories((curseforge as CategoriesDialogCategory[])
+        .filter(c => c.projectType === "modpack")
+        .map(c => ({ ...c, source: "curseforge" as const })))
+    }
+    void load()
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => { setMrPage(0) }, [mrSearch, mrSortBy, selectedModLoader, selectedVersion, mrPackCatsSelected])
 
   useEffect(() => {
     if (view !== "curseforge") return
@@ -208,16 +256,24 @@ export function InstancePage() {
     }
   }, [view, cfPage])
 
-  useEffect(() => { setCfPage(0) }, [cfSearch, cfSortBy, selectedModLoader, selectedVersion])
+  useEffect(() => { setCfPage(0) }, [cfSearch, cfSortBy, selectedModLoader, selectedVersion, cfPackCatsSelected])
 
   const fetchFtbModpacks = useCallback(async (query: string, currentPage: number) => {
     setFtbLoading(true)
     try {
       const searchQuery = query.trim()
-      const key = `ftb:search:${searchQuery}:${currentPage}`
+      const categories = ftbPackCatsSelected.map(c => c.name)
+      const gameVersion = ftbGameVersion === "all" ? undefined : ftbGameVersion
+      const loader = ftbLoader === "all" ? undefined : ftbLoader
+      const key = `ftb:search:${searchQuery}:${currentPage}:${ftbSortBy}:${gameVersion ?? ""}:${loader ?? ""}:${categories.join(",")}`
       const resp = await dataCache.getOrFetch(
         key,
-        () => window.electronAPI?.modsFtbSearch(searchQuery, currentPage) ?? null,
+        () => window.electronAPI?.modsFtbSearch(searchQuery, currentPage, {
+          sortBy: ftbSortBy,
+          categories: categories.length > 0 ? categories : undefined,
+          gameVersion,
+          loader,
+        }) ?? null,
         { ttl: MOD_SEARCH_CACHE_TTL, persist: true },
       )
       const nextResults = resp?.results ?? []
@@ -228,7 +284,7 @@ export function InstancePage() {
       setFtbTotalHits(0)
     }
     finally { setFtbLoading(false) }
-  }, [])
+  }, [ftbGameVersion, ftbLoader, ftbPackCatsSelected, ftbSortBy])
 
   useEffect(() => {
     if (view !== "ftb") return
@@ -242,7 +298,24 @@ export function InstancePage() {
     }
   }, [view, ftbPage])
 
-  useEffect(() => { setFtbPage(0) }, [ftbSearch])
+  useEffect(() => { setFtbPage(0) }, [ftbSearch, ftbSortBy, ftbGameVersion, ftbLoader, ftbPackCatsSelected])
+
+  // Фильтры FTB (версии Minecraft и категории-тэги) приходят из каталога FTB:
+  // тянем их один раз при первом входе на вкладку — это ~сотня манифестов в main.
+  const ftbFacetsRequested = useRef(false)
+  useEffect(() => {
+    if (view !== "ftb" || ftbFacetsRequested.current) return
+    ftbFacetsRequested.current = true
+    let cancelled = false
+    void (async () => {
+      const facets = await window.electronAPI?.modsFtbCatalogFacets?.()
+      if (cancelled || !facets) return
+      setFtbGameVersions(facets.gameVersions ?? [])
+      setFtbLoaders(facets.loaders ?? [])
+      setFtbCategories((facets.categories ?? []).map(name => ({ name, projectType: "modpack" as const, icon: "", header: "FTB" })))
+    })()
+    return () => { cancelled = true }
+  }, [view])
 
   const openBuildDetail = useCallback((id: string) => {
     setActiveBuildId(id)
@@ -253,6 +326,19 @@ export function InstancePage() {
   const goToMyBuilds = useCallback(() => {
     setView("my"); setActiveBuildId(null); setDetailTab("general"); resetModSearch()
   }, [resetModSearch, setActiveBuildId])
+
+  /**
+   * Повторный клик по активному пункту «Сборки» в боковом меню возвращает к списку
+   * сборок: со страницы конкретной сборки, из корзины, из браузера модпаков.
+   * Счётчик приходит из launcher.tsx и меняется только при таком клике, поэтому
+   * первый рендер (и любые другие ре-рендеры) список не сбрасывают.
+   */
+  const rootResetRef = useRef(rootResetToken ?? 0)
+  useEffect(() => {
+    if (rootResetToken === undefined || rootResetToken === rootResetRef.current) return
+    rootResetRef.current = rootResetToken
+    goToMyBuilds()
+  }, [rootResetToken, goToMyBuilds])
 
   /**
    * Плашка «сборка в корзине» с отменой. Список сборок держит свою такую же
@@ -453,6 +539,9 @@ export function InstancePage() {
           onPageChange={setMrPage}
           onOpenDetails={(project) => openProjectModal(project, "modpack")}
           onDownload={downloadFromModrinth}
+          categories={mrPackCategories}
+          selectedCategories={mrPackCatsSelected}
+          onApplyCategories={setMrPackCatsSelected}
         />
       )}
 
@@ -477,6 +566,9 @@ export function InstancePage() {
           onPageChange={setCfPage}
           onOpenDetails={(project) => openProjectModal(project, "modpack")}
           onDownload={downloadFromCurseforge}
+          categories={cfPackCategories}
+          selectedCategories={cfPackCatsSelected}
+          onApplyCategories={setCfPackCatsSelected}
         />
       )}
 
@@ -499,6 +591,17 @@ export function InstancePage() {
           onPageChange={setFtbPage}
           onOpenDetails={(project) => openProjectModal(project, "modpack")}
           onDownload={downloadFromFtb}
+          sortBy={ftbSortBy}
+          setSortBy={setFtbSortBy}
+          gameVersion={ftbGameVersion}
+          setGameVersion={setFtbGameVersion}
+          gameVersions={ftbGameVersions}
+          loader={ftbLoader}
+          setLoader={setFtbLoader}
+          availableLoaders={ftbLoaders}
+          categories={ftbCategories}
+          selectedCategories={ftbPackCatsSelected}
+          onApplyCategories={setFtbPackCatsSelected}
         />
       )}
 

@@ -49,7 +49,7 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [modLoading, setModLoading] = useState(false)
   const [installingModSlug, setInstallingModSlug] = useState<string | null>(null)
-  const [modSource, setModSource] = useState<SearchSource>("both")
+  const [modSource, setModSource] = useState<SearchSource>("modrinth")
   const [modSortBy, setModSortBy] = useState<ModSort>("downloads")
   const [modCategories, setModCategories] = useState<SelectedModCategory[]>([])
   const [modPage, setModPage] = useState(1)
