@@ -13,7 +13,32 @@ import { URLS } from "../constants/urls.js";
 import { gunzipSync } from "zlib";
 
 export class AssetsManager {
+  /**
+   * Кэш готовности объектов ассетов.
+   *
+   * `countAssets`, `countTotalSize` и `downloadAssets` проходят по одному и
+   * тому же индексу (5–13 тысяч объектов) и каждый объект проверяют
+   * `existsSync` + `statSync` — то есть одни и те же файлы статятся 3–4 раза за
+   * запуск. Ключ — path объекта; в рамках запуска (один AssetsManager) статус
+   * не меняется, кроме случаев, когда объект реально скачан или восстановлен
+   * из compressed-варианта — тогда запись обновляется явно.
+   */
+  private readonly readyCache = new Map<string, boolean>();
+
   constructor(private downloader: Downloader) {}
+
+  /** Сбрасывает кэш готовности (например, после внешней чистки ассетов). */
+  clearReadyCache(): void {
+    this.readyCache.clear();
+  }
+
+  private getCachedReady(key: string, compute: () => boolean): boolean {
+    const cached = this.readyCache.get(key);
+    if (cached !== undefined) return cached;
+    const value = compute();
+    this.readyCache.set(key, value);
+    return value;
+  }
 
   private async ensureAssetIndex(versionJson: VersionJson, gameDir: string): Promise<{ assetIndex: NonNullable<VersionJson["assetIndex"]>; indexDest: string; indexData: AssetIndex; hadIndexFile: boolean }> {
     const { assetIndex } = versionJson;
@@ -114,6 +139,12 @@ export class AssetsManager {
       }>;
 
     await this.downloader.downloadMultiple(items, 10);
+
+    // Скачанные объекты теперь на месте: обновляем кэш, иначе последующие
+    // countAssets/countTotalSize посчитают их отсутствующими.
+    for (const item of items) {
+      this.readyCache.set(item.dest, true);
+    }
   }
 
   async getAssetIndex(versionJson: VersionJson, gameDir: string): Promise<AssetIndex> {
@@ -125,15 +156,20 @@ export class AssetsManager {
   }
 
   private isAssetObjectReady(gameDir: string, entry: AssetIndex["objects"][string]): boolean {
-    if (this.checkAssetObject(gameDir, entry)) {
-      return true;
-    }
+    // Ключ — путь объекта: один и тот же хэш не проверяется повторно в рамках
+    // запуска (см. readyCache).
+    const key = this.getAssetObjectPath(gameDir, entry.hash);
+    return this.getCachedReady(key, () => {
+      if (this.checkAssetObject(gameDir, entry)) {
+        return true;
+      }
 
-    if (!entry.compressedHash || !entry.compressedSize) {
-      return false;
-    }
+      if (!entry.compressedHash || !entry.compressedSize) {
+        return false;
+      }
 
-    return this.restoreCompressedAsset(gameDir, entry);
+      return this.restoreCompressedAsset(gameDir, entry);
+    });
   }
 
   private checkAssetObject(gameDir: string, entry: AssetIndex["objects"][string]): boolean {
