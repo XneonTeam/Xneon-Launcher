@@ -9,6 +9,7 @@ import { randomUUID } from "crypto"
 import { dbHelpers, type GameSessionRow } from "../db"
 import { sendToRenderer } from "./runtime"
 import { getActiveGameSession, getActiveServerSessions } from "./session-tracker"
+import { listTrashedBuildMeta } from "./builds/trash-meta"
 import type { GameSessionInfo, StatsOverview, StatsRange } from "@xnlc/types" with { "resolution-mode": "import" }
 
 const DAY_MS = 86_400_000
@@ -44,6 +45,25 @@ function liveElapsed(startedAt: number): number {
   return Math.max(0, Math.floor((Date.now() - startedAt) / 1000))
 }
 
+/**
+ * Разовая уборка сессий сборок, которых больше нет в БД.
+ *
+ * Живёт здесь, а не в `initDatabase`: сборки в корзине тоже отсутствуют в таблице
+ * `builds` (запись удаляется при перемещении), но они восстановимы, поэтому их
+ * сессии защищаем по снапшотам корзины — статистика уходит только при очистке
+ * корзины (`build:purge-trash`). Дополнительно нужен каталог инстансов, который
+ * читается из настроек уже после инициализации БД.
+ *
+ * @returns сколько записей удалено
+ */
+export async function cleanupOrphanGameSessions(): Promise<number> {
+  const trashed = await listTrashedBuildMeta()
+  const ids = trashed.map((meta) => meta.id).filter((id): id is string => !!id)
+  // Снапшоты старых записей корзины могли не сохранить id — тогда опираемся на имя.
+  const names = trashed.filter((meta) => !meta.id && meta.name).map((meta) => meta.name as string)
+  return dbHelpers.deleteOrphanGameSessions({ ids, names })
+}
+
 function localDateKey(timestamp: number): string {
   const d = new Date(timestamp)
   const year = d.getFullYear()
@@ -63,10 +83,14 @@ function sessionsFromRows(rows: GameSessionRow[]): GameSessionInfo[] {
   }))
 }
 
-async function buildOverview(range?: StatsRange): Promise<StatsOverview> {
+/** Собирает сводку статистики; экспортируется ради прямого вызова в проверках. */
+export async function buildOverview(range?: StatsRange): Promise<StatsOverview> {
   const { from, to } = resolveRange(range)
-  const rows = await dbHelpers.listGameSessions()
-  const sessions = sessionsFromRows(rows).filter((s) => s.startedAt >= from && s.startedAt <= to)
+  // Читаем только диапазон: полное чтение game_sessions + фильтрация в JS
+  // становилось полным сканом таблицы на каждый вызов (а страница статистики
+  // обновлялась каждые 5 с).
+  const rows = await dbHelpers.listGameSessionsInRange(from, to)
+  const sessions = sessionsFromRows(rows)
 
   // Real-time: include the in-progress game session so totals tick up
   // while Minecraft is running — but only when it started inside the range.
@@ -80,9 +104,31 @@ async function buildOverview(range?: StatsRange): Promise<StatsOverview> {
   const totalSessions = sessions.length + (activeGameElapsed > 0 ? 1 : 0)
   const averageSession = totalSessions > 0 ? Math.round(totalPlaytime / totalSessions) : 0
 
-  const builds = await dbHelpers.loadBuilds()
+  // Статистике нужны только имена и иконки сборок. Полный `loadBuilds()` здесь
+  // читал и разбирал JSON всего тяжёлого контента (десятки мегабайт на ~20
+  // сборок) — и делал это на каждом обновлении страницы статистики (раз в 5 с).
+  const builds = await dbHelpers.loadBuildsLight()
   const buildNames = new Map(builds.map((b) => [b.id, b.name]))
   const buildIcons = new Map(builds.map((b) => [b.id, b.icon]))
+
+  // Сборки в корзине: запись в `builds` удаляется сразу при перемещении в
+  // корзину, а сессии остаются до её очистки. Без снапшота метаданных у такой
+  // сборки в рейтинге пропадала иконка (имя подставлялось из `buildName`
+  // сессии). Снапшот лежит рядом с папкой в корзине — см. `builds/trash-meta`.
+  const trashedBuilds = await listTrashedBuildMeta()
+  const trashedByName = new Map<string, { name?: string; icon?: string }>()
+  for (const meta of trashedBuilds) {
+    if (meta.id && !buildNames.has(meta.id)) buildNames.set(meta.id, meta.name ?? "")
+    if (meta.id && meta.icon && !buildIcons.has(meta.id)) buildIcons.set(meta.id, meta.icon)
+    if (meta.name) trashedByName.set(meta.name, meta)
+  }
+
+  /** Иконка сборки: сначала БД, затем снапшот корзины по имени сессии. */
+  const iconForBuild = (buildId: string, buildName?: string): string | undefined =>
+    buildIcons.get(buildId) ?? (buildName ? trashedByName.get(buildName)?.icon : undefined)
+  /** Имя сборки: БД → снапшот корзины → имя из сессии. */
+  const nameForBuild = (buildId: string, buildName?: string): string =>
+    buildNames.get(buildId) || (buildName ? trashedByName.get(buildName)?.name : undefined) || buildName || "—"
 
   // Per-day playtime across the selected range (oldest → newest for the chart).
   const dailyMap = new Map<string, number>()
@@ -113,8 +159,8 @@ async function buildOverview(range?: StatsRange): Promise<StatsOverview> {
     const entry = byBuild.get(session.buildId) ?? {
       seconds: 0,
       sessions: 0,
-      name: buildNames.get(session.buildId) ?? session.buildName ?? "—",
-      icon: buildIcons.get(session.buildId),
+      name: nameForBuild(session.buildId, session.buildName),
+      icon: iconForBuild(session.buildId, session.buildName),
     }
     entry.seconds += session.duration
     entry.sessions += 1
@@ -124,8 +170,8 @@ async function buildOverview(range?: StatsRange): Promise<StatsOverview> {
     const entry = byBuild.get(activeGame.buildId) ?? {
       seconds: 0,
       sessions: 0,
-      name: buildNames.get(activeGame.buildId) ?? activeGame.buildName,
-      icon: buildIcons.get(activeGame.buildId),
+      name: nameForBuild(activeGame.buildId, activeGame.buildName),
+      icon: iconForBuild(activeGame.buildId, activeGame.buildName),
     }
     entry.seconds += activeGameElapsed
     // Живая сессия — это ещё одна сессия в рейтинге сборок (не только время)
@@ -139,8 +185,7 @@ async function buildOverview(range?: StatsRange): Promise<StatsOverview> {
 
   // Launcher-hosted MC servers: aggregate uptime sessions (including
   // servers that are still running right now) inside the selected range.
-  const serverRowsAll = await dbHelpers.listServerSessions()
-  const serverRows = serverRowsAll.filter((r) => r.startedAt >= from && r.startedAt <= to)
+  const serverRows = await dbHelpers.listServerSessionsInRange(from, to)
   const activeServers = getActiveServerSessions().filter((a) => a.startedAt >= from && a.startedAt <= to)
   const serverMap = new Map<string, { seconds: number; sessions: number; name: string; icon?: string }>()
   for (const row of serverRows) {
@@ -223,6 +268,10 @@ async function buildOverview(range?: StatsRange): Promise<StatsOverview> {
     serverLastSession,
     dailyServerUptime,
     topServers,
+    // Флаги «что-то сейчас запущено»: по ним страница статистики решает,
+    // нужен ли локальный тик (live-время) — постоянный 5-с поллинг убран.
+    gameActiveStartedAt: activeGameRaw?.startedAt ?? null,
+    activeServerSessions: getActiveServerSessions().length,
   }
 }
 
