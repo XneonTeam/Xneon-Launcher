@@ -77,7 +77,30 @@ async function updateLevelName(worldPath: string, newName: string): Promise<void
   } catch { /* level.dat update is best-effort */ }
 }
 
+/**
+ * Кэш размеров каталогов.
+ *
+ * `dirSize` рекурсивно обходит всё дерево (до 200 000 записей) со `stat` на
+ * каждый файл, и вызывался для каждого мира при каждом `worlds:list`. Размер
+ * меняется только когда игра пишет в мир, поэтому держим результат с TTL и
+ * сбрасываем его при изменении mtime самого каталога (создание/удаление файлов).
+ */
+const DIR_SIZE_TTL_MS = 60_000
+const dirSizeCache = new Map<string, { size: number; dirMtimeMs: number; at: number }>()
+
 async function dirSize(dirPath: string, maxEntries = 200000): Promise<number> {
+  let dirMtimeMs = 0
+  try {
+    dirMtimeMs = (await fs.stat(dirPath)).mtimeMs
+  } catch {
+    return 0
+  }
+
+  const cached = dirSizeCache.get(dirPath)
+  if (cached && cached.dirMtimeMs === dirMtimeMs && Date.now() - cached.at < DIR_SIZE_TTL_MS) {
+    return cached.size
+  }
+
   let total = 0
   let count = 0
   const walk = async (dir: string): Promise<void> => {
@@ -96,6 +119,7 @@ async function dirSize(dirPath: string, maxEntries = 200000): Promise<number> {
     }
   }
   await walk(dirPath)
+  dirSizeCache.set(dirPath, { size: total, dirMtimeMs, at: Date.now() })
   return total
 }
 
@@ -504,11 +528,23 @@ export function registerWorldsHandlers(): void {
 
   // ---------- Screenshots ----------
 
+  /**
+   * Кэш миниатюр скриншотов.
+   *
+   * Раньше `screenshots:list` читал КАЖДЫЙ файл целиком, декодировал его и
+   * пересобирал PNG-миниатюру при каждом открытии вкладки. Теперь миниатюра
+   * сохраняется рядом (`<shots>/.thumbs/<name>.png`) и пересобирается только
+   * если исходник новее; в памяти держим последний результат на сессию.
+   * Ключ — путь к исходнику, инвалидация по mtime+size.
+   */
+  const thumbCache = new Map<string, { mtime: number; size: number; dataUrl: string }>()
+
   const listScreenshots = async (buildName: string): Promise<ScreenshotInfo[]> => {
     const gameDir = await getGameDir(buildName)
     const shotsDir = path.join(gameDir, "screenshots")
     let entries: string[] = []
     try { entries = await fs.readdir(shotsDir) } catch { return [] }
+    const thumbsDir = path.join(shotsDir, ".thumbs")
     const result: ScreenshotInfo[] = []
     for (const entry of entries) {
       if (!/\.(png|jpe?g|webp|bmp)$/i.test(entry)) continue
@@ -516,17 +552,46 @@ export function registerWorldsHandlers(): void {
       try {
         const stat = await fs.stat(full)
         if (!stat.isFile()) continue
-        const buffer = await fs.readFile(full)
-        const image = nativeImage.createFromBuffer(buffer)
-        if (image.isEmpty()) continue
-        const size = image.getSize()
-        const maxDim = Math.max(size.width, size.height)
-        const thumb = maxDim > 480 ? image.resize({ width: Math.round(size.width * 480 / maxDim) }) : image
+
+        const cached = thumbCache.get(full)
+        let dataUrl: string | undefined
+        if (cached && cached.mtime === stat.mtimeMs && cached.size === stat.size) {
+          dataUrl = cached.dataUrl
+        }
+
+        if (!dataUrl) {
+          const thumbPath = path.join(thumbsDir, `${entry}.png`)
+          // Дисковый кэш: если миниатюра не старше исходника — берём её,
+          // декодирование полноразмерного скриншота не нужно.
+          try {
+            const thumbStat = await fs.stat(thumbPath)
+            if (thumbStat.mtimeMs >= stat.mtimeMs) {
+              dataUrl = fileToDataUrl(await fs.readFile(thumbPath), "image/png")
+            }
+          } catch { /* миниатюры ещё нет */ }
+        }
+
+        if (!dataUrl) {
+          const buffer = await fs.readFile(full)
+          const image = nativeImage.createFromBuffer(buffer)
+          if (image.isEmpty()) continue
+          const size = image.getSize()
+          const maxDim = Math.max(size.width, size.height)
+          const thumb = maxDim > 480 ? image.resize({ width: Math.round(size.width * 480 / maxDim) }) : image
+          const png = thumb.toPNG()
+          dataUrl = fileToDataUrl(png, "image/png")
+          try {
+            await fs.mkdir(thumbsDir, { recursive: true })
+            await fs.writeFile(path.join(thumbsDir, `${entry}.png`), png)
+          } catch { /* дисковый кэш необязателен */ }
+        }
+
+        thumbCache.set(full, { mtime: stat.mtimeMs, size: stat.size, dataUrl })
         result.push({
           name: entry,
           sizeBytes: stat.size,
           lastModified: stat.mtimeMs,
-          thumbDataUrl: fileToDataUrl(thumb.toPNG(), "image/png"),
+          thumbDataUrl: dataUrl,
           path: full,
         })
       } catch { /* ignore */ }
@@ -550,6 +615,12 @@ export function registerWorldsHandlers(): void {
       const filePath = resolveChildPath(shotsDir, fileName)
       if (!filePath) return null
       const buffer = await fs.readFile(filePath)
+      // JPEG отдаём как есть: раньше PNG-перекодирование раздувало payload и
+      // тратило время на декодирование/кодирование без выигрыша в качестве.
+      const ext = path.extname(filePath).toLowerCase()
+      if (ext === ".jpg" || ext === ".jpeg") {
+        return fileToDataUrl(buffer, "image/jpeg")
+      }
       const image = nativeImage.createFromBuffer(buffer)
       if (image.isEmpty()) return null
       return fileToDataUrl(image.toPNG(), "image/png")

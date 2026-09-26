@@ -244,8 +244,10 @@ export class LaunchOrchestrator {
                 this.buildLaunchTimestamps.delete(request.buildName)
                 if (elapsed > 0) {
                   const sessionBuildName = request.buildName
-                  dbHelpers.loadBuilds().then(builds => {
-                    const build = builds.find(b => b.name === sessionBuildName)
+                  // Точечный поиск id по имени: раньше здесь читался полный
+                  // список сборок вместе с JSON-контентом (десятки мегабайт)
+                  // на каждый выход из игры.
+                  dbHelpers.findBuildByName(sessionBuildName).then(build => {
                     if (build) {
                       dbHelpers.updateBuildPlaytime(build.id, elapsed)
                       void recordGameSession({
@@ -256,7 +258,7 @@ export class LaunchOrchestrator {
                         duration: elapsed,
                       })
                     }
-                  })
+                  }).catch(() => {})
                 }
               }
             } else {
