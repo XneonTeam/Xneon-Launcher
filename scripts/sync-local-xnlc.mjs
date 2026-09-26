@@ -11,8 +11,9 @@ const localPackages = [
   "xnlc-core",
   "xnlc-mods",
   "xnlc-nbt",
-  "xnlc-types",
   "xnlc-servers",
+  "xnlc-skins",
+  "xnlc-types",
 ]
 
 function linkPackage(targetDir, sourceDir, label) {

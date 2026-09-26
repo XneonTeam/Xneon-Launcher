@@ -1,0 +1,40 @@
+{
+  "name": "@xnlc/skins",
+  "version": "1.0.0",
+  "description": "XNLC Skins — Minecraft skin domain: Laby catalog client, favorites library, local skins, active skin and caching. Electron-free by design.",
+  "type": "module",
+  "author": "MAINER4IK",
+  "license": "MIT",
+  "keywords": [
+    "minecraft",
+    "skins",
+    "capes",
+    "laby",
+    "minecraft-launcher",
+    "xnlc",
+    "xneon"
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "dependencies": {
+    "@xnlc/core": "workspace:*",
+    "@xnlc/types": "workspace:*"
+  },
+  "scripts": {
+    "build": "node -e \"fs.rmSync('lib',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "clean": "node -e \"fs.rmSync('lib',{recursive:true,force:true})\"",
+    "prepublishOnly": "npm run build"
+  },
+  "publishConfig": {
+    "registry": "https://git.xneon.org/api/packages/MAINER4IK/npm/"
+  }
+}
