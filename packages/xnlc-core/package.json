@@ -41,7 +41,7 @@
     }
   },
   "dependencies": {
-    "@xnlc/types": "*",
+    "@xnlc/types": "workspace:*",
     "adm-zip": "^0.6.0"
   },
   "scripts": {

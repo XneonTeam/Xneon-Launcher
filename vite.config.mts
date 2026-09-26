@@ -63,7 +63,6 @@ export default defineConfig({
           if (pkg.startsWith('@tabler/')) return 'icons'
           if (pkg === 'react-markdown' || pkg === 'rehype-raw' || pkg === 'rehype-sanitize' || pkg === 'remark-rehype' || pkg === 'unified') return 'markdown'
           if (pkg.startsWith('@emoji-mart/')) return 'emoji-mart'
-          if (pkg === 'sql.js') return 'sql'
           if (pkg === 'axios' || pkg === 'form-data' || pkg === 'follow-redirects') return 'http'
           if (pkg === 'webdav') return 'webdav'
           if (pkg === 'electron-updater' || pkg === 'builder-util-runtime') return 'updater'
