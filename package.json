@@ -19,13 +19,14 @@
     "@fontsource/inter": "^5.3.0",
     "@fontsource/plus-jakarta-sans": "^5.3.0",
     "@types/prismjs": "^1.26.6",
-    "@xnlc/core": "^1.0.6",
-    "@xnlc/mods": "^1.0.3",
-    "@xnlc/nbt": "^1.0.1",
-    "@xnlc/servers": "^1.0.0",
-    "@xnlc/types": "^1.0.8",
+    "@xnlc/core": "workspace:*",
+    "@xnlc/mods": "workspace:*",
+    "@xnlc/nbt": "workspace:*",
+    "@xnlc/servers": "workspace:*",
+    "@xnlc/types": "workspace:*",
     "adm-zip": "^0.6.0",
     "axios": "^1.18.1",
+    "better-sqlite3": "^13.0.3",
     "discord-rpc": "^4.0.1",
     "electron-updater": "^6.8.9",
     "emoji-mart": "^5.6.0",
@@ -36,7 +37,6 @@
     "react-simple-code-editor": "^0.14.1",
     "remark-gfm": "^4.0.1",
     "skinview3d": "^3.4.2",
-    "sql.js": "^1.14.1",
     "three": "^0.185.1",
     "toml": "^5.0.0",
     "webdav": "^5.10.0"
@@ -92,13 +92,17 @@
     "tw-animate-css": "1.4.0",
     "typescript": "7.0.2",
     "vite": "^8.1.5",
-    "wait-on": "^9.0.10"
+    "wait-on": "^9.0.10",
+    "@types/better-sqlite3": "^7.6.13"
   },
   "build": {
     "appId": "com.xneonlauncher.app",
     "productName": "Xneon Launcher",
     "npmRebuild": false,
     "forceCodeSigning": false,
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**"
+    ],
     "publish": {
       "provider": "github",
       "owner": "XneonTeam",

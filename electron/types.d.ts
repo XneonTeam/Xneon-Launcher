@@ -1,4 +1,3 @@
-declare module "sql.js"
 declare module "adm-zip"
 declare module "discord-rpc" {
   export class Client {

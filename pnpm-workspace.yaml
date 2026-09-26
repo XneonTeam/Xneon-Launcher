@@ -1,7 +1,11 @@
 packages:
   - "packages/*"
 
+# better-sqlite3 v13 ships prebuilt Node-API binaries (prebuilds/<platform>-<arch>.node,
+# "gypfile": false), so the implicit `node-gyp rebuild` must stay skipped — N-API keeps
+# the binary ABI-stable between Node and Electron, so no electron-rebuild step is needed.
 allowBuilds:
+  better-sqlite3: false
   cpu-features: true
   esbuild: true
   electron-winstaller: true
