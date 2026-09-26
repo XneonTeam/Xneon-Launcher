@@ -1,21 +1,19 @@
 // ============================================================
-// Xneon Launcher — Modloader version requirements from mod JARs
+// XNLC — проверка требований модов к версии загрузчика
 // ============================================================
 //
-// Modrinth и CurseForge описывают мод только парой «загрузчик + версия
-// Minecraft», поэтому требование к версии самого загрузчика известно
-// исключительно из метаданных внутри JAR:
-//   • Fabric   — fabric.mod.json → depends.fabricloader
-//   • Quilt    — quilt.mod.json  → quilt_loader.depends[id=quilt_loader]
-//   • Forge    — META-INF/mods.toml → loaderVersion / dependencies[modId=forge]
-//   • NeoForge — META-INF/neoforge.mods.toml (или mods.toml) → neoforge
-//
-// Здесь эти требования читаются и сравниваются с версией загрузчика сборки.
+// Сам разбор метаданных живёт в builds/loader-requirements.ts, а чтение JAR
+// выполняет единый инспектор (builds/jar-inspector.ts): файл читается один раз
+// и кладётся в общий кэш по (path, size, mtime), поэтому проверка требований
+// после сканирования сборки диск не трогает.
 
 import * as fs from "fs"
 import * as path from "path"
-import { loadAdmZip, loadToml, readArchiveText, type AdmZipType } from "./builds/helpers"
+import { inspectJar } from "./builds/jar-inspector"
 import { satisfiesLoaderRequirement } from "./builds/version-range"
+import { normalizeLoaderId, type ModArchiveRequirements } from "./builds/loader-requirements"
+
+export type { ModArchiveRequirements, DeclaredRequirement } from "./builds/loader-requirements"
 
 export interface LoaderRequirementEntry {
   fileName: string
@@ -37,149 +35,18 @@ export interface LoaderRequirementReport {
   issues: LoaderRequirementEntry[]
 }
 
-interface DeclaredRequirement {
-  loaderId: string
-  requirement: string
-}
+/**
+ * Кэш готовых отчётов по папке модов. Даже с общим кэшем инспектора повторный
+ * проход стоит `readdir` + `stat` на каждый JAR; здесь он превращается в
+ * сравнение подписи папки (имена + размеры + mtime).
+ */
+const reportCache = new Map<string, { signature: string; report: LoaderRequirementReport }>()
 
-interface ModArchiveRequirements {
-  modId?: string
-  modName?: string
-  requirements: DeclaredRequirement[]
-}
+const REPORT_CACHE_LIMIT = 64
 
-// ── Чтение метаданных мода ──────────────────────────────────
-
-function firstString(value: unknown): string | undefined {
-  if (typeof value === "string") return value.trim() || undefined
-  if (Array.isArray(value)) {
-    const found = value.find(item => typeof item === "string" && item.trim())
-    return found ? String(found).trim() : undefined
-  }
-  return undefined
-}
-
-function asStringList(value: unknown): string[] {
-  if (typeof value === "string") return value.trim() ? [value.trim()] : []
-  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-  return []
-}
-
-function readFabricRequirements(zip: AdmZipType): ModArchiveRequirements | null {
-  const raw = readArchiveText(zip, "fabric.mod.json")
-  if (!raw) return null
-  try {
-    const data = JSON.parse(raw) as Record<string, any>
-    const depends = (data.depends ?? {}) as Record<string, unknown>
-    const requirements: DeclaredRequirement[] = []
-
-    const loaderRequirement = asStringList(depends["fabricloader"] ?? depends["fabric-loader"])
-    for (const requirement of loaderRequirement) {
-      requirements.push({ loaderId: "fabric", requirement })
-    }
-
-    return {
-      modId: firstString(data.id),
-      modName: firstString(data.name),
-      requirements,
-    }
-  } catch {
-    return null
-  }
-}
-
-function readQuiltRequirements(zip: AdmZipType): ModArchiveRequirements | null {
-  const raw = readArchiveText(zip, "quilt.mod.json")
-  if (!raw) return null
-  try {
-    const data = JSON.parse(raw) as Record<string, any>
-    const quiltLoader = (data.quilt_loader ?? {}) as Record<string, any>
-    const depends = Array.isArray(quiltLoader.depends) ? quiltLoader.depends : []
-    const requirements: DeclaredRequirement[] = []
-
-    for (const entry of depends) {
-      const id = String(entry?.id ?? "").toLowerCase()
-      if (id !== "quilt_loader" && id !== "quilt-loader") continue
-      const range = firstString(entry?.versions ?? entry?.version)
-      if (range) requirements.push({ loaderId: "quilt", requirement: range })
-    }
-
-    return {
-      modId: firstString(quiltLoader.id),
-      modName: firstString(quiltLoader.metadata?.name) ?? firstString(quiltLoader.id),
-      requirements,
-    }
-  } catch {
-    return null
-  }
-}
-
-const LOADER_DEPENDENCY_IDS = new Set(["forge", "neoforge", "minecraft"])
-
-async function parseTomlRequirementsAsync(raw: string, isNeoForgeFile: boolean): Promise<ModArchiveRequirements | null> {
-  return parseTomlRequirementsWith(raw, isNeoForgeFile, await loadToml())
-}
-
-function parseTomlRequirementsWith(
-  raw: string,
-  isNeoForgeFile: boolean,
-  toml: { parse(input: string): Record<string, unknown> },
-): ModArchiveRequirements | null {
-  try {
-    const data = toml.parse(raw) as Record<string, any>
-    const requirements: DeclaredRequirement[] = []
-
-    const mods = Array.isArray(data.mods) ? data.mods : []
-    const firstMod = mods[0] ?? {}
-
-    const dependencies = (data.dependencies ?? {}) as Record<string, unknown>
-    const coveredLoaders = new Set<string>()
-    for (const ownerDeps of Object.values(dependencies)) {
-      if (!Array.isArray(ownerDeps)) continue
-      for (const dep of ownerDeps as Record<string, unknown>[]) {
-        const modId = String(dep?.modId ?? "").toLowerCase()
-        if (!LOADER_DEPENDENCY_IDS.has(modId) || modId === "minecraft") continue
-        const range = firstString(dep?.versionRange)
-        if (!range) continue
-        requirements.push({ loaderId: modId === "forge" ? "forge" : "neoforge", requirement: range })
-        coveredLoaders.add(modId)
-      }
-    }
-
-    // `loaderVersion` — общее требование к загрузчику, если по зависимостям его нет
-    const loaderVersionRange = firstString(data.loaderVersion)
-    const fileLoader = isNeoForgeFile ? "neoforge" : "forge"
-    if (loaderVersionRange && !coveredLoaders.has(fileLoader)) {
-      requirements.push({ loaderId: fileLoader, requirement: loaderVersionRange })
-    }
-
-    return {
-      modId: firstString(firstMod.modId),
-      modName: firstString(firstMod.displayName) ?? firstString(firstMod.modId),
-      requirements,
-    }
-  } catch {
-    return null
-  }
-}
-
-function normalizeLoaderId(loaderId?: string): string {
-  const value = (loaderId ?? "").trim().toLowerCase()
-  if (value === "fabric-legacy" || value === "fabric-loader") return "fabric"
-  if (value === "quilt-loader") return "quilt"
-  return value
-}
-
-/** Ищет `META-INF/mods.toml` / `META-INF/neoforge.mods.toml` без учёта регистра. */
-function findModsTomlEntry(zip: AdmZipType): string | null {
-  let forgeEntry: string | null = null
-  for (const entry of zip.getEntries()) {
-    const name = entry.entryName
-    if (!/^META-INF\/[^/]*mods\.toml$/i.test(name)) continue
-    if (/neoforge.*mods\.toml$/i.test(name)) return name
-    forgeEntry = forgeEntry ?? name
-  }
-  return forgeEntry
+/** Сбрасывает кэш отчётов (используется при импорте/подмене файлов). */
+export function clearModLoaderRequirementsCache(): void {
+  reportCache.clear()
 }
 
 /**
@@ -187,27 +54,8 @@ function findModsTomlEntry(zip: AdmZipType): string | null {
  * Возвращает `null`, если метаданные прочитать не удалось.
  */
 export async function readModLoaderRequirements(filePath: string): Promise<ModArchiveRequirements | null> {
-  let zip: AdmZipType
-  try {
-    const AdmZip = await loadAdmZip()
-    zip = new AdmZip(await fs.promises.readFile(filePath))
-  } catch {
-    return null
-  }
-
-  const quilt = readQuiltRequirements(zip)
-  if (quilt) return quilt
-
-  const fabric = readFabricRequirements(zip)
-  if (fabric) return fabric
-
-  const entryName = findModsTomlEntry(zip)
-  if (!entryName) return null
-
-  const raw = readArchiveText(zip, entryName)
-  if (!raw) return null
-
-  return parseTomlRequirementsAsync(raw, /neoforge/i.test(entryName))
+  const { loaderRequirements } = await inspectJar(filePath, { loaderRequirements: true })
+  return loaderRequirements ?? null
 }
 
 const READ_CHUNK = 6
@@ -232,17 +80,31 @@ export async function checkLoaderRequirements(
     return report
   }
 
-  for (let i = 0; i < files.length; i += READ_CHUNK) {
-    const chunk = files.slice(i, i + READ_CHUNK)
-    const results = await Promise.all(chunk.map(async (fileName) => {
-      const filePath = path.join(modsDir, fileName)
-      try {
-        const stat = await fs.promises.stat(filePath)
-        // Гигантские JAR-ы (шейдерпаки/сборки внутри мода) не читаем целиком.
-        if (stat.size > 80 * 1024 * 1024) return null
-      } catch {
-        return null
-      }
+  // Один `stat` на файл — из него и подпись папки, и ключ кэша инспектора.
+  const entries: Array<{ fileName: string; filePath: string; size: number; mtimeMs: number }> = []
+  await Promise.all(files.map(async (fileName) => {
+    const filePath = path.join(modsDir, fileName)
+    try {
+      const stat = await fs.promises.stat(filePath)
+      // Гигантские JAR-ы (шейдерпаки/сборки внутри мода) не читаем целиком.
+      if (stat.size > 80 * 1024 * 1024) return
+      entries.push({ fileName, filePath, size: stat.size, mtimeMs: Math.round(stat.mtimeMs) })
+    } catch {
+      // Файл исчез между readdir и stat — пропускаем.
+    }
+  }))
+  entries.sort((a, b) => (a.fileName < b.fileName ? -1 : a.fileName > b.fileName ? 1 : 0))
+
+  const signature = `${loaderId}|${loaderVersion ?? ""}|` +
+    entries.map(entry => `${entry.fileName}:${entry.size}:${entry.mtimeMs}`).join("|")
+  const cachedReport = reportCache.get(modsDir)
+  if (cachedReport && cachedReport.signature === signature) {
+    return cachedReport.report
+  }
+
+  for (let i = 0; i < entries.length; i += READ_CHUNK) {
+    const chunk = entries.slice(i, i + READ_CHUNK)
+    const results = await Promise.all(chunk.map(async ({ fileName, filePath }) => {
       const requirements = await readModLoaderRequirements(filePath)
       return requirements ? { fileName, requirements } : null
     }))
@@ -281,5 +143,10 @@ export async function checkLoaderRequirements(
     }
   }
 
+  if (reportCache.size >= REPORT_CACHE_LIMIT) {
+    // Ключей немного (по одному на сборку), но при импорте их может стать много.
+    reportCache.clear()
+  }
+  reportCache.set(modsDir, { signature, report })
   return report
 }

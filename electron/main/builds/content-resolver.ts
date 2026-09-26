@@ -1,29 +1,8 @@
 import fs from "fs/promises"
-import crypto from "crypto"
 import { loadModsModule } from "./helpers"
-import { readModMetadataFromArchive } from "./metadata"
-import { computeFingerprint } from "./fingerprint"
+import { inspectJar, primeJarInspectionCache } from "./jar-inspector"
+import { logRuntime } from "../runtime"
 import { dbHelpers } from "../../db"
-
-const STREAM_THRESHOLD = 65536 * 20
-
-export async function hashResource(filePath: string, size: number): Promise<string> {
-  if (size > STREAM_THRESHOLD) {
-    const hash = crypto.createHash("sha1")
-    const handle = await fs.open(filePath, "r")
-    try {
-      for await (const chunk of handle.createReadStream()) {
-        hash.update(chunk)
-      }
-    } finally {
-      await handle.close()
-    }
-    return hash.digest("hex")
-  }
-  const hash = crypto.createHash("sha1")
-  hash.update(await fs.readFile(filePath))
-  return hash.digest("hex")
-}
 
 export type ResolvedContentEntry = {
   sha1: string
@@ -59,12 +38,24 @@ async function resolveCurseforgeMatches(candidates: CfCandidate[]): Promise<{ ok
   const matches: Record<string, CfMatch> = {}
   if (candidates.length === 0) return { ok: true, matches }
 
+  // Отпечаток CurseForge считается по всему содержимому файла, поэтому чтение
+  // всех JAR-ов сразу — это сотни мегабайт в памяти одновременно. Держим ту же
+  // умеренную параллельность, что и у остальных проходов. Отпечаток приходит из
+  // общего кэша инспектора, если этот же файл уже разбирался на скане, — тогда
+  // диск не читается повторно.
   const fingerprints = new Map<string, number>()
-  await Promise.all(candidates.map(async (candidate) => {
-    try {
-      fingerprints.set(candidate.sha1, await computeFingerprint(candidate.filePath))
-    } catch {}
-  }))
+  const FINGERPRINT_CHUNK = 4
+  for (let i = 0; i < candidates.length; i += FINGERPRINT_CHUNK) {
+    const chunk = candidates.slice(i, i + FINGERPRINT_CHUNK)
+    await Promise.all(chunk.map(async (candidate) => {
+      try {
+        const { curseforgeFingerprint } = await inspectJar(candidate.filePath, { curseforgeFingerprint: true })
+        if (typeof curseforgeFingerprint === "number") {
+          fingerprints.set(candidate.sha1, curseforgeFingerprint)
+        }
+      } catch {}
+    }))
+  }
 
   const values = [...new Set([...fingerprints.values()])].filter(n => Number.isFinite(n) && n > 0)
   if (values.length === 0) return { ok: true, matches }
@@ -88,115 +79,6 @@ async function resolveCurseforgeMatches(candidates: CfCandidate[]): Promise<{ ok
   }
 
   return { ok: true, matches }
-}
-
-export async function resolveContentEntry(filePath: string): Promise<ResolvedContentEntry | null> {
-  try {
-    const stat = await fs.stat(filePath)
-    const [snapshot] = await dbHelpers.getFileSnapshots([filePath])
-
-    let sha1: string
-    if (snapshot && snapshot.size === stat.size && snapshot.mtime === Math.round(stat.mtimeMs)) {
-      sha1 = snapshot.sha1
-    } else {
-      sha1 = await hashResource(filePath, stat.size)
-      await dbHelpers.upsertFileSnapshot({ path: filePath, size: stat.size, mtime: Math.round(stat.mtimeMs), sha1 })
-    }
-
-    const [cached] = await dbHelpers.getResources([sha1])
-    if (cached && (cached.name || cached.icon)) {
-      return {
-        sha1,
-        name: cached.name,
-        description: cached.description,
-        version: cached.version,
-        icon_url: cached.icon || undefined,
-        author: cached.author || undefined,
-        source: (cached.source as ResolvedContentEntry["source"]) ?? "local",
-        projectId: cached.projectId ?? undefined,
-        versionId: cached.versionId ?? undefined,
-        modId: cached.modId ?? undefined,
-        fileId: cached.fileId ?? undefined,
-      }
-    }
-
-    const metadata = await readModMetadataFromArchive(filePath)
-    const name = metadata.name || ""
-    const entry: ResolvedContentEntry = {
-      sha1,
-      name,
-      description: metadata.description || "",
-      version: metadata.version || "local",
-      icon_url: metadata.icon_url,
-      author: metadata.author,
-      source: "local",
-    }
-
-    let cfChecked = 0
-    if (name) {
-      try {
-        const mods = await loadModsModule()
-        const found = await mods.modrinthGetFileByHash(sha1)
-        if (found) {
-          entry.source = "modrinth"
-          entry.projectId = found.projectId
-          entry.versionId = found.versionId
-
-          try {
-            const projectInfo = await mods.modrinthGetProjectsByIds([found.projectId])
-            const info = projectInfo[found.projectId]
-            if (info) {
-              entry.icon_url = entry.icon_url || info.iconUrl || undefined
-              entry.author = entry.author || info.author
-            }
-          } catch {}
-        }
-      } catch {}
-
-      try {
-        const cf = await resolveCurseforgeMatches([{ filePath, sha1 }])
-        const match = cf.matches[sha1]
-        if (match) {
-          entry.modId = match.modId
-          entry.fileId = match.fileId
-          if (entry.source !== "modrinth") entry.source = "curseforge"
-          cfChecked = 1
-
-          try {
-            const mods = await loadModsModule()
-            const cfInfo = await mods.curseforgeGetProjectsByIds([match.modId])
-            const info = cfInfo[match.modId]
-            if (info) {
-              entry.icon_url = entry.icon_url || info.iconUrl || undefined
-              entry.author = entry.author || info.author
-            }
-          } catch {}
-        } else {
-          cfChecked = cf.ok ? 1 : 0
-        }
-      } catch {
-        cfChecked = 0
-      }
-    }
-
-    await dbHelpers.upsertResource({
-      sha1,
-      name: entry.name,
-      description: entry.description,
-      version: entry.version,
-      icon: entry.icon_url ?? "",
-      author: entry.author ?? "",
-      source: entry.source,
-      projectId: entry.projectId ?? null,
-      versionId: entry.versionId ?? null,
-      modId: entry.modId ?? null,
-      fileId: entry.fileId ?? null,
-      cfChecked,
-    })
-    return entry
-  } catch {
-    return null
-  }
 }
 
 /**
@@ -227,38 +109,43 @@ function enrichWithModrinthInBackground(toParse: Array<{ filePath: string; sha1:
         versionInfoMap = vMap
       } catch {}
 
-      for (const { filePath, sha1 } of toParse) {
+      // Пачкой: поштучные SELECT/INSERT в цикле давали N+1 запросов и столько же
+      // коммитов на каждое фоновое обогащение.
+      const matched = toParse.filter(({ sha1 }) => mrMap[sha1])
+      const existingBySha1 = new Map(
+        (await dbHelpers.getResources([...new Set(matched.map(({ sha1 }) => sha1))]))
+          .map((resource) => [resource.sha1, resource] as const),
+      )
+      const updates: Array<Parameters<typeof dbHelpers.upsertResource>[0]> = []
+      for (const { sha1 } of matched) {
         const found = mrMap[sha1]
-        if (!found) continue
+        const existing = existingBySha1.get(sha1)
+        // Never overwrite a source that is already known (e.g. CurseForge):
+        // many mods exist on both platforms, so a hash match here is only a
+        // guess and must not clobber an authoritative platform identity.
+        if (existing?.source === "curseforge" || existing?.cfChecked === 1 || existing?.modId) continue
+
         const mrInfo = found.projectId ? projectInfoMap[found.projectId] : undefined
         const verInfo = found.versionId ? versionInfoMap[found.versionId] : undefined
 
-        const [existing] = await dbHelpers.getResources([sha1])
-        try {
-          // Never overwrite a source that is already known (e.g. CurseForge):
-          // many mods exist on both platforms, so a hash match here is only a
-          // guess and must not clobber an authoritative platform identity.
-          if (existing?.source === "curseforge" || existing?.cfChecked === 1 || existing?.modId) continue
-
-          // At this point the record has no conflicting source, so claiming
-          // Modrinth is safe. Missing fields are filled from Modrinth data.
-          await dbHelpers.upsertResource({
-            sha1,
-            name: existing?.name || "",
-            description: existing?.description || "",
-            version: verInfo?.versionNumber || existing?.version || verInfo?.name || "",
-            icon: existing?.icon || mrInfo?.iconUrl || "",
-            author: existing?.author || mrInfo?.author || "",
-            source: "modrinth",
-            projectId: found.projectId,
-            versionId: found.versionId,
-            modId: existing?.modId ?? null,
-            fileId: existing?.fileId ?? null,
-            cfChecked: existing?.cfChecked ?? 0,
-          })
-        } catch {}
-        void filePath
+        // At this point the record has no conflicting source, so claiming
+        // Modrinth is safe. Missing fields are filled from Modrinth data.
+        updates.push({
+          sha1,
+          name: existing?.name || "",
+          description: existing?.description || "",
+          version: verInfo?.versionNumber || existing?.version || verInfo?.name || "",
+          icon: existing?.icon || mrInfo?.iconUrl || "",
+          author: existing?.author || mrInfo?.author || "",
+          source: "modrinth",
+          projectId: found.projectId,
+          versionId: found.versionId,
+          modId: existing?.modId ?? null,
+          fileId: existing?.fileId ?? null,
+          cfChecked: existing?.cfChecked ?? 0,
+        })
       }
+      await dbHelpers.upsertResources(updates)
     } catch {
       // Background Modrinth enrichment is best-effort: fail silently.
     }
@@ -298,11 +185,17 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
     toHash.push({ filePath, size: stat.size, mtime: Math.round(stat.mtimeMs) })
   }
 
-  const hashed = await Promise.all(toHash.map(async ({ filePath, size, mtime }) => {
-    const sha1 = await hashResource(filePath, size)
-    await dbHelpers.upsertFileSnapshot({ path: filePath, size, mtime, sha1 })
-    return { filePath, sha1 }
-  }))
+  // Единый инспектор: sha1 считается за тот же проход, что и всё остальное,
+  // а результат кладётся в общий кэш по (path, size, mtime).
+  const hashed = (await Promise.all(toHash.map(async ({ filePath, size, mtime }) => {
+    const { sha1 } = await inspectJar(filePath, { sha1: true }, { size, mtimeMs: mtime })
+    return sha1 ? { filePath, sha1, size, mtime } : null
+  }))).filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+  // Снапшоты пишем одной транзакцией: при `synchronous` каждый отдельный
+  // коммит — это fsync, а холодный скан даёт снапшот на каждый новый файл.
+  await dbHelpers.upsertFileSnapshots(
+    hashed.map(({ filePath, size, mtime, sha1 }) => ({ path: filePath, size, mtime, sha1 })),
+  )
   const sha1ByPath = new Map<string, string>()
   for (const { filePath } of valid) {
     sha1ByPath.set(filePath, snapshotByPath.get(filePath)?.sha1 ?? "")
@@ -327,9 +220,10 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
       const ids = [...new Set(suspectCf.map(r => r.modId!).filter(Boolean))]
       const projects = await mods.curseforgeGetProjectsByIds(ids)
       const deadIds = new Set(ids.filter(id => projects[id]?.isAvailable === false))
+      const cleared: Array<Parameters<typeof dbHelpers.upsertResource>[0]> = []
       for (const r of suspectCf) {
         if (!r.modId || !deadIds.has(r.modId)) continue
-        await dbHelpers.upsertResource({
+        cleared.push({
           sha1: r.sha1,
           name: "",
           description: "",
@@ -345,6 +239,7 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
         })
         resourceBySha1.delete(r.sha1)
       }
+      await dbHelpers.upsertResources(cleared)
     } catch {}
   }
 
@@ -382,23 +277,30 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
   enrichCachedIconsInBackground(cachedWithoutIcon)
 
   const parsed: Array<{ filePath: string; entry: ResolvedContentEntry }> = []
-  const PARSE_CHUNK = 8
-  for (let i = 0; i < toParse.length; i += PARSE_CHUNK) {
-    const chunk = toParse.slice(i, i + PARSE_CHUNK)
-    const chunkResults = await Promise.all(chunk.map(async ({ filePath, sha1 }) => {
-      // Local resolve: read metadata from the archive only, no network.
-      const metadata = await readModMetadataFromArchive(filePath)
-      const entry: ResolvedContentEntry = {
-        sha1,
-        name: metadata.name || "",
-        description: metadata.description || "",
-        version: metadata.version || "local",
-        icon_url: metadata.icon_url,
-        author: metadata.author,
-        source: "local",
-      }
-      if (metadata.name) {
-        await dbHelpers.upsertResource({
+  // Ресурсы кэшируем одной транзакцией после разбора всей пачки: коммит на
+  // каждый файл превращался в fsync на каждый файл.
+  const resourcesToCache: Array<Parameters<typeof dbHelpers.upsertResource>[0]> = []
+  /**
+   * Файлы, которые нужно разобрать в main. Заполняется либо полным списком
+   * (когда worker не используется), либо остатком после сбоя worker'а.
+   */
+  let toParseForLocalFallback: Array<{ filePath: string; sha1: string }> = []
+
+  const entryFromMetadata = (
+    sha1: string,
+    metadata: { name?: string; description?: string; version?: string; icon_url?: string; author?: string },
+  ): { entry: ResolvedContentEntry; cachePayload: Parameters<typeof dbHelpers.upsertResource>[0] | null } => {
+    const entry: ResolvedContentEntry = {
+      sha1,
+      name: metadata.name || "",
+      description: metadata.description || "",
+      version: metadata.version || "local",
+      icon_url: metadata.icon_url,
+      author: metadata.author,
+      source: "local",
+    }
+    const cachePayload = metadata.name
+      ? {
           sha1,
           name: entry.name,
           description: entry.description,
@@ -411,14 +313,94 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
           modId: null,
           fileId: null,
           cfChecked: 0,
-        })
-      }
-      return { filePath, entry }
-    }))
-    parsed.push(...chunkResults)
-    processed += chunk.length
-    report(processed, totalFiles)
+        }
+      : null
+    return { entry, cachePayload }
   }
+
+  /**
+   * Холодный скан пачки новых JAR: разбор уходит в worker-поток, чтобы не
+   * морозить main (на 163 модах это было ~4 секунды занятого event loop).
+   * Метаданные и отпечаток приходят готовыми, main только пишет их в БД.
+   * Если воркер упал или не уложился в таймаут, возвращаются файлы, которые
+   * он не успел обработать, — их разбирает локальный путь.
+   */
+  const parseViaWorker = async (files: Array<{ filePath: string; sha1: string }>): Promise<boolean> => {
+    const statByPath = new Map(valid.map(({ filePath, stat }) => [filePath, stat]))
+    const workerFiles = files
+      .map(({ filePath }) => {
+        const stat = statByPath.get(filePath)
+        return stat ? { filePath, size: stat.size, mtime: Math.round(stat.mtimeMs) } : null
+      })
+      .filter((file): file is { filePath: string; size: number; mtime: number } => file !== null)
+
+    if (workerFiles.length !== files.length) return false
+
+    const { runJarScanWorker } = await import("./scan-worker-client.js")
+    const outcome = await runJarScanWorker(workerFiles, ({ filePath, size, mtime, inspection }) => {
+      // Кладём результат в общий кэш main: иначе зависимости и требования
+      // загрузчика перечитают те же JAR повторно.
+      primeJarInspectionCache(filePath, { size, mtimeMs: mtime }, inspection)
+      const sha1 = inspection.sha1 ?? ""
+      if (!sha1) return
+      const { entry, cachePayload } = entryFromMetadata(sha1, inspection.metadata ?? {})
+      parsed.push({ filePath, entry })
+      if (cachePayload) resourcesToCache.push(cachePayload)
+    })
+
+    if (outcome.ok) {
+      processed += files.length
+      report(processed, totalFiles)
+      return true
+    }
+
+    // Воркер не справился: обработанные файлы пропускаем (иначе дубли),
+    // остаток разбирается в main локальным путём.
+    const processedPaths = new Set(outcome.processedPaths)
+    const remaining = files.filter(({ filePath }) => !processedPaths.has(filePath))
+    toParseForLocalFallback = remaining
+    logRuntime(`[Scan] Worker обработал ${processedPaths.size} из ${files.length} файлов, остаток — в main`)
+    processed += processedPaths.size
+    report(processed, totalFiles)
+    return remaining.length === 0
+  }
+
+  const WORKER_SCAN_THRESHOLD = 24
+  let handledByWorker = false
+  if (toParse.length >= WORKER_SCAN_THRESHOLD) {
+    try {
+      handledByWorker = await parseViaWorker(toParse)
+    } catch (error) {
+      logRuntime(`[Scan] Worker недоступен, сканирую в main: ${error instanceof Error ? error.message : String(error)}`)
+      toParseForLocalFallback = toParse
+      handledByWorker = false
+    }
+  } else {
+    toParseForLocalFallback = toParse
+  }
+
+  if (!handledByWorker) {
+    const PARSE_CHUNK = 8
+    for (let i = 0; i < toParseForLocalFallback.length; i += PARSE_CHUNK) {
+      const chunk = toParseForLocalFallback.slice(i, i + PARSE_CHUNK)
+      const chunkResults = await Promise.all(chunk.map(async ({ filePath, sha1 }) => {
+        // Local resolve: метаданные из архива без сети. Отпечаток CurseForge
+        // считается в этом же проходе и позже берётся из кэша инспектора —
+        // раньше это было второе полное чтение файла и murmur по всем байтам.
+        const inspection = await inspectJar(filePath, { metadata: true, curseforgeFingerprint: true })
+        const { entry, cachePayload } = entryFromMetadata(sha1, inspection.metadata ?? {})
+        return { filePath, entry, cachePayload }
+      }))
+      for (const { filePath, entry, cachePayload } of chunkResults) {
+        parsed.push({ filePath, entry })
+        if (cachePayload) resourcesToCache.push(cachePayload)
+      }
+      processed += chunk.length
+      report(processed, totalFiles)
+    }
+  }
+
+  await dbHelpers.upsertResources(resourcesToCache)
 
   for (const { filePath, entry } of parsed) {
     result[filePath] = entry
@@ -427,9 +409,33 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
   // Network enrichment (Modrinth/CurseForge) runs in the background so the
   // return is not blocked by API calls.
   enrichWithModrinthInBackground(toParse)
-  enrichWithCurseforgeInBackground(valid.map(({ filePath }) => ({ filePath, sha1: sha1ByPath.get(filePath) ?? "" })).filter(c => c.sha1))
+  // CurseForge-сопоставление читает содержимое файла целиком, чтобы посчитать
+  // отпечаток. Раньше в него попадали все файлы папки при каждом скане, даже
+  // уже сопоставленные: открытие сборки на 286 модов читало все JAR-ы с диска
+  // и считало murmurhash по каждому байту — это и была основная задержка
+  // открытия инстанса. Отпечаток нужен только для тех записей, про которые
+  // ещё неизвестно, есть ли они на CurseForge.
+  enrichWithCurseforgeInBackground(
+    valid
+      .map(({ filePath }) => ({ filePath, sha1: sha1ByPath.get(filePath) ?? "" }))
+      .filter((candidate) => candidate.sha1 && needsCurseforgeCheck(candidate.sha1, resourceBySha1)),
+  )
 
   return result
+}
+
+/**
+ * Нужно ли перепроверять файл на CurseForge: только если он не сопоставлен с
+ * проектом и ранее не был помечен как проверенный.
+ */
+function needsCurseforgeCheck(
+  sha1: string,
+  resourceBySha1: Map<string, { modId?: number | null; cfChecked?: number | null }>,
+): boolean {
+  const resource = resourceBySha1.get(sha1)
+  if (!resource) return true
+  if (resource.modId) return false
+  return resource.cfChecked !== 1
 }
 
 /** Background Modrinth icon fetch for already-cached entries without an icon. */
@@ -443,26 +449,26 @@ function enrichCachedIconsInBackground(
       const projectIds = [...new Set(cachedWithoutIcon.map((c) => c.resource.projectId!).filter(Boolean))]
       if (projectIds.length === 0) return
       const projectInfoMap = await mods.modrinthGetProjectsByIds(projectIds)
+      const updates: Array<Parameters<typeof dbHelpers.upsertResource>[0]> = []
       for (const { resource } of cachedWithoutIcon) {
         const info = projectInfoMap[resource.projectId!]
         if (!info?.iconUrl) continue
-        try {
-          await dbHelpers.upsertResource({
-            sha1: resource.sha1,
-            name: resource.name,
-            description: resource.description,
-            version: resource.version,
-            icon: info.iconUrl,
-            author: info.author ?? resource.author ?? "",
-            source: resource.source,
-            projectId: resource.projectId,
-            versionId: resource.versionId,
-            modId: resource.modId,
-            fileId: resource.fileId,
-            cfChecked: resource.cfChecked,
-          })
-        } catch {}
+        updates.push({
+          sha1: resource.sha1,
+          name: resource.name,
+          description: resource.description,
+          version: resource.version,
+          icon: info.iconUrl,
+          author: info.author ?? resource.author ?? "",
+          source: resource.source,
+          projectId: resource.projectId,
+          versionId: resource.versionId,
+          modId: resource.modId,
+          fileId: resource.fileId,
+          cfChecked: resource.cfChecked,
+        })
       }
+      await dbHelpers.upsertResources(updates)
     } catch {}
   })()
 }
@@ -484,38 +490,50 @@ function enrichWithCurseforgeInBackground(candidates: CfCandidate[]): void {
         } catch {}
       }
 
+      // Три батча (прочитанные записи, отметки CF, обновления) вместо трёх
+      // запросов на каждый файл.
+      const existingBySha1 = new Map(
+        (await dbHelpers.getResources([...new Set(pending.map(({ sha1 }) => sha1))]))
+          .map((resource) => [resource.sha1, resource] as const),
+      )
+      const checkedSha1s: string[] = []
+      const cfMatches: Array<{ sha1: string; modId: number; fileId: number }> = []
+      const updates: Array<Parameters<typeof dbHelpers.upsertResource>[0]> = []
+
       for (const { sha1 } of pending) {
         const match = cfMap[sha1]
         if (match && match.isAvailable === false) {
-          try { await dbHelpers.markResourcesCurseforgeChecked([sha1]) } catch {}
+          checkedSha1s.push(sha1)
           continue
         }
         if (match) {
-          const [existing] = await dbHelpers.getResources([sha1])
+          const existing = existingBySha1.get(sha1)
           const cfInfo = cfProjectInfoMap[match.modId]
-          try { await dbHelpers.setResourceCurseforge(sha1, match.modId, match.fileId) } catch {}
+          cfMatches.push({ sha1, modId: match.modId, fileId: match.fileId })
           if (cfInfo) {
-            try {
-              await dbHelpers.upsertResource({
-                sha1,
-                name: existing?.name || cfInfo.name,
-                description: existing?.description || "",
-                version: existing?.version || "",
-                icon: existing?.icon || cfInfo.iconUrl || "",
-                author: existing?.author || cfInfo.author || "",
-                source: "curseforge",
-                projectId: null,
-                versionId: null,
-                modId: match.modId,
-                fileId: match.fileId,
-                cfChecked: 1,
-              })
-            } catch {}
+            updates.push({
+              sha1,
+              name: existing?.name || cfInfo.name,
+              description: existing?.description || "",
+              version: existing?.version || "",
+              icon: existing?.icon || cfInfo.iconUrl || "",
+              author: existing?.author || cfInfo.author || "",
+              source: "curseforge",
+              projectId: null,
+              versionId: null,
+              modId: match.modId,
+              fileId: match.fileId,
+              cfChecked: 1,
+            })
           }
         } else if (cfResolution.ok) {
-          try { await dbHelpers.markResourcesCurseforgeChecked([sha1]) } catch {}
+          checkedSha1s.push(sha1)
         }
       }
+
+      try { await dbHelpers.markResourcesCurseforgeChecked(checkedSha1s) } catch {}
+      try { await dbHelpers.setResourcesCurseforge(cfMatches) } catch {}
+      await dbHelpers.upsertResources(updates)
     } catch {}
   })()
 }

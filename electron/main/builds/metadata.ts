@@ -1,6 +1,6 @@
 import fs from "fs/promises"
 import path from "path"
-import { readArchiveText, readArchiveEntryAsDataUrl, loadAdmZip, loadToml, AdmZipType } from "./helpers"
+import { readArchiveText, readArchiveEntryAsDataUrl, loadAdmZip, loadToml, AdmZipType } from "./archive-utils"
 
 export type ModMetadata = { name?: string; version?: string; description?: string; icon_url?: string; author?: string }
 
@@ -290,25 +290,34 @@ async function readFileAsDataUrl(filePath: string): Promise<string | undefined> 
   return `data:${mime};base64,${data.toString("base64")}`
 }
 
+/**
+ * Разбирает метаданные мода из уже открытого архива. Отделено от чтения файла,
+ * чтобы единый инспектор JAR (jar-inspector.ts) мог переиспользовать один и тот
+ * же прочитанный буфер для метаданных, зависимостей и отпечатка CurseForge.
+ */
+export async function parseModMetadataFromZip(zip: AdmZipType): Promise<ModMetadata> {
+  const parsers = [
+    parseNeoForgeModsToml,
+    parseForgeModsToml,
+    parseMcmodInfo,
+    parseQuiltModJson,
+    parseFabricModJson,
+    parseLiteModJson,
+    parsePackMcmeta,
+    parseShaderProperties,
+  ]
+  for (const parser of parsers) {
+    const result = await parser(zip)
+    if (result) return result
+  }
+  return {}
+}
+
 export async function readModMetadataFromArchive(filePath: string): Promise<ModMetadata> {
   try {
     const AdmZip = await loadAdmZip()
     const data = await fs.readFile(filePath)
-    const zip = new AdmZip(data)
-    const parsers = [
-      parseNeoForgeModsToml,
-      parseForgeModsToml,
-      parseMcmodInfo,
-      parseQuiltModJson,
-      parseFabricModJson,
-      parseLiteModJson,
-      parsePackMcmeta,
-      parseShaderProperties,
-    ]
-    for (const parser of parsers) {
-      const result = await parser(zip)
-      if (result) return result
-    }
+    return await parseModMetadataFromZip(new AdmZip(data))
   } catch {
     // ignore unreadable archive
   }

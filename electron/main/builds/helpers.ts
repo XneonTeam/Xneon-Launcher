@@ -1,8 +1,20 @@
 import { opFailure } from "../errors"
 import path from "path"
 import fs from "fs/promises"
-import { sendToRenderer } from "../runtime"
-import { dbHelpers, type BuildJson } from "../../db"
+/**
+ * Отправка события в renderer без статической зависимости от `runtime`.
+ *
+ * `runtime.ts` импортирует electron, а этот модуль (через jar-inspector)
+ * используется ещё и в worker-потоке холодного сканирования, где electron
+ * недоступен. Поэтому импорт ленивый: в main модуль уже загружен, в worker'е
+ * отправка просто не выполняется.
+ */
+function emitToRenderer(channel: string, payload: unknown): void {
+  void import("../runtime.js")
+    .then((mod) => mod.sendToRenderer(channel, payload as never))
+    .catch(() => { /* worker-поток или окна ещё нет */ })
+}
+import { dbHelpers } from "../../db"
 import { ensureSharedGameLinksSync } from "../shared-game-cache"
 import { fetchWithRetry } from "@xnlc/core/retry"
 import { getLauncherDataRoot } from "../paths"
@@ -32,8 +44,27 @@ export function getInstancesRoot(): string {
   return cachedInstancesRoot ?? getBaseDataRoot()
 }
 
+/**
+ * Имя папки сборки внутри `intents/`.
+ *
+ * Заменяем только то, что действительно нельзя использовать в имени файла Windows
+ * (`< > : " / \ | ? *` и управляющие символы), — раньше здесь был whitelist
+ * `[a-zA-Z0-9а-яА-ЯёЁ ._-]`, из-за которого легальные символы (`+`, `&`, `[`, `]`,
+ * `™`) превращались в `_`: сборка `Create+` лежала в папке `Create_`, а две разные
+ * сборки (`Create+` и `Create&`) попадали в одну папку.
+ *
+ * Windows также не принимает имена, заканчивающиеся точкой или пробелом, и
+ * зарезервированные имена устройств (CON, NUL, COM1…) — их обрабатываем отдельно.
+ */
 export function getBuildIntentDirName(rawName: string): string {
-  return rawName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ ._-]/g, "_") || "unnamed-build"
+  const cleaned = rawName
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
+    .replace(/[. ]+$/, "")
+    .trim()
+  if (!cleaned) return "unnamed-build"
+  // Зарезервированные имена устройств (с расширением или без) Windows не даёт создать.
+  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i.test(cleaned)) return `${cleaned}_`
+  return cleaned
 }
 
 export function getBuildIntentPath(dirName: string): string {
@@ -74,7 +105,7 @@ export async function downloadBuffer(url: string, signal?: AbortSignal, progress
           received += value.length
           chunks.push(Buffer.from(value))
           if (totalHeader > 0) {
-            sendToRenderer("content:download-progress", { fileName: progressFileName, current: received, total: totalHeader })
+            emitToRenderer("content:download-progress", { fileName: progressFileName, current: received, total: totalHeader })
           }
         }
       }
@@ -83,7 +114,7 @@ export async function downloadBuffer(url: string, signal?: AbortSignal, progress
       // Поток закрыт — сообщаем об этом рендереру (в том числе при ошибке),
       // иначе живое уведомление об установке остаётся висеть на последнем проценте.
       if (totalHeader > 0) {
-        sendToRenderer("content:download-progress", { fileName: progressFileName, current: received, total: totalHeader, done: true })
+        emitToRenderer("content:download-progress", { fileName: progressFileName, current: received, total: totalHeader, done: true })
       }
     }
   }
@@ -196,7 +227,9 @@ export async function deleteContentFromIntent(dirName: string, contentType: "mod
           continue
         }
         if (!entry.isFile()) continue
-        if (!entry.name.endsWith(".jar") && !entry.name.endsWith(".zip") && !entry.name.endsWith(".disabled")) continue
+        // Тот же набор расширений, что и у сканера: `.litemod` — валидный мод,
+        // иначе заменённый/удалённый лайтмод не находился и оставался в папке.
+        if (!/\.(jar|zip|litemod)(\.disabled)?$/i.test(entry.name)) continue
         const entryRel = path.relative(targetDir, full).toLowerCase().replace(/\\/g, "/")
         if (entryRel === wantedRel || path.basename(entryRel).toLowerCase() === wantedBase) {
           candidates.add(full)
@@ -324,7 +357,7 @@ export function sendImportProgress(current: number, total: number, message: stri
     message: clampCountersInMessage(message),
   }
   if (itemName) payload.itemName = itemName
-  sendToRenderer("import:progress", payload)
+  emitToRenderer("import:progress", payload)
 }
 
 export async function runConcurrent<T>(tasks: (() => Promise<T>)[], concurrency: number, signal?: AbortSignal): Promise<T[]> {
@@ -384,86 +417,25 @@ export async function cleanPackManagedContent(intentPath: string): Promise<void>
 
 
 export function formatDisplayNameFromFileName(fileName: string): string {
-  return fileName.replace(/\.jar$|\.zip$/i, "").replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+  return fileName.replace(/\.jar$|\.zip$|\.litemod$/i, "").replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase())
 }
 
-export function readArchiveText(zip: AdmZipType, entryName: string): string | null {
-  const entry = zip.getEntry(entryName)
-  if (!entry) return null
-  try {
-    return entry.getData().toString("utf-8")
-  } catch {
-    return null
-  }
-}
-
-function getArchiveMimeType(entryName: string): string {
-  const ext = path.extname(entryName).toLowerCase()
-  if (ext === ".png") return "image/png"
-  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg"
-  if (ext === ".gif") return "image/gif"
-  if (ext === ".webp") return "image/webp"
-  if (ext === ".bmp") return "image/bmp"
-  if (ext === ".svg") return "image/svg+xml"
-  if (ext === ".ico") return "image/x-icon"
-  return "application/octet-stream"
-}
-
-export function readArchiveEntryAsDataUrl(zip: AdmZipType, entryName?: string | null): string | undefined {
-  if (!entryName) return undefined
-  const normalizedEntryName = entryName.replace(/^\/+/, "")
-  const entry = zip.getEntry(normalizedEntryName)
-  if (!entry) return undefined
-
-  try {
-    const data = entry.getData()
-    return `data:${getArchiveMimeType(normalizedEntryName)};base64,${data.toString("base64")}`
-  } catch {
-    return undefined
-  }
-}
-
-type AdmZipToBuffer = {
-  (): Buffer
-  (
-    onSuccess: (data: Buffer) => void,
-    onFail: (error: Error) => void,
-    onItemStart?: (name: string) => void,
-    onItemEnd?: (name: string) => void,
-  ): void
-}
-
-export type AdmZipType = {
-  getEntries(): { entryName: string; isDirectory: boolean; getData(): Buffer }[]
-  getEntry(name: string): { getData(): Buffer } | null
-  addLocalFolder(localPath: string, readstream?: unknown, filter?: (entryPath: string) => boolean): void
-  addLocalFolderAsync(
-    localPath: string,
-    callback: (result?: boolean, errorMessage?: string) => void,
-    zipPath?: string,
-    filter?: (entryPath: string) => boolean,
-  ): void
-  addFile(entryName: string, content: Buffer): void
-  writeZip(outputPath: string, keepOrder?: boolean): void
-  toBuffer: AdmZipToBuffer
-}
-type AdmZipConstructor = new (data?: Buffer) => AdmZipType
-
-let admZipPromise: Promise<AdmZipConstructor> | null = null
-export function loadAdmZip(): Promise<AdmZipConstructor> {
-  if (!admZipPromise) {
-    admZipPromise = import("adm-zip").then(m => m.default as unknown as AdmZipConstructor)
-  }
-  return admZipPromise
-}
-
-let tomlModulePromise: Promise<{ parse(input: string): Record<string, unknown> }> | null = null
-export function loadToml(): Promise<{ parse(input: string): Record<string, unknown> }> {
-  if (!tomlModulePromise) {
-    tomlModulePromise = import("toml").then(m => m.default || m) as Promise<{ parse(input: string): Record<string, unknown> }>
-  }
-  return tomlModulePromise
-}
+/**
+ * ZIP/TOML-утилиты живут в `archive-utils.ts` (без electron и БД), чтобы их
+ * могли использовать и worker-потоки. Здесь — реэкспорт для существующих
+ * потребителей.
+ */
+import type { AdmZipType } from "./archive-utils"
+export {
+  loadAdmZip,
+  loadToml,
+  readArchiveText,
+  readArchiveEntryAsDataUrl,
+  getArchiveMimeType,
+  type AdmZipType,
+  type AdmZipConstructor,
+  type AdmZipToBuffer,
+} from "./archive-utils"
 
 let modsModulePromise: Promise<ModsModule> | null = null
 export function loadModsModule(): Promise<ModsModule> {
@@ -766,7 +738,8 @@ export async function cleanupReplacedLoaderArtifacts(params: {
   if (!LOADER_PROFILE_RE.test(previousProfile)) return
 
   try {
-    const builds = params.builds ?? await dbHelpers.loadBuilds()
+    // Лёгкий список: сверяются только имя/версия/загрузчик, контент не нужен.
+    const builds = params.builds ?? await dbHelpers.loadBuildsLight()
     const otherBuilds = builds.filter(b => b?.name !== buildName)
     const profileStillUsed = otherBuilds.some(b => getLoaderProfileName({
       version: b?.version ?? "",
@@ -806,9 +779,23 @@ export async function cleanupReplacedLoaderArtifacts(params: {
  * сборок: сравнивает снапшот из БД с только что записанным списком и убирает
  * артефакты у тех сборок, где профиль загрузчика изменился.
  */
+/**
+ * Минимум полей сборки, нужный для сверки профиля загрузчика. Принимаем и
+ * «лёгкие» сборки (без тяжёлого контента) — массовое сохранение больше не
+ * требует читать JSON-списки модов из БД.
+ */
+export type BuildLoaderSnapshot = {
+  id: string
+  name: string
+  version: string
+  modLoader?: string
+  loaderVersion?: string
+  intentPath?: string
+}
+
 export async function cleanupReplacedLoaderArtifactsForBuilds(
-  previousBuilds: BuildJson[],
-  savedBuilds: BuildJson[],
+  previousBuilds: BuildLoaderSnapshot[],
+  savedBuilds: BuildLoaderSnapshot[],
 ): Promise<void> {
   try {
     const previousById = new Map(previousBuilds.map(build => [build.id, build]))
