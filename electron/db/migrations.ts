@@ -1,4 +1,4 @@
-import { queryAll, run } from "./core"
+import { queryAll, run, transaction, setUserVersion, DB_FORMAT_VERSION, isDbAvailable } from "./core"
 
 const DEFAULT_SETTINGS: Record<string, string> = {
   onboardingCompleted: "false",
@@ -108,7 +108,8 @@ function createTables() {
       filePath TEXT NOT NULL,
       variant TEXT NOT NULL DEFAULT 'classic',
       capeId TEXT DEFAULT NULL,
-      createdAt TEXT NOT NULL
+      createdAt TEXT NOT NULL,
+      sourceId TEXT DEFAULT NULL
     )
   `)
 
@@ -188,7 +189,6 @@ function addColumnIfMissing(table: string, column: string, ddl: string) {
     run(`ALTER TABLE ${table} ADD COLUMN ${ddl}`)
   }
 }
-
 function migrateAccounts() {
   addColumnIfMissing("accounts", "refreshToken", "refreshToken TEXT")
   addColumnIfMissing("accounts", "clientId", "clientId TEXT")
@@ -238,6 +238,10 @@ function migrateResources() {
 
 function migrateSkinLibrary() {
   addColumnIfMissing("skin_library", "capeId", "capeId TEXT DEFAULT NULL")
+  // Идентификатор скина в каталоге: по нему карточка понимает, что скин уже
+  // лежит в «Избранном», и повторный импорт не создаёт дубликат. Новые записи
+  // хранят префикс источника (`laby:<hash>`), старые — голый ID Craftdex.
+  addColumnIfMissing("skin_library", "sourceId", "sourceId TEXT DEFAULT NULL")
 }
 
 function migrateMcServers() {
@@ -258,14 +262,80 @@ function seedDefaultSettings() {
   }
 }
 
+/**
+ * Индексы под самые частые выборки. Раньше их не было: sql.js держал всю БД
+ * в памяти, а полный дамп на диск при каждом изменении делал любую оптимизацию
+ * бессмысленной. Теперь запросы идут по файлу, и индексы реально нужны.
+ */
+function createIndexes() {
+  run("CREATE INDEX IF NOT EXISTS idx_builds_createdAt ON builds (createdAt DESC)")
+  run("CREATE INDEX IF NOT EXISTS idx_accounts_sortOrder ON accounts (sortOrder ASC)")
+  run("CREATE INDEX IF NOT EXISTS idx_ai_messages_session ON ai_messages (sessionId, createdAt ASC)")
+  run("CREATE INDEX IF NOT EXISTS idx_ai_sessions_updatedAt ON ai_sessions (updatedAt DESC)")
+  run("CREATE INDEX IF NOT EXISTS idx_game_sessions_startedAt ON game_sessions (startedAt DESC)")
+  run("CREATE INDEX IF NOT EXISTS idx_game_sessions_buildId ON game_sessions (buildId, buildName)")
+  // DELETE по buildName идёт при удалении сборки (см. deleteGameSessionsForDeletedBuild)
+  run("CREATE INDEX IF NOT EXISTS idx_game_sessions_buildName ON game_sessions (buildName)")
+  run("CREATE INDEX IF NOT EXISTS idx_server_sessions_startedAt ON server_sessions (startedAt DESC)")
+  // Аналогично: очистка статистики сервера по serverName
+  run("CREATE INDEX IF NOT EXISTS idx_server_sessions_serverName ON server_sessions (serverName)")
+  run("CREATE INDEX IF NOT EXISTS idx_skin_library_accountId ON skin_library (accountId, createdAt DESC)")
+  run("CREATE INDEX IF NOT EXISTS idx_mc_servers_trashedAt ON mc_servers (trashedAt)")
+  run("CREATE INDEX IF NOT EXISTS idx_resources_updatedAt ON resources (updatedAt DESC)")
+}
+
 export { DEFAULT_SETTINGS }
 
-export function initializeSchema() {
-  createTables()
-  migrateAccounts()
-  migrateBuilds()
-  migrateResources()
-  migrateSkinLibrary()
-  migrateMcServers()
-  seedDefaultSettings()
+/**
+ * Версия схемы. Увеличивайте, когда добавляете `addColumnIfMissing`/новые
+ * таблицы: тогда на БД с актуальной версией стартовые `PRAGMA table_info`
+ * (их около 30 — по одному на колонку) выполняться не будут.
+ *
+ * `DB_FORMAT_VERSION` в core.ts — это другой маркер («файл открывался
+ * better-sqlite3», нужен для разового бэкапа sql.js-БД), поэтому в
+ * `user_version` пишем максимум из двух.
+ */
+export const SCHEMA_VERSION = 3
+
+function readUserVersion(): number {
+  const rows = queryAll<{ user_version?: number }>("PRAGMA user_version")
+  const value = Array.isArray(rows) && rows.length > 0 ? rows[0].user_version : 0
+  return typeof value === "number" ? value : Number(value ?? 0)
 }
+
+/**
+ * Создание схемы + миграции одной транзакцией: либо БД готова целиком, либо
+ * (при ошибке) остаётся в исходном состоянии — без полу-применённых ALTER TABLE.
+ *
+ * Колоночные миграции пропускаются, если файл уже помечен текущей версией
+ * схемы: на каждом старте это экономит ~30 `PRAGMA table_info` и лишние ALTER.
+ * `CREATE TABLE/INDEX IF NOT EXISTS` остаются всегда — они идемпотентны и
+ * защищают от частично созданной схемы.
+ */
+export function initializeSchema() {
+  if (!isDbAvailable()) {
+    return
+  }
+
+  const currentVersion = readUserVersion()
+  const needsColumnMigrations = currentVersion < SCHEMA_VERSION
+
+  transaction(() => {
+    createTables()
+    if (needsColumnMigrations) {
+      migrateAccounts()
+      migrateBuilds()
+      migrateResources()
+      migrateSkinLibrary()
+      migrateMcServers()
+    }
+    createIndexes()
+    seedDefaultSettings()
+    setUserVersion(Math.max(DB_FORMAT_VERSION, SCHEMA_VERSION))
+  })
+
+  if (needsColumnMigrations && currentVersion > 0) {
+    console.log(`[DB] Схема обновлена: ${currentVersion} → ${SCHEMA_VERSION}`)
+  }
+}
+
