@@ -2,8 +2,35 @@ import path from "path"
 import fs from "fs/promises"
 import { exec } from "child_process"
 import { randomUUID } from "crypto"
+import Database from "better-sqlite3"
 
 export type BufferEncoding = "utf-8" | "utf8" | "cp866" | "cp1251" | string
+
+/**
+ * Общий скелет обхода инстансов другого лаунчера: пройти по каталогам, взять
+ * только подкаталоги, прочитать каждый и отсортировать по имени.
+ *
+ * До этого одинаковый цикл (readdir → filter(isDirectory) → readInstance →
+ * push → sort) был скопирован в импортёрах GDLauncher, MultiMC-подобных,
+ * Modrinth App и XLauncher — с мелкими расхождениями в обработке ошибок.
+ */
+export async function discoverInstancesFromDirs<T extends { name: string }>(
+  dirs: string[],
+  readInstance: (instanceDir: string) => Promise<T | null>,
+): Promise<T[]> {
+  const found: T[] = []
+  for (const instancesDir of dirs) {
+    let entries
+    try { entries = await fs.readdir(instancesDir, { withFileTypes: true }) } catch { continue }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const instance = await readInstance(path.join(instancesDir, entry.name))
+      if (instance) found.push(instance)
+    }
+  }
+  // Единый порядок для всех источников импорта: по имени, в русской локали.
+  return found.sort((a, b) => a.name.localeCompare(b.name, "ru"))
+}
 
 export function execAsync(cmd: string, options?: { timeout?: number; encoding?: BufferEncoding; maxBuffer?: number }): Promise<{ stdout: string; stderr: string }> {
   const outputEncoding = options?.encoding
@@ -153,7 +180,9 @@ export async function isImportedContentEntry(filePath: string, type: "mod" | "re
     const stat = await fs.stat(filePath)
     if (stat.isDirectory()) return type !== "mod"
     const lowerName = path.basename(filePath).toLowerCase()
-    if (type === "mod") return lowerName.endsWith(".jar") || lowerName.endsWith(".zip")
+    // `.litemod` — такой же мод, как `.jar`/`.zip` (см. content-drop и scanner),
+    // иначе лайтмоды терялись при импорте сборки из другого лаунчера.
+    if (type === "mod") return lowerName.endsWith(".jar") || lowerName.endsWith(".zip") || lowerName.endsWith(".litemod")
     return lowerName.endsWith(".zip") || lowerName.endsWith(".jar")
   } catch {
     return false
@@ -173,7 +202,7 @@ export async function buildImportedContentList(dir: string, type: "mod" | "resou
     items.push({
       id: randomUUID(),
       slug: file,
-      name: file.replace(/\.jar$|\.zip$/i, "").replace(/[-_]/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()),
+      name: file.replace(/\.jar$|\.zip$|\.litemod$/i, "").replace(/[-_]/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()),
       description: `Импортировано из ${source}`,
       version: "local",
     })
@@ -230,27 +259,23 @@ async function resolveInstanceIconPath(iconPath: string | null | undefined, sear
 
 export { resolveInstanceIconPath }
 
-let sqlJsInit: any = null
-
-export async function readSqliteDb<T>(dbPath: string, query: string, mapRow: (row: any[]) => T): Promise<T[]> {
+/**
+ * Чтение чужой SQLite-базы (Modrinth App / AstralRinth `app.db`) в режиме только
+ * для чтения: файл не наш, поэтому его нельзя ни пересоздавать, ни оставлять
+ * рядом WAL/SHM. Соединение открывается на время запроса и сразу закрывается,
+ * чтобы не держать дескриптор на чужой файл.
+ */
+export async function readSqliteDb<T>(dbPath: string, query: string, mapRow: (row: unknown[]) => T): Promise<T[]> {
+  let db: Database.Database | null = null
   try {
-    if (!sqlJsInit) {
-      const mod = await import("sql.js")
-      sqlJsInit = (mod as any).default || mod
-    }
-    const SQL = await sqlJsInit()
-    const data = await fs.readFile(dbPath)
-    const db = new SQL.Database(data)
-    const results = db.exec(query)
-    db.close()
-    if (!results.length) return []
-    const columns = results[0].columns
-    return results[0].values.map((row: any[]) => {
-      const obj: Record<string, any> = {}
-      for (let i = 0; i < columns.length; i++) obj[columns[i]] = row[i] ?? null
-      return mapRow(row)
-    })
+    db = new Database(dbPath, { readonly: true, fileMustExist: true })
+    const rows = db.prepare(query).raw(true).all() as unknown[][]
+    return rows.map((row) => mapRow(row))
   } catch {
     return []
+  } finally {
+    try {
+      db?.close()
+    } catch {}
   }
 }
