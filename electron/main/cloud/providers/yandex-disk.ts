@@ -1,14 +1,12 @@
-import { toErrorMessage, opFailure } from "../../errors"
+import { opFailure } from "../../errors"
 import { shell } from "electron"
-import http from "http"
 import { URL } from "url"
 import fs from "fs/promises"
 import path from "path"
 import type { CloudProvider, CloudAuthResult, CloudFileListResult, CloudUploadResult, CloudDownloadResult, CloudStorageQuota, CloudFileInfo } from "../provider"
-import { callbackSuccessPage, callbackErrorPage } from "../callback-page"
 import { getCloudCredentials } from "../credentials"
-import { generatePkcePair } from "../pkce"
-import { dbHelpers } from "../../../db"
+import { readCloudToken, writeCloudToken, clearCloudToken, getValidCloudToken } from "../token-store"
+import { runOAuthLoopback } from "../oauth-loopback"
 import { fetchWithRetry } from "@xnlc/core/retry"
 
 const credentials = getCloudCredentials()
@@ -21,18 +19,9 @@ const SUB_FOLDERS = ["builds", "accounts", "servers"]
 
 type TokenData = { access_token: string; refresh_token?: string; expires_at?: number }
 
-async function readToken(): Promise<TokenData | null> {
-  try {
-    const raw = await dbHelpers.getCloudConfig("yandex")
-    if (raw) return JSON.parse(raw) as TokenData
-  } catch { /* noop */ }
-  return null
-}
-
-async function writeToken(data: TokenData): Promise<void> {
-  const raw = JSON.stringify(data)
-  await dbHelpers.setCloudConfig("yandex", raw)
-}
+/** Токен и его обновление — в общем хранилище (см. token-store.ts). */
+const readToken = () => readCloudToken<TokenData>("yandex")
+const writeToken = (data: TokenData) => writeCloudToken("yandex", data)
 
 async function refreshAccessToken(token: TokenData): Promise<TokenData> {
   if (!token.refresh_token) throw new Error("No refresh token")
@@ -54,12 +43,9 @@ async function refreshAccessToken(token: TokenData): Promise<TokenData> {
 }
 
 async function getValidToken(): Promise<string | null> {
-  const token = await readToken()
-  if (!token) return null
-  if (token.expires_at && Date.now() > token.expires_at - 60000 && token.refresh_token) {
-    try { const r = await refreshAccessToken(token); return r.access_token } catch { return null }
-  }
-  return token.access_token
+  // Общий каркас «проверить срок → обновить по refresh_token → записать».
+  const token = await getValidCloudToken<TokenData>("yandex", refreshAccessToken)
+  return token?.access_token ?? null
 }
 
 async function yandexFetch(url: string, token: string, init?: RequestInit): Promise<Response> {
@@ -89,46 +75,33 @@ export class YandexDiskProvider implements CloudProvider {
   readonly name = "Яндекс Диск"
 
   async authenticate(): Promise<CloudAuthResult> {
-    return new Promise((resolve) => {
-      const { verifier, challenge } = generatePkcePair()
-      const authUrl = new URL("https://oauth.yandex.ru/authorize")
-      authUrl.searchParams.set("client_id", YANDEX_CLIENT_ID)
-      authUrl.searchParams.set("redirect_uri", REDIRECT_URI)
-      authUrl.searchParams.set("response_type", "code")
-      authUrl.searchParams.set("force_confirm", "yes")
-      authUrl.searchParams.set("code_challenge", challenge)
-      authUrl.searchParams.set("code_challenge_method", "S256")
-
-      const server = http.createServer(async (req, res) => {
-        const url = new URL(req.url || "/", `http://localhost:${REDIRECT_PORT}`)
-        const code = url.searchParams.get("code")
-        if (!code) { res.writeHead(400); res.end("No code"); return }
-
-        try {
-          const params = new URLSearchParams({
+    // Общий loopback-каркас (см. oauth-loopback.ts).
+    return runOAuthLoopback({
+      providerLabel: "Яндекс Диск",
+      providerId: "yandex-disk",
+      port: REDIRECT_PORT,
+      buildAuthUrl: ({ challenge }) => {
+        const authUrl = new URL("https://oauth.yandex.ru/authorize")
+        authUrl.searchParams.set("client_id", YANDEX_CLIENT_ID)
+        authUrl.searchParams.set("redirect_uri", REDIRECT_URI)
+        authUrl.searchParams.set("response_type", "code")
+        authUrl.searchParams.set("force_confirm", "yes")
+        authUrl.searchParams.set("code_challenge", challenge)
+        authUrl.searchParams.set("code_challenge_method", "S256")
+        return authUrl.toString()
+      },
+      exchange: async (code, verifier) => {
+        const tokenRes = await fetch("https://oauth.yandex.ru/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
             grant_type: "authorization_code", code, client_id: YANDEX_CLIENT_ID, redirect_uri: REDIRECT_URI, code_verifier: verifier,
-          })
-          const tokenRes = await fetch("https://oauth.yandex.ru/token", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: params,
-          })
-          if (!tokenRes.ok) throw new Error("Token exchange failed")
-          const data = await tokenRes.json() as { access_token: string; expires_in: number; refresh_token: string }
-          await writeToken({ access_token: data.access_token, refresh_token: data.refresh_token, expires_at: Date.now() + data.expires_in * 1000 })
-          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-          res.end(callbackSuccessPage("Яндекс Диск"))
-          server.close()
-          resolve({ success: true, provider: "yandex-disk" })
-        } catch (e) {
-          res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" })
-          res.end(callbackErrorPage("Яндекс Диск", toErrorMessage(e)))
-          server.close()
-          resolve({ success: false, error: toErrorMessage(e) })
-        }
-      })
-      server.listen(REDIRECT_PORT, () => { shell.openExternal(authUrl.toString()) })
-      setTimeout(() => { server.close(); resolve({ success: false, error: "Timeout" }) }, 120000)
+          }),
+        })
+        if (!tokenRes.ok) throw new Error("Token exchange failed")
+        const data = await tokenRes.json() as { access_token: string; expires_in: number; refresh_token: string }
+        await writeToken({ access_token: data.access_token, refresh_token: data.refresh_token, expires_at: Date.now() + data.expires_in * 1000 })
+      },
     })
   }
 
@@ -140,7 +113,7 @@ export class YandexDiskProvider implements CloudProvider {
     return token !== null
   }
   async logout(): Promise<void> {
-    try { await dbHelpers.removeCloudConfig("yandex") } catch { /* noop */ }
+    await clearCloudToken("yandex")
   }
 
   async ensureBaseFolder(): Promise<void> {

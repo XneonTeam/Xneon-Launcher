@@ -4,11 +4,13 @@ import path from "path"
 import fs from "fs/promises"
 import { Worker } from "worker_threads"
 import { getProvider, listProviders, type CloudProviderId } from "./registry"
-import { ensureBuildIntentDir, getBuildIntentDirName } from "../builds"
+import { ensureBuildIntentDir } from "../builds"
+import { sanitizeFileName } from "../builds/helpers"
 import { getMcServerDir } from "../paths"
 import { dbHelpers } from "../../db"
 import { sendToRenderer } from "../runtime"
-import { META_ICON_ENTRY } from "./archive-meta"
+import { META_ICON_ENTRY, META_NAME_ENTRY } from "./archive-meta"
+import { BUILD_CATEGORY_DIRS, SERVER_CATEGORY_DIRS } from "./categories"
 
 function sendUploadProgress(id: string, percent: number, stage: "zip" | "upload") {
   sendToRenderer("cloud:upload-progress", { id, percent, stage })
@@ -135,9 +137,9 @@ function extractSelectedCategories(
   }
 }
 
-async function createBuildZipInWorker(intentPath: string, archivePath: string, id: string, categories?: string[], icon?: string): Promise<void> {
+async function createBuildZipInWorker(intentPath: string, archivePath: string, id: string, categories?: string[], icon?: string, name?: string): Promise<void> {
   const workerPath = path.join(__dirname, "upload-worker.js")
-  const worker = new Worker(workerPath, { workerData: { intentPath, archivePath, categories, icon } })
+  const worker = new Worker(workerPath, { workerData: { intentPath, archivePath, categories, icon, name } })
   return new Promise((resolve, reject) => {
     worker.on("message", (msg) => {
       if (msg?.type === "zip-progress") {
@@ -240,19 +242,23 @@ export function registerCloudHandlers() {
   })
 
   ipcMain.handle("cloud:upload-build", async (_event, providerId: CloudProviderId, buildName: string, uploadId?: string, categories?: string[]) => {
+    // Имя файла архива обязано быть безопасным для файловой системы (оно же
+    // используется как временный путь на диске), поэтому `:` и прочее
+    // запрещённое в именах файлов заменяется — настоящее имя сборки едет
+    // внутри архива метазаписью META_NAME_ENTRY.
+    const safeName = sanitizeFileName(buildName)
+    const archivePath = path.join(app.getPath("temp"), `${safeName}.zip`)
     try {
       const intentPath = await ensureBuildIntentDir(buildName)
       try { await fs.access(intentPath) } catch { return { success: false, error: "Сборка не найдена" } }
 
-      const safeName = getBuildIntentDirName(buildName)
-      const archivePath = path.join(app.getPath("temp"), `${safeName}.zip`)
       const id = uploadId ?? `build-${safeName}`
 
       // Иконка сборки хранится в БД (data-URL), в папке интента её нет.
       // Кладём её в архив отдельной метазаписью, чтобы при восстановлении из
       // облака сборка получила ту же иконку. Имя в облаке могло быть нормализовано,
       // поэтому ищем запись тем же нестрогим сравнением, что и в UI облачного браузера.
-      const builds = await dbHelpers.loadBuilds()
+      const builds = await dbHelpers.loadBuildsLight()
       const norm = (s: string) => s.trim().toLowerCase()
       const target = norm(buildName)
       const buildIcon = builds.find((b) => {
@@ -260,7 +266,7 @@ export function registerCloudHandlers() {
         return candidate === target || candidate.includes(target) || target.includes(candidate)
       })?.icon ?? ""
 
-      await uploadWithProgress(id, "zip", () => createBuildZipInWorker(intentPath, archivePath, id, categories, buildIcon))
+      await uploadWithProgress(id, "zip", () => createBuildZipInWorker(intentPath, archivePath, id, categories, buildIcon, buildName))
 
       const provider = getProvider(providerId)
       const result = await uploadWithProgress(id, "upload", () =>
@@ -269,27 +275,30 @@ export function registerCloudHandlers() {
         })
       )
 
-      try { await fs.unlink(archivePath) } catch { /* noop */ }
       return result
     } catch (e) {
       return opFailure(e)
+    } finally {
+      // Временный архив убираем всегда: раньше unlink стоял только на успешном
+      // пути, и при ошибке zip оставался висеть в temp.
+      try { await fs.unlink(archivePath) } catch { /* noop */ }
     }
   })
 
   ipcMain.handle("cloud:upload-server", async (_event, providerId: CloudProviderId, serverId: string, serverName: string, uploadId?: string, categories?: string[]) => {
+    const safeName = serverName.replace(/[/\\?%*:|"<>]/g, "_").trim() || serverId
+    const archivePath = path.join(app.getPath("temp"), `server-${safeName}.zip`)
     try {
       const serverDir = getMcServerDir(serverId)
       try { await fs.access(serverDir) } catch { return { success: false, error: "Папка сервера пуста или не найдена" } }
 
-      const safeName = serverName.replace(/[/\\?%*:|"<>]/g, "_").trim() || serverId
-      const archivePath = path.join(app.getPath("temp"), `server-${safeName}.zip`)
       const id = uploadId ?? `server-${serverId}`
 
       // Иконка сервера хранится в БД (data-URL), в папке сервера её нет —
       // кладём в архив метазаписью, чтобы при восстановлении она не терялась.
       const serverRow = await dbHelpers.getMcServer(serverId).catch(() => null)
 
-      await uploadWithProgress(id, "zip", () => createBuildZipInWorker(serverDir, archivePath, id, categories, serverRow?.icon ?? ""))
+      await uploadWithProgress(id, "zip", () => createBuildZipInWorker(serverDir, archivePath, id, categories, serverRow?.icon ?? "", serverName))
 
       const provider = getProvider(providerId)
       const result = await uploadWithProgress(id, "upload", () =>
@@ -298,16 +307,17 @@ export function registerCloudHandlers() {
         })
       )
 
-      try { await fs.unlink(archivePath) } catch { /* noop */ }
       return result
     } catch (e) {
       return opFailure(e)
+    } finally {
+      try { await fs.unlink(archivePath) } catch { /* noop */ }
     }
   })
 
   ipcMain.handle("cloud:upload-account", async (_event, providerId: CloudProviderId, account: { id: string; type: string; username: string; uuid?: string }) => {
+    const jsonPath = path.join(app.getPath("temp"), `${account.username}.json`)
     try {
-      const jsonPath = path.join(app.getPath("temp"), `${account.username}.json`)
       await fs.writeFile(jsonPath, JSON.stringify(account, null, 2))
       const provider = getProvider(providerId)
       const id = account.id
@@ -316,48 +326,51 @@ export function registerCloudHandlers() {
           sendUploadProgress(id, percent, "upload")
         })
       )
-      try { await fs.unlink(jsonPath) } catch { /* noop */ }
       return result
     } catch (e) {
       return opFailure(e)
+    } finally {
+      try { await fs.unlink(jsonPath) } catch { /* noop */ }
     }
   })
 
   ipcMain.handle("cloud:download-and-import", async (_event, providerId: CloudProviderId, remotePath: string, fileType: string, selectedCategories?: string[]) => {
+    const fileName = path.basename(remotePath)
+    const localPath = path.join(app.getPath("temp"), fileName)
     try {
       const provider = getProvider(providerId)
-      const fileName = path.basename(remotePath)
-      const localPath = path.join(app.getPath("temp"), fileName)
       const dlResult = await provider.downloadFile(remotePath, localPath)
       if (!dlResult.success) return { success: false, error: dlResult.error }
 
       if (fileType === "account") {
         const text = await fs.readFile(localPath, "utf-8")
         const account = JSON.parse(text) as { id: string; type: string; username: string; uuid?: string }
-        try { await fs.unlink(localPath) } catch { /* noop */ }
         return { success: true, account }
       } else if (fileType === "instance") {
-        const buildName = fileName.replace(/\.zip$/i, "")
         const AdmZip = (await import("adm-zip")).default
         const buffer = await fs.readFile(localPath)
-        const intentPath = await ensureBuildIntentDir(buildName)
         const zip = new AdmZip(buffer)
 
+        // Настоящее имя сборки лежит в архиве метазаписью: имя файла в облаке
+        // санитизировано (`:` -> `_`), и по нему сборка называлась бы неправильно.
+        let buildName = fileName.replace(/\.zip$/i, "")
+        try {
+          const nameEntry = zip.getEntry(META_NAME_ENTRY)
+          const storedName = nameEntry?.getData().toString("utf-8").trim()
+          if (storedName) buildName = storedName
+        } catch { /* старые архивы без метазаписи — берём имя файла */ }
+
+        const intentPath = await ensureBuildIntentDir(buildName)
+
         if (selectedCategories && selectedCategories.length > 0) {
-          const CATEGORY_MAP: Record<string, string[]> = {
-            mods: ["mods"],
-            resourcepacks: ["resourcepacks"],
-            shaderpacks: ["shaderpacks"],
-            saves: ["saves"],
-            data: ["config", "options.txt", "servers.dat"],
-            logs: ["logs", "crash-reports"],
-          }
-          extractSelectedCategories(zip, intentPath, CATEGORY_MAP, selectedCategories)
+          extractSelectedCategories(zip, intentPath, BUILD_CATEGORY_DIRS, selectedCategories)
         } else {
           zip.extractAllTo(intentPath, true)
         }
 
-        const existingBuilds = await dbHelpers.loadBuilds()
+        // Лёгкий список: тяжёлый контент существующих сборок сохранит сам
+        // saveAllBuilds (пустые значения для новой сборки — это её реальный старт).
+        const existingBuilds = await dbHelpers.loadBuildsLight()
 
         // Иконка восстанавливается из метазаписи архива (её писала загрузка сборки).
         // Читаем напрямую из zip: выборочный импорт категорий эту запись не извлекает.
@@ -374,19 +387,17 @@ export function registerCloudHandlers() {
           version: "1.0",
           modLoader: "",
           icon: restoredIcon,
-          mods: [],
-          resourcepacks: [],
-          shaders: [],
           createdAt: new Date().toISOString(),
           source: "local",
           intentPath,
           loaderVersion: undefined,
-          installedMods: {},
           projectSlug: undefined,
           playtime: 0,
+          modsCount: 0,
+          resourcepacksCount: 0,
+          shadersCount: 0,
         })
         await dbHelpers.saveAllBuilds(existingBuilds)
-        try { await fs.unlink(localPath) } catch { /* noop */ }
         return { success: true }
       } else if (fileType === "server") {
         const serverName = fileName.replace(/\.zip$/i, "").replace(/^server-/i, "")
@@ -398,14 +409,7 @@ export function registerCloudHandlers() {
         const zip = new AdmZip(buffer)
 
         if (selectedCategories && selectedCategories.length > 0) {
-          const CATEGORY_MAP: Record<string, string[]> = {
-            world: ["world", "world_nether", "world_the_end"],
-            mods: ["mods"],
-            plugins: ["plugins"],
-            configs: ["config", "eula.txt", "server.properties", "whitelist.json", "ops.json", "banned-players.json", "banned-ips.json", "usercache.json"],
-            logs: ["logs", "crash-reports"],
-          }
-          extractSelectedCategories(zip, serverDir, CATEGORY_MAP, selectedCategories)
+          extractSelectedCategories(zip, serverDir, SERVER_CATEGORY_DIRS, selectedCategories)
         } else {
           zip.extractAllTo(serverDir, true)
         }
@@ -449,13 +453,15 @@ export function registerCloudHandlers() {
           source: "local",
         })
 
-        try { await fs.unlink(localPath) } catch { /* noop */ }
         return { success: true }
       }
 
       return { success: true }
     } catch (e) {
       return opFailure(e)
+    } finally {
+      // Скачанный во временную папку архив убираем на любом пути выхода.
+      try { await fs.unlink(localPath) } catch { /* noop */ }
     }
   })
 }

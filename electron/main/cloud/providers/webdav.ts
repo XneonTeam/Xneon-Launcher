@@ -3,7 +3,7 @@ import fs from "fs/promises"
 import path from "path"
 import type { CloudProvider, CloudAuthResult, CloudFileListResult, CloudUploadResult, CloudDownloadResult, CloudStorageQuota, CloudFileInfo } from "../provider"
 import { createClient } from "webdav"
-import { dbHelpers } from "../../../db"
+import { readCloudToken, writeCloudToken, clearCloudToken } from "../token-store"
 
 const BASE_FOLDER = "Xneon Launcher"
 const SUB_FOLDERS = ["builds", "accounts", "servers"]
@@ -17,18 +17,8 @@ type WebDavConfig = {
 let cachedClient: ReturnType<typeof createClient> | null = null
 let cachedConfig: WebDavConfig | null = null
 
-async function readConfig(): Promise<WebDavConfig | null> {
-  try {
-    const raw = await dbHelpers.getCloudConfig("webdav")
-    if (raw) return JSON.parse(raw) as WebDavConfig
-  } catch { /* noop */ }
-  return null
-}
-
-async function writeConfig(config: WebDavConfig): Promise<void> {
-  const raw = JSON.stringify(config)
-  await dbHelpers.setCloudConfig("webdav", raw)
-}
+const readConfig = () => readCloudToken<WebDavConfig>("webdav")
+const writeConfig = (config: WebDavConfig) => writeCloudToken("webdav", config)
 
 async function getClient(): Promise<ReturnType<typeof createClient> | null> {
   const config = await readConfig()
@@ -78,7 +68,7 @@ export class WebDavProvider implements CloudProvider {
   }
 
   async logout(): Promise<void> {
-    try { await dbHelpers.removeCloudConfig("webdav") } catch { /* noop */ }
+    await clearCloudToken("webdav")
     cachedClient = null
     cachedConfig = null
   }
