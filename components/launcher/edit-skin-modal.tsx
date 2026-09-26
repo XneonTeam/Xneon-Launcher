@@ -89,7 +89,8 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
   }, [pendingFile, variant, selectedCapeId, onSave, onClose])
 
   const selectedCape = capes.find(c => c.id === selectedCapeId)
-  const displayCapeUrl = pendingFile ? undefined : selectedCape?.url
+  // Плащ показываем всегда: смена текстуры скина не должна его скрывать
+  const displayCapeUrl = selectedCape?.url
 
   if (!open) return null
 
