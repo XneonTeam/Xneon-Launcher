@@ -9,12 +9,19 @@
 // "Incompatible mods found". Достоверное место только одно — метаданные
 // загрузчика внутри jar: fabric.mod.json, quilt.mod.json или mods.toml.
 // Их и читаем, а найденные id сопоставляем с проектами источника.
+//
+// Сам разбор архива живёт в builds/jar-dependencies.ts и выполняется единым
+// инспектором JAR: файл читается один раз, а результат кладётся в общий кэш по
+// (path, size, mtime) — повторная проверка того же jar диск не трогает.
 
-import fs from "fs/promises"
 import path from "path"
-import { downloadBuffer, loadAdmZip, loadModsModule, loadToml, readArchiveText } from "./builds/helpers"
+import { downloadBuffer, loadModsModule } from "./builds/helpers"
 import { cacheJarFromUrl } from "./jar-cache"
+import { inspectJar } from "./builds/jar-inspector"
+import type { JarDeclaredDependency } from "./builds/jar-dependencies"
 import type { ModDependency } from "@xnlc/mods" with { "resolution-mode": "import" }
+
+export type { JarDeclaredDependency } from "./builds/jar-dependencies"
 
 /** Идентификаторы, которые ставит не лаунчер: загрузчик, сама игра и рантайм. */
 const NON_INSTALLABLE_IDS = new Set([
@@ -34,13 +41,6 @@ const NON_INSTALLABLE_IDS = new Set([
   "paper",
 ])
 
-export interface JarDeclaredDependency {
-  /** Идентификатор мода из метаданных (например, `fabric-api`). */
-  modId: string
-  /** Диапазон версий, как его объявил автор мода. */
-  versionRange?: string
-}
-
 export interface JarDependencyInspection {
   /** id самого мода из метаданных (например, `jei`). */
   modId: string | null
@@ -55,122 +55,6 @@ export interface JarDependencyInspection {
  * cloth-config, architectury) встречается в половине сборки.
  */
 const projectCache = new Map<string, ModDependency | null>()
-
-function stringifyVersionRange(value: unknown): string | undefined {
-  if (typeof value === "string") return value.trim() || undefined
-  if (Array.isArray(value)) {
-    const parts = value.map(item => stringifyVersionRange(item)).filter(Boolean)
-    return parts.length > 0 ? parts.join(" || ") : undefined
-  }
-  if (value && typeof value === "object") {
-    // Fabric допускает объектную форму: {"any": [...]}, {"all": [...]} и подобные.
-    const parts = Object.values(value as Record<string, unknown>)
-      .map(item => stringifyVersionRange(item))
-      .filter(Boolean)
-    return parts.length > 0 ? parts.join(" || ") : undefined
-  }
-  return undefined
-}
-
-/** fabric.mod.json: `depends` — объект вида { "fabric-api": ">=0.155.0+26.2" }. */
-function collectJsonDependencies(raw: unknown): JarDeclaredDependency[] {
-  if (!raw || typeof raw !== "object") return []
-  return Object.entries(raw as Record<string, unknown>)
-    .filter(([modId]) => Boolean(modId))
-    .map(([modId, range]) => ({ modId, versionRange: stringifyVersionRange(range) }))
-}
-
-/** quilt.mod.json: `quilt_loader.depends` — массив объектов { id, versions }. */
-function collectQuiltDependencies(raw: unknown): JarDeclaredDependency[] {
-  const depends = (raw as { quilt_loader?: { depends?: unknown } } | null)?.quilt_loader?.depends
-  if (Array.isArray(depends)) {
-    return depends.flatMap((entry) => {
-      const modId = typeof (entry as { id?: unknown })?.id === "string" ? String((entry as { id: string }).id) : ""
-      if (!modId) return []
-      return [{ modId, versionRange: stringifyVersionRange((entry as { versions?: unknown }).versions) }]
-    })
-  }
-  return collectJsonDependencies(depends)
-}
-
-/**
- * Forge/NeoForge mods.toml: `[[dependencies.<modid>]]` — массив записей с
- * `modId`, `mandatory`, `versionRange`. Необязательные пропускаем: их отсутствие
- * игру не ломает.
- */
-function collectTomlDependencies(parsed: Record<string, unknown>): JarDeclaredDependency[] {
-  const dependencies = parsed["dependencies"]
-  if (!dependencies || typeof dependencies !== "object") return []
-
-  const result: JarDeclaredDependency[] = []
-  for (const entries of Object.values(dependencies as Record<string, unknown>)) {
-    if (!Array.isArray(entries)) continue
-    for (const entry of entries) {
-      const record = entry as Record<string, unknown>
-      if (record?.["mandatory"] === false) continue
-      const modId = typeof record?.["modId"] === "string" ? record["modId"].trim() : ""
-      if (!modId) continue
-      const range = typeof record?.["versionRange"] === "string" ? record["versionRange"].trim() : ""
-      result.push({ modId, versionRange: range || undefined })
-    }
-  }
-  return result
-}
-
-function findEntryName(entries: { entryName: string }[], pattern: RegExp): string | null {
-  const match = entries.find(entry => pattern.test(entry.entryName))
-  return match?.entryName ?? null
-}
-
-/** Читает метаданные загрузчика и возвращает id мода и его объявленные зависимости. */
-async function readDeclaredDependencies(
-  jarPath: string,
-): Promise<{ modId: string | null; declared: JarDeclaredDependency[] }> {
-  const AdmZip = await loadAdmZip()
-  const zip = new AdmZip(await fs.readFile(jarPath))
-  const entries = zip.getEntries()
-  const empty = { modId: null, declared: [] as JarDeclaredDependency[] }
-
-  const fabricRaw = readArchiveText(zip, "fabric.mod.json")
-  if (fabricRaw) {
-    try {
-      const parsed = JSON.parse(fabricRaw) as { id?: unknown; depends?: unknown }
-      const modId = typeof parsed.id === "string" ? parsed.id : null
-      return { modId, declared: collectJsonDependencies(parsed.depends) }
-    } catch {
-      return empty
-    }
-  }
-
-  const quiltRaw = readArchiveText(zip, "quilt.mod.json")
-  if (quiltRaw) {
-    try {
-      const parsed = JSON.parse(quiltRaw) as { quilt_loader?: { id?: unknown } }
-      const modId = typeof parsed.quilt_loader?.id === "string" ? parsed.quilt_loader.id : null
-      return { modId, declared: collectQuiltDependencies(parsed) }
-    } catch {
-      return empty
-    }
-  }
-
-  const tomlName = findEntryName(entries, /^META-INF\/(neoforge\.)?mods\.toml$/i)
-  if (tomlName) {
-    try {
-      const raw = readArchiveText(zip, tomlName)
-      if (!raw) return empty
-      const toml = await loadToml()
-      const parsed = toml.parse(raw) as Record<string, unknown>
-      const modsList = parsed["mods"]
-      const first = Array.isArray(modsList) ? (modsList[0] as Record<string, unknown> | undefined) : undefined
-      const modId = typeof first?.["modId"] === "string" ? String(first["modId"]) : null
-      return { modId, declared: collectTomlDependencies(parsed) }
-    } catch {
-      return empty
-    }
-  }
-
-  return empty
-}
 
 /** Убираем загрузчик, игру и сам мод — остаётся то, что реально можно поставить. */
 function filterInstallable(
@@ -259,7 +143,8 @@ export async function inspectJarDependencies(
     return { modId: null, dependencies: [], declared: [] }
   }
 
-  const { modId, declared } = await readDeclaredDependencies(jarPath)
+  const inspection = await inspectJar(jarPath, { dependencies: true })
+  const { modId, declared } = inspection.dependencies ?? { modId: null, declared: [] as JarDeclaredDependency[] }
   const installable = filterInstallable(declared, modId)
   if (installable.length === 0) {
     return { modId, dependencies: [], declared: [] }

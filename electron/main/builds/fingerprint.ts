@@ -49,9 +49,12 @@ export function murmurhash2(str: Uint8Array, seed: number): number {
   return h >>> 0
 }
 
-/** Computes the CurseForge fingerprint for a file (content with whitespace stripped, murmurhash v2 seed 1). */
-export async function computeFingerprint(filePath: string): Promise<number> {
-  const buf = await fs.readFile(filePath)
+/**
+ * Считает отпечаток по уже прочитанному буферу файла. Буфер мутируется
+ * (пробельные байты схлопываются на месте), поэтому вызывающий код обязан
+ * сначала закончить работу с исходным содержимым — например, разобрать ZIP.
+ */
+export function computeFingerprintFromBuffer(buf: Buffer): number {
   let j = 0
   for (let i = 0; i < buf.length; i++) {
     const b = buf[i]
@@ -61,4 +64,9 @@ export async function computeFingerprint(filePath: string): Promise<number> {
     }
   }
   return murmurhash2(buf.subarray(0, j), 1)
+}
+
+/** Computes the CurseForge fingerprint for a file (content with whitespace stripped, murmurhash v2 seed 1). */
+export async function computeFingerprint(filePath: string): Promise<number> {
+  return computeFingerprintFromBuffer(await fs.readFile(filePath))
 }
