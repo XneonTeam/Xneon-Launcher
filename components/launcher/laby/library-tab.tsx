@@ -8,7 +8,8 @@ import { CatalogToolbar } from "./catalog-toolbar"
 import { PlayerHeader } from "./player-header"
 import { Spinner } from "@/components/launcher/instance/spinner"
 import { EMPTY_FILTERS, countActiveFilters, type CatalogFilters } from "./catalog-filters-dialog"
-import { labyPlayerSkinToSkin, type LabyOrder, type LabyPlayer, type LabySkin, type LabyTag } from "@xnlc/types"
+import { LABY_DEFAULT_ORDER, labyHashFromSourceId, labyPlayerSkinToSkin } from "@xnlc/skins"
+import type { LabyOrder, LabyPlayer, LabySkin, LabyTag } from "@xnlc/types"
 import { IconAlertTriangle, IconChevronLeft, IconChevronRight, IconLayoutGrid, IconRefresh, IconUsers } from "@tabler/icons-react"
 
 /**
@@ -91,7 +92,7 @@ export function LabyLibraryTab() {
    * доступа — а на деле скины просто кончились.
    */
   const [endOfFeed, setEndOfFeed] = useState(false)
-  const [order, setOrder] = useState<LabyOrder>("trending_24h")
+  const [order, setOrder] = useState<LabyOrder>(LABY_DEFAULT_ORDER)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<{ code: string; message: string; retryable: boolean } | null>(null)
   const [stale, setStale] = useState(false)
@@ -235,9 +236,9 @@ export function LabyLibraryTab() {
         if (cancelled) return
         const map = new Map<string, string>()
         for (const skin of skins) {
-          const sourceId = skin.sourceId
-          if (typeof sourceId !== "string" || !sourceId.startsWith("laby:")) continue
-          map.set(sourceId.slice("laby:".length), skin.id)
+          // Связь с каталогом — префикс источника; старые записи его не имеют.
+          const hash = labyHashFromSourceId(skin.sourceId)
+          if (hash) map.set(hash, skin.id)
         }
         setFavorites(map)
       })

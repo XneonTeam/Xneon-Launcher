@@ -1,5 +1,13 @@
 const blobUrlCache = new Map<string, string>()
 
+/**
+ * Читает PNG текстуры из каталога скинов лаунчера и отдаёт blob-URL для
+ * `<img>` и WebGL-вьюера.
+ *
+ * Кэш по пути файла: чтение идёт через IPC (`read-local-file`), и без него
+ * каждая перерисовка вкладки читала бы файлы заново. Отзывать URL не нужно:
+ * лаунчер живёт сессиями, а файл по неизменному пути (id записи) не меняется.
+ */
 export async function localFileToBlobUrl(filePath: string): Promise<string> {
   const cached = blobUrlCache.get(filePath)
   if (cached) return cached
@@ -20,13 +28,5 @@ export async function localFileToBlobUrl(filePath: string): Promise<string> {
     return url
   } catch {
     return ""
-  }
-}
-
-export function revokeLocalFileBlobUrl(filePath: string) {
-  const url = blobUrlCache.get(filePath)
-  if (url) {
-    URL.revokeObjectURL(url)
-    blobUrlCache.delete(filePath)
   }
 }

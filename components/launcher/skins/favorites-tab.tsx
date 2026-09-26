@@ -19,14 +19,8 @@ import { IconLoader2 } from "@tabler/icons-react"
  */
 const profileCache = new Map<string, { profile: McProfile | null; at: number }>()
 
-/** TTL, после которого профиль обновляем в фоне (показанный данные не блокируют). */
+/** TTL, после которого профиль обновляем в фоне (показанные данные не блокируют). */
 const PROFILE_CACHE_TTL_MS = 60_000
-
-/**
- * Кэш blob-URL скинов по пути файла: чтение каждого PNG идёт через IPC
- * (`skins:read-local-file`), и при каждом входе во вкладку файлы читались заново.
- */
-const skinBlobUrlCache = new Map<string, string>()
 
 /**
  * Вкладка «Избранное»: сохранённые скины аккаунта.
@@ -67,31 +61,17 @@ export function FavoritesTab() {
   const activeAccountIdRef = useRef<string | null>(null)
   const loadedForAccountIdRef = useRef<string | null>(null)
 
-  // Load blob URLs for library skins
+  // Blob-URL для превью сохранённых скинов. Чтение каждого PNG идёт через IPC
+  // (`skins:read-local-file`), поэтому кэш по пути файла ведёт сам
+  // `localFileToBlobUrl` — здесь второй такой же кэш не нужен.
   useEffect(() => {
     let cancelled = false
-    const loadBlobUrls = async () => {
-      const newUrls = new Map<string, string>()
-      await Promise.all(librarySkins.map(async (skin) => {
-        const cached = skinBlobUrlCache.get(skin.filePath)
-        if (cached) {
-          newUrls.set(skin.id, cached)
-          return
-        }
-        const existing = skinBlobUrls.get(skin.id)
-        if (existing) {
-          newUrls.set(skin.id, existing)
-          return
-        }
-        const url = await localFileToBlobUrl(skin.filePath)
-        if (url) {
-          skinBlobUrlCache.set(skin.filePath, url)
-          newUrls.set(skin.id, url)
-        }
-      }))
-      if (!cancelled) setSkinBlobUrls(newUrls)
-    }
-    loadBlobUrls()
+    void Promise.all(
+      librarySkins.map(async (skin) => [skin.id, await localFileToBlobUrl(skin.filePath)] as const),
+    ).then((entries) => {
+      if (cancelled) return
+      setSkinBlobUrls(new Map(entries.filter((entry): entry is readonly [string, string] => Boolean(entry[1]))))
+    })
     return () => { cancelled = true }
   }, [librarySkins])
 
@@ -276,6 +256,9 @@ export function FavoritesTab() {
         setSelectedId(selectedSkin.id)
         setSkinVersion(v => v + 1)
         pushNotification({ kind: "success", source: "launch", title: t("skins.applied"), message: "" })
+      } else {
+        // Раньше неудача молчала: кнопка нажималась, и ничего не происходило.
+        pushNotification({ kind: "error", source: "launch", title: t("skins.error"), message: selectedSkin.name })
       }
     } catch (err) {
       pushNotification({ kind: "error", source: "launch", title: t("skins.error"), message: String(err) })
@@ -287,7 +270,13 @@ export function FavoritesTab() {
   const handleReset = useCallback(async () => {
     if (!window.electronAPI || !account?.id) return
     try {
-      await window.electronAPI.skinsDeleteSkin(account.id)
+      // Раньше результат не проверялся, и «Сбросить» показывало успех даже
+      // когда запрос к Minecraft Services не прошёл.
+      const ok = await window.electronAPI.skinsDeleteSkin(account.id)
+      if (!ok) {
+        pushNotification({ kind: "error", source: "launch", title: t("skins.error"), message: "" })
+        return
+      }
       localStorage.removeItem(`skin-equipped-${account.id}`)
       await fetchProfile(true)
       const apiSkinId = activeSkinUrl ? "__api__" : null
@@ -298,7 +287,7 @@ export function FavoritesTab() {
     } catch (err) {
       pushNotification({ kind: "error", source: "launch", title: t("skins.error"), message: String(err) })
     }
-  }, [account?.id, activeSkinUrl, fetchProfile, pushNotification])
+  }, [account?.id, activeSkinUrl, fetchProfile, pushNotification, t])
 
   const handleDeleteSkin = useCallback(async (skinId: string) => {
     if (!window.electronAPI || !account?.id) return

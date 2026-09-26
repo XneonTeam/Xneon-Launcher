@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
-import { labyPlayerPageUrl, type LabyPlayer } from "@xnlc/types"
+import { labyPlayerPageUrl } from "@xnlc/skins"
+import type { LabyPlayer } from "@xnlc/types"
 import { IconExternalLink, IconShirt, IconUsers } from "@tabler/icons-react"
 
 /**
@@ -55,22 +55,6 @@ export function PlayerHeader({ player }: { player: LabyPlayer }) {
             </span>
           )}
         </div>
-
-        {player.badges.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {player.badges.slice(0, 6).map((badge) => (
-              <span
-                key={badge.name}
-                title={badge.description ?? undefined}
-                className={cn(
-                  "rounded-md border border-border/60 bg-muted/30 px-1.5 py-0.5 text-[10px] text-muted-foreground",
-                )}
-              >
-                {badge.name}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   )

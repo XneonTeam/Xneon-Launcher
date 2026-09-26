@@ -1,16 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { SkinViewer3D } from "@/components/ui/skin-viewer-3d"
 import { ElytraIcon } from "@/components/ui/elytra-icon"
-import { CachedAvatar } from "@/components/ui/cached-avatar"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { useAccounts } from "@/src/AccountsContext"
-import { getAvatarUrl, ACCOUNT_TYPE_LABELS } from "@/lib/home-page-shared"
+import { SkinAccountPicker } from "./account-picker"
+import { useViewerSize } from "./use-viewer-size"
 import type { SkinCardData } from "./skin-card"
 import type { McProfile } from "@xnlc/types"
 import {
-  IconLoader2, IconUser, IconCheck, IconChevronDown,
+  IconLoader2, IconUser, IconCheck,
   IconPencil, IconRefresh,
 } from "@tabler/icons-react"
 
@@ -26,34 +24,6 @@ interface SkinPreviewPanelProps {
   onReset: () => void
   onEdit: () => void
   onCancelSelection: () => void
-}
-
-/**
- * Размер вьюера под контейнер.
- *
- * Canvas у skinview3d создаётся с явными width/height, поэтому фиксированные
- * 300×400 в оконном режиме (1280×800) обрезались: колонке по высоте остаётся
- * меньше. Меряем контейнер ResizeObserver'ом — так же, как в панели каталога.
- */
-function useViewerSize(fallback = { width: 248, height: 280 }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [size, setSize] = useState(fallback)
-
-  useEffect(() => {
-    const node = ref.current
-    if (!node || typeof ResizeObserver === "undefined") return
-    const observer = new ResizeObserver((entries) => {
-      const rect = entries[0]?.contentRect
-      if (!rect) return
-      const width = Math.max(140, Math.round(rect.width))
-      const height = Math.max(160, Math.round(rect.height))
-      setSize((prev) => (prev.width === width && prev.height === height ? prev : { width, height }))
-    })
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
-
-  return { ref, size }
 }
 
 /**
@@ -79,111 +49,16 @@ export function SkinPreviewPanel({
   onCancelSelection,
 }: SkinPreviewPanelProps) {
   const { t } = useTranslation()
-  const { accounts, activeAccount, setActiveAccount } = useAccounts()
-  const [accountComboOpen, setAccountComboOpen] = useState(false)
   /** Показ элитры: разворачивает персонажа спиной (плащ/элитра висят сзади). */
   const [showElytra, setShowElytra] = useState(false)
   const { ref, size } = useViewerSize()
 
-  const account = activeAccount ?? accounts[0]
-  // Пока скины поддерживаются только для аккаунтов Microsoft
-  const skinAccounts = useMemo(() => accounts.filter((a) => a.type === "microsoft"), [accounts])
-  const activeAvatarUrl = useMemo(
-    () => account ? `${getAvatarUrl(account, account.username)}${skinVersion ? `&_v=${skinVersion}` : ""}` : "",
-    [account, skinVersion]
-  )
-  const accountAvatarUrls = useMemo(
-    () => Object.fromEntries(skinAccounts.map((a) => [a.id, getAvatarUrl(a, a.username)])),
-    [skinAccounts]
-  )
+  /** Иконки аккаунтов не кэшируем между сменами скина: персонаж уже другой. */
+  const skinVersionKey = skinVersion ?? 0
 
   return (
     <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1">
-      {/* Аккаунт */}
-      <div className="shrink-0 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        <button
-          type="button"
-          className="w-full px-3.5 py-2.5 text-left transition-colors duration-200 hover:bg-muted/30"
-          onClick={() => setAccountComboOpen(true)}
-        >
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("home.account", "Аккаунт")}
-            </span>
-            <IconChevronDown className="h-3.5 w-3.5 text-muted-foreground/50" size={14} strokeWidth={2} />
-          </div>
-          <div className="flex items-center gap-2.5">
-            <div className="size-8 shrink-0 overflow-hidden rounded-lg ring-2 ring-primary/20 ring-offset-2 ring-offset-card">
-              {account ? (
-                <CachedAvatar src={activeAvatarUrl} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <div className="grid h-full w-full place-items-center bg-muted">
-                  <span className="text-[11px] font-bold text-muted-foreground">P</span>
-                </div>
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-semibold text-foreground">
-                {account?.username ?? "Player"}
-              </p>
-              <p className="text-[10px] text-muted-foreground">
-                {ACCOUNT_TYPE_LABELS[account?.type ?? "offline"]}
-              </p>
-            </div>
-          </div>
-        </button>
-
-        <Dialog open={accountComboOpen} onOpenChange={setAccountComboOpen}>
-          <DialogContent className="max-w-md gap-0 p-0">
-            <DialogHeader className="px-5 pb-3 pt-5">
-              <DialogTitle>{t("home.account", "Аккаунт")}</DialogTitle>
-            </DialogHeader>
-            <div className="flex max-h-[400px] flex-col gap-1 overflow-y-auto px-3 pb-3">
-              {skinAccounts.map((acc) => {
-                const isActive = acc.id === account?.id
-                return (
-                  <button
-                    key={acc.id}
-                    type="button"
-                    onClick={() => {
-                      setActiveAccount(acc.id)
-                      setAccountComboOpen(false)
-                    }}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all duration-200",
-                      isActive
-                        ? "bg-primary/15 border border-primary/25"
-                        : "hover:bg-muted/60 border border-transparent"
-                    )}
-                  >
-                    <div className="size-10 shrink-0 overflow-hidden rounded-lg">
-                      <CachedAvatar
-                        src={accountAvatarUrls[acc.id]}
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{acc.username}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {ACCOUNT_TYPE_LABELS[acc.type] ?? acc.type}
-                      </p>
-                    </div>
-                    {isActive && (
-                      <IconCheck className="h-4 w-4 shrink-0 text-primary" strokeWidth={2} />
-                    )}
-                  </button>
-                )
-              })}
-              {skinAccounts.length === 0 && (
-                <p className="py-4 text-center text-sm text-muted-foreground">
-                  {t("skins.noMicrosoftAccounts", "Нет аккаунтов Microsoft")}
-                </p>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
+      <SkinAccountPicker avatarVersion={skinVersionKey} />
 
       {/* Превью: высота подстраивается под окно */}
       <div className="relative h-[clamp(200px,30vh,300px)] shrink-0 overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-b from-muted/30 to-muted/10 shadow-inner">

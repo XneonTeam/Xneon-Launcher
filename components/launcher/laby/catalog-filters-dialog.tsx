@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
+import { formatUseCount } from "@xnlc/skins"
 import type { LabyTag } from "@xnlc/types"
 import { IconChevronDown, IconChevronRight, IconList, IconSearch, IconX } from "@tabler/icons-react"
 
@@ -202,7 +203,7 @@ export function CatalogFiltersDialog({ filters, tags, tagsLoading, localFilterin
                         title={t("laby.tagUseCountHint", "Сколько раз использовали скины с этим тегом — это не количество скинов")}
                         className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] tabular-nums text-muted-foreground"
                       >
-                        {new Intl.NumberFormat(i18n.language, { notation: "compact", maximumFractionDigits: 1 }).format(tag.useCount)}
+                        {formatUseCount(tag.useCount, i18n.language)}
                       </span>
                     </label>
                   )
