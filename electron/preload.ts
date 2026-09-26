@@ -9,6 +9,7 @@ import type {
   MinecraftNewsEntry,
   DbAccount,
   DbBuild,
+  DbBuildLight,
   DbBuildMod,
   MinecraftLaunchParams,
   JavaProgress,
@@ -38,6 +39,12 @@ import type {
   BuildExportCategory,
   McProfile,
   LibrarySkin,
+  LabyCatalogPage,
+  LabyImportResult,
+  LabyOrder,
+  LabyPlayer,
+  LabySkin,
+  LabyTag,
   McServerInfo,
   McPlayerEntry,
   McServerState,
@@ -100,11 +107,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadAccounts: invoke<DbAccount[]>('db:load-accounts'),
   saveAccount: (account: DbAccount) => ipcRenderer.invoke('db:save-account', account) as Promise<void>,
   removeAccount: (id: string) => ipcRenderer.invoke('db:remove-account', id) as Promise<void>,
-  loadBuilds: invoke<DbBuild[]>('db:load-builds'),
-  loadBuildsLight: invoke<DbBuild[]>('db:load-builds-light'),
+  loadBuildsLight: invoke<DbBuildLight[]>('db:load-builds-light'),
   loadBuildContent: (buildId: string) => ipcRenderer.invoke('db:load-build-content', buildId) as Promise<{ mods: unknown[]; resourcepacks: unknown[]; shaders: unknown[]; installedMods: Record<string, string> } | null>,
   fetchMissingBuildMods: (buildName: string) => ipcRenderer.invoke('build:fetch-missing-mods', buildName) as Promise<{ success: boolean; downloaded?: number; failed?: number; missing?: number; error?: string }>,
   saveBuilds: (builds: DbBuild[]) => ipcRenderer.invoke('db:save-builds', builds) as Promise<void>,
+  insertBuild: (build: DbBuild) => ipcRenderer.invoke('db:insert-build', build) as Promise<void>,
   updateBuildFields: (buildId: string, fields: Partial<DbBuild>) => ipcRenderer.invoke('db:update-build-fields', buildId, fields) as Promise<void>,
   dbIsFallbackStorage: invoke<{ isFallback: boolean }>('db:is-fallback-storage'),
   reorderAccounts: (ids: string[]) => ipcRenderer.invoke('db:reorder-accounts', ids) as Promise<void>,
@@ -112,6 +119,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Build / Intent ─────────────────────────────────────
   scanBuildIntentContent: (buildName: string) => ipcRenderer.invoke('build:scan-intent-content', buildName) as Promise<BuildIntentScanResult>,
   discoverImportableInstances: invoke<ImportableLauncherInstance[]>('launcher:discover-importable-instances'),
+  // Импорт из произвольной папки: хендлер launcher:discover-from-path (system.ts).
+  // Без этого метода выбор кастомного пути падал с TypeError.
+  discoverFromPath: (source: string, customPath: string) => ipcRenderer.invoke('launcher:discover-from-path', source, customPath) as Promise<ImportableLauncherInstance[]>,
   importGdLauncherInstances: (ids: string[]) => ipcRenderer.invoke('launcher:import-gdlauncher-instances', ids) as Promise<{ success: boolean; imported: number; error?: string }>,
   importLauncherInstances: (ids: string[]) => ipcRenderer.invoke('launcher:import-instances', ids) as Promise<{ success: boolean; imported: number; error?: string }>,
   copyBuild: (buildName: string, newName: string) => ipcRenderer.invoke('build:copy', buildName, newName) as Promise<{ success: boolean; intentPath?: string; error?: string }>,
@@ -143,7 +153,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // а сам мод требует fabric-api и падает без него.
   modsInspectJarDependencies: (url: string, source: "modrinth" | "curseforge") => ipcRenderer.invoke('mods:inspect-jar-dependencies', url, source) as Promise<JarDependencyInspection>,
   checkBuildLoaderRequirements: (buildName: string, modLoader?: string, loaderVersion?: string) => ipcRenderer.invoke('mods:check-loader-requirements', buildName, modLoader, loaderVersion) as Promise<{ loaderId: string; loaderVersion?: string; checked: number; issues: Array<{ fileName: string; modName?: string; modId?: string; loaderId: string; requirement: string; buildLoaderVersion?: string; satisfied: boolean; reason?: string }> }>,
-  modsFtbSearch: (query: string, page?: number) => ipcRenderer.invoke('mods:ftb-search', query, page) as Promise<ModSearchResponse>,
+  modsFtbSearch: (query: string, page?: number, options?: { sortBy?: ModSort; categories?: string[]; gameVersion?: string; loader?: string }) => ipcRenderer.invoke('mods:ftb-search', query, page, options) as Promise<ModSearchResponse>,
+  modsFtbCatalogFacets: () => ipcRenderer.invoke('mods:ftb-catalog-facets') as Promise<{ categories: string[]; gameVersions: string[]; loaders: string[] }>,
   modsFtbDetails: (id: number) => ipcRenderer.invoke('mods:ftb-details', id) as Promise<ModDetails | null>,
   modsFtbVersion: (id: number, versionId: number) => ipcRenderer.invoke('mods:ftb-version', id, versionId) as Promise<FTBVersionManifest | null>,
   modsFtbChangelog: (id: number, versionId: number) => ipcRenderer.invoke('mods:ftb-changelog', id, versionId) as Promise<string>,
@@ -246,6 +257,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Content Updates ──────────────────────────────────────
   checkBuildContentUpdates: (buildId: string, channel?: UpdateChannel) => ipcRenderer.invoke('build:check-content-updates', buildId, channel) as Promise<BuildContentUpdates>,
   getContentUpdatesCache: () => ipcRenderer.invoke('build:get-content-updates-cache') as Promise<Record<string, BuildContentUpdates>>,
+  getContentUpdatesCounts: () => ipcRenderer.invoke('build:get-content-updates-counts') as Promise<Record<string, { mods: number; resourcepacks: number; shaders: number }>>,
   dismissContentUpdate: (buildId: string, itemId: string) => ipcRenderer.invoke('build:dismiss-content-update', buildId, itemId) as Promise<void>,
 
   // ── Game Statistics ──────────────────────────────────────
@@ -265,7 +277,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   shareToMclogs: (content: string) => ipcRenderer.invoke('logs:share-to-mclogs', content) as Promise<{ success: boolean; url?: string; error?: string }>,
 
   // ── Java ───────────────────────────────────────────────
-  detectJavaInstallations: invoke<JavaDetectResult[]>('java:detect'),
+  detectJavaInstallations: (force?: boolean) => ipcRenderer.invoke('java:detect', force) as Promise<JavaDetectResult[]>,
   pickJavaFile: invoke<string | null>('java:pick-file'),
 
   // ── AI ─────────────────────────────────────────────────
@@ -333,6 +345,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   skinsUpdateVariant: (id: string, variant: "classic" | "slim", capeId?: string | null, name?: string) => ipcRenderer.invoke('skins:update-variant', { id, variant, capeId, name }) as Promise<boolean>,
   skinsApplyLibrarySkin: (skinId: string, accountId: string) => ipcRenderer.invoke('skins:apply-library-skin', { skinId, accountId }) as Promise<boolean>,
   skinsImportFromUrl: (url: string, name: string, variant: "classic" | "slim", accountId: string) => ipcRenderer.invoke('skins:import-from-url', { url, name, variant, accountId }) as Promise<LibrarySkin | null>,
+
+  // ── Laby (каталог скинов) ──────────────────────────────
+  labyCatalog: (page: number, size?: number, order?: LabyOrder, tags?: string[] | null, query?: string | null) =>
+    ipcRenderer.invoke('laby:catalog', { page, size, order, tags, query }) as Promise<LabyCatalogPage>,
+  labyTags: (locale?: string) => ipcRenderer.invoke('laby:tags', locale) as Promise<LabyTag[]>,
+  labySimilar: (hash: string, tags: string[], slim: boolean) =>
+    ipcRenderer.invoke('laby:similar', { hash, tags, slim }) as Promise<LabySkin[]>,
+  labyPlayer: (username: string) => ipcRenderer.invoke('laby:player', username) as Promise<LabyPlayer | null>,
+  labySaveToLibrary: (hash: string, accountId: string, name?: string, slim?: boolean) =>
+    ipcRenderer.invoke('laby:save-to-library', { hash, accountId, name, slim }) as Promise<LabyImportResult>,
+  labyApply: (hash: string, accountId: string, name?: string, slim?: boolean) =>
+    ipcRenderer.invoke('laby:apply', { hash, accountId, name, slim }) as Promise<LabyImportResult>,
 
   readLocalFile: (filePath: string) => ipcRenderer.invoke('read-local-file', filePath) as Promise<string | null>,
 

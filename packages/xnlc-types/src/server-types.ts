@@ -70,11 +70,18 @@ export type XnConnectUsage = {
   plan: string
 }
 
+/**
+ * Прогресс установки модпака на сервер. `phase` — свободная строка, потому что
+ * main шлёт не только `installing-pack`/`done`, но и промежуточные этапы
+ * скачивания; в байтовых полях приходит фактический прогресс загрузки.
+ */
 export type McServerDownloadProgress = {
   id: string
   progress: {
-    phase: "installing-pack" | "done"
+    phase: string
     message: string
     percent?: number
+    bytesTotal?: number
+    bytesDownloaded?: number
   }
 }

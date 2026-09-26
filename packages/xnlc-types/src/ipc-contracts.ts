@@ -6,6 +6,7 @@
 import type {
   DbAccount,
   DbBuild,
+  DbBuildLight,
   DbBuildMod,
   WorldInfo,
   DatapackInfo,
@@ -26,9 +27,6 @@ import type {
   ModpackImportResult,
   ImportProgress,
   ContentDownloadProgress,
-  CloudUser,
-  CloudFile,
-  CloudStorageInfo,
   CleanupFn,
   McProfile,
   LibrarySkin,
@@ -41,6 +39,15 @@ import type {
   StorageCleanTarget,
   StorageCleanResult,
 } from "./domain-types.js"
+
+import type {
+  LabyCatalogPage,
+  LabyImportResult,
+  LabyOrder,
+  LabyPlayer,
+  LabySkin,
+  LabyTag,
+} from "./laby.js"
 
 import type {
   ModContentType,
@@ -104,11 +111,11 @@ export interface IpcInvokeMap {
   "db:load-accounts": { args: []; return: DbAccount[] }
   "db:save-account": { args: [account: DbAccount]; return: void }
   "db:remove-account": { args: [id: string]; return: void }
-  "db:load-builds": { args: []; return: DbBuild[] }
-  "db:load-builds-light": { args: []; return: DbBuild[] }
+  "db:load-builds-light": { args: []; return: DbBuildLight[] }
   "db:load-build-content": { args: [buildId: string]; return: { mods: unknown[]; resourcepacks: unknown[]; shaders: unknown[]; installedMods: Record<string, string> } | null }
   "build:fetch-missing-mods": { args: [buildName: string]; return: { success: boolean; downloaded?: number; failed?: number; missing?: number; error?: string } }
   "db:save-builds": { args: [builds: DbBuild[]]; return: void }
+  "db:insert-build": { args: [build: DbBuild]; return: void }
   "db:update-build-fields": { args: [buildId: string, fields: Partial<DbBuild>]; return: void }
   "db:is-fallback-storage": { args: []; return: { isFallback: boolean } }
   "db:reorder-accounts": { args: [ids: string[]]; return: void }
@@ -135,7 +142,6 @@ export interface IpcInvokeMap {
   "build:import-ftb": { args: [buildName: string, modpackId: number, versionId: number, targetBuildId?: string]; return: ModpackImportResult }
   "build:open-and-import": { args: [nameOverride?: string]; return: ModpackImportResult & { name?: string; description?: string; icon?: string; source?: "modrinth" | "curseforge"; intentPath?: string } }
   "build:cancel-import": { args: []; return: { success: boolean } }
-  "build:upload-to-cloud": { args: [buildName: string, cloudToken: string, category?: string]; return: { success: boolean; error?: string } }
   "build:copy": { args: [buildName: string, newName: string]; return: { success: boolean; intentPath?: string; error?: string } }
   "build:rename-intent": { args: [oldName: string, newName: string]; return: { success: boolean; intentPath?: string; error?: string } }
   "build:export-zip": { args: [buildName: string, buildNameLabel: string, categories?: BuildExportCategory[]]; return: { success: boolean; path?: string; error?: string } }
@@ -143,12 +149,13 @@ export interface IpcInvokeMap {
   "build:move-intent-to-trash": { args: [dirName: string]; return: { success: boolean; trashName?: string; error?: string } }
   "build:restore-intent-from-trash": { args: [dirName: string, trashName: string]; return: { success: boolean; error?: string } }
   "build:purge-trash": { args: []; return: { success: boolean; error?: string } }
-  "build:list-trash": { args: []; return: Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string }> }
+  "build:list-trash": { args: []; return: Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string; modLoader?: string }> }
   "build:delete-trash-item": { args: [trashName: string]; return: { success: boolean; error?: string } }
 
   // ── Content Updates ──
   "build:check-content-updates": { args: [buildId: string, channel?: UpdateChannel]; return: BuildContentUpdates }
   "build:get-content-updates-cache": { args: []; return: Record<string, BuildContentUpdates> }
+  "build:get-content-updates-counts": { args: []; return: Record<string, { mods: number; resourcepacks: number; shaders: number }> }
   "build:dismiss-content-update": { args: [buildId: string, itemId: string]; return: void }
 
   // ── Game Statistics ──
@@ -174,6 +181,7 @@ export interface IpcInvokeMap {
 
   // ── Launcher Import ──
   "launcher:discover-importable-instances": { args: []; return: ImportableLauncherInstance[] }
+  "launcher:discover-from-path": { args: [source: string, customPath: string]; return: ImportableLauncherInstance[] }
   "launcher:import-gdlauncher-instances": { args: [ids: string[]]; return: { success: boolean; imported: number; error?: string } }
   "launcher:import-instances": { args: [ids: string[]]; return: { success: boolean; imported: number; error?: string } }
 
@@ -194,7 +202,8 @@ export interface IpcInvokeMap {
   "mods:inspect-jar-dependencies": { args: [url: string, source: "modrinth" | "curseforge"]; return: JarDependencyInspection }
   "mods:check-loader-requirements": { args: [buildName: string, modLoader?: string, loaderVersion?: string]; return: { loaderId: string; loaderVersion?: string; checked: number; issues: Array<{ fileName: string; modName?: string; modId?: string; loaderId: string; requirement: string; buildLoaderVersion?: string; satisfied: boolean; reason?: string }> } }
   // ── Mods (FTB / Feed The Beast) ──
-  "mods:ftb-search": { args: [query: string, page?: number]; return: ModSearchResponse }
+  "mods:ftb-search": { args: [query: string, page?: number, options?: { sortBy?: ModSort; categories?: string[]; gameVersion?: string; loader?: string }]; return: ModSearchResponse }
+  "mods:ftb-catalog-facets": { args: []; return: { categories: string[]; gameVersions: string[]; loaders: string[] } }
   "mods:ftb-details": { args: [id: number]; return: ModDetails | null }
   "mods:ftb-version": { args: [id: number, versionId: number]; return: FTBVersionManifest | null }
   "mods:ftb-changelog": { args: [id: number, versionId: number]; return: string }
@@ -228,6 +237,18 @@ export interface IpcInvokeMap {
   "minecraft:get-forge-recommended": { args: [mcVersion: string]; return: string | null }
   "minecraft:get-forge-supported": { args: []; return: string[] }
   "minecraft:get-custom-versions": { args: []; return: string[] }
+  "minecraft:get-paper-versions": { args: [mcVersion: string]; return: { value: string; label: string; stable?: boolean; recommended?: boolean }[] }
+  "minecraft:get-paper-supported": { args: []; return: string[] }
+  "minecraft:get-purpur-versions": { args: [mcVersion: string]; return: { value: string; label: string; stable?: boolean; recommended?: boolean }[] }
+  "minecraft:get-purpur-supported": { args: []; return: string[] }
+  "minecraft:get-folia-versions": { args: [mcVersion: string]; return: { value: string; label: string; stable?: boolean; recommended?: boolean }[] }
+  "minecraft:get-folia-supported": { args: []; return: string[] }
+  "minecraft:get-velocity-versions": { args: [velocityVersion: string]; return: { value: string; label: string; stable?: boolean; recommended?: boolean }[] }
+  "minecraft:get-velocity-supported": { args: []; return: string[] }
+  "minecraft:get-waterfall-versions": { args: [mcVersion: string]; return: { value: string; label: string; stable?: boolean; recommended?: boolean }[] }
+  "minecraft:get-waterfall-supported": { args: []; return: string[] }
+  "minecraft:get-sponge-versions": { args: [spongeType: string, mcVersion: string]; return: { value: string; label: string; stable?: boolean; recommended?: boolean }[] }
+  "minecraft:get-sponge-supported": { args: [spongeType?: string]; return: string[] }
   "minecraft:set-offline-auth": { args: [username: string]; return: AuthSession | null }
   "minecraft:get-game-dir": { args: []; return: string }
   "minecraft:get-auth": { args: []; return: AuthSession | null }
@@ -253,6 +274,8 @@ export interface IpcInvokeMap {
   "worlds:delete-datapack": { args: [buildName: string, folder: string, fileName: string]; return: { success: boolean; error?: string } }
   "worlds:import-zip": { args: [buildName: string, localFilePath: string, newName?: string]; return: { success: boolean; folder?: string; error?: string } }
   "worlds:import-remote": { args: [buildName: string, url: string, preferredName?: string]; return: { success: boolean; folder?: string; error?: string } }
+  "worlds:copy": { args: [buildName: string, folder: string, newName: string]; return: { success: boolean; folder?: string; error?: string } }
+  "worlds:reset-icon": { args: [buildName: string, folder: string]; return: { success: boolean; error?: string } }
 
   // ── Screenshots ──
   "screenshots:list": { args: [buildName: string]; return: ScreenshotInfo[] }
@@ -268,6 +291,21 @@ export interface IpcInvokeMap {
   // ── Servers ──
   "servers:list": { args: [buildName: string]; return: Array<{ name: string; ip: string }> }
   "servers:write-dat": { args: [buildName: string, servers: Array<{ name: string; ip: string }>]; return: { success: boolean; error?: string } }
+  "servers:ping": { args: [address: string]; return: ServerStatusResult }
+
+  // ── Quick Play ──
+  "quickplay:list": { args: [buildName?: string, gameDir?: string]; return: QuickPlayEntry[] }
+  "quickplay:clear": { args: [buildName?: string, gameDir?: string]; return: void }
+  "quickplay:remove": { args: [buildName: string | undefined, gameDir: string | undefined, entry: QuickPlayEntry]; return: void }
+
+  // ── Updater ──
+  "update:check": { args: []; return: { available: boolean; version?: string; error?: string } }
+  "update:download": { args: []; return: { success: boolean; error?: string } }
+  "update:install": { args: []; return: void }
+  "update:info": { args: []; return: { version: string | null; downloaded: boolean } }
+
+  // ── Misc (без доменного префикса — историческое имя канала) ──
+  "read-local-file": { args: [filePath: string]; return: string | null }
 
   // ── Logs ──
   "logs:share-to-mclogs": { args: [content: string]; return: { success: boolean; url?: string; error?: string } }
@@ -284,8 +322,20 @@ export interface IpcInvokeMap {
   "skins:apply-library-skin": { args: [params: { skinId: string; accountId: string }]; return: boolean }
   "skins:import-from-url": { args: [params: { url: string; name: string; variant: "classic" | "slim"; accountId: string }]; return: LibrarySkin | null }
 
+  // ── Laby (открытый каталог скинов, https://laby.net) ──
+  // Метаданные тянет main: API v3 не отдаёт CORS-заголовки. Текстуры и
+  // рендеры, наоборот, доступны рендереру напрямую с CDN.
+  "laby:catalog": { args: [params: { page: number; size?: number; order?: LabyOrder; tags?: string[] | null; query?: string | null }]; return: LabyCatalogPage }
+  "laby:tags": { args: [locale?: string]; return: LabyTag[] }
+  "laby:similar": { args: [params: { hash: string; tags: string[]; slim: boolean }]; return: LabySkin[] }
+  // Поиск игрока: по точному нику (`uniqueId` → `textures`). Частичный поиск
+  // Laby закрыл проверкой 428, поэтому подсказок при вводе нет.
+  "laby:player": { args: [username: string]; return: LabyPlayer | null }
+  "laby:save-to-library": { args: [params: { hash: string; accountId: string; name?: string; slim?: boolean }]; return: LabyImportResult }
+  "laby:apply": { args: [params: { hash: string; accountId: string; name?: string; slim?: boolean }]; return: LabyImportResult }
+
   // ── Java ──
-  "java:detect": { args: []; return: JavaDetectResult[] }
+  "java:detect": { args: [force?: boolean]; return: JavaDetectResult[] }
   "java:pick-file": { args: []; return: string | null }
 
   // ── Cloud (third-party providers) ──
@@ -309,6 +359,47 @@ export interface IpcInvokeMap {
   "xn-connect:stop": { args: [serverId: string]; return: void }
   "xn-connect:status": { args: [serverId: string]; return: XnConnectState }
   "xn-connect:usage": { args: []; return: XnConnectUsage | null }
+
+  // ── MC Server (управление) ──
+  "mc-server:list": { args: []; return: McServerInfo[] }
+  "mc-server:get": { args: [id: string]; return: McServerInfo | null }
+  "mc-server:create": { args: [data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }]; return: McServerInfo }
+  "mc-server:analyze-jar": { args: [jarPath: string]; return: { minecraftVersion: string | null; loaderId: string | null; loaderLabel: string | null; modId: string | null; mainClass: string | null; error?: string } }
+  "mc-server:update": { args: [id: string, update: Record<string, unknown>]; return: void }
+  "mc-server:delete": { args: [id: string]; return: void }
+  "mc-server:restore": { args: [id: string]; return: void }
+  "mc-server:list-trash": { args: []; return: McServerInfo[] }
+  "mc-server:purge-trash": { args: [deleteTunnel?: boolean]; return: void }
+  "mc-server:permanent-delete": { args: [id: string, deleteTunnel?: boolean]; return: void }
+  "mc-server:export-zip": { args: [id: string, serverName: string, categories?: string[]]; return: { success: boolean; path?: string; error?: string } }
+  "mc-server:duplicate": { args: [id: string]; return: McServerInfo | null }
+  "mc-server:start": { args: [id: string]; return: void }
+  "mc-server:stop": { args: [id: string]; return: void }
+  "mc-server:kill": { args: [id: string]; return: void }
+  "mc-server:send-command": { args: [id: string, command: string]; return: void }
+  "mc-server:status": { args: [id: string]; return: McServerState }
+  "mc-server:metrics": { args: [id: string]; return: McServerMetrics }
+  "mc-server:metrics-subscribe": { args: [id: string]; return: void }
+  "mc-server:metrics-unsubscribe": { args: [id: string]; return: void }
+  "mc-server:logs": { args: [id: string]; return: string[] }
+  "mc-server:open-folder": { args: [id: string]; return: void }
+  "mc-server:read-properties": { args: [id: string]; return: Record<string, string> | null }
+  "mc-server:write-properties": { args: [id: string, properties: Record<string, string>]; return: void }
+  "mc-server:get-whitelist": { args: [id: string]; return: McPlayerEntry[] }
+  "mc-server:add-whitelist": { args: [id: string, username: string]; return: void }
+  "mc-server:remove-whitelist": { args: [id: string, uuid: string]; return: void }
+  "mc-server:get-ops": { args: [id: string]; return: McPlayerEntry[] }
+  "mc-server:add-op": { args: [id: string, username: string]; return: void }
+  "mc-server:remove-op": { args: [id: string, uuid: string]; return: void }
+  "mc-server:get-banned": { args: [id: string]; return: McPlayerEntry[] }
+  "mc-server:ban-player": { args: [id: string, username: string]; return: void }
+  "mc-server:unban-player": { args: [id: string, uuid: string]; return: void }
+  "mc-server:get-banned-ips": { args: [id: string]; return: McPlayerEntry[] }
+  "mc-server:ban-ip": { args: [id: string, ip: string]; return: void }
+  "mc-server:unban-ip": { args: [id: string, ip: string]; return: void }
+  "mc-server:get-addresses": { args: [id: string]; return: { local: string; public: string | null; custom: string } | null }
+  "mc-server:check-eula": { args: [id: string]; return: boolean }
+  "mc-server:accept-eula": { args: [id: string]; return: void }
 
   // ── Server Files ──
   "mc-server:fs-list": { args: [id: string, relativePath: string]; return: McFsEntry[] }
@@ -339,9 +430,21 @@ export interface IpcEventMap {
   "auth:progress": string
   "import:progress": ImportProgress
   "build:export-progress": { current: number; total: number }
+  "content:download-progress": ContentDownloadProgress
   "cloud:upload-progress": { id: string; percent: number; stage: "zip" | "upload" }
   "mc-server:download-progress": McServerDownloadProgress
+  "mc-server:log": { id: string; line: string }
+  "mc-server:state-change": { id: string; state: McServerState }
   "xn-connect:usage-updated": XnConnectUsage
+  "xn-connect:state": { serverId: string; state: XnConnectState }
+  "xn-connect:log": { serverId: string; line: string }
+  "xn-connect:auth-state": { state: XnConnectState }
+  "ai:stream-chunk": { requestId: string; content: string }
+  "ai:stream-done": { requestId: string; fullText: string }
+  "ai:stream-error": { requestId: string; error: string }
+  "update:status": { status: string; version?: string; releaseDate?: string; releaseNotes?: string; error?: string }
+  "update:progress": { percent: number; transferred: number; total: number }
+  "cli:launch-build": string
   "stats:updated": {}
 }
 
@@ -368,11 +471,11 @@ export interface ElectronAPIExplicit {
   loadAccounts: () => Promise<DbAccount[]>
   saveAccount: (account: DbAccount) => Promise<void>
   removeAccount: (id: string) => Promise<void>
-  loadBuilds: () => Promise<DbBuild[]>
-  loadBuildsLight: () => Promise<DbBuild[]>
+  loadBuildsLight: () => Promise<DbBuildLight[]>
   loadBuildContent: (buildId: string) => Promise<{ mods: unknown[]; resourcepacks: unknown[]; shaders: unknown[]; installedMods: Record<string, string> } | null>
   fetchMissingBuildMods: (buildName: string) => Promise<{ success: boolean; downloaded?: number; failed?: number; missing?: number; error?: string }>
   saveBuilds: (builds: DbBuild[]) => Promise<void>
+  insertBuild: (build: DbBuild) => Promise<void>
   updateBuildFields: (buildId: string, fields: Partial<DbBuild>) => Promise<void>
   dbIsFallbackStorage: () => Promise<{ isFallback: boolean }>
   reorderAccounts: (ids: string[]) => Promise<void>
@@ -390,7 +493,8 @@ export interface ElectronAPIExplicit {
   modsCurseforgeFeatured: (gameVersion?: string) => Promise<{ popular: ModSearchResult[]; trending: ModSearchResult[] }>
   modsResolveDependencies: (version: ModVersion, source: "modrinth" | "curseforge") => Promise<ModDependency[]>
   modsInspectJarDependencies: (url: string, source: "modrinth" | "curseforge") => Promise<JarDependencyInspection>
-  modsFtbSearch: (query: string, page?: number) => Promise<ModSearchResponse>
+  modsFtbSearch: (query: string, page?: number, options?: { sortBy?: ModSort; categories?: string[]; gameVersion?: string; loader?: string }) => Promise<ModSearchResponse>
+  modsFtbCatalogFacets: () => Promise<{ categories: string[]; gameVersions: string[]; loaders: string[] }>
   modsFtbDetails: (id: number) => Promise<ModDetails | null>
   modsFtbVersion: (id: number, versionId: number) => Promise<FTBVersionManifest | null>
   modsFtbChangelog: (id: number, versionId: number) => Promise<string>
@@ -462,7 +566,7 @@ export interface ElectronAPIExplicit {
   openLauncherFolder: () => Promise<void>
   openPath: (dirPath: string) => Promise<void>
   shareToMclogs: (content: string) => Promise<{ success: boolean; url?: string; error?: string }>
-  detectJavaInstallations: () => Promise<JavaDetectResult[]>
+  detectJavaInstallations: (force?: boolean) => Promise<JavaDetectResult[]>
   pickJavaFile: () => Promise<string | null>
   listWorlds: (buildName: string) => Promise<WorldInfo[]>
   renameWorld: (buildName: string, folder: string, newName: string) => Promise<{ success: boolean; error?: string }>
@@ -478,33 +582,22 @@ export interface ElectronAPIExplicit {
   renameScreenshot: (buildName: string, fileName: string, newName: string) => Promise<{ success: boolean; error?: string }>
   listServers: (buildName: string) => Promise<Array<{ name: string; ip: string }>>
   writeServersDat: (buildName: string, servers: Array<{ name: string; ip: string }>) => Promise<{ success: boolean; error?: string }>
-  uploadBuildToCloud: (buildName: string, cloudToken: string, category?: string) => Promise<{ success: boolean; error?: string }>
   copyBuild: (buildName: string, newName: string) => Promise<{ success: boolean; intentPath?: string; error?: string }>
   exportBuildZip: (buildName: string, label: string, categories?: BuildExportCategory[]) => Promise<{ success: boolean; path?: string; error?: string }>
   exportBuildModlist: (buildName: string, label: string, format: "html" | "markdown" | "json" | "csv" | "plaintext") => Promise<{ success: boolean; path?: string; error?: string }>
   moveBuildIntentToTrash: (dirName: string, metadata?: Record<string, unknown>) => Promise<{ success: boolean; trashName?: string; error?: string }>
   restoreBuildIntentFromTrash: (dirName: string, trashName: string) => Promise<{ success: boolean; build?: Record<string, unknown>; error?: string }>
   purgeBuildTrash: () => Promise<{ success: boolean; error?: string }>
-  listTrashBuilds: () => Promise<Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string }>>
+  listTrashBuilds: () => Promise<Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string; modLoader?: string }>>
   deleteTrashItem: (trashName: string) => Promise<{ success: boolean; error?: string }>
   checkBuildContentUpdates: (buildId: string, channel?: UpdateChannel) => Promise<BuildContentUpdates>
   getContentUpdatesCache: () => Promise<Record<string, BuildContentUpdates>>
+  getContentUpdatesCounts: () => Promise<Record<string, { mods: number; resourcepacks: number; shaders: number }>>
   dismissContentUpdate: (buildId: string, itemId: string) => Promise<void>
   getStatsOverview: (range?: StatsRange) => Promise<StatsOverview>
   onStatsUpdated: (callback: () => void) => CleanupFn
   scanStorage: () => Promise<StorageScanResult>
   cleanStorage: (target: StorageCleanTarget) => Promise<StorageCleanResult>
-  cloudLogin: (username: string, password: string) => Promise<{ success: boolean; token?: string; error?: string }>
-  cloudRegister: (username: string, password: string, email?: string) => Promise<{ success: boolean; error?: string }>
-  cloudGetUser: (token: string) => Promise<{ success: boolean; user?: CloudUser; error?: string }>
-  cloudGetStorageInfo: (token: string) => Promise<CloudStorageInfo | null>
-  cloudGetFiles: (token: string, category?: string) => Promise<{ success: boolean; files?: CloudFile[]; error?: string }>
-  cloudDeleteFile: (token: string, fileId: string) => Promise<{ success: boolean; error?: string }>
-  cloudDownloadFile: (token: string, fileId: string, fileName: string) => Promise<{ success: boolean; filePath?: string; error?: string }>
-  cloudDownloadAndImport: (token: string, fileId: string, fileName: string, fileType: string) => Promise<{ success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } }>
-  cloudGetCategories: (token: string) => Promise<{ success: boolean; categories?: Record<string, { count: number; size: number }>; error?: string }>
-  cloudUploadFile: (filePath: string, token: string, category: string) => Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }>
-  uploadAccountToCloud: (token: string, account: { id: string; type: string; username: string; uuid?: string }) => Promise<{ success: boolean; id?: string; name?: string; size?: number; error?: string }>
   skinsGetProfile: (accountId?: string) => Promise<McProfile | null>
   skinsUploadSkin: (filePath: string, variant: "classic" | "slim", accountId?: string) => Promise<boolean>
   skinsDeleteSkin: (accountId?: string) => Promise<boolean>
@@ -583,7 +676,7 @@ export interface ElectronAPIExtra {
   moveBuildIntentToTrash: (dirName: string, metadata?: Record<string, unknown>) => Promise<{ success: boolean; trashName?: string; error?: string }>
   restoreBuildIntentFromTrash: (dirName: string, trashName: string) => Promise<{ success: boolean; build?: Record<string, unknown>; error?: string }>
   purgeBuildTrash: () => Promise<{ success: boolean; error?: string }>
-  listTrashBuilds: () => Promise<Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string }>>
+  listTrashBuilds: () => Promise<Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string; modLoader?: string }>>
   deleteTrashItem: (trashName: string) => Promise<{ success: boolean; error?: string }>
   setContentEnabled: (buildName: string, contentType: "mod" | "resourcepack" | "shader", fileName: string, enabled: boolean) => Promise<{ success: boolean; fileName?: string; error?: string }>
   onCliLaunchBuild: (callback: (buildName: string) => void) => () => void
@@ -603,6 +696,12 @@ export interface ElectronAPIExtra {
   skinsUpdateVariant: (id: string, variant: "classic" | "slim", capeId?: string | null, name?: string) => Promise<boolean>
   skinsApplyLibrarySkin: (skinId: string, accountId: string) => Promise<boolean>
   skinsImportFromUrl: (url: string, name: string, variant: "classic" | "slim", accountId: string) => Promise<LibrarySkin | null>
+  labyCatalog: (page: number, size?: number, order?: LabyOrder, tags?: string[] | null, query?: string | null) => Promise<LabyCatalogPage>
+  labyTags: (locale?: string) => Promise<LabyTag[]>
+  labySimilar: (hash: string, tags: string[], slim: boolean) => Promise<LabySkin[]>
+  labyPlayer: (username: string) => Promise<LabyPlayer | null>
+  labySaveToLibrary: (hash: string, accountId: string, name?: string, slim?: boolean) => Promise<LabyImportResult>
+  labyApply: (hash: string, accountId: string, name?: string, slim?: boolean) => Promise<LabyImportResult>
   readLocalFile: (filePath: string) => Promise<string | null>
   mcServerList: () => Promise<McServerInfo[]>
   mcServerGet: (id: string) => Promise<McServerInfo | null>
@@ -689,18 +788,7 @@ export interface ElectronAPIExtra {
   modsModrinthCheckUpdates: (hashes: string[], loaders?: string[], gameVersions?: string[]) => Promise<Record<string, ModVersion>>
 }
 
-export type ElectronAPI = Omit<
-  ElectronAPIExplicit,
-  | "cloudLogin"
-  | "cloudRegister"
-  | "cloudGetUser"
-  | "cloudGetStorageInfo"
-  | "cloudGetFiles"
-  | "cloudDeleteFile"
-  | "cloudDownloadFile"
-  | "cloudDownloadAndImport"
-  | "cloudGetCategories"
-  | "cloudUploadFile"
-  | "uploadAccountToCloud"
-  | "uploadBuildToCloud"
-> & ElectronAPIExtra
+// Legacy cloud-контракты (`cloudLogin`/`cloudGetFiles`/… token-based) удалены:
+// хендлеров и preload-методов для них не было, а имена конфликтовали с новым
+// provider-API в ElectronAPIExtra. Omit-хирургия больше не нужна.
+export type ElectronAPI = ElectronAPIExplicit & ElectronAPIExtra
