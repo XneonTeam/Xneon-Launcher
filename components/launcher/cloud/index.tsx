@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { IconCloud, IconLogout, IconLoader2, IconArrowLeft } from "@tabler/icons-react"
+import { ProviderIcon, providerColor } from "./provider-icon"
 import { CloudProviderCard } from "./cloud-provider-card"
 import { CloudFileBrowser } from "./cloud-file-browser"
 import { WebDavSetupModal } from "./cloud-webdav-setup"
@@ -14,7 +15,7 @@ const api = typeof window !== "undefined" ? window.electronAPI : undefined
 type ProviderInfo = { id: string; name: string }
 type ConnectedProvider = { id: string; name: string }
 
-export function CloudPage() {
+export function CloudPage({ rootResetToken }: { rootResetToken?: number }) {
   const { t } = useTranslation()
   const [providers, setProviders] = useState<ProviderInfo[]>([])
   const [connected, setConnected] = useState<ConnectedProvider | null>(null)
@@ -24,6 +25,18 @@ export function CloudPage() {
   const [showS3, setShowS3] = useState(false)
   const [connecting, setConnecting] = useState<string | null>(null)
   const { showAlert, alertDialog } = useAlertDialog()
+
+  /**
+   * Повторный клик по активному пункту «Облако» в боковом меню закрывает файловый
+   * браузер и возвращает к списку хранилищ. Счётчик приходит из launcher.tsx и
+   * меняется только при таком клике — первый рендер ничего не сбрасывает.
+   */
+  const rootResetRef = useRef(rootResetToken ?? 0)
+  useEffect(() => {
+    if (rootResetToken === undefined || rootResetToken === rootResetRef.current) return
+    rootResetRef.current = rootResetToken
+    setConnected(null)
+  }, [rootResetToken])
 
   useEffect(() => {
     if (!api) { setChecking(false); return }
@@ -127,8 +140,8 @@ export function CloudPage() {
                 className="w-9 h-9 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center">
                 <IconArrowLeft className="w-5 h-5" strokeWidth={1.5} />
               </button>
-              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-                <IconCloud className="w-5 h-5 text-primary" />
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${providerColor(connected.id)}20` }}>
+                <ProviderIcon id={connected.id} className="w-5 h-5" />
               </div>
               <div>
                 <h2 className="text-xl font-bold text-foreground">{connected.name}</h2>

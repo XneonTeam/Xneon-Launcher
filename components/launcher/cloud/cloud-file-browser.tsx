@@ -155,7 +155,7 @@ export function CloudFileBrowser({ providerId }: Props) {
   useEffect(() => { fetchFiles(); fetchQuota() }, [fetchFiles, fetchQuota])
 
   useEffect(() => {
-    window.electronAPI?.loadBuilds().then(builds => {
+    window.electronAPI?.loadBuildsLight().then(builds => {
       setLocalBuilds(builds.map(b => ({ id: b.id, name: b.name, icon: b.icon, version: b.version, modLoader: b.modLoader })))
     }).catch(() => {})
     window.electronAPI?.mcServerList().then(servers => {
@@ -530,21 +530,11 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
   const [localAccounts, setLocalAccounts] = useState<Array<{ id: string; type: string; username: string; uuid?: string }>>([])
   const [tab, setTab] = useState<"builds" | "servers" | "accounts">("builds")
 
-  useEffect(() => {
-    window.electronAPI?.loadBuilds().then(builds => {
-      setLocalBuilds(builds.map(b => ({ id: b.id, name: b.name, icon: b.icon, version: b.version, modLoader: b.modLoader })))
-    })
-    window.electronAPI?.mcServerList().then(servers => {
-      setLocalServers(servers.map(s => ({ id: s.id, name: s.name, icon: s.icon, version: s.gameVersion, modloader: s.modloader })))
-    })
-    window.electronAPI?.loadAccounts().then(accs => {
-      setLocalAccounts(accs.map(a => ({ id: a.id, type: a.type, username: a.username, uuid: a.uuid })))
-    })
-  }, [])
-
+  // Список локальных сборок/серверов/аккаунтов: один эффект вместо двух —
+  // первый дублировал этот же запрос при монтировании (uploading === null).
   useEffect(() => {
     if (uploading !== null) return
-    window.electronAPI?.loadBuilds().then(builds => {
+    window.electronAPI?.loadBuildsLight().then(builds => {
       setLocalBuilds(builds.map(b => ({ id: b.id, name: b.name, icon: b.icon, version: b.version, modLoader: b.modLoader })))
     })
     window.electronAPI?.mcServerList().then(servers => {
