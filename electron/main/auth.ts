@@ -302,12 +302,15 @@ ipcMain.handle("auth:microsoft-login", async (): Promise<MicrosoftAccountPayload
 
 async function exchangeElyByCode(code: string): Promise<ElyByAccountPayload> {
   const controller = new AbortController()
+  // Таймер снимаем в finally: раньше при успешном обмене он продолжал тикать
+  // все 30 секунд, а затем абортировал уже ненужный контроллер и реджектил
+  // проигравший промис (лишний таймер + потенциальный unhandled rejection).
+  let timeoutTimer: NodeJS.Timeout | null = null
   const timeout = new Promise<never>((_, reject) => {
-    const timer = setTimeout(() => {
+    timeoutTimer = setTimeout(() => {
       controller.abort()
       reject(new Error("Превышено время ожидания ответа от Ely.By"))
     }, 30000)
-    controller.signal.addEventListener("abort", () => clearTimeout(timer))
   })
 
   try {
@@ -360,6 +363,8 @@ async function exchangeElyByCode(code: string): Promise<ElyByAccountPayload> {
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") throw new Error("Превышено время ожидания ответа от Ely.By")
     throw err instanceof Error ? err : new Error(String(err))
+  } finally {
+    if (timeoutTimer) clearTimeout(timeoutTimer)
   }
 }
 
@@ -396,12 +401,13 @@ async function fetchXnAccountInfo(accessToken: string): Promise<{ id: string; uu
 
 async function exchangeXnSkinsCode(code: string, verifier: string): Promise<XnSkinsAccountPayload> {
   const controller = new AbortController()
+  // См. exchangeElyByCode: таймер обязательно снимаем при успехе.
+  let timeoutTimer: NodeJS.Timeout | null = null
   const timeout = new Promise<never>((_, reject) => {
-    const timer = setTimeout(() => {
+    timeoutTimer = setTimeout(() => {
       controller.abort()
       reject(new Error("Превышено время ожидания ответа от XN Skins"))
     }, 30000)
-    controller.signal.addEventListener("abort", () => clearTimeout(timer))
   })
 
   try {
@@ -444,6 +450,8 @@ async function exchangeXnSkinsCode(code: string, verifier: string): Promise<XnSk
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") throw new Error("Превышено время ожидания ответа от XN Skins")
     throw err instanceof Error ? err : new Error(String(err))
+  } finally {
+    if (timeoutTimer) clearTimeout(timeoutTimer)
   }
 }
 
