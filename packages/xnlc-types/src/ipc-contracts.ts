@@ -311,16 +311,16 @@ export interface IpcInvokeMap {
   "logs:share-to-mclogs": { args: [content: string]; return: { success: boolean; url?: string; error?: string } }
 
   // ── Skins ──
+  // `skins:*` — «Избранное», локальные скины и активный скин аккаунта;
+  // `laby:*` — каталог Laby. Оба набора обслуживает `@xnlc/skins`.
   "skins:get-profile": { args: [accountId?: string]; return: McProfile | null }
-  "skins:upload-skin": { args: [params: { filePath: string; variant: "classic" | "slim"; accountId?: string }]; return: boolean }
   "skins:delete-skin": { args: [accountId?: string]; return: boolean }
   "skins:set-cape": { args: [params: { capeId: string | null; accountId?: string }]; return: boolean }
   "skins:list-library": { args: [accountId: string]; return: LibrarySkin[] }
-  "skins:save-to-library": { args: [params: { filePath: string; name: string; variant: "classic" | "slim"; accountId: string; capeId?: string | null }]; return: LibrarySkin }
+  "skins:save-to-library": { args: [params: { filePath: string; name: string; variant: "classic" | "slim"; accountId: string; capeId?: string | null }]; return: LibrarySkin | null }
   "skins:delete-from-library": { args: [id: string]; return: boolean }
   "skins:update-variant": { args: [params: { id: string; variant: "classic" | "slim"; capeId?: string | null; name?: string }]; return: boolean }
   "skins:apply-library-skin": { args: [params: { skinId: string; accountId: string }]; return: boolean }
-  "skins:import-from-url": { args: [params: { url: string; name: string; variant: "classic" | "slim"; accountId: string }]; return: LibrarySkin | null }
 
   // ── Laby (открытый каталог скинов, https://laby.net) ──
   // Метаданные тянет main: API v3 не отдаёт CORS-заголовки. Текстуры и
@@ -599,7 +599,6 @@ export interface ElectronAPIExplicit {
   scanStorage: () => Promise<StorageScanResult>
   cleanStorage: (target: StorageCleanTarget) => Promise<StorageCleanResult>
   skinsGetProfile: (accountId?: string) => Promise<McProfile | null>
-  skinsUploadSkin: (filePath: string, variant: "classic" | "slim", accountId?: string) => Promise<boolean>
   skinsDeleteSkin: (accountId?: string) => Promise<boolean>
   skinsSetCape: (capeId: string | null, accountId?: string) => Promise<boolean>
   xnConnectUsage: () => Promise<XnConnectUsage | null>
@@ -687,7 +686,6 @@ export interface ElectronAPIExtra {
   onUpdateStatus: (callback: (status: { status: string; version?: string; releaseDate?: string; releaseNotes?: string; error?: string }) => void) => () => void
   onUpdateProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void
   skinsGetProfile: (accountId?: string) => Promise<McProfile | null>
-  skinsUploadSkin: (filePath: string, variant: "classic" | "slim", accountId?: string) => Promise<boolean>
   skinsDeleteSkin: (accountId?: string) => Promise<boolean>
   skinsSetCape: (capeId: string | null, accountId?: string) => Promise<boolean>
   skinsListLibrary: (accountId: string) => Promise<LibrarySkin[]>
@@ -695,7 +693,6 @@ export interface ElectronAPIExtra {
   skinsDeleteFromLibrary: (id: string) => Promise<boolean>
   skinsUpdateVariant: (id: string, variant: "classic" | "slim", capeId?: string | null, name?: string) => Promise<boolean>
   skinsApplyLibrarySkin: (skinId: string, accountId: string) => Promise<boolean>
-  skinsImportFromUrl: (url: string, name: string, variant: "classic" | "slim", accountId: string) => Promise<LibrarySkin | null>
   labyCatalog: (page: number, size?: number, order?: LabyOrder, tags?: string[] | null, query?: string | null) => Promise<LabyCatalogPage>
   labyTags: (locale?: string) => Promise<LabyTag[]>
   labySimilar: (hash: string, tags: string[], slim: boolean) => Promise<LabySkin[]>

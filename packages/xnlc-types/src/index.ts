@@ -56,9 +56,8 @@ export type {
   StorageCleanResult,
 } from "./domain-types.js"
 
-// Laby (каталог скинов). Здесь не только типы, но и чистые помощники:
-// адреса API, маппинг ответов и скоринг похожести нужны и main-процессу,
-// и рендереру, поэтому живут в одном месте, а не дублируются.
+// Laby (каталог скинов) — только контракты, которые пересекают границу
+// main ↔ renderer. Реализация (запросы, маппинг, кэш, фильтры) — в `@xnlc/skins`.
 export type {
   LabyApiError,
   LabyCatalogPage,
@@ -69,47 +68,6 @@ export type {
   LabySkin,
   LabyTag,
   LabyTagPreview,
-} from "./laby.js"
-
-export {
-  LABY_API_BASE,
-  LABY_DEFAULT_ORDER,
-  LABY_MAX_PAGE_SIZE,
-  LABY_ORDERS,
-  LABY_PROFILE_TEXTURE_BASE,
-  LABY_RENDER_BASE,
-  LABY_SKIN_PAGE_BASE,
-  LABY_TEXTURE_BASE,
-  formatUseCount,
-  isLabyHash,
-  isLabyUuid,
-  labyFeaturedUsersUrl,
-  labyFilterSkins,
-  labyHeadUrl,
-  labyPagesOffset,
-  labyPlayerPageUrl,
-  labyPlayerSkinToSkin,
-  labyProfileSkinUrl,
-  labyRenderUrl,
-  labySearchUrl,
-  labySimilarSkins,
-  labySimilarityScore,
-  labySkinName,
-  labySkinPageUrl,
-  labyTagSkinsUrl,
-  labyTagsUrl,
-  labyTextureUrl,
-  labyUniqueIdUrl,
-  labyUserTexturesUrl,
-  mapLabyFeaturedUser,
-  mapLabyPlayerCapesCount,
-  mapLabyPlayerSkins,
-  mapLabySkin,
-  mapLabyTag,
-  mapLabyTagSkin,
-  mapLabyUniqueId,
-  parseLabyTags,
-  sanitizeLabyUsername,
 } from "./laby.js"
 
 // Mod types
