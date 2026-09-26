@@ -2,7 +2,7 @@ import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { ModalLayer } from "@/components/ui/modal-layer"
-import { IconCheck, IconFolderPlus, IconLoader2, IconX } from "@tabler/icons-react"
+import { IconCheck, IconFolderPlus, IconLoader2, IconRefresh, IconX } from "@tabler/icons-react"
 import type { JavaInstallation } from "./types"
 
 interface SettingsJavaProps {
@@ -17,6 +17,8 @@ interface SettingsJavaProps {
   detectedJavaInstallations: JavaInstallation[]
   loadingJavaInstallations: boolean
   onPickJavaFile: () => Promise<void>
+  /** Принудительно перечитать список установленных Java (мимо кэша main). */
+  onRefreshJava: () => void
 }
 
 const autoVersions = [
@@ -39,6 +41,7 @@ export function SettingsJava({
   detectedJavaInstallations,
   loadingJavaInstallations,
   onPickJavaFile,
+  onRefreshJava,
 }: SettingsJavaProps) {
   const { t } = useTranslation()
   return (
@@ -143,7 +146,19 @@ export function SettingsJava({
                 </div>
               ) : detectedJavaInstallations.length > 0 ? (
                 <div className="space-y-2">
-                  <div className="text-xs font-medium text-muted-foreground px-1">{t("settings.java.detected")}</div>
+                  <div className="flex items-center justify-between px-1">
+                    <div className="text-xs font-medium text-muted-foreground">{t("settings.java.detected")}</div>
+                    <button
+                      type="button"
+                      onClick={() => onRefreshJava()}
+                      title={t("common.refresh")}
+                      aria-label={t("common.refresh")}
+                      className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    >
+                      <IconRefresh className="h-3 w-3" strokeWidth={1.75} />
+                      {t("common.refresh")}
+                    </button>
+                  </div>
                   <div className="max-h-[304px] space-y-2 overflow-y-auto pr-1">
                     {detectedJavaInstallations.map((java, index) => (
                       <button

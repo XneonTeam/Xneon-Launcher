@@ -171,19 +171,25 @@ export function StatsPage() {
     void load()
   }, [load])
 
-  // Real-time updates: refresh on stats:updated pushes, on MC server
-  // state changes, and on a lightweight interval so live playtime /
-  // server uptime ticks up while sessions are in progress.
+  // Live-обновления: push-события (запись сессии, смена состояния сервера)
+  // обновляют страницу мгновенно. Постоянный 5-секундный поллинг убран:
+  // интервал работает только пока запущена игра или сервер — лишь тогда
+  // счётчики времени реально меняются между push-событиями.
   useEffect(() => {
     const offUpdated = window.electronAPI?.onStatsUpdated?.(() => void load())
     const offServer = window.electronAPI?.onMcServerStateChange?.(() => void load())
-    const timer = setInterval(() => void load(), 5000)
     return () => {
       offUpdated?.()
       offServer?.()
-      clearInterval(timer)
     }
   }, [load])
+
+  const hasLiveSessions = (stats?.gameActiveStartedAt != null) || ((stats?.activeServerSessions ?? 0) > 0)
+  useEffect(() => {
+    if (!hasLiveSessions) return
+    const timer = setInterval(() => void load(), 5000)
+    return () => clearInterval(timer)
+  }, [hasLiveSessions, load])
 
   const maxTopSeconds = useMemo(
     () => Math.max(1, ...(stats?.topBuilds ?? []).map((b) => b.seconds)),

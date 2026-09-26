@@ -78,6 +78,22 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
   const activeDownloadRef = useRef<string | null>(null)
   const checkSeqRef = useRef(0)
 
+  /**
+   * Иконки установленного контента по id. Кэш обновлений хранит только сетевые
+   * ссылки: встроенные в JAR иконки — это data-URL на десятки килобайт каждая,
+   * и на ~200 обновлений они раздували одну строку настроек до мегабайт.
+   */
+  const installedIcons = useMemo(() => {
+    const map = new Map<string, string>()
+    const lists = [activeBuild.mods, activeBuild.resourcepacks, activeBuild.shaders]
+    for (const list of lists) {
+      for (const item of list ?? []) {
+        if (item?.id && item.icon_url) map.set(item.id, item.icon_url)
+      }
+    }
+    return map
+  }, [activeBuild.mods, activeBuild.resourcepacks, activeBuild.shaders])
+
   // Прогресс скачивания нового файла — рисуем полоску прямо на элементе обновления
   useEffect(() => {
     const off = window.electronAPI?.onContentDownloadProgress?.((progress) => {
@@ -318,8 +334,8 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
                         >
                           <div className="flex items-center gap-3">
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-background border border-border">
-                              {update.iconUrl ? (
-                                <img src={update.iconUrl} alt="" className="h-full w-full object-cover" />
+                              {(update.iconUrl ?? installedIcons.get(update.itemId)) ? (
+                                <img src={update.iconUrl ?? installedIcons.get(update.itemId)} alt="" className="h-full w-full object-cover" />
                               ) : (
                                 <IconPackage className="h-5 w-5 text-muted-foreground/50" strokeWidth={1.75} />
                               )}

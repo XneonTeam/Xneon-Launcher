@@ -1,5 +1,5 @@
 import type { ElementType, ReactNode } from "react"
-import { IconInbox, IconSearchOff, IconTrashOff } from "@tabler/icons-react"
+import { IconInbox, IconSearch, IconTrash } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 
 type EmptyStateProps = {
@@ -16,9 +16,9 @@ type EmptyStateProps = {
 }
 
 const EMPTY_STATE_ICONS = {
-  search: IconSearchOff,
+  search: IconSearch,
   empty: IconInbox,
-  trash: IconTrashOff,
+  trash: IconTrash,
 } as const
 
 /** Пустое состояние: иконка Tabler в круге + текст. */

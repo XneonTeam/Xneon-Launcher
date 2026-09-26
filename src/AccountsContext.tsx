@@ -25,10 +25,12 @@ async function fetchAccounts(): Promise<Account[]> {
       const dbAccounts = await window.electronAPI.loadAccounts()
       const validAccounts = dbAccounts.filter(a => isValidType(a.type))
       if (validAccounts.length > 0) {
-        for (const a of dbAccounts) {
-          if (!isValidType(a.type)) {
-            await window.electronAPI?.removeAccount(a.id)
-          }
+        if (validAccounts.length !== dbAccounts.length) {
+          // Раньше «лишние» типы удалялись прямо здесь. Чтение не должно
+          // удалять данные: если в новой версии появится ещё один тип аккаунта
+          // (или строку оставит старая), записи пропадали безвозвратно.
+          // Теперь просто не показываем их — строки остаются в БД.
+          console.warn(`[Accounts] Пропущено записей с неизвестным типом: ${dbAccounts.length - validAccounts.length}`)
         }
         return validAccounts.map(a => ({ ...a, isActive: a.isActive ?? false }))
       }

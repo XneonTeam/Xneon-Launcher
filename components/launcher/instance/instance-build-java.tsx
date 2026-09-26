@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { memoryToMb, mbToMemory } from "@/lib/memory"
-import { IconFolderPlus, IconLoader2, IconSettings, IconX } from "@tabler/icons-react"
+import { IconFolderPlus, IconLoader2, IconRefresh, IconSettings, IconX } from "@tabler/icons-react"
 import { MemorySlider } from "@/components/ui/memory-slider"
 import { ModalLayer } from "@/components/ui/modal-layer"
 import { useMemoryOptions } from "@/src/hooks/use-memory-options"
@@ -24,17 +24,27 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
   const override = build.javaOverride === true
   const isAuto = !build.javaPath || build.javaPath === ""
 
+  /**
+   * Список установленных Java кэшируется в main-процессе (скан реестра и
+   * запуск java.exe стоят секунды). force — принудительное обновление из кнопки
+   * «Обновить»: пользователь мог поставить новую Java уже после открытия окна.
+   */
+  const loadJavaInstallations = useCallback(async (force = false) => {
+    setLoadingDetect(true)
+    try {
+      const list = await window.electronAPI?.detectJavaInstallations(force)
+      setDetected(list ?? [])
+    } catch {
+      setDetected([])
+    } finally {
+      setLoadingDetect(false)
+    }
+  }, [])
+
   useEffect(() => {
     if (!showJavaModal || detected.length > 0) return
-    let cancelled = false
-    setLoadingDetect(true)
-    window.electronAPI?.detectJavaInstallations().then(list => {
-      if (!cancelled) setDetected(list ?? [])
-    }).catch(() => {}).finally(() => {
-      if (!cancelled) setLoadingDetect(false)
-    })
-    return () => { cancelled = true }
-  }, [showJavaModal, detected.length])
+    void loadJavaInstallations()
+  }, [showJavaModal, detected.length, loadJavaInstallations])
 
   const handlePickJavaFile = async () => {
     const picked = await window.electronAPI?.pickJavaFile()
@@ -140,12 +150,24 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
           <div className="w-full max-w-lg p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-semibold text-foreground">{t("build.java.path")}</h3>
-              <button
-                onClick={() => setShowJavaModal(false)}
-                className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <IconX className="w-5 h-5" strokeWidth={1.5} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void loadJavaInstallations(true)}
+                  disabled={loadingDetect}
+                  title={t("common.refresh")}
+                  aria-label={t("common.refresh")}
+                  className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                >
+                  <IconRefresh className={cn("w-4 h-4", loadingDetect && "animate-spin")} strokeWidth={1.5} />
+                </button>
+                <button
+                  onClick={() => setShowJavaModal(false)}
+                  className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <IconX className="w-5 h-5" strokeWidth={1.5} />
+                </button>
+              </div>
             </div>
 
             <div className="space-y-3 mb-4">

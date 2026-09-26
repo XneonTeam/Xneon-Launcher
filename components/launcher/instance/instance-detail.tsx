@@ -282,7 +282,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
         const nextEntry = {
           id: existingIndex >= 0 ? build.mods[existingIndex].id : crypto.randomUUID(),
           slug: fileName,
-          name: metadata?.name || fileName.replace(/\.jar$|\.zip$/i, "").replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+          name: metadata?.name || fileName.replace(/\.jar$|\.zip$|\.litemod$/i, "").replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
           description: metadata?.description || (existingIndex >= 0 ? build.mods[existingIndex].description : ""),
           icon_url: metadata?.iconUrl || (existingIndex >= 0 ? build.mods[existingIndex].icon_url : undefined),
           version: metadata?.version || (existingIndex >= 0 ? build.mods[existingIndex].version : "local"),

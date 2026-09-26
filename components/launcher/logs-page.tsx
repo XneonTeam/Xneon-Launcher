@@ -245,8 +245,36 @@ function tokenizeLog(text: string, level: LogLevel): Token[] {
   return tokens
 }
 
-function renderSyntaxHighlighted(text: string, level: LogLevel): React.ReactNode {
+/**
+ * Кэш разбора строки на токены.
+ *
+ * `tokenizeLog` прогоняет ~15 регулярных выражений по строке, а список
+ * перерисовывается при каждом изменении фильтра, поиска или автоскролла — то
+ * есть одни и те же строки (до 2000) разбирались заново. Ключ включает уровень:
+ * от него зависит подсветка.
+ */
+const TOKEN_CACHE_LIMIT = 4000
+const tokenCache = new Map<string, Token[]>()
+
+/**
+ * Сколько строк логов максимум рендерится одновременно. Список читают с конца,
+ * поэтому показываем последние; если строк больше, над списком появляется
+ * подсказка с общим числом.
+ */
+const MAX_RENDERED_LOG_LINES = 1500
+
+function tokenizeLogCached(text: string, level: LogLevel): Token[] {
+  const key = `${level}\u0000${text}`
+  const cached = tokenCache.get(key)
+  if (cached) return cached
   const tokens = tokenizeLog(text, level)
+  if (tokenCache.size >= TOKEN_CACHE_LIMIT) tokenCache.clear()
+  tokenCache.set(key, tokens)
+  return tokens
+}
+
+function renderSyntaxHighlighted(text: string, level: LogLevel): React.ReactNode {
+  const tokens = tokenizeLogCached(text, level)
   return (
     <>
       {tokens.map((t, i) => (
@@ -349,6 +377,19 @@ export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | n
     if (q) entries = entries.filter(e => e.text.toLowerCase().includes(q))
     return entries
   }, [logs, filter, deferredSearch])
+
+  /**
+   * Ограничение рендера: в DOM попадают только последние строки. Один сеанс
+   * может дать десятки тысяч строк, и полный список из memo-строк всё равно
+   * дорого монтировать при смене фильтра. Старые строки всё равно не видны —
+   * логи читают с конца.
+   */
+  const visibleLogs = useMemo(
+    () => filtered.length > MAX_RENDERED_LOG_LINES
+      ? filtered.slice(filtered.length - MAX_RENDERED_LOG_LINES)
+      : filtered,
+    [filtered],
+  )
 
   // Автоскролл включён — всегда держим низ логов. Проверять «были ли мы у низа»
   // здесь нельзя: к моменту эффекта контейнер уже вырос на всю новую порцию строк,
@@ -539,7 +580,12 @@ export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | n
           </div>
         ) : (
           <div className="p-3 space-y-0.5">
-            {filtered.map(entry => <LogRow key={entry.id} entry={entry} label={levelLabels[entry.level] ?? entry.level} />)}
+            {filtered.length > visibleLogs.length && (
+              <div className="sticky top-0 z-10 mb-1 rounded-md border border-border/60 bg-[#161622]/95 px-2 py-1 text-[11px] text-muted-foreground">
+                {t("logs.showingLast", { shown: visibleLogs.length, total: filtered.length })}
+              </div>
+            )}
+            {visibleLogs.map(entry => <LogRow key={entry.id} entry={entry} label={levelLabels[entry.level] ?? entry.level} />)}
           </div>
         )}
       </div>

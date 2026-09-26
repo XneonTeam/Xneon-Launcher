@@ -15,7 +15,9 @@ export function InstanceExportModal({ buildName, current, total }: InstanceExpor
     : null
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/78 p-4 backdrop-blur-sm">
+    // Тот же фон, что у оверлея импорта и обычных диалогов: `bg-background/78`
+    // на тёмной теме превращал экран в чёрный.
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-card shadow-2xl">
         <div className="border-b border-border px-5 py-4">
           <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">{t("instanceList.exportZip")}</p>

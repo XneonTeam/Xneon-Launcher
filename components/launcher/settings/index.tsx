@@ -22,7 +22,7 @@ import type { SettingsTab, JavaInstallation } from "./types"
 export function SettingsPage() {
   const { t } = useTranslation()
   const settingsHydratedRef = useRef(false)
-  const pendingSettingsRef = useRef<Record<string, number>>({})
+  const pendingSettingsRef = useRef<Record<string, { timeoutId: number; value: string }>>({})
   const lastPersistedSettingsRef = useRef<Record<string, string>>({})
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("game")
   const [selectedTheme, setSelectedTheme] = useState<string>("orange")
@@ -180,25 +180,47 @@ export function SettingsPage() {
     return () => { cancelled = true }
   }, [])
 
+  /** Единственная точка фактической записи настройки: обновляет снапшот и шлёт событие. */
+  const flushSetting = useCallback((key: string, value: string) => {
+    if (lastPersistedSettingsRef.current[key] === value) return
+    lastPersistedSettingsRef.current[key] = value
+    void window.electronAPI?.setSetting(key, value)
+    window.dispatchEvent(new CustomEvent("launcher-setting-changed", { detail: { key, value } }))
+  }, [])
+
   const persistSetting = useCallback((key: string, value: string) => {
     if (!settingsHydratedRef.current) return
     if (lastPersistedSettingsRef.current[key] === value) return
-    if (pendingSettingsRef.current[key]) {
-      window.clearTimeout(pendingSettingsRef.current[key])
+    const pending = pendingSettingsRef.current[key]
+    if (pending) {
+      window.clearTimeout(pending.timeoutId)
     }
-    pendingSettingsRef.current[key] = window.setTimeout(() => {
-      delete pendingSettingsRef.current[key]
-      if (lastPersistedSettingsRef.current[key] === value) return
-      lastPersistedSettingsRef.current[key] = value
-      void window.electronAPI?.setSetting(key, value)
-      window.dispatchEvent(new CustomEvent("launcher-setting-changed", { detail: { key, value } }))
-    }, 250)
-  }, [])
+    pendingSettingsRef.current[key] = {
+      value,
+      timeoutId: window.setTimeout(() => {
+        delete pendingSettingsRef.current[key]
+        flushSetting(key, value)
+      }, 250),
+    }
+  }, [flushSetting])
 
-  useEffect(() => () => {
-    Object.values(pendingSettingsRef.current).forEach((timeoutId) => window.clearTimeout(timeoutId))
-    pendingSettingsRef.current = {}
-  }, [])
+  // Уходим с вкладки (или закрываем окно) — дописываем несохранённые настройки.
+  // Раньше таймеры debounce просто очищались: переключатель успевал отработать
+  // в интерфейсе, но в БД не попадал, и настройка откатывалась после перезахода.
+  useEffect(() => {
+    const flushPending = () => {
+      for (const [key, pending] of Object.entries(pendingSettingsRef.current)) {
+        window.clearTimeout(pending.timeoutId)
+        flushSetting(key, pending.value)
+      }
+      pendingSettingsRef.current = {}
+    }
+    window.addEventListener("pagehide", flushPending)
+    return () => {
+      window.removeEventListener("pagehide", flushPending)
+      flushPending()
+    }
+  }, [flushSetting])
 
   useEffect(() => {
     persistSetting("javaArgs", javaArgs)
@@ -219,17 +241,27 @@ export function SettingsPage() {
   useEffect(() => { persistSetting("useCustomResolution", String(useCustomResolution)) }, [persistSetting, useCustomResolution])
   useEffect(() => { persistSetting("afterLaunch", afterLaunch) }, [afterLaunch, persistSetting])
 
+  /**
+   * Список установленных Java кэшируется в main-процессе (скан реестра +
+   * запуск java.exe стоят секунды). force — кнопка «Обновить» в модалке:
+   * пользователь мог поставить новую Java уже после открытия настроек.
+   */
+  const loadJavaInstallations = useCallback(async (force = false) => {
+    setLoadingJavaInstallations(true)
+    try {
+      const installs = await window.electronAPI?.detectJavaInstallations(force)
+      setDetectedJavaInstallations(installs ?? [])
+    } catch {
+      setDetectedJavaInstallations([])
+    } finally {
+      setLoadingJavaInstallations(false)
+    }
+  }, [])
+
   useEffect(() => {
     if (!showJavaModal) return
-    setLoadingJavaInstallations(true)
-    void window.electronAPI?.detectJavaInstallations().then(installs => {
-      setDetectedJavaInstallations(installs ?? [])
-      setLoadingJavaInstallations(false)
-    }).catch(() => {
-      setDetectedJavaInstallations([])
-      setLoadingJavaInstallations(false)
-    })
-  }, [showJavaModal])
+    void loadJavaInstallations()
+  }, [showJavaModal, loadJavaInstallations])
 
   const handlePickJavaFile = async () => {
     const picked = await window.electronAPI?.pickJavaFile()
@@ -443,6 +475,7 @@ export function SettingsPage() {
               detectedJavaInstallations={detectedJavaInstallations}
               loadingJavaInstallations={loadingJavaInstallations}
               onPickJavaFile={handlePickJavaFile}
+              onRefreshJava={() => void loadJavaInstallations(true)}
             />
           </div>
         )}

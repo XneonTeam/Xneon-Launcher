@@ -108,14 +108,28 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
           <IconLoader2 className="h-6 w-6 animate-spin" />
         </div>
       ) : shots.length === 0 ? (
-        <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-muted/50">
-            <IconCamera className="h-9 w-9 text-muted-foreground/50" strokeWidth={1.5} />
+        // Пустое состояние в том же оформлении, что вкладки «Миры» и «Серверы»:
+        // крупная иконка в цветной плашке, жирный заголовок и действие.
+        <div className="flex h-full flex-col items-center justify-center gap-4 text-center max-w-md mx-auto py-12">
+          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10 text-primary border border-primary/20">
+            <IconCamera className="h-10 w-10" strokeWidth={1.75} />
           </div>
-          <div className="text-lg font-semibold text-foreground">{t("screenshots.emptyTitle")}</div>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            {t("screenshots.emptyHint")}
-          </p>
+          <div>
+            <div className="text-xl font-bold text-foreground">{t("screenshots.emptyTitle")}</div>
+            <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
+              {t("screenshots.emptyHint")}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2.5 mt-2">
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              className="flex items-center gap-2 rounded-xl border border-border bg-muted/60 px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <IconRefresh className={cn("h-4 w-4", loading && "animate-spin")} strokeWidth={1.75} />
+              {t("common.refresh")}
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex flex-1 flex-col overflow-hidden">
