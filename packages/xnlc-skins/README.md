@@ -54,5 +54,4 @@ const saved = await skins.library.importFromCatalog({ hash, accountId }, true)
 
 ```bash
 pnpm --filter @xnlc/skins build   # tsc → lib/
-pnpm run test:skins               # тесты домена из корня репозитория
 ```

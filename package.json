@@ -56,9 +56,7 @@
     "build:electron": "tsc -p tsconfig.node.json",
     "build": "pnpm run typecheck && vite build && pnpm run build:electron",
     "package": "pnpm run build && electron-builder",
-    "typecheck": "tsc --noEmit",
-    "test:xn-auth": "node scripts/test-xn-auth.mjs",
-    "test:skins": "node scripts/test-skins.mjs"
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.0",
