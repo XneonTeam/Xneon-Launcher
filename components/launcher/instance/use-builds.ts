@@ -427,6 +427,12 @@ export function useBuilds() {
     if (!current) return
     try {
       const synced = await syncBuildContent(current)
+      updateCachedBuildContent(buildId, {
+        mods: synced.mods,
+        resourcepacks: synced.resourcepacks,
+        shaders: synced.shaders,
+        installedMods: synced.installedMods ?? {},
+      })
       setBuilds(prev => prev.map(build => {
         if (build.id !== synced.id) return build
         // Скан асинхронный: пока он шёл, пользователь мог снова изменить поля.
