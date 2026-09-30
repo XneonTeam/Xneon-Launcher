@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { LoaderIcon, loaderLabel } from "./loader-icon"
 import { EntityIcon } from "./entity-icon"
 import { matchesBuildVersion, pickCompatibleVersion } from "./utils"
+import { updateCachedBuildContent } from "./use-builds"
 import { InstanceContentTab } from "./instance-content-tab"
 import { InstanceDetailGeneral } from "./instance-detail-general"
 import { InstanceBuildSettings } from "./instance-build-settings"
@@ -295,12 +296,21 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
           ? build.mods.map((mod, index) => index === existingIndex ? nextEntry : mod)
           : [...build.mods, nextEntry]
 
+        const nextInstalledMods = {
+          ...(build.installedMods ?? {}),
+          [fileName]: saved,
+        }
+
+        updateCachedBuildContent(activeBuild.id, {
+          mods,
+          resourcepacks: build.resourcepacks,
+          shaders: build.shaders,
+          installedMods: nextInstalledMods,
+        })
+
         return {
           ...build,
-          installedMods: {
-            ...(build.installedMods ?? {}),
-            [fileName]: saved,
-          },
+          installedMods: nextInstalledMods,
           mods,
         }
       }))

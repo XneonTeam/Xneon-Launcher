@@ -55,7 +55,7 @@ const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
   td: ({ children }) => <td className="px-4 py-2.5 align-top text-muted-foreground">{children}</td>,
 }
 
-function normalizeContentIdentity(value?: string): string {
+export function normalizeContentIdentity(value?: string): string {
   return String(value ?? "")
     .toLowerCase()
     .replace(/\.(jar|zip)$/gi, "")

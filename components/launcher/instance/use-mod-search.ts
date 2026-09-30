@@ -5,6 +5,7 @@ import type { ModLoaderFilter, ModCategory } from "@xnlc/types"
 import { dataCache, STALE_SEARCH_MS, MOD_SEARCH_CACHE_TTL } from "@/lib/swr"
 import { SORT_OPTIONS_BY_SOURCE } from "./sort-options"
 import { groupVersionsByCompatibility, isProjectCompatibleWithBuild } from "./utils"
+import { normalizeContentIdentity } from "./instance-content-tab"
 import type { ProjectKind } from "@/lib/project-links"
 
 export type SelectedModCategory = { name: string; source?: "modrinth" | "curseforge" }
@@ -14,9 +15,26 @@ function isProjectInstalled(
   installedItems: Build["mods"],
 ): boolean {
   const projectProjectId = project.projectId ?? (project.source === "modrinth" ? project.id : undefined)
+  const normalizedProjectSlug = normalizeContentIdentity(project.slug)
+  const normalizedProjectName = normalizeContentIdentity(project.name)
+
   return installedItems.some(item => {
     if (projectProjectId && item.projectId && projectProjectId === item.projectId) return true
     if (project.source === "curseforge" && typeof project.modId === "number" && item.modId === project.modId) return true
+
+    // Проверка по slug и нормализованному имени:
+    // если мод только что скачан или загружен локально/через другую площадку,
+    // projectId может ещё не успеть сопоставиться, но мод уже находится в сборке.
+    const itemSlug = normalizeContentIdentity(item.slug)
+    const itemName = normalizeContentIdentity(item.name)
+
+    if (normalizedProjectSlug && (itemSlug === normalizedProjectSlug || itemName === normalizedProjectSlug)) {
+      return true
+    }
+    if (normalizedProjectName && (itemSlug === normalizedProjectName || itemName === normalizedProjectName)) {
+      return true
+    }
+
     return false
   })
 }
