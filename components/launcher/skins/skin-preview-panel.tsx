@@ -16,6 +16,11 @@ interface SkinPreviewPanelProps {
   selectedSkin: SkinCardData | undefined
   selectedCapeUrl: string | undefined
   hasPendingChange: boolean
+  /**
+   * Есть ли к чему возвращать выбор. Без надетого скина кнопка «Отмена» сбрасывала
+   * выбор в пустоту: превью оставалось без скина и без выделенной карточки.
+   */
+  canCancelSelection?: boolean
   isApplying: boolean
   loading: boolean
   profile: McProfile | null
@@ -39,6 +44,7 @@ export function SkinPreviewPanel({
   selectedSkin,
   selectedCapeUrl,
   hasPendingChange,
+  canCancelSelection = true,
   isApplying,
   loading,
   profile,
@@ -147,7 +153,7 @@ export function SkinPreviewPanel({
           {hasPendingChange ? t("skins.equip", "Экипировать") : t("skins.equippedState", "Надет")}
         </button>
 
-        {hasPendingChange ? (
+        {hasPendingChange && canCancelSelection ? (
           <button
             onClick={onCancelSelection}
             disabled={loading}

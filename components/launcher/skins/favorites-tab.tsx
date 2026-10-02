@@ -149,12 +149,23 @@ export function FavoritesTab() {
     // Автовыбор только по данным, загруженным именно для текущего аккаунта
     if (loadedForAccountIdRef.current !== account?.id) return
     if (librarySkins.length > 0) {
-      const lastAppliedId = localStorage.getItem(`skin-equipped-${account?.id}`)
-      const match = lastAppliedId && librarySkins.some(s => s.id === lastAppliedId)
-        ? lastAppliedId
-        : librarySkins[0].id
-      setSelectedId(match)
-      setEquippedId(match)
+      /**
+       * Что надето, знает только отметка о применении: сопоставить запись
+       * библиотеки с активной текстурой аккаунта нечем — Mojang отдаёт свой
+       * хэш, а у записи хранится файл либо хэш Laby.
+       *
+       * Раньше при отсутствии отметки «надетым» объявлялся `librarySkins[0]`
+       * (список идёт по `createdAt DESC`, то есть самый свежий). Из-за этого
+       * скин, только что добавленный из каталога в избранное, показывался как
+       * надетый, хотя его не надевали. Хуже того, у «надетого» скина скрыта
+       * кнопка удаления — убрать такую запись из сетки было нельзя.
+       */
+      const appliedId = localStorage.getItem(`skin-equipped-${account?.id}`)
+      const equipped = appliedId && librarySkins.some((s) => s.id === appliedId) ? appliedId : null
+      setEquippedId(equipped)
+      // Выбор — отдельное от «надет» понятие: показываем надетый скин, а если
+      // ничего не надето, то самый свежий, чтобы превью не пустовало.
+      setSelectedId(equipped ?? librarySkins[0].id)
     } else if (activeSkinUrl) {
       setSelectedId("__api__")
       setEquippedId("__api__")
@@ -279,15 +290,18 @@ export function FavoritesTab() {
       }
       localStorage.removeItem(`skin-equipped-${account.id}`)
       await fetchProfile(true)
-      const apiSkinId = activeSkinUrl ? "__api__" : null
-      setEquippedId(apiSkinId)
-      setSelectedId(apiSkinId)
+      // Скин с аккаунта снят — надетого больше нет. Раньше сюда подставлялся
+      // `"__api__"` по устаревшему (до сброса) `activeSkinUrl`, и панель
+      // показывала «Надет», хотя скина на аккаунте уже не было; карточки с
+      // таким id в сетке тоже нет, поэтому выбор становился фантомным.
+      setEquippedId(null)
+      setSelectedId((prev) => (prev === "__api__" ? null : prev))
       setSkinVersion(v => v + 1)
       pushNotification({ kind: "success", source: "launch", title: t("skins.reset"), message: t("skins.resetMessage") })
     } catch (err) {
       pushNotification({ kind: "error", source: "launch", title: t("skins.error"), message: String(err) })
     }
-  }, [account?.id, activeSkinUrl, fetchProfile, pushNotification, t])
+  }, [account?.id, fetchProfile, pushNotification, t])
 
   const handleDeleteSkin = useCallback(async (skinId: string) => {
     if (!window.electronAPI || !account?.id) return
@@ -298,7 +312,11 @@ export function FavoritesTab() {
     try {
       await window.electronAPI.skinsDeleteFromLibrary(skinId)
       if (selectedId === skinId) {
-        setSelectedId(equippedId)
+        // Надетого может не быть вовсе (скин добавлен, но не надет) — тогда берём
+        // любую оставшуюся запись, чтобы превью не осталось без скина и без
+        // выделенной карточки.
+        const fallback = equippedId ?? librarySkins.find((s) => s.id !== skinId)?.id ?? null
+        setSelectedId(fallback)
       }
       if (equippedId === skinId) {
         localStorage.removeItem(`skin-equipped-${account.id}`)
@@ -309,7 +327,7 @@ export function FavoritesTab() {
     } catch (err) {
       pushNotification({ kind: "error", source: "import", title: t("skins.error"), message: String(err) })
     }
-  }, [selectedId, equippedId, account?.id, fetchLibrary, handleReset, pushNotification])
+  }, [selectedId, equippedId, librarySkins, account?.id, fetchLibrary, handleReset, pushNotification])
 
   const handleEditSave = useCallback(async (params: { filePath?: string; variant: "classic" | "slim"; capeId: string | null }) => {
     if (!window.electronAPI || !account?.id) return
@@ -382,6 +400,7 @@ export function FavoritesTab() {
             selectedSkin={selectedSkin}
             selectedCapeUrl={selectedCapeUrl}
             hasPendingChange={hasPendingSkinChange}
+            canCancelSelection={equippedId !== null}
             isApplying={isApplying}
             loading={loading}
             profile={profile}
