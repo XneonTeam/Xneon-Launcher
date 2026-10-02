@@ -6,7 +6,6 @@ import {
   IconFileText, IconCopy, IconCheck, IconRefresh, IconTrash,
   IconSearch, IconArrowDown, IconShare, IconDeviceGamepad2,
   IconBug, IconAlertTriangle, IconCircleX, IconTerminal2, IconBrain,
-  IconArrowsMaximize, IconArrowsMinimize,
 } from "@tabler/icons-react"
 import { AiAnalysisDialog } from "./ai-analysis-dialog"
 
@@ -256,13 +255,6 @@ function tokenizeLog(text: string, level: LogLevel): Token[] {
 const TOKEN_CACHE_LIMIT = 4000
 const tokenCache = new Map<string, Token[]>()
 
-/**
- * Сколько строк логов максимум рендерится одновременно. Список читают с конца,
- * поэтому показываем последние; если строк больше, над списком появляется
- * подсказка с общим числом.
- */
-const MAX_RENDERED_LOG_LINES = 1500
-
 function tokenizeLogCached(text: string, level: LogLevel): Token[] {
   const key = `${level}\u0000${text}`
   const cached = tokenCache.get(key)
@@ -354,7 +346,6 @@ export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | n
   const deferredSearch = useDeferredValue(search)
   const [autoScroll, setAutoScroll] = useState(true)
   const [aiDialogOpen, setAiDialogOpen] = useState(false)
-  const [fullscreen, setFullscreen] = useState(false)
   const [crashFocus, setCrashFocus] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
@@ -378,18 +369,7 @@ export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | n
     return entries
   }, [logs, filter, deferredSearch])
 
-  /**
-   * Ограничение рендера: в DOM попадают только последние строки. Один сеанс
-   * может дать десятки тысяч строк, и полный список из memo-строк всё равно
-   * дорого монтировать при смене фильтра. Старые строки всё равно не видны —
-   * логи читают с конца.
-   */
-  const visibleLogs = useMemo(
-    () => filtered.length > MAX_RENDERED_LOG_LINES
-      ? filtered.slice(filtered.length - MAX_RENDERED_LOG_LINES)
-      : filtered,
-    [filtered],
-  )
+  const visibleLogs = filtered
 
   // Автоскролл включён — всегда держим низ логов. Проверять «были ли мы у низа»
   // здесь нельзя: к моменту эффекта контейнер уже вырос на всю новую порцию строк,
@@ -417,15 +397,6 @@ export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | n
       setCrashFocus(false)
     }
   }, [crashFocus, levelCounts.error])
-
-  useEffect(() => {
-    if (!fullscreen || aiDialogOpen) return
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setFullscreen(false)
-    }
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [fullscreen, aiDialogOpen])
 
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return
@@ -474,20 +445,9 @@ export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | n
   )
 
   return (
-    <div
-      className={cn(
-        "w-full min-h-0 flex flex-col animate-in fade-in-0 duration-300",
-        // Fullscreen overlays the whole launcher area (sidebar included). It starts
-        // below the custom TitleBar (h-10, z-50) so the window controls stay reachable.
-        // Панель логов растягивается до краёв: без внешних отступов и рамки она
-        // действительно заполняет экран, а не висит карточкой в пустоте.
-        fullscreen
-          ? "fixed inset-x-0 bottom-0 top-10 z-40 gap-3 overflow-hidden bg-background"
-          : "h-full gap-4",
-      )}
-    >
+    <div className="w-full h-full min-h-0 flex flex-col gap-4 animate-in fade-in-0 duration-300">
       {/* Header */}
-      <div className={cn("flex items-center justify-between gap-4 flex-wrap flex-shrink-0", fullscreen && "px-4 pt-4")}>
+      <div className="flex items-center justify-between gap-4 flex-wrap flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
             <IconFileText className="w-5 h-5 text-primary" />
@@ -522,20 +482,11 @@ export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | n
               <IconBrain className="w-4 h-4" />{t("ai.analyze")}
             </button>
           )}
-
-          <button type="button" onClick={() => setFullscreen(v => !v)}
-            aria-label={fullscreen ? t("logs.exitFullscreen") : t("logs.fullscreen")}
-            title={fullscreen ? t("logs.exitFullscreen") : t("logs.fullscreen")}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-            {fullscreen
-              ? <><IconArrowsMinimize className="w-4 h-4" />{t("logs.exitFullscreen")}</>
-              : <><IconArrowsMaximize className="w-4 h-4" />{t("logs.fullscreen")}</>}
-          </button>
         </div>
       </div>
 
       {/* Filters + Search */}
-      <div className={cn("flex items-center gap-3 flex-wrap flex-shrink-0", fullscreen && "px-4")}>
+      <div className="flex items-center gap-3 flex-wrap flex-shrink-0">
         <div className="flex items-center gap-1 p-1 rounded-xl bg-muted/40 flex-shrink-0">
           {FILTER_DEFS.map(({ id, icon: Icon }) => (
             <button key={id} type="button" onClick={() => setFilter(id)}
@@ -568,23 +519,13 @@ export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | n
 
       {/* Log area */}
       <div ref={containerRef} onScroll={handleScroll}
-        className={cn(
-          "flex-1 min-h-0 overflow-y-auto bg-[#0d0d14] font-mono text-[12px] leading-5",
-          // В полноэкранном режиме консоль занимает всю ширину и доходит до низа —
-          // скругления и рамки оставляли вокруг неё заметное «пустое» поле.
-          fullscreen ? "rounded-none border-t border-border" : "rounded-2xl border border-border",
-        )}>
+        className="flex-1 min-h-0 overflow-y-auto bg-[#0d0d14] font-mono text-[12px] leading-5 rounded-2xl border border-border">
         {filtered.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
             <IconFileText className="w-10 h-10 mb-3 opacity-30" /><p className="text-sm">{t("logs.empty")}</p>
           </div>
         ) : (
           <div className="p-3 space-y-0.5">
-            {filtered.length > visibleLogs.length && (
-              <div className="sticky top-0 z-10 mb-1 rounded-md border border-border/60 bg-[#161622]/95 px-2 py-1 text-[11px] text-muted-foreground">
-                {t("logs.showingLast", { shown: visibleLogs.length, total: filtered.length })}
-              </div>
-            )}
             {visibleLogs.map(entry => <LogRow key={entry.id} entry={entry} label={levelLabels[entry.level] ?? entry.level} />)}
           </div>
         )}

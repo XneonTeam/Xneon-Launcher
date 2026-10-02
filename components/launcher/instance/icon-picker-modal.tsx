@@ -72,7 +72,7 @@ export function IconPickerModal({ open, onOpenChange, value, onChange, title, de
               <button key={logo.id} type="button"
                 onClick={() => select(logo.src)}
                 className={cn(
-                  "relative w-full aspect-square rounded-xl border-2 overflow-hidden transition-all hover:scale-105",
+                  "relative flex w-full aspect-square items-center justify-center rounded-xl border-2 overflow-hidden transition-all hover:scale-105",
                   value === logo.src
                     ? "border-primary shadow-[0_0_12px_var(--primary)]"
                     : "border-border hover:border-primary/50",
