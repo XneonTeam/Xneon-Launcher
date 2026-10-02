@@ -2,10 +2,8 @@ import path from "path"
 import fs from "fs"
 import https from "https"
 import http from "http"
-import { execFile } from "child_process"
-import { promisify } from "util"
-
-const execFileAsync = promisify(execFile)
+import { spawn } from "child_process"
+import { StringDecoder } from "string_decoder"
 
 export interface DownloadProgress {
   phase: "resolving" | "downloading" | "extracting" | "done" | "error"
@@ -16,6 +14,75 @@ export interface DownloadProgress {
 }
 
 type OnProgress = (progress: DownloadProgress) => void
+/** Строка вывода установщика ядра — уходит в консоль сервера. */
+type OnLog = (line: string) => void
+
+/**
+ * Запускает процесс и построчно отдаёт его вывод наружу.
+ *
+ * `execFile` копит stdout и stderr до завершения процесса, поэтому установка Forge
+ * или многоминутная компиляция Spigot выглядели как зависание: вывод показывался
+ * только в тексте ошибки, а консоль сервера всё это время оставалась пустой.
+ * Здесь строки уходят сразу, а хвост сохраняется для сообщения при ненулевом коде.
+ */
+function runStreaming(
+  file: string,
+  args: string[],
+  options: { cwd: string; timeout: number },
+  onLog?: OnLog,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(file, args, { cwd: options.cwd, windowsHide: true })
+    const decoder = new StringDecoder("utf8")
+    const tail: string[] = []
+    let carry = ""
+    let settled = false
+
+    const emit = (line: string) => {
+      const value = line.trimEnd()
+      if (!value) return
+      tail.push(value)
+      if (tail.length > 30) tail.shift()
+      onLog?.(value)
+    }
+
+    // Строку может разорвать между чанками, поэтому неполный хвост держим до
+    // следующего куска, а не отдаём наружу огрызком.
+    const consume = (chunk: Buffer) => {
+      carry += decoder.write(chunk)
+      const parts = carry.split(/\r?\n/)
+      carry = parts.pop() ?? ""
+      for (const part of parts) emit(part)
+    }
+
+    child.stdout?.on("data", consume)
+    child.stderr?.on("data", consume)
+
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      child.kill()
+      reject(new Error(`Установщик превысил лимит ${Math.round(options.timeout / 1000)} с`))
+    }, options.timeout)
+
+    child.on("error", (err) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      reject(err)
+    })
+
+    child.on("close", (code) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      carry += decoder.end()
+      if (carry.trim()) emit(carry)
+      if (code === 0) resolve()
+      else reject(new Error(`Процесс завершился с кодом ${code}${tail.length ? `\n${tail.join("\n")}` : ""}`))
+    })
+  })
+}
 
 // ── HTTP helpers ─────────────────────────────────────
 
@@ -178,7 +245,7 @@ async function installFabric(serverDir: string, gameVersion: string, loaderVersi
 
 // ── Forge ────────────────────────────────────────────
 
-async function installForge(serverDir: string, gameVersion: string, forgeVersion: string, javaPath: string, onProgress?: OnProgress): Promise<string> {
+async function installForge(serverDir: string, gameVersion: string, forgeVersion: string, javaPath: string, onProgress?: OnProgress, onLog?: OnLog): Promise<string> {
   // If an args file already exists (previous install), reuse it
   const existingArgs = findArgsFile(serverDir, "net/minecraftforge/forge")
   if (existingArgs) {
@@ -195,12 +262,9 @@ async function installForge(serverDir: string, gameVersion: string, forgeVersion
   // 2. Запускаем инсталлер
   onProgress?.({ phase: "extracting", message: "Установка Forge..." })
   try {
-    await execFileAsync(javaPath, ["-jar", installerPath, "--installServer"], {
-      cwd: serverDir,
-      timeout: 300_000,
-    })
+    await runStreaming(javaPath, ["-jar", installerPath, "--installServer"], { cwd: serverDir, timeout: 300_000 }, onLog)
   } catch (err: any) {
-    throw new Error(`Forge installer failed: ${err.stderr?.toString() || err.message}`)
+    throw new Error(`Forge installer failed: ${err.message}`)
   } finally {
     try { fs.unlinkSync(installerPath) } catch {}
   }
@@ -274,7 +338,7 @@ function findForgeArgsFile(serverDir: string, vendorPath: string): string | null
 
 // ── NeoForge ─────────────────────────────────────────
 
-async function installNeoForge(serverDir: string, neoforgeVersion: string, javaPath: string, onProgress?: OnProgress): Promise<string> {
+async function installNeoForge(serverDir: string, neoforgeVersion: string, javaPath: string, onProgress?: OnProgress, onLog?: OnLog): Promise<string> {
   // If an args file already exists (previous install), reuse it
   const existingArgs = findArgsFile(serverDir, "net/neoforged/neoforge", neoforgeVersion)
   if (existingArgs) {
@@ -291,12 +355,9 @@ async function installNeoForge(serverDir: string, neoforgeVersion: string, javaP
   // 2. Запускаем инсталлер
   onProgress?.({ phase: "extracting", message: "Установка NeoForge..." })
   try {
-    await execFileAsync(javaPath, ["-jar", installerPath, "--installServer"], {
-      cwd: serverDir,
-      timeout: 300_000,
-    })
+    await runStreaming(javaPath, ["-jar", installerPath, "--installServer"], { cwd: serverDir, timeout: 300_000 }, onLog)
   } catch (err: any) {
-    throw new Error(`NeoForge installer failed: ${err.stderr?.toString() || err.message}`)
+    throw new Error(`NeoForge installer failed: ${err.message}`)
   } finally {
     try { fs.unlinkSync(installerPath) } catch {}
   }
@@ -320,7 +381,7 @@ async function installNeoForge(serverDir: string, neoforgeVersion: string, javaP
 
 // ── Quilt ────────────────────────────────────────────
 
-async function installQuilt(serverDir: string, gameVersion: string, loaderVersion: string, javaPath: string, onProgress?: OnProgress): Promise<string> {
+async function installQuilt(serverDir: string, gameVersion: string, loaderVersion: string, javaPath: string, onProgress?: OnProgress, onLog?: OnLog): Promise<string> {
   // 1. Получаем последнюю версию инсталлера
   onProgress?.({ phase: "resolving", message: "Получение информации о Quilt..." })
   const installers = await fetchJson("https://meta.quiltmc.org/v3/versions/installer")
@@ -336,13 +397,14 @@ async function installQuilt(serverDir: string, gameVersion: string, loaderVersio
   // 3. Запускаем инсталлер
   onProgress?.({ phase: "extracting", message: "Установка Quilt..." })
   try {
-    await execFileAsync(
+    await runStreaming(
       javaPath,
       ["-jar", installerPath, "install", "server", gameVersion, loaderVersion, `--install-dir=${serverDir}`],
-      { cwd: serverDir, timeout: 300_000 }
+      { cwd: serverDir, timeout: 300_000 },
+      onLog,
     )
   } catch (err: any) {
-    throw new Error(`Quilt installer failed: ${err.stderr?.toString() || err.message}`)
+    throw new Error(`Quilt installer failed: ${err.message}`)
   } finally {
     try { fs.unlinkSync(installerPath) } catch {}
   }
@@ -413,7 +475,7 @@ async function installPurpur(serverDir: string, gameVersion: string, buildVersio
 
 // ── Spigot ────────────────────────────────────────────
 
-async function installSpigot(serverDir: string, gameVersion: string, javaPath: string, onProgress?: OnProgress): Promise<string> {
+async function installSpigot(serverDir: string, gameVersion: string, javaPath: string, onProgress?: OnProgress, onLog?: OnLog): Promise<string> {
   // Spigot requires BuildTools to compile — download BuildTools and run it
   onProgress?.({ phase: "resolving", message: "Скачивание Spigot BuildTools..." })
   const buildToolsUrl = "https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar"
@@ -422,13 +484,14 @@ async function installSpigot(serverDir: string, gameVersion: string, javaPath: s
 
   onProgress?.({ phase: "extracting", message: "Компиляция Spigot (это может занять время)..." })
   try {
-    await execFileAsync(
+    await runStreaming(
       javaPath,
       ["-jar", buildToolsPath, "--rev", gameVersion],
-      { cwd: serverDir, timeout: 600_000 }
+      { cwd: serverDir, timeout: 600_000 },
+      onLog,
     )
   } catch (err: any) {
-    throw new Error(`Spigot BuildTools failed: ${err.stderr?.toString() || err.message}`)
+    throw new Error(`Spigot BuildTools failed: ${err.message}`)
   } finally {
     try { fs.unlinkSync(buildToolsPath) } catch {}
   }
@@ -444,7 +507,7 @@ async function installSpigot(serverDir: string, gameVersion: string, javaPath: s
 
 // ── Bukkit (CraftBukkit via BuildTools) ──────────────
 
-async function installBukkit(serverDir: string, gameVersion: string, javaPath: string, onProgress?: OnProgress): Promise<string> {
+async function installBukkit(serverDir: string, gameVersion: string, javaPath: string, onProgress?: OnProgress, onLog?: OnLog): Promise<string> {
   onProgress?.({ phase: "resolving", message: "Скачивание BuildTools..." })
   const buildToolsUrl = "https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar"
   const buildToolsPath = path.join(serverDir, "BuildTools.jar")
@@ -452,13 +515,14 @@ async function installBukkit(serverDir: string, gameVersion: string, javaPath: s
 
   onProgress?.({ phase: "extracting", message: "Компиляция CraftBukkit (это может занять время)..." })
   try {
-    await execFileAsync(
+    await runStreaming(
       javaPath,
       ["-jar", buildToolsPath, "--rev", gameVersion, "--compile", "craftbukkit"],
-      { cwd: serverDir, timeout: 600_000 }
+      { cwd: serverDir, timeout: 600_000 },
+      onLog,
     )
   } catch (err: any) {
-    throw new Error(`Bukkit BuildTools failed: ${err.stderr?.toString() || err.message}`)
+    throw new Error(`Bukkit BuildTools failed: ${err.message}`)
   } finally {
     try { fs.unlinkSync(buildToolsPath) } catch {}
   }
@@ -878,6 +942,7 @@ export async function ensureServerJar(
   javaPath: string,
   onProgress?: OnProgress,
   customJarName?: string | null,
+  onLog?: OnLog,
 ): Promise<string> {
   // Custom JAR has priority — use it directly instead of downloading
   if (customJarName) {
@@ -912,14 +977,14 @@ export async function ensureServerJar(
         modloaderVersion = meta?.promos?.[`${gameVersion}-latest`] || meta?.promos?.[`${gameVersion}-recommended`]
         if (!modloaderVersion) throw new Error(`Forge version not found for ${gameVersion}. Specify manually.`)
       }
-      return await installForge(serverDir, gameVersion, modloaderVersion, javaPath, onProgress)
+      return await installForge(serverDir, gameVersion, modloaderVersion, javaPath, onProgress, onLog)
     }
     case "neoforge":
       if (!modloaderVersion) throw new Error("NeoForge requires a loader version")
-      return await installNeoForge(serverDir, modloaderVersion, javaPath, onProgress)
+      return await installNeoForge(serverDir, modloaderVersion, javaPath, onProgress, onLog)
     case "quilt":
       if (!modloaderVersion) throw new Error("Quilt requires a loader version")
-      return await installQuilt(serverDir, gameVersion, modloaderVersion, javaPath, onProgress)
+      return await installQuilt(serverDir, gameVersion, modloaderVersion, javaPath, onProgress, onLog)
     case "paper":
       return await installPaperMCProject(serverDir, "paper", gameVersion, modloaderVersion, onProgress)
     case "folia":
@@ -931,9 +996,9 @@ export async function ensureServerJar(
     case "purpur":
       return await installPurpur(serverDir, gameVersion, modloaderVersion, onProgress)
     case "spigot":
-      return await installSpigot(serverDir, gameVersion, javaPath, onProgress)
+      return await installSpigot(serverDir, gameVersion, javaPath, onProgress, onLog)
     case "bukkit":
-      return await installBukkit(serverDir, gameVersion, javaPath, onProgress)
+      return await installBukkit(serverDir, gameVersion, javaPath, onProgress, onLog)
     case "sponge":
     case "spongevanilla":
       return await installSponge(serverDir, gameVersion, modloaderVersion, "spongevanilla", javaPath, onProgress)

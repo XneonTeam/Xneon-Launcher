@@ -785,7 +785,7 @@ function ServerListRow({ server, onClick, onDelete, onDuplicate, onAssignGroup }
             <EntityIcon src={server.icon} className="w-full h-full p-1 text-primary" imgClassName="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10 flex items-center justify-center">
-              <IconServer className="w-5 h-5 text-primary/40" />
+              <LoaderIcon loaderId={server.modloader} className="w-5 h-5 text-primary/40" />
             </div>
           )}
         </div>
