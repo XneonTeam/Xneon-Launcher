@@ -98,7 +98,6 @@ export function registerWindowLifecycle() {
   // так же, как во всём лаунчере.
   app.commandLine.appendSwitch("disable-features", "FluentScrollbar,FluentOverlayScrollbars")
 
-  ipcMain.handle("window:is-maximized", () => getMainWindow()?.isMaximized() ?? false)
 
   ipcMain.on("window:minimize", () => getMainWindow()?.minimize())
 

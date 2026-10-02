@@ -62,18 +62,10 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
   const [devicePolling, setDevicePolling] = useState(false)
   const [deviceStatus, setDeviceStatus] = useState<"waiting" | "expired" | "done">("waiting")
   const [copied, setCopied] = useState(false)
-  const cleanupRef = useRef<(() => void) | null>(null)
-
   const handleCopyCode = useCallback((code: string) => {
     navigator.clipboard?.writeText(code)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }, [])
-
-  useEffect(() => {
-    const unsubscribe = window.electronAPI?.onAuthProgress?.(() => {})
-    cleanupRef.current = () => unsubscribe?.()
-    return () => { cleanupRef.current?.() }
   }, [])
 
   const resetDeviceState = useCallback(() => {

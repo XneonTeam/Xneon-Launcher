@@ -44,10 +44,6 @@ type AccountRow = {
   sortOrder?: number | null
 }
 
-export function ensureInMemoryAccountDefaults() {
-  // no-op: accounts have no defaults
-}
-
 export async function loadAccounts(): Promise<DbAccount[]> {
   if (!isDbAvailable()) {
     return Array.from(inMemoryAccounts.values()).map((a) => normalizeOfflineAccount(a as DbAccount))

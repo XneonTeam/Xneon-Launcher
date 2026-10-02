@@ -353,7 +353,7 @@ export function registerAiAgent(): void {
   })
 
   // ── Crash Analysis ───────────────────────────────────────
-  ipcMain.handle("ai:analyze-crash", async (_event, logContent: string, _requestedSessionId?: string): Promise<AiAnalysisResult> => {
+  ipcMain.handle("ai:analyze-crash", async (_event, logContent: string): Promise<AiAnalysisResult> => {
     const truncated = truncateLog(logContent)
     const prompt = CRASH_ANALYSIS_PROMPT + truncated
     const language = await dbHelpers.getSetting("language") || "ru"
@@ -370,60 +370,4 @@ export function registerAiAgent(): void {
     return callAiApiStream(requestId, [{ role: "user", content: prompt }], { maxTokens: 512, temperature: 0.3, language })
   })
 
-  // ── Chat Send Message ───────────────────────────────────
-  ipcMain.handle("ai:chat-send", async (_event, sessionId: string, userMessage: string): Promise<AiAnalysisResult> => {
-    try {
-      const userMsgId = crypto.randomUUID()
-      await dbHelpers.aiAddMessage(userMsgId, sessionId, "user", userMessage)
-
-      const history = await dbHelpers.aiListMessages(sessionId)
-      const chatMessages = history.map((m) => ({ role: m.role, content: m.content }))
-
-      const language = await dbHelpers.getSetting("language") || "ru"
-      const result = await callAiApi(chatMessages, { language })
-
-      if (result.success && result.analysis) {
-        const assistantMsgId = crypto.randomUUID()
-        await dbHelpers.aiAddMessage(assistantMsgId, sessionId, "assistant", result.analysis)
-        return { success: true, analysis: result.analysis }
-      }
-
-      return { success: false, error: result.error }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err)
-      return { success: false, error: `Chat error: ${message}` }
-    }
-  })
-
-  // ── Chat Send Message (streaming) ──────────────────────
-  ipcMain.handle("ai:chat-send-stream", async (_event, requestId: string, sessionId: string, userMessage: string): Promise<AiAnalysisResult> => {
-    try {
-      const userMsgId = crypto.randomUUID()
-      await dbHelpers.aiAddMessage(userMsgId, sessionId, "user", userMessage)
-
-      const history = await dbHelpers.aiListMessages(sessionId)
-      const chatMessages = history.map((m) => ({ role: m.role, content: m.content }))
-
-      const language = await dbHelpers.getSetting("language") || "ru"
-      const result = await callAiApiStream(requestId, chatMessages, { language })
-
-      if (result.success && result.fullText) {
-        const assistantMsgId = crypto.randomUUID()
-        await dbHelpers.aiAddMessage(assistantMsgId, sessionId, "assistant", result.fullText)
-        return { success: true, analysis: result.fullText }
-      }
-
-      return { success: false, error: result.error }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err)
-      return { success: false, error: `Chat error: ${message}` }
-    }
-  })
-
-  // ── Sessions CRUD ───────────────────────────────────────
-  ipcMain.handle("ai:sessions-list", async () => dbHelpers.aiListSessions())
-  ipcMain.handle("ai:sessions-create", async (_event, id: string, title: string) => dbHelpers.aiCreateSession(id, title))
-  ipcMain.handle("ai:sessions-rename", async (_event, id: string, title: string) => dbHelpers.aiRenameSession(id, title))
-  ipcMain.handle("ai:sessions-delete", async (_event, id: string) => dbHelpers.aiDeleteSession(id))
-  ipcMain.handle("ai:messages-list", async (_event, sessionId: string) => dbHelpers.aiListMessages(sessionId))
 }

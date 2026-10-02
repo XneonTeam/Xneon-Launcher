@@ -35,8 +35,8 @@ export default defineConfig({
     emptyOutDir: true,
     chunkSizeWarningLimit: 2000,
     // Lazy tabs (instance, network, cloud, settings) pull heavy chunks like
-    // emoji-mart/react-markdown. Don't let the entry eagerly preload them —
-    // they should download only when the tab is opened.
+    // react-markdown. Don't let the entry eagerly preload them — they should
+    // download only when the tab is opened.
     modulePreload: false,
     rollupOptions: {
       output: {
@@ -44,7 +44,7 @@ export default defineConfig({
           if (!id.includes('node_modules')) return
 
           // Extract the real package name. pnpm store paths look like
-          // `node_modules/.pnpm/@emoji-mart+data@1.6.0/node_modules/@emoji-mart/data/...`,
+          // `node_modules/.pnpm/@tabler+icons-react@3.45.0/node_modules/@tabler/icons-react/...`,
           // so we must take the segments AFTER the last `node_modules` occurrence.
           const segments = id.split(/[\\/]/)
           const idx = segments.lastIndexOf('node_modules')
@@ -62,7 +62,6 @@ export default defineConfig({
           if (pkg === 'date-fns') return 'datefns'
           if (pkg.startsWith('@tabler/')) return 'icons'
           if (pkg === 'react-markdown' || pkg === 'rehype-raw' || pkg === 'rehype-sanitize' || pkg === 'remark-rehype' || pkg === 'unified') return 'markdown'
-          if (pkg.startsWith('@emoji-mart/')) return 'emoji-mart'
           if (pkg === 'axios' || pkg === 'form-data' || pkg === 'follow-redirects') return 'http'
           if (pkg === 'webdav') return 'webdav'
           if (pkg === 'electron-updater' || pkg === 'builder-util-runtime') return 'updater'

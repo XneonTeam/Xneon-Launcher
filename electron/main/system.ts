@@ -482,20 +482,4 @@ export function registerSystemHandlers() {
     return result.filePaths[0]
   })
 
-  ipcMain.handle("logs:share-to-mclogs", async (_event, content: string): Promise<{ success: boolean; url?: string; error?: string }> => {
-    try {
-      const res = await fetchWithRetry("https://api.mclo.gs/1/log", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, source: "Xneon Launcher" }),
-      }, { retries: 2 })
-      if (!res.ok) return { success: false, error: `HTTP ${res.status}` }
-      const data = await res.json() as { success: boolean; url?: string; error?: string }
-      if (!data.success) return { success: false, error: data.error ?? "Ошибка mclo.gs" }
-      if (data.url) await shell.openExternal(data.url)
-      return { success: true, url: data.url }
-    } catch (e) {
-      return opFailure(e)
-    }
-  })
 }

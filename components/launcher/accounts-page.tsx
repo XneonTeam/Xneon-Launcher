@@ -82,7 +82,6 @@ export function AccountsPage() {
   const [elybyAuthLoading, setElybyAuthLoading] = useState(false)
   const [xnskinsAuthLoading, setXnSkinsAuthLoading] = useState(false)
   const [microsoftAuthLoading, setMicrosoftAuthLoading] = useState(false)
-  const [authProgressMessage, setAuthProgressMessage] = useState("")
   const [authError, setAuthError] = useState("")
   const [microsoftMethod, setMicrosoftMethod] = useState<"choose" | "oauth" | "device">("choose")
   const [elybyMethod, setElybyMethod] = useState<"choose" | "oauth" | "device">("choose")
@@ -96,22 +95,11 @@ export function AccountsPage() {
   const [devicePolling, setDevicePolling] = useState(false)
   const [deviceStatus, setDeviceStatus] = useState<"waiting" | "expired" | "done">("waiting")
   const [copied, setCopied] = useState(false)
-  const cleanupRef = useRef<(() => void) | null>(null)
 
   const handleCopyCode = useCallback((code: string) => {
     navigator.clipboard?.writeText(code)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }, [])
-
-  useEffect(() => {
-    const unsubscribe = window.electronAPI?.onAuthProgress?.((msg) => {
-      setAuthProgressMessage(msg)
-    })
-    cleanupRef.current = () => unsubscribe?.()
-    return () => {
-      cleanupRef.current?.()
-    }
   }, [])
 
   const handleElyByLogin = useCallback(async () => {

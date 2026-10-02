@@ -1,7 +1,6 @@
 import path from "path"
 import fs from "fs/promises"
 import { exec } from "child_process"
-import { randomUUID } from "crypto"
 import Database from "better-sqlite3"
 
 export type BufferEncoding = "utf-8" | "utf8" | "cp866" | "cp1251" | string
@@ -69,21 +68,6 @@ export async function fileExists(fp: string): Promise<boolean> {
 
 export function uniqPaths(paths: string[]): string[] {
   return Array.from(new Set(paths.map((item) => path.normalize(item))))
-}
-
-export async function countFilesInDir(dir: string): Promise<number> {
-  try {
-    if (!(await fileExists(dir))) return 0
-    const files = await fs.readdir(dir)
-    let count = 0
-    for (const f of files) {
-      try {
-        const stat = await fs.stat(path.join(dir, f))
-        if (stat.isFile()) count++
-      } catch {}
-    }
-    return count
-  } catch { return 0 }
 }
 
 export async function getInstanceContentDirs(instancePath: string, contentDirName: "mods" | "resourcepacks" | "shaderpacks"): Promise<string[]> {
@@ -173,42 +157,6 @@ export async function copyDirContents(srcDirs: string[], destDir: string, onCopy
     }
   }
   return copied
-}
-
-export async function isImportedContentEntry(filePath: string, type: "mod" | "resourcepack" | "shader"): Promise<boolean> {
-  try {
-    const stat = await fs.stat(filePath)
-    if (stat.isDirectory()) return type !== "mod"
-    const lowerName = path.basename(filePath).toLowerCase()
-    // `.litemod` — такой же мод, как `.jar`/`.zip` (см. content-drop и scanner),
-    // иначе лайтмоды терялись при импорте сборки из другого лаунчера.
-    if (type === "mod") return lowerName.endsWith(".jar") || lowerName.endsWith(".zip") || lowerName.endsWith(".litemod")
-    return lowerName.endsWith(".zip") || lowerName.endsWith(".jar")
-  } catch {
-    return false
-  }
-}
-
-export async function buildImportedContentList(dir: string, type: "mod" | "resourcepack" | "shader", source: LauncherInstance["source"]) {
-  const items: Array<{ id: string; slug: string; name: string; description: string; version: string }> = []
-  if (!(await fileExists(dir))) return items
-
-  let files
-  try { files = await fs.readdir(dir) } catch { return items }
-
-  for (const file of files) {
-    const filePath = path.join(dir, file)
-    if (!(await isImportedContentEntry(filePath, type))) continue
-    items.push({
-      id: randomUUID(),
-      slug: file,
-      name: file.replace(/\.jar$|\.zip$|\.litemod$/i, "").replace(/[-_]/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()),
-      description: `Импортировано из ${source}`,
-      version: "local",
-    })
-  }
-
-  return items
 }
 
 export async function readIconAsDataUrl(iconPath: string | undefined): Promise<string> {

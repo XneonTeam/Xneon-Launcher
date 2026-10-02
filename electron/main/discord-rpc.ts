@@ -13,10 +13,6 @@ let pendingActivity: DiscordActivity | null = null
 let lastActivity: DiscordActivity | null = null
 let gameStartTimestamp: number | undefined = undefined
 
-export function getGameStartTimestamp(): number | undefined {
-  return gameStartTimestamp
-}
-
 export function resetGameStartTimestamp(): void {
   gameStartTimestamp = undefined
 }
@@ -277,26 +273,6 @@ if (smallImageKey) {
     rpc = null
     scheduleRetry()
   })
-}
-
-export function clearDiscordActivity(): void {
-  lastActivity = null
-  pendingActivity = null
-  if (!connected || !rpc) return
-  rpc.clearActivity().catch(console.error)
-}
-
-export function reconnectDiscordRpc(): void {
-  connected = false
-  if (rpc) {
-    rpc.destroy().catch(() => {})
-    rpc = null
-  }
-  initDiscordRpc()
-}
-
-export function isDiscordRpcConnected(): boolean {
-  return connected
 }
 
 // Launcher just started — publish the "in menu" presence right away instead of

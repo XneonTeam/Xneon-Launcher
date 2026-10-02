@@ -100,11 +100,6 @@ function getCacheEntry(filePath: string, size: number, mtime: number): JarInspec
   return fresh
 }
 
-/** Сбрасывает общий кэш инспекций (импорт, подмена файлов, смена папки интентов). */
-export function clearJarInspectionCache(): void {
-  inspectionCache.clear()
-}
-
 /**
  * Кладёт в кэш результат, посчитанный вне main-процесса (worker холодного
  * сканирования). Без этого main перечитывал бы те же JAR повторно при первом

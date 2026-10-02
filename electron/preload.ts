@@ -82,7 +82,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   maximize: () => ipcRenderer.send('window:maximize'),
   close: () => ipcRenderer.send('window:close'),
   restore: () => ipcRenderer.send('window:restore'),
-  isMaximized: invoke<boolean>('window:is-maximized'),
 
   // ── Auth ───────────────────────────────────────────────
   loginElyBy: invoke<AuthPayload>('auth:elyby-login'),
@@ -94,11 +93,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loginMicrosoft: invoke<AuthPayload>('auth:microsoft-login'),
   startMicrosoftDeviceCode: invoke<DeviceCodeStart>('auth:microsoft-device-start'),
   pollMicrosoftDeviceCode: (deviceCode: string) => ipcRenderer.invoke('auth:microsoft-device-poll', deviceCode) as Promise<DeviceCodePoll>,
-  onAuthProgress: (callback: (msg: string) => void) => {
-    const handler = (_: Electron.IpcRendererEvent, msg: string) => callback(msg)
-    ipcRenderer.on('auth:progress', handler)
-    return () => ipcRenderer.removeListener('auth:progress', handler)
-  },
 
   // ── News ───────────────────────────────────────────────
   fetchMinecraftNews: invoke<MinecraftNewsEntry[]>('fetch:minecraft-news'),
@@ -144,10 +138,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('mods:curseforge-search', query, contentType, gameVersion, modLoader, sortBy, page, categories, environment) as Promise<ModSearchResponse>,
   modsCurseforgeDetails: (modId: number) => ipcRenderer.invoke('mods:curseforge-details', modId) as Promise<ModDetails | null>,
   modsCurseforgeDownloadUrl: (fileId: number, modId: number) => ipcRenderer.invoke('mods:curseforge-download-url', fileId, modId) as Promise<string | null>,
-  modsCurseforgeFeatured: (gameVersion?: string) => ipcRenderer.invoke('mods:curseforge-featured', gameVersion) as Promise<{ popular: ModSearchResult[]; trending: ModSearchResult[] }>,
   modsCurseforgeChangelog: (modId: number, fileId: number) => ipcRenderer.invoke('mods:curseforge-changelog', modId, fileId) as Promise<string>,
-  modsCurseforgeDescription: (modId: number) => ipcRenderer.invoke('mods:curseforge-description', modId) as Promise<string>,
-  modsModrinthCheckUpdates: (hashes: string[], loaders?: string[], gameVersions?: string[]) => ipcRenderer.invoke('mods:modrinth-check-updates', hashes, loaders, gameVersions) as Promise<Record<string, ModVersion>>,
   modsResolveDependencies: (version: ModVersion, source: "modrinth" | "curseforge") => ipcRenderer.invoke('mods:resolve-dependencies', version, source) as Promise<ModDependency[]>,
   // Зависимости из метаданных jar: у новых файлов CurseForge/Modrinth список пустой,
   // а сам мод требует fabric-api и падает без него.
@@ -156,24 +147,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   modsFtbSearch: (query: string, page?: number, options?: { sortBy?: ModSort; categories?: string[]; gameVersion?: string; loader?: string }) => ipcRenderer.invoke('mods:ftb-search', query, page, options) as Promise<ModSearchResponse>,
   modsFtbCatalogFacets: () => ipcRenderer.invoke('mods:ftb-catalog-facets') as Promise<{ categories: string[]; gameVersions: string[]; loaders: string[] }>,
   modsFtbDetails: (id: number) => ipcRenderer.invoke('mods:ftb-details', id) as Promise<ModDetails | null>,
-  modsFtbVersion: (id: number, versionId: number) => ipcRenderer.invoke('mods:ftb-version', id, versionId) as Promise<FTBVersionManifest | null>,
   modsFtbChangelog: (id: number, versionId: number) => ipcRenderer.invoke('mods:ftb-changelog', id, versionId) as Promise<string>,
   modsModrinthCategories: () => ipcRenderer.invoke('mods:modrinth-categories') as Promise<any[]>,
   modsCurseforgeCategories: () => ipcRenderer.invoke('mods:curseforge-categories') as Promise<any[]>,
-  modsModrinthLoaders: () => ipcRenderer.invoke('mods:modrinth-loaders') as Promise<string[]>,
-  modsModrinthGameVersions: () => ipcRenderer.invoke('mods:modrinth-game-versions') as Promise<string[]>,
 
   // ── Minecraft Versions ─────────────────────────────────
   getMinecraftVersions: invoke<MinecraftVersionInfo[]>('minecraft:get-versions'),
   getLatestRelease: invoke<string | null>('minecraft:get-latest-release'),
-  getLatestSnapshot: invoke<string | null>('minecraft:get-latest-snapshot'),
-  getFabricGameVersions: invoke<{ version: string; stable: boolean }[]>('minecraft:get-fabric-game-versions'),
   getFabricVersions: (mcVersion: string) => ipcRenderer.invoke('minecraft:get-fabric-versions', mcVersion) as Promise<{ version: string; stable: boolean }[]>,
   getFabricSupported: invoke<string[]>('minecraft:get-fabric-supported'),
   getLiteLoaderVersions: (mcVersion: string) => ipcRenderer.invoke('minecraft:get-liteloader-versions', mcVersion) as Promise<{ version: string; stable: boolean }[]>,
   getLiteLoaderRecommended: (mcVersion: string) => ipcRenderer.invoke('minecraft:get-liteloader-recommended', mcVersion) as Promise<string | null>,
   getLiteLoaderSupported: invoke<string[]>('minecraft:get-liteloader-supported'),
-  getQuiltGameVersions: invoke<{ version: string; stable: boolean }[]>('minecraft:get-quilt-game-versions'),
   getQuiltVersions: (mcVersion: string) => ipcRenderer.invoke('minecraft:get-quilt-versions', mcVersion) as Promise<{ version: string; stable: boolean }[]>,
   getQuiltSupported: invoke<string[]>('minecraft:get-quilt-supported'),
   getOptifineVersions: (mcVersion: string) => ipcRenderer.invoke('minecraft:get-optifine-versions', mcVersion) as Promise<{ filename: string; isPreview: boolean }[]>,
@@ -208,7 +193,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   isMinecraftRunning: invoke<boolean>('minecraft:is-running'),
 
   // ── Minecraft Events ───────────────────────────────────
-  onMinecraftProgress: (callback: (progress: MinecraftProgress) => void) => subscribe('minecraft:progress', callback),
   onMinecraftJavaProgress: (callback: (progress: JavaProgress) => void) => subscribe('minecraft:java-progress', callback),
   onMinecraftDebug: (callback: (message: string) => void) => subscribe('minecraft:debug', callback),
   onMinecraftData: (callback: (message: string) => void) => subscribe('minecraft:data', callback),
@@ -244,7 +228,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setBuildIntentPath: (buildId: string, intentPath: string) => ipcRenderer.invoke('build:set-intent-path', buildId, intentPath) as Promise<void>,
   pruneLoaderProfiles: (buildName: string, modLoader?: string, loaderVersion?: string) => ipcRenderer.invoke('build:prune-loader-profiles', buildName, modLoader, loaderVersion) as Promise<{ removed: string[]; kept: string[] }>,
   deleteBuildIntent: (buildName: string) => ipcRenderer.invoke('build:delete-intent', buildName) as Promise<{ success: boolean; error?: string }>,
-  installContentFile: (contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string) => ipcRenderer.invoke('content:install-remote', contentType, url, fileName) as Promise<{ success: boolean; filePath?: string; error?: string }>,
   importModrinthModpack: (buildName: string, projectSlug: string, versionId?: string, targetBuildId?: string) => ipcRenderer.invoke('build:import-modrinth', buildName, projectSlug, versionId, targetBuildId) as Promise<ModpackImportResult>,
   importCurseforgeModpack: (buildName: string, modId: number, fileId: number, targetBuildId?: string) => ipcRenderer.invoke('build:import-curseforge', buildName, modId, fileId, targetBuildId) as Promise<ModpackImportResult>,
   importFtbModpack: (buildName: string, modpackId: number, versionId: number, targetBuildId?: string) => ipcRenderer.invoke('build:import-ftb', buildName, modpackId, versionId, targetBuildId) as Promise<ModpackImportResult>,
@@ -274,7 +257,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openPath: (dirPath: string) => ipcRenderer.invoke('shell:open-path', dirPath) as Promise<void>,
 
   // ── Logs ───────────────────────────────────────────────
-  shareToMclogs: (content: string) => ipcRenderer.invoke('logs:share-to-mclogs', content) as Promise<{ success: boolean; url?: string; error?: string }>,
 
   // ── Java ───────────────────────────────────────────────
   detectJavaInstallations: (force?: boolean) => ipcRenderer.invoke('java:detect', force) as Promise<JavaDetectResult[]>,
@@ -284,15 +266,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAiConfig: invoke<{ apiKey: string; endpoint: string; model: string }>('ai:get-config'),
   saveAiConfig: (config: { apiKey: string; endpoint: string; model: string }) => ipcRenderer.invoke('ai:save-config', config) as Promise<void>,
   listAiModels: (override?: { apiKey?: string; endpoint?: string }) => ipcRenderer.invoke('ai:list-models', override) as Promise<{ success: boolean; models?: string[]; error?: string }>,
-  analyzeCrash: (logContent: string, sessionId: string) => ipcRenderer.invoke('ai:analyze-crash', logContent, sessionId) as Promise<{ success: boolean; analysis?: string; error?: string }>,
+  analyzeCrash: (logContent: string) => ipcRenderer.invoke('ai:analyze-crash', logContent) as Promise<{ success: boolean; analysis?: string; error?: string }>,
   analyzeCrashStream: (requestId: string, logContent: string) => ipcRenderer.invoke('ai:analyze-crash-stream', requestId, logContent) as Promise<{ success: boolean; analysis?: string; error?: string }>,
-  aiChatSend: (sessionId: string, userMessage: string) => ipcRenderer.invoke('ai:chat-send', sessionId, userMessage) as Promise<{ success: boolean; analysis?: string; error?: string }>,
-  aiChatSendStream: (requestId: string, sessionId: string, userMessage: string) => ipcRenderer.invoke('ai:chat-send-stream', requestId, sessionId, userMessage) as Promise<{ success: boolean; analysis?: string; error?: string }>,
-  aiListSessions: invoke<Array<{ id: string; title: string; createdAt: number; updatedAt: number }>>('ai:sessions-list'),
-  aiCreateSession: (id: string, title: string) => ipcRenderer.invoke('ai:sessions-create', id, title) as Promise<void>,
-  aiRenameSession: (id: string, title: string) => ipcRenderer.invoke('ai:sessions-rename', id, title) as Promise<void>,
-  aiDeleteSession: (id: string) => ipcRenderer.invoke('ai:sessions-delete', id) as Promise<void>,
-  aiListMessages: (sessionId: string) => ipcRenderer.invoke('ai:messages-list', sessionId) as Promise<Array<{ id: string; role: string; content: string; createdAt: number }>>,
   onAiStreamChunk: (callback: (data: { requestId: string; content: string }) => void) => subscribe<{ requestId: string; content: string }>('ai:stream-chunk', callback),
   onAiStreamDone: (callback: (data: { requestId: string; fullText: string }) => void) => subscribe<{ requestId: string; fullText: string }>('ai:stream-done', callback),
   onAiStreamError: (callback: (data: { requestId: string; error: string }) => void) => subscribe<{ requestId: string; error: string }>('ai:stream-error', callback),
@@ -323,7 +298,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cloudIsConnected: (providerId: string) => ipcRenderer.invoke('cloud:is-connected', providerId) as Promise<boolean>,
   cloudDisconnect: (providerId: string) => ipcRenderer.invoke('cloud:disconnect', providerId) as Promise<{ success: boolean; error?: string }>,
   cloudListFiles: (providerId: string, folderPath?: string) => ipcRenderer.invoke('cloud:list-files', providerId, folderPath) as Promise<{ success: boolean; files?: Array<{ id: string; name: string; size: number; modifiedAt?: string; path: string; isDir: boolean; category?: string }>; error?: string }>,
-  cloudUploadFile: (providerId: string, localPath: string, remotePath: string) => ipcRenderer.invoke('cloud:upload-file', providerId, localPath, remotePath) as Promise<{ success: boolean; id?: string; name?: string; error?: string }>,
   cloudDownloadFile: (providerId: string, remotePath: string, localPath: string) => ipcRenderer.invoke('cloud:download-file', providerId, remotePath, localPath) as Promise<{ success: boolean; localPath?: string; error?: string }>,
   cloudDeleteFile: (providerId: string, remotePath: string) => ipcRenderer.invoke('cloud:delete-file', providerId, remotePath) as Promise<{ success: boolean; error?: string }>,
   cloudGetQuota: (providerId: string) => ipcRenderer.invoke('cloud:get-quota', providerId) as Promise<{ used: number; total: number } | null>,
@@ -382,11 +356,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   mcServerKill: (id: string) => ipcRenderer.invoke('mc-server:kill', id) as Promise<void>,
   mcServerSendCommand: (id: string, command: string) => ipcRenderer.invoke('mc-server:send-command', id, command) as Promise<void>,
   mcServerStatus: (id: string) => ipcRenderer.invoke('mc-server:status', id) as Promise<McServerState>,
-  mcServerMetrics: (id: string) => ipcRenderer.invoke('mc-server:metrics', id) as Promise<McServerMetrics>,
   mcServerMetricsSubscribe: (id: string) => ipcRenderer.invoke('mc-server:metrics-subscribe', id) as Promise<void>,
   mcServerMetricsUnsubscribe: (id: string) => ipcRenderer.invoke('mc-server:metrics-unsubscribe', id) as Promise<void>,
   onMcServerMetrics: (callback: (data: { id: string; metrics: McServerMetrics }) => void) => subscribe<{ id: string; metrics: McServerMetrics }>('mc-server:metrics', callback),
   mcServerLogs: (id: string) => ipcRenderer.invoke('mc-server:logs', id) as Promise<string[]>,
+  mcServerInstallState: (id: string) => ipcRenderer.invoke('mc-server:install-state', id) as Promise<{ installing: boolean; progress: { phase: string; percent?: number; bytesTotal?: number; bytesDownloaded?: number; message: string } | null }>,
   mcServerOpenFolder: (id: string) => ipcRenderer.invoke('mc-server:open-folder', id) as Promise<void>,
   mcServerReadProperties: (id: string) => ipcRenderer.invoke('mc-server:read-properties', id) as Promise<Record<string, string> | null>,
   mcServerWriteProperties: (id: string, properties: Record<string, string>) => ipcRenderer.invoke('mc-server:write-properties', id, properties) as Promise<void>,
@@ -413,7 +387,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   mcServerFsDelete: (id: string, relativePath: string) => ipcRenderer.invoke('mc-server:fs-delete', id, relativePath) as Promise<void>,
   mcServerFsRename: (id: string, oldPath: string, newPath: string) => ipcRenderer.invoke('mc-server:fs-rename', id, oldPath, newPath) as Promise<void>,
   mcServerFsMkdir: (id: string, relativePath: string) => ipcRenderer.invoke('mc-server:fs-mkdir', id, relativePath) as Promise<void>,
-  mcServerFsStat: (id: string, relativePath: string) => ipcRenderer.invoke('mc-server:fs-stat', id, relativePath) as Promise<{ name: string; isDir: boolean; size: number; lastModified: number } | null>,
   mcServerFsDownload: (id: string, relativePath: string, url: string, fileName: string) => ipcRenderer.invoke('mc-server:fs-download', id, relativePath, url, fileName) as Promise<{ success: boolean; filePath?: string; error?: string }>,
   mcServerResolveInstalled: (id: string, relativePath: string) => ipcRenderer.invoke('mc-server:resolve-installed', id, relativePath) as Promise<Array<{ name: string; sha1: string; projectId?: string; versionId?: string }>>,
 
@@ -436,7 +409,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateCheck: invoke<{ available: boolean; version?: string; error?: string }>('update:check'),
   updateDownload: invoke<{ success: boolean; error?: string }>('update:download'),
   updateInstall: invoke<void>('update:install'),
-  updateInfo: invoke<{ version: string | null; downloaded: boolean }>('update:info'),
   onUpdateStatus: (callback: (status: { status: string; version?: string; releaseDate?: string; releaseNotes?: string; error?: string }) => void) => subscribe('update:status', callback),
   onUpdateProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => subscribe('update:progress', callback),
 })

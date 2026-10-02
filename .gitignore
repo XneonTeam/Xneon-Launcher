@@ -103,6 +103,9 @@ restart-*.js
 ssh-check.js
 test-*.js
 test-*.mjs
+# Исключение: это не временный скрипт, а тесты домена скинов (см. `pnpm run test`).
+# Правило `test-*.mjs` выше съедало его, и 67 тестов не попадали в репозиторий.
+!scripts/test-skins.mjs
 update-*.js
 
 # Temp docs

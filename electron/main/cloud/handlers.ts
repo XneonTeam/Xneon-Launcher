@@ -202,19 +202,6 @@ export function registerCloudHandlers() {
     }
   })
 
-  ipcMain.handle("cloud:upload-file", async (_event, providerId: CloudProviderId, localPath: string, remotePath: string) => {
-    try {
-      const provider = getProvider(providerId)
-      const id = `file-${path.basename(localPath)}`
-      return uploadWithProgress(id, "upload", () =>
-        provider.uploadFile(localPath, remotePath, (percent) => {
-          sendUploadProgress(id, percent, "upload")
-        })
-      )
-    } catch (e) {
-      return opFailure(e)
-    }
-  })
 
   ipcMain.handle("cloud:download-file", async (_event, providerId: CloudProviderId, remotePath: string, localPath: string) => {
     try {
