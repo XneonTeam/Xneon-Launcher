@@ -43,6 +43,14 @@ const pendingServerStarts = new Map<string, { cancelled: boolean }>()
 /** Идущие остановки: serverId → промис, чтобы N stop подряд выполнились как одна. */
 const pendingServerStops = new Map<string, Promise<void>>()
 
+/**
+ * Последнее состояние подготовки к запуску (Java, скачивание/сборка ядра).
+ * Живёт вне обработчика, потому что страницу сервера можно закрыть и открыть
+ * заново прямо во время установки — тогда рендерер забирает это состояние
+ * запросом, иначе прогресс выглядел бы потерянным.
+ */
+const installProgress = new Map<string, DownloadProgress>()
+
 function pushServerMetrics(): void {
   let pruned = false
   for (const [id, subscribers] of metricsSubscribers) {
@@ -532,6 +540,7 @@ export function registerMcServerHandlers() {
     /** Стоп пришёл во время подготовки старта: процесс не поднимаем. */
     const cancelledByStop = () => token.cancelled
     const finishCancelled = () => {
+      installProgress.delete(id)
       sendToRenderer("mc-server:state-change", { id, state: { status: "stopped" } satisfies McServerState })
     }
     if (cancelledByStop()) return finishCancelled()
@@ -539,7 +548,22 @@ export function registerMcServerHandlers() {
     // Прогресс подготовки: нужен уже на этапе Java (её скачивание может быть
     // первым шагом, до загрузки ядра).
     const sendProgress = (progress: DownloadProgress) => {
+      // Последнее состояние установки запоминаем: страница сервера можно покинуть
+      // и вернуться, а события прогресса к тому моменту уже отправлены — без этого
+      // баннер пропадал и казалось, что установка встала.
+      if (progress.phase === "done" || progress.phase === "error") installProgress.delete(id)
+      else installProgress.set(id, progress)
       sendToRenderer("mc-server:download-progress", { id, progress })
+    }
+
+    /**
+     * Строка вывода установщика ядра. Кладём её и в буфер менеджера, и в событие:
+     * буфер — чтобы история установки не пропала при повторном открытии вкладки,
+     * событие — чтобы строки шли вживую, как у запущенного сервера.
+     */
+    const sendConsoleLine = (line: string) => {
+      serverManager.appendConsoleLine(id, line)
+      sendToRenderer("mc-server:log", { id, line })
     }
 
     // Auto-detect Java from settings or system
@@ -577,6 +601,7 @@ export function registerMcServerHandlers() {
         javaPath,
         sendProgress,
         row.customJar,
+        sendConsoleLine,
       )
     } catch (err: any) {
       sendProgress({ phase: "error", message: `Ошибка загрузки: ${err.message}` })
@@ -600,6 +625,12 @@ export function registerMcServerHandlers() {
 
     // Ещё раз проверяем отмену прямо перед спавном.
     if (cancelledByStop()) return finishCancelled()
+
+    // Консоль чистим ДО запуска процесса: после установки ядра в ней лежит вывод
+    // BuildTools/инсталлера, и он не должен смешиваться с логами самого сервера.
+    // Рендерер получит следом `starting` и тоже очистит свою копию.
+    serverManager.clearInstallLogs(id)
+    installProgress.delete(id)
 
     serverManager.start(
       id,
@@ -628,9 +659,14 @@ export function registerMcServerHandlers() {
   }
 
   ipcMain.handle("mc-server:stop", async (_event, id: string) => {
-    // Старт ещё готовится — отменяем его.
+    // Старт ещё готовится — отменяем его. Прогресс подготовки убираем сразу, а не
+    // когда установка доиграет до проверки отмены: иначе UI остался бы заблокирован
+    // на «идёт установка» ещё на минуты.
     const pendingStart = pendingServerStarts.get(id)
-    if (pendingStart) pendingStart.cancelled = true
+    if (pendingStart) {
+      pendingStart.cancelled = true
+      installProgress.delete(id)
+    }
 
     // Повторные stop не шлют команду и события заново.
     const inFlight = pendingServerStops.get(id)
@@ -670,10 +706,6 @@ export function registerMcServerHandlers() {
     return serverManager.getState(id)
   })
 
-  ipcMain.handle("mc-server:metrics", async (_event, id: string) => {
-    // Мгновенный ответ из кэша фонового сэмплера.
-    return serverManager.getMetricsSync(id)
-  })
 
   ipcMain.handle("mc-server:metrics-subscribe", async (event, id: string) => {
     const senderId = event.sender.id
@@ -700,6 +732,15 @@ export function registerMcServerHandlers() {
 
   ipcMain.handle("mc-server:logs", async (_event, id: string) => {
     return serverManager.getLogBuffer(id)
+  })
+
+  /**
+   * Идёт ли подготовка к запуску прямо сейчас. Нужно при возврате на страницу:
+   * события прогресса одноразовые, а состояние сервера в это время ещё `stopped`.
+   */
+  ipcMain.handle("mc-server:install-state", async (_event, id: string) => {
+    const progress = installProgress.get(id) ?? null
+    return { installing: progress !== null, progress }
   })
 
   ipcMain.handle("mc-server:open-folder", async (_event, id: string) => {
@@ -975,17 +1016,6 @@ export function registerMcServerHandlers() {
     fs.mkdirSync(resolveInsideServer(getServerDir(id), relativePath), { recursive: true })
   })
 
-  ipcMain.handle("mc-server:fs-stat", async (_event, id: string, relativePath: string) => {
-    const targetPath = resolveInsideServer(getServerDir(id), relativePath)
-    if (!fs.existsSync(targetPath)) return null
-    const stat = fs.statSync(targetPath)
-    return {
-      name: path.basename(targetPath),
-      isDir: stat.isDirectory(),
-      size: stat.size,
-      lastModified: stat.mtimeMs,
-    }
-  })
 
   ipcMain.handle("mc-server:fs-download", async (_event, id: string, relativePath: string, url: string, fileName: string) => {
     const targetDir = resolveInsideServer(getServerDir(id), relativePath)

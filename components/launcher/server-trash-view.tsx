@@ -1,7 +1,6 @@
 // Корзина серверов: содержимое строк и IPC — здесь, вся общая логика в TrashView.
 
 import { useTranslation } from "react-i18next"
-import { IconServer } from "@tabler/icons-react"
 import type { McServerInfo } from "@xnlc/types"
 import { TrashView } from "./trash-view"
 import { LoaderIcon, loaderLabel } from "./instance/loader-icon"
@@ -22,7 +21,7 @@ export function ServerTrashView({ onBack }: ServerTrashViewProps) {
         name: item.name,
         icon: item.icon,
         iconPadding: "p-1",
-        fallbackIcon: <IconServer className="w-5 h-5 text-primary/40" />,
+        fallbackIcon: <LoaderIcon loaderId={item.modloader} className="w-5 h-5 text-primary/40" />,
         meta: (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span>{item.gameVersion}</span>

@@ -44,6 +44,12 @@ const STARTUP_FALLBACK_MS = 180_000
 
 export class ServerManager {
   private running = new Map<string, RunningServer>()
+  /**
+   * Консоль до старта процесса: установка ядра и компиляция BuildTools.
+   * Логи запущенного сервера лежат в `RunningServer.logBuffer`, но до старта его
+   * ещё нет — без отдельного буфера консоль пустовала всё время установки.
+   */
+  private installLogs = new Map<string, string[]>()
 
   /**
    * Текущее состояние сервера. `running` отдаётся только после того, как сервер
@@ -213,7 +219,32 @@ export class ServerManager {
   }
 
   getLogBuffer(id: string): string[] {
-    return this.running.get(id)?.logBuffer ?? []
+    const install = this.installLogs.get(id) ?? []
+    const live = this.running.get(id)?.logBuffer ?? []
+    return install.length > 0 ? [...install, ...live] : live
+  }
+
+  /**
+   * Дописать строку в консоль сервера вне его жизненного цикла. Нужно установке
+   * ядра: Spigot и CraftBukkit компилируются BuildTools минутами, Forge и NeoForge
+   * гоняют свой инсталлер — и без этого консоль всё это время пуста, хотя там
+   * самый полезный вывод. У запущенного сервера строка идёт в его буфер.
+   */
+  appendConsoleLine(id: string, line: string): void {
+    const target = this.running.get(id)?.logBuffer ?? this.installLogs.get(id) ?? []
+    target.push(line)
+    if (target.length > MAX_LOG_BUFFER) target.shift()
+    if (!this.running.has(id)) this.installLogs.set(id, target)
+  }
+
+  /**
+   * Забыть вывод установки ядра. Вызывается перед стартом процесса: в консоли
+   * должна остаться только жизнь самого сервера, иначе при возврате на страницу
+   * подтягивался бы ещё и лог BuildTools/инсталлера (`getLogBuffer` склеивает
+   * историю установки с живым буфером).
+   */
+  clearInstallLogs(id: string): void {
+    this.installLogs.delete(id)
   }
 
   async start(

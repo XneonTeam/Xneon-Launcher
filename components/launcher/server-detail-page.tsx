@@ -133,6 +133,13 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
   const pendingRef = useRef<null | "start" | "stop">(null)
   const isStartingLike = isStarting || pending === "start"
   const isStoppingLike = isStopping || pending === "stop"
+  /**
+   * Идёт подготовка к запуску (Java, скачивание/сборка ядра), но процесс ещё не
+   * поднят. Состояние из main в это время `stopped`, а `pending` после возврата на
+   * страницу пуст — без этой ветки интерфейс выглядел простаивающим, хотя установка
+   * шла: ни прогресса, ни возможности её отменить.
+   */
+  const isInstallLike = isDownloading && !isRunning && !isStartingLike
   const isBusy = isStartingLike || isStoppingLike || isDownloading
 
   /** Пока действие не завершилось, второе такое же не уходит. */
@@ -162,12 +169,13 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
   }
 
   const handleStartStop = async () => {
-    // Гасим и запущенный, и ещё стартующий сервер.
-    if (isRunning || isStartingLike) {
+    // Гасим и запущенный, и ещё стартующий сервер, и идущую установку ядра:
+    // в последнем случае main отменяет подготовку и процесс не поднимает.
+    if (isRunning || isStartingLike || isInstallLike) {
       await runAction("stop", () => stop())
       return
     }
-    if (isStoppingLike || isDownloading) return
+    if (isStoppingLike) return
     if (!eulaAccepted) {
       setShowEula(true)
       return
@@ -243,6 +251,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
               "flex items-center gap-1.5 rounded-full px-3 py-0.5 text-xs font-medium",
               isRunning && "bg-green-500/15 text-green-400 border border-green-500/20",
               isStartingLike && "bg-yellow-500/15 text-yellow-400 border border-yellow-500/20",
+              isInstallLike && "bg-primary/15 text-primary border border-primary/25",
               isStoppingLike && "bg-orange-500/15 text-orange-400 border border-orange-500/20",
               !isRunning && !isBusy && "bg-muted/60 text-muted-foreground border border-border",
             )}>
@@ -250,11 +259,13 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
                 "h-2 w-2 rounded-full",
                 isRunning && "bg-green-400",
                 isStartingLike && "bg-yellow-400 animate-pulse",
+                isInstallLike && "bg-primary animate-pulse",
                 isStoppingLike && "bg-orange-400",
                 !isRunning && !isBusy && "bg-muted-foreground/50",
               )} />
               {isRunning && t("servers.statusRunning")}
               {isStartingLike && t("servers.statusStarting")}
+              {isInstallLike && t("servers.statusInstalling")}
               {isStoppingLike && t("servers.statusStopping")}
               {!isRunning && !isBusy && t("servers.statusStopped")}
             </div>
@@ -301,19 +312,19 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
           </button>
           <button
             onClick={handleStartStop}
-            disabled={isStoppingLike || isDownloading}
+            disabled={isStoppingLike}
             className={cn(
               "p-2 rounded-xl transition-all active:scale-[0.98]",
-              isRunning || isStartingLike
+              isRunning || isStartingLike || isInstallLike
                 ? "bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20"
                 : "bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_15px_var(--glow-primary)]",
-              (isStoppingLike || isDownloading) && "opacity-50 cursor-not-allowed active:scale-100"
+              isStoppingLike && "opacity-50 cursor-not-allowed active:scale-100"
             )}
-            title={isRunning || isStartingLike ? t("servers.stop") : t("servers.start")}
+            title={isRunning || isStartingLike || isInstallLike ? t("servers.stop") : t("servers.start")}
           >
-            {isStoppingLike || isDownloading ? (
+            {isStoppingLike ? (
               <IconRefresh className="w-4 h-4 animate-spin" />
-            ) : isRunning || isStartingLike ? (
+            ) : isRunning || isStartingLike || isInstallLike ? (
               <IconPlayerStop className="w-4 h-4" />
             ) : (
               <IconPlayerPlay className="w-4 h-4" />
@@ -363,7 +374,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
 
       {/* Download progress */}
       {downloadProgress && downloadProgress.phase !== "done" && (
-        <div className="px-4 py-3 border-b border-border bg-primary/5">
+        <div className="mx-3 my-3 rounded-2xl border border-border bg-primary/5 px-4 py-3">
           <div className="flex items-center gap-3">
             <IconDownload className="w-4 h-4 text-primary flex-shrink-0" />
             <div className="flex-1 min-w-0">

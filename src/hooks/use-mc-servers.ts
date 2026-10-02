@@ -3,12 +3,6 @@ import type { McServerInfo, McServerState } from "@xnlc/types"
 import { useCategoryIcons } from "@/src/hooks/use-category-icons"
 import { useCategoryList } from "@/src/hooks/use-category-list"
 
-/**
- * Потолок консоли сервера в renderer. Буфер в main ограничен отдельно, но и
- * здесь нужен свой предел: строки копятся через push-события часами.
- */
-const MAX_SERVER_LOG_LINES = 5000
-
 export function useMcServers() {
   const [servers, setServers] = useState<McServerInfo[]>([])
   const [loading, setLoading] = useState(true)
@@ -194,16 +188,8 @@ export function useMcServerLogs(id: string | null) {
 
     const unsubLog = window.electronAPI?.onMcServerLog((data) => {
       if (data.id !== id || mutedRef.current) return
-      // Консоль сервера живёт часами и может печатать десятки строк в секунду
-      // (моды, отладка): без потолка массив и DOM росли безгранично. Держим
-      // последние MAX_SERVER_LOG_LINES строк — старые всё равно не видны.
-      setLogs(prev => {
-        const next = prev.length >= MAX_SERVER_LOG_LINES
-          ? prev.slice(prev.length - MAX_SERVER_LOG_LINES + 1)
-          : prev.slice()
-        next.push(data.line)
-        return next
-      })
+      // Строки не отбрасываем: консоль показывает всё, что пришло за сессию.
+      setLogs(prev => [...prev, data.line])
     })
 
     const unsubState = window.electronAPI?.onMcServerStateChange((data) => {
@@ -286,6 +272,15 @@ export function useMcServerDownloadProgress(id: string | null) {
     if (!id) return
     setProgress(null)
 
+    // Возврат на страницу во время установки ядра: события прогресса одноразовые,
+    // и после переподписки их больше не будет — забираем текущее состояние из main,
+    // иначе баннер пропадал и казалось, что установка встала.
+    let alive = true
+    window.electronAPI?.mcServerInstallState(id).then((state) => {
+      if (!alive || !state?.installing || !state.progress) return
+      setProgress(state.progress)
+    }).catch(() => {})
+
     const unsub = window.electronAPI?.onMcServerDownloadProgress((data) => {
       if (data.id === id) {
         setProgress(data.progress)
@@ -294,7 +289,10 @@ export function useMcServerDownloadProgress(id: string | null) {
         }
       }
     })
-    return () => unsub?.()
+    return () => {
+      alive = false
+      unsub?.()
+    }
   }, [id])
 
   return progress

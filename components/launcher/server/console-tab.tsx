@@ -23,16 +23,6 @@ export function ConsoleTab({ serverId, logs, isRunning, command, onCommandChange
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  /**
-   * Консоль сервера живёт часами: буфер в main ограничен 2000 строками, в
-   * renderer — 5000, но монтировать их все в DOM всё равно дорого. Рендерим
-   * последние строки (читают всё равно с конца), а над списком показываем,
-   * сколько всего строк в буфере.
-   */
-  const MAX_RENDERED_CONSOLE_LINES = 1200
-  const renderedOffset = Math.max(0, logs.length - MAX_RENDERED_CONSOLE_LINES)
-  const visibleLines = renderedOffset > 0 ? logs.slice(renderedOffset) : logs
-
   const [autoScroll, setAutoScroll] = useState(true)
   const [copied, setCopied] = useState(false)
   const [shareState, setShareState] = useState<"idle" | "loading" | "done" | "error">("idle")
@@ -199,18 +189,13 @@ export function ConsoleTab({ serverId, logs, isRunning, command, onCommandChange
           <div className="flex flex-col items-center justify-center h-full text-center">
             <IconTerminal2 className="w-10 h-10 text-muted-foreground/30 mb-3" strokeWidth={1.5} />
             <p className="text-sm text-muted-foreground">
-              {isRunning ? "Waiting for logs..." : t("logs.empty")}
+              {isRunning ? t("servers.console.waiting") : t("servers.console.empty")}
             </p>
           </div>
         ) : (
           <div className="space-y-0.5">
-            {logs.length > visibleLines.length && (
-              <div className="sticky top-0 z-10 rounded-md border border-border/60 bg-[#161622]/95 px-2 py-1 text-[11px] text-muted-foreground">
-                {t("logs.showingLast", { shown: visibleLines.length, total: logs.length })}
-              </div>
-            )}
-            {visibleLines.map((line, i) => (
-              <AnsiLine key={renderedOffset + i} line={line} />
+            {logs.map((line, i) => (
+              <AnsiLine key={i} line={line} />
             ))}
           </div>
         )}
