@@ -798,22 +798,6 @@ export function registerBuildHandlers() {
     }
   })
 
-  ipcMain.handle(
-    "content:install-remote",
-    async (_event, contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string): Promise<{ success: boolean; filePath?: string; error?: string }> => {
-      try {
-        const gameDir = await getGameDir()
-        const targetDir = path.join(gameDir, getContentDirectoryName(contentType))
-        await fs.mkdir(targetDir, { recursive: true }).catch(() => {})
-        const safeFileName = sanitizeFileName(fileName)
-        const filePath = path.join(targetDir, safeFileName)
-        await fs.writeFile(filePath, await downloadBuffer(url))
-        return { success: true, filePath }
-      } catch (error) {
-        return opFailure(error)
-      }
-    },
-  )
 
   ipcMain.handle("build:import-modrinth", async (_event, buildName: string, projectSlug: string, versionId?: string, targetBuildId?: string): Promise<ImportResult> => {
     const signal = startImportSession()

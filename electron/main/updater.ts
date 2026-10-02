@@ -121,10 +121,6 @@ export function registerUpdater() {
     autoUpdater.quitAndInstall(false, true)
   })
 
-  ipcMain.handle("update:info", () => ({
-    version: pendingUpdate?.version ?? null,
-    downloaded: updateDownloaded,
-  }))
 
   if (!isDev) {
     setTimeout(() => {

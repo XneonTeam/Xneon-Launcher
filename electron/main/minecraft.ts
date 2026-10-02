@@ -81,8 +81,6 @@ const versionHandlers: IpcHandlerDef[] = [
   ctxHandler("minecraft:get-latest-release", "get latest release", null,
     (handler) => handler.getLatestRelease()),
 
-  ctxHandler("minecraft:get-latest-snapshot", "get latest snapshot", null,
-    (handler) => handler.getLatestSnapshot()),
 
   // Fabric / LiteLoader / Quilt / NeoForge / Forge / OptiFine version queries (with mcVersion arg)
   ctxHandler("minecraft:get-fabric-versions", "get Fabric versions", [],
@@ -108,14 +106,10 @@ const versionHandlers: IpcHandlerDef[] = [
     (handler, mcVersion) => handler.getOptifineVersions(mcVersion as string)),
 
   // No-arg version queries
-  ctxHandler("minecraft:get-fabric-game-versions", "get Fabric game versions", [],
-    (handler) => handler.getFabricGameVersions()),
 
   ctxHandler("minecraft:get-fabric-supported", "get supported Fabric versions", [],
     (handler) => handler.getFabricSupportedVersions()),
 
-  ctxHandler("minecraft:get-quilt-game-versions", "get Quilt game versions", [],
-    (handler) => handler.getQuiltGameVersions()),
 
   ctxHandler("minecraft:get-neoforge-supported", "get supported NeoForge versions", [],
     (handler) => handler.getNeoForgeSupportedVersions()),

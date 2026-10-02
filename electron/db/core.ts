@@ -34,7 +34,6 @@ let dbInitialized = false
 let dbAvailable = true
 let dbFallbackMode = false
 let database: SqliteDatabase | null = null
-let lastOpenError: string | null = null
 
 const statementCache = new Map<string, Database.Statement<unknown[], unknown>>()
 /** Потолок кэша: SQL с динамическими `IN (?,?,…)` даёт разное число плейсхолдеров. */
@@ -66,10 +65,6 @@ export function warnDbUnavailable(operation: string): void {
   if (warnedFallbackOperations.has(operation)) return
   warnedFallbackOperations.add(operation)
   console.error(`[DB] Хранилище недоступно (fallback-режим): операция «${operation}» пропущена — данные не сохраняются`)
-}
-
-export function getDatabaseLastError(): string | null {
-  return lastOpenError
 }
 
 export function getDatabase(): SqliteDatabase {
@@ -309,14 +304,12 @@ export async function initDatabaseCore(): Promise<void> {
 
     dbAvailable = true
     dbFallbackMode = false
-    lastOpenError = null
 
     const version = db.prepare("SELECT sqlite_version() AS v").get() as { v?: string } | undefined
     console.log(`[DB] better-sqlite3 (SQLite ${version?.v ?? "?"}) opened at ${dbPath}`)
   } catch (error) {
     dbAvailable = false
     dbFallbackMode = true
-    lastOpenError = error instanceof Error ? error.message : String(error)
     console.error("[DB] Falling back to in-memory storage:", error)
     try {
       database?.close()

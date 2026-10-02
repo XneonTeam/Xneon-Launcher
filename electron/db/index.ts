@@ -9,7 +9,6 @@ import { getCloudConfig, setCloudConfig, removeCloudConfig } from "./cloud"
 import { getResources, upsertResource, upsertResources, setResourceCurseforge, setResourcesCurseforge, markResourcesCurseforgeChecked, type ResourceRow } from "./resources"
 import { getFileSnapshots, upsertFileSnapshot, upsertFileSnapshots, type FileSnapshotRow } from "./snapshots"
 import { loadSkinLibrary, saveSkinToLibrary, deleteSkinFromLibrary, updateSkinVariant, updateSkinCapeId, updateSkinName, findLibrarySkinBySource, findLibrarySkinById, type SkinLibraryRow } from "./skins"
-import { aiListSessions, aiCreateSession, aiRenameSession, aiDeleteSession, aiListMessages, aiAddMessage } from "./ai"
 import { listMcServers, listTrashedMcServers, getMcServer, createMcServer, updateMcServer, softDeleteMcServer, restoreMcServer, purgeTrashedMcServers, deleteMcServer, type McServerRow } from "./mc-servers"
 import { addGameSession, listGameSessions, listGameSessionsInRange, deleteGameSessionsForDeletedBuild, deleteOrphanGameSessions, addServerSession, listServerSessions, listServerSessionsInRange, deleteServerSessionsForDeletedServer, deleteOrphanServerSessions, type GameSessionRow, type ServerSessionRow } from "./stats"
 
@@ -74,12 +73,6 @@ export const dbHelpers = {
   updateSkinName,
   findLibrarySkinBySource,
   findLibrarySkinById,
-  aiListSessions,
-  aiCreateSession,
-  aiRenameSession,
-  aiDeleteSession,
-  aiListMessages,
-  aiAddMessage,
   listMcServers,
   listTrashedMcServers,
   getMcServer,

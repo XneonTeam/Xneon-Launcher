@@ -44,11 +44,6 @@ const reportCache = new Map<string, { signature: string; report: LoaderRequireme
 
 const REPORT_CACHE_LIMIT = 64
 
-/** Сбрасывает кэш отчётов (используется при импорте/подмене файлов). */
-export function clearModLoaderRequirementsCache(): void {
-  reportCache.clear()
-}
-
 /**
  * Читает требования мода к версии загрузчика из его JAR.
  * Возвращает `null`, если метаданные прочитать не удалось.

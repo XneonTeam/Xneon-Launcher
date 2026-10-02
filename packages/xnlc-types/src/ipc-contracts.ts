@@ -86,12 +86,32 @@ import type {
 } from "./server-types.js"
 import type { ServerStatusResult } from "@xnlc/servers"
 
+/** Требование мода сборки к версии загрузчика, прочитанное из его JAR. */
+export interface BuildLoaderRequirementIssue {
+  fileName: string
+  modName?: string
+  modId?: string
+  loaderId: string
+  requirement: string
+  buildLoaderVersion?: string
+  satisfied: boolean
+  reason?: string
+}
+
+/** Отчёт о соответствии модов сборки выбранной версии загрузчика. */
+export interface BuildLoaderRequirementReport {
+  loaderId: string
+  loaderVersion?: string
+  checked: number
+  issues: BuildLoaderRequirementIssue[]
+}
+
 // ── IPC Invoke Channel Map ──────────────────────────────────
 // Maps channel name → { args: tuple of arguments, return: return type }
 
 export interface IpcInvokeMap {
-  // ── Window ──
-  "window:is-maximized": { args: []; return: boolean }
+  // ── System ──
+  "system:get-total-memory": { args: []; return: number }
 
   // ── Auth ──
   "auth:elyby-login": { args: []; return: AuthPayload }
@@ -169,15 +189,8 @@ export interface IpcInvokeMap {
   "ai:get-config": { args: []; return: { apiKey: string; endpoint: string; model: string } }
   "ai:save-config": { args: [config: { apiKey: string; endpoint: string; model: string }]; return: void }
   "ai:list-models": { args: [override?: { apiKey?: string; endpoint?: string }]; return: { success: boolean; models?: string[]; error?: string } }
-  "ai:analyze-crash": { args: [logContent: string, sessionId?: string]; return: { success: boolean; analysis?: string; error?: string } }
+  "ai:analyze-crash": { args: [logContent: string]; return: { success: boolean; analysis?: string; error?: string } }
   "ai:analyze-crash-stream": { args: [requestId: string, logContent: string]; return: { success: boolean; analysis?: string; error?: string } }
-  "ai:chat-send": { args: [sessionId: string, userMessage: string]; return: { success: boolean; analysis?: string; error?: string } }
-  "ai:chat-send-stream": { args: [requestId: string, sessionId: string, userMessage: string]; return: { success: boolean; analysis?: string; error?: string } }
-  "ai:sessions-list": { args: []; return: Array<{ id: string; title: string; createdAt: number; updatedAt: number }> }
-  "ai:sessions-create": { args: [id: string, title: string]; return: void }
-  "ai:sessions-rename": { args: [id: string, title: string]; return: void }
-  "ai:sessions-delete": { args: [id: string]; return: void }
-  "ai:messages-list": { args: [sessionId: string]; return: Array<{ id: string; role: string; content: string; createdAt: number }> }
 
   // ── Launcher Import ──
   "launcher:discover-importable-instances": { args: []; return: ImportableLauncherInstance[] }
@@ -189,42 +202,33 @@ export interface IpcInvokeMap {
   "mods:modrinth-search": { args: [query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, categories?: string[]]; return: ModSearchResponse }
   "mods:modrinth-details": { args: [slug: string]; return: ModDetails | null }
   "mods:modrinth-versions": { args: [slug: string]; return: ModVersion[] }
-  "mods:modrinth-check-updates": { args: [hashes: string[], loaders?: string[], gameVersions?: string[]]; return: Record<string, ModVersion> }
 
   // ── Mods (CurseForge) ──
   "mods:curseforge-search": { args: [query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, categories?: string[]]; return: ModSearchResponse }
   "mods:curseforge-details": { args: [modId: number]; return: ModDetails | null }
   "mods:curseforge-download-url": { args: [fileId: number, modId: number]; return: string | null }
-  "mods:curseforge-featured": { args: [gameVersion?: string]; return: { popular: ModSearchResult[]; trending: ModSearchResult[] } }
   "mods:curseforge-changelog": { args: [modId: number, fileId: number]; return: string }
-  "mods:curseforge-description": { args: [modId: number]; return: string }
   "mods:resolve-dependencies": { args: [version: ModVersion, source: "modrinth" | "curseforge"]; return: ModDependency[] }
   "mods:inspect-jar-dependencies": { args: [url: string, source: "modrinth" | "curseforge"]; return: JarDependencyInspection }
-  "mods:check-loader-requirements": { args: [buildName: string, modLoader?: string, loaderVersion?: string]; return: { loaderId: string; loaderVersion?: string; checked: number; issues: Array<{ fileName: string; modName?: string; modId?: string; loaderId: string; requirement: string; buildLoaderVersion?: string; satisfied: boolean; reason?: string }> } }
+  "mods:check-loader-requirements": { args: [buildName: string, modLoader?: string, loaderVersion?: string]; return: BuildLoaderRequirementReport }
   // ── Mods (FTB / Feed The Beast) ──
   "mods:ftb-search": { args: [query: string, page?: number, options?: { sortBy?: ModSort; categories?: string[]; gameVersion?: string; loader?: string }]; return: ModSearchResponse }
   "mods:ftb-catalog-facets": { args: []; return: { categories: string[]; gameVersions: string[]; loaders: string[] } }
   "mods:ftb-details": { args: [id: number]; return: ModDetails | null }
-  "mods:ftb-version": { args: [id: number, versionId: number]; return: FTBVersionManifest | null }
   "mods:ftb-changelog": { args: [id: number, versionId: number]; return: string }
 
   // ── Mods (Categories & Tags) ──
   "mods:modrinth-categories": { args: []; return: any[] }
   "mods:curseforge-categories": { args: []; return: (import("./mod-types.js").ModCategory)[] }
-  "mods:modrinth-loaders": { args: []; return: string[] }
-  "mods:modrinth-game-versions": { args: []; return: string[] }
 
   // ── Minecraft ──
   "minecraft:get-versions": { args: []; return: MinecraftVersionInfo[] }
   "minecraft:get-latest-release": { args: []; return: string | null }
-  "minecraft:get-latest-snapshot": { args: []; return: string | null }
-  "minecraft:get-fabric-game-versions": { args: []; return: { version: string; stable: boolean }[] }
   "minecraft:get-fabric-versions": { args: [mcVersion: string]; return: { version: string; stable: boolean }[] }
   "minecraft:get-fabric-supported": { args: []; return: string[] }
   "minecraft:get-liteloader-versions": { args: [mcVersion: string]; return: { version: string; stable: boolean }[] }
   "minecraft:get-liteloader-recommended": { args: [mcVersion: string]; return: string | null }
   "minecraft:get-liteloader-supported": { args: []; return: string[] }
-  "minecraft:get-quilt-game-versions": { args: []; return: { version: string; stable: boolean }[] }
   "minecraft:get-quilt-versions": { args: [mcVersion: string]; return: { version: string; stable: boolean }[] }
   "minecraft:get-quilt-supported": { args: []; return: string[] }
   "minecraft:get-optifine-versions": { args: [mcVersion: string]; return: { filename: string; isPreview: boolean }[] }
@@ -261,7 +265,6 @@ export interface IpcInvokeMap {
   "settings:set": { args: [key: string, value: string]; return: void }
 
   // ── Content ──
-  "content:install-remote": { args: [contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string]; return: { success: boolean; filePath?: string; error?: string } }
 
   // ── Worlds ──
   "worlds:list": { args: [buildName: string]; return: WorldInfo[] }
@@ -302,13 +305,11 @@ export interface IpcInvokeMap {
   "update:check": { args: []; return: { available: boolean; version?: string; error?: string } }
   "update:download": { args: []; return: { success: boolean; error?: string } }
   "update:install": { args: []; return: void }
-  "update:info": { args: []; return: { version: string | null; downloaded: boolean } }
 
   // ── Misc (без доменного префикса — историческое имя канала) ──
   "read-local-file": { args: [filePath: string]; return: string | null }
 
   // ── Logs ──
-  "logs:share-to-mclogs": { args: [content: string]; return: { success: boolean; url?: string; error?: string } }
 
   // ── Skins ──
   // `skins:*` — «Избранное», локальные скины и активный скин аккаунта;
@@ -344,7 +345,6 @@ export interface IpcInvokeMap {
   "cloud:is-connected": { args: [providerId: string]; return: boolean }
   "cloud:disconnect": { args: [providerId: string]; return: { success: boolean; error?: string } }
   "cloud:list-files": { args: [providerId: string, folderPath?: string]; return: { success: boolean; files?: Array<{ id: string; name: string; size: number; modifiedAt?: string; path: string; isDir: boolean; category?: string }>; error?: string } }
-  "cloud:upload-file": { args: [providerId: string, localPath: string, remotePath: string]; return: { success: boolean; id?: string; name?: string; error?: string } }
   "cloud:download-file": { args: [providerId: string, remotePath: string, localPath: string]; return: { success: boolean; localPath?: string; error?: string } }
   "cloud:delete-file": { args: [providerId: string, remotePath: string]; return: { success: boolean; error?: string } }
   "cloud:get-quota": { args: [providerId: string]; return: { used: number; total: number } | null }
@@ -378,10 +378,10 @@ export interface IpcInvokeMap {
   "mc-server:kill": { args: [id: string]; return: void }
   "mc-server:send-command": { args: [id: string, command: string]; return: void }
   "mc-server:status": { args: [id: string]; return: McServerState }
-  "mc-server:metrics": { args: [id: string]; return: McServerMetrics }
   "mc-server:metrics-subscribe": { args: [id: string]; return: void }
   "mc-server:metrics-unsubscribe": { args: [id: string]; return: void }
   "mc-server:logs": { args: [id: string]; return: string[] }
+  "mc-server:install-state": { args: [id: string]; return: { installing: boolean; progress: { phase: string; percent?: number; bytesTotal?: number; bytesDownloaded?: number; message: string } | null } }
   "mc-server:open-folder": { args: [id: string]; return: void }
   "mc-server:read-properties": { args: [id: string]; return: Record<string, string> | null }
   "mc-server:write-properties": { args: [id: string, properties: Record<string, string>]; return: void }
@@ -408,7 +408,6 @@ export interface IpcInvokeMap {
   "mc-server:fs-delete": { args: [id: string, relativePath: string]; return: void }
   "mc-server:fs-rename": { args: [id: string, oldPath: string, newPath: string]; return: void }
   "mc-server:fs-mkdir": { args: [id: string, relativePath: string]; return: void }
-  "mc-server:fs-stat": { args: [id: string, relativePath: string]; return: McFsEntry | null }
   "mc-server:fs-download": { args: [id: string, relativePath: string, url: string, fileName: string]; return: { success: boolean; filePath?: string; error?: string } }
   "mc-server:resolve-installed": { args: [id: string, relativePath: string]; return: ResolvedPlugin[] }
   "mc-server:install-pack": {
@@ -421,13 +420,11 @@ export interface IpcInvokeMap {
 // Maps channel name → payload type (for subscribe/on listeners)
 
 export interface IpcEventMap {
-  "minecraft:progress": MinecraftProgress
   "minecraft:java-progress": JavaProgress
   "minecraft:debug": string
   "minecraft:data": string
   "minecraft:download-progress": MinecraftProgress
   "minecraft:close": MinecraftCloseInfo
-  "auth:progress": string
   "import:progress": ImportProgress
   "build:export-progress": { current: number; total: number }
   "content:download-progress": ContentDownloadProgress
@@ -435,6 +432,7 @@ export interface IpcEventMap {
   "mc-server:download-progress": McServerDownloadProgress
   "mc-server:log": { id: string; line: string }
   "mc-server:state-change": { id: string; state: McServerState }
+  "mc-server:metrics": { id: string; metrics: McServerMetrics }
   "xn-connect:usage-updated": XnConnectUsage
   "xn-connect:state": { serverId: string; state: XnConnectState }
   "xn-connect:log": { serverId: string; line: string }
@@ -457,7 +455,6 @@ export interface ElectronAPIExplicit {
   maximize: () => void
   close: () => void
   restore: () => void
-  isMaximized: () => Promise<boolean>
   loginElyBy: () => Promise<AuthPayload>
   loginXnSkins: () => Promise<AuthPayload>
   loginMicrosoft: () => Promise<AuthPayload>
@@ -490,28 +487,23 @@ export interface ElectronAPIExplicit {
   modsCurseforgeSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, categories?: string[], environment?: ModEnvironment) => Promise<ModSearchResponse>
   modsCurseforgeDetails: (modId: number) => Promise<ModDetails | null>
   modsCurseforgeDownloadUrl: (fileId: number, modId: number) => Promise<string | null>
-  modsCurseforgeFeatured: (gameVersion?: string) => Promise<{ popular: ModSearchResult[]; trending: ModSearchResult[] }>
   modsResolveDependencies: (version: ModVersion, source: "modrinth" | "curseforge") => Promise<ModDependency[]>
   modsInspectJarDependencies: (url: string, source: "modrinth" | "curseforge") => Promise<JarDependencyInspection>
+  /** Требования модов сборки к версии загрузчика (читаются из самих JAR). */
+  checkBuildLoaderRequirements: (buildName: string, modLoader?: string, loaderVersion?: string) => Promise<BuildLoaderRequirementReport>
   modsFtbSearch: (query: string, page?: number, options?: { sortBy?: ModSort; categories?: string[]; gameVersion?: string; loader?: string }) => Promise<ModSearchResponse>
   modsFtbCatalogFacets: () => Promise<{ categories: string[]; gameVersions: string[]; loaders: string[] }>
   modsFtbDetails: (id: number) => Promise<ModDetails | null>
-  modsFtbVersion: (id: number, versionId: number) => Promise<FTBVersionManifest | null>
   modsFtbChangelog: (id: number, versionId: number) => Promise<string>
   modsModrinthCategories: () => Promise<any[]>
   modsCurseforgeCategories: () => Promise<any[]>
-  modsModrinthLoaders: () => Promise<string[]>
-  modsModrinthGameVersions: () => Promise<string[]>
   getMinecraftVersions: () => Promise<MinecraftVersionInfo[]>
   getLatestRelease: () => Promise<string | null>
-  getLatestSnapshot: () => Promise<string | null>
-  getFabricGameVersions: () => Promise<{ version: string; stable: boolean }[]>
   getFabricVersions: (mcVersion: string) => Promise<{ version: string; stable: boolean }[]>
   getFabricSupported: () => Promise<string[]>
   getLiteLoaderVersions: (mcVersion: string) => Promise<{ version: string; stable: boolean }[]>
   getLiteLoaderRecommended: (mcVersion: string) => Promise<string | null>
   getLiteLoaderSupported: () => Promise<string[]>
-  getQuiltGameVersions: () => Promise<{ version: string; stable: boolean }[]>
   getQuiltVersions: (mcVersion: string) => Promise<{ version: string; stable: boolean }[]>
   getQuiltSupported: () => Promise<string[]>
   getOptifineVersions: (mcVersion: string) => Promise<{ filename: string; isPreview: boolean }[]>
@@ -530,13 +522,11 @@ export interface ElectronAPIExplicit {
   launchMinecraft: (params: MinecraftLaunchParams) => Promise<{ success: boolean; error?: string }>
   stopMinecraft: () => Promise<void>
   isMinecraftRunning: () => Promise<boolean>
-  onMinecraftProgress: (callback: (progress: MinecraftProgress) => void) => CleanupFn
   onMinecraftJavaProgress: (callback: (progress: JavaProgress) => void) => CleanupFn
   onMinecraftDebug: (callback: (message: string) => void) => CleanupFn
   onMinecraftData: (callback: (message: string) => void) => CleanupFn
   onMinecraftDownloadStatus: (callback: (progress: MinecraftProgress) => void) => CleanupFn
   onMinecraftClose: (callback: (info: MinecraftCloseInfo) => void) => CleanupFn
-  onAuthProgress: (callback: (msg: string) => void) => CleanupFn
   onCliLaunchBuild: (callback: (buildName: string) => void) => CleanupFn
   getSetting: (key: string) => Promise<string | undefined>
   setSetting: (key: string, value: string) => Promise<void>
@@ -553,7 +543,8 @@ export interface ElectronAPIExplicit {
   deleteContentFromIntent: (buildId: string, contentType: "mod" | "resourcepack" | "shader", fileName: string) => Promise<{ success: boolean; error?: string }>
   setBuildIntentPath: (buildId: string, intentPath: string) => Promise<void>
   deleteBuildIntent: (buildName: string) => Promise<{ success: boolean; error?: string }>
-  installContentFile: (contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string) => Promise<{ success: boolean; filePath?: string; error?: string }>
+  /** Удаляет из папки сборки профили загрузчиков, не совпадающие с выбором. */
+  pruneLoaderProfiles: (buildName: string, modLoader?: string, loaderVersion?: string) => Promise<{ removed: string[]; kept: string[] }>
   importModrinthModpack: (buildName: string, projectSlug: string, versionId?: string, targetBuildId?: string) => Promise<ModpackImportResult>
   importCurseforgeModpack: (buildName: string, modId: number, fileId: number, targetBuildId?: string) => Promise<ModpackImportResult>
   importFtbModpack: (buildName: string, modpackId: number, versionId: number, targetBuildId?: string) => Promise<ModpackImportResult>
@@ -565,7 +556,6 @@ export interface ElectronAPIExplicit {
   openExternal: (url: string) => Promise<void>
   openLauncherFolder: () => Promise<void>
   openPath: (dirPath: string) => Promise<void>
-  shareToMclogs: (content: string) => Promise<{ success: boolean; url?: string; error?: string }>
   detectJavaInstallations: (force?: boolean) => Promise<JavaDetectResult[]>
   pickJavaFile: () => Promise<string | null>
   listWorlds: (buildName: string) => Promise<WorldInfo[]>
@@ -613,15 +603,8 @@ export interface ElectronAPIExtra {
   getAiConfig: () => Promise<{ apiKey: string; endpoint: string; model: string }>
   saveAiConfig: (config: { apiKey: string; endpoint: string; model: string }) => Promise<void>
   listAiModels: (override?: { apiKey?: string; endpoint?: string }) => Promise<{ success: boolean; models?: string[]; error?: string }>
-  analyzeCrash: (logContent: string, sessionId: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
+  analyzeCrash: (logContent: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
   analyzeCrashStream: (requestId: string, logContent: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
-  aiChatSend: (sessionId: string, userMessage: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
-  aiChatSendStream: (requestId: string, sessionId: string, userMessage: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
-  aiListSessions: () => Promise<Array<{ id: string; title: string; createdAt: number; updatedAt: number }>>
-  aiCreateSession: (id: string, title: string) => Promise<void>
-  aiRenameSession: (id: string, title: string) => Promise<void>
-  aiDeleteSession: (id: string) => Promise<void>
-  aiListMessages: (sessionId: string) => Promise<Array<{ id: string; role: string; content: string; createdAt: number }>>
   onAiStreamChunk: (callback: (data: { requestId: string; content: string }) => void) => () => void
   onAiStreamDone: (callback: (data: { requestId: string; fullText: string }) => void) => () => void
   onAiStreamError: (callback: (data: { requestId: string; error: string }) => void) => () => void
@@ -635,7 +618,6 @@ export interface ElectronAPIExtra {
   cloudIsConnected: (providerId: string) => Promise<boolean>
   cloudDisconnect: (providerId: string) => Promise<{ success: boolean; error?: string }>
   cloudListFiles: (providerId: string, folderPath?: string) => Promise<{ success: boolean; files?: Array<{ id: string; name: string; size: number; modifiedAt?: string; path: string; isDir: boolean; category?: string }>; error?: string }>
-  cloudUploadFile: (providerId: string, localPath: string, remotePath: string) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
   cloudDownloadFile: (providerId: string, remotePath: string, localPath: string) => Promise<{ success: boolean; localPath?: string; error?: string }>
   cloudDeleteFile: (providerId: string, remotePath: string) => Promise<{ success: boolean; error?: string }>
   cloudGetQuota: (providerId: string) => Promise<{ used: number; total: number } | null>
@@ -682,7 +664,6 @@ export interface ElectronAPIExtra {
   updateCheck: () => Promise<{ available: boolean; version?: string; error?: string }>
   updateDownload: () => Promise<{ success: boolean; error?: string }>
   updateInstall: () => Promise<void>
-  updateInfo: () => Promise<{ version: string | null; downloaded: boolean }>
   onUpdateStatus: (callback: (status: { status: string; version?: string; releaseDate?: string; releaseNotes?: string; error?: string }) => void) => () => void
   onUpdateProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void
   skinsGetProfile: (accountId?: string) => Promise<McProfile | null>
@@ -718,12 +699,12 @@ export interface ElectronAPIExtra {
   mcServerKill: (id: string) => Promise<void>
   mcServerSendCommand: (id: string, command: string) => Promise<void>
   mcServerStatus: (id: string) => Promise<McServerState>
-  mcServerMetrics: (id: string) => Promise<McServerMetrics>
   /** Подписка на push-метрики сервера (вместо поллинга из renderer). */
   mcServerMetricsSubscribe: (id: string) => Promise<void>
   mcServerMetricsUnsubscribe: (id: string) => Promise<void>
   onMcServerMetrics: (callback: (data: { id: string; metrics: McServerMetrics }) => void) => CleanupFn
   mcServerLogs: (id: string) => Promise<string[]>
+  mcServerInstallState: (id: string) => Promise<{ installing: boolean; progress: { phase: string; percent?: number; bytesTotal?: number; bytesDownloaded?: number; message: string } | null }>
   mcServerOpenFolder: (id: string) => Promise<void>
   mcServerReadProperties: (id: string) => Promise<Record<string, string> | null>
   mcServerWriteProperties: (id: string, properties: Record<string, string>) => Promise<void>
@@ -750,7 +731,6 @@ export interface ElectronAPIExtra {
   mcServerFsDelete: (id: string, relativePath: string) => Promise<void>
   mcServerFsRename: (id: string, oldPath: string, newPath: string) => Promise<void>
   mcServerFsMkdir: (id: string, relativePath: string) => Promise<void>
-  mcServerFsStat: (id: string, relativePath: string) => Promise<McFsEntry | null>
   mcServerFsDownload: (id: string, relativePath: string, url: string, fileName: string) => Promise<{ success: boolean; filePath?: string; error?: string }>
   mcServerResolveInstalled: (id: string, relativePath: string) => Promise<Array<{ name: string; sha1: string; projectId?: string; versionId?: string }>>
 
@@ -781,8 +761,6 @@ export interface ElectronAPIExtra {
   getSpongeSupported: (spongeType?: string) => Promise<string[]>
   getSpongeVersions: (spongeType: string, mcVersion: string) => Promise<{ value: string; label: string; stable?: boolean; recommended?: boolean }[]>
   modsCurseforgeChangelog: (modId: number, fileId: number) => Promise<string>
-  modsCurseforgeDescription: (modId: number) => Promise<string>
-  modsModrinthCheckUpdates: (hashes: string[], loaders?: string[], gameVersions?: string[]) => Promise<Record<string, ModVersion>>
 }
 
 // Legacy cloud-контракты (`cloudLogin`/`cloudGetFiles`/… token-based) удалены:

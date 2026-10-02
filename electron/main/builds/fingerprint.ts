@@ -1,5 +1,3 @@
-import fs from "fs/promises"
-
 // CurseForge file fingerprints are 32-bit hashes of the file content
 // with all whitespace characters stripped (matching XMCL's fingerprint
 // implementation: murmurhash v2, seed 1).
@@ -64,9 +62,4 @@ export function computeFingerprintFromBuffer(buf: Buffer): number {
     }
   }
   return murmurhash2(buf.subarray(0, j), 1)
-}
-
-/** Computes the CurseForge fingerprint for a file (content with whitespace stripped, murmurhash v2 seed 1). */
-export async function computeFingerprint(filePath: string): Promise<number> {
-  return computeFingerprintFromBuffer(await fs.readFile(filePath))
 }

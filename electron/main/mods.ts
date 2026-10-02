@@ -142,16 +142,6 @@ export function registerModsHandlers(): void {
     },
   )
 
-  ipcMain.handle(
-    "mods:curseforge-featured",
-    async (
-      _event,
-      gameVersion?: string,
-    ): Promise<{ popular: ModSearchResponse["results"]; trending: ModSearchResponse["results"] }> => {
-      const mods = await loadModsModule()
-      return await mods.curseforgeFeatured(gameVersion) as { popular: ModSearchResponse["results"]; trending: ModSearchResponse["results"] }
-    },
-  )
 
   ipcMain.handle(
     "mods:curseforge-changelog",
@@ -161,21 +151,7 @@ export function registerModsHandlers(): void {
     },
   )
 
-  ipcMain.handle(
-    "mods:curseforge-description",
-    async (_event, modId: number): Promise<string> => {
-      const mods = await loadModsModule()
-      return await mods.curseforgeGetDescription(modId)
-    },
-  )
 
-  ipcMain.handle(
-    "mods:modrinth-check-updates",
-    async (_event, hashes: string[], loaders?: string[], gameVersions?: string[]): Promise<Record<string, any>> => {
-      const mods = await loadModsModule()
-      return await mods.modrinthCheckUpdates(hashes, loaders, gameVersions)
-    },
-  )
 
   // ── FTB (Feed The Beast) ──────────────────────────────────
   ipcMain.handle(
@@ -228,18 +204,6 @@ export function registerModsHandlers(): void {
     },
   )
 
-  ipcMain.handle(
-    "mods:ftb-version",
-    async (event, id: number, versionId: number): Promise<unknown | null> => {
-      try {
-        const mods = await loadModsModule()
-        return await mods.ftbGetModpackVersion(id, versionId)
-      } catch (err) {
-        console.error("FTB version error:", err)
-        return null
-      }
-    },
-  )
 
   ipcMain.handle(
     "mods:ftb-changelog",
@@ -336,21 +300,5 @@ export function registerModsHandlers(): void {
     }
   })
 
-  ipcMain.handle("mods:modrinth-loaders", async (): Promise<string[]> => {
-    try {
-      const mods = await loadModsModule()
-      return await mods.modrinthGetLoaders()
-    } catch {
-      return []
-    }
-  })
 
-  ipcMain.handle("mods:modrinth-game-versions", async (): Promise<string[]> => {
-    try {
-      const mods = await loadModsModule()
-      return await mods.modrinthGetGameVersions()
-    } catch {
-      return []
-    }
-  })
 }

@@ -45,8 +45,3 @@ export async function setSetting(key: string, value: string): Promise<void> {
   run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [key, value])
 }
 
-/** Сброс кэша настроек (например, при переоткрытии БД или миграции настроек). */
-export function clearSettingsCache(): void {
-  settingsCache.clear()
-}
-

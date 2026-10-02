@@ -37,10 +37,6 @@ export function upsertActiveServerSession(session: ActiveServerSession): void {
   activeServers.set(session.serverId, session)
 }
 
-export function removeActiveServerSession(serverId: string): void {
-  activeServers.delete(serverId)
-}
-
 /** Returns the active server session (if any) and removes it from the tracker. */
 export function takeActiveServerSession(serverId: string): ActiveServerSession | null {
   const session = activeServers.get(serverId) ?? null
@@ -50,10 +46,4 @@ export function takeActiveServerSession(serverId: string): ActiveServerSession |
 
 export function getActiveServerSessions(): ActiveServerSession[] {
   return [...activeServers.values()]
-}
-
-/** Clears all in-progress sessions (e.g. on app shutdown). */
-export function clearActiveSessions(): void {
-  activeGame = null
-  activeServers.clear()
 }

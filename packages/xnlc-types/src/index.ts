@@ -101,6 +101,8 @@ export type {
   ElectronAPIExplicit,
   ElectronAPIExtra,
   ElectronAPI,
+  BuildLoaderRequirementIssue,
+  BuildLoaderRequirementReport,
 } from "./ipc-contracts.js"
 
 // Launch types

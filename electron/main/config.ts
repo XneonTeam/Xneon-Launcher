@@ -6,15 +6,6 @@ async function getSettingOrDefault(key: string, fallback: string): Promise<strin
   return stored || fallback
 }
 
-export const getCloudApiUrl = () =>
-  getSettingOrDefault("cloudApiUrl", process.env.CLOUD_API_URL || "http://87.121.82.248:3001/api")
-
-export const getXnClientId = () =>
-  getSettingOrDefault("xnClientId", getCloudCredentials().xnskins.clientId)
-
-export const getXnClientSecret = () =>
-  getSettingOrDefault("xnClientSecret", getCloudCredentials().xnskins.clientSecret)
-
 export const getElyClientId = () =>
   getSettingOrDefault("elyClientId", getCloudCredentials().elyby.clientId)
 

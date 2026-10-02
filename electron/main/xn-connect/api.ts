@@ -4,7 +4,6 @@ import fs from "fs"
 import path from "path"
 
 export const DEFAULT_API_URL = "https://connect.xneon.org"
-export const DEFAULT_RELAY_ADDR = "relay.xneon.org:5000"
 
 export type Node = {
   id: string
@@ -246,19 +245,6 @@ export async function apiPollDeviceAuth(apiUrl: string, deviceCode: string): Pro
   }
 
   return null
-}
-
-export async function apiBrowserAuth(apiUrl: string): Promise<string> {
-  const session = await apiStartDeviceAuth(apiUrl)
-
-  for (let i = 0; i < Math.ceil(session.expiresIn / session.interval); i++) {
-    if (i > 0) await new Promise(r => setTimeout(r, session.interval * 1000))
-
-    const token = await apiPollDeviceAuth(apiUrl, session.deviceCode)
-    if (token) return token
-  }
-
-  throw new Error("auth timeout")
 }
 
 export type XnConnectAccount = {

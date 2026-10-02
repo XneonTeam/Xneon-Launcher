@@ -327,18 +327,6 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
   }, [patchLaunchUi])
 
   useEffect(() => {
-    const offProgress = window.electronAPI?.onMinecraftProgress?.((progress) => {
-      const patch: Partial<LaunchUiState> = {}
-      if (typeof progress.task === "number" && typeof progress.total === "number" && progress.total > 0) {
-        patch.progress = Math.round((progress.task / progress.total) * 100)
-        patch.phase = "installing"
-      }
-      if (progress.type || progress.installationPhase) {
-        patch.status = getStageLabel(progress.type, progress.installationPhase, tRef.current)
-      }
-      if (progress.fileName) patch.currentFileName = progress.fileName
-      patchLaunchUi(patch)
-    })
     const offDownload = window.electronAPI?.onMinecraftDownloadStatus?.((progress) => {
       const patch: Partial<LaunchUiState> = {
         status: getStageLabel(progress.type, progress.installationPhase, tRef.current),
@@ -434,7 +422,6 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
     })
 
     return () => {
-      offProgress?.()
       offDownload?.()
       offJava?.()
       offDebug?.()
