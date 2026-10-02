@@ -11,6 +11,7 @@ import { ServerDetailPage } from "./server-detail-page"
 import { StatsPage } from "./stats-page"
 import { OnboardingModal } from "./onboarding-modal"
 import { Sidebar, type TabId } from "./sidebar"
+import { Spinner } from "./instance/spinner"
 import { applyTheme, presetThemes } from "./settings/data"
 import type { McServerInfo } from "@xnlc/types"
 
@@ -56,26 +57,16 @@ function prefetchHeavyPages(): void {
  * Заглушка на время загрузки lazy-страницы.
  *
  * Раньше здесь был пустой `<div>` — при первом заходе на тяжёлую вкладку
- * пользователь видел чёрный экран без каких-либо признаков загрузки. Теперь это
- * скелет: он не «мигает» спиннером на весь экран, но показывает, что страница
- * открывается.
+ * пользователь видел чёрный экран без признаков загрузки. Потом появился скелет
+ * из прямоугольников, но он рисовал макет страницы, которой пользователь ещё не
+ * видел: рамки прыгали и ничего не сообщали. Во всём остальном лаунчере загрузка
+ * выглядит одинаково — центрированный `Spinner` (скины, библиотека, серверы,
+ * аддоны, Modrinth/CurseForge/FTB), поэтому фолбэк приведён к тому же виду.
  */
 function PageFallback() {
   return (
-    <div className="flex h-full w-full flex-col gap-4 p-1 animate-pulse" aria-busy="true" aria-live="polite">
-      <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-muted/60" />
-        <div className="flex flex-col gap-2">
-          <div className="h-4 w-40 rounded-md bg-muted/60" />
-          <div className="h-3 w-56 rounded-md bg-muted/40" />
-        </div>
-      </div>
-      <div className="h-10 w-full max-w-md rounded-xl bg-muted/40" />
-      <div className="grid flex-1 content-start gap-3 min-h-0 overflow-hidden sm:grid-cols-2 xl:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <div key={index} className="h-24 rounded-2xl border border-border/60 bg-muted/20" />
-        ))}
-      </div>
+    <div className="flex h-full w-full items-center justify-center" aria-busy="true" aria-live="polite">
+      <Spinner />
     </div>
   )
 }

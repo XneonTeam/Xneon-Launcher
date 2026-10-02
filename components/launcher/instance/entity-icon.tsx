@@ -19,9 +19,15 @@ export function EntityIcon({ src, className, imgClassName, alt = "", onImgError 
 
   if (logo) {
     return (
+      // `flex`, а не `inline-flex`: аватарка почти всегда лежит в обычном блочном
+      // `<div>` (карточка сборки/сервера, корзина, статистика), а inline-элемент
+      // в блочном контейнере встаёт по базовой линии строки, а не по центру —
+      // из-за этого логотип уезжал вниз на несколько пикселей. Блочный флекс
+      // центрируется самой раскладкой. Внутри flex-родителя разницы нет: flex-элемент
+      // всё равно блокифицируется.
       <span
         className={cn(
-          "inline-flex items-center justify-center [&>svg]:w-full [&>svg]:h-full",
+          "flex items-center justify-center [&>svg]:w-full [&>svg]:h-full",
           "group-focus/item:text-accent-foreground",
           className,
         )}

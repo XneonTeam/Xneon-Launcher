@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IconBrain, IconKey, IconWorld, IconLoader2, IconCheck, IconAlertTriangle, IconSearch, IconRefresh } from "@tabler/icons-react"
+import { IconBrain, IconKey, IconWorld, IconLoader2, IconCheck, IconAlertTriangle, IconSearch, IconRefresh, IconSparkles, IconExternalLink } from "@tabler/icons-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+
+/**
+ * Партнёрский сервис с оплатой за токены: выдаёт и ключ, и адрес API, поэтому
+ * стоит ровно там, где пользователь эти два поля и заполняет. Ссылка реферальная.
+ */
+const TOKEN_API_URL = "https://codex.sale/register?ref=stepangavrilov736"
 
 export function SettingsAi() {
   const { t } = useTranslation()
@@ -91,7 +97,7 @@ export function SettingsAi() {
     setTestResult(null)
     setTestMessage("")
     try {
-      const result = await api.analyzeCrash("[Test] java.lang.OutOfMemoryError: Java heap space\n\tat net.minecraft.client.main.Main.main(Main.java:100)", crypto.randomUUID())
+      const result = await api.analyzeCrash("[Test] java.lang.OutOfMemoryError: Java heap space\n\tat net.minecraft.client.main.Main.main(Main.java:100)")
       if (result.success) {
         setTestResult("ok")
         setTestMessage("API connected successfully!")
@@ -269,6 +275,26 @@ export function SettingsAi() {
               </div>
             </DialogContent>
           </Dialog>
+        </div>
+
+        {/* Небольшая рекомендация провайдера: ключ и адрес API выдаются в одном
+            месте, поэтому блок стоит сразу после полей ключа, endpoint и модели. */}
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-primary/25 bg-primary/5 p-3.5">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary/15">
+            <IconSparkles className="h-4 w-4 text-primary" strokeWidth={1.75} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-foreground">{t("ai.promo.title")}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{t("ai.promo.desc")}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void window.electronAPI?.openExternal(TOKEN_API_URL)}
+            className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          >
+            <IconExternalLink className="h-3.5 w-3.5" />
+            {t("ai.promo.cta")}
+          </button>
         </div>
 
         {/* Actions */}
