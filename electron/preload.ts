@@ -63,8 +63,8 @@ import type {
   StorageCleanResult,
   CloudUploadCategory,
   MinecraftCloseInfo,
+  ServerStatusResult,
 } from '@xnlc/types' with { 'resolution-mode': 'import' }
-import type { ServerStatusResult } from '@xnlc/servers'
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): CleanupFn {
   const handler = (_: Electron.IpcRendererEvent, payload: T) => callback(payload)

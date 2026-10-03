@@ -133,4 +133,5 @@ export type {
   XnConnectState,
   XnConnectUsage,
   McServerDownloadProgress,
+  ServerStatusResult,
 } from "./server-types.js"

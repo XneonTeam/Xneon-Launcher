@@ -83,8 +83,8 @@ import type {
   McServerMetrics,
   McPlayerEntry,
   McServerDownloadProgress,
+  ServerStatusResult,
 } from "./server-types.js"
-import type { ServerStatusResult } from "@xnlc/servers"
 
 /** Требование мода сборки к версии загрузчика, прочитанное из его JAR. */
 export interface BuildLoaderRequirementIssue {
