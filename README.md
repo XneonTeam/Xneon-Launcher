@@ -8,13 +8,14 @@
 
 <p align="center">
   <a href="https://github.com/XneonTeam/Xneon-Launcher/releases/latest">
-    <img src="https://img.shields.io/github/v/release/MAINER4IK/xnlauncher?style=flat-square&color=f97316" alt="Version">
+    <img src="https://img.shields.io/github/v/release/XneonTeam/Xneon-Launcher?style=flat-square&color=f97316" alt="Version">
   </a>
   <a href="https://github.com/XneonTeam/Xneon-Launcher/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License">
   </a>
-  <img src="https://img.shields.io/badge/Electron-35-47848F?style=flat-square&logo=electron" alt="Electron">
+  <img src="https://img.shields.io/badge/Electron-43-47848F?style=flat-square&logo=electron" alt="Electron">
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react" alt="React">
+  <img src="https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite" alt="Vite">
   <br>
   <img src="https://img.shields.io/badge/Windows-0078D4?style=flat-square&logo=windows" alt="Windows">
   <img src="https://img.shields.io/badge/macOS-000000?style=flat-square&logo=apple" alt="macOS">
@@ -22,42 +23,72 @@
 </p>
 
 <p align="center">
-  <strong>Xneon Launcher</strong> — современный лаунчер для Minecraft с открытым исходным кодом. Быстрый, гибкий, с поддержкой импорта сборок из других лаунчеров и облачным хранением.
+  <strong>Xneon Launcher</strong> — современный лаунчер для Minecraft с открытым исходным кодом: сборки и моды, локальные серверы, облачная синхронизация, скины, статистика и AI-помощник в одном приложении.
 </p>
 
-## Features
+## Возможности
 
-- 🚀 **Запуск Minecraft** — поддержка Vanilla, Fabric, Quilt, Forge, NeoForge с любыми версиями
-- 📦 **Импорт из других лаунчеров** — Prism Launcher, MultiMC, PolyMC, GDLauncher, XMCL, Modrinth App, AstralRinth
-- 🌐 **Облачное хранение** — синхронизация сборок, модов и настроек между устройствами
-- 🎮 **Игра с друзьями** — P2P-lobby для совместной игры в Minecraft: создание комнат, чат, приглашение игроков
-- 📥 **Modrinth & CurseForge** — встроенный поиск, установка и обновление модов и модпаков
-- 🗂 **Управление сборками** — изолированные профили с собственными модами, ресурспаками и шейдерами
-- 🔐 **Аккаунты** — поддержка Microsoft, Ely.by, XNSkins и оффлайн-режима
-- 🧵 **RetroAuth / Authlib Injector** — встроенная поддержка альтернативной авторизации
-- ⚙️ **Гибкие настройки** — управление Java, памятью, аргументами запуска
-- 🌍 **Мультиязычность** — русский, английский, украинский, немецкий, испанский
-- 🎨 **Кастомизация** — темная/светлая тема, настраиваемый интерфейс
+### Игра
+- 🚀 **Запуск Minecraft** — Vanilla, Fabric, Quilt, Forge, NeoForge, LiteLoader и OptiFine на любых версиях
+- ⚡ **Быстрая игра** — миры и недавние серверы с MOTD, онлайном, версией и пингом прямо на главной
+- ⚙️ **Гибкий запуск** — Java, память, аргументы JVM, команды до и после запуска, wrapper, переменные окружения, поведение лаунчера после старта игры
+- 📊 **Статистика** — время в игре, сессии, аптайм серверов, графики активности и топы сборок
+- 📜 **Логи запуска** — уровни, поиск, копирование и разбор краша через AI
+
+### Контент
+- 📥 **Modrinth, CurseForge и FTB** — поиск, установка и обновление модов, ресурспаков, шейдеров и модпаков
+- 🗂 **Сборки** — изолированные профили со своими модами, мирами и настройками, категории, корзина, экспорт и импорт сборки в ZIP
+- 🔄 **Автообновление контента** — бейджи обновлений, ченджлоги и обновление всего сразу
+- 🧩 **Зависимости** — установка обязательных модов, проверка совместимости с версией загрузчика, распознавание уже установленного по проекту
+
+### Серверы
+- 🎮 **Локальные серверы** — мастер создания (Vanilla, Forge, Fabric, Quilt, NeoForge, Paper, Spigot, Bukkit, Purpur, Folia, Sponge, BungeeCord, Velocity, Waterfall или свой JAR), автозагрузка Java и ядра, консоль, файловый менеджер, `server.properties`, игроки (whitelist, операторы, баны), группы, корзина и экспорт в ZIP
+- 🌐 **XN Connect** — сервер получает внешний адрес `connect.xneon.org`: друзья заходят без белого IP и настройки проброса портов
+
+### Аккаунты и оформление
+- 🔐 **Аккаунты** — Microsoft, Ely.by, XNSkins и оффлайн-режим, встроенный authlib-injector
+- 🎨 **Скины** — своя библиотека, каталог Laby с фильтрами, избранное, плащи и превью на элитре
+- ☁️ **Облако** — Google Drive, Dropbox, Яндекс.Диск, OneDrive, WebDAV и S3, выборочная загрузка и импорт
+- 🤖 **AI-помощник** — разбор крашей и ответы в потоковом режиме
+- 💾 **Хранилище** — разбор занятого места по категориям и очистка мусора
+- 🌍 **Языки** — русский, английский, украинский, немецкий, испанский
+- 🖼 **Темы** — готовые и своя, тёмное и светлое оформление
 
 ## Скриншоты
 
-![Главный экран](https://launcher.xneon.org/screenshots/home.png)
-*Главный экран с библиотекой сборок*
+| Главная | Сборки |
+|---|---|
+| ![Главная](docs/screenshots/1.0.6/home.png) | ![Сборки](docs/screenshots/1.0.6/builds.png) |
+
+| Серверы | Консоль сервера |
+|---|---|
+| ![Серверы](docs/screenshots/1.0.6/servers.png) | ![Консоль сервера](docs/screenshots/1.0.6/server-console.png) |
+
+| Скины | Статистика |
+|---|---|
+| ![Скины](docs/screenshots/1.0.6/skins.png) | ![Статистика](docs/screenshots/1.0.6/stats.png) |
+
+| Облако | Хранилище |
+|---|---|
+| ![Облако](docs/screenshots/1.0.6/cloud.png) | ![Хранилище](docs/screenshots/1.0.6/settings-storage.png) |
 
 ## Быстрый старт
 
+Нужны **Node.js 22+** и **pnpm 11+** (проект — pnpm-воркспейс, локальные пакеты подключаются через `workspace:*`).
+
 ```bash
 # Установка зависимостей
-npm install
+pnpm install
 
 # Запуск в режиме разработки (Vite + Electron)
-npm run dev
+pnpm run dev
 
-# Сборка production-версии
-npm run build
+# Проверка типов
+pnpm run typecheck
 
-# Упаковка в дистрибутив (electron-builder)
-npm run package
+# Production-сборка и упаковка в дистрибутив
+pnpm run build
+pnpm run package
 ```
 
 ## Импорт из других лаунчеров
@@ -71,42 +102,57 @@ XNeon автоматически обнаружит установленные �
 | PolyMC | `%APPDATA%\PolyMC\instances` | `~/Library/Application Support/PolyMC` | `~/.local/share/PolyMC` |
 | GDLauncher Carbon | `%APPDATA%\gdlauncher_carbon\data\instances` | `~/Library/Application Support/gdlauncher_carbon/data/instances` | `~/.local/share/gdlauncher_carbon` |
 | XMCL / X Launcher | `~\.minecraftx\instances` | `~/Library/Application Support/{xmcl,.minecraftx}/instances` | `~/.minecraftx/instances` |
-| Modrinth App | `%APPDATA%\ModrinthApp\profiles` | `~/Library/Application Support/ModrinthApp` | `~/.local/share/ModrinthApp` |
-| AstralRinth | `%APPDATA%\AstralRinthApp\profiles` | `~/Library/Application Support/AstralRinthApp` | `~/.local/share/AstralRinthApp` |
+| Modrinth App | `%APPDATA%\ModrinthApp\app.db` | `~/Library/Application Support/ModrinthApp/app.db` | `~/.local/share/ModrinthApp/app.db` |
+| AstralRinth | `%APPDATA%\AstralRinthApp\app.db` | `~/Library/Application Support/AstralRinthApp/app.db` | `~/.local/share/AstralRinthApp/app.db` |
 
 ## Разработка
 
 ### Архитектура
 
-Проект состоит из двух частей:
-
-- **Renderer** (`src/`) — интерфейс на React 19 + Vite 6 + Tailwind 4 + shadcn/ui
-- **Electron main** (`electron/`) — системные вызовы, запуск Minecraft через forked worker, IPC-обработчики
-
-Локальные пакеты в `packages/`:
-- `@xnlc/core` — запуск Minecraft
-- `@xnlc/mods` — работа с Modrinth / CurseForge API
-- `@xnlc/types` — общие TypeScript-типы
+- **Renderer** (`components/`, `src/`, `lib/`) — интерфейс на React 19 + Vite 8 + Tailwind 4
+- **Electron main** (`electron/main/`) — IPC-обработчики, база данных, запуск Minecraft в отдельном worker-процессе
+- **Пакеты** (`packages/`) — доменная логика, подключённая как pnpm-воркспейс:
+  - `@xnlc/core` — движок запуска Minecraft и загрузчики
+  - `@xnlc/mods` — клиенты Modrinth, CurseForge и FTB
+  - `@xnlc/servers` — ядра серверов, установка и управление процессами
+  - `@xnlc/skins` — домен скинов: каталог Laby, библиотека, надевание
+  - `@xnlc/nbt` — чтение и запись NBT (`level.dat`, `servers.dat`)
+  - `@xnlc/types` — общие типы и IPC-контракты
 
 ### Команды
 
 ```bash
-npm run dev           # Vite + Electron с hot-reload
-npm run build         # production-сборка
-npm run package       # electron-builder → release/
-npm run lint          # проверить код
+pnpm run dev           # Vite + Electron с hot-reload
+pnpm run dev:fast      # то же, без пересборки main перед стартом
+pnpm run build         # typecheck + сборка renderer и main
+pnpm run package       # electron-builder → release/
+pnpm run typecheck     # tsc --noEmit
+pnpm run test          # тесты домена скинов (67 тестов)
+pnpm run sync:xnlc     # собрать и перелинковать пакеты @xnlc/*
 ```
 
 ### Структура
 
 ```
 components/launcher/   # UI-компоненты (страницы, модалки, настройки)
-electron/main/         # Электрон main process
+electron/main/         # Electron main: IPC, БД, сборки, серверы, облако
 electron/preload.ts    # Preload-скрипт (IPC-мост)
-packages/              # Локальные npm-пакеты
-src/                   # Точка входа renderer, i18n, контексты
-public/                # Статические файлы, иконки лаунчеров
+lib/                   # Общие утилиты renderer (кэш, форматирование, ссылки)
+packages/              # Локальные пакеты @xnlc/*
+src/                   # Точка входа renderer, i18n, контексты, хуки
+public/                # Статические файлы и иконки лаунчеров
+docs/screenshots/      # Скриншоты для README и релизов
 ```
+
+### Данные лаунчера
+
+| Платформа | Каталог |
+|---|---|
+| Windows | `%APPDATA%\xneonlauncher` |
+| macOS | `~/Library/Application Support/xneonlauncher` |
+| Linux | `~/.xneonlauncher` |
+
+Внутри: `data.db` (SQLite, better-sqlite3), `cache/` (каталог Laby, каталог FTB), `intents/<сборка>/` — изолированный `.minecraft` каждой сборки, `mc-servers/<id>/` — локальные серверы, `skins/` — сохранённые скины.
 
 ## Лицензия
 
@@ -116,6 +162,8 @@ public/                # Статические файлы, иконки лау�
 
 - [Prism Launcher](https://prismlauncher.org/) — за вдохновение в области управления инстансами
 - [X Minecraft Launcher](https://xmcl.app) — за отличный пример Electron-лаунчера
-- [Modrinth](https://modrinth.com) и [CurseForge](https://curseforge.com) — за API для модов
+- [Modrinth](https://modrinth.com), [CurseForge](https://curseforge.com) и [FTB](https://api.modpacks.ch) — за API для модов и модпаков
+- [skinview3d](https://github.com/bs-community/skinview3d) и [three.js](https://threejs.org) — за 3D-превью скинов
+- [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) — за быструю работу с базой данных
 - [shadcn/ui](https://ui.shadcn.com) — за компоненты интерфейса
 - [Tabler Icons](https://tabler-icons.io) — за иконки
