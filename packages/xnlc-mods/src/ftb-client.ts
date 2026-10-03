@@ -108,7 +108,7 @@ async function ftbFetch(endpoint: string, options?: { timeoutMs?: number; retrie
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await fetch(`${FTB_BASE}${endpoint}`, {
-        headers: { "User-Agent": "XNeon-Launcher/1.0 (launcher@xneon.fun)" },
+        headers: { "User-Agent": "Xneon-Launcher/1.0 (launcher@xneon.fun)" },
         signal: controller.signal,
       });
       if (!res.ok) throw new Error(`FTB API ${res.status}: ${res.statusText}`);

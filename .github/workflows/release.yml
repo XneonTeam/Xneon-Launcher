@@ -16,15 +16,15 @@ jobs:
         include:
           - os: ubuntu-latest
             target: linux
-            artifact_name: XNeon-Launcher-Linux
+            artifact_name: Xneon-Launcher-Linux
             build_cmd: pnpm exec electron-builder --linux AppImage deb rpm tar.xz pacman --publish never
           - os: windows-latest
             target: windows
-            artifact_name: XNeon-Launcher-Windows
+            artifact_name: Xneon-Launcher-Windows
             build_cmd: pnpm exec electron-builder --win nsis zip --publish never
           - os: macos-latest
             target: mac
-            artifact_name: XNeon-Launcher-Mac
+            artifact_name: Xneon-Launcher-Mac
             build_cmd: pnpm exec electron-builder --mac dmg zip --publish never
     runs-on: ${{ matrix.os }}
 
