@@ -427,6 +427,7 @@ export function FavoritesTab() {
                 loading={loading}
                 dragOver={dragOver}
                 capes={profile?.capes ?? []}
+                previewVersion={skinVersion}
                 onSelect={setSelectedId}
                 onEdit={(skin) => handleEditClick(skin)}
                 onDelete={handleDeleteSkin}
