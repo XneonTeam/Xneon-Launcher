@@ -39,6 +39,23 @@ export function formatDownloads(num: number) {
   return String(num)
 }
 
+/**
+ * Тэги FTB — свалка из категорий, версий Minecraft и загрузчиков, а тегом «FTB»
+ * помечены 75 паков из 87. Показываем только настоящие категории (`Tech`,
+ * `Magic`, `Skyblock`): версия и загрузчик у пака уже есть отдельными полями,
+ * а «FTB» внутри каталога FTB не сообщает ничего.
+ *
+ * Держать в синхроне с `isFtbCategoryTag` в `packages/xnlc-mods/src/ftb-client.ts`
+ * (оттуда его не импортировать: тот пакет тянет `node:fs` и живёт только в main).
+ */
+const FTB_NOISE_TAGS = new Set(["ftb", "forge", "neoforge", "fabric", "quilt", "liteloader", "vanilla"])
+
+export function isFtbCategoryTag(tag: string): boolean {
+  const value = tag.trim().toLowerCase()
+  if (!value || FTB_NOISE_TAGS.has(value)) return false
+  return !/^\d+\.\d+(\.\d+)?$/.test(value)
+}
+
 function parseVersionList(gameVersion: string) {
   return gameVersion.split(/[|,/]/).map(item => item.trim()).filter(Boolean)
 }

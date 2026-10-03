@@ -1,10 +1,10 @@
 import { useTranslation } from "react-i18next"
 import { EmptyState } from "@/components/ui/empty-state"
-import { IconDownload, IconInfoCircle, IconLoader2, IconSearch, IconExternalLink } from "@tabler/icons-react"
+import { IconDownload, IconInfoCircle, IconLoader2, IconPackage, IconSearch, IconExternalLink } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { openProjectPage, projectPageUrl } from "@/lib/project-links"
 import { Spinner } from "./spinner"
-import { formatDownloads } from "./utils"
+import { formatDownloads, isFtbCategoryTag } from "./utils"
 import { Pagination } from "./pagination"
 import { CategoryBadge } from "./category-badge"
 import { CategoriesDialog, type CategoriesDialogCategory } from "./categories-dialog"
@@ -144,15 +144,17 @@ export function InstanceFtb({
               <div key={pack.projectId} className="rounded-2xl border border-border bg-card p-4 hover:border-primary/40 transition-colors">
                 <div className="flex flex-wrap items-center gap-4">
                   <div className="flex min-w-0 flex-1 items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-muted/70 flex items-center justify-center overflow-hidden flex-shrink-0 text-2xl">
-                      {pack.iconUrl ? <img src={pack.iconUrl} alt="" className="w-full h-full object-cover" /> : "FTB"}
+                    <div className="w-14 h-14 rounded-2xl bg-muted/70 flex items-center justify-center overflow-hidden flex-shrink-0">
+                      {pack.iconUrl
+                        ? <img src={pack.iconUrl} alt="" className="w-full h-full object-cover" />
+                        : <IconPackage className="w-6 h-6 text-muted-foreground/40" strokeWidth={1.75} />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-base font-semibold text-foreground truncate">{pack.name}</p>
                       <p className="text-sm text-muted-foreground line-clamp-1 mt-0.5">{pack.summary}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">{formatDownloads(pack.downloadCount)} {t("builds.downloads")}</span>
-                        {pack.categories?.slice(0, 3).map(category => (
+                        {pack.categories?.filter(isFtbCategoryTag).slice(0, 3).map(category => (
                           <CategoryBadge key={category} name={category} source="ftb" />
                         ))}
                       </div>
