@@ -31,7 +31,19 @@ const SEARCH_LIMIT = 50;
 
 /** Каталог FTB меняется медленно: держим его в памяти, чтобы не качать 90+ манифестов. */
 const CATALOG_TTL_MS = 30 * 60 * 1000;
-const CATALOG_CONCURRENCY = 12;
+/**
+ * Дисковый кэш живёт заметно дольше памяти: устаревший каталог отдаём сразу и
+ * обновляем фоном. Совсем старый (больше недели) считаем недействительным.
+ */
+const CATALOG_DISK_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+/**
+ * Сколько манифестов тянем одновременно. У FTB отдельные паки отвечают по
+ * несколько секунд (замеры: 0.1–1.1 с на пак, и один «медленный» батч держит
+ * всю сборку), поэтому широкий веер важнее вежливости.
+ */
+const CATALOG_CONCURRENCY = 24;
+/** Таймаут одного манифеста каталога. */
+const CATALOG_MANIFEST_TIMEOUT_MS = 6_000;
 
 const manifestCache = new Map<number, FTBModpackManifest>();
 let catalogCache: CachedCatalog | null = null;
@@ -63,7 +75,9 @@ async function readCatalogCacheFile(): Promise<CachedCatalog | null> {
     const parsed = JSON.parse(raw) as CachedCatalog;
     if (!parsed?.at || !Array.isArray(parsed.items)) return null;
     if (parsed.v !== CATALOG_CACHE_VERSION) return null;
-    if (Date.now() - parsed.at > CATALOG_TTL_MS) return null;
+    // Устаревший каталог (но не старше недели) тоже годится: он отдаётся сразу,
+    // а сеть догоняет фоном — ждать пользователю не нужно.
+    if (Date.now() - parsed.at > CATALOG_DISK_MAX_AGE_MS) return null;
     return parsed;
   } catch {
     return null;
@@ -74,6 +88,8 @@ async function writeCatalogCacheFile(value: CachedCatalog): Promise<void> {
   if (!catalogCacheFile) return;
   try {
     const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    await fs.mkdir(path.dirname(catalogCacheFile), { recursive: true });
     await fs.writeFile(catalogCacheFile, JSON.stringify(value), "utf-8");
   } catch {
     // кэш не критичен: при ошибке просто скачаем каталог в следующий раз
@@ -220,43 +236,87 @@ export async function ftbFeaturedModpacks(): Promise<FTBModpacksResult> {
 }
 
 /**
+ * Идущая сборка каталога. Вкладка FTB просит каталог дважды — для списка паков
+ * и для фильтров (`ftbCatalogFacets`), — и без этого «замка» обе просьбы
+ * запускали по сотне запросов каждая: ровно вдвое больше работы и вдвое больше
+ * шансов попасть под троттлинг api.modpacks.ch.
+ */
+let catalogPromise: Promise<ModSearchResult[]> | null = null;
+/** Фоновое обновление устаревшего каталога: тоже одно на процесс. */
+let catalogRefreshPromise: Promise<void> | null = null;
+
+/** Прогоняет список задач с ограничением на число одновременных. */
+async function mapWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (;;) {
+      const index = cursor++;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index]);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
+
+/**
  * Весь каталог FTB: `/public/modpack/all` отдаёт около сотни id, манифесты тянем
  * пачками. У поиска FTB нет ни сортировки, ни страниц (`?term=` и всё), поэтому
  * именно каталог — единственный способ отсортировать паки по загрузкам, дате
- * выпуска или обновления. Результат кэшируется в памяти main-процесса.
+ * выпуска или обновления.
+ *
+ * Порядок отдачи: память → диск → сеть. Устаревший диск отдаётся сразу, а сеть
+ * обновляет его фоном: FTB отвечает медленно (замеры: до 13 с на батч), и держать
+ * пользователя на спиннере из-за протухшего кэша незачем.
  */
 export async function ftbCatalog(): Promise<ModSearchResult[]> {
   if (catalogCache && Date.now() - catalogCache.at < CATALOG_TTL_MS) return catalogCache.items;
+  if (catalogPromise) return catalogPromise;
 
+  catalogPromise = loadCatalog().finally(() => { catalogPromise = null; });
+  return catalogPromise;
+}
+
+async function loadCatalog(): Promise<ModSearchResult[]> {
   const fromDisk = await readCatalogCacheFile();
   if (fromDisk) {
     catalogCache = fromDisk;
-    for (const item of fromDisk.items) {
-      const id = Number(item.projectId ?? item.id);
-      if (Number.isFinite(id)) void ftbGetModpack(id).catch(() => null);
-    }
+    // Манифесты здесь намеренно НЕ прогреваем: в кэше уже лежит всё, что нужно
+    // списку (имя, иконка, загрузки, категории, версии, загрузчики). Детали пака
+    // тянут свой манифест по требованию (`ftbGetDetails`).
+    if (Date.now() - fromDisk.at > CATALOG_TTL_MS) refreshCatalogInBackground();
     return fromDisk.items;
   }
+  return fetchCatalogFromNetwork();
+}
 
+function refreshCatalogInBackground(): void {
+  if (catalogRefreshPromise) return;
+  catalogRefreshPromise = fetchCatalogFromNetwork()
+    .then(() => undefined)
+    .catch(() => undefined)
+    .finally(() => { catalogRefreshPromise = null; });
+}
+
+async function fetchCatalogFromNetwork(): Promise<ModSearchResult[]> {
   const listing = (await ftbFetch("/public/modpack/all", { timeoutMs: 10_000 })) as { packs?: number[] };
   const ids = listing.packs ?? [];
-  const items: ModSearchResult[] = [];
 
-  for (let index = 0; index < ids.length; index += CATALOG_CONCURRENCY) {
-    const batch = ids.slice(index, index + CATALOG_CONCURRENCY);
-    const manifests = await Promise.all(batch.map((id) =>
-      ftbFetch(`/public/modpack/${id}`, { timeoutMs: 5_000, retries: 1 })
-        .then((data) => {
-          const manifest = data as FTBModpackManifest & { status?: string };
-          if (!manifest || typeof manifest.id !== "number" || manifest.status === "error") return null;
-          manifestCache.set(manifest.id, manifest);
-          return manifest;
-        })
-        .catch(() => null),
-    ));
-    for (const manifest of manifests) {
-      if (manifest && isFtbModpack(manifest)) items.push(normalizeFTBProject(manifest));
-    }
+  const manifests = await mapWithConcurrency(ids, CATALOG_CONCURRENCY, (id) =>
+    ftbFetch(`/public/modpack/${id}`, { timeoutMs: CATALOG_MANIFEST_TIMEOUT_MS, retries: 1 })
+      .then((data) => {
+        const manifest = data as FTBModpackManifest & { status?: string };
+        if (!manifest || typeof manifest.id !== "number" || manifest.status === "error") return null;
+        manifestCache.set(manifest.id, manifest);
+        return manifest;
+      })
+      .catch(() => null),
+  );
+
+  const items: ModSearchResult[] = [];
+  for (const manifest of manifests) {
+    if (manifest && isFtbModpack(manifest)) items.push(normalizeFTBProject(manifest));
   }
 
   catalogCache = { at: Date.now(), v: CATALOG_CACHE_VERSION, items };
@@ -267,14 +327,31 @@ export async function ftbCatalog(): Promise<ModSearchResult[]> {
 /**
  * Тэги FTB — это и версии Minecraft, и категории в одном списке
  * («1.12.2», «Tech», «Skyblock»). Разделяем их для фильтров поиска.
+ *
+ * Помимо версий в тэгах лежит мусор, который в фильтре категорий бесполезен:
+ * загрузчики (`Forge`, `Fabric`) — они уже разложены в `loaders`, и тег «FTB»,
+ * которым FTB помечает 75 паков из 87. Внутри самого каталога FTB такая
+ * «категория» ничего не сообщает, а в списке занимает место настоящих.
  */
+const FTB_NOISE_TAGS = new Set(["ftb", "forge", "neoforge", "fabric", "quilt", "liteloader", "vanilla"]);
+
+function isFtbVersionTag(tag: string): boolean {
+  return /^\d+\.\d+(\.\d+)?$/.test(tag.trim());
+}
+
+/** Держать в синхроне с `isFtbCategoryTag` в `components/launcher/instance/utils.ts`. */
+function isFtbCategoryTag(tag: string): boolean {
+  const value = tag.trim().toLowerCase();
+  return Boolean(value) && !FTB_NOISE_TAGS.has(value) && !isFtbVersionTag(value);
+}
+
 export function splitFtbTags(items: ModSearchResult[]): { gameVersions: string[]; categories: string[] } {
   const versions = new Set<string>();
   const categories = new Set<string>();
   for (const item of items) {
     for (const tag of item.categories ?? []) {
-      if (/^\d+\.\d+(\.\d+)?$/.test(tag)) versions.add(tag);
-      else categories.add(tag);
+      if (isFtbVersionTag(tag)) versions.add(tag);
+      else if (isFtbCategoryTag(tag)) categories.add(tag);
     }
   }
   const byVersion = (a: string, b: string) => {
@@ -342,7 +419,7 @@ export async function ftbSearch(
     // только так сортировка и фильтры работают по всем пакам, а не по одной странице.
     const trimmed = query.trim();
     const items = trimmed
-      ? (await Promise.all((await ftbSearchModpacks(trimmed)).packs.map((id) => ftbGetModpack(id))))
+      ? (await mapWithConcurrency((await ftbSearchModpacks(trimmed)).packs, CATALOG_CONCURRENCY, (id) => ftbGetModpack(id)))
           .filter((manifest): manifest is FTBModpackManifest => !!manifest && isFtbModpack(manifest))
           .map((manifest) => normalizeFTBProject(manifest))
       : await ftbCatalog();
@@ -426,7 +503,12 @@ export async function ftbGetDetails(id: number): Promise<ModDetails | null> {
     iconUrl: man.art?.find(a => a.type === "square")?.url ?? man.art?.[0]?.url ?? "",
     downloadCount: man.installs ?? 0,
     categories: (man.tags ?? []).map(t => t.name).slice(0, 5),
-    versions: (man.versions ?? []).map(normalizeFTBVersion),
+    // FTB отдаёт версии от старых к новым, тогда как Modrinth и CurseForge —
+    // новыми вперёд, и раньше порядок брался как есть: список версий и ченджлоги
+    // у FTB начинались с самого первого релиза пака. Сортируем по `id` версии —
+    // это последовательный номер выпуска; `updated` для этого не годится, он
+    // сдвигается при перезаливке старой версии.
+    versions: [...(man.versions ?? [])].sort((a, b) => b.id - a.id).map(normalizeFTBVersion),
     gallery: (man.art ?? []).map(a => ({ url: a.url, title: a.type })),
     source: "ftb",
     projectId: String(man.id),

@@ -308,7 +308,13 @@ export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
     ftbFacetsRequested.current = true
     let cancelled = false
     void (async () => {
-      const facets = await window.electronAPI?.modsFtbCatalogFacets?.()
+      // Фильтры приходят из того же каталога FTB, что и список, поэтому держим их
+      // в общем кэше: возврат на вкладку не должен поднимать каталог заново.
+      const facets = await dataCache.getOrFetch(
+        "ftb:facets",
+        () => window.electronAPI?.modsFtbCatalogFacets?.() ?? null,
+        { ttl: MOD_SEARCH_CACHE_TTL, persist: true },
+      )
       if (cancelled || !facets) return
       setFtbGameVersions(facets.gameVersions ?? [])
       setFtbLoaders(facets.loaders ?? [])

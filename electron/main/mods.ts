@@ -6,6 +6,7 @@
 import { ipcMain } from "electron"
 import path from "path"
 import { getBuildIntentPath } from "./builds/helpers"
+import { getLauncherDataRoot } from "./paths"
 import { checkLoaderRequirements, type LoaderRequirementReport } from "./mods-loader-requirements"
 import { inspectJarDependencies, type JarDependencyInspection } from "./mods-jar-deps"
 import type {
@@ -32,8 +33,11 @@ function loadModsModule(): Promise<ModsModule> {
       // Каталог FTB — это ~90 запросов манифестов, поэтому кэшируем его и на диске:
       // иначе после каждого перезапуска лаунчера вкладка FTB ждала бы загрузку заново.
       try {
-        const { app } = await import("electron")
-        mods.setFtbCatalogCacheFile(path.join(app.getPath("userData"), "ftb-catalog.json"))
+        // Кэш каталога FTB кладём в общую папку данных лаунчера, а не в
+        // `userData` Electron: там он оказывался в стороне от остальных данных
+        // (<appData>/xneon-launcher вместо <appData>/xneonlauncher) и не попадал
+        // ни в «Хранилище», ни в очистку кэша.
+        mods.setFtbCatalogCacheFile(path.join(getLauncherDataRoot(), "cache", "ftb-catalog.json"))
       } catch {
         // кэш не критичен
       }
