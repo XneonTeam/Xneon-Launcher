@@ -85,3 +85,25 @@ export type McServerDownloadProgress = {
     bytesDownloaded?: number
   }
 }
+
+/**
+ * Ответ пинга сервера (SLP). Тип живёт здесь, а не в `@xnlc/servers`, потому что
+ * пересекает границу IPC: его отдают контракты (`servers:ping`), его ждёт
+ * preload, а «Быстрая игра» в renderer описывает ту же структуру своей копией —
+ * тянуть в рендерер пакет серверов нельзя (он тянет `net`/`dns`).
+ *
+ * `@xnlc/servers` реэкспортирует тип для совместимости: `import { ServerStatusResult } from "@xnlc/servers"`.
+ */
+export type ServerStatusResult = {
+  online: boolean
+  ip: string
+  port: number
+  players_online: number
+  players_max: number
+  motd_raw?: string
+  motd_clean?: string
+  version: string
+  latency_ms: number
+  icon?: string
+  error?: string
+}

@@ -5,20 +5,11 @@
 
 import net from "net"
 import { resolveSrv } from "dns/promises"
+import type { ServerStatusResult } from "@xnlc/types"
 
-export interface ServerStatusResult {
-  online: boolean
-  ip: string
-  port: number
-  players_online: number
-  players_max: number
-  motd_raw?: string
-  motd_clean?: string
-  version: string
-  latency_ms: number
-  icon?: string
-  error?: string
-}
+// Тип объявлен в `@xnlc/types` (он пересекает IPC-границу: `servers:ping` →
+// preload → renderer). Реэкспорт сохраняет прежний импорт из `@xnlc/servers`.
+export type { ServerStatusResult }
 
 const DEFAULT_TIMEOUT = 5000
 const DEFAULT_PORT = 25565
