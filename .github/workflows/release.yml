@@ -55,6 +55,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Пакеты @xnlc/* подключены как workspace:* (симлинки на packages/*), а их
+      # собранный lib/ в репозиторий не попадает. Без этой сборки tsc не находит
+      # @xnlc/types и весь шаг Build app падает.
+      - name: Build local @xnlc packages
+        run: pnpm -r --filter "./packages/*" run build
+
       - name: Build app
         env:
           GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
