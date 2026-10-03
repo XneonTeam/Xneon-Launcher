@@ -1060,7 +1060,7 @@ export function registerMcServerHandlers() {
     try {
       const res = await fetch("https://api.modrinth.com/v2/version_files", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "User-Agent": "XNeon-Launcher/1.0 (launcher@xneon.fun)" },
+        headers: { "Content-Type": "application/json", "User-Agent": "Xneon-Launcher/1.0 (launcher@xneon.fun)" },
         body: JSON.stringify({ hashes: sha1List, algorithm: "sha1" }),
       })
       if (!res.ok) return hashes.map(h => ({ name: h.name, sha1: h.sha1 }))

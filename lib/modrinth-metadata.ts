@@ -14,7 +14,7 @@ export type EnrichableMod = {
 
 const MODRINTH_API = "https://api.modrinth.com/v2"
 const BATCH_SIZE = 50
-const USER_AGENT = "XNeon-Launcher/1.0"
+const USER_AGENT = "Xneon-Launcher/1.0"
 
 type CachedMeta = { name?: string; author?: string }
 
