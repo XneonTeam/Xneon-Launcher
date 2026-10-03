@@ -11,6 +11,8 @@ interface SkinGridProps {
   loading: boolean
   dragOver: boolean
   capes: McProfile["capes"]
+  /** Растёт после правок и удалений — сбрасывает кэш превью карточек. */
+  previewVersion?: number
   onSelect: (id: string) => void
   onEdit: (skin?: SkinCardData) => void
   onDelete: (id: string) => void
@@ -28,11 +30,7 @@ interface SkinGridProps {
  * кнопка («Добавить скин» открывает модалку), и посадочное место для файла,
  * поэтому отдельная кнопка в тулбаре не нужна.
  *
- * Плотность считается по ширине контейнера (`@container`), а не окна. Потолок
- * здесь ниже, чем у каталога Laby: превью каждой карточки — отдельный
- * WebGL-контекст (`SkinViewer3D`), а браузер держит их около 16 и начинает
- * вытеснять старые. В каталоге карточки — готовые картинки, поэтому там до
- * шести колонок, а тут максимум четыре.
+ * Плотность считается по ширине контейнера (`@container`), а не окна.
  */
 export function SkinGrid({
   skins,
@@ -41,6 +39,7 @@ export function SkinGrid({
   loading,
   dragOver,
   capes,
+  previewVersion = 0,
   onSelect,
   onEdit,
   onDelete,
@@ -131,6 +130,7 @@ export function SkinGrid({
             isSelected={skin.id === selectedId}
             isEquipped={skin.id === equippedId}
             capes={capes}
+            previewVersion={previewVersion}
             onSelect={() => onSelect(skin.id)}
             onEdit={() => onEdit(skin)}
             onDelete={() => onDelete(skin.id)}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import { SkinViewer3D } from "@/components/ui/skin-viewer-3d"
+import { readSkinPreview, requestSkinPreview, skinPreviewCacheKey } from "@/lib/skin-preview-cache"
 import { resolveSkinCapeUrl } from "./cape-url"
 import { IconTrash, IconPencil, IconUser } from "@tabler/icons-react"
 import type { McProfile, LibrarySkin } from "@xnlc/types"
@@ -21,6 +21,8 @@ interface SkinCardProps {
   isSelected: boolean
   isEquipped: boolean
   capes: McProfile["capes"]
+  /** Растёт после правок и удалений — сбрасывает кэш превью. */
+  previewVersion?: number
   onSelect: () => void
   onEdit: () => void
   onDelete: () => void
@@ -30,14 +32,16 @@ interface SkinCardProps {
  * Карточка скина в «Избранном».
  *
  * По раскладке повторяет карточку каталога Laby: сверху превью, снизу подпись
- * и модель. Превью здесь живое — крутится локальная текстура через
- * `SkinViewer3D`.
+ * и модель. Превью — картинка из общего кэша (`lib/skin-preview-cache`):
+ * рисовать его самому карточкой нельзя, потому что на каждую пришёлся бы свой
+ * WebGL-контекст, а при быстром скролле они упираются в лимит браузера и гаснут.
  */
 export function SkinCard({
   skin,
   isSelected,
   isEquipped,
   capes,
+  previewVersion = 0,
   onSelect,
   onEdit,
   onDelete,
@@ -46,10 +50,17 @@ export function SkinCard({
 
   const capeUrl = useMemo(() => resolveSkinCapeUrl(skin.capeId, capes), [skin.capeId, capes])
 
-  // WebGL-контекст создаётся только для видимых карточек. Раньше каждая карточка
-  // библиотеки скинов поднимала свой SkinViewer с бесконечным rAF-циклом: на
-  // библиотеке в сотни скинов это упиралось в браузерный лимит WebGL-контекстов
-  // (~16) и жгло CPU. За пределами вьюпорта вьюер не монтируется вовсе.
+  const previewKey = useMemo(
+    () => (skin.blobUrl ? skinPreviewCacheKey(skin.blobUrl, skin.variant, capeUrl, previewVersion) : ""),
+    [skin.blobUrl, skin.variant, capeUrl, previewVersion],
+  )
+
+  // Готовое превью берём из кэша сразу: возврат на вкладку и скролл назад не
+  // должны показывать силуэт вместо уже отрисованного скина.
+  const [preview, setPreview] = useState<string | null>(() => (previewKey ? readSkinPreview(previewKey) : null))
+
+  // Рисуем только то, что видно: очередь общая, поэтому даже при быстром скролле
+  // одновременно работает один вьюер, а не десяток.
   const previewRef = useRef<HTMLDivElement>(null)
   const [previewVisible, setPreviewVisible] = useState(false)
 
@@ -69,6 +80,32 @@ export function SkinCard({
     observer.observe(node)
     return () => observer.disconnect()
   }, [])
+
+  useEffect(() => {
+    if (!previewKey) {
+      setPreview(null)
+      return
+    }
+
+    const cached = readSkinPreview(previewKey)
+    setPreview(cached)
+    if (cached || !previewVisible) return
+
+    let alive = true
+    void requestSkinPreview(
+      {
+        key: previewKey,
+        skinUrl: skin.blobUrl,
+        capeUrl: capeUrl ?? null,
+        slim: skin.variant === "slim",
+      },
+      true,
+    ).then((url) => {
+      if (alive && url) setPreview(url)
+    })
+
+    return () => { alive = false }
+  }, [previewKey, previewVisible, skin.blobUrl, skin.variant, capeUrl])
 
   return (
     <div
@@ -95,21 +132,15 @@ export function SkinCard({
         className="h-full w-full overflow-hidden bg-gradient-to-b from-muted/10 to-muted/20"
       >
         <div className="grid h-full w-full place-items-center p-1">
-          {skin.blobUrl ? (
-            previewVisible ? (
-              <SkinViewer3D
-                skinUrl={skin.blobUrl}
-                capeUrl={capeUrl}
-                slim={skin.variant === "slim"}
-                width={180}
-                height={240}
-                // max-* вместо растягивания: canvas держит свои пропорции и
-                // вписывается в область, а не деформирует персонажа.
-                className="max-h-full max-w-full"
-              />
-            ) : (
-              <IconUser className="h-10 w-10 text-muted-foreground/20" strokeWidth={1} />
-            )
+          {preview ? (
+            <img
+              src={preview}
+              alt=""
+              draggable={false}
+              // max-* вместо растягивания: картинка держит свои пропорции и
+              // вписывается в область, а не деформирует персонажа.
+              className="max-h-full max-w-full select-none"
+            />
           ) : (
             <IconUser className="h-10 w-10 text-muted-foreground/20" strokeWidth={1} />
           )}
