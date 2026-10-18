@@ -19,7 +19,13 @@ export function ModalLayer({ onClose, className, children }: ModalLayerProps) {
   }, [onClose])
 
   return (
-    <div className={cn("fixed inset-0 z-50 flex items-center justify-center", className)} onClick={onClose}>
+    <div
+      // Затемнение задано здесь, а не у каждого вызова: иначе модалки без своего
+      // `bg-*` (аккаунты, миры, серверы) открывались поверх яркого интерфейса.
+      // Свой фон можно передать через className — он перекроет значение по умолчанию.
+      className={cn("fixed inset-0 z-50 flex items-center justify-center bg-black/50", className)}
+      onClick={onClose}
+    >
       <div className="contents" onClick={(event) => event.stopPropagation()}>
         {children}
       </div>
