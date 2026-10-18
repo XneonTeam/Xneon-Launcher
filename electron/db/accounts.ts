@@ -42,6 +42,13 @@ type AccountRow = {
   clientId: string | null
   skinUrl: string | null
   sortOrder?: number | null
+  // Authlib-Injector
+  serverId?: string | null
+  serverUrl?: string | null
+  serverName?: string | null
+  yggClientToken?: string | null
+  expiresAt?: number | null
+  profiles?: string | null
 }
 
 export async function loadAccounts(): Promise<DbAccount[]> {
@@ -63,6 +70,12 @@ export async function loadAccounts(): Promise<DbAccount[]> {
     clientId: row.clientId ?? undefined,
     skinUrl: row.skinUrl ?? undefined,
     sortOrder: row.sortOrder ?? undefined,
+    serverId: row.serverId ?? undefined,
+    serverUrl: row.serverUrl ?? undefined,
+    serverName: row.serverName ?? undefined,
+    yggClientToken: row.yggClientToken ?? undefined,
+    expiresAt: row.expiresAt ?? undefined,
+    profiles: row.profiles ?? undefined,
   }))
 }
 
@@ -79,6 +92,17 @@ export async function saveAccount(account: DbAccount): Promise<void> {
     return
   }
 
+  let existingRow: AccountRow | undefined
+  if (normalizedAccount.id) {
+    try {
+      const rows = queryAll<AccountRow>(
+        "SELECT type, username, isActive, uuid, accessToken, refreshToken, clientId, skinUrl, sortOrder, serverId, serverUrl, serverName, yggClientToken, expiresAt, profiles FROM accounts WHERE id = ?",
+        [normalizedAccount.id],
+      )
+      existingRow = rows[0]
+    } catch {}
+  }
+
   const accountParams: unknown[] = [
     normalizedAccount.id,
     normalizedAccount.type,
@@ -86,10 +110,16 @@ export async function saveAccount(account: DbAccount): Promise<void> {
     normalizedAccount.isActive ? 1 : 0,
     normalizedAccount.uuid ?? null,
     normalizedAccount.accessToken ?? null,
-    normalizedAccount.refreshToken ?? null,
-    normalizedAccount.clientId ?? null,
-    normalizedAccount.skinUrl ?? null,
-    normalizedAccount.sortOrder ?? 0,
+    normalizedAccount.refreshToken ?? existingRow?.refreshToken ?? null,
+    normalizedAccount.clientId ?? existingRow?.clientId ?? null,
+    normalizedAccount.skinUrl ?? existingRow?.skinUrl ?? null,
+    normalizedAccount.sortOrder ?? existingRow?.sortOrder ?? 0,
+    normalizedAccount.serverId ?? existingRow?.serverId ?? null,
+    normalizedAccount.serverUrl ?? existingRow?.serverUrl ?? null,
+    normalizedAccount.serverName ?? existingRow?.serverName ?? null,
+    normalizedAccount.yggClientToken ?? existingRow?.yggClientToken ?? null,
+    normalizedAccount.expiresAt ?? existingRow?.expiresAt ?? null,
+    normalizedAccount.profiles ?? existingRow?.profiles ?? null,
   ]
   for (let i = 0; i < accountParams.length; i++) {
     const v = accountParams[i]
@@ -99,8 +129,8 @@ export async function saveAccount(account: DbAccount): Promise<void> {
     }
   }
   run(`
-    INSERT OR REPLACE INTO accounts (id, type, username, isActive, uuid, accessToken, refreshToken, clientId, skinUrl, sortOrder)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR REPLACE INTO accounts (id, type, username, isActive, uuid, accessToken, refreshToken, clientId, skinUrl, sortOrder, serverId, serverUrl, serverName, yggClientToken, expiresAt, profiles)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, accountParams)
 }
 

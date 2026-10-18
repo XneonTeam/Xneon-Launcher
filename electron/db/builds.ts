@@ -47,6 +47,9 @@ export type BuildJson = {
   windowHeight?: number
   /** Аккаунт по умолчанию для этой сборки (поле живёт в типах @xnlc/types). */
   defaultAccountId?: string
+  modsCount?: number
+  resourcepacksCount?: number
+  shadersCount?: number
 }
 
 type BuildRow = {
@@ -88,6 +91,9 @@ type BuildRow = {
   windowOverride: number | null
   windowWidth: number | null
   windowHeight: number | null
+  modsCount?: number | null
+  resourcepacksCount?: number | null
+  shadersCount?: number | null
 }
 
 function rowToBuild(row: BuildRow): BuildJson {
@@ -131,6 +137,9 @@ function rowToBuild(row: BuildRow): BuildJson {
     windowOverride: row.windowOverride === 1,
     windowWidth: row.windowWidth ?? undefined,
     windowHeight: row.windowHeight ?? undefined,
+    modsCount: typeof row.modsCount === "number" ? row.modsCount : undefined,
+    resourcepacksCount: typeof row.resourcepacksCount === "number" ? row.resourcepacksCount : undefined,
+    shadersCount: typeof row.shadersCount === "number" ? row.shadersCount : undefined,
   }
 }
 
@@ -163,7 +172,8 @@ const LIGHT_COLUMNS = `id, name, description, version, modLoader, loaderVersion,
   createdAt, source, projectSlug, modpackVersion, modpackVersionId, locked, modId, fileId,
   intentPath, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax,
   serverOverride, server, serverPort, [group], preLaunchCommand, postLaunchCommand,
-  wrapperCommand, customEnv, windowOverride, windowWidth, windowHeight`
+  wrapperCommand, customEnv, windowOverride, windowWidth, windowHeight,
+  modsCount, resourcepacksCount, shadersCount`
 
 export async function loadBuildsLight(): Promise<BuildLightJson[]> {
   if (!isDbAvailable()) {
@@ -177,9 +187,9 @@ export async function loadBuildsLight(): Promise<BuildLightJson[]> {
           resourcepacks: undefined,
           shaders: undefined,
           installedMods: undefined,
-          modsCount: Array.isArray(full.mods) ? full.mods.length : 0,
-          resourcepacksCount: Array.isArray(full.resourcepacks) ? full.resourcepacks.length : 0,
-          shadersCount: Array.isArray(full.shaders) ? full.shaders.length : 0,
+          modsCount: Array.isArray(full.mods) ? full.mods.length : (full.modsCount ?? 0),
+          resourcepacksCount: Array.isArray(full.resourcepacks) ? full.resourcepacks.length : (full.resourcepacksCount ?? 0),
+          shadersCount: Array.isArray(full.shaders) ? full.shaders.length : (full.shadersCount ?? 0),
         } as BuildLightJson
       })
   }
@@ -197,12 +207,9 @@ export async function loadBuildsLight(): Promise<BuildLightJson[]> {
       resourcepacks: undefined,
       shaders: undefined,
       installedMods: undefined,
-      // Счётчики не считаем в SQL: json_array_length заставляет SQLite парсить
-      // все тяжёлые JSON (183 МБ) и съедает ~100 мс из 130. Реальные списки
-      // приходят вместе с контентом сборки, а длина — из загруженного состояния.
-      modsCount: 0,
-      resourcepacksCount: 0,
-      shadersCount: 0,
+      modsCount: typeof row.modsCount === "number" ? row.modsCount : Number(row.modsCount ?? 0),
+      resourcepacksCount: typeof row.resourcepacksCount === "number" ? row.resourcepacksCount : Number(row.resourcepacksCount ?? 0),
+      shadersCount: typeof row.shadersCount === "number" ? row.shadersCount : Number(row.shadersCount ?? 0),
     } as BuildLightJson
   })
 }
@@ -231,7 +238,16 @@ export async function findBuildById(buildId: string): Promise<BuildLightJson | n
   if (!isDbAvailable()) {
     const build = inMemoryBuilds.get(buildId) as BuildJson | undefined
     if (!build) return null
-    return { ...build, mods: undefined as never, resourcepacks: undefined, shaders: undefined, installedMods: undefined, modsCount: 0, resourcepacksCount: 0, shadersCount: 0 } as BuildLightJson
+    return {
+      ...build,
+      mods: undefined as never,
+      resourcepacks: undefined,
+      shaders: undefined,
+      installedMods: undefined,
+      modsCount: Array.isArray(build.mods) ? build.mods.length : (build.modsCount ?? 0),
+      resourcepacksCount: Array.isArray(build.resourcepacks) ? build.resourcepacks.length : (build.resourcepacksCount ?? 0),
+      shadersCount: Array.isArray(build.shaders) ? build.shaders.length : (build.shadersCount ?? 0),
+    } as BuildLightJson
   }
 
   const rows = queryAll<Record<string, unknown>>(
@@ -247,9 +263,9 @@ export async function findBuildById(buildId: string): Promise<BuildLightJson | n
     resourcepacks: undefined,
     shaders: undefined,
     installedMods: undefined,
-    modsCount: 0,
-    resourcepacksCount: 0,
-    shadersCount: 0,
+    modsCount: typeof row.modsCount === "number" ? row.modsCount : Number(row.modsCount ?? 0),
+    resourcepacksCount: typeof row.resourcepacksCount === "number" ? row.resourcepacksCount : Number(row.resourcepacksCount ?? 0),
+    shadersCount: typeof row.shadersCount === "number" ? row.shadersCount : Number(row.shadersCount ?? 0),
   } as BuildLightJson
 }
 
@@ -348,8 +364,8 @@ export async function saveAllBuilds(builds: Array<BuildJson | BuildLightJson>): 
  * у массового сохранения и у точечной вставки новой сборки.
  */
 const INSERT_BUILD_SQL = `
-  INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, modpackVersion, modpackVersionId, locked, modId, fileId, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax, serverOverride, server, serverPort, [group], preLaunchCommand, postLaunchCommand, wrapperCommand, customEnv, windowOverride, windowWidth, windowHeight)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, modpackVersion, modpackVersionId, locked, modId, fileId, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax, serverOverride, server, serverPort, [group], preLaunchCommand, postLaunchCommand, wrapperCommand, customEnv, windowOverride, windowWidth, windowHeight, modsCount, resourcepacksCount, shadersCount)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 /** Ленивое подготовленное выражение: `prepare` требует инициализированной БД. */
@@ -368,6 +384,27 @@ function buildInsertParams(
   keepOr: (incoming: unknown, previous: string | undefined, fallback: string) => string,
 ): unknown[] {
   const content = build as Partial<BuildJson>
+  const modsJson = keepOr(content.mods, previous?.mods, "[]")
+  const resourcepacksJson = keepOr(content.resourcepacks, previous?.resourcepacks, "[]")
+  const shadersJson = keepOr(content.shaders, previous?.shaders, "[]")
+
+  const countOf = (incoming: unknown, previousStr: string | undefined): number => {
+    if (Array.isArray(incoming)) return incoming.length
+    if (previousStr) {
+      try {
+        const parsed = JSON.parse(previousStr)
+        if (Array.isArray(parsed)) return parsed.length
+      } catch {
+        // ignore
+      }
+    }
+    return 0
+  }
+
+  const modsCount = (build as BuildLightJson).modsCount ?? countOf(content.mods, previous?.mods)
+  const resourcepacksCount = (build as BuildLightJson).resourcepacksCount ?? countOf(content.resourcepacks, previous?.resourcepacks)
+  const shadersCount = (build as BuildLightJson).shadersCount ?? countOf(content.shaders, previous?.shaders)
+
   const params: unknown[] = [
     build.id,
     build.name,
@@ -377,9 +414,9 @@ function buildInsertParams(
     build.loaderVersion ?? null,
     build.icon,
     build.coverImage ?? null,
-    keepOr(content.mods, previous?.mods, "[]"),
-    keepOr(content.resourcepacks, previous?.resourcepacks, "[]"),
-    keepOr(content.shaders, previous?.shaders, "[]"),
+    modsJson,
+    resourcepacksJson,
+    shadersJson,
     build.intentPath ?? "",
     keepOr(content.installedMods, previous?.installedMods, "{}"),
     build.createdAt,
@@ -407,6 +444,9 @@ function buildInsertParams(
     build.windowOverride ? 1 : 0,
     build.windowWidth ?? null,
     build.windowHeight ?? null,
+    modsCount,
+    resourcepacksCount,
+    shadersCount,
   ]
   for (let i = 0; i < params.length; i++) {
     const v = params[i]
@@ -563,11 +603,25 @@ export async function updateBuildFields(buildId: string, fields: Partial<BuildJs
     windowOverride: "windowOverride",
     windowWidth: "windowWidth",
     windowHeight: "windowHeight",
+    modsCount: "modsCount",
+    resourcepacksCount: "resourcepacksCount",
+    shadersCount: "shadersCount",
   }
+
+  const effectiveFields: Record<string, unknown> = { ...fields }
 
   const sets: string[] = []
   const params: unknown[] = []
   const contentKeys = new Set(["mods", "resourcepacks", "shaders", "installedMods"])
+  // Счётчики контента лежат в отдельных колонках, а списки — в JSON. Считаем их
+  // из того, что реально записываем: иначе при пропущенном guard'ом столбце
+  // (пустой массив поверх непустого) счётчик обнулялся, карточка сборки
+  // показывала «0 модов», а удалить их было нельзя.
+  const contentCounterColumns: Record<string, string> = {
+    mods: "modsCount",
+    resourcepacks: "resourcepacksCount",
+    shaders: "shadersCount",
+  }
   // Защита от затирания контента: интерфейс грузит список сборок без тяжёлых
   // списков (mods/resourcepacks/shaders), поэтому пустой массив в запросе почти
   // всегда означает «не загружено», а не «пользователь всё удалил». Если в БД
@@ -575,7 +629,7 @@ export async function updateBuildFields(buildId: string, fields: Partial<BuildJs
   //
   // Тяжёлые колонки читаем только тогда, когда запрос действительно их меняет:
   // смена иконки или описания не должна тянуть из БД десятки мегабайт JSON.
-  const requestedContentKeys = Object.keys(fields).filter((key) => contentKeys.has(key))
+  const requestedContentKeys = Object.keys(effectiveFields).filter((key) => contentKeys.has(key))
   let existingRow: Record<string, string> | undefined
   if (requestedContentKeys.length > 0) {
     const selection = requestedContentKeys
@@ -602,7 +656,7 @@ export async function updateBuildFields(buildId: string, fields: Partial<BuildJs
     }
   }
 
-  for (const [key, value] of Object.entries(fields)) {
+  for (const [key, value] of Object.entries(effectiveFields)) {
     const column = columnMap[key]
     if (!column) continue
     if (contentKeys.has(key) && isEmptyPayload(value) && hasStoredContent(key)) {
@@ -628,6 +682,14 @@ export async function updateBuildFields(buildId: string, fields: Partial<BuildJs
     }
     sets.push(`${column === "group" ? "[group]" : column} = ?`)
     params.push(stored)
+
+    // Счётчик пишем вместе со списком (и только если вызывающий не передал его
+    // явно): пропущенный guard'ом столбец не должен трогать свой счётчик.
+    const counterColumn = contentCounterColumns[key]
+    if (counterColumn && Array.isArray(value) && effectiveFields[counterColumn] === undefined) {
+      sets.push(`${counterColumn} = ?`)
+      params.push(value.length)
+    }
   }
 
   if (sets.length === 0) return

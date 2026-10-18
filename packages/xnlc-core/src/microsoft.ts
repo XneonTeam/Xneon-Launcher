@@ -15,6 +15,7 @@ export type MicrosoftAccountPayload = {
   uuid: string;
   accessToken: string;
   refreshToken: string;
+  skinUrl?: string;
 };
 
 export type MicrosoftAuthOptions = {
@@ -166,6 +167,9 @@ export async function exchangeMicrosoftCode(
     const userInfo = await userRes.json() as Record<string, unknown>;
     const uuid = pickFirstString(userInfo.id);
     const username = pickFirstString(userInfo.name, userInfo.username, userInfo.id) || "Microsoft User";
+    const rawSkins = Array.isArray(userInfo.skins) ? userInfo.skins : [];
+    const activeSkin = (rawSkins.find((s: any) => s?.state === "ACTIVE") ?? rawSkins[0]) as { url?: string } | undefined;
+    const skinUrl = typeof activeSkin?.url === "string" ? activeSkin.url : undefined;
 
     return {
       id: uuid || username,
@@ -173,6 +177,7 @@ export async function exchangeMicrosoftCode(
       username,
       accessToken,
       refreshToken,
+      skinUrl,
     };
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {

@@ -11,6 +11,9 @@ import { getFileSnapshots, upsertFileSnapshot, upsertFileSnapshots, type FileSna
 import { loadSkinLibrary, saveSkinToLibrary, deleteSkinFromLibrary, updateSkinVariant, updateSkinCapeId, updateSkinName, findLibrarySkinBySource, findLibrarySkinById, type SkinLibraryRow } from "./skins"
 import { listMcServers, listTrashedMcServers, getMcServer, createMcServer, updateMcServer, softDeleteMcServer, restoreMcServer, purgeTrashedMcServers, deleteMcServer, type McServerRow } from "./mc-servers"
 import { addGameSession, listGameSessions, listGameSessionsInRange, deleteGameSessionsForDeletedBuild, deleteOrphanGameSessions, addServerSession, listServerSessions, listServerSessionsInRange, deleteServerSessionsForDeletedServer, deleteOrphanServerSessions, type GameSessionRow, type ServerSessionRow } from "./stats"
+import { loadAuthServers, getAuthServer, saveAuthServer, deleteAuthServer, findAccountsByServer, authServerToSummary } from "./auth-servers"
+
+export { loadAuthServers, getAuthServer, saveAuthServer, deleteAuthServer, findAccountsByServer, authServerToSummary }
 
 export type { DbAccount, BuildJson, BuildLightJson, ResourceRow, FileSnapshotRow, SkinLibraryRow, McServerRow, GameSessionRow, ServerSessionRow }
 
@@ -92,6 +95,13 @@ export const dbHelpers = {
   addServerSession,
   listServerSessions,
   listServerSessionsInRange,
+  // Authlib-Injector: authorization servers
+  loadAuthServers,
+  getAuthServer,
+  saveAuthServer,
+  deleteAuthServer,
+  findAccountsByServer,
+  authServerToSummary,
 }
 
 process.once("beforeExit", flushDatabase)

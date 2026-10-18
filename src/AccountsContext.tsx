@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 export interface Account {
   id: string
-  type: 'elyby' | 'xnskins' | 'microsoft' | 'offline'
+  type: 'elyby' | 'xnskins' | 'microsoft' | 'offline' | 'authlib-injector'
   username: string
   isActive: boolean
   uuid?: string
@@ -11,12 +11,18 @@ export interface Account {
   clientId?: string
   skinUrl?: string
   sortOrder?: number
+  serverId?: string
+  serverUrl?: string
+  serverName?: string
+  yggClientToken?: string
+  expiresAt?: number
+  profiles?: string
 }
 
 const FALLBACK: Account[] = [{ id: '1', type: 'offline', username: 'Player', isActive: true }]
 
 async function fetchAccounts(): Promise<Account[]> {
-  const validAccountTypes = ['elyby', 'xnskins', 'microsoft', 'offline'] as const
+  const validAccountTypes = ['elyby', 'xnskins', 'microsoft', 'offline', 'authlib-injector'] as const
   const isValidType = (t: string): t is typeof validAccountTypes[number] =>
     validAccountTypes.includes(t as typeof validAccountTypes[number])
 
@@ -57,14 +63,27 @@ interface AccountsContextValue {
   setActiveAccount: (id: string) => void
   moveAccount: (id: string, direction: -1 | 1) => void
   activeAccount: Account | null
+  avatarVersion: number
+  bumpAvatarVersion: () => void
 }
 
 const AccountsContext = createContext<AccountsContextValue | null>(null)
 
 export function AccountsProvider({ children }: PropsWithChildren) {
   const [accounts, setAccounts] = useState<Account[]>(FALLBACK)
+  const [avatarVersion, setAvatarVersion] = useState<number>(() => Date.now())
   const accountsLoadedRef = useRef(false)
   const syncTimeoutRef = useRef<number | null>(null)
+  /** Актуальный список для побочных эффектов вне setState (StrictMode). */
+  const accountsRef = useRef<Account[]>([])
+
+  useEffect(() => {
+    accountsRef.current = accounts
+  }, [accounts])
+
+  const bumpAvatarVersion = useCallback(() => {
+    setAvatarVersion(Date.now())
+  }, [])
 
   useEffect(() => {
     void fetchAccounts().then((loadedAccounts) => {
@@ -124,6 +143,21 @@ export function AccountsProvider({ children }: PropsWithChildren) {
   }, [])
 
   const removeAccount = useCallback((id: string) => {
+    // Authlib-аккаунт: сначала отзываем токен на сервере (Yggdrasil invalidate).
+    // Сервер может быть недоступен — локальное удаление всё равно происходит,
+    // поэтому ошибку только логируем. Раньше канал authlib:invalidate вообще
+    // не вызывался и токен оставался живым.
+    const target = accountsRef.current.find(a => a.id === id)
+    if (target?.type === "authlib-injector") {
+      try {
+        void window.electronAPI?.authlibInvalidate(id).catch((err: unknown) => {
+          console.warn("[Accounts] authlib invalidate failed:", err)
+        })
+      } catch (err) {
+        console.warn("[Accounts] authlib invalidate failed:", err)
+      }
+    }
+
     setAccounts(prev => {
       const remaining = prev.filter(a => a.id !== id)
       const wasActive = prev.find(a => a.id === id)?.isActive
@@ -166,7 +200,9 @@ export function AccountsProvider({ children }: PropsWithChildren) {
     setActiveAccount,
     moveAccount,
     activeAccount,
-  }), [accounts, addAccount, removeAccount, setActiveAccount, moveAccount, activeAccount])
+    avatarVersion,
+    bumpAvatarVersion,
+  }), [accounts, addAccount, removeAccount, setActiveAccount, moveAccount, activeAccount, avatarVersion, bumpAvatarVersion])
 
   return (
     <AccountsContext.Provider value={value}>

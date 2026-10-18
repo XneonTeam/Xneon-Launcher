@@ -666,7 +666,7 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
 
       {/* Rename category dialog */}
       {renameGroupFor && (
-        <ModalLayer onClose={() => setRenameGroupFor(null)} className="bg-background/60">
+        <ModalLayer onClose={() => setRenameGroupFor(null)}>
           <div className="w-[320px] rounded-2xl border border-border bg-card p-4 shadow-2xl">
             <h3 className="text-sm font-semibold text-foreground">{t("servers.renameGroup", "Переименовать категорию")}</h3>
             <input

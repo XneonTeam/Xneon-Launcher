@@ -10,6 +10,7 @@ import { AiAnalysisDialog } from "@/components/launcher/ai-analysis-dialog"
 
 interface ConsoleTabProps {
   serverId: string
+  serverName?: string
   logs: string[]
   isRunning: boolean
   command: string
@@ -18,7 +19,7 @@ interface ConsoleTabProps {
   onClearLogs: () => void
 }
 
-export function ConsoleTab({ serverId, logs, isRunning, command, onCommandChange, onSendCommand, onClearLogs }: ConsoleTabProps) {
+export function ConsoleTab({ serverId, serverName, logs, isRunning, command, onCommandChange, onSendCommand, onClearLogs }: ConsoleTabProps) {
   const { t } = useTranslation()
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)

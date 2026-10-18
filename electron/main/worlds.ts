@@ -329,58 +329,70 @@ async function unpackWorldZip(
   }
 }
 
+export async function listWorldsForBuild(buildName: string): Promise<WorldInfo[]> {
+  try {
+    const gameDir = await getGameDir(buildName)
+    const savesDir = path.join(gameDir, "saves")
+    let folders: string[] = []
+    try { folders = (await fs.readdir(savesDir, { withFileTypes: true })).filter(e => e.isDirectory()).map(e => e.name) } catch { return [] }
+    const worlds = await Promise.all(folders.map(folder => parseWorldFolder(savesDir, folder)))
+    worlds.sort((a, b) => b.lastPlayed - a.lastPlayed)
+    return worlds
+  } catch {
+    return []
+  }
+}
+
+export async function renameWorldForBuild(buildName: string, folder: string, newName: string): Promise<OpResult> {
+  try {
+    const gameDir = await getGameDir(buildName)
+    const savesDir = path.join(gameDir, "saves")
+    const worldPath = resolveWorldPath(savesDir, folder)
+    if (!worldPath) return { success: false, error: "Некорректное имя папки мира" }
+
+    const trimmedName = newName.trim().replace(/[<>:"/\\|?*\u0000-\u001F]/g, "").slice(0, 64)
+    if (!trimmedName) return { success: false, error: "Введите название мира" }
+    if (trimmedName === folder) return { success: true }
+
+    const newFolder = trimmedName.replace(/\s+/g, "_")
+    const newWorldPath = path.join(savesDir, newFolder)
+    try { await fs.access(newWorldPath) } catch {
+      await fs.rename(worldPath, newWorldPath)
+    }
+
+    // Update LevelName inside level.dat (keep in-sync display name)
+    await updateLevelName(newWorldPath, trimmedName)
+
+    return { success: true }
+  } catch (error) {
+    return opFailure(error)
+  }
+}
+
+export async function deleteWorldForBuild(buildName: string, folder: string): Promise<OpResult> {
+  try {
+    const gameDir = await getGameDir(buildName)
+    const savesDir = path.join(gameDir, "saves")
+    const worldPath = resolveWorldPath(savesDir, folder)
+    if (!worldPath) return { success: false, error: "Некорректное имя папки мира" }
+    await fs.rm(worldPath, { recursive: true, force: true })
+    return { success: true }
+  } catch (error) {
+    return opFailure(error)
+  }
+}
+
 export function registerWorldsHandlers(): void {
   ipcMain.handle("worlds:list", async (_event, buildName: string): Promise<WorldInfo[]> => {
-    try {
-      const gameDir = await getGameDir(buildName)
-      const savesDir = path.join(gameDir, "saves")
-      let folders: string[] = []
-      try { folders = (await fs.readdir(savesDir, { withFileTypes: true })).filter(e => e.isDirectory()).map(e => e.name) } catch { return [] }
-      const worlds = await Promise.all(folders.map(folder => parseWorldFolder(savesDir, folder)))
-      worlds.sort((a, b) => b.lastPlayed - a.lastPlayed)
-      return worlds
-    } catch {
-      return []
-    }
+    return listWorldsForBuild(buildName)
   })
 
   ipcMain.handle("worlds:rename", async (_event, buildName: string, folder: string, newName: string): Promise<OpResult> => {
-    try {
-      const gameDir = await getGameDir(buildName)
-      const savesDir = path.join(gameDir, "saves")
-      const worldPath = resolveWorldPath(savesDir, folder)
-      if (!worldPath) return { success: false, error: "Некорректное имя папки мира" }
-
-      const trimmedName = newName.trim().replace(/[<>:"/\\|?*\u0000-\u001F]/g, "").slice(0, 64)
-      if (!trimmedName) return { success: false, error: "Введите название мира" }
-      if (trimmedName === folder) return { success: true }
-
-      const newFolder = trimmedName.replace(/\s+/g, "_")
-      const newWorldPath = path.join(savesDir, newFolder)
-      try { await fs.access(newWorldPath) } catch {
-        await fs.rename(worldPath, newWorldPath)
-      }
-
-      // Update LevelName inside level.dat (keep in-sync display name)
-      await updateLevelName(newWorldPath, trimmedName)
-
-      return { success: true }
-    } catch (error) {
-      return opFailure(error)
-    }
+    return renameWorldForBuild(buildName, folder, newName)
   })
 
   ipcMain.handle("worlds:delete", async (_event, buildName: string, folder: string): Promise<OpResult> => {
-    try {
-      const gameDir = await getGameDir(buildName)
-      const savesDir = path.join(gameDir, "saves")
-      const worldPath = resolveWorldPath(savesDir, folder)
-      if (!worldPath) return { success: false, error: "Некорректное имя папки мира" }
-      await fs.rm(worldPath, { recursive: true, force: true })
-      return { success: true }
-    } catch (error) {
-      return opFailure(error)
-    }
+    return deleteWorldForBuild(buildName, folder)
   })
 
   ipcMain.handle("worlds:set-icon", async (_event, buildName: string, folder: string, dataUrl: string): Promise<OpResult> => {

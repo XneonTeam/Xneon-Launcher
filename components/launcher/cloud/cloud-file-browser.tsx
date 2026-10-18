@@ -17,8 +17,7 @@ import { useAlertDialog } from "@/lib/use-alert-dialog"
 import { ActionConfirmDialog } from "@/components/launcher/instance/action-confirm-dialog"
 import { ModalLayer } from "@/components/ui/modal-layer"
 
-const AVATAR_API = "https://mcskinapi-three.vercel.app/avatar"
-const FALLBACK_AVATAR = `${AVATAR_API}/Steve?skin_type=microsoft`
+const FALLBACK_AVATAR = "avatar://head/Steve"
 
 function CloudFileIcon({ icon, name }: { icon?: string; name: string }) {
   const retryCount = useRef(0)
@@ -56,7 +55,7 @@ function FileIcon({ file, currentPath, localBuilds, localServers }: {
 
   if (currentPath === "accounts" && file.name.endsWith(".json")) {
     const username = file.name.replace(/\.json$/i, "")
-    return <CloudFileIcon icon={`${AVATAR_API}/${encodeURIComponent(username)}?skin_type=microsoft`} name={username} />
+    return <CloudFileIcon icon={`avatar://head/${encodeURIComponent(username)}`} name={username} />
   }
 
   if (currentPath === "builds" && file.name.endsWith(".zip")) {
@@ -546,7 +545,7 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
   }, [uploading])
 
   return (
-    <ModalLayer onClose={onClose} className="bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+    <ModalLayer onClose={onClose} className="animate-in fade-in-0">
       <div className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
         <div className="flex border-b border-border">
           <button onClick={() => setTab("builds")}
@@ -788,7 +787,7 @@ function SelectiveImportModal({
     : file.name.replace(/\.zip$/i, "")
 
   return (
-    <ModalLayer onClose={onClose} className="bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+    <ModalLayer onClose={onClose} className="animate-in fade-in-0">
       <div className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
         <div className="p-4 border-b border-border">
           <h3 className="font-semibold text-foreground text-base">{t("cloud.importTitle", { name })}</h3>
@@ -923,7 +922,7 @@ function SelectiveUploadModal({
   const pct = progress?.percent ?? 0
 
   return (
-    <ModalLayer onClose={() => { if (!uploading) onClose() }} className="bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+    <ModalLayer onClose={() => { if (!uploading) onClose() }} className="animate-in fade-in-0">
       <div className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
         <div className="p-4 border-b border-border">
           <h3 className="font-semibold text-foreground text-base">{t("upload.title", { name })}</h3>

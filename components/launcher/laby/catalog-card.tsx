@@ -105,7 +105,7 @@ export function CatalogCard({
         <button
           type="button"
           disabled={busy !== null || !canApply}
-          title={canApply ? t("laby.applyNow", "Надеть сейчас") : t("laby.noAccount", "Нужен аккаунт Microsoft")}
+          title={canApply ? t("laby.applyNow", "Надеть сейчас") : t("laby.noAccount", "Сначала выберите или добавьте аккаунт")}
           aria-label={t("laby.applyNow", "Надеть сейчас")}
           onClick={(event) => {
             event.stopPropagation()

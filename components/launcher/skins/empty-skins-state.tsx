@@ -16,10 +16,10 @@ export function EmptySkinsState() {
       </div>
       <div className="space-y-2">
         <h3 className="text-base font-semibold text-foreground/80">
-          {t("skins.notSupported", "Скины недоступны")}
+          {t("skins.noAccounts", "Нет активного аккаунта")}
         </h3>
         <p className="text-sm text-muted-foreground/60 max-w-sm leading-relaxed">
-          {t("skins.notSupportedDesc", "Управление скинами пока доступно только для аккаунтов Microsoft")}
+          {t("skins.noAccountsDesc", "Добавьте или выберите аккаунт, чтобы управлять скинами")}
         </p>
       </div>
     </div>

@@ -480,7 +480,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
 
       {showAddModal && (
         <ModalLayer
-          className="bg-background/80 backdrop-blur-sm"
+          className=""
           onClose={() => setShowAddModal(false)}
         >
           <div

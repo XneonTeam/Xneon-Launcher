@@ -16,9 +16,10 @@ import { pruneStaleLoaderProfiles } from "./builds/loader-profiles"
 import { recordGameSession } from "./stats"
 import { setActiveGameSession } from "./session-tracker"
 import { detectMinecraftCrash } from "./crash-detect"
+import { syncMinecraftLanguage } from "./mc-language"
 
 type LaunchAccountPayload = {
-  type: "elyby" | "xnskins" | "microsoft" | "offline"
+  type: "elyby" | "xnskins" | "microsoft" | "offline" | "authlib-injector"
   username: string
   uuid?: string
   accessToken?: string
@@ -44,11 +45,18 @@ export class LaunchOrchestrator {
   private vanillaLaunchTimestamp: number | null = null
   /** Игру остановили мы сами (Стоп/новый запуск) — это не краш. */
   private stoppedWorkers = new WeakSet<ChildProcess>()
+  /**
+   * Идёт подготовка запуска: до форка воркера выполняются сетевые операции
+   * (метаданные/сессия authlib, скачивание JAR). Пока флаг стоит, запуск
+   * считается активным, а «Стоп» отменяет подготовку.
+   */
+  private launchInProgress = false
+  private launchAbort: AbortController | null = null
 
   // ---------- State queries ----------
 
   isActive(): boolean {
-    return (!!this.launchWorker && !this.launchWorker.killed) || this.minecraftPid !== null
+    return this.launchInProgress || (!!this.launchWorker && !this.launchWorker.killed) || this.minecraftPid !== null
   }
 
   clearState(): void {
@@ -56,9 +64,27 @@ export class LaunchOrchestrator {
     this.minecraftPid = null
     this.buildLaunchTimestamps = new Map<string, number>()
     this.vanillaLaunchTimestamp = null
+    this.launchInProgress = false
+    this.launchAbort = null
   }
 
   stop(): void {
+    this.cancelPreparation()
+    this.stopWorker()
+  }
+
+  /** Отмена подготовки запуска: «Стоп» до появления воркера тоже должен работать. */
+  private cancelPreparation(): void {
+    if (!this.launchInProgress) return
+    try {
+      this.launchAbort?.abort()
+    } catch {
+      // ignore
+    }
+    logRuntime("[Minecraft] Launch preparation cancelled")
+  }
+
+  private stopWorker(): void {
     // Остановка — намеренная: процесс игры убивается через taskkill, и это тоже
     // даёт ненулевой код выхода. Без пометки воркера автопереход в логи считал
     // бы нажатие «Стоп» крашем игры.
@@ -115,6 +141,26 @@ export class LaunchOrchestrator {
     launchAccount: DbAccount,
     request: ResolvedLaunchRequest & { buildName?: string; buildId?: string; gameDir?: string },
   ): Promise<LaunchResultPayload> {
+    if (this.launchInProgress) {
+      return { success: false, error: "Minecraft is already launching or running" }
+    }
+
+    // Флаг ставим до первой сетевой операции: иначе кнопка «Запустить» снова
+    // доступна, и два запуска делят один JAR и один gameDir.
+    this.launchInProgress = true
+    const launchController = new AbortController()
+    this.launchAbort = launchController
+    const signal = launchController.signal
+
+    /** Подготовка сорвалась/отменена — освобождаем флаг и возвращаем ошибку. */
+    const failPending = (message: string): LaunchResultPayload => {
+      if (this.launchAbort === launchController) {
+        this.launchAbort = null
+        this.launchInProgress = false
+      }
+      return { success: false, error: message }
+    }
+
     let gameDir = request.gameDir ?? await getDefaultGameDir()
     if (request.buildName && !request.gameDir) {
       try {
@@ -145,18 +191,69 @@ export class LaunchOrchestrator {
       }
     }
 
+    // Тумблер «язык Minecraft по языку лаунчера»: дописываем lang в options.txt
+    // до старта игры. Внутри тумблер читается сам, ошибки не прерывают запуск.
+    await syncMinecraftLanguage(gameDir, request.mcVersion)
+    if (signal.aborted) return failPending("Launch cancelled")
+
     const retroauthEnabled = (launchAccount.type === "xnskins" || launchAccount.type === "elyby")
       && (await dbHelpers.getSetting("retroauthInjectorEnabled")) === "true"
     const useBmclapi = (await dbHelpers.getSetting("useBmclapi")) === "true"
+
+    let authlibInjectorPayload: import("@xnlc/types").WorkerAuthlibInjectorPayload | undefined
+    if (launchAccount.type === "authlib-injector") {
+      const { ensureSession, buildWorkerAuthlibPayload } = await import("./authlib/index.js")
+      const sessionOutcome = await ensureSession(launchAccount.id, signal)
+      if (signal.aborted) return failPending("Launch cancelled")
+      if (sessionOutcome.status === "expired") {
+        return failPending(sessionOutcome.message ?? "Authorization token expired. Please sign in again.")
+      }
+      if (sessionOutcome.status === "refreshed") {
+        const freshAccounts = await dbHelpers.loadAccounts()
+        const refreshed = freshAccounts.find((a) => a.id === launchAccount.id)
+        if (refreshed) {
+          launchAccount = refreshed
+        }
+      }
+
+      let server = launchAccount.serverId ? dbHelpers.getAuthServer(launchAccount.serverId) : null
+      if (!server && launchAccount.serverUrl) {
+        server = {
+          id: launchAccount.serverId ?? "custom",
+          url: launchAccount.serverUrl,
+          name: launchAccount.serverName ?? "Custom Auth Server",
+          nonEmailLogin: false,
+          links: {},
+        }
+      }
+      if (!server) {
+        return failPending("Authorization server for this account not found")
+      }
+
+      try {
+        logRuntime(`[AuthlibInjector] Preparing Minecraft launch for ${launchAccount.username} on ${server.url}`)
+        authlibInjectorPayload = await buildWorkerAuthlibPayload(gameDir, server, undefined, signal)
+      } catch (error) {
+        if (signal.aborted) return failPending("Launch cancelled")
+        return failPending(toErrorMessage(error))
+      }
+      if (signal.aborted) return failPending("Launch cancelled")
+    }
+
     const workerPath = path.join(__dirname, "minecraft-launch-worker.js")
     logRuntimeDebug(`[Minecraft] Starting launch worker path=${workerPath}`)
     logRuntime(`[Minecraft] Launch request mc=${request.mcVersion} loader=${request.loaderType} loaderVersion=${request.loaderVersion ?? ""} gameDir=${gameDir} account=${launchAccount.type}:${launchAccount.username} retroauth=${String(retroauthEnabled)}`)
 
+    // Воркер не форкаем, если запуск уже отменён: иначе отменённый запуск
+    // всё равно стартовал бы игру.
+    if (signal.aborted) return failPending("Launch cancelled")
+
     // Два JVM на один инстанс конфликтуют за файлы игры, поэтому прошлый запуск
-    // гасим явно (и помечаем его как остановленный, а не упавший).
-    if (this.isActive()) {
+    // гасим явно (и помечаем его как остановленный, а не упавший). Проверяем
+    // именно воркер: isActive() учитывает и нашу собственную подготовку.
+    if (this.launchWorker && !this.launchWorker.killed) {
       logRuntime(`[Minecraft] Previous launch is still active — stopping it before the new one`)
-      this.stop()
+      this.stopWorker()
     }
 
     const worker = fork(workerPath, [], {
@@ -337,6 +434,7 @@ export class LaunchOrchestrator {
               ...request,
               retroauthEnabled,
               useBmclapi,
+              ...(authlibInjectorPayload ? { authlibInjector: authlibInjectorPayload } : {}),
             },
           },
         })

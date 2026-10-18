@@ -22,6 +22,7 @@ type MicrosoftAccountPayload = {
   uuid: string
   accessToken: string
   refreshToken: string
+  skinUrl?: string
 }
 
 type MicrosoftModule = {
@@ -614,7 +615,7 @@ async function minecraftLauncherLogin(uhs: string, xstsToken: string): Promise<{
   return { accessToken: obj.access_token, username: obj.username }
 }
 
-async function minecraftProfile(accessToken: string): Promise<{ id: string; name: string }> {
+async function minecraftProfile(accessToken: string): Promise<{ id: string; name: string; skinUrl?: string }> {
   const response = await fetchWithRetry(MINECRAFT_PROFILE_URL, {
     headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${accessToken}` },
   }, { retries: 2 })
@@ -632,7 +633,10 @@ async function minecraftProfile(accessToken: string): Promise<{ id: string; name
   if (typeof obj.id !== "string" || typeof obj.name !== "string") {
     throw new Error("Minecraft Java profile response could not be parsed")
   }
-  return { id: obj.id, name: obj.name }
+  const rawSkins = Array.isArray(obj.skins) ? obj.skins : []
+  const activeSkin = (rawSkins.find((s: unknown) => (s as { state?: string })?.state === "ACTIVE") ?? rawSkins[0]) as { url?: string } | undefined
+  const skinUrl = typeof activeSkin?.url === "string" ? activeSkin.url : undefined
+  return { id: obj.id, name: obj.name, skinUrl }
 }
 
 async function exchangeDeviceMsaForMinecraft(msaAccessToken: string, refreshToken: string): Promise<MicrosoftAccountPayload> {
@@ -650,6 +654,7 @@ async function exchangeDeviceMsaForMinecraft(msaAccessToken: string, refreshToke
     username,
     accessToken: mc.accessToken,
     refreshToken,
+    skinUrl: profile.skinUrl,
   }
 }
 

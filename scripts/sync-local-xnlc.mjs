@@ -3,9 +3,14 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, rmSync, s
 import path from "node:path"
 
 const rootDir = process.cwd()
-const npmCommand = process.platform === "win32"
-  ? { command: "cmd.exe", args: ["/d", "/s", "/c", "pnpm", "run", "build"] }
-  : { command: "pnpm", args: ["run", "build"] }
+// Путь к pnpm.mjs задаётся только извне (PNPM_SCRIPT); в репозитории не должно
+// быть абсолютных путей конкретной машины — иначе скрипт бесполезен у других.
+const pnpmScript = process.env.PNPM_SCRIPT?.trim() || null
+const npmCommand = pnpmScript
+  ? { command: process.execPath, args: [pnpmScript, "run", "build"] }
+  : (process.platform === "win32"
+    ? { command: "cmd.exe", args: ["/d", "/s", "/c", "pnpm", "run", "build"] }
+    : { command: "pnpm", args: ["run", "build"] })
 
 const localPackages = [
   "xnlc-core",

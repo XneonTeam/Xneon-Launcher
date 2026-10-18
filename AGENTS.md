@@ -23,9 +23,18 @@ pnpm run build        # production build (vite + tsc)
 pnpm run package      # build + electron-builder → release/
 pnpm run typecheck    # tsc --noEmit (renderer tsconfig)
 pnpm run sync:xnlc    # build & symlink local @xnlc/* packages into node_modules
+pnpm run test         # node-тесты домена скинов (без сборки)
+pnpm run test:authlib # authlib-injector: JAR и коды ошибок (нужен dist-electron)
+pnpm run test:all     # все наборы
 ```
 
 No lint scripts exist. `pnpm run build` is the primary verification.
+
+## Environment variables
+
+- `XNLC_NEWS_URL` — адрес ленты новостей лаунчера (`fetch:launcher-news`). По умолчанию `http://localhost:3000/news.json` — только для разработки: в релизе без этого значения лента пустая.
+- `ELECTRON_DEBUG_PORT` — открывает `--remote-debugging-port` в `scripts/launch-electron-dev.mjs`; без него порт не открывается (иначе второй инстанс падал на занятом 9222).
+- `PNPM_SCRIPT` — путь к `pnpm.mjs` для `scripts/sync-local-xnlc.mjs` (в репозитории абсолютных путей машины нет).
 
 ## Build pipeline
 

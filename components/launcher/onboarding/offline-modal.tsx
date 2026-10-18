@@ -26,7 +26,7 @@ export function OfflineModal({
   const isValidUsername = OFFLINE_USERNAME_REGEX.test(offlineUsername.trim())
   const canAdd = Boolean(offlineUsername.trim()) && (isValidUsername || allowInvalidUsername)
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 px-4 backdrop-blur-sm">
+    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
         <div className="mb-6 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-foreground">{copy.accountOfflineTitle}</h3>

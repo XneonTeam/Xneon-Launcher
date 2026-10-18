@@ -22,6 +22,7 @@ export type {
   MinecraftVersionInfo,
   VersionEntry,
   MinecraftNewsEntry,
+  LauncherNewsEntry,
   ImportableLauncherInstance,
   BuildExportCategory,
   CloudUploadCategory,
@@ -55,6 +56,30 @@ export type {
   StorageCleanTarget,
   StorageCleanResult,
 } from "./domain-types.js"
+
+// Authlib-Injector (Yggdrasil) — контракты третьего типа аккаунта.
+// Реализация (resolve сервера, Yggdrasil-клиент, javaagent) — в main.
+export type {
+  AuthlibInjectorMetadata,
+  AuthlibInjectorServer,
+  AuthlibInjectorServerSummary,
+  AuthlibInjectorAccountData,
+  AuthlibInjectorLoginResult,
+  AuthlibInjectorErrorPayload,
+  AuthlibInjectorErrorOutcome,
+  AuthlibProbeOutcome,
+  AuthlibAddServerOutcome,
+  AuthlibLoginOutcome,
+  AuthlibLoginPhase,
+  AuthlibLoginProgress,
+  AuthlibSessionStatus,
+  AuthlibSessionOutcome,
+  AuthlibRemoveServerResult,
+  YggdrasilGameProfile,
+  YggdrasilTextures,
+  YggdrasilProfileWithTextures,
+  YggdrasilAuthenticationResponse,
+} from "./authlib-types.js"
 
 // Laby (каталог скинов) — только контракты, которые пересекают границу
 // main ↔ renderer. Реализация (запросы, маппинг, кэш, фильтры) — в `@xnlc/skins`.
@@ -118,6 +143,7 @@ export type {
 // Worker types
 export type {
   WorkerAccountPayload,
+  WorkerAuthlibInjectorPayload,
   WorkerLaunchPayload,
   WorkerMessage,
 } from "./worker-types.js"

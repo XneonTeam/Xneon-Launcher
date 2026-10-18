@@ -128,8 +128,14 @@ pnpm run build         # typecheck + сборка renderer и main
 pnpm run package       # electron-builder → release/
 pnpm run typecheck     # tsc --noEmit
 pnpm run test          # тесты домена скинов (67 тестов)
+pnpm run test:authlib  # authlib-injector: JAR и коды ошибок (нужен dist-electron)
+pnpm run test:all      # все наборы
 pnpm run sync:xnlc     # собрать и перелинковать пакеты @xnlc/*
 ```
+
+Переменные окружения: `XNLC_NEWS_URL` — адрес ленты новостей лаунчера (по умолчанию
+`http://localhost:3000/news.json`, только для разработки), `ELECTRON_DEBUG_PORT` — порт
+remote-debugging для `scripts/launch-electron-dev.mjs` (по умолчанию не открывается).
 
 ### Структура
 

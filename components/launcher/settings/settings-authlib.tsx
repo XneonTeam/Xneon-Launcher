@@ -127,7 +127,7 @@ export function SettingsAuthlib({
       </div>
 
       {showWarningModal && createPortal(
-        <ModalLayer onClose={() => setShowWarningModal(false)} className="bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+        <ModalLayer onClose={() => setShowWarningModal(false)} className="animate-in fade-in-0">
           <div className="w-full max-w-md p-6 rounded-2xl bg-card border border-destructive/50 shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div className="flex items-center gap-4 mb-6">
               <div className="w-12 h-12 rounded-xl bg-destructive/20 flex items-center justify-center">

@@ -5,7 +5,7 @@ import path from "path"
 import fs from "fs/promises"
 import fsSync from "fs"
 import { dbHelpers, isUsingFallbackStorage } from "../db"
-import { getMainWindow } from "./runtime"
+import { getMainWindow, sendToRenderer } from "./runtime"
 import { discoverAllInstances, discoverGdLauncherInstances, discoverInstancesFromPath, importLauncherInstance } from "./import"
 import { execAsync, fileExists } from "./import/helpers"
 import {
@@ -15,6 +15,7 @@ import {
   sendImportProgress,
 } from "./builds/helpers"
 import { fetchWithRetry } from "@xnlc/core/retry"
+import type { LauncherNewsEntry } from "@xnlc/types"
 
 const MOJANG_BASE = "https://launchercontent.mojang.com"
 
@@ -210,7 +211,7 @@ async function scanJavaInstallations(): Promise<JavaDetectEntry[]> {
  * (in-flight), а `force` заставляет перечитать список (кнопка «Обновить» —
  * например, после установки новой Java).
  */
-async function detectJavaInstallations(force = false): Promise<JavaDetectEntry[]> {
+export async function detectJavaInstallations(force = false): Promise<JavaDetectEntry[]> {
   if (!force && javaDetectCache && Date.now() - javaDetectCache.at < JAVA_DETECT_TTL_MS) {
     return javaDetectCache.value
   }
@@ -305,6 +306,69 @@ export function findJavaBinarySync(): string | null {
   return null
 }
 
+function parseLauncherNewsItems(raw: unknown, sourceUrl: string): LauncherNewsEntry[] {
+  let list: unknown[] = []
+  if (Array.isArray(raw)) {
+    list = raw
+  } else if (raw && typeof raw === "object") {
+    const obj = raw as Record<string, unknown>
+    if (Array.isArray(obj.entries)) list = obj.entries
+    else if (Array.isArray(obj.news)) list = obj.news
+    else if (Array.isArray(obj.items)) list = obj.items
+    else if (Array.isArray(obj.articles)) list = obj.articles
+    else if (Array.isArray(obj.data)) list = obj.data
+    else if (Array.isArray(obj.posts)) list = obj.posts
+    else if (obj.title || obj.header || obj.text || obj.description) list = [obj]
+  }
+
+  const urlBase = (() => {
+    try {
+      const u = new URL(sourceUrl)
+      return `${u.protocol}//${u.host}`
+    } catch {
+      return ""
+    }
+  })()
+
+  const resolveUrl = (link?: unknown): string | undefined => {
+    if (typeof link !== "string" || !link.trim()) return undefined
+    const s = link.trim()
+    if (s.startsWith("http://") || s.startsWith("https://")) return s
+    if (s.startsWith("/") && urlBase) return `${urlBase}${s}`
+    return s
+  }
+
+  return list.map((item, index) => {
+    const obj = (item && typeof item === "object") ? (item as Record<string, unknown>) : {}
+    const id = String(obj.id ?? obj.guid ?? obj.slug ?? obj.url ?? obj.link ?? `news-${index}`)
+    const title = String(obj.title ?? obj.header ?? obj.name ?? obj.subject ?? "Без названия")
+    const text = typeof obj.text === "string" ? obj.text : typeof obj.description === "string" ? obj.description : typeof obj.summary === "string" ? obj.summary : undefined
+    const content = typeof obj.content === "string" ? obj.content : typeof obj.body === "string" ? obj.body : typeof obj.fullText === "string" ? obj.fullText : text
+    const date = String(obj.date ?? obj.publishedAt ?? obj.published_at ?? obj.createdAt ?? obj.created_at ?? obj.time ?? new Date().toISOString())
+    const tag = typeof obj.tag === "string" ? obj.tag : typeof obj.category === "string" ? obj.category : typeof obj.type === "string" ? obj.type : undefined
+    const category = typeof obj.category === "string" ? obj.category : tag
+    const readMoreLink = resolveUrl(obj.readMoreLink ?? obj.url ?? obj.link ?? obj.moreUrl ?? obj.detailsUrl ?? sourceUrl)
+    const rawImg = obj.imageUrl ?? obj.image ?? obj.cover ?? obj.banner ?? (obj.playPageImage as { url?: string } | undefined)?.url ?? (obj.newsPageImage as { url?: string } | undefined)?.url
+    const imageUrl = resolveUrl(rawImg)
+    const author = typeof obj.author === "string" ? obj.author : typeof (obj.author as { name?: string } | undefined)?.name === "string" ? (obj.author as { name: string }).name : undefined
+
+    return {
+      id,
+      title,
+      text,
+      content,
+      date,
+      tag,
+      category,
+      readMoreLink,
+      imageUrl,
+      playPageImage: imageUrl ? { url: imageUrl } : undefined,
+      newsPageImage: imageUrl ? { url: imageUrl } : undefined,
+      author,
+    }
+  })
+}
+
 export function registerSystemHandlers() {
   ipcMain.handle("system:get-total-memory", () => os.totalmem())
 
@@ -319,6 +383,27 @@ export function registerSystemHandlers() {
         newsPageImage: e.newsPageImage ? { ...(e.newsPageImage as Record<string, unknown>), url: resolveImageUrl((e.newsPageImage as { url?: string }).url) } : e.newsPageImage,
       }))
     } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle("fetch:launcher-news", async (_event, customUrl?: string) => {
+    // Адрес ленты задаётся в одном месте: XNLC_NEWS_URL (переменная окружения),
+    // localhost — только значение по умолчанию для разработки. Схему проверяем,
+    // иначе renderer мог бы подсунуть file:// или data: и заставить main читать
+    // произвольный локальный ресурс.
+    const envUrl = (process.env.XNLC_NEWS_URL || "").trim()
+    const url = (typeof customUrl === "string" && customUrl.trim()) ? customUrl.trim() : (envUrl || "http://localhost:3000/news.json")
+    if (!/^https?:\/\//i.test(url)) {
+      console.warn(`[fetch:launcher-news] Недопустимый адрес ленты: ${url}`)
+      return []
+    }
+    try {
+      const res = await fetchWithRetry(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(7000) }, { retries: 1 })
+      const data = await res.json()
+      return parseLauncherNewsItems(data, url)
+    } catch (err) {
+      console.warn(`[fetch:launcher-news] Failed to fetch launcher news from ${url}:`, err)
       return []
     }
   })
@@ -441,7 +526,12 @@ export function registerSystemHandlers() {
     return { success: true, imported: importedBuilds.length }
   })
   ipcMain.handle("settings:get", async (_event, key: string) => dbHelpers.getSetting(key))
-  ipcMain.handle("settings:set", async (_event, key: string, value: string) => dbHelpers.setSetting(key, value))
+  ipcMain.handle("settings:set", async (_event, key: string, value: string) => {
+    await dbHelpers.setSetting(key, value)
+    // Пушим изменение в рендерер: язык и тема применяются мгновенно, без
+    // перезапуска (см. подписку в launcher.tsx).
+    sendToRenderer("settings:updated", { key, value })
+  })
 
   ipcMain.handle("shell:open-external", (_event, url: string) => shell.openExternal(url))
   ipcMain.handle("shell:open-launcher-folder", async (): Promise<void> => {

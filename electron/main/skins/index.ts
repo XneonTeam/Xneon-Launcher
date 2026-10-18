@@ -18,6 +18,7 @@ import type { LabyOrder } from "@xnlc/types"
 import { createSkinSystem, type SkinSystem } from "@xnlc/skins"
 import { dbHelpers } from "../../db"
 import { createAccountPort, createDiskCache, createLibraryStore } from "./ports"
+import { invalidateAvatarCache } from "../avatar"
 
 /** Верхняя граница размера файла, который `read-local-file` отдаёт в renderer. */
 const MAX_LOCAL_READ_BYTES = 16 * 1024 * 1024
@@ -72,7 +73,20 @@ export function registerSkinsHandlers(): void {
 
   ipcMain.handle("skins:get-profile", async (_event, accountId?: string) => skins().minecraft.profile(accountId))
 
-  ipcMain.handle("skins:delete-skin", async (_event, accountId?: string) => skins().library.reset(accountId))
+  ipcMain.handle("skins:delete-skin", async (_event, accountId?: string) => {
+    const success = await skins().library.reset(accountId)
+    if (success && accountId) {
+      try {
+        const accounts = await dbHelpers.loadAccounts()
+        const acc = accounts.find((a: { id: string }) => a.id === accountId)
+        if (acc && acc.type === "offline") {
+          await dbHelpers.saveAccount({ ...acc, skinUrl: undefined })
+          invalidateAvatarCache({ username: acc.username, uuid: acc.uuid, type: acc.type })
+        }
+      } catch {}
+    }
+    return success
+  })
 
   ipcMain.handle("skins:set-cape", async (_event, params: { capeId: string | null; accountId?: string }) =>
     skins().library.setCape(params?.capeId ?? null, params?.accountId),
@@ -116,9 +130,29 @@ export function registerSkinsHandlers(): void {
       }),
   )
 
-  ipcMain.handle("skins:apply-library-skin", async (_event, params: { skinId: string; accountId: string }) =>
-    skins().library.apply(params.skinId, params.accountId),
-  )
+  ipcMain.handle("skins:apply-library-skin", async (_event, params: { skinId: string; accountId: string }) => {
+    const success = await skins().library.apply(params.skinId, params.accountId)
+    if (success) {
+      try {
+        const accounts = await dbHelpers.loadAccounts()
+        const acc = accounts.find((a: { id: string }) => a.id === params.accountId)
+        if (acc) {
+          if (acc.type === "offline") {
+            const skinItem = await dbHelpers.findLibrarySkinById(params.skinId)
+            if (skinItem?.filePath) {
+              await dbHelpers.saveAccount({ ...acc, skinUrl: skinItem.filePath })
+            }
+          }
+          invalidateAvatarCache({ username: acc.username, uuid: acc.uuid, type: acc.type })
+        } else {
+          invalidateAvatarCache()
+        }
+      } catch {
+        invalidateAvatarCache()
+      }
+    }
+    return success
+  })
 
   // ── Каталог Laby ────────────────────────────────────────
 
@@ -154,7 +188,28 @@ export function registerSkinsHandlers(): void {
 
   ipcMain.handle(
     "laby:apply",
-    async (_event, params: { hash: string; accountId: string; name?: string; slim?: boolean }) =>
-      skins().library.importFromCatalog(params, true),
+    async (_event, params: { hash: string; accountId: string; name?: string; slim?: boolean }) => {
+      const result = await skins().library.importFromCatalog(params, true)
+      if (result.applied) {
+        try {
+          const accounts = await dbHelpers.loadAccounts()
+          const acc = accounts.find((a: { id: string }) => a.id === params.accountId)
+          if (acc) {
+            if (acc.type === "offline" && result.librarySkinId) {
+              const skinItem = await dbHelpers.findLibrarySkinById(result.librarySkinId)
+              if (skinItem?.filePath) {
+                await dbHelpers.saveAccount({ ...acc, skinUrl: skinItem.filePath })
+              }
+            }
+            invalidateAvatarCache({ username: acc.username, uuid: acc.uuid, type: acc.type })
+          } else {
+            invalidateAvatarCache()
+          }
+        } catch {
+          invalidateAvatarCache()
+        }
+      }
+      return result
+    },
   )
 }

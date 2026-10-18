@@ -31,10 +31,11 @@ const PROFILE_CACHE_TTL_MS = 60_000
  */
 export function FavoritesTab() {
   const { t } = useTranslation()
-  const { accounts, activeAccount } = useAccounts()
+  const { accounts, activeAccount, bumpAvatarVersion } = useAccounts()
   const { pushNotification } = useActivityCenter()
 
-  const account = activeAccount ?? accounts[0]
+  const skinAccounts = useMemo(() => accounts.filter((a) => a.type !== "elyby" && a.type !== "offline"), [accounts])
+  const account = (activeAccount && activeAccount.type !== "elyby" && activeAccount.type !== "offline" ? activeAccount : skinAccounts[0]) ?? null
 
   const [librarySkins, setLibrarySkins] = useState<LibrarySkin[]>([])
   const [skinBlobUrls, setSkinBlobUrls] = useState<Map<string, string>>(new Map())
@@ -262,6 +263,8 @@ export function FavoritesTab() {
       const ok = await window.electronAPI.skinsApplyLibrarySkin(selectedSkin.id, account.id)
       if (ok) {
         localStorage.setItem(`skin-equipped-${account.id}`, selectedSkin.id)
+        await window.electronAPI.avatarInvalidateCache?.({ username: account.username, uuid: account.uuid, type: account.type })
+        bumpAvatarVersion()
         await fetchProfile(true)
         setEquippedId(selectedSkin.id)
         setSelectedId(selectedSkin.id)
@@ -289,6 +292,8 @@ export function FavoritesTab() {
         return
       }
       localStorage.removeItem(`skin-equipped-${account.id}`)
+      await window.electronAPI.avatarInvalidateCache?.({ username: account.username, uuid: account.uuid, type: account.type })
+      bumpAvatarVersion()
       await fetchProfile(true)
       // Скин с аккаунта снят — надетого больше нет. Раньше сюда подставлялся
       // `"__api__"` по устаревшему (до сброса) `activeSkinUrl`, и панель
@@ -370,8 +375,8 @@ export function FavoritesTab() {
     setEditModalOpen(true)
   }, [])
 
-  // Пока поддерживаются только аккаунты Microsoft
-  if (account?.type !== "microsoft") {
+  // Если аккаунт не выбран
+  if (!account) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center">
         <EmptySkinsState />

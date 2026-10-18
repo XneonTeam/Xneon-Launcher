@@ -49,6 +49,7 @@ export function SettingsPage() {
   const [serverAddress, setServerAddress] = useState("")
   const [serverPort, setServerPort] = useState("25565")
   const [afterLaunch, setAfterLaunch] = useState<"nothing" | "minimize" | "close">("nothing")
+  const [autoGameLanguage, setAutoGameLanguage] = useState(false)
   const [selectedLanguage, setSelectedLanguage] = useState(() => {
     const stored = typeof window !== "undefined" ? localStorage.getItem("language") : null
     return stored || "ru"
@@ -74,6 +75,9 @@ export function SettingsPage() {
   useEffect(() => {
     changeLanguage(selectedLanguage)
     localStorage.setItem("language", selectedLanguage)
+    // Дублируем в БД, чтобы агент (get_settings) видел реальный язык, а не
+    // устаревшее значение — иначе он отвечает не на том языке.
+    window.electronAPI?.setSetting("language", selectedLanguage)
   }, [selectedLanguage])
 
   useEffect(() => {
@@ -105,6 +109,7 @@ export function SettingsPage() {
         serverSetting,
         serverPortSetting,
         afterLaunchSetting,
+        autoGameLanguageSetting,
       ] = await Promise.all([
         api.getSetting("authlibInjectorEnabled"),
         api.getSetting("retroauthInjectorEnabled"),
@@ -124,6 +129,7 @@ export function SettingsPage() {
         api.getSetting("server"),
         api.getSetting("serverPort"),
         api.getSetting("afterLaunch"),
+        api.getSetting("autoGameLanguage"),
       ])
 
       if (cancelled) return
@@ -153,6 +159,7 @@ export function SettingsPage() {
       if (serverPortSetting) setServerPort(serverPortSetting)
       if (selectedResolutionSetting) setSelectedResolution(selectedResolutionSetting)
       if (afterLaunchSetting === "minimize" || afterLaunchSetting === "close") setAfterLaunch(afterLaunchSetting)
+      setAutoGameLanguage(autoGameLanguageSetting === "true")
       if (customWidthSetting) setCustomWidth(customWidthSetting)
       if (customHeightSetting) setCustomHeight(customHeightSetting)
       setUseCustomResolution(useCustomResolutionSetting === "true")
@@ -168,6 +175,7 @@ export function SettingsPage() {
         customWidth: customWidthSetting ?? "1920",
         customHeight: customHeightSetting ?? "1080",
         useCustomResolution: String(useCustomResolutionSetting === "true"),
+        autoGameLanguage: String(autoGameLanguageSetting === "true"),
       }
       try {
         const root = await api.getInstancesRoot()
@@ -240,6 +248,7 @@ export function SettingsPage() {
   useEffect(() => { persistSetting("customHeight", customHeight) }, [customHeight, persistSetting])
   useEffect(() => { persistSetting("useCustomResolution", String(useCustomResolution)) }, [persistSetting, useCustomResolution])
   useEffect(() => { persistSetting("afterLaunch", afterLaunch) }, [afterLaunch, persistSetting])
+  useEffect(() => { persistSetting("autoGameLanguage", String(autoGameLanguage)) }, [autoGameLanguage, persistSetting])
 
   /**
    * Список установленных Java кэшируется в main-процессе (скан реестра +
@@ -491,7 +500,13 @@ export function SettingsPage() {
 
         {activeSettingsTab === "language" && (
           <div className="min-h-0 flex-1 overflow-y-auto pr-6">
-            <SettingsLanguage selectedLanguage={selectedLanguage} setSelectedLanguage={setSelectedLanguage} t={t} />
+            <SettingsLanguage
+              selectedLanguage={selectedLanguage}
+              setSelectedLanguage={setSelectedLanguage}
+              autoGameLanguage={autoGameLanguage}
+              setAutoGameLanguage={setAutoGameLanguage}
+              t={t}
+            />
           </div>
         )}
 

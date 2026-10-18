@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react"
 
-const FALLBACK_URL = "https://mcskinapi-three.vercel.app/avatar/Steve?skin_type=microsoft"
+const FALLBACK_URL = "avatar://head/Steve"
 
 const imageCache = new Map<string, string>()
 const inflightCache = new Map<string, Promise<string>>()
 
-const STORE_KEY = "xnlc:avatar-cache:v1"
+const STORE_KEY = "xnlc:avatar-cache:v2"
 const AVATAR_TTL = 24 * 60 * 60 * 1000
 const MAX_ENTRIES = 120
 const MAX_TOTAL_BYTES = 4 * 1024 * 1024
@@ -102,6 +102,31 @@ async function loadImage(url: string): Promise<string> {
 
   inflightCache.set(url, promise)
   return promise
+}
+
+export function invalidateAvatarCache(urlOrPredicate?: string | ((url: string) => boolean)) {
+  const persisted = readPersisted()
+  if (!urlOrPredicate) {
+    imageCache.clear()
+    persistedCache = {}
+    writePersisted()
+    return
+  }
+
+  const isMatch = typeof urlOrPredicate === "function" ? urlOrPredicate : (key: string) => key === urlOrPredicate || key.startsWith(urlOrPredicate)
+
+  for (const key of Object.keys(persisted)) {
+    if (isMatch(key)) {
+      delete persisted[key]
+    }
+  }
+  writePersisted()
+
+  for (const key of imageCache.keys()) {
+    if (isMatch(key)) {
+      imageCache.delete(key)
+    }
+  }
 }
 
 /**

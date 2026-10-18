@@ -275,7 +275,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
       {renameFor && (
         <ModalLayer
           onClose={() => setRenameFor(null)}
-          className="z-[60] bg-background/70 backdrop-blur-sm animate-in fade-in-0"
+          className="z-[60] animate-in fade-in-0"
         >
           <div className="w-80 rounded-2xl border border-border bg-card p-4 shadow-2xl animate-in zoom-in-95">
             <p className="text-sm font-semibold text-foreground mb-3">{t("screenshots.rename.title")}</p>

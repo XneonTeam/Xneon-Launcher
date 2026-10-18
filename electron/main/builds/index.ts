@@ -480,55 +480,7 @@ export function registerBuildHandlers() {
   })
 
   ipcMain.handle("build:restore-intent-from-trash", async (_event, dirName: string, trashName: string): Promise<{ success: boolean; build?: Record<string, unknown>; error?: string }> => {
-    try {
-      const baseDataRoot = getInstancesRoot()
-      const safeName = getBuildIntentDirName(dirName)
-      const trashRoot = path.join(baseDataRoot, "intents", ".trash")
-      const trashPath = path.join(trashRoot, trashName)
-      await fs.access(trashPath)
-      const intentPath = path.join(baseDataRoot, "intents", safeName)
-      await fs.mkdir(path.dirname(intentPath), { recursive: true })
-      await fs.rename(trashPath, intentPath).catch(async () => {
-        await fs.cp(trashPath, intentPath, { recursive: true, verbatimSymlinks: true })
-        await fs.rm(trashPath, { recursive: true, force: true })
-      })
-
-      // Возвращаем сохранённые при отправке в корзину метаданные, чтобы вызывающая
-      // сторона могла восстановить запись сборки в БД и в UI без перезапуска.
-      let build: Record<string, unknown> | undefined
-      const snapshotPath = path.join(trashRoot, `${trashName}.json`)
-      try {
-        const raw = await fs.readFile(snapshotPath, "utf-8")
-        const parsed = JSON.parse(raw)
-        if (parsed && typeof parsed === "object") build = parsed as Record<string, unknown>
-        await fs.rm(snapshotPath, { force: true })
-      } catch { /* снапшота может не быть у старых записей корзины */ }
-
-      // Запись в БД удаляется при отправке в корзину, поэтому восстанавливаем её
-      // здесь же из снапшота — иначе сборка вернулась бы только в UI и пропала
-      // при следующем reloadBuilds (список читается из БД).
-      if (build && typeof build.id === "string" && typeof build.name === "string") {
-        // Путь в снапшоте мог быть записан до переименования папок — берём текущий.
-        build.intentPath = intentPath
-        try {
-          const existing = await dbHelpers.loadBuildsLight()
-          if (!existing.some((item) => item.id === build!.id)) {
-            await dbHelpers.saveAllBuilds([build as never, ...(existing as never[])])
-          }
-        } catch { /* запись восстановит вызывающая сторона */ }
-      }
-
-      // Сборка вернулась в БД: статистика снова должна брать имя и иконку из неё,
-      // а не из снапшота корзины (снапшот уже удалён выше).
-      notifyStatsUpdated()
-
-      return { success: true, build }
-    } catch (error) {
-      if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") {
-        return { success: true }
-      }
-      return opFailure(error)
-    }
+    return restoreBuildFromTrash(dirName, trashName)
   })
 
   ipcMain.handle("build:purge-trash", async (): Promise<{ success: boolean; error?: string }> => {
@@ -560,31 +512,7 @@ export function registerBuildHandlers() {
   })
 
   ipcMain.handle("build:list-trash", async (): Promise<Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string; modLoader?: string }>> => {
-    try {
-      const trashRoot = path.join(getInstancesRoot(), "intents", ".trash")
-      const entries = await fs.readdir(trashRoot, { withFileTypes: true }).catch(() => [])
-      const items: Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string; modLoader?: string }> = []
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue
-        const match = entry.name.match(/^(\d+)-(.+)$/)
-        if (!match) continue
-        // Имя, иконка и загрузчик сборки живут в снапшоте метаданных рядом с папкой
-        // в корзине (`<trashName>.json`): имя папки санитизировано, поэтому в списке
-        // корзины показывалось бы `Prominence_ II_ ...` вместо настоящего имени, а
-        // без загрузчика не рисовалась бы плашка-заглушка как в списке сборок.
-        const snapshot = await readTrashSnapshot(entry.name)
-        items.push({
-          trashName: entry.name,
-          originalName: snapshot?.name ?? match[2],
-          trashedAt: Number(match[1]),
-          icon: snapshot?.icon,
-          modLoader: snapshot?.modLoader,
-        })
-      }
-      return items
-    } catch {
-      return []
-    }
+    return listBuildTrash()
   })
 
   ipcMain.handle("build:delete-trash-item", async (_event, trashName: string): Promise<{ success: boolean; error?: string }> => {
@@ -1375,4 +1303,95 @@ export function registerBuildHandlers() {
       finishImportSession(signal)
     }
   })
+}
+
+/**
+ * Имя записи корзины — только простое имя каталога (basename): без
+ * разделителей пути, «.»/«..», нулевых байтов и вложенности. Нужно, чтобы
+ * `${trashName}.json` и `path.resolve(trashRoot, trashName)` не выходили
+ * за пределы `.trash`.
+ */
+function isSafeTrashEntryName(trashName: unknown): trashName is string {
+  if (typeof trashName !== "string") return false
+  if (!trashName || trashName === "." || trashName === "..") return false
+  if (trashName.includes("/") || trashName.includes("\\") || trashName.includes("\0")) return false
+  return path.basename(trashName) === trashName
+}
+
+export async function restoreBuildFromTrash(dirName: string, trashName: string): Promise<{ success: boolean; build?: Record<string, unknown>; error?: string }> {
+  try {
+    const baseDataRoot = getInstancesRoot()
+    const safeName = getBuildIntentDirName(dirName)
+    const trashRoot = path.join(baseDataRoot, "intents", ".trash")
+    // trashName приходит из renderer/агента, то есть в конечном счёте от модели:
+    // «..\..\..» увёл бы восстановление за пределы корзины и позволил бы
+    // переместить (а при коллизии — скопировать и удалить) произвольный каталог.
+    if (!isSafeTrashEntryName(trashName)) {
+      return { success: false, error: "Некорректное имя сборки в корзине" }
+    }
+    // Вторая линия защиты: итоговый путь обязан остаться внутри trashRoot.
+    const trashPath = path.resolve(trashRoot, trashName)
+    const normalizedTrashRoot = `${path.resolve(trashRoot)}${path.sep}`
+    if (!trashPath.startsWith(normalizedTrashRoot)) {
+      return { success: false, error: "Некорректное имя сборки в корзине" }
+    }
+    await fs.access(trashPath)
+    const intentPath = path.join(baseDataRoot, "intents", safeName)
+    await fs.mkdir(path.dirname(intentPath), { recursive: true })
+    await fs.rename(trashPath, intentPath).catch(async () => {
+      await fs.cp(trashPath, intentPath, { recursive: true, verbatimSymlinks: true })
+      await fs.rm(trashPath, { recursive: true, force: true })
+    })
+
+    let build: Record<string, unknown> | undefined
+    const snapshotPath = path.join(trashRoot, `${trashName}.json`)
+    try {
+      const raw = await fs.readFile(snapshotPath, "utf-8")
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === "object") build = parsed as Record<string, unknown>
+      await fs.rm(snapshotPath, { force: true })
+    } catch { /* снапшота может не быть у старых записей корзины */ }
+
+    if (build && typeof build.id === "string" && typeof build.name === "string") {
+      build.intentPath = intentPath
+      try {
+        const existing = await dbHelpers.loadBuildsLight()
+        if (!existing.some((item) => item.id === build!.id)) {
+          await dbHelpers.saveAllBuilds([build as never, ...(existing as never[])])
+        }
+      } catch { /* запись восстановит вызывающая сторона */ }
+    }
+
+    notifyStatsUpdated()
+    return { success: true, build }
+  } catch (error) {
+    if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") {
+      return { success: true }
+    }
+    return opFailure(error)
+  }
+}
+
+export async function listBuildTrash(): Promise<Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string; modLoader?: string }>> {
+  try {
+    const trashRoot = path.join(getInstancesRoot(), "intents", ".trash")
+    const entries = await fs.readdir(trashRoot, { withFileTypes: true }).catch(() => [])
+    const items: Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string; modLoader?: string }> = []
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const match = entry.name.match(/^(\d+)-(.+)$/)
+      if (!match) continue
+      const snapshot = await readTrashSnapshot(entry.name)
+      items.push({
+        trashName: entry.name,
+        originalName: snapshot?.name ?? match[2],
+        trashedAt: Number(match[1]),
+        icon: snapshot?.icon,
+        modLoader: snapshot?.modLoader,
+      })
+    }
+    return items
+  } catch {
+    return []
+  }
 }

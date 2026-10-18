@@ -30,7 +30,30 @@ export class MinecraftSkins {
       const account = await this.accounts.resolve(accountId)
       if (!account) return null
 
-      if (account.type === "elyby") return await this.elybyProfile(account)
+      if (account.type === "offline") {
+        return {
+          id: account.uuid ?? account.id,
+          name: account.username ?? "Player",
+          skins: account.skinUrl
+            ? [{ id: "active", state: "ACTIVE", url: account.skinUrl, variant: "CLASSIC" }]
+            : [],
+          capes: [],
+        }
+      }
+
+      if (account.type === "elyby") {
+        const elyProfile = await this.elybyProfile(account)
+        if (elyProfile && elyProfile.skins.length > 0) return elyProfile
+        if (account.serverUrl) {
+          const authlibRes = await this.authlibProfile(account)
+          if (authlibRes) return authlibRes
+        }
+        if (elyProfile) return elyProfile
+      }
+
+      if (account.type === "authlib-injector" || account.type === "xnskins" || (account.type as string) === "xneon") {
+        return await this.authlibProfile(account)
+      }
 
       const sent = await this.send(account, (token) =>
         fetchWithRetry(MC_PROFILE_URL, { headers: { Authorization: `Bearer ${token}` } }, RETRIES),
@@ -56,6 +79,22 @@ export class MinecraftSkins {
     try {
       const account = await this.accounts.resolve(params.accountId)
       if (!account) return false
+
+      if (account.type === "offline") {
+        return true
+      }
+
+      if (account.type === "elyby") {
+        return false
+      }
+
+      if (
+        account.type === "authlib-injector" ||
+        account.type === "xnskins" ||
+        (account.type as string) === "xneon"
+      ) {
+        return await this.authlibApply(account, params)
+      }
 
       const sent = await this.send(account, (token) => {
         const formData = new FormData()
@@ -90,6 +129,23 @@ export class MinecraftSkins {
     try {
       const account = await this.accounts.resolve(accountId)
       if (!account) return false
+
+      if (account.type === "offline") {
+        return true
+      }
+
+      if (account.type === "elyby") {
+        return false
+      }
+
+      if (
+        account.type === "authlib-injector" ||
+        account.type === "xnskins" ||
+        (account.type as string) === "xneon"
+      ) {
+        return await this.authlibReset(account)
+      }
+
       const sent = await this.send(account, (token) =>
         fetchWithRetry(`${MC_PROFILE_URL}/skins/active`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }, RETRIES),
       )
@@ -104,6 +160,23 @@ export class MinecraftSkins {
     try {
       const account = await this.accounts.resolve(accountId)
       if (!account) return false
+
+      if (account.type === "offline") {
+        return true
+      }
+
+      if (account.type === "elyby") {
+        return false
+      }
+
+      if (
+        account.type === "authlib-injector" ||
+        account.type === "xnskins" ||
+        (account.type as string) === "xneon"
+      ) {
+        return await this.authlibSetCape(account, capeId)
+      }
+
       const sent = await this.send(account, (token) =>
         fetchWithRetry(`${MC_PROFILE_URL}/capes/active`, {
           method: capeId ? "PUT" : "DELETE",
@@ -170,6 +243,164 @@ export class MinecraftSkins {
         }
       }),
     }
+  }
+
+  /** Authlib-Injector: профиль с текстурами и uploadableTextures через сессионный сервер */
+  private async authlibProfile(account: ResolvedSkinAccount): Promise<McProfile | null> {
+    if (!account.serverUrl || !account.uuid) return null
+    const base = account.serverUrl.endsWith("/") ? account.serverUrl : `${account.serverUrl}/`
+    const cleanUuid = account.uuid.replace(/-/g, "")
+    const url = `${base}sessionserver/session/minecraft/profile/${cleanUuid}?unsigned=false`
+
+    const sent = await this.send(account, (token) =>
+      fetchWithRetry(url, { headers: { Authorization: `Bearer ${token}` } }, RETRIES),
+    )
+    if (!sent?.res.ok) {
+      // Некоторые серверы отдают профиль по /api/user/profile/:uuid
+      const altUrl = `${base}api/user/profile/${cleanUuid}`
+      const altSent = await this.send(account, (token) =>
+        fetchWithRetry(altUrl, { headers: { Authorization: `Bearer ${token}` } }, RETRIES),
+      )
+      if (!altSent?.res.ok) return null
+      return this.parseAuthlibProfileResponse(await altSent.res.json(), account)
+    }
+
+    return this.parseAuthlibProfileResponse(await sent.res.json(), account)
+  }
+
+  private parseAuthlibProfileResponse(data: unknown, account: ResolvedSkinAccount): McProfile | null {
+    if (!data || typeof data !== "object") return null
+    const obj = data as Record<string, unknown>
+    const id = String(obj.id ?? account.uuid ?? "")
+    const name = String(obj.name ?? account.username ?? "")
+    const properties = Array.isArray(obj.properties) ? obj.properties : []
+
+    let texturesObj: { textures?: { SKIN?: { url?: string; metadata?: { model?: string } }; CAPE?: { url?: string } } } | null = null
+    let uploadableTextures: string | undefined = undefined
+
+    for (const prop of properties) {
+      if (typeof prop !== "object" || !prop) continue
+      const p = prop as { name?: string; value?: string }
+      if (p.name === "textures" && typeof p.value === "string") {
+        texturesObj = decodeBase64Json(p.value)
+      } else if (p.name === "uploadableTextures" && typeof p.value === "string") {
+        uploadableTextures = p.value
+      }
+    }
+
+    const skinEntry = texturesObj?.textures?.SKIN
+    const capeEntry = texturesObj?.textures?.CAPE
+
+    const skins: McProfile["skins"] = []
+    if (skinEntry?.url) {
+      skins.push({
+        id: "active",
+        state: "ACTIVE",
+        url: skinEntry.url,
+        variant: skinEntry.metadata?.model === "slim" ? "SLIM" : "CLASSIC",
+      })
+    }
+
+    const capes: McProfile["capes"] = []
+    if (capeEntry?.url) {
+      capes.push({
+        id: "active",
+        state: "ACTIVE",
+        url: capeEntry.url,
+      })
+    }
+
+    return {
+      id,
+      name,
+      skins,
+      capes,
+      uploadableTextures,
+    }
+  }
+
+  /** Authlib-Injector: надевание скина через PUT /api/user/profile/{uuid}/skin */
+  private async authlibApply(
+    account: ResolvedSkinAccount,
+    params: { data: Uint8Array; variant: SkinVariant; capeId?: string | null },
+  ): Promise<boolean> {
+    if (!account.serverUrl || !account.uuid) return false
+    const base = account.serverUrl.endsWith("/") ? account.serverUrl : `${account.serverUrl}/`
+    const cleanUuid = account.uuid.replace(/-/g, "")
+    const skinUrl = `${base}api/user/profile/${cleanUuid}/skin`
+
+    const sent = await this.send(account, (token) => {
+      const formData = new FormData()
+      formData.append("model", params.variant === "slim" ? "slim" : "")
+      formData.append("file", new Blob([copyForBlob(params.data)], { type: "image/png" }), "skin.png")
+      return fetchWithRetry(
+        skinUrl,
+        {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        },
+        RETRIES,
+      )
+    })
+
+    return Boolean(sent?.res.ok)
+  }
+
+  /** Authlib-Injector: сброс скина через DELETE /api/user/profile/{uuid}/skin */
+  private async authlibReset(account: ResolvedSkinAccount): Promise<boolean> {
+    if (!account.serverUrl || !account.uuid) return false
+    const base = account.serverUrl.endsWith("/") ? account.serverUrl : `${account.serverUrl}/`
+    const cleanUuid = account.uuid.replace(/-/g, "")
+    const skinUrl = `${base}api/user/profile/${cleanUuid}/skin`
+
+    const sent = await this.send(account, (token) =>
+      fetchWithRetry(
+        skinUrl,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        RETRIES,
+      ),
+    )
+
+    return Boolean(sent?.res.ok)
+  }
+
+  /** Authlib-Injector: сброс плаща через DELETE /api/user/profile/{uuid}/cape */
+  private async authlibSetCape(account: ResolvedSkinAccount, capeId: string | null): Promise<boolean> {
+    if (!account.serverUrl || !account.uuid) return false
+    const base = account.serverUrl.endsWith("/") ? account.serverUrl : `${account.serverUrl}/`
+    const cleanUuid = account.uuid.replace(/-/g, "")
+    const capeUrl = `${base}api/user/profile/${cleanUuid}/cape`
+
+    if (!capeId) {
+      const sent = await this.send(account, (token) =>
+        fetchWithRetry(
+          capeUrl,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          },
+          RETRIES,
+        ),
+      )
+      return Boolean(sent?.res.ok)
+    }
+
+    return false
+  }
+}
+
+function decodeBase64Json<T>(b64: string): T | null {
+  try {
+    if (typeof Buffer !== "undefined") {
+      return JSON.parse(Buffer.from(b64, "base64").toString("utf8"))
+    }
+    return JSON.parse(atob(b64))
+  } catch {
+    return null
   }
 }
 

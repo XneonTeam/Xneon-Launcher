@@ -401,7 +401,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
             setRelayEnabled(false)
             save({ relayEnabled: 0 })
           }}
-          className="bg-background/80 backdrop-blur-sm animate-in fade-in-0"
+          className="animate-in fade-in-0"
         >
           <div className="w-full max-w-md p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div className="flex items-center justify-between mb-5">
@@ -472,7 +472,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
 
       {/* Java modal */}
       {showJavaModal && (
-        <ModalLayer onClose={() => setShowJavaModal(false)} className="bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+        <ModalLayer onClose={() => setShowJavaModal(false)} className="animate-in fade-in-0">
           <div className="w-full max-w-lg p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-semibold text-foreground">Java</h3>

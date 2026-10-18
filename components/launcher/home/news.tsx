@@ -1,18 +1,20 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { CSSProperties } from "react"
 import { useTranslation } from "react-i18next"
-import { IconCoffee, IconInfoCircle, IconLayoutGrid, IconNews, IconPhoto, IconRefresh } from "@tabler/icons-react"
+import { IconCoffee, IconInfoCircle, IconLayoutGrid, IconNews, IconPhoto, IconRefresh, IconRocket } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { NewsReaderModal } from "@/components/launcher/news-reader-modal"
 import { formatDate, NEWS_CARD_STYLE, NEWS_CARD_TEXT_HEIGHT, NEWS_GRID_GAP, NEWS_GRID_OVERSCAN_ROWS, NEWS_SCROLL_STYLE, type NewsEntry } from "@/lib/home-page-shared"
 
 const REFRESH_INTERVAL = 30 * 60 * 1000
 const NEWS_STORAGE_KEY = "xnlc:news-cache:v1"
+const LAUNCHER_NEWS_STORAGE_KEY = "xnlc:launcher-news-cache:v1"
 const NEWS_CACHE_MAX_AGE = 12 * 60 * 60 * 1000
 
 type NewsCacheRecord = { ts: number; entries: NewsEntry[] }
 
 let persistedNews: NewsCacheRecord | null = null
+let persistedLauncherNews: NewsCacheRecord | null = null
 
 function readNewsCache(): NewsEntry[] | null {
   if (persistedNews) return persistedNews.entries
@@ -25,22 +27,39 @@ function readNewsCache(): NewsEntry[] | null {
   return persistedNews?.entries ?? null
 }
 
-function isNewsCacheFresh() {
-  return persistedNews !== null && Date.now() - persistedNews.ts < NEWS_CACHE_MAX_AGE
+function readLauncherNewsCache(): NewsEntry[] | null {
+  if (persistedLauncherNews) return persistedLauncherNews.entries
+  try {
+    const raw = localStorage.getItem(LAUNCHER_NEWS_STORAGE_KEY)
+    if (raw) persistedLauncherNews = JSON.parse(raw) as NewsCacheRecord
+  } catch {
+    persistedLauncherNews = null
+  }
+  return persistedLauncherNews?.entries ?? null
+}
+
+function isNewsCacheFresh(cache: NewsCacheRecord | null) {
+  return cache !== null && Date.now() - cache.ts < NEWS_CACHE_MAX_AGE
 }
 
 function writeNewsCache(entries: NewsEntry[]) {
   persistedNews = { ts: Date.now(), entries }
   try {
     localStorage.setItem(NEWS_STORAGE_KEY, JSON.stringify(persistedNews))
-  } catch {
-    // storage full — keep memory copy
-  }
+  } catch {}
+}
+
+function writeLauncherNewsCache(entries: NewsEntry[]) {
+  persistedLauncherNews = { ts: Date.now(), entries }
+  try {
+    localStorage.setItem(LAUNCHER_NEWS_STORAGE_KEY, JSON.stringify(persistedLauncherNews))
+  } catch {}
 }
 
 const NewsCard = memo(function NewsCard({ entry, height, onRead }: { entry: NewsEntry; height?: number; onRead: (entry: NewsEntry) => void }) {
   const { t } = useTranslation()
-  const imgUrl = entry.playPageImage?.url ?? entry.newsPageImage?.url
+  const rawImg = entry.playPageImage?.url ?? entry.newsPageImage?.url
+  const imgUrl = typeof rawImg === "string" && rawImg.trim() ? rawImg.trim() : undefined
   const tag = entry.tag ?? entry.category ?? entry.newsType?.[0]
   const style = useMemo<CSSProperties>(() => (height ? { ...NEWS_CARD_STYLE, height } : NEWS_CARD_STYLE), [height])
   return (
@@ -117,56 +136,111 @@ const VirtualNewsGrid = memo(function VirtualNewsGrid({ entries, onRead }: { ent
   )
 })
 
-let cachedNews: NewsEntry[] | null = readNewsCache()
-let cachedNewsPromise: Promise<NewsEntry[]> | null = null
+let cachedMojangNews: NewsEntry[] | null = readNewsCache()
+let cachedLauncherNews: NewsEntry[] | null = readLauncherNewsCache()
+let cachedMojangNewsPromise: Promise<NewsEntry[]> | null = null
 
-function fetchNewsDirect(): Promise<NewsEntry[]> {
-  cachedNewsPromise = window.electronAPI?.fetchMinecraftNews().then((entries) => { cachedNews = entries; writeNewsCache(entries); return entries }) ?? Promise.resolve([])
-  return cachedNewsPromise
+function fetchMojangNewsDirect(): Promise<NewsEntry[]> {
+  cachedMojangNewsPromise = window.electronAPI?.fetchMinecraftNews().then((entries) => {
+    cachedMojangNews = entries
+    writeNewsCache(entries)
+    return entries
+  }) ?? Promise.resolve([])
+  return cachedMojangNewsPromise
 }
 
-function fetchNewsCached(): Promise<NewsEntry[]> {
-  if (cachedNews) return Promise.resolve(cachedNews)
-  if (cachedNewsPromise) return cachedNewsPromise
-  return fetchNewsDirect()
+async function fetchLauncherNewsDirect(): Promise<NewsEntry[]> {
+  try {
+    // Адрес ленты живёт в main-процессе (XNLC_NEWS_URL, по умолчанию localhost
+    // для разработки), а разбор ответа — в одном месте (parseLauncherNewsItems).
+    // Здесь только помечаем записи лаунчера: от этого зависит рубрика карточки.
+    if (!window.electronAPI?.fetchLauncherNews) return cachedLauncherNews ?? []
+    const res = await window.electronAPI.fetchLauncherNews()
+    const entries: NewsEntry[] = (Array.isArray(res) ? res : []).map((entry) => {
+      const typed = entry as NewsEntry
+      return {
+        ...typed,
+        newsType: ["Launcher", ...(Array.isArray(typed.newsType) ? typed.newsType : [])],
+      }
+    })
+    if (entries.length === 0) return cachedLauncherNews ?? []
+    cachedLauncherNews = entries
+    writeLauncherNewsCache(entries)
+    return entries
+  } catch (err) {
+    console.warn("[LauncherNews] Failed to fetch:", err)
+    return []
+  }
 }
+
+type NewsFilter = "all" | "java" | "launcher"
 
 export const NewsSection = memo(function NewsSection() {
   const { t } = useTranslation()
-  const [news, setNews] = useState<NewsEntry[]>(() => cachedNews ?? [])
-  const [loading, setLoading] = useState(!cachedNews)
+  const [mojangNews, setMojangNews] = useState<NewsEntry[]>(() => cachedMojangNews ?? [])
+  const [launcherNews, setLauncherNews] = useState<NewsEntry[]>(() => cachedLauncherNews ?? [])
+  const [loading, setLoading] = useState(!cachedMojangNews && !cachedLauncherNews)
   const [refreshing, setRefreshing] = useState(false)
-  const [filter, setFilter] = useState<"all" | "java">("java")
+  const [filter, setFilter] = useState<NewsFilter>("java")
   // Новость, открытая в читалке: статья показывается модалом внутри окна лаунчера.
   const [readerEntry, setReaderEntry] = useState<NewsEntry | null>(null)
   const handleRead = useCallback((entry: NewsEntry) => setReaderEntry(entry), [])
   const handleReaderClose = useCallback(() => setReaderEntry(null), [])
 
-  useEffect(() => {
-    if (cachedNews) { setNews(cachedNews); setLoading(false); if (!isNewsCacheFresh()) { fetchNewsDirect().then(setNews).catch(() => {}) }; return }
-    setLoading(true)
-    fetchNewsCached().then((entries) => { setNews(entries); setLoading(false) }).catch(() => setLoading(false))
+  const loadAllNews = useCallback(async () => {
+    const [mojang, launcher] = await Promise.all([
+      fetchMojangNewsDirect().catch(() => []),
+      fetchLauncherNewsDirect().catch(() => []),
+    ])
+    setMojangNews(mojang)
+    setLauncherNews(launcher)
   }, [])
+
+  useEffect(() => {
+    if (cachedMojangNews || cachedLauncherNews) {
+      if (cachedMojangNews) setMojangNews(cachedMojangNews)
+      if (cachedLauncherNews) setLauncherNews(cachedLauncherNews)
+      setLoading(false)
+      if (!isNewsCacheFresh(persistedNews) || !isNewsCacheFresh(persistedLauncherNews)) {
+        loadAllNews().catch(() => {})
+      }
+      return
+    }
+    setLoading(true)
+    loadAllNews().finally(() => setLoading(false))
+  }, [loadAllNews])
 
   useEffect(() => {
     const timer = setInterval(() => {
-      fetchNewsDirect().then(setNews).catch(() => {})
+      loadAllNews().catch(() => {})
     }, REFRESH_INTERVAL)
     return () => clearInterval(timer)
-  }, [])
+  }, [loadAllNews])
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true)
-    fetchNewsDirect()
-      .then((entries) => { setNews(entries) })
-      .catch(() => {})
-      .finally(() => { setRefreshing(false) })
-  }, [])
+    loadAllNews().finally(() => setRefreshing(false))
+  }, [loadAllNews])
 
-  const filtered = useMemo(() => filter === "java" ? news.filter(e => !e.newsType || e.newsType.includes("Java") || e.newsType.includes("java_edition")) : news, [news, filter])
+  const filtered = useMemo(() => {
+    if (filter === "launcher") {
+      return launcherNews
+    }
+    if (filter === "java") {
+      return mojangNews.filter(e => !e.newsType || e.newsType.includes("Java") || e.newsType.includes("java_edition"))
+    }
+    const combined = [...launcherNews, ...mojangNews]
+    return combined.sort((a, b) => {
+      const timeA = a.date ? new Date(a.date).getTime() : 0
+      const timeB = b.date ? new Date(b.date).getTime() : 0
+      return timeB - timeA
+    })
+  }, [mojangNews, launcherNews, filter])
+
   const filters = useMemo(() => [
     { id: "all" as const, label: t("home.news.all"), icon: IconLayoutGrid },
     { id: "java" as const, label: t("home.news.java"), icon: IconCoffee },
+    { id: "launcher" as const, label: t("home.news.launcher"), icon: IconRocket },
   ], [t])
 
   return (

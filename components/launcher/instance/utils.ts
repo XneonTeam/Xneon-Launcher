@@ -114,30 +114,118 @@ export function groupVersionsByCompatibility(
 }
 
 /**
- * Ключ версии для сравнения: «1.10.7+1.21.11-neoforge» → «1.10.7»,
- * «Iris 1.10.7 for NeoForge 1.21.11» → «1.10.7».
+ * Очищает строку версии от метаданных сборки, расширений (.jar), суффиксов загрузчика,
+ * а также от префиксов/суффиксов версии игры (например, 'mc26.3-0.9.2-fabric' → '0.9.2').
  */
-export function versionKey(value?: string | null): string {
-  if (!value) return ""
-  const text = String(value)
-  const match = text.match(/\d+(?:\.\d+)+/)
-  return match ? match[0] : text.trim().toLowerCase()
+export function normalizeModVersion(str?: string | null, gameVersion?: string | null): string {
+  if (!str) return ""
+  let s = String(str).trim()
+
+  // Убираем расширение файла (.jar, .zip, .litemod)
+  s = s.replace(/\.(?:jar|zip|litemod)$/i, "")
+
+  // Убираем метаданные сборки (+...)
+  const plusIdx = s.indexOf("+")
+  if (plusIdx !== -1) {
+    s = s.slice(0, plusIdx)
+  }
+
+  // Убираем суффиксы загрузчиков (-fabric, _neoforge и т.д.)
+  s = s.replace(/[-_](?:fabric|quilt|forge|neoforge)$/i, "")
+
+  // Убираем квадратные/круглые скобки вида [1.20.1]
+  s = s.replace(/^\[.*?\]\s*/g, "")
+  s = s.replace(/\(.*?\)/g, "")
+
+  // Убираем префикс mc<версия>- или mc<версия>_
+  s = s.replace(/^mc-?\s*[\d.]+(?:[-_])?/i, "")
+
+  // Убираем фразы типа "for Fabric 26.3", "for 1.20.1", "mc 1.21"
+  s = s.replace(/\b(?:for|mc)\s*(?:fabric|quilt|forge|neoforge)?\s*[\d.]+\b/gi, "")
+
+  // Если известна версия Minecraft, вырезаем её из начала, конца или как отдельное слово
+  if (gameVersion) {
+    const escaped = gameVersion.replace(/\./g, "\\.")
+    s = s.replace(new RegExp(`^mc?${escaped}[-_]`, "i"), "")
+    s = s.replace(new RegExp(`[-_]mc?${escaped}$`, "i"), "")
+    s = s.replace(new RegExp(`\\b${escaped}\\b`, "gi"), "")
+  }
+
+  // Убираем ведущую 'v' перед цифрами (v1.2.3 -> 1.2.3)
+  s = s.replace(/^v(?=\d)/i, "")
+
+  // Ищем семантические токены (цифры.цифры с возможным пре-релизом -alpha.1, -beta и т.д.)
+  const matches = [...s.matchAll(/\b\d+(?:\.\d+)+(?:-[a-zA-Z0-9.]+)?\b/g)].map(m => m[0])
+  if (matches.length > 0) {
+    if (gameVersion) {
+      const gv = gameVersion.toLowerCase()
+      const nonGame = matches.find(m => {
+        const ml = m.toLowerCase()
+        return ml !== gv && !ml.startsWith(gv + "-") && !ml.endsWith("-" + gv)
+      })
+      if (nonGame) return nonGame.toLowerCase()
+    }
+    return matches[0].toLowerCase()
+  }
+
+  return s.trim().toLowerCase()
+}
+
+/**
+ * Ключ версии для сравнения: нормализованный номер версии мода.
+ */
+export function versionKey(value?: string | null, gameVersion?: string | null): string {
+  return normalizeModVersion(value, gameVersion)
 }
 
 /**
  * Совпадает ли версия из каталога с установленной.
- * В сборке хранится версия из метаданных jar («1.10.7+1.21.11-neoforge»), а в
- * каталоге версия названа иначе («Iris 1.10.7 for NeoForge 1.21.11»), поэтому
- * сравниваем и точно, и по главной части номера.
+ * В сборке хранится версия из метаданных jar («1.10.7+1.21.11-neoforge» или «mc26.3-0.9.2-fabric»),
+ * а в каталоге версия названа иначе («Iris 1.10.7 for NeoForge 1.21.11» или «Sodium 0.9.2 for Fabric 26.3»),
+ * поэтому сравниваем:
+ * 1) Точные хэши (SHA-1) / имена файлов / ID версии
+ * 2) Очищенные семантические версии мода (без номера Minecraft)
  */
-export function isInstalledVersion(version: ModVersion, installed?: string | null): boolean {
+export function isInstalledVersion(
+  version: ModVersion,
+  installed?: string | { id?: string; slug?: string; version?: string } | null,
+  gameVersion?: string | null,
+): boolean {
   if (!installed) return false
-  const target = String(installed).trim().toLowerCase()
-  const variants = [version.id, version.name, version.versionNumber, version.fileName]
+
+  const targetStr = (typeof installed === "string" ? installed : installed.version) ?? ""
+  const target = targetStr.trim().toLowerCase()
+  const gv = gameVersion || version.gameVersion || ""
+
+  // 1. Если передан объект с ID или slug (именем файла на диске)
+  if (typeof installed === "object") {
+    // По точному хэшу файла (SHA-1)
+    if (installed.id && version.files?.some(f => f.hashes?.sha1 && f.hashes.sha1.toLowerCase() === installed.id?.toLowerCase())) {
+      return true
+    }
+    // По имени файла (.jar)
+    if (installed.slug && version.fileName && version.fileName.toLowerCase() === installed.slug.toLowerCase()) {
+      return true
+    }
+    // По точному ID версии (Modrinth ID / CurseForge fileId)
+    if (installed.id && version.id.toLowerCase() === installed.id.toLowerCase()) {
+      return true
+    }
+  }
+
+  // 2. Точные строковые совпадения по id/fileName/versionNumber/name
+  const variants = [version.id, version.fileName, version.versionNumber, version.name]
     .filter(Boolean) as string[]
-  if (variants.some(item => item.trim().toLowerCase() === target)) return true
-  const key = versionKey(installed)
-  return Boolean(key) && variants.some(item => versionKey(item) === key)
+  if (target && variants.some(item => item.trim().toLowerCase() === target)) return true
+
+  // 3. Сравнение нормализованных версий мода (исключая версию Minecraft)
+  const cleanTarget = normalizeModVersion(targetStr, gv)
+  if (!cleanTarget) return false
+
+  // Кандидаты: в первую очередь versionNumber и fileName, затем name
+  const candidateVariants = [version.versionNumber, version.fileName, version.name]
+    .filter(Boolean) as string[]
+  return candidateVariants.some(item => normalizeModVersion(item, gv) === cleanTarget)
 }
 
 /**

@@ -78,6 +78,11 @@ function extractSemverNumbers(str: string): number[] {
     .replace(/^\[.*?\]\s*/g, "")
     .replace(/\(.*?\)/g, "")
     .replace(/^v(?=\d)/i, "")
+    .replace(/\.(?:jar|zip|litemod)$/i, "")
+    .replace(/\+.*$/, "")
+    .replace(/[-_](?:fabric|quilt|forge|neoforge)$/i, "")
+    .replace(/^mc-?\s*[\d.]+(?:[-_])?/i, "")
+    .replace(/\b(?:for|mc)\s*(?:fabric|quilt|forge|neoforge)?\s*[\d.]+\b/gi, "")
   const match = cleaned.match(/\b\d+(?:\.\d+)+\b/)
   if (match) {
     return match[0].split(".").map(Number)
@@ -133,6 +138,12 @@ function isMatchingInstalledVersion(
     const cNum = candidate.versionNumber.trim().toLowerCase()
     const iNum = item.version.trim().toLowerCase()
     if (cNum === iNum) return true
+    // Если есть пре-релизные суффиксы (-alpha, -beta), они должны совпадать
+    const cHasPre = /-[a-zA-Z]/.test(cNum)
+    const iHasPre = /-[a-zA-Z]/.test(iNum)
+    if (cHasPre !== iHasPre) {
+      return false
+    }
     if (compareSemver(cNum, iNum) === 0 && extractSemverNumbers(cNum).length > 0) {
       return true
     }

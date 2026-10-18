@@ -243,58 +243,61 @@ export function toLaunchRequestOptions(params: MinecraftLaunchParams) {
   }
 }
 
+export async function launchMinecraft(options: MinecraftLaunchParams): Promise<LaunchResultPayload> {
+  const { resolveLaunchRequest } = await loadXnlcModule()
+  const request = resolveLaunchRequest(toLaunchRequestOptions(options))
+
+  try {
+    if (isLaunchActive()) {
+      return { success: false, error: "Minecraft is already launching or running" }
+    }
+
+    if ("error" in request) {
+      return { success: false, error: request.error }
+    }
+
+    logRuntimeDebug(`[Minecraft] Launch memory: -Xms${request.memoryMin} -Xmx${request.memoryMax}`)
+
+    const launchAccount = await resolveLaunchAccount(options.account as any)
+    if (!launchAccount) {
+      return { success: false, error: "No active account. Please select an account first." }
+    }
+
+    logRuntimeDebug(`[Minecraft] Using account ${launchAccount.type}:${launchAccount.username}`)
+    if (!launchAccount.isActive) {
+      const { dbHelpers } = await import("../db/index.js")
+      await dbHelpers.saveAccount({ ...launchAccount, isActive: true })
+    }
+
+    const extendedRequest = {
+      ...request,
+      buildName: options.buildName,
+      buildId: (options as { buildId?: string }).buildId,
+      gameDir: options.gameDir,
+      javaArgs: (options as { javaArgs?: string }).javaArgs,
+      server: (options as { server?: string }).server,
+      serverPort: (options as { serverPort?: string }).serverPort,
+      quickPlaySingleplayer: (options as { quickPlaySingleplayer?: string }).quickPlaySingleplayer,
+      quickPlayMultiplayer: (options as { quickPlayMultiplayer?: string }).quickPlayMultiplayer,
+      preLaunchCommand: (options as { preLaunchCommand?: string }).preLaunchCommand,
+      postLaunchCommand: (options as { postLaunchCommand?: string }).postLaunchCommand,
+      wrapperCommand: (options as { wrapperCommand?: string }).wrapperCommand,
+      customEnv: (options as { customEnv?: Record<string, string> }).customEnv,
+      offlineUsername: (options as { offlineUsername?: string }).offlineUsername,
+    }
+
+    return await runLaunchWorker(launchAccount, extendedRequest)
+  } catch (error) {
+    const errorMessage = toErrorMessage(error)
+    console.error("Launch failed:", errorMessage)
+    clearLaunchState()
+    return { success: false, error: errorMessage }
+  }
+}
+
 const launchHandlers: IpcHandlerDef[] = [
   rawHandler("minecraft:launch", async (...args: unknown[]): Promise<LaunchResultPayload> => {
-    const options = args[0] as MinecraftLaunchParams
-    const { resolveLaunchRequest } = await loadXnlcModule()
-    const request = resolveLaunchRequest(toLaunchRequestOptions(options))
-
-    try {
-      if (isLaunchActive()) {
-        return { success: false, error: "Minecraft is already launching or running" }
-      }
-
-      if ("error" in request) {
-        return { success: false, error: request.error }
-      }
-
-      logRuntimeDebug(`[Minecraft] Launch memory: -Xms${request.memoryMin} -Xmx${request.memoryMax}`)
-
-      const launchAccount = await resolveLaunchAccount(options.account as any)
-      if (!launchAccount) {
-        return { success: false, error: "No active account. Please select an account first." }
-      }
-
-      logRuntimeDebug(`[Minecraft] Using account ${launchAccount.type}:${launchAccount.username}`)
-      if (!launchAccount.isActive) {
-        const { dbHelpers } = await import("../db/index.js")
-        await dbHelpers.saveAccount({ ...launchAccount, isActive: true })
-      }
-
-      const extendedRequest = {
-        ...request,
-        buildName: options.buildName,
-        buildId: (options as { buildId?: string }).buildId,
-        gameDir: options.gameDir,
-        javaArgs: (options as { javaArgs?: string }).javaArgs,
-        server: (options as { server?: string }).server,
-        serverPort: (options as { serverPort?: string }).serverPort,
-        quickPlaySingleplayer: (options as { quickPlaySingleplayer?: string }).quickPlaySingleplayer,
-        quickPlayMultiplayer: (options as { quickPlayMultiplayer?: string }).quickPlayMultiplayer,
-        preLaunchCommand: (options as { preLaunchCommand?: string }).preLaunchCommand,
-        postLaunchCommand: (options as { postLaunchCommand?: string }).postLaunchCommand,
-        wrapperCommand: (options as { wrapperCommand?: string }).wrapperCommand,
-        customEnv: (options as { customEnv?: Record<string, string> }).customEnv,
-        offlineUsername: (options as { offlineUsername?: string }).offlineUsername,
-      }
-
-      return await runLaunchWorker(launchAccount, extendedRequest)
-    } catch (error) {
-      const errorMessage = toErrorMessage(error)
-      console.error("Launch failed:", errorMessage)
-      clearLaunchState()
-      return { success: false, error: errorMessage }
-    }
+    return launchMinecraft(args[0] as MinecraftLaunchParams)
   }),
 
   rawHandler("minecraft:get-game-dir", async () => getGameDir()),

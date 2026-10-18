@@ -1,7 +1,7 @@
 {
   "name": "xneon-launcher",
-  "version": "1.0.6",
-  "description": "Xneon Launcher desktop application",
+  "version": "1.0.7",
+  "description": "Modern, fast, and feature-rich Minecraft launcher built with Electron and React",
   "author": {
     "name": "Xneon Launcher",
     "email": "support@xneon.org"
@@ -30,6 +30,7 @@
     "form-data": "^4.0.6",
     "i18next": "^26.3.6",
     "iconv-lite": "^0.7.3",
+    "pngjs": "^7.0.0",
     "prismjs": "^1.30.0",
     "react-simple-code-editor": "^0.14.1",
     "remark-gfm": "^4.0.1",
@@ -50,7 +51,9 @@
     "build": "pnpm run typecheck && vite build && pnpm run build:electron",
     "package": "pnpm run build && electron-builder",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/test-skins.mjs"
+    "test": "node scripts/test-skins.mjs",
+    "test:authlib": "node scripts/test-authlib.mjs",
+    "test:all": "pnpm run test && pnpm run test:authlib"
   },
   "devDependencies": {
     "@radix-ui/react-checkbox": "1.3.8",
@@ -58,7 +61,9 @@
     "@radix-ui/react-select": "2.3.4",
     "@tabler/icons-react": "^3.45.0",
     "@tailwindcss/postcss": "^4.3.3",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^26",
+    "@types/pngjs": "^6.0.5",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@types/three": "^0.185.4",
@@ -82,8 +87,7 @@
     "tw-animate-css": "1.4.0",
     "typescript": "7.0.2",
     "vite": "^8.1.5",
-    "wait-on": "^9.0.10",
-    "@types/better-sqlite3": "^7.6.13"
+    "wait-on": "^9.0.10"
   },
   "build": {
     "appId": "com.xneonlauncher.app",
@@ -120,6 +124,7 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
+      "assets/**/*",
       "!**/node_modules/@xnlc/*/src/**",
       "!**/node_modules/@xnlc/*/scripts/**",
       "!**/node_modules/@xnlc/*/tsconfig.json",

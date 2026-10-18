@@ -1,35 +1,30 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import {   IconUser, IconUserCircle, IconPuzzle, IconUserMinus, IconLoader2, IconCirclePlus, IconTrash, IconX, IconCheck, IconLogin, IconArrowLeft, IconPlus, IconBrandWindows, IconChevronUp, IconChevronDown, IconExternalLink, IconRefresh, IconCopy, IconHelpCircle } from "@tabler/icons-react"
+import {   IconUser, IconUserCircle, IconPuzzle, IconUserMinus, IconLoader2, IconCirclePlus, IconTrash, IconX, IconCheck, IconLogin, IconArrowLeft, IconPlus, IconBrandWindows, IconChevronUp, IconChevronDown, IconExternalLink, IconRefresh, IconCopy, IconHelpCircle, IconCoffee } from "@tabler/icons-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CachedAvatar } from "@/components/ui/cached-avatar"
 import { useAccounts } from "@/src/AccountsContext"
 import { cn } from "@/lib/utils"
 import { ModalLayer } from "@/components/ui/modal-layer"
+import { AuthlibInjectorModal } from "@/components/launcher/accounts/authlib-injector-modal"
 
-type AccountWithAvatar = { uuid?: string; type?: string }
+type AccountWithAvatar = { uuid?: string; type?: string; skinUrl?: string }
 
-export const getAvatarUrl = (account: AccountWithAvatar, username: string) => {  const isElyBy = account.type === "elyby"
-  const value = isElyBy ? username : (account.uuid || username)
+export const getAvatarUrl = (account: AccountWithAvatar, username: string, version?: number | string) => {
+  if (account.type === "offline") return "avatar://head/Steve"
+  const name = username || "Steve"
   const params = new URLSearchParams()
-
-  if (isElyBy) {
-    params.set("skin_type", "ely")
-  } else if (account.type === "xnskins") {
-    params.set("skin_type", "xneon")
-  } else if (account.type === "microsoft") {
-    params.set("skin_type", "microsoft")
-  } else if (account.type === "offline") {
-    return `https://mcskinapi-three.vercel.app/avatar/Steve?skin_type=microsoft`
+  if (account.type) params.set("type", account.type)
+  if (account.uuid) params.set("uuid", account.uuid)
+  if (account.skinUrl) params.set("skin_url", account.skinUrl)
+  if (version !== undefined && version !== null && version !== "") {
+    params.set("v", String(version))
   }
-
-  if (params.has("skin_type")) {
-    return `https://mcskinapi-three.vercel.app/avatar/${encodeURIComponent(value)}?${params.toString()}`
-  }
-  return `https://mcskinapi-three.vercel.app/avatar/${encodeURIComponent(value)}`
+  const qs = params.toString() ? `?${params.toString()}` : ""
+  return `avatar://head/${encodeURIComponent(name)}${qs}`
 }
 
-type AccountType = "elyby" | "xnskins" | "microsoft" | "offline"
+type AccountType = "elyby" | "xnskins" | "microsoft" | "offline" | "authlib-injector"
 type DisplayAccountType = AccountType
 
 export type { AccountType }
@@ -39,10 +34,13 @@ export const getAccountTypeInfo = (t: (k: string) => string): Record<DisplayAcco
   xnskins: { name: t("accounts.xneonSkins"), description: t("accounts.xneonSkinsDesc"), color: "#f97316" },
   microsoft: { name: t("accounts.microsoft"), description: t("accounts.microsoftDesc"), color: "#2563EB" },
   offline: { name: t("accounts.offline"), description: t("accounts.offlineDesc"), color: "#757575" },
+  "authlib-injector": { name: t("accounts.authlibInjector"), description: t("accounts.authlibInjectorDesc"), color: "#b45309" },
 })
 
 const getAccountIcon = (type: DisplayAccountType) => {
   switch (type) {
+    case "authlib-injector":
+      return <IconCoffee className="w-6 h-6" strokeWidth={1.8} />
     case "elyby":
       return (
         <svg className="w-6 h-6" viewBox="0 0 480 480" xmlns="http://www.w3.org/2000/svg">
@@ -74,7 +72,7 @@ case "microsoft":
 export function AccountsPage() {
   const { t } = useTranslation()
   const accountTypeInfo = getAccountTypeInfo(t)
-  const { accounts, addAccount, removeAccount, setActiveAccount, moveAccount } = useAccounts()
+  const { accounts, addAccount, removeAccount, setActiveAccount, moveAccount, avatarVersion } = useAccounts()
   const [showAddModal, setShowAddModal] = useState(false)
   const [selectedAccountType, setSelectedAccountType] = useState<AccountType | null>(null)
   const [offlineUsername, setOfflineUsername] = useState("")
@@ -258,6 +256,7 @@ export function AccountsPage() {
           uuid: result.uuid,
           accessToken: result.accessToken,
           refreshToken: result.refreshToken,
+          skinUrl: result.skinUrl,
           isActive: accounts.length === 0,
         })
         setSelectedAccountType(null)
@@ -299,7 +298,7 @@ export function AccountsPage() {
     }
   }, [t])
 
-  const finishDeviceLogin = useCallback((result: { id: string; username: string; uuid?: string; accessToken: string; refreshToken?: string }) => {
+  const finishDeviceLogin = useCallback((result: { id: string; username: string; uuid?: string; accessToken: string; refreshToken?: string; skinUrl?: string }) => {
     addAccount({
       id: result.id,
       type: "microsoft",
@@ -307,6 +306,7 @@ export function AccountsPage() {
       uuid: result.uuid,
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
+      skinUrl: result.skinUrl,
       isActive: accounts.length === 0,
     })
     setDeviceStatus("done")
@@ -439,7 +439,7 @@ export function AccountsPage() {
                     className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"
                     style={{ backgroundColor: `${accountTypeInfo[account.type].color}20` }}
                   >
-                    <CachedAvatar src={getAvatarUrl(account, account.username)} alt="" className="w-full h-full object-cover" />
+                    <CachedAvatar src={getAvatarUrl(account, account.username, avatarVersion)} alt="" className="w-full h-full object-cover" />
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -451,7 +451,11 @@ export function AccountsPage() {
                         </span>
                       )}
                     </div>
-                    <span className="text-sm text-muted-foreground">{accountTypeInfo[account.type].name}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {account.type === "authlib-injector" && account.serverName
+                        ? `${accountTypeInfo[account.type]?.name ?? "Authlib"} · ${account.serverName}`
+                        : accountTypeInfo[account.type]?.name ?? account.type}
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -497,7 +501,7 @@ export function AccountsPage() {
       </div>
 
       {showAddModal && !selectedAccountType && (
-        <ModalLayer onClose={() => setShowAddModal(false)} className="bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+        <ModalLayer onClose={() => setShowAddModal(false)} className="animate-in fade-in-0">
           <div className="w-full max-w-lg mx-4 p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-foreground">{t("accounts.addAccount")}</h3>
@@ -510,7 +514,7 @@ export function AccountsPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              {(["elyby", "xnskins", "microsoft", "offline"] as AccountType[]).map((type) => (
+              {(["elyby", "xnskins", "microsoft", "offline", "authlib-injector"] as AccountType[]).map((type) => (
                 <button
                   key={type}
                   onClick={() => { 
@@ -540,18 +544,38 @@ export function AccountsPage() {
                     type === "elyby" && "hover:border-emerald-500/60",
                     type === "xnskins" && "hover:border-orange-500/60",
                     type === "microsoft" && "hover:border-blue-500/60",
+                    type === "authlib-injector" && "col-span-2 flex items-center gap-4 hover:border-amber-600/60",
                   )}
                 >
-                  <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center mb-3"
-                    style={{ backgroundColor: `${accountTypeInfo[type].color}20` }}
-                  >
-                    <div style={{ color: accountTypeInfo[type].color }}>
-                      {getAccountIcon(type)}
-                    </div>
-                  </div>
-                  <div className="font-medium text-foreground">{accountTypeInfo[type].name}</div>
-                  <div className="text-sm text-muted-foreground mt-1">{accountTypeInfo[type].description}</div>
+                  {type === "authlib-injector" ? (
+                    <>
+                      <div
+                        className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: `${accountTypeInfo[type].color}20` }}
+                      >
+                        <div style={{ color: accountTypeInfo[type].color }}>
+                          {getAccountIcon(type)}
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-foreground">{accountTypeInfo[type].name}</div>
+                        <div className="text-sm text-muted-foreground mt-0.5">{accountTypeInfo[type].description}</div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div
+                        className="w-12 h-12 rounded-xl flex items-center justify-center mb-3"
+                        style={{ backgroundColor: `${accountTypeInfo[type].color}20` }}
+                      >
+                        <div style={{ color: accountTypeInfo[type].color }}>
+                          {getAccountIcon(type)}
+                        </div>
+                      </div>
+                      <div className="font-medium text-foreground">{accountTypeInfo[type].name}</div>
+                      <div className="text-sm text-muted-foreground mt-1">{accountTypeInfo[type].description}</div>
+                    </>
+                  )}
                 </button>
               ))}
             </div>
@@ -560,7 +584,7 @@ export function AccountsPage() {
       )}
 
       {showAddModal && selectedAccountType === "offline" && (
-        <ModalLayer onClose={() => { setSelectedAccountType(null); setShowAddModal(false) }} className="bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+        <ModalLayer onClose={() => { setSelectedAccountType(null); setShowAddModal(false) }} className="animate-in fade-in-0">
           <div className="w-full max-w-md mx-4 p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-foreground">{t("accounts.offline")} {t("accounts.title").toLowerCase()}</h3>
@@ -626,6 +650,19 @@ export function AccountsPage() {
         </ModalLayer>
       )}
 
+      {showAddModal && selectedAccountType === "authlib-injector" && (
+        <AuthlibInjectorModal
+          onClose={() => {
+            setSelectedAccountType(null)
+          }}
+          onAccountAdded={(newAccount) => {
+            addAccount(newAccount)
+            setSelectedAccountType(null)
+            setShowAddModal(false)
+          }}
+        />
+      )}
+
       {showAddModal && selectedAccountType === "elyby" && (
         <ModalLayer
           onClose={() => {
@@ -637,7 +674,7 @@ export function AccountsPage() {
             setDeviceStatus("waiting")
             setSelectedAccountType(null)
           }}
-          className="bg-background/80 backdrop-blur-sm animate-in fade-in-0"
+          className="animate-in fade-in-0"
         >
           <div className="w-full max-w-md mx-4 p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div className="flex items-center justify-between mb-6">
@@ -905,7 +942,7 @@ export function AccountsPage() {
             setDeviceStatus("waiting")
             setSelectedAccountType(null)
           }}
-          className="bg-background/80 backdrop-blur-sm animate-in fade-in-0"
+          className="animate-in fade-in-0"
         >
           <div className="w-full max-w-md mx-4 p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div className="flex items-center justify-between mb-6">
@@ -1173,7 +1210,7 @@ export function AccountsPage() {
             setDeviceStatus("waiting")
             setSelectedAccountType(null)
           }}
-          className="bg-background/80 backdrop-blur-sm animate-in fade-in-0"
+          className="animate-in fade-in-0"
         >
           <div className="w-full max-w-md mx-4 p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div className="flex items-center justify-between mb-6">

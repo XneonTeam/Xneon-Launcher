@@ -80,7 +80,7 @@ export function LabyPanel({
             type="button"
             onClick={onApply}
             disabled={!canApply || busy !== null}
-            title={canApply ? undefined : t("laby.noAccount", "Нужен аккаунт Microsoft")}
+            title={canApply ? undefined : t("laby.noAccount", "Сначала выберите или добавьте аккаунт")}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all duration-200 hover:bg-primary/90 active:scale-[0.98] disabled:opacity-50"
           >
             {busy === "apply" ? <IconLoader2 className="h-4 w-4 animate-spin" /> : <IconShirt className="h-4 w-4" />}

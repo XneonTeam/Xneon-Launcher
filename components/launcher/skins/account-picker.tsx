@@ -23,14 +23,14 @@ export function SkinAccountPicker({ avatarVersion = 0 }: { avatarVersion?: numbe
   const { accounts, activeAccount, setActiveAccount } = useAccounts()
   const [open, setOpen] = useState(false)
 
-  const account = activeAccount ?? accounts[0]
-  const skinAccounts = useMemo(() => accounts.filter((a) => a.type === "microsoft"), [accounts])
+  const skinAccounts = useMemo(() => accounts.filter((a) => a.type !== "elyby" && a.type !== "offline"), [accounts])
+  const account = (activeAccount && activeAccount.type !== "elyby" && activeAccount.type !== "offline" ? activeAccount : skinAccounts[0]) ?? null
   const avatarUrls = useMemo(
-    () => Object.fromEntries(skinAccounts.map((a) => [a.id, getAvatarUrl(a, a.username)])),
-    [skinAccounts],
+    () => Object.fromEntries(skinAccounts.map((a) => [a.id, getAvatarUrl(a, a.username, avatarVersion)])),
+    [skinAccounts, avatarVersion],
   )
   const activeAvatarUrl = account
-    ? `${getAvatarUrl(account, account.username)}${avatarVersion ? `&_v=${avatarVersion}` : ""}`
+    ? getAvatarUrl(account, account.username, avatarVersion)
     : ""
 
   return (
@@ -97,7 +97,7 @@ export function SkinAccountPicker({ avatarVersion = 0 }: { avatarVersion?: numbe
             })}
             {skinAccounts.length === 0 && (
               <p className="py-4 text-center text-sm text-muted-foreground">
-                {t("skins.noMicrosoftAccounts", "Нет аккаунтов Microsoft")}
+                {t("skins.noAccounts", "Нет добавленных аккаунтов")}
               </p>
             )}
           </div>

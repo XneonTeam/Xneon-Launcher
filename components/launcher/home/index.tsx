@@ -47,15 +47,15 @@ function consumeAutoLaunchBuild(): string | null {
 
 export function HomePage() {
   const saved = getSavedLaunchPrefs()
-  const { accounts, activeAccount, setActiveAccount } = useAccounts()
+  const { accounts, activeAccount, setActiveAccount, avatarVersion } = useAccounts()
   const [selectedModLoader, setSelectedModLoader] = useState(saved.modLoader ?? "vanilla")
   const [selectedLoaderVersion, setSelectedLoaderVersion] = useState(saved.loaderVersion ?? "")
   const [accountComboOpen, setAccountComboOpen] = useState(false)
   const { versions, versionsLoaded, selectedVersion, setSelectedVersion, buildIcons } = useHomeVersions(selectedModLoader, saved.version)
   const { loaderVersions, loaderVersionsLoaded, defaultLoaderVersion } = useLoaderVersionOptions(selectedModLoader, selectedVersion)
   const account = activeAccount ?? accounts[0]
-  const activeAvatarUrl = useMemo(() => account ? getAvatarUrl(account, account.username) : "", [account])
-  const accountAvatarUrls = useMemo(() => Object.fromEntries(accounts.map(a => [a.id, getAvatarUrl(a, a.username)])), [accounts])
+  const activeAvatarUrl = useMemo(() => account ? getAvatarUrl(account, account.username, avatarVersion) : "", [account, avatarVersion])
+  const accountAvatarUrls = useMemo(() => Object.fromEntries(accounts.map(a => [a.id, getAvatarUrl(a, a.username, avatarVersion)])), [accounts, avatarVersion])
   const { isRunning, launchUi, launchDetails, handlePlay, handleQuickPlay } = useHomeLaunch({ account, selectedVersion, selectedModLoader, selectedLoaderVersion })
 
   // Play на карточке сборки привёл сюда с заявкой на запуск: ждём, пока выбор

@@ -120,7 +120,16 @@ export function useBuilds() {
       // подставлял устаревший снапшот — новая сборка «пропадала», а удалённая
       // возвращалась обратно. Время чтения из БД при этом не трогаем: TTL
       // продолжает управлять фоновым обновлением (stale-while-revalidate).
-      if (next.length > 0) buildsLightCache = next
+      if (next) {
+        // Кэш держим в согласии с тем, что реально на экране — ALWAYS, включая
+        // пустой список. Раньше здесь стоял guard `next.length > 0`, из-за которого
+        // удаление ПОСЛЕДНЕЙ сборки не обновляло кэш: он продолжал хранить
+        // удалённую сборку, и при следующем входе во вкладку (mount effect ниже)
+        // та «воскресала» в UI, а flush-сейв `reloadBuilds` возвращал её в БД.
+        // При нескольких сборках guard не срабатывал, поэтому баг был виден
+        // только когда оставалась одна сборка.
+        buildsLightCache = next
+      }
       return next
     })
   }, [])
@@ -298,16 +307,19 @@ export function useBuilds() {
         // Тяжёлый контент из памяти/кэша: приходит не из лёгкого запроса, а из
         // buildContentCache (или из уже загруженного состояния).
         const cached = buildContentCache.get(build.id)
+        const mods = cached?.mods ?? (Array.isArray(b.mods) ? b.mods : inMemoryBuild?.mods ?? [])
+        const resourcepacks = cached?.resourcepacks ?? (Array.isArray(b.resourcepacks) ? b.resourcepacks : inMemoryBuild?.resourcepacks ?? [])
+        const shaders = cached?.shaders ?? (Array.isArray(b.shaders) ? b.shaders : inMemoryBuild?.shaders ?? [])
         const normalized = {
           ...build,
-          mods: cached?.mods ?? (Array.isArray(b.mods) ? b.mods : inMemoryBuild?.mods ?? []),
-          resourcepacks: cached?.resourcepacks ?? (Array.isArray(b.resourcepacks) ? b.resourcepacks : inMemoryBuild?.resourcepacks ?? []),
-          shaders: cached?.shaders ?? (Array.isArray(b.shaders) ? b.shaders : inMemoryBuild?.shaders ?? []),
+          mods,
+          resourcepacks,
+          shaders,
           intentPath: b.intentPath ?? inMemoryBuild?.intentPath ?? "",
           installedMods: cached?.installedMods ?? b.installedMods ?? inMemoryBuild?.installedMods ?? {},
-          modsCount: b.modsCount ?? inMemoryBuild?.mods.length ?? 0,
-          resourcepacksCount: b.resourcepacksCount ?? inMemoryBuild?.resourcepacks.length ?? 0,
-          shadersCount: b.shadersCount ?? inMemoryBuild?.shaders.length ?? 0,
+          modsCount: mods.length > 0 ? mods.length : (b.modsCount ?? inMemoryBuild?.mods.length ?? 0),
+          resourcepacksCount: resourcepacks.length > 0 ? resourcepacks.length : (b.resourcepacksCount ?? inMemoryBuild?.resourcepacks.length ?? 0),
+          shadersCount: shaders.length > 0 ? shaders.length : (b.shadersCount ?? inMemoryBuild?.shaders.length ?? 0),
         } as Build
 
         // Правки пользователя, ещё не доехавшие до БД, должны победить снапшот БД —
@@ -627,8 +639,30 @@ export function useBuilds() {
       // Отдаём их main-процессу, чтобы он сохранил снапшот рядом с папкой в корзине —
       // тогда восстановление вернёт сборку целиком, без перезахода.
       const result = await window.electronAPI?.moveBuildIntentToTrash?.(build.name, build as unknown as Record<string, unknown>)
-      trashName = result?.trashName
-    } catch {}
+      // Перемещение может не пройти: папку держит другой процесс (EBUSY/EPERM —
+      // антивирус, индексатор, открытый файл), диск занят, прав нет. Раньше ответ
+      // не проверялся, сборка убиралась из списка «всё равно», а запись в БД
+      // оставалась — список пустел, но при следующем входе сборка «воскресала».
+      // Неудачу показываем как ошибку и НЕ трогаем ни состояние, ни UI.
+      if (!result?.success) {
+        pushNotification({
+          kind: "error",
+          source: "install",
+          title: t("builds.trashFailedTitle"),
+          message: result?.error || t("builds.trashFailedBody"),
+        })
+        return false
+      }
+      trashName = result.trashName
+    } catch (error) {
+      pushNotification({
+        kind: "error",
+        source: "install",
+        title: t("builds.trashFailedTitle"),
+        message: error instanceof Error ? error.message : String(error),
+      })
+      return false
+    }
     try {
       const lastVersion = localStorage.getItem("xneon-launcher:lastVersion")
       if (lastVersion === build.name) {
@@ -643,7 +677,7 @@ export function useBuilds() {
     setActiveBuildId(prev => prev === id ? null : prev)
     pendingEditsRef.current.delete(id)
     return true
-  }, [builds])
+  }, [builds, pushNotification, t])
 
   const undoTrashBuild = useCallback(async (): Promise<Build | null> => {
     const snapshot = trashStackRef.current.pop()

@@ -7,6 +7,7 @@ import type {
   MinecraftVersionInfo,
   MinecraftProgress,
   MinecraftNewsEntry,
+  LauncherNewsEntry,
   DbAccount,
   DbBuild,
   DbBuildLight,
@@ -64,6 +65,15 @@ import type {
   CloudUploadCategory,
   MinecraftCloseInfo,
   ServerStatusResult,
+  AuthlibInjectorServer,
+  AuthlibInjectorServerSummary,
+  AuthlibProbeOutcome,
+  AuthlibAddServerOutcome,
+  AuthlibLoginOutcome,
+  AuthlibLoginProgress,
+  AuthlibSessionOutcome,
+  AuthlibRemoveServerResult,
+  YggdrasilProfileWithTextures,
 } from '@xnlc/types' with { 'resolution-mode': 'import' }
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): CleanupFn {
@@ -94,8 +104,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
   startMicrosoftDeviceCode: invoke<DeviceCodeStart>('auth:microsoft-device-start'),
   pollMicrosoftDeviceCode: (deviceCode: string) => ipcRenderer.invoke('auth:microsoft-device-poll', deviceCode) as Promise<DeviceCodePoll>,
 
+  // ── Authlib-Injector ──
+  authlibListServers: invoke<AuthlibInjectorServerSummary[]>('authlib:list-servers'),
+  authlibProbeServer: (url: string) => ipcRenderer.invoke('authlib:probe-server', url) as Promise<AuthlibProbeOutcome>,
+  authlibAddServer: (server: AuthlibInjectorServer) => ipcRenderer.invoke('authlib:add-server', server) as Promise<AuthlibAddServerOutcome>,
+  authlibRemoveServer: (id: string) => ipcRenderer.invoke('authlib:remove-server', id) as Promise<AuthlibRemoveServerResult>,
+  authlibRefreshServer: (id: string) => ipcRenderer.invoke('authlib:refresh-server', id) as Promise<AuthlibInjectorServerSummary | null>,
+  authlibLogin: (serverId: string, username: string, password: string, profileId?: string) =>
+    ipcRenderer.invoke('authlib:login', serverId, username, password, profileId) as Promise<AuthlibLoginOutcome>,
+  authlibEnsureSession: (accountId: string) =>
+    ipcRenderer.invoke('authlib:ensure-session', accountId) as Promise<AuthlibSessionOutcome>,
+  authlibInvalidate: (accountId: string) =>
+    ipcRenderer.invoke('authlib:invalidate', accountId) as Promise<boolean>,
+  authlibGetProfileTextures: (serverId: string, uuid: string) =>
+    ipcRenderer.invoke('authlib:get-profile-textures', serverId, uuid) as Promise<YggdrasilProfileWithTextures | null>,
+  // Фазы логина: main присылает их по ходу запроса, окно показывает шаг.
+  onAuthlibLoginProgress: (callback: (progress: AuthlibLoginProgress) => void) =>
+    subscribe<AuthlibLoginProgress>('authlib:login-progress', callback),
+
   // ── News ───────────────────────────────────────────────
   fetchMinecraftNews: invoke<MinecraftNewsEntry[]>('fetch:minecraft-news'),
+  fetchLauncherNews: (url?: string) => ipcRenderer.invoke('fetch:launcher-news', url) as Promise<LauncherNewsEntry[]>,
 
   // ── Database ───────────────────────────────────────────
   loadAccounts: invoke<DbAccount[]>('db:load-accounts'),
@@ -246,6 +275,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Game Statistics ──────────────────────────────────────
   getStatsOverview: (range?: StatsRange) => ipcRenderer.invoke('stats:overview', range) as Promise<StatsOverview>,
   onStatsUpdated: (callback: () => void) => subscribe<{}>('stats:updated', callback),
+  onSettingsUpdated: (callback: (data: { key: string; value: string }) => void) => subscribe<{ key: string; value: string }>('settings:updated', callback),
 
   // ── Storage / Disk Manager ───────────────────────────────
   scanStorage: () => ipcRenderer.invoke('storage:scan') as Promise<StorageScanResult>,
@@ -257,6 +287,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openPath: (dirPath: string) => ipcRenderer.invoke('shell:open-path', dirPath) as Promise<void>,
 
   // ── Logs ───────────────────────────────────────────────
+
+  // ── Avatar & Player Textures ───────────────────────────
+  avatarGetTextures: (username: string, options?: { uuid?: string; type?: string; randomuuid?: string }) => ipcRenderer.invoke('avatar:get-textures', username, options) as Promise<{ SKIN?: { url: string }; CAPE?: { url: string } } | null>,
+  avatarGetHead: (options: { username: string; size?: number; uuid?: string; type?: string; randomuuid?: string }) => ipcRenderer.invoke('avatar:get-head', options) as Promise<{ success: boolean; dataUrl?: string; error?: string }>,
+  avatarGetSkin: (username: string, options?: { uuid?: string; type?: string; randomuuid?: string }) => ipcRenderer.invoke('avatar:get-skin', username, options) as Promise<{ success: boolean; dataUrl?: string; error?: string }>,
+  avatarGetCape: (username: string, options?: { uuid?: string; type?: string; randomuuid?: string }) => ipcRenderer.invoke('avatar:get-cape', username, options) as Promise<{ success: boolean; dataUrl?: string; error?: string }>,
+  avatarInvalidateCache: (params?: { username?: string; uuid?: string; type?: string }) => ipcRenderer.invoke('avatar:invalidate-cache', params) as Promise<{ success: boolean }>,
 
   // ── Java ───────────────────────────────────────────────
   detectJavaInstallations: (force?: boolean) => ipcRenderer.invoke('java:detect', force) as Promise<JavaDetectResult[]>,

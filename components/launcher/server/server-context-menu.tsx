@@ -141,7 +141,7 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
 
       {/* Export dialog — same layout as the instance export dialog */}
       {exportDialogFor && (
-        <div className="fixed inset-0 z-[60] bg-background/60 backdrop-blur-sm flex items-center justify-center animate-in fade-in-0"
+        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in-0"
           onClick={() => setExportDialogFor(false)}>
           <div className="w-[420px] rounded-2xl border border-border bg-card p-5 shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
