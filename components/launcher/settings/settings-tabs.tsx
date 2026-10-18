@@ -21,7 +21,7 @@ interface SettingsTabsProps {
 
 export function SettingsTabs({ tabs, activeTab, setActiveTab, t }: SettingsTabsProps) {
   return (
-    <div className="flex gap-2 mb-6 p-1 bg-muted/30 rounded-xl w-fit mx-auto">
+    <div className="flex gap-0.5 p-1 mb-6 rounded-xl bg-muted/30 border border-border/50 w-fit mx-auto">
       {tabs.map((tab) => {
         const Icon = ICONS[tab.icon]
         return (
@@ -29,10 +29,10 @@ export function SettingsTabs({ tabs, activeTab, setActiveTab, t }: SettingsTabsP
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200",
+              "flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-200",
               activeTab === tab.id
-                ? "bg-primary text-primary-foreground shadow-[0_0_15px_var(--glow-primary)]"
-                : "bg-muted/60 border border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
             )}
           >
             {Icon && <Icon className="w-4 h-4" strokeWidth={1.75} />}
