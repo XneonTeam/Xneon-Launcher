@@ -421,6 +421,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
         {activeTab === "console" && (
           <ConsoleTab
             serverId={server.id}
+            serverName={server.name}
             logs={logs}
             isRunning={isRunning}
             command={command}

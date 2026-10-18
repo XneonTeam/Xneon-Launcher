@@ -16,6 +16,7 @@ import type {
   DeviceCodeStart,
   DeviceCodePoll,
   MinecraftNewsEntry,
+  LauncherNewsEntry,
   MinecraftVersionInfo,
   ImportableLauncherInstance,
 
@@ -39,6 +40,20 @@ import type {
   StorageCleanTarget,
   StorageCleanResult,
 } from "./domain-types.js"
+
+import type {
+  AuthlibInjectorServer,
+  AuthlibInjectorServerSummary,
+  AuthlibInjectorLoginResult,
+  AuthlibInjectorErrorPayload,
+  AuthlibRemoveServerResult,
+  AuthlibProbeOutcome,
+  AuthlibAddServerOutcome,
+  AuthlibLoginOutcome,
+  AuthlibLoginProgress,
+  AuthlibSessionOutcome,
+  YggdrasilProfileWithTextures,
+} from "./authlib-types.js"
 
 import type {
   LabyCatalogPage,
@@ -124,8 +139,33 @@ export interface IpcInvokeMap {
   "auth:microsoft-device-start": { args: []; return: DeviceCodeStart }
   "auth:microsoft-device-poll": { args: [deviceCode: string]; return: DeviceCodePoll }
 
+  // ── Authlib-Injector (Yggdrasil) ──
+  // Список сохранённых authorization servers.
+  "authlib:list-servers": { args: []; return: AuthlibInjectorServerSummary[] }
+  // Resolve + validate: нормализация URL, GET, header x-authlib-injector-api-location,
+  // загрузка и проверка метаданных. НЕ сохраняет сервер — только валидирует.
+  "authlib:probe-server": { args: [url: string]; return: AuthlibProbeOutcome }
+  // Сохранение уже проверенного сервера (объект из probe-server).
+  // Union с ok/error: ошибка resolve приходит обычным исходом, а не
+  // отклонённым промисом (иначе UI не мог показать причину).
+  "authlib:add-server": { args: [server: AuthlibInjectorServer]; return: AuthlibAddServerOutcome }
+  // Удаление сервера + предупреждение о связанных аккаунтах.
+  "authlib:remove-server": { args: [id: string]; return: AuthlibRemoveServerResult }
+  // Асинхронное обновление метаданных сохранённого сервера (не блокирует UI).
+  "authlib:refresh-server": { args: [id: string]; return: AuthlibInjectorServerSummary | null }
+  // Username/password логин через Yggdrasil authenticate. profileId — повторный
+  // вызов после выбора персонажа (пароль приходит снова, состояние не храним).
+  "authlib:login": { args: [serverId: string, username: string, password: string, profileId?: string]; return: AuthlibLoginOutcome }
+  // Валидация access token; при необходимости refresh. Обновляет аккаунт в БД.
+  "authlib:ensure-session": { args: [accountId: string]; return: AuthlibSessionOutcome }
+  // Инвалидация токена на сервере (logout).
+  "authlib:invalidate": { args: [accountId: string]; return: boolean }
+  // Текстуры (скин/плащ) профиля — из sessionserver.
+  "authlib:get-profile-textures": { args: [serverId: string, uuid: string]; return: YggdrasilProfileWithTextures | null }
+
   // ── Fetch ──
   "fetch:minecraft-news": { args: []; return: MinecraftNewsEntry[] }
+  "fetch:launcher-news": { args: [url?: string]; return: LauncherNewsEntry[] }
 
   // ── Database ──
   "db:load-accounts": { args: []; return: DbAccount[] }
@@ -335,6 +375,13 @@ export interface IpcInvokeMap {
   "laby:save-to-library": { args: [params: { hash: string; accountId: string; name?: string; slim?: boolean }]; return: LabyImportResult }
   "laby:apply": { args: [params: { hash: string; accountId: string; name?: string; slim?: boolean }]; return: LabyImportResult }
 
+  // ── Avatar & Player Textures (Встроенный прокси) ──
+  "avatar:get-textures": { args: [username: string, options?: { uuid?: string; type?: string; randomuuid?: string }]; return: { SKIN?: { url: string }; CAPE?: { url: string } } | null }
+  "avatar:get-head": { args: [options: { username: string; size?: number; uuid?: string; type?: string; randomuuid?: string }]; return: { success: boolean; dataUrl?: string; error?: string } }
+  "avatar:get-skin": { args: [username: string, options?: { uuid?: string; type?: string; randomuuid?: string }]; return: { success: boolean; dataUrl?: string; error?: string } }
+  "avatar:get-cape": { args: [username: string, options?: { uuid?: string; type?: string; randomuuid?: string }]; return: { success: boolean; dataUrl?: string; error?: string } }
+  "avatar:invalidate-cache": { args: [params?: { username?: string; uuid?: string; type?: string }]; return: { success: boolean } }
+
   // ── Java ──
   "java:detect": { args: [force?: boolean]; return: JavaDetectResult[] }
   "java:pick-file": { args: []; return: string | null }
@@ -444,6 +491,11 @@ export interface IpcEventMap {
   "update:progress": { percent: number; transferred: number; total: number }
   "cli:launch-build": string
   "stats:updated": {}
+  // Фаза логина authlib-injector: «проверка сервера» → «вход» → «профили».
+  "authlib:login-progress": AuthlibLoginProgress
+  // Настройка записана в БД (из «Настроек» или агентом) — рендерер применяет
+  // её мгновенно: язык через i18n, тема через applyTheme.
+  "settings:updated": { key: string; value: string }
 }
 
 // ── Explicit ElectronAPI ────────────────────────────────────
@@ -464,7 +516,20 @@ export interface ElectronAPIExplicit {
   pollElyByDeviceCode: (deviceCode: string) => Promise<DeviceCodePoll>
   startMicrosoftDeviceCode: () => Promise<DeviceCodeStart>
   pollMicrosoftDeviceCode: (deviceCode: string) => Promise<DeviceCodePoll>
+  // ── Authlib-Injector (Yggdrasil) ──
+  authlibListServers: () => Promise<AuthlibInjectorServerSummary[]>
+  authlibProbeServer: (url: string) => Promise<AuthlibProbeOutcome>
+  authlibAddServer: (server: AuthlibInjectorServer) => Promise<AuthlibAddServerOutcome>
+  authlibRemoveServer: (id: string) => Promise<AuthlibRemoveServerResult>
+  authlibRefreshServer: (id: string) => Promise<AuthlibInjectorServerSummary | null>
+  authlibLogin: (serverId: string, username: string, password: string, profileId?: string) => Promise<AuthlibLoginOutcome>
+  /** Прогресс логина по фазам — чтобы окно не выглядело зависшим. */
+  onAuthlibLoginProgress: (callback: (progress: AuthlibLoginProgress) => void) => CleanupFn
+  authlibEnsureSession: (accountId: string) => Promise<AuthlibSessionOutcome>
+  authlibInvalidate: (accountId: string) => Promise<boolean>
+  authlibGetProfileTextures: (serverId: string, uuid: string) => Promise<YggdrasilProfileWithTextures | null>
   fetchMinecraftNews: () => Promise<MinecraftNewsEntry[]>
+  fetchLauncherNews: (url?: string) => Promise<LauncherNewsEntry[]>
   loadAccounts: () => Promise<DbAccount[]>
   saveAccount: (account: DbAccount) => Promise<void>
   removeAccount: (id: string) => Promise<void>
@@ -586,6 +651,7 @@ export interface ElectronAPIExplicit {
   dismissContentUpdate: (buildId: string, itemId: string) => Promise<void>
   getStatsOverview: (range?: StatsRange) => Promise<StatsOverview>
   onStatsUpdated: (callback: () => void) => CleanupFn
+  onSettingsUpdated: (callback: (data: { key: string; value: string }) => void) => CleanupFn
   scanStorage: () => Promise<StorageScanResult>
   cleanStorage: (target: StorageCleanTarget) => Promise<StorageCleanResult>
   skinsGetProfile: (accountId?: string) => Promise<McProfile | null>
@@ -680,6 +746,11 @@ export interface ElectronAPIExtra {
   labyPlayer: (username: string) => Promise<LabyPlayer | null>
   labySaveToLibrary: (hash: string, accountId: string, name?: string, slim?: boolean) => Promise<LabyImportResult>
   labyApply: (hash: string, accountId: string, name?: string, slim?: boolean) => Promise<LabyImportResult>
+  avatarGetTextures: (username: string, options?: { uuid?: string; type?: string; randomuuid?: string }) => Promise<{ SKIN?: { url: string }; CAPE?: { url: string } } | null>
+  avatarGetHead: (options: { username: string; size?: number; uuid?: string; type?: string; randomuuid?: string }) => Promise<{ success: boolean; dataUrl?: string; error?: string }>
+  avatarGetSkin: (username: string, options?: { uuid?: string; type?: string; randomuuid?: string }) => Promise<{ success: boolean; dataUrl?: string; error?: string }>
+  avatarGetCape: (username: string, options?: { uuid?: string; type?: string; randomuuid?: string }) => Promise<{ success: boolean; dataUrl?: string; error?: string }>
+  avatarInvalidateCache: (params?: { username?: string; uuid?: string; type?: string }) => Promise<{ success: boolean }>
   readLocalFile: (filePath: string) => Promise<string | null>
   mcServerList: () => Promise<McServerInfo[]>
   mcServerGet: (id: string) => Promise<McServerInfo | null>

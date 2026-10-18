@@ -13,6 +13,7 @@ import { OnboardingModal } from "./onboarding-modal"
 import { Sidebar, type TabId } from "./sidebar"
 import { Spinner } from "./instance/spinner"
 import { applyTheme, presetThemes } from "./settings/data"
+import { changeLanguage } from "@/src/i18n"
 import type { McServerInfo } from "@xnlc/types"
 
 /**
@@ -121,6 +122,24 @@ export function Launcher({ onReady }: LauncherProps) {
     return () => { cancelled = true }
   }, [])
 
+  // Настройки пишутся в БД из main (в т.ч. агентом Xneon AI) — применяем их
+  // мгновенно, без перезапуска: язык через i18n (он же пишет localStorage),
+  // тема — через applyTheme.
+  useEffect(() => {
+    const off = window.electronAPI?.onSettingsUpdated?.(({ key, value }) => {
+      if (key === "language") {
+        void changeLanguage(value)
+      } else if (key === "theme") {
+        const theme = presetThemes.find((t) => t.id === value)
+        if (theme) {
+          setSelectedTheme(value)
+          applyTheme(theme)
+        }
+      }
+    })
+    return () => off?.()
+  }, [])
+
   useEffect(() => {
     let cancelled = false
 
@@ -171,13 +190,22 @@ export function Launcher({ onReady }: LauncherProps) {
       setActiveTab("logs")
     }
 
+    // Переход в настройки из других экранов (например, из баннера ошибки
+    // AI-агента: не хватает API-ключа). Раньше агент открывал внешний сайт.
+    const handleOpenSettings = () => {
+      setSelectedMcServer(null)
+      setActiveTab("settings")
+    }
+
     window.addEventListener("launcher:onboarding-reset", handleResetOnboarding)
     window.addEventListener("launcher:open-home", handleOpenHome)
     window.addEventListener("launcher:open-logs", handleOpenLogs)
+    window.addEventListener("launcher:open-settings", handleOpenSettings)
     return () => {
       window.removeEventListener("launcher:onboarding-reset", handleResetOnboarding)
       window.removeEventListener("launcher:open-home", handleOpenHome)
       window.removeEventListener("launcher:open-logs", handleOpenLogs)
+      window.removeEventListener("launcher:open-settings", handleOpenSettings)
     }
   }, [])
 

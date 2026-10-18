@@ -4,6 +4,7 @@
 // ============================================================
 
 import type { ModVersion } from "./mod-types.js"
+import type { YggdrasilGameProfile } from "./authlib-types.js"
 
 // ── Database Types ──────────────────────────────────────────
 
@@ -26,7 +27,7 @@ export type CloudUploadCategory =
 
 export type DbAccount = {
   id: string
-  type: "elyby" | "xnskins" | "microsoft" | "offline"
+  type: "elyby" | "xnskins" | "microsoft" | "offline" | "authlib-injector"
   username: string
   isActive: boolean
   uuid?: string
@@ -36,6 +37,19 @@ export type DbAccount = {
   skinUrl?: string
   /** Display order in the accounts list */
   sortOrder?: number
+
+  // ── Authlib-Injector (type === "authlib-injector") ──
+  /** Id authorization server в authlib_servers — аккаунт жёстко привязан к серверу */
+  serverId?: string
+  /** API root сервера (дубль для восстановления при недоступной таблице серверов) */
+  serverUrl?: string
+  serverName?: string
+  /** clientToken Yggdrasil-сессии (не путать с OAuth clientId) */
+  yggClientToken?: string
+  /** Ожидаемая истекание access token (epoch ms), если сервер сообщил */
+  expiresAt?: number
+  /** JSON: выбранный и доступные профили Yggdrasil-аккаунта */
+  profiles?: string
 }
 
 export type DbBuildMod = {
@@ -64,6 +78,9 @@ export type DbBuild = {
   mods: DbBuildMod[]
   resourcepacks?: DbBuildMod[]
   shaders?: DbBuildMod[]
+  modsCount?: number
+  resourcepacksCount?: number
+  shadersCount?: number
   createdAt: string
   source: "local" | "modrinth" | "curseforge"
   projectSlug?: string
@@ -160,6 +177,7 @@ export type AuthPayload = {
   uuid: string
   accessToken: string
   refreshToken: string
+  skinUrl?: string
 }
 
 /** @deprecated Use AuthPayload directly */
@@ -218,6 +236,22 @@ export type MinecraftNewsEntry = {
   playPageImage?: { url?: string }
   newsPageImage?: { url?: string }
   newsType?: string[]
+}
+
+export type LauncherNewsEntry = {
+  id: string
+  title: string
+  tag?: string
+  category?: string
+  date: string
+  text?: string
+  content?: string
+  readMoreLink?: string
+  imageUrl?: string
+  playPageImage?: { url?: string }
+  newsPageImage?: { url?: string }
+  newsType?: string[]
+  author?: string
 }
 
 // ── Importable Instances ────────────────────────────────────
@@ -359,7 +393,13 @@ export type ContentDownloadProgress = {
 
 export type MinecraftSkin = { id: string; state: string; url: string; variant: "CLASSIC" | "SLIM" }
 export type MinecraftCape = { id: string; state: string; url: string; alias?: string }
-export type McProfile = { id: string; name: string; skins: MinecraftSkin[]; capes: MinecraftCape[] }
+export type McProfile = {
+  id: string
+  name: string
+  skins: MinecraftSkin[]
+  capes: MinecraftCape[]
+  uploadableTextures?: string
+}
 
 export type LibrarySkin = {
   id: string

@@ -31,16 +31,15 @@ function normalizeMemoryValue(value: string | undefined, fallback: string) {
   return `${upper}G`
 }
 
-function getAvatarUrl(account: { uuid?: string; type?: string }, username: string) {
-  const isElyBy = account.type === "elyby"
-  const value = isElyBy ? username : (account.uuid || username)
+function getAvatarUrl(account: { uuid?: string; type?: string; skinUrl?: string }, username: string) {
+  if (account.type === "offline") return "avatar://head/Steve"
+  const name = username || "Steve"
   const params = new URLSearchParams()
-  const skinTypes: Record<string, string> = { elyby: "ely", xnskins: "xneon", microsoft: "microsoft" }
-  const skinType = skinTypes[account.type || ""]
-  if (skinType) params.set("skin_type", skinType)
-  if (account.type === "offline") return "https://mcskinapi-three.vercel.app/avatar/Steve?skin_type=microsoft"
-  if (params.has("skin_type")) return `https://mcskinapi-three.vercel.app/avatar/${encodeURIComponent(value)}?${params.toString()}`
-  return `https://mcskinapi-three.vercel.app/avatar/${encodeURIComponent(value)}`
+  if (account.type) params.set("type", account.type)
+  if (account.uuid) params.set("uuid", account.uuid)
+  if (account.skinUrl) params.set("skin_url", account.skinUrl)
+  const qs = params.toString() ? `?${params.toString()}` : ""
+  return `avatar://head/${encodeURIComponent(name)}${qs}`
 }
 
 export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip }: OnboardingModalProps) {
@@ -156,7 +155,7 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
     loadingSetters[provider](true)
     try {
       const result = await (window.electronAPI as any)?.[loginFns[provider]]()
-      if (result) addAccount({ id: result.id, type: provider, username: result.username, uuid: result.uuid, accessToken: result.accessToken, refreshToken: result.refreshToken, isActive: accounts.length === 0 })
+      if (result) addAccount({ id: result.id, type: provider, username: result.username, uuid: result.uuid, accessToken: result.accessToken, refreshToken: result.refreshToken, skinUrl: result.skinUrl, isActive: accounts.length === 0 })
     } catch (e) { setError(e instanceof Error ? e.message : copy.errors.loginFailed) }
     finally { loadingSetters[provider](false) }
   }

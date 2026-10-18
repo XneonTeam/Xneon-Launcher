@@ -259,7 +259,7 @@ export function AddonDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -405,7 +405,7 @@ export function AddonDetailModal({
                       <img src={img.url} alt={img.title || ""} className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300" />
                       {img.title && (
                         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-3">
-                          <span className="max-w-full truncate rounded-full bg-background/70 backdrop-blur-sm px-3 py-1 text-xs font-medium text-foreground shadow-sm">
+                          <span className="max-w-full truncate rounded-full bg-black/50 backdrop-blur-sm px-3 py-1 text-xs font-medium text-foreground shadow-sm">
                             {img.title}
                           </span>
                         </div>
@@ -474,7 +474,7 @@ export function AddonDetailModal({
                     : false
                   const installState = install?.versionId === ver.id ? install : null
                   const busy = install?.phase === "running"
-                  const isCurrent = isInstalledVersion(ver, installedVersion)
+                  const isCurrent = isInstalledVersion(ver, installedVersion, activeBuild?.version)
                   return (
                   <div
                     key={ver.id}

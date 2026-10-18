@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react"
 
-export type AccountWithAvatar = { uuid?: string; type?: string }
+export type AccountWithAvatar = { uuid?: string; type?: string; skinUrl?: string }
 export type LaunchPhase = "idle" | "installing" | "launching"
 export type LaunchUiState = {
   isLaunching: boolean
@@ -64,22 +64,24 @@ export const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   xneon: "XN Skins",
   microsoft: "Microsoft",
   offline: "Offline",
+  "authlib-injector": "Authlib-Injector",
 }
 
 type MojangManifestResponse = { versions?: Array<{ id: string; type: string }> }
 const MOJANG_VERSION_MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
 
-export const getAvatarUrl = (account: AccountWithAvatar, username: string) => {
-  const isElyBy = account.type === "elyby"
-  const value = isElyBy ? username : (account.uuid || username)
+export const getAvatarUrl = (account: AccountWithAvatar, username: string, version?: number | string) => {
+  if (account.type === "offline" && !account.skinUrl) return "avatar://head/Steve"
+  const name = username || "Steve"
   const params = new URLSearchParams()
-  if (isElyBy) params.set("skin_type", "ely")
-  else if (account.type === "xnskins") params.set("skin_type", "xneon")
-  else if (account.type === "microsoft") params.set("skin_type", "microsoft")
-  else if (account.type === "offline") return "https://mcskinapi-three.vercel.app/avatar/Steve?skin_type=microsoft"
-  return params.has("skin_type")
-    ? `https://mcskinapi-three.vercel.app/avatar/${encodeURIComponent(value)}?${params.toString()}`
-    : `https://mcskinapi-three.vercel.app/avatar/${encodeURIComponent(value)}`
+  if (account.type) params.set("type", account.type)
+  if (account.uuid) params.set("uuid", account.uuid)
+  if (account.skinUrl) params.set("skin_url", account.skinUrl)
+  if (version !== undefined && version !== null && version !== "") {
+    params.set("v", String(version))
+  }
+  const qs = params.toString() ? `?${params.toString()}` : ""
+  return `avatar://head/${encodeURIComponent(name)}${qs}`
 }
 
 export function formatDate(raw: string) {

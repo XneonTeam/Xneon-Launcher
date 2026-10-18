@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, Menu, shell } from "electron"
 import path from "path"
 import { isDev, setMainWindow, getMainWindow, logRuntime, logRuntimeDebug, initRuntimePaths, sendToRenderer } from "./runtime"
 import { initDatabase } from "../db"
+import { refreshAuthServersInBackground } from "./authlib"
 import { cleanupOrphanGameSessions } from "./stats"
 import { loadInstancesRoot } from "./builds/helpers"
 import { migrateIntentDirNames } from "./builds/dir-migration"
@@ -131,6 +132,7 @@ export function registerWindowLifecycle() {
       initRuntimePaths(),
       initDatabase().then(() => {
         logRuntime("[App] database initialized")
+        refreshAuthServersInBackground()
       }).catch((error) => {
         logRuntime(`[App] database init failed: ${error instanceof Error ? error.stack ?? error.message : String(error)}`)
       }),

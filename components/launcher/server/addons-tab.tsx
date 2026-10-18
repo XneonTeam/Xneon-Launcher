@@ -358,7 +358,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
         <div className="flex items-center gap-2">
           <Select value={source} onValueChange={v => { setSource(v as SearchSource); setPage(1) }}>
             {/* Ширина по содержимому: значок + «Обе платформы» должны влезать целиком */}
-            <SelectTrigger className="w-auto min-w-[150px] h-8 text-xs">
+            <SelectTrigger className="w-auto min-w-[150px] h-8 text-xs rounded-xl bg-muted/50 border border-border text-foreground">
               {/* Значок подставляет сам SelectValue из выбранного пункта — второй не нужен */}
               <SelectValue />
             </SelectTrigger>
@@ -380,7 +380,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
             </SelectContent>
           </Select>
           <Select value={sortBy} onValueChange={v => { setSortBy(v as ModSort); setPage(1) }}>
-            <SelectTrigger className="w-auto min-w-[165px] h-8 text-xs">
+            <SelectTrigger className="w-auto min-w-[165px] h-8 text-xs rounded-xl bg-muted/50 border border-border text-foreground">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

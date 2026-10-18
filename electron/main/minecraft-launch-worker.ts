@@ -476,6 +476,20 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
     }
   }
 
+  if (payload.options.authlibInjector) {
+    try {
+      const { injectorPath, serverUrl, prefetchedMetadata } = payload.options.authlibInjector
+      defaultJvmArgs.push(`-javaagent:${injectorPath}=${serverUrl}`)
+      defaultJvmArgs.push("-Dauthlibinjector.side=client")
+      if (prefetchedMetadata) {
+        defaultJvmArgs.push(`-Dauthlibinjector.yggdrasil.prefetched=${prefetchedMetadata}`)
+      }
+      debug(`Authlib-Injector javaagent configured: ${injectorPath}=${serverUrl}`)
+    } catch (error) {
+      debug(`Failed to configure Authlib-Injector: ${toErrorMessage(error)}`)
+    }
+  }
+
   await prepareJavaEnvironmentForInstallers(xnlc, payload, javaPath)
 
   // Offline username override: allow launching with a custom nickname regardless

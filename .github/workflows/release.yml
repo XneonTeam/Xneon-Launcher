@@ -95,17 +95,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # git cliff строит ченджлог по истории и тегам: без fetch-depth: 0 он не увидит
+      # предыдущий релиз и выдаст пустой результат.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v5
         with:
           path: artifacts
           merge-multiple: true
+
+      # Ченджлог через git cliff: только коммиты от предыдущего тега до текущего,
+      # без заголовка/подвала — он идёт телом релиза ниже.
+      - name: Generate changelog (git cliff)
+        id: git-cliff
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --strip all
+        env:
+          OUTPUT: CHANGELOG.md
+          GITHUB_REPO: ${{ github.repository }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          body: |
-            Release ${{ github.ref_name }}
+          body: ${{ steps.git-cliff.outputs.content }}
           files: artifacts/*
           fail_on_unmatched_files: true

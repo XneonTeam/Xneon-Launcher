@@ -146,7 +146,7 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
       )}
 
       {showJavaModal && createPortal(
-        <ModalLayer onClose={() => setShowJavaModal(false)} className="bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+        <ModalLayer onClose={() => setShowJavaModal(false)} className="animate-in fade-in-0">
           <div className="w-full max-w-lg p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-semibold text-foreground">{t("build.java.path")}</h3>

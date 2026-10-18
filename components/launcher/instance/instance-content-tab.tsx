@@ -388,7 +388,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
         <div className="flex items-center gap-2">
           <Select value={modSource} onValueChange={(v) => setModSource(v as SearchSource)}>
             {/* Ширина по содержимому: значок + «Обе платформы» должны влезать целиком */}
-            <SelectTrigger className="w-auto min-w-[150px] h-8 text-xs">
+            <SelectTrigger className="w-auto min-w-[150px] h-8 text-xs rounded-xl bg-muted/50 border border-border text-foreground">
               {/* Значок подставляет сам SelectValue из выбранного пункта — второй не нужен */}
               <SelectValue />
             </SelectTrigger>
@@ -410,7 +410,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
             </SelectContent>
           </Select>
           <Select value={modSortBy} onValueChange={(v) => setModSortBy(v as ModSort)}>
-            <SelectTrigger className="w-auto min-w-[165px] h-8 text-xs">
+            <SelectTrigger className="w-auto min-w-[165px] h-8 text-xs rounded-xl bg-muted/50 border border-border text-foreground">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -626,7 +626,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                             setVersionPickerVersions(shown)
                             setVersionPickerLoading(false)
                             // Раскрываем changelog установленной версии сразу.
-                            const current = shown.find(v => v.name === item.version || v.id === item.version)
+                            const current = shown.find(v => isInstalledVersion(v, item, activeBuild.version))
                             if (current) setSelectedPickerVersion(current)
                           })
                         }}
@@ -738,7 +738,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
       </div>
 
       {versionPickerItem !== null && (        <ModalLayer
-          className="z-[60] bg-background/80 backdrop-blur-sm"
+          className="z-[60] "
           onClose={() => { setVersionPickerItem(null); setSelectedPickerVersion(null) }}
         >
           <div
@@ -771,12 +771,12 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                   {(() => {
                     // Установленная версия хранится как номер из jar, а в каталоге версия
                     // названа иначе — сравниваем общим помощником (см. utils).
-                    const installed = versionPickerItem?.version
                     // Всё, что ниже текущей версии в списке (он отсортирован от новых к старым), — старее.
-                    const installedIndex = versionPickerVersions.findIndex(ver => isInstalledVersion(ver, installed))
+                    const installedRef = versionPickerItem
+                    const installedIndex = versionPickerVersions.findIndex(ver => isInstalledVersion(ver, installedRef, activeBuild?.version))
 
                     return versionPickerVersions.map((ver, index) => {
-                    const isCurrent = isInstalledVersion(ver, installed)
+                    const isCurrent = isInstalledVersion(ver, installedRef, activeBuild?.version)
                     const isSelected = selectedPickerVersion?.id === ver.id
                     const isOlder = installedIndex >= 0 ? index > installedIndex : false
 

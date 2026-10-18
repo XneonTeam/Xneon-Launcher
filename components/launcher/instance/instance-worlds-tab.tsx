@@ -1260,7 +1260,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
       {namePrompt && (
         <ModalLayer
           onClose={() => { if (!promptBusy) setNamePrompt(null) }}
-          className="bg-background/80 backdrop-blur-sm animate-in fade-in-0"
+          className="animate-in fade-in-0"
         >
           <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-2xl border border-border animate-in zoom-in-95">
             <div className="flex items-center justify-between">
@@ -1316,7 +1316,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
       {deleteOpen && selectedWorld && (
         <ModalLayer
           onClose={() => { if (!deleting) setDeleteOpen(false) }}
-          className="bg-background/80 backdrop-blur-sm animate-in fade-in-0"
+          className="animate-in fade-in-0"
         >
           <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-2xl border border-border animate-in zoom-in-95">
             <div className="flex items-center justify-between">

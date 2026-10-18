@@ -55,7 +55,10 @@ function createTables() {
       locked INTEGER,
       modId INTEGER,
       fileId INTEGER,
-      playtime INTEGER NOT NULL DEFAULT 0
+      playtime INTEGER NOT NULL DEFAULT 0,
+      modsCount INTEGER NOT NULL DEFAULT 0,
+      resourcepacksCount INTEGER NOT NULL DEFAULT 0,
+      shadersCount INTEGER NOT NULL DEFAULT 0
     )
   `)
 
@@ -156,6 +159,21 @@ function createTables() {
     )
   `)
 
+  // Authorization servers для аккаунтов Authlib-Injector (третий тип аккаунта).
+  // metadata НЕ храним в этой таблице — она кэшируется отдельно в памяти
+  // (electron/main/authlib/server.ts) и обновляется асинхронно на старте.
+  run(`
+    CREATE TABLE IF NOT EXISTS authlib_servers (
+      id TEXT PRIMARY KEY,
+      url TEXT NOT NULL,
+      name TEXT NOT NULL,
+      nonEmailLogin INTEGER NOT NULL DEFAULT 0,
+      links TEXT NOT NULL DEFAULT '{}',
+      favicon TEXT,
+      metadataTimestamp INTEGER
+    )
+  `)
+
   run(`
     CREATE TABLE IF NOT EXISTS game_sessions (
       id TEXT PRIMARY KEY,
@@ -193,6 +211,16 @@ function migrateAccounts() {
   addColumnIfMissing("accounts", "refreshToken", "refreshToken TEXT")
   addColumnIfMissing("accounts", "clientId", "clientId TEXT")
   addColumnIfMissing("accounts", "sortOrder", "sortOrder INTEGER NOT NULL DEFAULT 0")
+  // Authlib-Injector (type = "authlib-injector"): привязка к authorization
+  // server и данные Yggdrasil-сессии. serverUrl дублирует таблицу серверов —
+  // страховка, если сервер удалили, а аккаунт остался (помечается как
+  // недоступный, но не теряет данные).
+  addColumnIfMissing("accounts", "serverId", "serverId TEXT")
+  addColumnIfMissing("accounts", "serverUrl", "serverUrl TEXT")
+  addColumnIfMissing("accounts", "serverName", "serverName TEXT")
+  addColumnIfMissing("accounts", "yggClientToken", "yggClientToken TEXT")
+  addColumnIfMissing("accounts", "expiresAt", "expiresAt INTEGER")
+  addColumnIfMissing("accounts", "profiles", "profiles TEXT")
 }
 
 function migrateBuilds() {
@@ -228,6 +256,19 @@ function migrateBuilds() {
   addColumnIfMissing("builds", "windowOverride", "windowOverride INTEGER NOT NULL DEFAULT 0")
   addColumnIfMissing("builds", "windowWidth", "windowWidth INTEGER")
   addColumnIfMissing("builds", "windowHeight", "windowHeight INTEGER")
+  addColumnIfMissing("builds", "modsCount", "modsCount INTEGER NOT NULL DEFAULT 0")
+  addColumnIfMissing("builds", "resourcepacksCount", "resourcepacksCount INTEGER NOT NULL DEFAULT 0")
+  addColumnIfMissing("builds", "shadersCount", "shadersCount INTEGER NOT NULL DEFAULT 0")
+  try {
+    run(`
+      UPDATE builds SET
+        modsCount = CASE WHEN json_valid(mods) THEN json_array_length(mods) ELSE 0 END,
+        resourcepacksCount = CASE WHEN json_valid(resourcepacks) THEN json_array_length(resourcepacks) ELSE 0 END,
+        shadersCount = CASE WHEN json_valid(shaders) THEN json_array_length(shaders) ELSE 0 END
+    `)
+  } catch (err) {
+    console.warn("[DB] Не удалось вычислить счётчики через json_array_length:", err)
+  }
 }
 
 function migrateResources() {
@@ -254,6 +295,10 @@ function migrateMcServers() {
   addColumnIfMissing("mc_servers", "customJar", "customJar TEXT DEFAULT NULL")
   addColumnIfMissing("mc_servers", "source", "source TEXT NOT NULL DEFAULT 'local'")
   addColumnIfMissing("mc_servers", "group", "[group] TEXT DEFAULT NULL")
+}
+
+function migrateAuthlibServers() {
+  addColumnIfMissing("authlib_servers", "favicon", "favicon TEXT")
 }
 
 function seedDefaultSettings() {
@@ -294,11 +339,16 @@ export { DEFAULT_SETTINGS }
  * таблицы: тогда на БД с актуальной версией стартовые `PRAGMA table_info`
  * (их около 30 — по одному на колонку) выполняться не будут.
  *
+ * v6 — AI-хранилище сессий: `ai_messages.seq` + `data` (JSON payload),
+ * счётчики расхода в `ai_sessions`, таблица `ai_usage`. Сама схема AI
+ * применяется безусловно через `ensureAiSchemaCore()` (идемпотентна и
+ * сама делает PRAGMA table_info), повышение версии — для журнала.
+ *
  * `DB_FORMAT_VERSION` в core.ts — это другой маркер («файл открывался
  * better-sqlite3», нужен для разового бэкапа sql.js-БД), поэтому в
  * `user_version` пишем максимум из двух.
  */
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 7
 
 function readUserVersion(): number {
   const rows = queryAll<{ user_version?: number }>("PRAGMA user_version")
@@ -331,6 +381,7 @@ export function initializeSchema() {
       migrateResources()
       migrateSkinLibrary()
       migrateMcServers()
+      migrateAuthlibServers()
     }
     createIndexes()
     seedDefaultSettings()

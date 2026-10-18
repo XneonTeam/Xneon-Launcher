@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils"
 import { APP_NAME, APP_VERSION } from "@/lib/app-meta"
-import { IconCheck, IconBrandGithub, IconBrandDiscord, IconInfoCircle, IconLanguage, IconRotate } from "@tabler/icons-react"
+import { IconCheck, IconBrandGithub, IconBrandDiscord, IconDeviceGamepad2, IconInfoCircle, IconLanguage, IconRotate } from "@tabler/icons-react"
 import type { Language } from "./types"
 
 const FLAG_RU = (
@@ -80,13 +80,30 @@ export const languages: Language[] = [
   { id: "es", name: "Spanish", nativeName: "Español", flagSvg: FLAG_ES },
 ]
 
+/**
+ * Коды локалей Minecraft для языков лаунчера (подсказка под тумблером).
+ * Та же карта, что в `electron/main/mc-language.ts` — там она применяется к
+ * options.txt: до 1.11 код писался в исходном регистре (ru_RU), начиная с
+ * 16w32a (1.11) — строчными буквами (ru_ru).
+ */
+const MC_CODES: Record<string, { modern: string; legacy: string }> = {
+  ru: { modern: "ru_ru", legacy: "ru_RU" },
+  en: { modern: "en_us", legacy: "en_US" },
+  uk: { modern: "uk_ua", legacy: "uk_UA" },
+  de: { modern: "de_de", legacy: "de_DE" },
+  es: { modern: "es_es", legacy: "es_ES" },
+}
+
 interface SettingsLanguageProps {
   selectedLanguage: string
   setSelectedLanguage: (id: string) => void
+  autoGameLanguage: boolean
+  setAutoGameLanguage: (value: boolean) => void
   t: (key: string, options?: Record<string, unknown>) => string
 }
 
-export function SettingsLanguage({ selectedLanguage, setSelectedLanguage, t }: SettingsLanguageProps) {
+export function SettingsLanguage({ selectedLanguage, setSelectedLanguage, autoGameLanguage, setAutoGameLanguage, t }: SettingsLanguageProps) {
+  const mcCodes = MC_CODES[selectedLanguage] ?? MC_CODES.en
   return (
     <div className="space-y-8 animate-in fade-in-0 slide-in-from-left-4 duration-300">
       <section className="space-y-4">
@@ -118,6 +135,43 @@ export function SettingsLanguage({ selectedLanguage, setSelectedLanguage, t }: S
               )}
             </button>
           ))}
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+          <IconDeviceGamepad2 className="w-5 h-5 text-primary" strokeWidth={1.75} />
+          {t("settings.gameLanguage.title")}
+        </h3>
+        <div className="p-4 rounded-xl border border-border bg-muted/30">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1">
+              <div className="font-medium text-foreground">{t("settings.gameLanguage.label")}</div>
+              <p className="text-sm text-muted-foreground mt-1">
+                {t("settings.gameLanguage.desc", { code: mcCodes.modern })}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoGameLanguage}
+              onClick={() => setAutoGameLanguage(!autoGameLanguage)}
+              className={cn(
+                "relative w-14 h-8 rounded-full transition-all duration-300 shrink-0",
+                autoGameLanguage ? "bg-primary shadow-[0_0_15px_var(--glow-primary)]" : "bg-muted"
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all duration-300",
+                  autoGameLanguage ? "left-7" : "left-1"
+                )}
+              />
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            {t("settings.gameLanguage.note", { legacyCode: mcCodes.legacy })}
+          </p>
         </div>
       </section>
     </div>

@@ -2,6 +2,7 @@ try { require("dotenv/config") } catch {}
 import { app } from "electron"
 import "./auth"
 
+import { registerAvatarProtocolScheme, registerAvatarHandlers } from "./avatar"
 import { registerModsHandlers } from "./mods"
 import { registerBuildHandlers } from "./builds"
 import { registerCloudHandlers } from "./cloud/handlers"
@@ -19,7 +20,9 @@ import { registerStatsHandlers } from "./stats"
 import { registerStorageHandlers } from "./storage"
 import { xnConnectManager } from "./xn-connect-manager"
 import { registerXnConnectHandlers } from "./xn-connect-handlers"
+import { registerAuthlibHandlers } from "./authlib"
 
+registerAvatarProtocolScheme()
 registerWindowLifecycle()
 registerSystemHandlers()
 registerModsHandlers()
@@ -33,11 +36,13 @@ registerQuickPlayHandlers()
 registerUpdater()
 registerAiAgent()
 registerSkinsHandlers()
+registerAvatarHandlers()
 registerMcServerHandlers()
 registerStatsHandlers()
 registerStorageHandlers()
 // XN-Connect: каналы в своём модуле (раньше жили внутри mc-server-handlers).
 registerXnConnectHandlers()
+registerAuthlibHandlers()
 
 import("@xnlc/mods").catch(() => {})
 import("./discord-rpc.js").catch(() => {})

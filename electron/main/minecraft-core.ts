@@ -10,7 +10,7 @@ import { LaunchOrchestrator, getLaunchOrchestrator } from "./launch-orchestrator
 import { dbHelpers, type DbAccount } from "../db"
 
 type LaunchAccountPayload = {
-  type: "elyby" | "xnskins" | "microsoft" | "offline"
+  type: "elyby" | "xnskins" | "microsoft" | "offline" | "authlib-injector"
   username: string
   uuid?: string
   accessToken?: string

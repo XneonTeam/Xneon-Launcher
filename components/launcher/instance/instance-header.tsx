@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { IconPackage, IconStack2, IconTrash } from "@tabler/icons-react"
+import { IconColorSwatch, IconStack2, IconTrash } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { InstanceCreateDialog } from "./instance-create-dialog"
 import type { ViewMode } from "./types"
@@ -20,7 +20,7 @@ export function InstanceHeader({ view, setView, createOpen, setCreateOpen, onCre
     <div className="flex items-center justify-between gap-4 mb-6">
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-          <IconPackage className="w-5 h-5 text-primary" />
+          <IconColorSwatch className="w-5 h-5 text-primary" />
         </div>
         <div>
           <h1 className="text-xl font-bold text-foreground">{t("builds.title")}</h1>

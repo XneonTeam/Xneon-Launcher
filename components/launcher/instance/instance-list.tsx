@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
-  IconPackage, IconPlus, IconCopy, IconTrash, IconDownload, IconUpload, IconCategoryPlus,
+  IconColorSwatch, IconPlus, IconCopy, IconTrash, IconDownload, IconUpload, IconCategoryPlus,
   IconX, IconChevronDown, IconChevronRight,
   IconPencil, IconPuzzle, IconSparkles, IconMap,
   IconSettings, IconBug, IconFolder, IconLayoutGrid, IconLayoutList, IconArrowUpCircle, IconPhoto,
@@ -263,7 +263,7 @@ export const InstanceList = memo(function InstanceList({
       {totalBuilds === 0 ? (
         <div className="h-full flex flex-col items-center justify-center text-center">
           <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mb-5">
-            <IconPackage className="w-10 h-10 text-muted-foreground/40" />
+            <IconColorSwatch className="w-10 h-10 text-muted-foreground/40" />
           </div>
           <p className="text-base font-medium text-foreground">{t("builds.noBuilds")}</p>
           <p className="text-sm text-muted-foreground mt-1 mb-5">{t("builds.noBuildsDesc")}</p>
@@ -441,7 +441,7 @@ export const InstanceList = memo(function InstanceList({
                           </div>
                           {/* Удаление: папка сборки перемещается на диске, показываем это */}
                           {isTrashing && (
-                            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-background/70 backdrop-blur-sm">
+                            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 ">
                               <IconLoader2 className="w-6 h-6 animate-spin text-primary" />
                               <span className="text-[11px] font-medium text-muted-foreground">{t("instanceList.trashing")}</span>
                             </div>
@@ -544,7 +544,7 @@ export const InstanceList = memo(function InstanceList({
       )}
 
       {exportDialogFor && !exportingId && (
-        <div className="absolute inset-0 z-30 bg-background/60 backdrop-blur-sm flex items-center justify-center"
+        <div className="absolute inset-0 z-30 flex items-center justify-center"
           onClick={() => setExportDialogFor(null)}>
           <div className="w-[420px] rounded-2xl border border-border bg-card p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
@@ -711,7 +711,7 @@ export const InstanceList = memo(function InstanceList({
       />
 
       {renameGroupFor && (
-        <ModalLayer className="bg-background/60 backdrop-blur-sm" onClose={() => setRenameGroupFor(null)}>
+        <ModalLayer className="" onClose={() => setRenameGroupFor(null)}>
           <div className="w-72 rounded-2xl border border-border bg-card p-4 shadow-2xl">
             <p className="text-sm font-semibold mb-3">{t("instanceList.renameGroup")}</p>
             <input autoFocus value={renameGroupDraft} onChange={e => setRenameGroupDraft(e.target.value)}

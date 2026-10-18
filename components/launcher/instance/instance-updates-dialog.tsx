@@ -229,7 +229,7 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
 
   return (
     <ModalLayer
-      className="z-[60] bg-background/80 backdrop-blur-sm"
+      className="z-[60] "
       onClose={() => onOpenChange(false)}
     >
       <div

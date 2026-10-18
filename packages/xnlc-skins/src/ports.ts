@@ -49,11 +49,16 @@ export interface SkinLibraryStore {
 
 export type ResolvedSkinAccount = {
   id: string
-  /** `microsoft` / `elyby` / `xnskins` — от этого зависит, какой API спрашивать. */
+  /** `microsoft` / `elyby` / `xnskins` / `authlib-injector` / `offline` — от этого зависит, какой API спрашивать. */
   type: string
   username?: string
-  accessToken: string
+  uuid?: string
+  accessToken?: string
   refreshToken?: string
+  serverUrl?: string
+  serverId?: string
+  clientToken?: string
+  skinUrl?: string
 }
 
 /**

@@ -218,15 +218,35 @@ async function refreshMicrosoftMcToken(
 
 async function toResolved(account: Awaited<ReturnType<typeof loadAccount>>): Promise<ResolvedSkinAccount | null> {
   if (!account) return null
+
+  let serverUrl = account.serverUrl
+  if (account.type === "authlib-injector" && !serverUrl && account.serverId) {
+    const server = dbHelpers.getAuthServer(account.serverId)
+    if (server) serverUrl = server.url
+  }
+  if (account.type === "elyby") {
+    // Ely.by управляется через личный кабинет ely.by, лаунчер не управляет скинами Ely.by
+    return null
+  }
+  if ((account.type === "xnskins" || (account.type as string) === "xneon") && !serverUrl) {
+    serverUrl = "https://skins.xneon.org/authlib-injector/"
+  }
+
   if (account.accessToken) {
     return {
       id: account.id,
       type: account.type,
       username: account.username,
+      uuid: account.uuid,
       accessToken: account.accessToken,
       refreshToken: account.refreshToken,
+      serverUrl,
+      serverId: account.serverId,
+      clientToken: account.yggClientToken,
+      skinUrl: account.skinUrl ?? undefined,
     }
   }
+
   if (account.type === "microsoft" && account.refreshToken) {
     const refreshed = await refreshMicrosoftMcToken(account.refreshToken)
     if (refreshed) {
@@ -235,12 +255,33 @@ async function toResolved(account: Awaited<ReturnType<typeof loadAccount>>): Pro
         id: account.id,
         type: account.type,
         username: account.username,
+        uuid: account.uuid,
         accessToken: refreshed.accessToken,
         refreshToken: refreshed.refreshToken,
+        skinUrl: account.skinUrl ?? undefined,
       }
     }
   }
-  return null
+
+  if (account.type === "offline") {
+    return {
+      id: account.id,
+      type: "offline",
+      username: account.username,
+      uuid: account.uuid,
+      accessToken: "0",
+      skinUrl: account.skinUrl ?? undefined,
+    }
+  }
+
+  return {
+    id: account.id,
+    type: account.type,
+    username: account.username,
+    uuid: account.uuid,
+    serverUrl,
+    skinUrl: account.skinUrl ?? undefined,
+  }
 }
 
 /** Аккаунт и его рабочий токен Minecraft Services. */
@@ -250,18 +291,55 @@ export function createAccountPort(): SkinAccountPort {
       return toResolved(await loadAccount(accountId))
     },
     async refresh(account) {
-      if (account.type !== "microsoft" || !account.refreshToken) return null
-      const refreshed = await refreshMicrosoftMcToken(account.refreshToken)
-      if (!refreshed) return null
-      const stored = await loadAccount(account.id)
-      if (stored) {
-        await dbHelpers.saveAccount({
-          ...stored,
-          accessToken: refreshed.accessToken,
-          refreshToken: refreshed.refreshToken,
-        })
+      if (account.type === "microsoft" && account.refreshToken) {
+        const refreshed = await refreshMicrosoftMcToken(account.refreshToken)
+        if (!refreshed) return null
+        const stored = await loadAccount(account.id)
+        if (stored) {
+          await dbHelpers.saveAccount({
+            ...stored,
+            accessToken: refreshed.accessToken,
+            refreshToken: refreshed.refreshToken,
+          })
+        }
+        return { ...account, accessToken: refreshed.accessToken, refreshToken: refreshed.refreshToken }
       }
-      return { ...account, accessToken: refreshed.accessToken, refreshToken: refreshed.refreshToken }
+
+      if (account.type === "authlib-injector") {
+        let serverUrl = account.serverUrl
+        if (!serverUrl && account.serverId) {
+          const server = dbHelpers.getAuthServer(account.serverId)
+          if (server) serverUrl = server.url
+        }
+        if (!serverUrl || !account.accessToken) return null
+
+        try {
+          const { refresh } = await import("../authlib/yggdrasil.js")
+          const stored = await loadAccount(account.id)
+          const clientToken = account.clientToken || stored?.yggClientToken || ""
+          const refreshed = await refresh(serverUrl, {
+            accessToken: account.accessToken,
+            clientToken,
+          })
+          if (stored) {
+            await dbHelpers.saveAccount({
+              ...stored,
+              accessToken: refreshed.accessToken,
+              yggClientToken: refreshed.clientToken || clientToken,
+            })
+          }
+          return {
+            ...account,
+            accessToken: refreshed.accessToken,
+            clientToken: refreshed.clientToken || clientToken,
+            serverUrl,
+          }
+        } catch {
+          return null
+        }
+      }
+
+      return null
     },
   }
 }

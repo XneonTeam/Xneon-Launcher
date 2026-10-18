@@ -18,7 +18,12 @@ const env = { ...process.env }
 delete env.ELECTRON_RUN_AS_NODE
 delete env.ELECTRON_NO_ATTACH_CONSOLE
 
-const child = spawn(electronBinary, ["--no-deprecation", "."], {
+// Отладочный порт включается только по явному запросу (ELECTRON_DEBUG_PORT):
+// иначе второй инстанс падал на занятом 9222, а порт был открыт всегда.
+const debugPort = (process.env.ELECTRON_DEBUG_PORT || "").trim()
+const debugArgs = debugPort ? [`--remote-debugging-port=${debugPort}`] : []
+
+const child = spawn(electronBinary, ["--no-deprecation", ...debugArgs, "."], {
   cwd: process.cwd(),
   env,
   stdio: "inherit",

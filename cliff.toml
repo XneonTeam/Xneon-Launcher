@@ -1,0 +1,60 @@
+# Конфигурация git-cliff для Xneon Launcher.
+#
+# Локально:  git-cliff --latest --strip all
+# В CI:      .github/workflows/release.yml — ченджлог уходит в release notes релиза.
+# Формат:    Conventional Commits (type(scope): описание), описание — на русском.
+
+[changelog]
+header = """
+# Список изменений Xneon Launcher\n
+"""
+body = """
+{% if version %}\
+## [{{ version | trim_start_matches(pat="v") }}]\
+{% if previous.version %} ([{{ previous.version | trim_start_matches(pat="v") }}...{{ version | trim_start_matches(pat="v") }}](<REPO>/compare/{{ previous.version }}..{{ version }}))\
+{% endif %} - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+## [Unreleased]
+{% endif %}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group }}
+
+{% for commit in commits %}\
+- {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
+{% if commit.breaking %}[**breaking**] {% endif %}\
+{{ commit.message | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}](<REPO>/commit/{{ commit.id }}))
+{% endfor %}
+{% endfor %}
+"""
+footer = """
+<!-- сгенерировано git-cliff -->
+"""
+# Убрать лишние пустые строки по краям.
+trim = true
+postprocessors = [
+  # Подставить реальный URL репозитория вместо плейсхолдера из шаблона.
+  { pattern = '<REPO>', replace = "https://github.com/XneonTeam/Xneon-Launcher" },
+]
+
+[git]
+conventional_commits = true
+# Не отбрасывать коммиты вне conventional-формата — им достаётся группа «Другое».
+filter_unconventional = false
+split_commits = false
+commit_parsers = [
+  { message = "^feat", group = "Новые возможности" },
+  { message = "^fix", group = "Исправления" },
+  { message = "^perf", group = "Производительность" },
+  { message = "^refactor", group = "Рефакторинг" },
+  { message = "^revert", group = "Откат изменений" },
+  { message = "^docs", group = "Документация" },
+  { message = "^style", group = "Стиль" },
+  { message = "^test", group = "Тесты" },
+  { message = "^chore|^ci|^build", group = "Внутренние работы" },
+  { message = ".*", group = "Другое" },
+]
+filter_commits = false
+# Релизные теги проекта: v1.0.0, v1.0.1, ...
+tag_pattern = "v[0-9].*"
+# Хронологический порядок: изменения читаются сверху вниз, как они происходили.
+sort_commits = "oldest"

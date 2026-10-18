@@ -266,7 +266,7 @@ async function scanServers(): Promise<ServerStorageEntry[]> {
   return entries.sort((a, b) => b.total - a.total)
 }
 
-async function scanStorage(): Promise<StorageScanResult> {
+export async function scanStorage(): Promise<StorageScanResult> {
   const gameDir = await getGameDir()
   const runtimeRoot = path.join(gameDir, "runtime")
   const trashPath = path.join(getInstancesRoot(), "intents", ".trash")
@@ -305,7 +305,7 @@ async function removeContents(dirPath: string): Promise<void> {
   ))
 }
 
-async function cleanStorage(target: StorageCleanTarget): Promise<StorageCleanResult> {
+export async function cleanStorage(target: StorageCleanTarget): Promise<StorageCleanResult> {
   try {
     if (target.kind === "trash") {
       const trashPath = path.join(getInstancesRoot(), "intents", ".trash")

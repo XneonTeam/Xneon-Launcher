@@ -69,13 +69,13 @@ function SectionHeader({
  */
 export function LabyLibraryTab() {
   const { t, i18n } = useTranslation()
-  const { accounts, activeAccount } = useAccounts()
+  const { accounts, activeAccount, bumpAvatarVersion } = useAccounts()
   const { pushNotification } = useActivityCenter()
 
-  const account = activeAccount ?? accounts[0]
+  const skinAccounts = useMemo(() => accounts.filter((a) => a.type !== "elyby" && a.type !== "offline"), [accounts])
+  const account = (activeAccount && activeAccount.type !== "elyby" && activeAccount.type !== "offline" ? activeAccount : skinAccounts[0]) ?? null
   const accountId = account?.id
-  /** Скины Minecraft Services есть только у аккаунтов Microsoft. */
-  const canApply = account?.type === "microsoft"
+  const canApply = Boolean(account)
 
   const [items, setItems] = useState<LabySkin[]>([])
   const [page, setPage] = useState(0)
@@ -342,6 +342,9 @@ export function LabyLibraryTab() {
         if (mode === "apply") {
           if (result.applied) {
             if (result.librarySkinId) localStorage.setItem(`skin-equipped-${accountId}`, result.librarySkinId)
+            const targetAcc = accounts.find((a) => a.id === accountId)
+            await window.electronAPI.avatarInvalidateCache?.({ username: targetAcc?.username, uuid: targetAcc?.uuid, type: targetAcc?.type })
+            bumpAvatarVersion()
             pushNotification({
               kind: "success",
               source: "launch",
