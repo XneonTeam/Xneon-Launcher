@@ -17,37 +17,52 @@ export function SettingsThemes({ selectedTheme, setSelectedTheme }: SettingsThem
           <IconPalette className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("settings.themes.presets")}
         </h3>
-        <div className="grid grid-cols-2 gap-4">
-          {presetThemes.map((theme) => (
-            <button
-              key={theme.id}
-              onClick={() => {
-                setSelectedTheme(theme.id)
-                applyTheme(theme)
-                localStorage.setItem("theme", theme.id)
-                window.electronAPI?.setSetting("theme", theme.id)
-              }}
-              className={cn(
-                "relative p-4 rounded-xl border transition-all duration-200 text-left overflow-hidden",
-                selectedTheme === theme.id
-                  ? "border-primary shadow-[0_0_15px_var(--glow-primary)]"
-                  : "border-border hover:border-primary/50"
-              )}
-              style={{ backgroundColor: theme.background }}
-            >
-              <div className="flex gap-2 mb-3">
-                <div className="w-8 h-8 rounded-lg shadow-inner" style={{ backgroundColor: theme.primary }} />
-                <div className="w-8 h-8 rounded-lg shadow-inner" style={{ backgroundColor: theme.accent }} />
-                <div className="w-8 h-8 rounded-lg border border-white/20 shadow-inner" style={{ backgroundColor: theme.background }} />
-              </div>
-              <span className="font-medium text-white">{theme.name}</span>
-              {selectedTheme === theme.id && (
-                <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                  <IconCheck className="w-4 h-4 text-primary-foreground" strokeWidth={2} />
+        <div className="grid grid-cols-2 gap-3">
+          {presetThemes.map((theme) => {
+            const selected = selectedTheme === theme.id
+            return (
+              <button
+                key={theme.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => {
+                  setSelectedTheme(theme.id)
+                  applyTheme(theme)
+                  localStorage.setItem("theme", theme.id)
+                  window.electronAPI?.setSetting("theme", theme.id)
+                }}
+                className={cn(
+                  "rounded-2xl border p-3.5 text-left transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+                  selected
+                    ? "border-primary/50 bg-primary/5"
+                    : "border-border bg-card/60 hover:border-primary/40 hover:bg-muted/30"
+                )}
+              >
+                {/*
+                  Миниатюра окна лаунчера вместо абстрактных кружков: сразу видно,
+                  что именно меняет тема — акцент и подсветку; фон у всех общий.
+                */}
+                <div className="mb-3 flex h-12 w-full overflow-hidden rounded-xl border border-border/60 bg-[#18181b]">
+                  <div className="h-full w-3.5 shrink-0" style={{ backgroundColor: theme.primary }} />
+                  <div className="flex flex-1 flex-col gap-1.5 p-2">
+                    <div className="h-1.5 w-3/5 rounded-full" style={{ backgroundColor: theme.primary }} />
+                    <div className="h-1.5 w-2/5 rounded-full bg-white/10" />
+                    <div className="mt-auto h-2.5 w-1/3 rounded-md" style={{ backgroundColor: theme.accent }} />
+                  </div>
                 </div>
-              )}
-            </button>
-          ))}
+
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-foreground">{theme.name}</span>
+                  {selected && (
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary">
+                      <IconCheck className="h-3.5 w-3.5 text-primary-foreground" strokeWidth={2.5} />
+                    </span>
+                  )}
+                </div>
+              </button>
+            )
+          })}
         </div>
       </section>
     </div>

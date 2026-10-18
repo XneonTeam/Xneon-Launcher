@@ -1,46 +1,18 @@
 import type { Theme, Resolution } from "./types"
 
+/**
+ * Темы меняют только акцент (primary/accent), фон окна общий для всех —
+ * поэтому у темы нет собственного background.
+ */
 export const presetThemes: Theme[] = [
-  {
-    id: "orange", name: "Core",
-    primary: "#f97316", accent: "#fbbf24", background: "#18181b",
-    primaryOklch: "0.65 0.22 40", accentOklch: "0.75 0.18 75", backgroundOklch: "0.08 0.01 260",
-  },
-  {
-    id: "neon", name: "Violet",
-    primary: "#9C27B0", accent: "#E040FB", background: "#18181b",
-    primaryOklch: "0.52 0.27 300", accentOklch: "0.62 0.3 310", backgroundOklch: "0.08 0.01 260",
-  },
-  {
-    id: "fire", name: "Blaze",
-    primary: "#F44336", accent: "#FF9800", background: "#18181b",
-    primaryOklch: "0.58 0.24 25", accentOklch: "0.72 0.19 55", backgroundOklch: "0.08 0.01 260",
-  },
-  {
-    id: "minecraft", name: "Verdant",
-    primary: "#4CAF50", accent: "#8BC34A", background: "#18181b",
-    primaryOklch: "0.65 0.2 145", accentOklch: "0.72 0.18 130", backgroundOklch: "0.08 0.01 260",
-  },
-  {
-    id: "ocean", name: "Aqua",
-    primary: "#4A8FE7", accent: "#80CAFF", background: "#18181b",
-    primaryOklch: "0.62 0.18 245", accentOklch: "0.80 0.12 240", backgroundOklch: "0.08 0.01 260",
-  },
-  {
-    id: "gold", name: "Solar",
-    primary: "#FFC107", accent: "#FF9800", background: "#18181b",
-    primaryOklch: "0.80 0.17 85", accentOklch: "0.72 0.19 55", backgroundOklch: "0.08 0.01 260",
-  },
-  {
-    id: "rose", name: "Rose",
-    primary: "#E91E63", accent: "#FF4081", background: "#18181b",
-    primaryOklch: "0.55 0.27 355", accentOklch: "0.65 0.28 350", backgroundOklch: "0.08 0.01 260",
-  },
-  {
-    id: "arctic", name: "Arctic",
-    primary: "#78909C", accent: "#B0BEC5", background: "#18181b",
-    primaryOklch: "0.58 0.04 230", accentOklch: "0.78 0.02 230", backgroundOklch: "0.08 0.01 260",
-  },
+  { id: "orange", name: "Core", primary: "#f97316", accent: "#fbbf24", primaryOklch: "0.65 0.22 40", accentOklch: "0.75 0.18 75" },
+  { id: "neon", name: "Violet", primary: "#9C27B0", accent: "#E040FB", primaryOklch: "0.52 0.27 300", accentOklch: "0.62 0.3 310" },
+  { id: "fire", name: "Blaze", primary: "#F44336", accent: "#FF9800", primaryOklch: "0.58 0.24 25", accentOklch: "0.72 0.19 55" },
+  { id: "minecraft", name: "Verdant", primary: "#4CAF50", accent: "#8BC34A", primaryOklch: "0.65 0.2 145", accentOklch: "0.72 0.18 130" },
+  { id: "ocean", name: "Aqua", primary: "#4A8FE7", accent: "#80CAFF", primaryOklch: "0.62 0.18 245", accentOklch: "0.80 0.12 240" },
+  { id: "gold", name: "Solar", primary: "#FFC107", accent: "#FF9800", primaryOklch: "0.80 0.17 85", accentOklch: "0.72 0.19 55" },
+  { id: "rose", name: "Rose", primary: "#E91E63", accent: "#FF4081", primaryOklch: "0.55 0.27 355", accentOklch: "0.65 0.28 350" },
+  { id: "arctic", name: "Arctic", primary: "#78909C", accent: "#B0BEC5", primaryOklch: "0.58 0.04 230", accentOklch: "0.78 0.02 230" },
 ]
 
 export const presetResolutions: Resolution[] = [
