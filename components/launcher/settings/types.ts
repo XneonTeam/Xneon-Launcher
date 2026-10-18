@@ -5,10 +5,8 @@ export interface Theme {
   name: string
   primary: string
   accent: string
-  background: string
   primaryOklch: string
   accentOklch: string
-  backgroundOklch: string
 }
 
 export interface Resolution {
