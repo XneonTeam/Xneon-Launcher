@@ -1,0 +1,50 @@
+@keyframes xneon-settings-content-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.settings-content-enter {
+  transform-origin: center top;
+  animation: var(--theme-enter-name, xneon-settings-content-enter) var(--theme-enter-duration, 300ms) var(--theme-enter-easing, ease-out) both;
+}
+
+.settings-content-enter-delayed {
+  animation-delay: var(--theme-enter-delay, 70ms);
+}
+
+@keyframes xneon-content-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes xneon-content-slide-up {
+  from { opacity: 0; transform: translate3d(0, 16px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes xneon-content-slide-left {
+  from { opacity: 0; transform: translate3d(16px, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes xneon-content-zoom {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes xneon-content-blur {
+  from { opacity: 0; filter: blur(6px); }
+  to { opacity: 1; filter: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-content-enter {
+    animation: none !important;
+  }
+}

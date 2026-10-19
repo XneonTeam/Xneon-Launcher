@@ -1,10 +1,12 @@
+import { SETTINGS_CONTENT_ENTER_DELAYED } from "./settings-motion"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { changeLanguage } from "@/src/i18n"
 import { cn } from "@/lib/utils"
 import { IconCpu, IconDeviceDesktop, IconShield, IconCloud, IconFolder, IconPlayerPlay, IconSettings } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { settingsTabs, presetThemes, applyTheme } from "./data"
+import { settingsTabs } from "./data"
+import { useThemeRegistry } from "./theme-store"
 import { SettingsTabs } from "./settings-tabs"
 import { SettingsResolution } from "./settings-resolution"
 import { SettingsJava } from "./settings-java"
@@ -19,13 +21,13 @@ import { SettingsStorage } from "./settings-storage"
 import { RamAllocation } from "@/components/launcher/ram-allocation"
 import type { SettingsTab, JavaInstallation } from "./types"
 
-export function SettingsPage() {
+export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab } = {}) {
   const { t } = useTranslation()
   const settingsHydratedRef = useRef(false)
   const pendingSettingsRef = useRef<Record<string, { timeoutId: number; value: string }>>({})
   const lastPersistedSettingsRef = useRef<Record<string, string>>({})
-  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("game")
-  const [selectedTheme, setSelectedTheme] = useState<string>("orange")
+  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>(initialTab)
+  useEffect(() => { setActiveSettingsTab(initialTab) }, [initialTab])
   const [selectedResolution, setSelectedResolution] = useState("1920x1080 (Full HD)")
   const [customWidth, setCustomWidth] = useState("1920")
   const [customHeight, setCustomHeight] = useState("1080")
@@ -56,21 +58,12 @@ export function SettingsPage() {
   })
   const [instancesRoot, setInstancesRoot] = useState("")
 
-  useEffect(() => {
-    const loadTheme = async () => {
-      const dbTheme = await window.electronAPI?.getSetting("theme")
-      const stored = dbTheme || localStorage.getItem("theme")
-      const id = stored || "orange"
-      const theme = presetThemes.find(t => t.id === id)
-      if (theme) { setSelectedTheme(id); applyTheme(theme) }
-    }
-    void loadTheme()
-  }, [])
-
-  useEffect(() => {
-    const theme = presetThemes.find(t => t.id === selectedTheme)
-    if (theme) applyTheme(theme)
-  }, [selectedTheme])
+  /**
+   * Тема — из общего реестра: он сам применяет выбранную тему, пишет выбор в
+   * localStorage и БД и подхватывает изменения из main, поэтому локального
+   * состояния и эффектов применения здесь больше нет.
+   */
+  const registry = useThemeRegistry()
 
   useEffect(() => {
     changeLanguage(selectedLanguage)
@@ -294,25 +287,25 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col animate-in fade-in-0 duration-300">
-      <div className="flex h-full min-h-0 flex-col">
+    <div data-ui="settings-index-div-1" data-component="settings-page" id="settings-page" data-tab={activeSettingsTab} className="flex h-full min-h-0 flex-col">
+      <div data-ui="settings-index-div-2" className="flex h-full min-h-0 flex-col">
         {/* Значок у заголовка — как у остальных разделов лаунчера */}
-        <div className="mb-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+        <div data-ui="settings-index-div-3" className={`mb-4 flex items-center gap-3 ${SETTINGS_CONTENT_ENTER_DELAYED}`}>
+          <div data-ui="settings-index-div-4" className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
             <IconSettings className="w-5 h-5 text-primary" />
           </div>
-          <div>
-            <h2 className="text-xl font-bold text-foreground">{t("settings.title")}</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">{t("settings.subtitle")}</p>
+          <div data-ui="settings-index-div-5">
+            <h2 data-ui="settings-index-h2-1" className="text-xl font-bold text-foreground">{t("settings.title")}</h2>
+            <p data-ui="settings-index-p-1" className="mt-0.5 text-sm text-muted-foreground">{t("settings.subtitle")}</p>
           </div>
         </div>
 
         <SettingsTabs tabs={settingsTabs} activeTab={activeSettingsTab} setActiveTab={setActiveSettingsTab} t={t} />
 
         {activeSettingsTab === "game" && (
-          <div className="min-h-0 flex-1 space-y-8 overflow-y-auto pr-6 animate-in fade-in-0 slide-in-from-left-4 duration-300">
-            <section className="space-y-4">
-              <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+          <div data-ui="settings-index-div-6" data-settings-section="game" className={`min-h-0 flex-1 space-y-8 overflow-y-auto pr-6 pb-6 ${SETTINGS_CONTENT_ENTER_DELAYED}`}>
+            <section data-ui="settings-index-section-1" className="space-y-4">
+              <h3 data-ui="settings-index-h3-1" className="text-lg font-medium text-foreground flex items-center gap-2">
                 <IconDeviceDesktop className="w-5 h-5 text-primary" strokeWidth={1.75} />
                 {t("settings.resolution")}
               </h3>
@@ -331,32 +324,32 @@ export function SettingsPage() {
             {/* Общий блок с первоначальной настройкой: RamAllocation */}
             <RamAllocation memoryMax={memoryMax} onChange={setMemoryMax} />
 
-            <section className="space-y-4">
-              <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+            <section data-ui="settings-index-section-2" className="space-y-4">
+              <h3 data-ui="settings-index-h3-2" className="text-lg font-medium text-foreground flex items-center gap-2">
                 <IconCloud className="w-5 h-5 text-primary" strokeWidth={1.5} />
                 {t("settings.autoJoin.title")}
               </h3>
-              <div className="p-4 rounded-xl border border-border bg-muted/30">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="font-medium text-foreground">{t("settings.autoJoin.label")}</div>
-                    <p className="text-sm text-muted-foreground mt-1">{t("settings.autoJoin.desc")}</p>
+              <div data-ui="settings-index-div-7" className="p-4 rounded-xl border border-border bg-muted/30">
+                <div data-ui="settings-index-div-8" className="flex items-center justify-between">
+                  <div data-ui="settings-index-div-9" className="flex-1">
+                    <div data-ui="settings-index-div-10" className="font-medium text-foreground">{t("settings.autoJoin.label")}</div>
+                    <p data-ui="settings-index-p-2" className="text-sm text-muted-foreground mt-1">{t("settings.autoJoin.desc")}</p>
                   </div>
-                  <button
+                  <button data-ui="settings-index-button-1"
                     onClick={() => setAutoJoinServer(!autoJoinServer)}
                     className={cn(
                       "relative w-14 h-8 rounded-full transition-all duration-300",
                       autoJoinServer ? "bg-primary shadow-[0_0_15px_var(--glow-primary)]" : "bg-muted"
                     )}
                   >
-                    <span className={cn("absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all duration-300", autoJoinServer ? "left-7" : "left-1")} />
+                    <span data-ui="settings-index-span-1" className={cn("absolute top-1 w-6 h-6 rounded-full bg-foreground shadow-md transition-all duration-300", autoJoinServer ? "left-7" : "left-1")} />
                   </button>
                 </div>
                 {autoJoinServer && (
-                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="sm:col-span-2 space-y-1.5">
-                      <label className="block text-sm font-medium text-foreground">{t("settings.autoJoin.ip")}</label>
-                      <input
+                  <div data-ui="settings-index-div-11" className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div data-ui="settings-index-div-12" className="sm:col-span-2 space-y-1.5">
+                      <label data-ui="settings-index-label-1" className="block text-sm font-medium text-foreground">{t("settings.autoJoin.ip")}</label>
+                      <input data-ui="settings-index-input-1"
                         type="text"
                         value={serverAddress}
                         onChange={(e) => setServerAddress(e.target.value)}
@@ -364,9 +357,9 @@ export function SettingsPage() {
                         className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none"
                       />
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="block text-sm font-medium text-foreground">{t("settings.autoJoin.port")}</label>
-                      <input
+                    <div data-ui="settings-index-div-13" className="space-y-1.5">
+                      <label data-ui="settings-index-label-2" className="block text-sm font-medium text-foreground">{t("settings.autoJoin.port")}</label>
+                      <input data-ui="settings-index-input-2"
                         type="text"
                         value={serverPort}
                         onChange={(e) => setServerPort(e.target.value)}
@@ -379,13 +372,13 @@ export function SettingsPage() {
               </div>
             </section>
 
-            <section className="space-y-4">
-              <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+            <section data-ui="settings-index-section-3" className="space-y-4">
+              <h3 data-ui="settings-index-h3-3" className="text-lg font-medium text-foreground flex items-center gap-2">
                 <IconPlayerPlay className="w-5 h-5 text-primary" strokeWidth={1.75} />
                 {t("settings.afterLaunch.title")}
               </h3>
-              <div className="p-4 rounded-xl border border-border bg-muted/30">
-                <p className="text-sm text-muted-foreground mb-3">{t("settings.afterLaunch.desc")}</p>
+              <div data-ui="settings-index-div-14" className="p-4 rounded-xl border border-border bg-muted/30">
+                <p data-ui="settings-index-p-3" className="text-sm text-muted-foreground mb-3">{t("settings.afterLaunch.desc")}</p>
                 <Select value={afterLaunch} onValueChange={(v) => setAfterLaunch(v as "nothing" | "minimize" | "close")}>
                   <SelectTrigger className="w-full max-w-xs">
                     <SelectValue />
@@ -399,8 +392,8 @@ export function SettingsPage() {
               </div>
             </section>
 
-            <section className="space-y-4">
-              <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+            <section data-ui="settings-index-section-4" className="space-y-4">
+              <h3 data-ui="settings-index-h3-4" className="text-lg font-medium text-foreground flex items-center gap-2">
                 {t("settings.versionTypes")}
               </h3>
               <SettingsVersions
@@ -413,24 +406,24 @@ export function SettingsPage() {
               />
             </section>
 
-            <section className="space-y-4">
-              <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+            <section data-ui="settings-index-section-5" className="space-y-4">
+              <h3 data-ui="settings-index-h3-5" className="text-lg font-medium text-foreground flex items-center gap-2">
                 <IconFolder className="w-5 h-5 text-primary" strokeWidth={1.75} />
                 {t("settings.buildsFolder.title")}
               </h3>
-              <div className="p-4 rounded-xl border border-border bg-muted/30">
-                <p className="text-sm text-muted-foreground mb-3">{t("settings.buildsFolder.desc")}</p>
-                <div className="flex items-center gap-3">
-                  <code className="flex-1 truncate rounded-lg bg-background/60 border border-border px-3 py-2 text-xs text-muted-foreground">{instancesRoot || t("settings.buildsFolder.loading")}</code>
-                  <button type="button" onClick={() => void handleChangeInstancesDir()} className="px-3 py-2 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 shrink-0">
+              <div data-ui="settings-index-div-15" className="p-4 rounded-xl border border-border bg-muted/30">
+                <p data-ui="settings-index-p-4" className="text-sm text-muted-foreground mb-3">{t("settings.buildsFolder.desc")}</p>
+                <div data-ui="settings-index-div-16" className="flex items-center gap-3">
+                  <code data-ui="settings-index-code-1" className="flex-1 truncate rounded-lg bg-background/60 border border-border px-3 py-2 text-xs text-muted-foreground">{instancesRoot || t("settings.buildsFolder.loading")}</code>
+                  <button data-ui="settings-index-button-2" type="button" onClick={() => void handleChangeInstancesDir()} className="px-3 py-2 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 shrink-0">
                     {t("settings.buildsFolder.change")}
                   </button>
                 </div>
               </div>
             </section>
 
-            <section className="space-y-4">
-              <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+            <section data-ui="settings-index-section-6" className="space-y-4">
+              <h3 data-ui="settings-index-h3-6" className="text-lg font-medium text-foreground flex items-center gap-2">
                 <IconShield className="w-5 h-5 text-primary" strokeWidth={1.75} />
                 {t("settings.authlib")}
               </h3>
@@ -444,25 +437,25 @@ export function SettingsPage() {
               />
             </section>
 
-            <section className="space-y-4">
-              <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+            <section data-ui="settings-index-section-7" className="space-y-4">
+              <h3 data-ui="settings-index-h3-7" className="text-lg font-medium text-foreground flex items-center gap-2">
                 <IconCloud className="w-5 h-5 text-primary" strokeWidth={1.75} />
                 BMCL API
               </h3>
-              <div className="p-4 rounded-xl border border-border bg-muted/30">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="font-medium text-foreground">BMCL API</div>
-                    <p className="text-sm text-muted-foreground mt-1">{t("settings.bmclapiDesc")}</p>
+              <div data-ui="settings-index-div-17" className="p-4 rounded-xl border border-border bg-muted/30">
+                <div data-ui="settings-index-div-18" className="flex items-center justify-between">
+                  <div data-ui="settings-index-div-19" className="flex-1">
+                    <div data-ui="settings-index-div-20" className="font-medium text-foreground">BMCL API</div>
+                    <p data-ui="settings-index-p-5" className="text-sm text-muted-foreground mt-1">{t("settings.bmclapiDesc")}</p>
                   </div>
-                  <button
+                  <button data-ui="settings-index-button-3"
                     onClick={() => setUseBmclapi(!useBmclapi)}
                     className={cn(
                       "relative w-14 h-8 rounded-full transition-all duration-300",
                       useBmclapi ? "bg-primary shadow-[0_0_15px_var(--glow-primary)]" : "bg-muted"
                     )}
                   >
-                    <span className={cn("absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all duration-300", useBmclapi ? "left-7" : "left-1")} />
+                    <span data-ui="settings-index-span-2" className={cn("absolute top-1 w-6 h-6 rounded-full bg-foreground shadow-md transition-all duration-300", useBmclapi ? "left-7" : "left-1")} />
                   </button>
                 </div>
               </div>
@@ -471,7 +464,7 @@ export function SettingsPage() {
         )}
 
         {activeSettingsTab === "java" && (
-          <div className="min-h-0 flex-1 overflow-y-auto pr-6 pb-2 animate-in fade-in-0 slide-in-from-left-4 duration-300">
+          <div data-ui="settings-index-div-21" data-settings-section="java" className="min-h-0 flex-1 overflow-y-auto pr-6 pb-2">
             <SettingsJava
               selectedJavaPath={selectedJavaPath}
               setSelectedJavaPath={setSelectedJavaPath}
@@ -490,16 +483,13 @@ export function SettingsPage() {
         )}
 
         {activeSettingsTab === "themes" && (
-          <div className="min-h-0 flex-1 overflow-y-auto pr-6">
-            <SettingsThemes
-              selectedTheme={selectedTheme}
-              setSelectedTheme={setSelectedTheme}
-            />
+          <div data-ui="settings-index-div-22" data-settings-section="themes" className="min-h-0 flex-1 overflow-y-auto pr-6">
+            <SettingsThemes registry={registry} />
           </div>
         )}
 
         {activeSettingsTab === "language" && (
-          <div className="min-h-0 flex-1 overflow-y-auto pr-6">
+          <div data-ui="settings-index-div-23" data-settings-section="language" className="min-h-0 flex-1 overflow-y-auto pr-6">
             <SettingsLanguage
               selectedLanguage={selectedLanguage}
               setSelectedLanguage={setSelectedLanguage}
@@ -511,19 +501,19 @@ export function SettingsPage() {
         )}
 
         {activeSettingsTab === "ai" && (
-          <div className="min-h-0 flex-1 overflow-y-auto pr-6">
+          <div data-ui="settings-index-div-24" data-settings-section="ai" className="min-h-0 flex-1 overflow-y-auto pr-6">
             <SettingsAi />
           </div>
         )}
 
         {activeSettingsTab === "storage" && (
-          <div className="min-h-0 flex-1 overflow-y-auto pr-6">
+          <div data-ui="settings-index-div-25" data-settings-section="storage" className="min-h-0 flex-1 overflow-y-auto pr-6">
             <SettingsStorage />
           </div>
         )}
 
         {activeSettingsTab === "about" && (
-          <div className="min-h-0 flex-1 overflow-y-auto pr-6 space-y-8">
+          <div data-ui="settings-index-div-26" data-settings-section="about" className={`min-h-0 flex-1 overflow-y-auto pr-6 space-y-8 ${SETTINGS_CONTENT_ENTER_DELAYED}`}>
             <SettingsAbout t={t} />
             <SettingsUpdate />
           </div>

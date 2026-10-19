@@ -87,6 +87,8 @@ function invoke<T>(channel: string) {
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  startupThemeSnapshot: ipcRenderer.sendSync('startup:theme-cache') as string | null,
+  startupReady: () => ipcRenderer.invoke('startup:ready') as Promise<void>,
   // ── Window ─────────────────────────────────────────────
   minimize: () => ipcRenderer.send('window:minimize'),
   maximize: () => ipcRenderer.send('window:maximize'),
@@ -234,14 +236,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getTotalMemory: invoke<number>('system:get-total-memory'),
 
   // ── Servers ────────────────────────────────────────────
-  listServers: (buildName: string) => ipcRenderer.invoke('servers:list', buildName) as Promise<Array<{ name: string; ip: string }>>,
-  writeServersDat: (buildName: string, servers: Array<{ name: string; ip: string }>) => ipcRenderer.invoke('servers:write-dat', buildName, servers) as Promise<{ success: boolean; error?: string }>,
+  listServers: (buildName: string) => ipcRenderer.invoke('servers:list', buildName) as Promise<Array<{ name: string; ip: string; resourcePack?: "prompt" | "enabled" | "disabled" }>>,
+  writeServersDat: (buildName: string, servers: Array<{ name: string; ip: string; resourcePack?: "prompt" | "enabled" | "disabled" }>) => ipcRenderer.invoke('servers:write-dat', buildName, servers) as Promise<{ success: boolean; error?: string }>,
   pingServer: (address: string) => ipcRenderer.invoke('servers:ping', address) as Promise<ServerStatusResult>,
 
   // ── Build Intent Operations ────────────────────────────
   getBuildIntentPath: (buildId: string) => ipcRenderer.invoke('build:get-intent-path', buildId) as Promise<string>,
   getInstancesRoot: () => ipcRenderer.invoke('build:get-instances-root') as Promise<string>,
   pickFolder: (title?: string) => ipcRenderer.invoke('common:pick-folder', title) as Promise<string | null>,
+  pickThemeFile: (kind?: 'image' | 'video', title?: string) => ipcRenderer.invoke('common:pick-file', { kind, title }) as Promise<string | null>,
+  readThemeMedia: (source: string, maxBytes?: number) => ipcRenderer.invoke('theme:read-media', source, maxBytes) as Promise<string | null>,
+  pickThemeMedia: (kind: 'image' | 'video' | 'font') => ipcRenderer.invoke('theme:pick-media', kind),
   setInstancesRoot: (newRoot: string) => ipcRenderer.invoke('build:set-instances-root', newRoot) as Promise<{ success: boolean; root?: string; error?: string }>,
   saveModToIntent: (buildId: string, url: string, fileName: string) => ipcRenderer.invoke('build:save-mod-to-intent', buildId, url, fileName) as Promise<string | null>,
   saveLocalModToIntent: (buildId: string, localFilePath: string) => ipcRenderer.invoke('build:save-local-mod-to-intent', buildId, localFilePath) as Promise<string | null>,
@@ -300,9 +305,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   pickJavaFile: invoke<string | null>('java:pick-file'),
 
   // ── AI ─────────────────────────────────────────────────
-  getAiConfig: invoke<{ apiKey: string; endpoint: string; model: string }>('ai:get-config'),
-  saveAiConfig: (config: { apiKey: string; endpoint: string; model: string }) => ipcRenderer.invoke('ai:save-config', config) as Promise<void>,
-  listAiModels: (override?: { apiKey?: string; endpoint?: string }) => ipcRenderer.invoke('ai:list-models', override) as Promise<{ success: boolean; models?: string[]; error?: string }>,
+  agentComplete: (request: import('@xnlc/types').AgentTurnRequest) => ipcRenderer.invoke('agent:complete', request) as Promise<import('@xnlc/types').AgentTurnResult>,
+  agentCancel: (requestId: string) => ipcRenderer.invoke('agent:cancel', requestId) as Promise<void>,
+  agentSetArchived: (id: string, archived: boolean) => ipcRenderer.invoke('agent:set-archived', id, archived) as Promise<void>,
+  agentListChats: invoke<import('@xnlc/types').AgentChatSummary[]>('agent:list-chats'),
+  agentGetChat: (id: string) => ipcRenderer.invoke('agent:get-chat', id) as Promise<import('@xnlc/types').AgentChat | null>,
+  agentSaveChat: (chat: import('@xnlc/types').AgentChat) => ipcRenderer.invoke('agent:save-chat', chat) as Promise<void>,
+  agentDeleteChat: (id: string) => ipcRenderer.invoke('agent:delete-chat', id) as Promise<void>,
+  agentBuildFile: (request: import('@xnlc/types').AgentBuildFileRequest) => ipcRenderer.invoke('agent:build-file', request) as Promise<{ entries?: string[]; content?: string; success: boolean }>,
+  agentBuildDestination: (name: string, excludeBuildId?: string) => ipcRenderer.invoke('agent:build-destination', name, excludeBuildId) as Promise<{ path: string; available: boolean }>,
+  onAgentDelta: (callback: (data: { requestId: string; text: string }) => void) => subscribe<{ requestId: string; text: string }>('agent:delta', callback),
+  agentHardware: invoke<import("@xnlc/types").AgentHardware>("agent:hardware"),
+  getAiConfig: invoke<import("@xnlc/types").AiConfig>('ai:get-config'),
+  saveAiConfig: (config: import("@xnlc/types").AiConfig) => ipcRenderer.invoke('ai:save-config', config) as Promise<void>,
+  listAiModels: (override?: import("@xnlc/types").AiModelDiscovery) => ipcRenderer.invoke('ai:list-models', override) as Promise<{ success: boolean; models?: string[]; error?: string }>,
   analyzeCrash: (logContent: string) => ipcRenderer.invoke('ai:analyze-crash', logContent) as Promise<{ success: boolean; analysis?: string; error?: string }>,
   analyzeCrashStream: (requestId: string, logContent: string) => ipcRenderer.invoke('ai:analyze-crash-stream', requestId, logContent) as Promise<{ success: boolean; analysis?: string; error?: string }>,
   onAiStreamChunk: (callback: (data: { requestId: string; content: string }) => void) => subscribe<{ requestId: string; content: string }>('ai:stream-chunk', callback),
@@ -334,7 +350,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cloudConnect: (providerId: string, authData?: Record<string, string>) => ipcRenderer.invoke('cloud:connect', providerId, authData) as Promise<{ success: boolean; provider?: string; error?: string }>,
   cloudIsConnected: (providerId: string) => ipcRenderer.invoke('cloud:is-connected', providerId) as Promise<boolean>,
   cloudDisconnect: (providerId: string) => ipcRenderer.invoke('cloud:disconnect', providerId) as Promise<{ success: boolean; error?: string }>,
-  cloudListFiles: (providerId: string, folderPath?: string) => ipcRenderer.invoke('cloud:list-files', providerId, folderPath) as Promise<{ success: boolean; files?: Array<{ id: string; name: string; size: number; modifiedAt?: string; path: string; isDir: boolean; category?: string }>; error?: string }>,
+  cloudListFiles: (providerId: string, folderPath?: string) => ipcRenderer.invoke('cloud:list-files', providerId, folderPath) as Promise<{ success: boolean; files?: Array<{ id: string; name: string; size: number; modifiedAt?: string; path: string; isDir: boolean; category?: string; themePreview?: import("@xnlc/types").Theme }>; error?: string }>,
   cloudDownloadFile: (providerId: string, remotePath: string, localPath: string) => ipcRenderer.invoke('cloud:download-file', providerId, remotePath, localPath) as Promise<{ success: boolean; localPath?: string; error?: string }>,
   cloudDeleteFile: (providerId: string, remotePath: string) => ipcRenderer.invoke('cloud:delete-file', providerId, remotePath) as Promise<{ success: boolean; error?: string }>,
   cloudGetQuota: (providerId: string) => ipcRenderer.invoke('cloud:get-quota', providerId) as Promise<{ used: number; total: number } | null>,
@@ -342,6 +358,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cloudUploadServer: (providerId: string, serverId: string, serverName: string, uploadId?: string, categories?: CloudUploadCategory[]) => ipcRenderer.invoke('cloud:upload-server', providerId, serverId, serverName, uploadId, categories) as Promise<{ success: boolean; id?: string; name?: string; error?: string }>,
   onCloudUploadProgress: (callback: (data: { id: string; percent: number; stage: "zip" | "upload" }) => void) => subscribe('cloud:upload-progress', callback),
   getFilePath: (file: File) => webUtils.getPathForFile(file),
+  cloudUploadTheme: (providerId: string, themeId: string, uploadId?: string) => ipcRenderer.invoke("cloud:upload-theme", providerId, themeId, uploadId),
+  cloudImportTheme: (providerId: string, remotePath: string) => ipcRenderer.invoke("cloud:import-theme", providerId, remotePath),
   cloudUploadAccount: (providerId: string, account: { id: string; type: string; username: string; uuid?: string }) => ipcRenderer.invoke('cloud:upload-account', providerId, account) as Promise<{ success: boolean; id?: string; name?: string; error?: string }>,
   cloudDownloadAndImport: (providerId: string, remotePath: string, fileType: string, selectedCategories?: string[]) => ipcRenderer.invoke('cloud:download-and-import', providerId, remotePath, fileType, selectedCategories) as Promise<{ success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } }>,
 

@@ -1,14 +1,6 @@
 export type SettingsTab = "game" | "java" | "themes" | "language" | "ai" | "storage" | "about"
 
-export interface Theme {
-  id: string
-  name: string
-  primary: string
-  accent: string
-  primaryOklch: string
-  accentOklch: string
-}
-
+export type { Theme, ThemeColorKey, ThemeGlow, ThemeFont, ThemeBackground, ThemeAppearance } from "@xnlc/types"
 export interface Resolution {
   label: string
   width: number

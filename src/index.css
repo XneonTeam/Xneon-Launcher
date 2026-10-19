@@ -1,6 +1,50 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
+/* Любую контурную иконку или собственный SVG можно заменить картинкой из темы.
+   Без переменных сохраняется исходное оформление. */
+svg.icon-tabler,
+svg.tabler-icon,
+svg[data-icon] {
+  background-image: var(--icon-image, none);
+  background-size: var(--icon-fit, contain);
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+svg.icon-tabler > :not(title),
+svg.tabler-icon > :not(title),
+svg[data-icon] > :not(title) {
+  opacity: var(--icon-original-opacity, revert-layer);
+}
+
+.theme-appearance #launcher-titlebar {
+  background-color: var(--theme-titlebar, var(--sidebar));
+  backdrop-filter: blur(var(--theme-blur-titlebar, 0px));
+}
+.theme-appearance #launcher-sidebar {
+  backdrop-filter: blur(var(--theme-blur-sidebar, 0px));
+}
+.theme-blur-titlebar #launcher-titlebar {
+  background-color: color-mix(in srgb, var(--theme-titlebar, var(--sidebar)) 75%, transparent);
+}
+.theme-blur-sidebar #launcher-sidebar {
+  background-color: color-mix(in srgb, var(--sidebar) 75%, transparent);
+}
+.theme-blur-card :where([data-component$="-card"], [class~="bg-card"], [class*="bg-card/"]) {
+  background-color: color-mix(in srgb, var(--card) 80%, transparent);
+}
+.theme-appearance :where([data-component$="-card"], [class~="bg-card"], [class*="bg-card/"]) {
+  backdrop-filter: blur(var(--theme-blur-card, 0px));
+  border-radius: var(--theme-radius, revert-layer);
+}
+@keyframes theme-halo-drift {
+  from { transform: scale(1.1) rotate(-6deg); }
+  to { transform: scale(1.3) rotate(6deg); }
+}
+.theme-halo { animation: theme-halo-drift 18s ease-in-out infinite alternate; }
+@media (prefers-reduced-motion: reduce) { .theme-halo { animation: none; } }
+
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -19,8 +63,11 @@
   --muted-foreground: oklch(0.45 0.01 260);
   --accent: oklch(0.95 0.01 260);
   --accent-foreground: oklch(0.25 0.01 260);
-  --destructive: oklch(0.55 0.22 40);
-  --destructive-foreground: oklch(1 0 0);
+  --destructive: var(--primary);
+  --destructive-foreground: var(--primary-foreground);
+  --warning: var(--accent);
+  --info: var(--primary);
+  --success: var(--accent);
   --border: oklch(0.9 0.01 260);
   --input: oklch(0.9 0.01 260);
   --ring: oklch(0.65 0.22 40);
@@ -40,6 +87,9 @@
   --sidebar-ring: oklch(0.65 0.22 40);
   --glow-primary: oklch(0.65 0.22 40 / 0.4);
   --glow-accent: oklch(0.6 0.25 80 / 0.4);
+  /* Цвет декоративных свечений фона; тему подставляет applyTheme, это дефолт. */
+  --ambient-primary: #f64b00;
+  --ambient-accent: #ebeff5;
   --glass: oklch(1 0 0 / 0.6);
   --glass-border: oklch(0.9 0.01 260 / 0.3);
 }
@@ -60,8 +110,11 @@
   --muted-foreground: oklch(0.45 0 0);
   --accent: oklch(0.6 0.25 80);
   --accent-foreground: oklch(1 0 0);
-  --destructive: oklch(0.55 0.22 40);
-  --destructive-foreground: oklch(1 0 0);
+  --destructive: var(--primary);
+  --destructive-foreground: var(--primary-foreground);
+  --warning: var(--accent);
+  --info: var(--primary);
+  --success: var(--accent);
   --border: oklch(0.17 0.01 260);
   --input: oklch(0.12 0.01 260);
   --ring: oklch(0.65 0.22 40);
@@ -80,13 +133,21 @@
   --sidebar-ring: oklch(0.65 0.22 40);
   --glow-primary: oklch(0.65 0.22 40 / 0.4);
   --glow-accent: oklch(0.6 0.25 80 / 0.4);
+  /* Цвет декоративных свечений фона; тему подставляет applyTheme, это дефолт. */
+  --ambient-primary: #f64b00;
+  --ambient-accent: #ca6100;
   --glass: oklch(0.1 0.01 260 / 0.6);
   --glass-border: oklch(0.22 0.01 260 / 0.3);
 }
 
-@theme inline {
+/* Шрифты остаются переменными в сгенерированных утилитах и preflight.
+   В @theme inline Tailwind встраивал строку гарнитуры и игнорировал выбор темы. */
+@theme {
   --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+@theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -102,6 +163,9 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-success: var(--success);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
@@ -145,9 +209,30 @@
     user-select: none;
   }
 
+  /*
+    Тема с фоном-картинкой/видео: собственный непрозрачный фон body убираем,
+    иначе он перекроет слой `ThemeBackgroundLayer`.
+  */
+  html.theme-with-background body {
+    background-color: transparent;
+  }
+
   input, textarea, [contenteditable], code, pre {
     user-select: text;
   }
+}
+
+/*
+  Фикс слоя фона (вне @layer: слои Tailwind важнее специфичности, поэтому
+  прозрачность нельзя объявить внутри @layer base против утилиты bg-background):
+  без собственного stacking context слой с отрицательным z-index уходил в
+  корневой контекст и прятался за непрозрачным `bg-background` оболочки
+  приложения и самого `#launcher-root`. Изоляция поднимает слой над фоном
+  оболочки, а прозрачный фон контейнера открывает его под контентом.
+*/
+html.theme-with-background #launcher-root {
+  background-color: transparent;
+  isolation: isolate;
 }
 
 @keyframes indeterminate-bar {
@@ -233,14 +318,14 @@
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, #f97316 0%, #fbbf24 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .gradient-bg {
-  background: linear-gradient(135deg, #f97316 0%, #fbbf24 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
 }
 
 .launcher-range {
@@ -315,20 +400,6 @@
   }
 }
 
-em-emoji-picker {
-  --border-radius: 12px;
-  --category-icon-size: 18px;
-  --rgb-background: 9, 9, 12;
-  --rgb-color: 255, 255, 255;
-  --rgb-input: 25, 30;
-  --rgb-accent: 249, 115, 22;
-  --color-border: rgba(255, 255, 255, 0.06);
-  --color-border-over: rgba(255, 255, 255, 0.1);
-  --shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-  --font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  --font-size: 14px;
-}
-
 /* react-simple-code-editor: allow textarea to scroll */
 .code-editor-wrapper > textarea {
   overflow: auto !important;
@@ -352,11 +423,11 @@ pre[class*="language-"] {
 .token.prolog,
 .token.doctype,
 .token.cdata {
-  color: #6b7280;
+  color: var(--syntax-comment, var(--muted-foreground));
 }
 
 .token.punctuation {
-  color: #9ca3af;
+  color: var(--syntax-punctuation, var(--muted-foreground));
 }
 
 .token.namespace {
@@ -370,7 +441,7 @@ pre[class*="language-"] {
 .token.constant,
 .token.symbol,
 .token.deleted {
-  color: #f97316;
+  color: var(--syntax-property, var(--primary));
 }
 
 .token.selector,
@@ -379,7 +450,7 @@ pre[class*="language-"] {
 .token.char,
 .token.builtin,
 .token.inserted {
-  color: #22c55e;
+  color: var(--syntax-string, var(--success));
 }
 
 .token.operator,
@@ -387,24 +458,24 @@ pre[class*="language-"] {
 .token.url,
 .language-css .token.string,
 .style .token.string {
-  color: #60a5fa;
+  color: var(--syntax-operator, var(--info));
 }
 
 .token.atrule,
 .token.attr-value,
 .token.keyword {
-  color: #a78bfa;
+  color: var(--syntax-keyword, var(--accent));
 }
 
 .token.function,
 .token.class-name {
-  color: #fbbf24;
+  color: var(--syntax-function, var(--warning));
 }
 
 .token.regex,
 .token.important,
 .token.variable {
-  color: #fb923c;
+  color: var(--syntax-variable, var(--primary));
 }
 
 .token.important,
@@ -422,7 +493,7 @@ pre[class*="language-"] {
 
 /* Custom log file highlighting */
 .log-line .log-timestamp {
-  color: #6b7280;
+  color: var(--syntax-comment, var(--muted-foreground));
 }
 
 .log-line .log-level {
@@ -430,23 +501,23 @@ pre[class*="language-"] {
 }
 
 .log-line .log-level.info {
-  color: #60a5fa;
+  color: var(--syntax-operator, var(--info));
 }
 
 .log-line .log-level.warn {
-  color: #f59e0b;
+  color: var(--warning);
 }
 
 .log-line .log-level.error {
-  color: #ef4444;
+  color: var(--destructive);
 }
 
 .log-line .log-level.debug {
-  color: #8b5cf6;
+  color: var(--accent);
 }
 
 .log-line .log-bracket {
-  color: #60a5fa;
+  color: var(--syntax-operator, var(--info));
 }
 
 

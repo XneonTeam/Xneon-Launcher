@@ -1,3 +1,4 @@
+import type { Theme } from "./theme-types.js"
 // ============================================================
 // @xnlc/types — IPC Contracts
 // Single source of truth for all IPC channel signatures
@@ -125,6 +126,9 @@ export interface BuildLoaderRequirementReport {
 // Maps channel name → { args: tuple of arguments, return: return type }
 
 export interface IpcInvokeMap {
+  "startup:ready": { args: []; return: void }
+  // Синхронное чтение маленького кеша в preload, до первого кадра HTML.
+  "startup:theme-cache": { args: []; return: string | null }
   // ── System ──
   "system:get-total-memory": { args: []; return: number }
 
@@ -185,6 +189,9 @@ export interface IpcInvokeMap {
   "build:get-intent-path": { args: [buildId: string]; return: string }
   "build:get-instances-root": { args: []; return: string }
   "common:pick-folder": { args: [title?: string]; return: string | null }
+  "common:pick-file": { args: [options?: { title?: string; kind?: "image" | "video" }]; return: string | null }
+  "theme:read-media": { args: [source: string, maxBytes?: number]; return: string | null }
+  "theme:pick-media": { args: [kind: "image" | "video" | "font"]; return: { source: string; name: string } | null }
   "build:set-instances-root": { args: [newRoot: string]; return: { success: boolean; root?: string; error?: string } }
   "build:save-mod-to-intent": { args: [buildId: string, url: string, fileName: string]; return: string | null }
   "build:save-local-mod-to-intent": { args: [buildId: string, localFilePath: string]; return: string | null }
@@ -225,10 +232,21 @@ export interface IpcInvokeMap {
   "storage:scan": { args: []; return: StorageScanResult }
   "storage:clean": { args: [target: StorageCleanTarget]; return: StorageCleanResult }
 
+  // ── Xneon Agent ──
+  "agent:complete": { args: [request: import("./agent-types.js").AgentTurnRequest]; return: import("./agent-types.js").AgentTurnResult }
+  "agent:hardware": { args: []; return: import("./agent-types.js").AgentHardware }
+  "agent:cancel": { args: [requestId: string]; return: void }
+  "agent:set-archived": { args: [id: string, archived: boolean]; return: void }
+  "agent:list-chats": { args: []; return: import("./agent-types.js").AgentChatSummary[] }
+  "agent:get-chat": { args: [id: string]; return: import("./agent-types.js").AgentChat | null }
+  "agent:save-chat": { args: [chat: import("./agent-types.js").AgentChat]; return: void }
+  "agent:delete-chat": { args: [id: string]; return: void }
+  "agent:build-file": { args: [request: import("./agent-types.js").AgentBuildFileRequest]; return: { entries?: string[]; content?: string; success: boolean } }
+  "agent:build-destination": { args: [name: string, excludeBuildId?: string]; return: { path: string; available: boolean } }
   // ── AI ──
-  "ai:get-config": { args: []; return: { apiKey: string; endpoint: string; model: string } }
-  "ai:save-config": { args: [config: { apiKey: string; endpoint: string; model: string }]; return: void }
-  "ai:list-models": { args: [override?: { apiKey?: string; endpoint?: string }]; return: { success: boolean; models?: string[]; error?: string } }
+  "ai:get-config": { args: []; return: import("./agent-types.js").AiConfig }
+  "ai:save-config": { args: [config: import("./agent-types.js").AiConfig]; return: void }
+  "ai:list-models": { args: [override?: import("./agent-types.js").AiModelDiscovery]; return: { success: boolean; models?: string[]; error?: string } }
   "ai:analyze-crash": { args: [logContent: string]; return: { success: boolean; analysis?: string; error?: string } }
   "ai:analyze-crash-stream": { args: [requestId: string, logContent: string]; return: { success: boolean; analysis?: string; error?: string } }
 
@@ -332,8 +350,8 @@ export interface IpcInvokeMap {
   "shell:open-path": { args: [dirPath: string]; return: void }
 
   // ── Servers ──
-  "servers:list": { args: [buildName: string]; return: Array<{ name: string; ip: string }> }
-  "servers:write-dat": { args: [buildName: string, servers: Array<{ name: string; ip: string }>]; return: { success: boolean; error?: string } }
+  "servers:list": { args: [buildName: string]; return: Array<{ name: string; ip: string; resourcePack?: "prompt" | "enabled" | "disabled" }> }
+  "servers:write-dat": { args: [buildName: string, servers: Array<{ name: string; ip: string; resourcePack?: "prompt" | "enabled" | "disabled" }>]; return: { success: boolean; error?: string } }
   "servers:ping": { args: [address: string]; return: ServerStatusResult }
 
   // ── Quick Play ──
@@ -391,10 +409,12 @@ export interface IpcInvokeMap {
   "cloud:connect": { args: [providerId: string, authData?: Record<string, string>]; return: { success: boolean; provider?: string; error?: string } }
   "cloud:is-connected": { args: [providerId: string]; return: boolean }
   "cloud:disconnect": { args: [providerId: string]; return: { success: boolean; error?: string } }
-  "cloud:list-files": { args: [providerId: string, folderPath?: string]; return: { success: boolean; files?: Array<{ id: string; name: string; size: number; modifiedAt?: string; path: string; isDir: boolean; category?: string }>; error?: string } }
+  "cloud:list-files": { args: [providerId: string, folderPath?: string]; return: { success: boolean; files?: Array<{ id: string; name: string; size: number; modifiedAt?: string; path: string; isDir: boolean; category?: string; themePreview?: Theme }>; error?: string } }
   "cloud:download-file": { args: [providerId: string, remotePath: string, localPath: string]; return: { success: boolean; localPath?: string; error?: string } }
   "cloud:delete-file": { args: [providerId: string, remotePath: string]; return: { success: boolean; error?: string } }
   "cloud:get-quota": { args: [providerId: string]; return: { used: number; total: number } | null }
+  "cloud:upload-theme": { args: [providerId: string, themeId: string, uploadId?: string]; return: { success: boolean; id?: string; name?: string; error?: string } }
+  "cloud:import-theme": { args: [providerId: string, remotePath: string]; return: { success: boolean; id?: string; name?: string; error?: string } }
   "cloud:upload-build": { args: [providerId: string, buildName: string, uploadId?: string, categories?: CloudUploadCategory[]]; return: { success: boolean; id?: string; name?: string; error?: string } }
   "cloud:upload-server": { args: [providerId: string, serverId: string, serverName: string, uploadId?: string, categories?: CloudUploadCategory[]]; return: { success: boolean; id?: string; name?: string; error?: string } }
   "cloud:upload-account": { args: [providerId: string, account: { id: string; type: string; username: string; uuid?: string }]; return: { success: boolean; id?: string; name?: string; error?: string } }
@@ -485,6 +505,7 @@ export interface IpcEventMap {
   "xn-connect:log": { serverId: string; line: string }
   "xn-connect:auth-state": { state: XnConnectState }
   "ai:stream-chunk": { requestId: string; content: string }
+  "agent:delta": { requestId: string; text: string }
   "ai:stream-done": { requestId: string; fullText: string }
   "ai:stream-error": { requestId: string; error: string }
   "update:status": { status: string; version?: string; releaseDate?: string; releaseNotes?: string; error?: string }
@@ -503,6 +524,8 @@ export interface IpcEventMap {
 // The ElectronAPIExplicit below is derived from it and used by preload.ts and electron.d.ts.
 
 export interface ElectronAPIExplicit {
+  startupThemeSnapshot: string | null
+  startupReady: () => Promise<void>
   minimize: () => void
   maximize: () => void
   close: () => void
@@ -598,6 +621,9 @@ export interface ElectronAPIExplicit {
   getBuildIntentPath: (buildId: string) => Promise<string>
   getInstancesRoot: () => Promise<string>
   pickFolder: (title?: string) => Promise<string | null>
+  pickThemeFile: (kind?: "image" | "video", title?: string) => Promise<string | null>
+  readThemeMedia: (source: string, maxBytes?: number) => Promise<string | null>
+  pickThemeMedia: (kind: "image" | "video" | "font") => Promise<{ source: string; name: string } | null>
   setInstancesRoot: (newRoot: string) => Promise<{ success: boolean; root?: string; error?: string }>
   saveModToIntent: (buildId: string, url: string, fileName: string) => Promise<string | null>
   saveLocalModToIntent: (buildId: string, localFilePath: string) => Promise<string | null>
@@ -635,8 +661,8 @@ export interface ElectronAPIExplicit {
   getScreenshot: (buildName: string, fileName: string) => Promise<string | null>
   deleteScreenshot: (buildName: string, fileName: string) => Promise<{ success: boolean; error?: string }>
   renameScreenshot: (buildName: string, fileName: string, newName: string) => Promise<{ success: boolean; error?: string }>
-  listServers: (buildName: string) => Promise<Array<{ name: string; ip: string }>>
-  writeServersDat: (buildName: string, servers: Array<{ name: string; ip: string }>) => Promise<{ success: boolean; error?: string }>
+  listServers: (buildName: string) => Promise<Array<{ name: string; ip: string; resourcePack?: "prompt" | "enabled" | "disabled" }>>
+  writeServersDat: (buildName: string, servers: Array<{ name: string; ip: string; resourcePack?: "prompt" | "enabled" | "disabled" }>) => Promise<{ success: boolean; error?: string }>
   copyBuild: (buildName: string, newName: string) => Promise<{ success: boolean; intentPath?: string; error?: string }>
   exportBuildZip: (buildName: string, label: string, categories?: BuildExportCategory[]) => Promise<{ success: boolean; path?: string; error?: string }>
   exportBuildModlist: (buildName: string, label: string, format: "html" | "markdown" | "json" | "csv" | "plaintext") => Promise<{ success: boolean; path?: string; error?: string }>
@@ -666,9 +692,20 @@ export interface ElectronAPIExplicit {
 // launcher-specific method that historically lived in src/electron.d.ts.
 
 export interface ElectronAPIExtra {
-  getAiConfig: () => Promise<{ apiKey: string; endpoint: string; model: string }>
-  saveAiConfig: (config: { apiKey: string; endpoint: string; model: string }) => Promise<void>
-  listAiModels: (override?: { apiKey?: string; endpoint?: string }) => Promise<{ success: boolean; models?: string[]; error?: string }>
+  agentComplete: (request: import("./agent-types.js").AgentTurnRequest) => Promise<import("./agent-types.js").AgentTurnResult>
+  agentHardware: () => Promise<import("./agent-types.js").AgentHardware>
+  agentCancel: (requestId: string) => Promise<void>
+  agentSetArchived: (id: string, archived: boolean) => Promise<void>
+  agentListChats: () => Promise<import("./agent-types.js").AgentChatSummary[]>
+  agentGetChat: (id: string) => Promise<import("./agent-types.js").AgentChat | null>
+  agentSaveChat: (chat: import("./agent-types.js").AgentChat) => Promise<void>
+  agentDeleteChat: (id: string) => Promise<void>
+  agentBuildFile: (request: import("./agent-types.js").AgentBuildFileRequest) => Promise<{ entries?: string[]; content?: string; success: boolean }>
+  agentBuildDestination: (name: string, excludeBuildId?: string) => Promise<{ path: string; available: boolean }>
+  onAgentDelta: (callback: (data: { requestId: string; text: string }) => void) => CleanupFn
+  getAiConfig: () => Promise<import("./agent-types.js").AiConfig>
+  saveAiConfig: (config: import("./agent-types.js").AiConfig) => Promise<void>
+  listAiModels: (override?: import("./agent-types.js").AiModelDiscovery) => Promise<{ success: boolean; models?: string[]; error?: string }>
   analyzeCrash: (logContent: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
   analyzeCrashStream: (requestId: string, logContent: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
   onAiStreamChunk: (callback: (data: { requestId: string; content: string }) => void) => () => void
@@ -678,15 +715,20 @@ export interface ElectronAPIExtra {
   reorderAccounts: (ids: string[]) => Promise<void>
   getInstancesRoot: () => Promise<string>
   pickFolder: (title?: string) => Promise<string | null>
+  pickThemeFile: (kind?: "image" | "video", title?: string) => Promise<string | null>
+  readThemeMedia: (source: string, maxBytes?: number) => Promise<string | null>
+  pickThemeMedia: (kind: "image" | "video" | "font") => Promise<{ source: string; name: string } | null>
   setInstancesRoot: (newRoot: string) => Promise<{ success: boolean; root?: string; error?: string }>
   cloudListProviders: () => Promise<Array<{ id: string; name: string }>>
   cloudConnect: (providerId: string, authData?: Record<string, string>) => Promise<{ success: boolean; provider?: string; error?: string }>
   cloudIsConnected: (providerId: string) => Promise<boolean>
   cloudDisconnect: (providerId: string) => Promise<{ success: boolean; error?: string }>
-  cloudListFiles: (providerId: string, folderPath?: string) => Promise<{ success: boolean; files?: Array<{ id: string; name: string; size: number; modifiedAt?: string; path: string; isDir: boolean; category?: string }>; error?: string }>
+  cloudListFiles: (providerId: string, folderPath?: string) => Promise<{ success: boolean; files?: Array<{ id: string; name: string; size: number; modifiedAt?: string; path: string; isDir: boolean; category?: string; themePreview?: Theme }>; error?: string }>
   cloudDownloadFile: (providerId: string, remotePath: string, localPath: string) => Promise<{ success: boolean; localPath?: string; error?: string }>
   cloudDeleteFile: (providerId: string, remotePath: string) => Promise<{ success: boolean; error?: string }>
   cloudGetQuota: (providerId: string) => Promise<{ used: number; total: number } | null>
+  cloudUploadTheme: (providerId: string, themeId: string, uploadId?: string) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
+  cloudImportTheme: (providerId: string, remotePath: string) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
   cloudUploadBuild: (providerId: string, buildName: string, uploadId?: string, categories?: CloudUploadCategory[]) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
   cloudUploadServer: (providerId: string, serverId: string, serverName: string, uploadId?: string, categories?: CloudUploadCategory[]) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
   onContentDownloadProgress: (callback: (progress: ContentDownloadProgress) => void) => () => void
@@ -710,8 +752,8 @@ export interface ElectronAPIExtra {
   getScreenshot: (buildName: string, fileName: string) => Promise<string | null>
   deleteScreenshot: (buildName: string, fileName: string) => Promise<{ success: boolean; error?: string }>
   renameScreenshot: (buildName: string, fileName: string, newName: string) => Promise<{ success: boolean; error?: string }>
-  listServers: (buildName: string) => Promise<Array<{ name: string; ip: string }>>
-  writeServersDat: (buildName: string, servers: Array<{ name: string; ip: string }>) => Promise<{ success: boolean; error?: string }>
+  listServers: (buildName: string) => Promise<Array<{ name: string; ip: string; resourcePack?: "prompt" | "enabled" | "disabled" }>>
+  writeServersDat: (buildName: string, servers: Array<{ name: string; ip: string; resourcePack?: "prompt" | "enabled" | "disabled" }>) => Promise<{ success: boolean; error?: string }>
   pingServer: (address: string) => Promise<ServerStatusResult>
   quickPlayList: (buildName?: string, gameDir?: string) => Promise<QuickPlayEntry[]>
   quickPlayClear: (buildName?: string, gameDir?: string) => Promise<void>
