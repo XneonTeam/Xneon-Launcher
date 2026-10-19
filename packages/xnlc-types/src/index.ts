@@ -4,6 +4,7 @@
 // ============================================================
 
 // Domain types
+export type { AgentToolCall, AgentWireMessage, AgentToolSpec, AgentTurnRequest, AgentTurnResult, AgentAttachment, AgentTimelineItem, AgentChatSummary, AgentChat, AgentBuildFileRequest } from "./agent-types.js"
 export type {
   DbAccount,
   DbBuild,
@@ -161,3 +162,8 @@ export type {
   McServerDownloadProgress,
   ServerStatusResult,
 } from "./server-types.js"
+
+export type { AiProtocol, AiModelConfig, AiConfig, AiModelDiscovery } from "./agent-types.js"
+export type { AgentHardware } from "./agent-types.js"
+
+export type { Theme, ThemeColorKey, ThemeGlow, ThemeFont, ThemeBackground, ThemeAppearance } from "./theme-types.js"

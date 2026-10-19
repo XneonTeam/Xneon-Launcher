@@ -1,11 +1,21 @@
 import { app, BrowserWindow, ipcMain, Menu, shell } from "electron"
 import path from "path"
+import { readStartupTheme } from "./startup-theme"
 import { isDev, setMainWindow, getMainWindow, logRuntime, logRuntimeDebug, initRuntimePaths, sendToRenderer } from "./runtime"
 import { initDatabase } from "../db"
 import { refreshAuthServersInBackground } from "./authlib"
 import { cleanupOrphanGameSessions } from "./stats"
 import { loadInstancesRoot } from "./builds/helpers"
 import { migrateIntentDirNames } from "./builds/dir-migration"
+
+let finishStartup: () => void
+const startupReady = new Promise<void>(resolve => { finishStartup = resolve })
+
+async function loadLauncher(win: BrowserWindow) {
+  if (win.isDestroyed()) return
+  if (isDev) await win.loadURL("http://127.0.0.1:5173")
+  else await win.loadFile(path.join(__dirname, "../../dist/index.html"))
+}
 
 export function createWindow() {
   logRuntime("[Window] Creating browser window")
@@ -32,13 +42,7 @@ export function createWindow() {
 
   setMainWindow(win)
 
-  if (isDev) {
-    logRuntimeDebug("[Window] Loading dev URL http://localhost:5173")
-    void win.loadURL("http://localhost:5173")
-  } else {
-    logRuntimeDebug("[Window] Loading packaged dist/index.html")
-    void win.loadFile(path.join(__dirname, "../../dist/index.html"))
-  }
+  void loadLauncher(win)
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
@@ -61,7 +65,8 @@ export function createWindow() {
 
   win.once("ready-to-show", () => {
     logRuntime("[Window] ready-to-show")
-    getMainWindow()?.show()
+    // Первый кадр содержит только splash; основные модули ещё не загружаются.
+    if (!win.isDestroyed()) win.show()
   })
 
   win.webContents.on("did-finish-load", () => {
@@ -86,9 +91,13 @@ export function createWindow() {
     logRuntime("[Window] closed")
     setMainWindow(null)
   })
+  return win
 }
 
 export function registerWindowLifecycle() {
+  ipcMain.on("startup:theme-cache", event => { event.returnValue = readStartupTheme() })
+  ipcMain.handle("startup:ready", () => startupReady)
+
   // Suppress Chromium GPU disk cache errors (cache folder access denied in dev)
   app.commandLine.appendSwitch("disable-gpu-shader-disk-cache")
 
@@ -126,9 +135,9 @@ export function registerWindowLifecycle() {
     logRuntime("[App] whenReady")
 
     Menu.setApplicationMenu(null)
-    createWindow()
-
-    const [,] = await Promise.all([
+    // Один документ: HTML показывает splash, renderer ждёт startup:ready.
+    const startupWindow = createWindow()
+    await Promise.all([
       initRuntimePaths(),
       initDatabase().then(() => {
         logRuntime("[App] database initialized")
@@ -137,6 +146,9 @@ export function registerWindowLifecycle() {
         logRuntime(`[App] database init failed: ${error instanceof Error ? error.stack ?? error.message : String(error)}`)
       }),
     ])
+    // Разрешаем чтение настроек только после SQLite, без повторной навигации.
+    finishStartup()
+    if (startupWindow.isDestroyed()) return
 
     // Каталог инстансов нужен миграции: она переименовывает папки сборок,
     // созданные старым (слишком строгим) правилом санитайзера имён.

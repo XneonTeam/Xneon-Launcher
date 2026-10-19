@@ -1,9 +1,11 @@
+import { writeStartupTheme } from "./startup-theme"
 import { opFailure } from "./errors"
 import { app, dialog, ipcMain, shell } from "electron"
 import os from "os"
 import path from "path"
 import fs from "fs/promises"
 import fsSync from "fs"
+import { fileURLToPath } from "url"
 import { dbHelpers, isUsingFallbackStorage } from "../db"
 import { getMainWindow, sendToRenderer } from "./runtime"
 import { discoverAllInstances, discoverGdLauncherInstances, discoverInstancesFromPath, importLauncherInstance } from "./import"
@@ -18,6 +20,9 @@ import { fetchWithRetry } from "@xnlc/core/retry"
 import type { LauncherNewsEntry } from "@xnlc/types"
 
 const MOJANG_BASE = "https://launchercontent.mojang.com"
+
+/** Адрес ленты новостей лаунчера по умолчанию, переопределяется XNLC_NEWS_URL. */
+const DEFAULT_LAUNCHER_NEWS_URL = "https://launcher.xneon.org/news.json"
 
 function resolveImageUrl(url: string | undefined): string | undefined {
   if (!url) return undefined
@@ -389,11 +394,10 @@ export function registerSystemHandlers() {
 
   ipcMain.handle("fetch:launcher-news", async (_event, customUrl?: string) => {
     // Адрес ленты задаётся в одном месте: XNLC_NEWS_URL (переменная окружения),
-    // localhost — только значение по умолчанию для разработки. Схему проверяем,
-    // иначе renderer мог бы подсунуть file:// или data: и заставить main читать
-    // произвольный локальный ресурс.
+    // по умолчанию — боевой сайт лаунчера. Схему проверяем, иначе renderer мог бы
+    // подсунуть file:// или data: и заставить main читать произвольный локальный ресурс.
     const envUrl = (process.env.XNLC_NEWS_URL || "").trim()
-    const url = (typeof customUrl === "string" && customUrl.trim()) ? customUrl.trim() : (envUrl || "http://localhost:3000/news.json")
+    const url = (typeof customUrl === "string" && customUrl.trim()) ? customUrl.trim() : (envUrl || DEFAULT_LAUNCHER_NEWS_URL)
     if (!/^https?:\/\//i.test(url)) {
       console.warn(`[fetch:launcher-news] Недопустимый адрес ленты: ${url}`)
       return []
@@ -527,6 +531,7 @@ export function registerSystemHandlers() {
   })
   ipcMain.handle("settings:get", async (_event, key: string) => dbHelpers.getSetting(key))
   ipcMain.handle("settings:set", async (_event, key: string, value: string) => {
+    if (key === "_startupThemeSnapshot") { writeStartupTheme(value); return }
     await dbHelpers.setSetting(key, value)
     // Пушим изменение в рендерер: язык и тема применяются мгновенно, без
     // перезапуска (см. подписку в launcher.tsx).
@@ -570,6 +575,79 @@ export function registerSystemHandlers() {
     })
     if (result.canceled || !result.filePaths.length) return null
     return result.filePaths[0]
+  })
+
+  // Файл для фона темы: картинка или видео.
+  ipcMain.handle("common:pick-file", async (_event, options?: { title?: string; kind?: "image" | "video" }): Promise<string | null> => {
+    const win = getMainWindow()
+    if (!win) return null
+    const kind = options?.kind === "video" ? "video" : "image"
+    const contentFilters =
+      kind === "video"
+        ? [{ name: "Видео", extensions: ["mp4", "webm", "ogv"] }]
+        : [{ name: "Изображения", extensions: ["png", "jpg", "jpeg", "webp", "gif", "avif", "bmp"] }]
+    const result = await dialog.showOpenDialog(win, {
+      title: options?.title || (kind === "video" ? "Выбрать видео" : "Выбрать изображение"),
+      properties: ["openFile"],
+      filters: [...contentFilters, { name: "Все файлы", extensions: ["*"] }],
+    })
+    if (result.canceled || !result.filePaths.length) return null
+    return result.filePaths[0]
+  })
+
+  /**
+   * Чтение медиа для фона темы в data-URL.
+   *
+   * Renderer не может получить байты сам: у http-ссылки мешает CORS при чтении
+   * canvas, а local file:// в окне лаунчера недоступен. Поэтому читает main —
+   * и одинаково для ссылки и для файла, с ограничением размера.
+   */
+  ipcMain.handle("theme:read-media", async (_event, source: string, maxBytes?: number): Promise<string | null> => {
+    if (typeof source !== "string" || !source.trim()) return null
+    const limit = typeof maxBytes === "number" && maxBytes > 0 ? maxBytes : 16 * 1024 * 1024
+    const target = source.trim()
+
+    const mimeByExtension = (file: string): string => {
+      const ext = path.extname(file).toLowerCase()
+      const known: Record<string, string> = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+        ".avif": "image/avif",
+        ".bmp": "image/bmp",
+        ".mp4": "video/mp4",
+        ".webm": "video/webm",
+        ".ogv": "video/ogg",
+      }
+      return known[ext] ?? "application/octet-stream"
+    }
+
+    try {
+      let buffer: Buffer
+      let mime = "application/octet-stream"
+      if (/^https?:\/\//i.test(target)) {
+        const response = await fetch(target)
+        if (!response.ok) return null
+        const length = Number(response.headers.get("content-length") || 0)
+        if (length > limit) return null
+        const arrayBuffer = await response.arrayBuffer()
+        if (arrayBuffer.byteLength > limit) return null
+        buffer = Buffer.from(arrayBuffer)
+        mime = response.headers.get("content-type")?.split(";")[0] || mime
+      } else {
+        const filePath = target.startsWith("file://") ? fileURLToPath(target) : target
+        const stats = await fs.stat(filePath)
+        if (!stats.isFile() || stats.size > limit) return null
+        buffer = await fs.readFile(filePath)
+        mime = mimeByExtension(filePath)
+      }
+      if (mime === "application/octet-stream" || !mime) return null
+      return `data:${mime};base64,${buffer.toString("base64")}`
+    } catch {
+      return null
+    }
   })
 
 }
