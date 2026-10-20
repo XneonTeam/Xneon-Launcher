@@ -41,8 +41,8 @@ function FilterGroup({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <button
+    <div data-ui="laby-catalog-filters-dialog-div-1" data-component="filter-group" className="flex flex-col gap-0.5">
+      <button data-ui="laby-catalog-filters-dialog-button-1"
         type="button"
         onClick={onToggle}
         className="flex w-full items-center gap-2 rounded-xl border border-border/70 bg-muted/60 px-2 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/90"
@@ -52,8 +52,8 @@ function FilterGroup({
         ) : (
           <IconChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         )}
-        <span className="min-w-0 flex-1 text-left truncate">{title}</span>
-        <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-normal text-muted-foreground">
+        <span data-ui="laby-catalog-filters-dialog-span-1" className="min-w-0 flex-1 text-left truncate">{title}</span>
+        <span data-ui="laby-catalog-filters-dialog-span-2" className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-normal text-muted-foreground">
           {count}
         </span>
       </button>
@@ -102,7 +102,7 @@ export function CatalogFiltersDialog({ filters, tags, tagsLoading, localFilterin
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button
+        <button data-ui="laby-catalog-filters-dialog-button-2" data-component="catalog-filters-dialog"
           type="button"
           className={cn(
             "flex h-10 shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-sm font-medium transition-colors",
@@ -118,15 +118,15 @@ export function CatalogFiltersDialog({ filters, tags, tagsLoading, localFilterin
         </button>
       </DialogTrigger>
 
-      <DialogContent className="flex max-h-[72vh] max-w-md flex-col">
+      <DialogContent data-window="laby-catalog-filters-dialog-window-1" className="flex max-h-[72vh] max-w-md flex-col">
         <DialogHeader>
           <DialogTitle>{t("laby.categoriesTitle", "Категории каталога")}</DialogTitle>
           <DialogDescription>{t("laby.categoriesDesc", "Теги Laby")}</DialogDescription>
         </DialogHeader>
 
-        <div className="relative">
+        <div data-ui="laby-catalog-filters-dialog-div-2" data-component="catalog-filters-dialog" className="relative">
           <IconSearch className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/50" />
-          <input
+          <input data-ui="laby-catalog-filters-dialog-input-1"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t("laby.filterTagSearch", "Найти тег")}
@@ -135,9 +135,9 @@ export function CatalogFiltersDialog({ filters, tags, tagsLoading, localFilterin
           />
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
+        <div data-ui="laby-catalog-filters-dialog-div-3" data-component="catalog-filters-dialog" className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
           {localFiltering && (
-            <p className="rounded-lg bg-muted/40 px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
+            <p data-ui="laby-catalog-filters-dialog-p-1" className="rounded-lg bg-muted/40 px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
               {t(
                 "laby.localFilteringHint",
                 "Laby не умеет фильтровать по тегу на сервере, поэтому фильтр работает по уже загруженному каталогу.",
@@ -152,29 +152,29 @@ export function CatalogFiltersDialog({ filters, tags, tagsLoading, localFilterin
             onToggle={() => toggleGroup("tags")}
           >
             {tagsLoading && tags.length === 0 ? (
-              <p className="px-2 py-2 text-xs text-muted-foreground">{t("laby.tagsLoading", "Загружаем теги…")}</p>
+              <p data-ui="laby-catalog-filters-dialog-p-2" className="px-2 py-2 text-xs text-muted-foreground">{t("laby.tagsLoading", "Загружаем теги…")}</p>
             ) : visibleTags.length === 0 ? (
-              <p className="px-2 py-2 text-xs text-muted-foreground">{t("laby.noTags", "Теги не найдены")}</p>
+              <p data-ui="laby-catalog-filters-dialog-p-3" className="px-2 py-2 text-xs text-muted-foreground">{t("laby.noTags", "Теги не найдены")}</p>
             ) : (
               <>
                 {/*
                   Теги можно отмечать пачкой: сервер их не фильтрует, выбор
                   считается локально, поэтому ограничения на количество нет.
                 */}
-                <p className="mx-2 mb-1 rounded-lg bg-muted/40 px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
+                <p data-ui="laby-catalog-filters-dialog-p-4" className="mx-2 mb-1 rounded-lg bg-muted/40 px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
                   {t("laby.multiTagHint", "Можно выбрать несколько тегов: подойдёт скин с любым из них")}
                 </p>
-                <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50">
+                <label data-ui="laby-catalog-filters-dialog-label-1" className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50">
                   <Checkbox
                     checked={draft.tags.length === 0}
                     onCheckedChange={() => setDraft((prev) => ({ ...prev, tags: [] }))}
                   />
-                  <span className="flex-1">{t("laby.anyTag", "Любой тег")}</span>
+                  <span data-ui="laby-catalog-filters-dialog-span-3" className="flex-1">{t("laby.anyTag", "Любой тег")}</span>
                 </label>
                 {visibleTags.map((tag) => {
                   const selected = draft.tags.some((item) => item.toLowerCase() === tag.name.toLowerCase())
                   return (
-                    <label
+                    <label data-ui="laby-catalog-filters-dialog-label-2"
                       key={tag.id}
                       className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50"
                     >
@@ -189,14 +189,14 @@ export function CatalogFiltersDialog({ filters, tags, tagsLoading, localFilterin
                           }))
                         }
                       />
-                      <span className="min-w-0 flex-1 truncate">
+                      <span data-ui="laby-catalog-filters-dialog-span-4" className="min-w-0 flex-1 truncate">
                         {/* Локализованное имя показываем основным, оригинал — рядом. */}
                         {tag.label}
                         {tag.label !== tag.name && (
-                          <span className="ml-1.5 text-[11px] text-muted-foreground/50">{tag.name}</span>
+                          <span data-ui="laby-catalog-filters-dialog-span-5" className="ml-1.5 text-[11px] text-muted-foreground/50">{tag.name}</span>
                         )}
                       </span>
-                      <span
+                      <span data-ui="laby-catalog-filters-dialog-span-6"
                         // Laby отдаёт у тега `use_count` — сколько раз скины с
                         // этим тегом использовали. Это не число скинов, и без
                         // пояснения его легко принять за размер категории.
@@ -214,7 +214,7 @@ export function CatalogFiltersDialog({ filters, tags, tagsLoading, localFilterin
         </div>
 
         {countActiveFilters(draft) > 0 && (
-          <button
+          <button data-ui="laby-catalog-filters-dialog-button-3"
             type="button"
             onClick={() => setDraft(EMPTY_FILTERS)}
             className="mt-1 flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
@@ -224,15 +224,15 @@ export function CatalogFiltersDialog({ filters, tags, tagsLoading, localFilterin
           </button>
         )}
 
-        <div className="mt-3 flex justify-end gap-2">
-          <button
+        <div data-ui="laby-catalog-filters-dialog-div-4" data-component="catalog-filters-dialog" className="mt-3 flex justify-end gap-2">
+          <button data-ui="laby-catalog-filters-dialog-button-4"
             type="button"
             onClick={() => setOpen(false)}
             className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
             {t("common.cancel", "Отмена")}
           </button>
-          <button
+          <button data-ui="laby-catalog-filters-dialog-button-5"
             type="button"
             onClick={() => {
               onApply(draft)

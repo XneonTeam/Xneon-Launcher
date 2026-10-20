@@ -15,10 +15,10 @@ export function PlayerHeader({ player }: { player: LabyPlayer }) {
   const active = player.skins.find((skin) => skin.active)
 
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-border bg-card p-3 shadow-sm">
-      <div className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted/30 ring-1 ring-inset ring-border/60">
+    <div data-ui="laby-player-header-div-1" data-component="player-header" className="flex items-start gap-3 rounded-2xl border border-border bg-card p-3 shadow-sm">
+      <div data-ui="laby-player-header-div-2" className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted/30 ring-1 ring-inset ring-border/60">
         {player.headUrl ? (
-          <img
+          <img data-ui="laby-player-header-img-1"
             src={player.headUrl}
             alt={player.username}
             draggable={false}
@@ -29,8 +29,8 @@ export function PlayerHeader({ player }: { player: LabyPlayer }) {
         )}
       </div>
 
-      <div className="min-w-0 flex-1">
-        <button
+      <div data-ui="laby-player-header-div-3" className="min-w-0 flex-1">
+        <button data-ui="laby-player-header-button-1"
           type="button"
           onClick={() => void window.electronAPI?.openExternal(labyPlayerPageUrl(player.username))}
           className="flex items-center gap-1.5 text-sm font-semibold text-foreground transition-colors hover:text-primary"
@@ -39,18 +39,18 @@ export function PlayerHeader({ player }: { player: LabyPlayer }) {
           <IconExternalLink className="h-3.5 w-3.5 opacity-60" />
         </button>
 
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1 tabular-nums">
+        <div data-ui="laby-player-header-div-4" className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+          <span data-ui="laby-player-header-span-1" className="flex items-center gap-1 tabular-nums">
             <IconShirt className="h-3 w-3" strokeWidth={2} />
             {player.skins.length} {t("laby.playerSkinsCount", "скинов в истории")}
           </span>
           {player.capesCount > 0 && (
-            <span className="tabular-nums">
+            <span data-ui="laby-player-header-span-2" className="tabular-nums">
               {player.capesCount} {t("laby.playerCapesCount", "плащей")}
             </span>
           )}
           {active && (
-            <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">
+            <span data-ui="laby-player-header-span-3" className="rounded-md border border-success/30 bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success">
               {t("laby.playerSkinActive", "Текущий скин — первый")}
             </span>
           )}

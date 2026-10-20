@@ -5,20 +5,20 @@ export function EmptySkinsState() {
   const { t } = useTranslation()
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-6 text-center px-4">
-      <div className="relative">
-        <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-muted/40 to-muted/10 border border-border/50 flex items-center justify-center">
+    <div data-ui="skins-empty-skins-state-div-1" data-component="empty-skins-state" className="flex-1 flex flex-col items-center justify-center gap-6 text-center px-4">
+      <div data-ui="skins-empty-skins-state-div-2" className="relative">
+        <div data-ui="skins-empty-skins-state-div-3" className="w-28 h-28 rounded-3xl bg-gradient-to-br from-muted/40 to-muted/10 border border-border/50 flex items-center justify-center">
           <IconShirt className="w-12 h-12 text-muted-foreground/25" strokeWidth={1} />
         </div>
-        <div className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-xl bg-card border border-border flex items-center justify-center shadow-sm">
+        <div data-ui="skins-empty-skins-state-div-4" className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-xl bg-card border border-border flex items-center justify-center shadow-sm">
           <IconAlertCircle className="w-4 h-4 text-muted-foreground/50" />
         </div>
       </div>
-      <div className="space-y-2">
-        <h3 className="text-base font-semibold text-foreground/80">
+      <div data-ui="skins-empty-skins-state-div-5" className="space-y-2">
+        <h3 data-ui="skins-empty-skins-state-h3-1" className="text-base font-semibold text-foreground/80">
           {t("skins.noAccounts", "Нет активного аккаунта")}
         </h3>
-        <p className="text-sm text-muted-foreground/60 max-w-sm leading-relaxed">
+        <p data-ui="skins-empty-skins-state-p-1" className="text-sm text-muted-foreground/60 max-w-sm leading-relaxed">
           {t("skins.noAccountsDesc", "Добавьте или выберите аккаунт, чтобы управлять скинами")}
         </p>
       </div>

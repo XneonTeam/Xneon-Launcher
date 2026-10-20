@@ -16,12 +16,50 @@ import path from "path"
 import { ipcMain } from "electron"
 import type { LabyOrder } from "@xnlc/types"
 import { createSkinSystem, type SkinSystem } from "@xnlc/skins"
-import { dbHelpers } from "../../db"
+import { dbHelpers, type DbAccount } from "../../db"
 import { createAccountPort, createDiskCache, createLibraryStore } from "./ports"
 import { invalidateAvatarCache } from "../avatar"
 
 /** Верхняя граница размера файла, который `read-local-file` отдаёт в renderer. */
 const MAX_LOCAL_READ_BYTES = 16 * 1024 * 1024
+
+/**
+ * Аккаунты Yggdrasil (Authlib-Injector, XN Skins): активная текстура лежит на
+ * сервере авторизации, а в записи аккаунта лежит ссылка на неё.
+ */
+const YGGDRASIL_ACCOUNT_TYPES = new Set(["authlib-injector", "authlib", "xnskins", "xneon"])
+
+/**
+ * Обновляет сохранённый `skin_url` аккаунта после смены скина.
+ *
+ * Ссылка записывается при входе и с тех пор не менялась: после надевания нового
+ * скина аватар в интерфейсе оставался на старом. Теперь после смены спрашиваем
+ * сервер авторизации и сохраняем свежую ссылку.
+ */
+async function refreshAccountSkinUrl(account: DbAccount): Promise<void> {
+  if (!YGGDRASIL_ACCOUNT_TYPES.has((account.type || "").toLowerCase())) return
+  try {
+    let skinUrl: string | undefined
+    if (account.serverId && account.uuid) {
+      const { getProfileTextures } = await import("../authlib/service.js")
+      const profile = await getProfileTextures(account.serverId, account.uuid)
+      skinUrl = profile?.textures?.skin?.url
+    }
+    if (!skinUrl && account.serverUrl && account.uuid) {
+      // Запасной путь: сервер мог не ответить по sessionserver — читаем профиль
+      // напрямую тем же кодом, что и аватарки.
+      const { fetchProfile } = await import("../authlib/yggdrasil.js")
+      const base = account.serverUrl.endsWith("/") ? account.serverUrl : `${account.serverUrl}/`
+      const profile = await fetchProfile(base, account.uuid.replace(/-/g, ""))
+      skinUrl = profile?.textures?.skin?.url
+    }
+    if (skinUrl && skinUrl !== account.skinUrl) {
+      await dbHelpers.saveAccount({ ...account, skinUrl })
+    }
+  } catch {
+    // Сервер недоступен — оставляем прошлую ссылку, аватар просто не обновится.
+  }
+}
 
 let system: SkinSystem | null = null
 
@@ -81,6 +119,12 @@ export function registerSkinsHandlers(): void {
         const acc = accounts.find((a: { id: string }) => a.id === accountId)
         if (acc && acc.type === "offline") {
           await dbHelpers.saveAccount({ ...acc, skinUrl: undefined })
+          invalidateAvatarCache({ username: acc.username, uuid: acc.uuid, type: acc.type })
+        } else if (acc) {
+          // У Yggdrasil-аккаунтов ссылка на текстуру лежит в записи аккаунта:
+          // после сброса она скинута, и её надо обновить, иначе аватар останется
+          // на удалённом скине.
+          await refreshAccountSkinUrl(acc)
           invalidateAvatarCache({ username: acc.username, uuid: acc.uuid, type: acc.type })
         }
       } catch {}
@@ -142,6 +186,10 @@ export function registerSkinsHandlers(): void {
             if (skinItem?.filePath) {
               await dbHelpers.saveAccount({ ...acc, skinUrl: skinItem.filePath })
             }
+          } else {
+            // Ссылка на активную текстуру в записи аккаунта протухала после
+            // смены скина — обновляем её, иначе аватар останется старым.
+            await refreshAccountSkinUrl(acc)
           }
           invalidateAvatarCache({ username: acc.username, uuid: acc.uuid, type: acc.type })
         } else {
@@ -200,6 +248,8 @@ export function registerSkinsHandlers(): void {
               if (skinItem?.filePath) {
                 await dbHelpers.saveAccount({ ...acc, skinUrl: skinItem.filePath })
               }
+            } else {
+              await refreshAccountSkinUrl(acc)
             }
             invalidateAvatarCache({ username: acc.username, uuid: acc.uuid, type: acc.type })
           } else {

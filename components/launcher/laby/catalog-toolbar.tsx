@@ -1,3 +1,4 @@
+import { CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
@@ -94,11 +95,11 @@ export function CatalogToolbar({
     )
 
   return (
-    <div className="flex shrink-0 flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[200px] flex-1">
+    <div data-ui="laby-catalog-toolbar-div-1" data-component="catalog-toolbar" className={`flex shrink-0 flex-col gap-2 ${CONTENT_ENTER_DELAYED}`}>
+      <div data-ui="laby-catalog-toolbar-div-2" className="flex flex-wrap items-center gap-2">
+        <div data-ui="laby-catalog-toolbar-div-3" className="relative min-w-[200px] flex-1">
           <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
-          <input
+          <input data-ui="laby-catalog-toolbar-input-1"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
             placeholder={t("laby.searchPlaceholder", "Поиск: тег, название или ник игрока")}
@@ -106,7 +107,7 @@ export function CatalogToolbar({
             className="h-10 w-full rounded-xl border border-border/60 bg-card pl-9 pr-9 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/40 focus:border-primary/50"
           />
           {query.length > 0 && (
-            <button
+            <button data-ui="laby-catalog-toolbar-button-1"
               type="button"
               onClick={onClearQuery}
               title={t("laby.clearSearch", "Сбросить поиск")}
@@ -118,9 +119,9 @@ export function CatalogToolbar({
         </div>
 
         {/* Режимы выдачи: тренды с периодом, популярные, новые. */}
-        <div className="flex shrink-0 gap-0.5 rounded-xl border border-border/50 bg-muted/30 p-1" ref={menuRef}>
-          <div className="relative">
-            <button
+        <div data-ui="laby-catalog-toolbar-div-4" className="flex shrink-0 gap-0.5 rounded-xl border border-border/50 bg-muted/30 p-1" ref={menuRef}>
+          <div data-ui="laby-catalog-toolbar-div-5" className="relative">
+            <button data-ui="laby-catalog-toolbar-button-2"
               type="button"
               onClick={() => setMenuOpen((value) => !value)}
               aria-haspopup="menu"
@@ -128,7 +129,7 @@ export function CatalogToolbar({
               className={segClass(isTrend)}
             >
               <IconFlame className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-              <span>{trendLabel}</span>
+              <span data-ui="laby-catalog-toolbar-span-1">{trendLabel}</span>
               <IconChevronDown
                 className={cn("h-3.5 w-3.5 shrink-0 transition-transform duration-200", menuOpen && "rotate-180")}
                 strokeWidth={2}
@@ -136,14 +137,14 @@ export function CatalogToolbar({
             </button>
 
             {menuOpen && (
-              <div
+              <div data-ui="laby-catalog-toolbar-div-6"
                 role="menu"
                 className="absolute left-0 top-full z-50 mt-1.5 min-w-[170px] overflow-hidden rounded-xl border border-border bg-popover p-1 shadow-lg"
               >
                 {LABY_TREND_ORDERS.map((value) => {
                   const selected = order === value
                   return (
-                    <button
+                    <button data-ui="laby-catalog-toolbar-button-3"
                       key={value}
                       type="button"
                       role="menuitemradio"
@@ -160,7 +161,7 @@ export function CatalogToolbar({
                       )}
                     >
                       <IconFlame className="h-4 w-4 shrink-0 opacity-70" strokeWidth={1.75} />
-                      <span className="flex-1">{t(ORDER_LABEL_KEY[value], ORDER_FALLBACK[value])}</span>
+                      <span data-ui="laby-catalog-toolbar-span-2" className="flex-1">{t(ORDER_LABEL_KEY[value], ORDER_FALLBACK[value])}</span>
                       {selected && <IconCheckMark />}
                     </button>
                   )
@@ -169,14 +170,14 @@ export function CatalogToolbar({
             )}
           </div>
 
-          <button type="button" onClick={() => onOrderChange("most_used")} className={segClass(order === "most_used")}>
+          <button data-ui="laby-catalog-toolbar-button-4" type="button" onClick={() => onOrderChange("most_used")} className={segClass(order === "most_used")}>
             <IconCrown className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-            <span>{t("laby.order.popular", "Популярные")}</span>
+            <span data-ui="laby-catalog-toolbar-span-3">{t("laby.order.popular", "Популярные")}</span>
           </button>
 
-          <button type="button" onClick={() => onOrderChange("latest")} className={segClass(order === "latest")}>
+          <button data-ui="laby-catalog-toolbar-button-5" type="button" onClick={() => onOrderChange("latest")} className={segClass(order === "latest")}>
             <IconClock className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-            <span>{t("laby.order.latest", "Новые")}</span>
+            <span data-ui="laby-catalog-toolbar-span-4">{t("laby.order.latest", "Новые")}</span>
           </button>
         </div>
 
@@ -190,21 +191,21 @@ export function CatalogToolbar({
       </div>
 
       {active > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div data-ui="laby-catalog-toolbar-div-7" className="flex flex-wrap items-center gap-1.5">
           {/* Каждый тег — свой чип: снять можно по отдельности. */}
           {filters.tags.map((tag) => (
-            <button
+            <button data-ui="laby-catalog-toolbar-button-6"
               key={tag}
               type="button"
               onClick={() => onFiltersChange({ tags: filters.tags.filter((item) => item !== tag) })}
               title={t("laby.removeTag", "Убрать тег")}
               className="flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/20"
             >
-              <span className="max-w-[140px] truncate">#{tag}</span>
+              <span data-ui="laby-catalog-toolbar-span-5" className="max-w-[140px] truncate">#{tag}</span>
               <IconX className="h-3 w-3 opacity-70" />
             </button>
           ))}
-          <button
+          <button data-ui="laby-catalog-toolbar-button-7"
             type="button"
             onClick={() => onFiltersChange(EMPTY_FILTERS)}
             className="rounded-lg px-2 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10"
@@ -220,8 +221,8 @@ export function CatalogToolbar({
 /** Галочка выбранного пункта: инлайновый SVG, чтобы не тянуть иконку ради одного знака. */
 function IconCheckMark() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true">
-      <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg data-ui="laby-catalog-toolbar-svg-1" data-icon="laby-catalog-toolbar-svg-1" viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true">
+      <path data-ui="laby-catalog-toolbar-path-1" d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }

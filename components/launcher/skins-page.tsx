@@ -1,3 +1,4 @@
+import { CONTENT_ENTER_DELAYED } from "./content-motion"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
@@ -26,23 +27,25 @@ export function SkinsPage() {
   ]
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div data-ui="skins-page-div-1" data-component="skins-page" id="skins-page" data-tab={tab} className="flex h-full min-h-0 flex-col">
       {/* Заголовок страницы и переключатель разделов */}
-      <div className="flex shrink-0 flex-wrap items-center gap-3">
-        <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/20">
+      <div data-ui="skins-page-div-2" className={`flex shrink-0 flex-wrap items-center gap-3 ${CONTENT_ENTER_DELAYED}`}>
+        <div data-ui="skins-page-div-3" className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/20">
           <IconShirt className="h-5 w-5 text-primary" />
         </div>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold text-foreground">{t("skins.title", "Скины")}</h1>
-          <p className="mt-0.5 truncate text-sm text-muted-foreground">
+        <div data-ui="skins-page-div-4" className="min-w-0 flex-1">
+          <h1 data-ui="skins-page-h1-1" className="text-xl font-bold text-foreground">{t("skins.title", "Скины")}</h1>
+          <p data-ui="skins-page-p-1" className="mt-0.5 truncate text-sm text-muted-foreground">
             {t("skins.subtitle", "Ваши скины и открытый каталог Laby")}
           </p>
         </div>
 
-        <div className="flex shrink-0 gap-0.5 rounded-xl border border-border/50 bg-muted/30 p-1">
+        <div data-ui="skins-page-div-5" className="flex shrink-0 gap-0.5 rounded-xl border border-border/50 bg-muted/30 p-1">
           {tabs.map(({ id, icon: Icon, label }) => (
-            <button
+            <button data-ui="skins-page-button-1"
               key={id}
+              data-tab={id}
+              data-active={tab === id}
               type="button"
               onClick={() => setTab(id)}
               className={cn(
@@ -53,13 +56,13 @@ export function SkinsPage() {
               )}
             >
               <Icon className="h-4 w-4" strokeWidth={1.75} />
-              <span>{label}</span>
+              <span data-ui="skins-page-span-1">{label}</span>
             </button>
           ))}
         </div>
       </div>
 
-      <div className="mt-4 flex min-h-0 flex-1 flex-col">
+      <div data-ui="skins-page-div-6" className="mt-4 flex min-h-0 flex-1 flex-col">
         {tab === "favorites" ? <FavoritesTab /> : <LabyLibraryTab />}
       </div>
     </div>

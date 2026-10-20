@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { Spinner } from "@/components/launcher/instance/spinner"
 import { SkinCard, type SkinCardData } from "./skin-card"
+import { SKIN_GRID_CLASS } from "./skin-grid-layout"
 import type { McProfile } from "@xnlc/types"
 
 interface SkinGridProps {
@@ -51,9 +52,9 @@ export function SkinGrid({
   const { t } = useTranslation()
 
   return (
-    <div
+    <div data-ui="skins-skin-grid-div-1" data-component="skin-grid"
       className={cn(
-        "grid w-full grid-cols-2 gap-2.5 @[400px]:grid-cols-3 @[620px]:grid-cols-4",
+        SKIN_GRID_CLASS,
         dragOver && "rounded-2xl ring-2 ring-primary/50 ring-offset-2 ring-offset-background",
       )}
       onDragOver={onDragOver}
@@ -66,23 +67,23 @@ export function SkinGrid({
         рамки только мешают.
       */}
       {loading ? (
-        <div className="col-span-full">
+        <div data-ui="skins-skin-grid-div-2" className="col-span-full">
           <Spinner />
         </div>
       ) : (
         <>
           {/* Слот добавления */}
-          <button
+          <button data-ui="skins-skin-grid-button-1"
             type="button"
             onClick={onAddNew}
             className={cn(
-              "group flex h-full min-h-[240px] w-full min-w-0 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed transition-all duration-300",
+              "group flex aspect-[31/40] w-full min-w-0 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed transition-all duration-300",
               dragOver
                 ? "border-primary bg-primary/10 scale-[1.02] shadow-lg shadow-primary/10"
                 : "border-border/50 bg-card/50 hover:border-primary/40 hover:bg-muted/20 hover:shadow-md",
             )}
           >
-        <svg
+        <svg data-ui="skins-skin-grid-svg-1" data-icon="skins-skin-grid-svg-1"
           viewBox="0 0 60 80"
           fill="none"
           className={cn(
@@ -91,34 +92,34 @@ export function SkinGrid({
           )}
         >
           {/* Head */}
-          <rect x="18" y="2" width="24" height="24" rx="2"
+          <rect data-ui="skins-skin-grid-rect-1" x="18" y="2" width="24" height="24" rx="2"
             className="stroke-current opacity-30 group-hover:opacity-50 transition-opacity" strokeWidth="1.5" />
           {/* Eyes */}
-          <rect x="23" y="12" width="4" height="3" rx="0.5" className="fill-current opacity-10" />
-          <rect x="33" y="12" width="4" height="3" rx="0.5" className="fill-current opacity-10" />
+          <rect data-ui="skins-skin-grid-rect-2" x="23" y="12" width="4" height="3" rx="0.5" className="fill-current opacity-10" />
+          <rect data-ui="skins-skin-grid-rect-3" x="33" y="12" width="4" height="3" rx="0.5" className="fill-current opacity-10" />
           {/* Body */}
-          <rect x="18" y="28" width="24" height="24" rx="2"
+          <rect data-ui="skins-skin-grid-rect-4" x="18" y="28" width="24" height="24" rx="2"
             className="stroke-current opacity-20 group-hover:opacity-40 transition-opacity" strokeWidth="1.5" />
           {/* Left Arm */}
-          <rect x="6" y="28" width="10" height="24" rx="2"
+          <rect data-ui="skins-skin-grid-rect-5" x="6" y="28" width="10" height="24" rx="2"
             className="stroke-current opacity-15 group-hover:opacity-30 transition-opacity" strokeWidth="1.5" />
           {/* Right Arm */}
-          <rect x="44" y="28" width="10" height="24" rx="2"
+          <rect data-ui="skins-skin-grid-rect-6" x="44" y="28" width="10" height="24" rx="2"
             className="stroke-current opacity-15 group-hover:opacity-30 transition-opacity" strokeWidth="1.5" />
           {/* Left Leg */}
-          <rect x="18" y="54" width="11" height="24" rx="2"
+          <rect data-ui="skins-skin-grid-rect-7" x="18" y="54" width="11" height="24" rx="2"
             className="stroke-current opacity-20 group-hover:opacity-35 transition-opacity" strokeWidth="1.5" />
           {/* Right Leg */}
-          <rect x="31" y="54" width="11" height="24" rx="2"
+          <rect data-ui="skins-skin-grid-rect-8" x="31" y="54" width="11" height="24" rx="2"
             className="stroke-current opacity-20 group-hover:opacity-35 transition-opacity" strokeWidth="1.5" />
           {/* Plus badge */}
-          <circle cx="48" cy="52" r="9" className="fill-primary opacity-80" />
-          <path d="M48 47v10M43 52h10" className="stroke-primary-foreground opacity-90" strokeWidth="2" strokeLinecap="round" />
+          <circle data-ui="skins-skin-grid-circle-1" cx="48" cy="52" r="9" className="fill-primary opacity-80" />
+          <path data-ui="skins-skin-grid-path-1" d="M48 47v10M43 52h10" className="stroke-primary-foreground opacity-90" strokeWidth="2" strokeLinecap="round" />
         </svg>
-        <span className="text-[11px] font-semibold text-foreground">
+        <span data-ui="skins-skin-grid-span-1" className="text-[11px] font-semibold text-foreground">
             {t("skins.addSkin", "Добавить скин")}
           </span>
-          <span className="text-[10px] font-medium text-primary/70">
+          <span data-ui="skins-skin-grid-span-2" className="text-[10px] font-medium text-primary/70">
             {dragOver ? t("skins.dropHere", "Отпустите PNG") : t("skins.dragDrop", "Перетащить PNG")}
           </span>
         </button>

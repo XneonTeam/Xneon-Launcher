@@ -65,6 +65,8 @@ interface AccountsContextValue {
   activeAccount: Account | null
   avatarVersion: number
   bumpAvatarVersion: () => void
+  /** Перечитывает аккаунты из БД: main мог обновить ссылку на активный скин. */
+  reloadAccounts: () => Promise<void>
 }
 
 const AccountsContext = createContext<AccountsContextValue | null>(null)
@@ -85,12 +87,20 @@ export function AccountsProvider({ children }: PropsWithChildren) {
     setAvatarVersion(Date.now())
   }, [])
 
+  const reloadAccounts = useCallback(async () => {
+    const loaded = await fetchAccounts()
+    accountsRef.current = loaded
+    setAccounts(loaded)
+  }, [])
+
   useEffect(() => {
     void fetchAccounts().then((loadedAccounts) => {
       accountsLoadedRef.current = true
       setAccounts(loadedAccounts)
     })
   }, [])
+
+  useEffect(() => { const refresh = () => { void reloadAccounts() }; window.addEventListener("launcher:agent-accounts-updated", refresh); return () => window.removeEventListener("launcher:agent-accounts-updated", refresh) }, [reloadAccounts])
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -111,7 +121,17 @@ export function AccountsProvider({ children }: PropsWithChildren) {
     syncTimeoutRef.current = window.setTimeout(() => {
       syncTimeoutRef.current = null
       accounts.forEach((account) => {
-        void window.electronAPI?.saveAccount(account)
+        // Ссылка на активную текстуру (`skinUrl`) у аккаунтов с сервером
+        // текур (Microsoft, Ely.by, XN Skins, Authlib-Injector) принадлежит
+        // серверу: main обновляет её после смены скина. Если писать сюда
+        // renderer'овскую копию, она затрёт свежую ссылку устаревшей.
+        // Поэтому для таких аккаунтов поле не отправляется — `saveAccount`
+        // сохранит прежнее значение из БД. У оффлайн-аккаунта ссылка указывает
+        // на локальный файл, там её задаёт сам renderer.
+        const serverOwnsSkin = account.type !== "offline"
+        void window.electronAPI?.saveAccount(
+          serverOwnsSkin ? { ...account, skinUrl: undefined } : account
+        )
       })
     }, 150)
   }, [accounts])
@@ -202,7 +222,8 @@ export function AccountsProvider({ children }: PropsWithChildren) {
     activeAccount,
     avatarVersion,
     bumpAvatarVersion,
-  }), [accounts, addAccount, removeAccount, setActiveAccount, moveAccount, activeAccount, avatarVersion, bumpAvatarVersion])
+    reloadAccounts,
+  }), [accounts, addAccount, removeAccount, setActiveAccount, moveAccount, activeAccount, avatarVersion, bumpAvatarVersion, reloadAccounts])
 
   return (
     <AccountsContext.Provider value={value}>

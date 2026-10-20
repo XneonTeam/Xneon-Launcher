@@ -1,3 +1,4 @@
+import { CONTENT_ENTER, CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { useAccounts } from "@/src/AccountsContext"
@@ -31,7 +32,7 @@ const PROFILE_CACHE_TTL_MS = 60_000
  */
 export function FavoritesTab() {
   const { t } = useTranslation()
-  const { accounts, activeAccount, bumpAvatarVersion } = useAccounts()
+  const { accounts, activeAccount, bumpAvatarVersion, reloadAccounts } = useAccounts()
   const { pushNotification } = useActivityCenter()
 
   const skinAccounts = useMemo(() => accounts.filter((a) => a.type !== "elyby" && a.type !== "offline"), [accounts])
@@ -264,6 +265,9 @@ export function FavoritesTab() {
       if (ok) {
         localStorage.setItem(`skin-equipped-${account.id}`, selectedSkin.id)
         await window.electronAPI.avatarInvalidateCache?.({ username: account.username, uuid: account.uuid, type: account.type })
+        // Ссылка на активную текстуру у аккаунтов с сервером обновляет main —
+        // перечитываем аккаунты, чтобы аватар показал новый скин.
+        await reloadAccounts()
         bumpAvatarVersion()
         await fetchProfile(true)
         setEquippedId(selectedSkin.id)
@@ -279,7 +283,7 @@ export function FavoritesTab() {
     } finally {
       setIsApplying(false)
     }
-  }, [account?.id, selectedSkin, isApplying, fetchProfile, pushNotification])
+  }, [account?.id, selectedSkin, isApplying, fetchProfile, pushNotification, reloadAccounts])
 
   const handleReset = useCallback(async () => {
     if (!window.electronAPI || !account?.id) return
@@ -293,6 +297,9 @@ export function FavoritesTab() {
       }
       localStorage.removeItem(`skin-equipped-${account.id}`)
       await window.electronAPI.avatarInvalidateCache?.({ username: account.username, uuid: account.uuid, type: account.type })
+      // После сброса ссылка на текстуру в записи аккаунта тоже меняется —
+      // перечитываем аккаунты, чтобы аватар стал актуальным.
+      await reloadAccounts()
       bumpAvatarVersion()
       await fetchProfile(true)
       // Скин с аккаунта снят — надетого больше нет. Раньше сюда подставлялся
@@ -306,7 +313,7 @@ export function FavoritesTab() {
     } catch (err) {
       pushNotification({ kind: "error", source: "launch", title: t("skins.error"), message: String(err) })
     }
-  }, [account?.id, fetchProfile, pushNotification, t])
+  }, [account?.id, fetchProfile, pushNotification, t, reloadAccounts])
 
   const handleDeleteSkin = useCallback(async (skinId: string) => {
     if (!window.electronAPI || !account?.id) return
@@ -378,15 +385,15 @@ export function FavoritesTab() {
   // Если аккаунт не выбран
   if (!account) {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center">
+      <div data-ui="skins-favorites-tab-div-1" data-component="favorites-tab" className={`flex min-h-0 flex-1 items-center justify-center ${CONTENT_ENTER_DELAYED}`}>
         <EmptySkinsState />
       </div>
     )
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <input ref={fileInputRef} type="file" accept=".png" className="hidden" onChange={handleFileInput} />
+    <div data-ui="skins-favorites-tab-div-2" data-component="favorites-tab" className="flex min-h-0 flex-1 flex-col">
+      <input data-ui="skins-favorites-tab-input-1" ref={fileInputRef} type="file" accept=".png" className="hidden" onChange={handleFileInput} />
 
       <EditSkinModal
         open={editModalOpen}
@@ -399,8 +406,8 @@ export function FavoritesTab() {
         onSave={handleEditSave}
       />
 
-      <div className="@container flex min-h-0 flex-1 flex-col">
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto pr-1 @[820px]:grid-cols-[280px_minmax(0,1fr)] @[820px]:overflow-hidden">
+      <div data-ui="skins-favorites-tab-div-3" className="@container flex min-h-0 flex-1 flex-col">
+        <div data-ui="skins-favorites-tab-div-4" className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto pr-1 @[820px]:grid-cols-[280px_minmax(0,1fr)] @[820px]:overflow-hidden">
           <SkinPreviewPanel
             selectedSkin={selectedSkin}
             selectedCapeUrl={selectedCapeUrl}
@@ -416,15 +423,15 @@ export function FavoritesTab() {
             onCancelSelection={() => setSelectedId(equippedId)}
           />
 
-          <div className="flex min-h-0 flex-col gap-3 @[820px]:overflow-hidden">
+          <div data-ui="skins-favorites-tab-div-5" className={`flex min-h-0 flex-col gap-3 @[820px]:overflow-hidden ${!loading ? CONTENT_ENTER : ""}`}>
             {/* Счётчик без спиннера: загрузка показывается по центру сетки. */}
             {!loading && (
-              <span className="text-[12px] font-medium tabular-nums text-muted-foreground">
+              <span data-ui="skins-favorites-tab-span-1" className="text-[12px] font-medium tabular-nums text-muted-foreground">
                 {allSkins.length} {t("skins.skinsCount", "скинов")}
               </span>
             )}
 
-            <div className="@container min-h-0 @[820px]:flex-1 @[820px]:overflow-y-auto @[820px]:pr-1">
+            <div data-ui="skins-favorites-tab-div-6" className="@container min-h-0 @[820px]:flex-1 @[820px]:overflow-y-auto @[820px]:pr-1">
               <SkinGrid
                 skins={allSkins}
                 selectedId={selectedId}
