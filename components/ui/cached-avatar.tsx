@@ -191,7 +191,7 @@ export function CachedAvatar({ src, fallbackSrc = FALLBACK_URL, alt = "", classN
 
   const current = failed ? fallbackSrc : resolved
   return (
-    <img
+    <img data-ui="ui-cached-avatar-img-1"
       src={current}
       alt={alt}
       className={className}

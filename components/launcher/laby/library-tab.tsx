@@ -1,9 +1,11 @@
+import { CONTENT_ENTER } from "../content-motion"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useAccounts } from "@/src/AccountsContext"
 import { useActivityCenter } from "@/src/ActivityCenterContext"
 import { LabyPanel } from "./laby-panel"
 import { CatalogCard } from "./catalog-card"
+import { SKIN_GRID_CLASS } from "../skins/skin-grid-layout"
 import { CatalogToolbar } from "./catalog-toolbar"
 import { PlayerHeader } from "./player-header"
 import { Spinner } from "@/components/launcher/instance/spinner"
@@ -12,12 +14,7 @@ import { LABY_DEFAULT_ORDER, labyHashFromSourceId, labyPlayerSkinToSkin } from "
 import type { LabyOrder, LabyPlayer, LabySkin, LabyTag } from "@xnlc/types"
 import { IconAlertTriangle, IconChevronLeft, IconChevronRight, IconLayoutGrid, IconRefresh, IconUsers } from "@tabler/icons-react"
 
-/**
- * Плотность сетки считается по ширине КОНТЕЙНЕРА, а не окна: сетка живёт в
- * правой колонке, поэтому оконные пороги не срабатывали.
- */
-const GRID_CLASS =
-  "grid w-full grid-cols-2 gap-2.5 @[400px]:grid-cols-3 @[620px]:grid-cols-4 @[820px]:grid-cols-5 @[1040px]:grid-cols-6"
+const GRID_CLASS = SKIN_GRID_CLASS
 
 /** Пауза перед локальным поиском: пользователь ещё печатает. */
 const SEARCH_DEBOUNCE_MS = 400
@@ -38,18 +35,18 @@ function SectionHeader({
   trailing?: React.ReactNode
 }) {
   return (
-    <div className="flex items-center gap-2.5">
-      <div className="grid size-7 shrink-0 place-items-center rounded-lg border border-primary/10 bg-primary/10">
+    <div data-ui="laby-library-tab-div-1" data-component="section-header" className="flex items-center gap-2.5">
+      <div data-ui="laby-library-tab-div-2" className="grid size-7 shrink-0 place-items-center rounded-lg border border-primary/10 bg-primary/10">
         {icon}
       </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <h3 className="text-[13px] font-semibold text-foreground">{title}</h3>
+      <div data-ui="laby-library-tab-div-3" className="min-w-0 flex-1">
+        <div data-ui="laby-library-tab-div-4" className="flex items-baseline gap-2">
+          <h3 data-ui="laby-library-tab-h3-1" className="text-[13px] font-semibold text-foreground">{title}</h3>
           {count !== undefined && (
-            <span className="text-[11px] font-medium tabular-nums text-muted-foreground/50">{count}</span>
+            <span data-ui="laby-library-tab-span-1" className="text-[11px] font-medium tabular-nums text-muted-foreground/50">{count}</span>
           )}
         </div>
-        {hint && <p className="truncate text-[11px] text-muted-foreground/50">{hint}</p>}
+        {hint && <p data-ui="laby-library-tab-p-1" className="truncate text-[11px] text-muted-foreground/50">{hint}</p>}
       </div>
       {trailing}
     </div>
@@ -69,7 +66,7 @@ function SectionHeader({
  */
 export function LabyLibraryTab() {
   const { t, i18n } = useTranslation()
-  const { accounts, activeAccount, bumpAvatarVersion } = useAccounts()
+  const { accounts, activeAccount, bumpAvatarVersion, reloadAccounts } = useAccounts()
   const { pushNotification } = useActivityCenter()
 
   const skinAccounts = useMemo(() => accounts.filter((a) => a.type !== "elyby" && a.type !== "offline"), [accounts])
@@ -344,6 +341,9 @@ export function LabyLibraryTab() {
             if (result.librarySkinId) localStorage.setItem(`skin-equipped-${accountId}`, result.librarySkinId)
             const targetAcc = accounts.find((a) => a.id === accountId)
             await window.electronAPI.avatarInvalidateCache?.({ username: targetAcc?.username, uuid: targetAcc?.uuid, type: targetAcc?.type })
+            // Ссылка на активную текстуру обновилась в main — перечитываем
+            // аккаунты, чтобы аватар показал новый скин.
+            await reloadAccounts()
             bumpAvatarVersion()
             pushNotification({
               kind: "success",
@@ -452,8 +452,8 @@ export function LabyLibraryTab() {
     ))
 
   return (
-    <div className="@container flex min-h-0 flex-1 flex-col">
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto pr-1 @[820px]:grid-cols-[280px_minmax(0,1fr)] @[820px]:overflow-hidden">
+    <div data-ui="laby-library-tab-div-5" data-component="laby-library-tab" className="@container flex min-h-0 flex-1 flex-col">
+      <div data-ui="laby-library-tab-div-6" className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto pr-1 @[820px]:grid-cols-[280px_minmax(0,1fr)] @[820px]:overflow-hidden">
         <LabyPanel
           skin={selected}
           inFavorites={selected ? favorites.has(selected.hash) : false}
@@ -467,7 +467,7 @@ export function LabyLibraryTab() {
           onSelectSimilar={setSelected}
         />
 
-        <div className="flex min-h-0 flex-col gap-3 @[820px]:overflow-hidden">
+        <div data-ui="laby-library-tab-div-7" className="flex min-h-0 flex-col gap-3 @[820px]:overflow-hidden">
           <CatalogToolbar
             query={queryInput}
             onQueryChange={setQueryInput}
@@ -481,22 +481,22 @@ export function LabyLibraryTab() {
             localFiltering={filteredLocally}
           />
 
-          <div ref={gridRef} className="@container min-h-0 @[820px]:flex-1 @[820px]:overflow-y-auto @[820px]:pr-1">
-            <div className="flex flex-col gap-4 pb-2">
+          <div data-ui="laby-library-tab-div-8" ref={gridRef} className={`@container min-h-0 @[820px]:flex-1 @[820px]:overflow-y-auto @[820px]:pr-1 ${!loading && !playerLoading ? CONTENT_ENTER : ""}`}>
+            <div data-ui="laby-library-tab-div-9" className="flex flex-col gap-4 pb-2">
               {/* Laby недоступен: показываем сохранённые данные, а не пустой экран. */}
               {error && (
-                <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-3 py-2.5">
-                  <IconAlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
-                  <p className="min-w-0 flex-1 text-[12px] text-amber-200/90">
+                <div data-ui="laby-library-tab-div-10" className="flex flex-wrap items-center gap-3 rounded-2xl border border-warning/25 bg-warning/10 px-3 py-2.5">
+                  <IconAlertTriangle className="h-4 w-4 shrink-0 text-warning" />
+                  <p data-ui="laby-library-tab-p-2" className="min-w-0 flex-1 text-[12px] text-warning/90">
                     {stale
                       ? t("laby.offlineNotice", "Не удалось обновить каталог. Показаны сохранённые данные.")
                       : error.message}
                   </p>
                   {error.retryable && (
-                    <button
+                    <button data-ui="laby-library-tab-button-1"
                       type="button"
                       onClick={() => void loadPage(page, order, filters, query)}
-                      className="flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-500/30 px-2.5 py-1 text-[11px] font-medium text-amber-200 transition-colors hover:bg-amber-500/15"
+                      className="flex shrink-0 items-center gap-1.5 rounded-lg border border-warning/30 px-2.5 py-1 text-[11px] font-medium text-warning transition-colors hover:bg-warning/15"
                     >
                       <IconRefresh className="h-3.5 w-3.5" />
                       {t("laby.retry", "Повторить")}
@@ -510,7 +510,7 @@ export function LabyLibraryTab() {
                 быть обычным тегом, и сообщение «игрок не найден» только мешало бы.
               */}
               {player && (
-                <section className="flex flex-col gap-2.5">
+                <section data-ui="laby-library-tab-section-1" className="flex flex-col gap-2.5">
                   <PlayerHeader player={player} />
                   <SectionHeader
                     icon={<IconUsers className="h-3.5 w-3.5 text-primary/70" />}
@@ -518,13 +518,13 @@ export function LabyLibraryTab() {
                     hint={t("laby.playerSkinsHint", "Вся история скинов, которую видел Laby")}
                     count={playerSkins.length}
                   />
-                  <div className={GRID_CLASS}>
+                  <div data-ui="laby-library-tab-div-11" className={GRID_CLASS}>
                     {playerSkins.length > 0 ? renderCards(playerSkins) : null}
                   </div>
                 </section>
               )}
 
-              <section className="flex flex-col gap-2.5">
+              <section data-ui="laby-library-tab-section-2" className="flex flex-col gap-2.5">
                 <SectionHeader
                   icon={<IconLayoutGrid className="h-3.5 w-3.5 text-primary/70" />}
                   title={t("laby.catalog", "Каталог")}
@@ -540,9 +540,9 @@ export function LabyLibraryTab() {
                 {showLoader ? (
                   <Spinner />
                 ) : (
-                  <div className={GRID_CLASS}>
+                  <div data-ui="laby-library-tab-div-12" className={GRID_CLASS}>
                     {nothingFound ? (
-                      <p className="col-span-full py-6 text-center text-[12px] text-muted-foreground/60">
+                      <p data-ui="laby-library-tab-p-3" className="col-span-full py-6 text-center text-[12px] text-muted-foreground/60">
                         {endOfFeed
                           ? t("laby.endOfList", "Дальше скинов нет — вернитесь на предыдущую страницу")
                           : activeFilters > 0 || query
@@ -560,8 +560,8 @@ export function LabyLibraryTab() {
                     Вперёд пускаем, пока сервер отдаёт полные страницы, назад —
                     пока не дошли до начала. */}
                 {(hasMore || page > 0) && (
-                  <div className="flex items-center justify-center gap-2 pt-1">
-                    <button
+                  <div data-ui="laby-library-tab-div-13" className="flex items-center justify-center gap-2 pt-1">
+                    <button data-ui="laby-library-tab-button-2"
                       type="button"
                       onClick={() => changePage(page - 1)}
                       disabled={page === 0 || loading}
@@ -574,7 +574,7 @@ export function LabyLibraryTab() {
                     {/* «Вперёд» прячем, когда упёрлись в конец: жать её бессмысленно,
                         а неактивная кнопка только сбивает с толку. */}
                     {!endOfFeed && (
-                      <button
+                      <button data-ui="laby-library-tab-button-3"
                         type="button"
                         onClick={() => changePage(page + 1)}
                         disabled={!hasMore || loading}

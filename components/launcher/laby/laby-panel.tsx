@@ -1,3 +1,4 @@
+import { CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { SkinViewer3D } from "@/components/ui/skin-viewer-3d"
@@ -55,17 +56,23 @@ export function LabyPanel({
   const { ref, size } = useViewerSize()
 
   return (
-    <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+    <aside data-ui="laby-laby-panel-aside-1" data-component="laby-panel" className={`flex min-h-0 flex-col gap-3 overflow-y-auto pr-1 ${CONTENT_ENTER_DELAYED}`}>
       <SkinAccountPicker />
 
       {/* Превью: текстура грузится напрямую с CDN Laby */}
-      <div className="relative h-[clamp(200px,30vh,300px)] shrink-0 overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-b from-muted/30 to-muted/10 shadow-inner">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,oklch(0.65_0.22_40/0.05)_0%,transparent_70%)]" />
-        <div ref={ref} className="relative z-10 grid h-full w-full place-items-center">
+      <div data-ui="laby-laby-panel-div-1" className="relative h-[clamp(200px,30vh,300px)] shrink-0 overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-b from-muted/30 to-muted/10 shadow-inner">
+        <div data-ui="laby-laby-panel-div-2"
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse at center, color-mix(in oklab, var(--ambient-primary) 5%, transparent) 0%, transparent 70%)",
+          }}
+        />
+        <div data-ui="laby-laby-panel-div-3" ref={ref} className="relative z-10 grid h-full w-full place-items-center">
           {!skin ? (
-            <div className="flex flex-col items-center gap-2 px-4 text-center text-muted-foreground/40">
+            <div data-ui="laby-laby-panel-div-4" className="flex flex-col items-center gap-2 px-4 text-center text-muted-foreground/40">
               <IconHandClick className="h-10 w-10 opacity-30" strokeWidth={1} />
-              <p className="text-[12px] font-medium">{t("laby.pickSkin", "Выберите скин в каталоге")}</p>
+              <p data-ui="laby-laby-panel-p-1" className="text-[12px] font-medium">{t("laby.pickSkin", "Выберите скин в каталоге")}</p>
             </div>
           ) : (
             <SkinViewer3D skinUrl={skin.textureUrl} slim={skin.slim} width={size.width} height={size.height} />
@@ -75,8 +82,8 @@ export function LabyPanel({
 
       {/* Действия */}
       {skin && (
-        <div className="flex shrink-0 flex-col gap-2">
-          <button
+        <div data-ui="laby-laby-panel-div-5" className="flex shrink-0 flex-col gap-2">
+          <button data-ui="laby-laby-panel-button-1"
             type="button"
             onClick={onApply}
             disabled={!canApply || busy !== null}
@@ -88,7 +95,7 @@ export function LabyPanel({
           </button>
 
           {/* Избранное — переключатель: если скин уже сохранён, кнопка снимает его. */}
-          <button
+          <button data-ui="laby-laby-panel-button-2"
             type="button"
             onClick={inFavorites ? onRemove : onSave}
             disabled={busy !== null}
@@ -109,7 +116,7 @@ export function LabyPanel({
             {inFavorites ? t("laby.removeFromFavorites", "Убрать из избранного") : t("laby.addToFavorites", "В избранное")}
           </button>
 
-          <button
+          <button data-ui="laby-laby-panel-button-3"
             type="button"
             onClick={() => void window.electronAPI?.openExternal(labySkinPageUrl(skin.hash))}
             className="flex w-full items-center justify-center gap-1.5 rounded-xl px-4 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -122,15 +129,15 @@ export function LabyPanel({
 
       {/* Похожие скины: считаются в main по тегам, модели и популярности */}
       {skin && (similarLoading || similar.length > 0) && (
-        <div className="shrink-0 rounded-2xl border border-border bg-card p-3 shadow-sm">
-          <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+        <div data-ui="laby-laby-panel-div-6" className="shrink-0 rounded-2xl border border-border bg-card p-3 shadow-sm">
+          <p data-ui="laby-laby-panel-p-2" className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
             <IconUsers className="h-3 w-3" strokeWidth={2} />
             {t("laby.similar", "Похожие скины")}
             {similarLoading && <IconLoader2 className="h-3 w-3 animate-spin" />}
           </p>
-          <div className="grid grid-cols-4 gap-1.5">
+          <div data-ui="laby-laby-panel-div-7" className="grid grid-cols-4 gap-1.5">
             {similar.map((item) => (
-              <button
+              <button data-ui="laby-laby-panel-button-4"
                 key={item.hash}
                 type="button"
                 onClick={() => onSelectSimilar(item)}

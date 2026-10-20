@@ -333,10 +333,27 @@ export async function getTextures(
   const cached = texturesCache.get(cacheKey)
   if (cached !== undefined) return cached
 
-  if (directSkinUrl) {
+  // У аккаунтов с собственным сервером текстур источник истины — этот сервер:
+  // он отдаёт актуальный хэш текущей текстуры. `skin_url` в записи аккаунта
+  // протухает (записывается при входе и не обновляется после смены скина), поэтому
+  // для них он годится только как запасной вариант — раньше он подставлялся
+  // первым, и аватар навсегда оставался на старом скине.
+  // Локальный путь (offline-аккаунт) — это сам файл скина, его читаем как есть.
+  const preferServerTextures =
+    accountType === "microsoft" ||
+    accountType === "mojang" ||
+    accountType === "elyby" ||
+    accountType === "xnskins" ||
+    accountType === "xneon" ||
+    accountType === "authlib-injector" ||
+    accountType === "authlib"
+  const isHttpSkinUrl = /^https?:\/\//i.test(directSkinUrl)
+  const useDirectSkinUrl = directSkinUrl && !(preferServerTextures && isHttpSkinUrl)
+
+  if (useDirectSkinUrl) {
     // skin_url приходит от сторонних auth-серверов, поэтому принимаем только
     // публичные http(s)-адреса: локальные пути и приватные хосты отклоняем.
-    if (!isPublicHttpUrl(directSkinUrl)) {
+    if (isHttpSkinUrl && !isPublicHttpUrl(directSkinUrl)) {
       logRuntime(`[Avatar] Отклонён недопустимый skin_url: ${directSkinUrl.slice(0, 120)}`)
       texturesCache.set(cacheKey, null, 300)
       return null
@@ -394,6 +411,14 @@ export async function getTextures(
   if (data && (data.SKIN || data.CAPE)) {
     texturesCache.set(cacheKey, data, 3600)
     return data
+  }
+
+  // Сервер не ответил (сеть, сервер лежит) — отдаём сохранённый при входе
+  // `skin_url`. Он может быть устаревшим, но лучше старый скин, чем Steve.
+  if (preferServerTextures && directSkinUrl && isPublicHttpUrl(directSkinUrl)) {
+    const fallback: TexturesData = { SKIN: { url: directSkinUrl } }
+    texturesCache.set(cacheKey, fallback, 600)
+    return fallback
   }
 
   // Негативный кэш на 5 минут для избежания лишнего спама запросов при отсутствии скина

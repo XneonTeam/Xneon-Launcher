@@ -34,45 +34,45 @@ export function SkinAccountPicker({ avatarVersion = 0 }: { avatarVersion?: numbe
     : ""
 
   return (
-    <div className="shrink-0 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-      <button
+    <div data-ui="skins-account-picker-div-1" data-component="skin-account-picker" className="shrink-0 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+      <button data-ui="skins-account-picker-button-1"
         type="button"
         className="w-full px-3.5 py-2.5 text-left transition-colors duration-200 hover:bg-muted/30"
         onClick={() => setOpen(true)}
       >
-        <div className="mb-1 flex items-center justify-between">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div data-ui="skins-account-picker-div-2" className="mb-1 flex items-center justify-between">
+          <span data-ui="skins-account-picker-span-1" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             {t("home.account", "Аккаунт")}
           </span>
           <IconChevronDown className="h-3.5 w-3.5 text-muted-foreground/50" size={14} strokeWidth={2} />
         </div>
-        <div className="flex items-center gap-2.5">
-          <div className="size-8 shrink-0 overflow-hidden rounded-lg ring-2 ring-primary/20 ring-offset-2 ring-offset-card">
+        <div data-ui="skins-account-picker-div-3" className="flex items-center gap-2.5">
+          <div data-ui="skins-account-picker-div-4" className="size-8 shrink-0 overflow-hidden rounded-lg ring-2 ring-primary/20 ring-offset-2 ring-offset-card">
             {account ? (
               <CachedAvatar src={activeAvatarUrl} alt="" className="h-full w-full object-cover" />
             ) : (
-              <div className="grid h-full w-full place-items-center bg-muted">
-                <span className="text-[11px] font-bold text-muted-foreground">P</span>
+              <div data-ui="skins-account-picker-div-5" className="grid h-full w-full place-items-center bg-muted">
+                <span data-ui="skins-account-picker-span-2" className="text-[11px] font-bold text-muted-foreground">P</span>
               </div>
             )}
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-semibold text-foreground">{account?.username ?? "Player"}</p>
-            <p className="text-[10px] text-muted-foreground">{ACCOUNT_TYPE_LABELS[account?.type ?? "offline"]}</p>
+          <div data-ui="skins-account-picker-div-6" className="min-w-0 flex-1">
+            <p data-ui="skins-account-picker-p-1" className="truncate text-[13px] font-semibold text-foreground">{account?.username ?? "Player"}</p>
+            <p data-ui="skins-account-picker-p-2" className="text-[10px] text-muted-foreground">{ACCOUNT_TYPE_LABELS[account?.type ?? "offline"]}</p>
           </div>
         </div>
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md gap-0 p-0">
+        <DialogContent data-window="skins-account-picker-window-1" className="max-w-md gap-0 p-0">
           <DialogHeader className="px-5 pb-3 pt-5">
             <DialogTitle>{t("home.account", "Аккаунт")}</DialogTitle>
           </DialogHeader>
-          <div className="flex max-h-[400px] flex-col gap-1 overflow-y-auto px-3 pb-3">
+          <div data-ui="skins-account-picker-div-7" className="flex max-h-[400px] flex-col gap-1 overflow-y-auto px-3 pb-3">
             {skinAccounts.map((acc) => {
               const isActive = acc.id === account?.id
               return (
-                <button
+                <button data-ui="skins-account-picker-button-2"
                   key={acc.id}
                   type="button"
                   onClick={() => {
@@ -84,19 +84,19 @@ export function SkinAccountPicker({ avatarVersion = 0 }: { avatarVersion?: numbe
                     isActive ? "border-primary/25 bg-primary/15" : "border-transparent hover:bg-muted/60",
                   )}
                 >
-                  <div className="size-10 shrink-0 overflow-hidden rounded-lg">
+                  <div data-ui="skins-account-picker-div-8" className="size-10 shrink-0 overflow-hidden rounded-lg">
                     <CachedAvatar src={avatarUrls[acc.id]} alt="" className="h-full w-full object-cover" />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">{acc.username}</p>
-                    <p className="text-[11px] text-muted-foreground">{ACCOUNT_TYPE_LABELS[acc.type] ?? acc.type}</p>
+                  <div data-ui="skins-account-picker-div-9" className="min-w-0 flex-1">
+                    <p data-ui="skins-account-picker-p-3" className="truncate text-sm font-medium text-foreground">{acc.username}</p>
+                    <p data-ui="skins-account-picker-p-4" className="text-[11px] text-muted-foreground">{ACCOUNT_TYPE_LABELS[acc.type] ?? acc.type}</p>
                   </div>
                   {isActive && <IconCheck className="h-4 w-4 shrink-0 text-primary" strokeWidth={2} />}
                 </button>
               )
             })}
             {skinAccounts.length === 0 && (
-              <p className="py-4 text-center text-sm text-muted-foreground">
+              <p data-ui="skins-account-picker-p-5" className="py-4 text-center text-sm text-muted-foreground">
                 {t("skins.noAccounts", "Нет добавленных аккаунтов")}
               </p>
             )}

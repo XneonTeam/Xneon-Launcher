@@ -43,7 +43,7 @@ export function CatalogCard({
   const { t } = useTranslation()
 
   return (
-    <div
+    <div data-ui="laby-catalog-card-div-1" data-component="catalog-card" data-selected={selected} data-favorite={inFavorites} data-busy={busy ?? "idle"}
       role="button"
       tabIndex={0}
       aria-pressed={selected}
@@ -62,12 +62,12 @@ export function CatalogCard({
           : "border-border/40 hover:border-border/80 hover:shadow-lg hover:shadow-black/20",
       )}
     >
-      <div className="h-full w-full overflow-hidden bg-gradient-to-b from-muted/10 to-muted/20">
+      <div data-ui="laby-catalog-card-div-2" className="h-full w-full overflow-hidden bg-gradient-to-b from-muted/10 to-muted/20">
         <SkinRender skin={skin} className="p-1" />
       </div>
 
       {inFavorites && (
-        <span
+        <span data-ui="laby-catalog-card-span-1"
           title={t("laby.inFavorites", "Уже в избранном")}
           className="absolute right-1.5 top-1.5 z-20 grid size-6 place-items-center rounded-lg bg-primary/90 text-primary-foreground shadow-sm"
         >
@@ -76,8 +76,8 @@ export function CatalogCard({
       )}
 
       {/* Действия: избранное — переключатель, вторая кнопка надевает скин. */}
-      <div className="absolute inset-x-0 bottom-0 z-20 flex justify-end gap-1 p-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
-        <button
+      <div data-ui="laby-catalog-card-div-3" className="absolute inset-x-0 bottom-0 z-20 flex justify-end gap-1 p-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+        <button data-ui="laby-catalog-card-button-1"
           type="button"
           disabled={busy !== null}
           title={inFavorites ? t("laby.removeFromFavorites", "Убрать из избранного") : t("laby.addToFavorites", "В избранное")}
@@ -91,7 +91,7 @@ export function CatalogCard({
             "grid size-7 place-items-center rounded-lg backdrop-blur-sm transition-colors disabled:opacity-60",
             inFavorites
               ? "bg-primary/85 text-primary-foreground hover:bg-primary"
-              : "bg-white/15 text-white hover:bg-white/25",
+              : "bg-card/85 text-foreground hover:bg-muted/95",
           )}
         >
           {busy === "save" || busy === "remove" ? (
@@ -102,7 +102,7 @@ export function CatalogCard({
             <IconBookmarkPlus className="h-3.5 w-3.5" />
           )}
         </button>
-        <button
+        <button data-ui="laby-catalog-card-button-2"
           type="button"
           disabled={busy !== null || !canApply}
           title={canApply ? t("laby.applyNow", "Надеть сейчас") : t("laby.noAccount", "Сначала выберите или добавьте аккаунт")}

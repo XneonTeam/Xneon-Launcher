@@ -34,7 +34,7 @@ interface AuthlibInjectorModalProps {
 type ModalView = "login" | "add-server" | "select-profile"
 type AddServerStep = "input" | "probing" | "confirm"
 
-const AUTHLIB_COLOR = "#b45309"
+const AUTHLIB_COLOR = "var(--primary)"
 
 export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjectorModalProps) {
   const { t } = useTranslation()
@@ -296,21 +296,21 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
   }
 
   return (
-    <ModalLayer
+    <ModalLayer windowId="accounts-authlib-injector-modal-window-1"
       onClose={closeModal}
       className="animate-in fade-in-0"
     >
-      <div className="w-full max-w-md mx-4 p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
+      <div data-ui="accounts-authlib-injector-modal-div-1" data-component="authlib-injector-modal" className="w-full max-w-md mx-4 p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
         {/* Header — identical layout to Ely.by / Microsoft modals */}
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold text-foreground">
+        <div data-ui="accounts-authlib-injector-modal-div-2" className="flex items-center justify-between mb-6">
+          <h3 data-ui="accounts-authlib-injector-modal-h3-1" className="text-lg font-semibold text-foreground">
             {view === "add-server"
               ? t("accounts.addAuthServer", "Добавить сервер авторизации")
               : view === "select-profile"
                 ? t("accounts.authlibSelectProfile", "Выбор персонажа")
                 : t("accounts.loginTitle.authlib", "Вход через Authlib-Injector")}
           </h3>
-          <button
+          <button data-ui="accounts-authlib-injector-modal-button-1"
             onClick={closeModal}
             className="w-8 h-8 rounded-lg border border-border bg-muted/60 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -319,41 +319,41 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
         </div>
 
         {/* Hero Section — identical w-16 h-16 rounded-2xl brand icon */}
-        <div className="text-center py-5">
-          <div
+        <div data-ui="accounts-authlib-injector-modal-div-3" className="text-center py-5">
+          <div data-ui="accounts-authlib-injector-modal-div-4"
             className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3 overflow-hidden shadow-inner"
-            style={{ backgroundColor: `${AUTHLIB_COLOR}20` }}
+            style={{ backgroundColor: `color-mix(in srgb, ${AUTHLIB_COLOR} 12.5%, transparent)` }}
           >
             {view === "login" && selectedServer?.favicon ? (
-              <img
+              <img data-ui="accounts-authlib-injector-modal-img-1"
                 src={selectedServer.favicon}
                 alt=""
                 className="w-10 h-10 object-contain rounded-lg"
               />
             ) : view === "add-server" && probeResult?.favicon ? (
-              <img
+              <img data-ui="accounts-authlib-injector-modal-img-2"
                 src={probeResult.favicon}
                 alt=""
                 className="w-10 h-10 object-contain rounded-lg"
               />
             ) : (
-              <div style={{ color: AUTHLIB_COLOR }}>
+              <div data-ui="accounts-authlib-injector-modal-div-5" style={{ color: AUTHLIB_COLOR }}>
                 <IconCoffee className="w-8 h-8" strokeWidth={1.8} />
               </div>
             )}
           </div>
           {view === "login" && selectedServer && (
-            <p className="text-sm font-medium text-foreground">
+            <p data-ui="accounts-authlib-injector-modal-p-1" className="text-sm font-medium text-foreground">
               {selectedServer.name}
             </p>
           )}
           {view === "add-server" && (
-            <p className="text-sm text-muted-foreground">
+            <p data-ui="accounts-authlib-injector-modal-p-2" className="text-sm text-muted-foreground">
               {t("accounts.authlibAddServerSubtitle", "Yggdrasil-совместимый сервер авторизации")}
             </p>
           )}
           {view === "select-profile" && (
-            <p className="text-sm text-muted-foreground">
+            <p data-ui="accounts-authlib-injector-modal-p-3" className="text-sm text-muted-foreground">
               {t("accounts.authlibSelectProfileDesc", "Выберите игровой профиль для игры")}
             </p>
           )}
@@ -361,32 +361,32 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
 
         {/* ── VIEW: ADD SERVER ── */}
         {view === "add-server" && (
-          <div className="space-y-4">
+          <div data-ui="accounts-authlib-injector-modal-div-6" className="space-y-4">
             {addStep === "input" && (
               <>
-                <p className="text-xs text-muted-foreground">
+                <p data-ui="accounts-authlib-injector-modal-p-4" className="text-xs text-muted-foreground">
                   {t("accounts.authlibEnterUrlDesc", "Введите URL сервера авторизации (например, https://ely.by или адрес вашего сервера):")}
                 </p>
-                <div>
-                  <input
+                <div data-ui="accounts-authlib-injector-modal-div-7">
+                  <input data-ui="accounts-authlib-injector-modal-input-1"
                     type="text"
                     value={inputUrl}
                     onChange={(e) => setInputUrl(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleProbeServer()}
                     placeholder="https://example.com"
                     autoFocus
-                    className="w-full px-4 py-3 rounded-xl border border-border bg-muted/30 focus:border-[#b45309] focus:bg-background transition-all outline-none text-foreground text-sm"
+                    className="w-full px-4 py-3 rounded-xl border border-border bg-muted/30 focus:border-primary focus:bg-background transition-all outline-none text-foreground text-sm"
                   />
                 </div>
 
                 {probeError && (
-                  <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-xs text-destructive-foreground">
+                  <div data-ui="accounts-authlib-injector-modal-div-8" className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-xs text-destructive">
                     {probeError}
                   </div>
                 )}
 
-                <div className="flex gap-3 pt-2">
-                  <button
+                <div data-ui="accounts-authlib-injector-modal-div-9" className="flex gap-3 pt-2">
+                  <button data-ui="accounts-authlib-injector-modal-button-2"
                     onClick={() => {
                       setView("login")
                       setAddStep("input")
@@ -397,10 +397,10 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
                     <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
                     {t("accounts.back", "Назад")}
                   </button>
-                  <button
+                  <button data-ui="accounts-authlib-injector-modal-button-3"
                     onClick={handleProbeServer}
                     disabled={!inputUrl.trim()}
-                    className="flex-1 px-4 py-3 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white font-medium text-sm transition-colors disabled:opacity-50"
+                    className="flex-1 px-4 py-3 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-sm transition-colors disabled:opacity-50"
                   >
                     {t("accounts.next", "Далее")}
                   </button>
@@ -409,61 +409,61 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
             )}
 
             {addStep === "probing" && (
-              <div className="py-8 flex flex-col items-center justify-center text-center">
-                <IconLoader2 className="w-8 h-8 animate-spin text-[#b45309] mb-3" />
-                <p className="text-sm font-medium text-foreground">{t("accounts.authlibChecking", "Проверка сервера...")}</p>
-                <p className="text-xs text-muted-foreground mt-1">{t("accounts.authlibValidatingMetadata", "Проверка Yggdrasil API и метаданных")}</p>
+              <div data-ui="accounts-authlib-injector-modal-div-10" className="py-8 flex flex-col items-center justify-center text-center">
+                <IconLoader2 className="w-8 h-8 animate-spin text-primary mb-3" />
+                <p data-ui="accounts-authlib-injector-modal-p-5" className="text-sm font-medium text-foreground">{t("accounts.authlibChecking", "Проверка сервера...")}</p>
+                <p data-ui="accounts-authlib-injector-modal-p-6" className="text-xs text-muted-foreground mt-1">{t("accounts.authlibValidatingMetadata", "Проверка Yggdrasil API и метаданных")}</p>
               </div>
             )}
 
             {addStep === "confirm" && probeResult && (
               <>
-                <div className="p-4 rounded-xl border border-border bg-muted/20 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-muted/60 flex items-center justify-center overflow-hidden flex-shrink-0 border border-border/50">
+                <div data-ui="accounts-authlib-injector-modal-div-11" className="p-4 rounded-xl border border-border bg-muted/20 space-y-3">
+                  <div data-ui="accounts-authlib-injector-modal-div-12" className="flex items-center gap-3">
+                    <div data-ui="accounts-authlib-injector-modal-div-13" className="w-10 h-10 rounded-xl bg-muted/60 flex items-center justify-center overflow-hidden flex-shrink-0 border border-border/50">
                       {probeResult.favicon ? (
-                        <img src={probeResult.favicon} alt="" className="w-6 h-6 object-contain" />
+                        <img data-ui="accounts-authlib-injector-modal-img-3" src={probeResult.favicon} alt="" className="w-6 h-6 object-contain" />
                       ) : (
                         <IconWorld className="w-5 h-5 text-muted-foreground" />
                       )}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold text-foreground truncate">{probeResult.name}</div>
-                      <div className="text-xs font-mono text-muted-foreground truncate">{probeResult.url}</div>
+                    <div data-ui="accounts-authlib-injector-modal-div-14" className="min-w-0 flex-1">
+                      <div data-ui="accounts-authlib-injector-modal-div-15" className="text-sm font-semibold text-foreground truncate">{probeResult.name}</div>
+                      <div data-ui="accounts-authlib-injector-modal-div-16" className="text-xs font-mono text-muted-foreground truncate">{probeResult.url}</div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 pt-1 text-emerald-500 text-xs font-medium">
+                  <div data-ui="accounts-authlib-injector-modal-div-17" className="flex items-center gap-2 pt-1 text-success text-xs font-medium">
                     <IconShieldCheck className="w-4 h-4 flex-shrink-0" />
-                    <span>{t("accounts.authlibCompatible", "✓ Совместим с Authlib-Injector")}</span>
+                    <span data-ui="accounts-authlib-injector-modal-span-1">{t("accounts.authlibCompatible", "✓ Совместим с Authlib-Injector")}</span>
                   </div>
 
                   {probeResult.url.startsWith("http://") && (
-                    <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-2 text-xs text-amber-500">
+                    <div data-ui="accounts-authlib-injector-modal-div-18" className="p-2.5 rounded-lg bg-warning/10 border border-warning/20 flex items-start gap-2 text-xs text-warning">
                       <IconAlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                      <span>{t("accounts.authlibHttpWarning", "Этот сервер не использует HTTPS. Ваши учётные данные могут передаваться небезопасно.")}</span>
+                      <span data-ui="accounts-authlib-injector-modal-span-2">{t("accounts.authlibHttpWarning", "Этот сервер не использует HTTPS. Ваши учётные данные могут передаваться небезопасно.")}</span>
                     </div>
                   )}
 
                   {Object.keys(probeResult.links).length > 0 && (
-                    <div className="pt-2 border-t border-border flex flex-wrap gap-3">
+                    <div data-ui="accounts-authlib-injector-modal-div-19" className="pt-2 border-t border-border flex flex-wrap items-center justify-center gap-3">
                       {probeResult.links.homepage && (
-                        <a
+                        <a data-ui="accounts-authlib-injector-modal-a-1"
                           href={probeResult.links.homepage}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-xs text-[#b45309] hover:underline flex items-center gap-1"
+                          className="text-xs text-primary hover:underline flex items-center gap-1"
                         >
                           <IconWorld className="w-3.5 h-3.5" />
                           {t("accounts.authlibHomepage", "Главная")}
                         </a>
                       )}
                       {probeResult.links.register && (
-                        <a
+                        <a data-ui="accounts-authlib-injector-modal-a-2"
                           href={probeResult.links.register}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-xs text-[#b45309] hover:underline flex items-center gap-1"
+                          className="text-xs text-primary hover:underline flex items-center gap-1"
                         >
                           <IconExternalLink className="w-3.5 h-3.5" />
                           {t("accounts.authlibRegister", "Регистрация")}
@@ -474,13 +474,13 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
                 </div>
 
                 {probeError && (
-                  <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-xs text-destructive-foreground">
+                  <div data-ui="accounts-authlib-injector-modal-div-20" className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-xs text-destructive">
                     {probeError}
                   </div>
                 )}
 
-                <div className="flex gap-3 pt-2">
-                  <button
+                <div data-ui="accounts-authlib-injector-modal-div-21" className="flex gap-3 pt-2">
+                  <button data-ui="accounts-authlib-injector-modal-button-4"
                     onClick={() => {
                       setAddStep("input")
                       setProbeError("")
@@ -491,10 +491,10 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
                     <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
                     {t("accounts.back", "Назад")}
                   </button>
-                  <button
+                  <button data-ui="accounts-authlib-injector-modal-button-5"
                     onClick={handleAddServer}
                     disabled={addingServer}
-                    className="flex-1 px-4 py-3 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white font-medium text-sm transition-colors flex items-center justify-center gap-2 shadow-lg shadow-[#b45309]/20"
+                    className="flex-1 px-4 py-3 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-sm transition-colors flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
                   >
                     {addingServer ? <IconLoader2 className="w-4 h-4 animate-spin" /> : <IconPlus className="w-4 h-4" />}
                     {t("accounts.add", "Добавить")}
@@ -507,44 +507,44 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
 
         {/* ── VIEW: SELECT PROFILE ── */}
         {view === "select-profile" && (
-          <div className="space-y-4">
-            <p className="text-xs text-muted-foreground text-center">
+          <div data-ui="accounts-authlib-injector-modal-div-22" className="space-y-4">
+            <p data-ui="accounts-authlib-injector-modal-p-7" className="text-xs text-muted-foreground text-center">
               {t("accounts.authlibSelectProfilePrompt", "На этом аккаунте несколько персонажей. Выберите, под кем играть:")}
             </p>
 
-            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+            <div data-ui="accounts-authlib-injector-modal-div-23" className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {availableProfiles.map((p) => (
-                <button
+                <button data-ui="accounts-authlib-injector-modal-button-6"
                   key={p.id}
                   onClick={() => handleSelectProfile(p)}
                   disabled={loginLoading}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20 hover:border-[#b45309] hover:bg-[#b45309]/10 transition-all text-left group"
+                  className="w-full flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20 hover:border-primary hover:bg-primary/10 transition-all text-left group"
                 >
-                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
+                  <div data-ui="accounts-authlib-injector-modal-div-24" className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
                     {p.textures?.skin?.url ? (
-                      <img src={p.textures.skin.url} alt="" className="w-full h-full object-cover" />
+                      <img data-ui="accounts-authlib-injector-modal-img-4" src={p.textures.skin.url} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <IconUser className="w-5 h-5 text-muted-foreground" />
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm text-foreground group-hover:text-[#b45309] transition-colors truncate">
+                  <div data-ui="accounts-authlib-injector-modal-div-25" className="flex-1 min-w-0">
+                    <div data-ui="accounts-authlib-injector-modal-div-26" className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors truncate">
                       {p.name}
                     </div>
-                    <div className="text-xs font-mono text-muted-foreground truncate">{p.id}</div>
+                    <div data-ui="accounts-authlib-injector-modal-div-27" className="text-xs font-mono text-muted-foreground truncate">{p.id}</div>
                   </div>
-                  <IconCheck className="w-4 h-4 text-[#b45309] opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <IconCheck className="w-4 h-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
               ))}
             </div>
 
             {authError && (
-              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-xs text-destructive-foreground">
+              <div data-ui="accounts-authlib-injector-modal-div-28" className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-xs text-destructive">
                 {authError}
               </div>
             )}
 
-            <button
+            <button data-ui="accounts-authlib-injector-modal-button-7"
               onClick={() => {
                 setView("login")
                 setAuthError("")
@@ -560,34 +560,34 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
 
         {/* ── VIEW: LOGIN ── */}
         {view === "login" && (
-          <div className="space-y-4">
+          <div data-ui="accounts-authlib-injector-modal-div-29" className="space-y-4">
             {loadingServers ? (
-              <div className="py-8 flex flex-col items-center justify-center text-center">
-                <IconLoader2 className="w-6 h-6 animate-spin text-[#b45309] mb-2" />
-                <p className="text-xs text-muted-foreground">{t("accounts.loading", "Загрузка серверов...")}</p>
+              <div data-ui="accounts-authlib-injector-modal-div-30" className="py-8 flex flex-col items-center justify-center text-center">
+                <IconLoader2 className="w-6 h-6 animate-spin text-primary mb-2" />
+                <p data-ui="accounts-authlib-injector-modal-p-8" className="text-xs text-muted-foreground">{t("accounts.loading", "Загрузка серверов...")}</p>
               </div>
             ) : servers.length === 0 ? (
               /* No servers configured */
-              <div className="py-6 text-center space-y-3">
-                <div className="w-12 h-12 rounded-xl bg-muted/50 flex items-center justify-center mx-auto text-muted-foreground">
+              <div data-ui="accounts-authlib-injector-modal-div-31" className="py-6 text-center space-y-3">
+                <div data-ui="accounts-authlib-injector-modal-div-32" className="w-12 h-12 rounded-xl bg-muted/50 flex items-center justify-center mx-auto text-muted-foreground">
                   <IconWorld className="w-6 h-6" />
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">
+                <div data-ui="accounts-authlib-injector-modal-div-33">
+                  <p data-ui="accounts-authlib-injector-modal-p-9" className="text-sm font-medium text-foreground">
                     {t("accounts.authlibNoServers", "Нет настроенных серверов авторизации")}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p data-ui="accounts-authlib-injector-modal-p-10" className="text-xs text-muted-foreground mt-1">
                     {t("accounts.authlibNoServersDesc", "Добавьте Authlib-Injector совместимый сервер для входа.")}
                   </p>
                 </div>
-                <button
+                <button data-ui="accounts-authlib-injector-modal-button-8"
                   onClick={() => {
                     setView("add-server")
                     setAddStep("input")
                     setInputUrl("")
                     setProbeError("")
                   }}
-                  className="inline-flex items-center gap-2 px-4 py-3 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white text-sm font-medium transition-colors shadow-lg shadow-[#b45309]/20"
+                  className="inline-flex items-center gap-2 px-4 py-3 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium transition-colors shadow-lg shadow-primary/20"
                 >
                   <IconPlus className="w-4 h-4" />
                   {t("accounts.authlibAddServer", "Добавить сервер авторизации")}
@@ -597,12 +597,12 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
               /* Normal Login Form */
               <>
                 {/* Styled Server Selector with Favicon */}
-                <div className="relative">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-medium text-muted-foreground">
+                <div data-ui="accounts-authlib-injector-modal-div-34" className="relative">
+                  <div data-ui="accounts-authlib-injector-modal-div-35" className="flex items-center justify-between mb-1.5">
+                    <span data-ui="accounts-authlib-injector-modal-span-3" className="text-xs font-medium text-muted-foreground">
                       {t("accounts.authlibServer", "Сервер авторизации")}
                     </span>
-                    <button
+                    <button data-ui="accounts-authlib-injector-modal-button-9"
                       type="button"
                       onClick={() => {
                         setView("add-server")
@@ -610,7 +610,7 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
                         setInputUrl("")
                         setProbeError("")
                       }}
-                      className="text-xs text-[#b45309] hover:underline flex items-center gap-1 font-medium"
+                      className="text-xs text-primary hover:underline flex items-center gap-1 font-medium"
                     >
                       <IconPlus className="w-3.5 h-3.5" />
                       {t("accounts.add", "Добавить")}
@@ -618,22 +618,22 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
                   </div>
 
                   {/* Server Picker Trigger Card */}
-                  <div
+                  <div data-ui="accounts-authlib-injector-modal-div-36"
                     onClick={() => setShowServerPicker(!showServerPicker)}
                     className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 transition-all cursor-pointer"
                   >
-                    <div className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center overflow-hidden flex-shrink-0 border border-border/50">
+                    <div data-ui="accounts-authlib-injector-modal-div-37" className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center overflow-hidden flex-shrink-0 border border-border/50">
                       {selectedServer?.favicon ? (
-                        <img src={selectedServer.favicon} alt="" className="w-5 h-5 object-contain" />
+                        <img data-ui="accounts-authlib-injector-modal-img-5" src={selectedServer.favicon} alt="" className="w-5 h-5 object-contain" />
                       ) : (
                         <IconWorld className="w-4 h-4 text-muted-foreground" />
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm text-foreground truncate">
+                    <div data-ui="accounts-authlib-injector-modal-div-38" className="flex-1 min-w-0">
+                      <div data-ui="accounts-authlib-injector-modal-div-39" className="font-medium text-sm text-foreground truncate">
                         {selectedServer?.name ?? "Выберите сервер"}
                       </div>
-                      <div className="text-xs text-muted-foreground truncate font-mono">
+                      <div data-ui="accounts-authlib-injector-modal-div-40" className="text-xs text-muted-foreground truncate font-mono">
                         {selectedServer ? new URL(selectedServer.url).hostname : ""}
                       </div>
                     </div>
@@ -642,9 +642,9 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
 
                   {/* Server Picker Dropdown */}
                   {showServerPicker && (
-                    <div className="absolute top-full left-0 right-0 mt-2 p-2 rounded-xl border border-border bg-card shadow-xl z-20 space-y-1 max-h-48 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
+                    <div data-ui="accounts-authlib-injector-modal-div-41" className="absolute top-full left-0 right-0 mt-2 p-2 rounded-xl border border-border bg-card shadow-xl z-20 space-y-1 max-h-48 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
                       {servers.map((s) => (
-                        <div
+                        <div data-ui="accounts-authlib-injector-modal-div-42"
                           key={s.id}
                           onClick={() => {
                             setSelectedServerId(s.id)
@@ -652,27 +652,27 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
                           }}
                           className={`flex items-center gap-2.5 p-2 rounded-lg cursor-pointer transition-colors ${
                             s.id === selectedServerId
-                              ? "bg-[#b45309]/15 text-[#b45309]"
+                              ? "bg-primary/15 text-primary"
                               : "hover:bg-muted/50 text-foreground"
                           }`}
                         >
-                          <div className="w-6 h-6 rounded-md bg-muted/60 flex items-center justify-center overflow-hidden flex-shrink-0 border border-border/40">
+                          <div data-ui="accounts-authlib-injector-modal-div-43" className="w-6 h-6 rounded-md bg-muted/60 flex items-center justify-center overflow-hidden flex-shrink-0 border border-border/40">
                             {s.favicon ? (
-                              <img src={s.favicon} alt="" className="w-4 h-4 object-contain" />
+                              <img data-ui="accounts-authlib-injector-modal-img-6" src={s.favicon} alt="" className="w-4 h-4 object-contain" />
                             ) : (
                               <IconWorld className="w-3.5 h-3.5 text-muted-foreground" />
                             )}
                           </div>
-                          <div className="flex-1 min-w-0 text-left">
-                            <div className="text-xs font-semibold truncate">{s.name}</div>
-                            <div className="text-[10px] text-muted-foreground truncate font-mono">
+                          <div data-ui="accounts-authlib-injector-modal-div-44" className="flex-1 min-w-0 text-left">
+                            <div data-ui="accounts-authlib-injector-modal-div-45" className="text-xs font-semibold truncate">{s.name}</div>
+                            <div data-ui="accounts-authlib-injector-modal-div-46" className="text-[10px] text-muted-foreground truncate font-mono">
                               {new URL(s.url).hostname}
                             </div>
                           </div>
-                          {s.id === selectedServerId && <IconCheck className="w-4 h-4 text-[#b45309]" />}
+                          {s.id === selectedServerId && <IconCheck className="w-4 h-4 text-primary" />}
                           {/* Удалять можно и последний сервер: иначе сломанный
                               единственный сервер нельзя убрать из UI. */}
-                          <button
+                          <button data-ui="accounts-authlib-injector-modal-button-10"
                             onClick={(e) => handleRemoveServer(s.id, e)}
                             title={t("accounts.removeServer", "Удалить сервер")}
                             className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
@@ -686,66 +686,66 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
                 </div>
 
                 {/* Username Input */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                <div data-ui="accounts-authlib-injector-modal-div-47">
+                  <label data-ui="accounts-authlib-injector-modal-label-1" className="text-xs font-medium text-muted-foreground mb-1 block">
                     {selectedServer?.nonEmailLogin
                       ? t("accounts.usernameOrEmail", "Имя пользователя или email")
                       : t("accounts.email", "Email")}
                   </label>
-                  <input
+                  <input data-ui="accounts-authlib-injector-modal-input-2"
                     type={selectedServer?.nonEmailLogin ? "text" : "email"}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder={selectedServer?.nonEmailLogin ? "Steve" : "player@example.com"}
                     autoFocus
-                    className="w-full px-4 py-3 rounded-xl border border-border bg-muted/30 focus:border-[#b45309] focus:bg-background transition-all outline-none text-foreground text-sm"
+                    className="w-full px-4 py-3 rounded-xl border border-border bg-muted/30 focus:border-primary focus:bg-background transition-all outline-none text-foreground text-sm"
                   />
                 </div>
 
                 {/* Password Input */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                <div data-ui="accounts-authlib-injector-modal-div-48">
+                  <label data-ui="accounts-authlib-injector-modal-label-2" className="text-xs font-medium text-muted-foreground mb-1 block">
                     {t("accounts.password", "Пароль")}
                   </label>
-                  <input
+                  <input data-ui="accounts-authlib-injector-modal-input-3"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                     placeholder="••••••••"
-                    className="w-full px-4 py-3 rounded-xl border border-border bg-muted/30 focus:border-[#b45309] focus:bg-background transition-all outline-none text-foreground text-sm"
+                    className="w-full px-4 py-3 rounded-xl border border-border bg-muted/30 focus:border-primary focus:bg-background transition-all outline-none text-foreground text-sm"
                   />
                 </div>
 
                 {/* HTTP-предупреждение нужно и при входе, а не только при
                     добавлении сервера: учётные данные уходят на тот же хост. */}
                 {selectedServer?.url.startsWith("http://") && (
-                  <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-2 text-xs text-amber-500">
+                  <div data-ui="accounts-authlib-injector-modal-div-49" className="p-2.5 rounded-lg bg-warning/10 border border-warning/20 flex items-start gap-2 text-xs text-warning">
                     <IconAlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    <span>{t("accounts.authlibHttpWarning", "Этот сервер не использует HTTPS. Ваши учётные данные могут передаваться небезопасно.")}</span>
+                    <span data-ui="accounts-authlib-injector-modal-span-4">{t("accounts.authlibHttpWarning", "Этот сервер не использует HTTPS. Ваши учётные данные могут передаваться небезопасно.")}</span>
                   </div>
                 )}
 
                 {/* Server Links */}
                 {selectedServer && Object.keys(selectedServer.links).length > 0 && (
-                  <div className="flex flex-wrap gap-3 pt-1 text-xs">
+                  <div data-ui="accounts-authlib-injector-modal-div-50" className="flex flex-wrap items-center justify-center gap-3 pt-1 text-xs">
                     {selectedServer.links.register && (
-                      <a
+                      <a data-ui="accounts-authlib-injector-modal-a-3"
                         href={selectedServer.links.register}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-[#b45309] hover:underline flex items-center gap-1 font-medium"
+                        className="text-primary hover:underline flex items-center gap-1 font-medium"
                       >
                         <IconExternalLink className="w-3.5 h-3.5" />
                         {t("accounts.authlibRegister", "Регистрация")}
                       </a>
                     )}
                     {selectedServer.links.homepage && (
-                      <a
+                      <a data-ui="accounts-authlib-injector-modal-a-4"
                         href={selectedServer.links.homepage}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-[#b45309] hover:underline flex items-center gap-1 font-medium"
+                        className="text-primary hover:underline flex items-center gap-1 font-medium"
                       >
                         <IconWorld className="w-3.5 h-3.5" />
                         {t("accounts.authlibHomepage", "Главная")}
@@ -755,24 +755,24 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
                 )}
 
                 {authError && (
-                  <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-xs text-destructive-foreground">
+                  <div data-ui="accounts-authlib-injector-modal-div-51" className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-xs text-destructive">
                     {authError}
                   </div>
                 )}
 
                 {/* Bottom Action Buttons: Back + Login */}
-                <div className="flex gap-3 pt-2">
-                  <button
+                <div data-ui="accounts-authlib-injector-modal-div-52" className="flex gap-3 pt-2">
+                  <button data-ui="accounts-authlib-injector-modal-button-11"
                     onClick={closeModal}
                     className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors font-medium text-sm"
                   >
                     <IconArrowLeft className="w-4 h-4" strokeWidth={1.75} />
                     {t("accounts.back", "Назад")}
                   </button>
-                  <button
+                  <button data-ui="accounts-authlib-injector-modal-button-12"
                     onClick={() => handleLogin()}
                     disabled={loginLoading || !username.trim() || !password}
-                    className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white font-medium text-sm transition-colors shadow-lg shadow-[#b45309]/20 disabled:opacity-50"
+                    className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-sm transition-colors shadow-lg shadow-primary/20 disabled:opacity-50"
                   >
                     {loginLoading ? (
                       <IconLoader2 className="w-4 h-4 animate-spin" />
@@ -785,7 +785,7 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
 
                 {/* Текущая фаза логина: окно можно закрыть в любой момент. */}
                 {loginLoading && (
-                  <p className="text-xs text-muted-foreground text-center">
+                  <p data-ui="accounts-authlib-injector-modal-p-11" className="text-xs text-muted-foreground text-center">
                     {loginPhase
                       ? phaseLabel(loginPhase)
                       : t("accounts.authlibChecking", "Проверка сервера...")}

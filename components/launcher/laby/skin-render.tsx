@@ -24,14 +24,14 @@ export function SkinRender({
 
   if (!skin.renderUrl || failed) {
     return (
-      <div className={cn("grid h-full w-full place-items-center", className)}>
+      <div data-ui="laby-skin-render-div-1" data-component="skin-render" className={cn("grid h-full w-full place-items-center", className)}>
         <IconUser className="h-1/3 max-h-10 w-1/3 max-w-10 text-muted-foreground/20" strokeWidth={1} />
       </div>
     )
   }
 
   return (
-    <img
+    <img data-ui="laby-skin-render-img-1" data-component="skin-render"
       src={skin.renderUrl}
       alt={alt || skin.name}
       loading="lazy"

@@ -1,3 +1,4 @@
+import { CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
@@ -63,12 +64,18 @@ export function SkinPreviewPanel({
   const skinVersionKey = skinVersion ?? 0
 
   return (
-    <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+    <aside data-ui="skins-skin-preview-panel-aside-1" data-component="skin-preview-panel" className={`flex min-h-0 flex-col gap-3 overflow-y-auto pr-1 ${CONTENT_ENTER_DELAYED}`}>
       <SkinAccountPicker avatarVersion={skinVersionKey} />
 
       {/* Превью: высота подстраивается под окно */}
-      <div className="relative h-[clamp(200px,30vh,300px)] shrink-0 overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-b from-muted/30 to-muted/10 shadow-inner">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,oklch(0.65_0.22_40/0.04)_0%,transparent_70%)]" />
+      <div data-ui="skins-skin-preview-panel-div-1" className="relative h-[clamp(200px,30vh,300px)] shrink-0 overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-b from-muted/30 to-muted/10 shadow-inner">
+        <div data-ui="skins-skin-preview-panel-div-2"
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse at center, color-mix(in oklab, var(--ambient-primary) 4%, transparent) 0%, transparent 70%)",
+          }}
+        />
 
         {/*
           Кнопка «Элитра»: разворачивает персонажа спиной и показывает элитру —
@@ -76,8 +83,8 @@ export function SkinPreviewPanel({
           возвращает обычный вид. Элитра рендерится из той же текстуры, что и
           плащ, поэтому без выбранного плаща кнопка заблокирована.
         */}
-        <div className="absolute right-2 top-2 z-20">
-          <button
+        <div data-ui="skins-skin-preview-panel-div-3" className="absolute right-2 top-2 z-20">
+          <button data-ui="skins-skin-preview-panel-button-1"
             type="button"
             disabled={!selectedCapeUrl}
             aria-pressed={showElytra && Boolean(selectedCapeUrl)}
@@ -98,9 +105,9 @@ export function SkinPreviewPanel({
           </button>
         </div>
 
-        <div ref={ref} className="relative z-10 grid h-full w-full place-items-center">
+        <div data-ui="skins-skin-preview-panel-div-4" ref={ref} className="relative z-10 grid h-full w-full place-items-center">
           {loading ? (
-            <IconLoader2 className="h-8 w-8 animate-spin text-muted-foreground/40" />
+            <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
           ) : selectedSkin?.blobUrl ? (
             <SkinViewer3D
               skinUrl={selectedSkin.blobUrl}
@@ -112,9 +119,9 @@ export function SkinPreviewPanel({
               height={size.height}
             />
           ) : (
-            <div className="flex flex-col items-center gap-2 text-muted-foreground/40">
+            <div data-ui="skins-skin-preview-panel-div-5" className="flex flex-col items-center gap-2 text-muted-foreground/40">
               <IconUser className="h-12 w-12 opacity-30" strokeWidth={1} />
-              <p className="text-[12px] font-medium">{t("skins.noSkin", "Скин не установлен")}</p>
+              <p data-ui="skins-skin-preview-panel-p-1" className="text-[12px] font-medium">{t("skins.noSkin", "Скин не установлен")}</p>
             </div>
           )}
         </div>
@@ -127,8 +134,8 @@ export function SkinPreviewPanel({
         отдельную иконку: раньше эта кнопка называлась «Изменить» и открывала
         модалку, из-за чего надеть скин из панели было нельзя.
       */}
-      <div className="flex shrink-0 gap-2">
-        <button
+      <div data-ui="skins-skin-preview-panel-div-6" className="flex shrink-0 gap-2">
+        <button data-ui="skins-skin-preview-panel-button-2"
           onClick={onApply}
           disabled={!hasPendingChange || !selectedSkin || loading || isApplying}
           title={hasPendingChange
@@ -154,7 +161,7 @@ export function SkinPreviewPanel({
         </button>
 
         {hasPendingChange && canCancelSelection ? (
-          <button
+          <button data-ui="skins-skin-preview-panel-button-3"
             onClick={onCancelSelection}
             disabled={loading}
             className="flex items-center justify-center rounded-xl border border-border bg-card px-3.5 py-2.5 text-muted-foreground transition-all duration-200 hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
@@ -164,7 +171,7 @@ export function SkinPreviewPanel({
           </button>
         ) : (
           <>
-            <button
+            <button data-ui="skins-skin-preview-panel-button-4"
               onClick={onEdit}
               disabled={!selectedSkin || loading}
               className="flex items-center justify-center rounded-xl border border-border bg-card px-3.5 py-2.5 text-muted-foreground transition-all duration-200 hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
@@ -172,7 +179,7 @@ export function SkinPreviewPanel({
             >
               <IconPencil className="w-4 h-4" />
             </button>
-            <button
+            <button data-ui="skins-skin-preview-panel-button-5"
               onClick={onReset}
               disabled={loading}
               className="flex items-center justify-center rounded-xl border border-primary/30 bg-primary/5 px-3.5 py-2.5 text-primary transition-all duration-200 hover:bg-primary/10 disabled:opacity-50"
