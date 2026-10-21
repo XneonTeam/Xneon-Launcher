@@ -1,5 +1,6 @@
 try { require("dotenv/config") } catch {}
 import { app } from "electron"
+import { registerThemeFiles } from "./theme-files.js"
 import "./auth"
 
 import { registerAvatarProtocolScheme, registerAvatarHandlers } from "./avatar"
@@ -22,6 +23,7 @@ import { xnConnectManager } from "./xn-connect-manager"
 import { registerXnConnectHandlers } from "./xn-connect-handlers"
 import { registerAuthlibHandlers } from "./authlib"
 
+registerThemeFiles()
 registerAvatarProtocolScheme()
 registerWindowLifecycle()
 registerSystemHandlers()

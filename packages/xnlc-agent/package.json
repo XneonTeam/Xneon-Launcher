@@ -1,0 +1,92 @@
+{
+  "name": "@xnlc/agent",
+  "version": "1.0.0",
+  "description": "XNLC Agent — инструменты, диалоги, контекст и адаптеры AI-провайдеров",
+  "type": "module",
+  "author": "MAINER4IK",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js",
+      "require": "./lib-cjs/index.js"
+    },
+    "./host": {
+      "types": "./lib/host.d.ts",
+      "import": "./lib/host.js",
+      "require": "./lib-cjs/host.js"
+    },
+    "./tools": {
+      "types": "./lib/tools.d.ts",
+      "import": "./lib/tools.js",
+      "require": "./lib-cjs/tools.js"
+    },
+    "./runtime": {
+      "types": "./lib/runtime.d.ts",
+      "import": "./lib/runtime.js",
+      "require": "./lib-cjs/runtime.js"
+    },
+    "./project-cards": {
+      "types": "./lib/project-cards.d.ts",
+      "import": "./lib/project-cards.js",
+      "require": "./lib-cjs/project-cards.js"
+    },
+    "./project-details": {
+      "types": "./lib/project-details.d.ts",
+      "import": "./lib/project-details.js",
+      "require": "./lib-cjs/project-details.js"
+    },
+    "./launcher-tools": {
+      "types": "./lib/launcher-tools.d.ts",
+      "import": "./lib/launcher-tools.js",
+      "require": "./lib-cjs/launcher-tools.js"
+    },
+    "./launcher-ipc-catalog": {
+      "types": "./lib/launcher-ipc-catalog.d.ts",
+      "import": "./lib/launcher-ipc-catalog.js",
+      "require": "./lib-cjs/launcher-ipc-catalog.js"
+    },
+    "./protocol": {
+      "types": "./lib/protocol.d.ts",
+      "import": "./lib/protocol.js",
+      "require": "./lib-cjs/protocol.js"
+    },
+    "./providers": {
+      "types": "./lib/providers.d.ts",
+      "import": "./lib/providers.js",
+      "require": "./lib-cjs/providers.js"
+    },
+    "./model-config": {
+      "types": "./lib/model-config.d.ts",
+      "import": "./lib/model-config.js",
+      "require": "./lib-cjs/model-config.js"
+    },
+    "./prompt": {
+      "types": "./lib/prompt.d.ts",
+      "import": "./lib/prompt.js",
+      "require": "./lib-cjs/prompt.js"
+    },
+    "./extended-tools": {
+      "types": "./lib/extended-tools.d.ts",
+      "import": "./lib/extended-tools.js",
+      "require": "./lib-cjs/extended-tools.js"
+    }
+  },
+  "main": "lib-cjs/index.js",
+  "module": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "lib-cjs"
+  ],
+  "dependencies": {
+    "@xnlc/types": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/build-cjs.mjs",
+    "prepublishOnly": "pnpm run build"
+  },
+  "publishConfig": {
+    "registry": "https://git.xneon.org/api/packages/MAINER4IK/npm/"
+  }
+}

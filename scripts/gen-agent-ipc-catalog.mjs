@@ -1,0 +1,16 @@
+import fs from "node:fs"
+import path from "node:path"
+const root=process.cwd()
+const contracts=fs.readFileSync(path.join(root,"packages/xnlc-types/src/ipc-contracts.ts"),"utf8")
+const preload=fs.readFileSync(path.join(root,"electron/preload.ts"),"utf8")
+const channels=[...contracts.slice(contracts.indexOf("export interface IpcInvokeMap"),contracts.indexOf("export interface ElectronAPIExplicit")).matchAll(/^  ["']([^"']+)["']:/gm)].map(match=>match[1])
+const channelSet=new Set(channels)
+function split(value){let depth=0,quote="",start=0,result=[];for(let i=0;i<value.length;i++){const c=value[i];if(quote){if(c===quote&&value[i-1]!=="\\")quote="";continue}if(/["'`]/.test(c)){quote=c;continue}if("([{<".includes(c))depth++;else if(")]}>".includes(c)&&depth>0)depth--;if(c===","&&depth===0){result.push(value.slice(start,i).trim());start=i+1}}if(value.slice(start).trim())result.push(value.slice(start).trim());return result}
+function parameters(signature){if(!signature.startsWith("("))return[];let depth=0,end=0;for(let i=0;i<signature.length;i++){if(signature[i]==="(")depth++;if(signature[i]===")"&&--depth===0){end=i;break}}return split(signature.slice(1,end)).map(part=>{const at=part.indexOf(":");const name=part.slice(0,at).trim();return{name:name.replace(/[?]/g,""),optional:name.includes("?"),type:part.slice(at+1).trim()}})}
+const declarations=new Map([...contracts.slice(contracts.indexOf("export interface ElectronAPIExplicit")).matchAll(/^  (\w+): (.+)$/gm)].map(match=>[match[1],match[2].trim()]))
+const entries=[...preload.slice(preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^  (\w+):/gm)]
+const catalog=entries.map((entry,index)=>{const method=entry[1],signature=declarations.get(method);if(!signature)throw Error("Missing contract: "+method);const body=preload.slice(entry.index+preload.indexOf("contextBridge.exposeInMainWorld"),entries[index+1]?entries[index+1].index+preload.indexOf("contextBridge.exposeInMainWorld"):preload.length);return{method,signature,parameters:parameters(signature),channels:[...body.matchAll(/["']([^"']+)["']/g)].map(match=>match[1]).filter(value=>channelSet.has(value)),event:method.startsWith("on")&&signature.includes("callback"),callable:signature.startsWith("(")}})
+const covered=new Set(catalog.flatMap(item=>item.channels));const unbridged=[...channelSet].filter(channel=>!covered.has(channel))
+const output='// Сгенерировано scripts/gen-agent-ipc-catalog.mjs из IPC-контрактов и preload.\nimport type { ElectronAPI } from "@xnlc/types"\nexport interface LauncherCapability { method: keyof ElectronAPI; signature: string; parameters: Array<{name:string;optional:boolean;type:string}>; channels:string[]; event:boolean; callable:boolean }\nexport const LAUNCHER_CAPABILITIES: LauncherCapability[] = '+JSON.stringify(catalog,null,2)+'\nexport const UNBRIDGED_IPC_CHANNELS = '+JSON.stringify(unbridged)+'\nexport const IPC_CHANNELS = '+JSON.stringify([...channelSet])+'\n'
+const out=path.join(root,'packages/xnlc-agent/src/launcher-ipc-catalog.ts');if(process.argv.includes('--check')){if(fs.readFileSync(out,'utf8')!==output)throw Error('IPC catalog is outdated; run node scripts/gen-agent-ipc-catalog.mjs')}else fs.writeFileSync(out,output)
+console.log(JSON.stringify({methods:catalog.length,channels:channelSet.size,unbridged}))

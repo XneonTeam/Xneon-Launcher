@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { ActivityCenterProvider } from "./ActivityCenterContext"
 import { Launcher } from '@/components/launcher/launcher'
 import { LaunchLogsProvider } from "./LaunchLogsContext"
@@ -7,6 +7,7 @@ import { TitleBar } from './TitleBar'
 import { initI18n } from './i18n'
 
 export function App() {
+  const notifyReady = useCallback(() => window.dispatchEvent(new Event('app:hydrated')), [])
   const [modulesReady, setModulesReady] = useState(false)
 
   useEffect(() => {
@@ -29,10 +30,10 @@ export function App() {
     <ActivityCenterProvider>
       <AccountsProvider>
         <LaunchLogsProvider>
-          <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+          <div data-ui="app-div-1" className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
             <TitleBar />
-            <div className="flex-1 overflow-hidden">
-              {modulesReady && <Launcher onReady={() => {}} />}
+            <div data-ui="app-div-2" className="flex-1 overflow-hidden">
+              {modulesReady && <Launcher onReady={notifyReady} />}
             </div>
           </div>
         </LaunchLogsProvider>
