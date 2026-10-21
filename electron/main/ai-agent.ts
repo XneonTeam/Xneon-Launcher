@@ -1,6 +1,7 @@
 import { ipcMain, safeStorage } from "electron"
 import { dbHelpers } from "../db"
-import { sendToRenderer, getMainWindow } from "./runtime"
+import { sendToRenderer } from "./runtime"
+import { registerAgentWorkspace } from "./agent-workspace"
 
 export type AiAnalysisResult = {
   success: boolean
@@ -8,7 +9,10 @@ export type AiAnalysisResult = {
   error?: string
 }
 
-export type AiConfig = { apiKey: string; endpoint: string; model: string }
+import type { AiConfig, AiProtocol, AiModelDiscovery } from "@xnlc/types"
+import { providerHeaders, providerRequest, providerResult, validateProviderKey } from "./ai-providers"
+import { validateModelConfigs, readModelConfigs } from "./ai-model-config"
+export type { AiConfig } from "@xnlc/types"
 
 const AI_KEY_PREFIX = "encrypted:"
 
@@ -99,16 +103,19 @@ function truncateLog(content: string, maxChars = 8000): string {
   return result.length > maxChars ? result.slice(-maxChars) : result
 }
 
-async function getApiConfig() {
+export async function getApiConfig() {
   const storedApiKey = await dbHelpers.getSetting("aiApiKey")
   const apiKey = decryptApiKey(storedApiKey)
   const endpoint = await dbHelpers.getSetting("aiEndpoint")
   const model = await dbHelpers.getSetting("aiModel")
-  if (!apiKey) return null
+  const protocol = (await dbHelpers.getSetting("aiProtocol") || "openai") as AiProtocol
+  if (!apiKey && protocol !== "ollama" && !/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(endpoint || "")) return null
   return {
     apiKey,
     baseUrl: (endpoint || "https://api.openai.com/v1").replace(/\/+$/, ""),
     modelId: model || "gpt-4o-mini",
+    protocol,
+    models: readModelConfigs(await dbHelpers.getSetting("aiModels"), model || "gpt-4o-mini"),
   }
 }
 
@@ -126,27 +133,29 @@ export type AiModelsResult = { success: boolean; models?: string[]; error?: stri
  * `models[].id`, `models[].name`), поэтому разбираем все известные варианты
  * и дополнительно умеем вытаскивать идентификаторы из плоского массива строк.
  */
-export async function fetchAiModels(apiKey: string, endpoint: string): Promise<AiModelsResult> {
+export async function fetchAiModels(apiKey: string, endpoint: string, protocol: AiProtocol = "openai"): Promise<AiModelsResult> {
   const baseUrl = endpoint.replace(/\/+$/, "")
   if (!baseUrl) return { success: false, error: "Endpoint is empty" }
 
   try {
-    const res = await fetch(`${baseUrl}/models`, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${apiKey}` },
-    })
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => "")
-      return { success: false, error: `API error ${res.status}: ${body.slice(0, 300)}` }
+    const base = new URL(baseUrl)
+    if (!["http:", "https:"].includes(base.protocol) || (base.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(base.hostname))) throw new Error("Use HTTPS for remote AI providers")
+    const found = new Set<string>()
+    let cursor = ""
+    for (let page = 0; page < 30; page++) {
+      const url = new URL(baseUrl + "/" + (protocol === "ollama" ? "api/tags" : "models"))
+      if (protocol === "gemini") { url.searchParams.set("pageSize", "100"); if (cursor) url.searchParams.set("pageToken", cursor) }
+      if (protocol === "anthropic") { url.searchParams.set("limit", "100"); if (cursor) url.searchParams.set("after_id", cursor) }
+      const response = await fetch(url, { headers: providerHeaders({ apiKey, baseUrl, modelId: "", protocol }), signal: AbortSignal.timeout(20_000) })
+      if (!response.ok) return { success: false, error: "API error " + response.status + ": " + (await response.text()).replaceAll(apiKey || "__NO_API_KEY__", "[REDACTED]").slice(0, 300) }
+      const payload = await response.json() as Record<string, unknown>
+      collectModelIds(payload).forEach(id => found.add(id))
+      const next = protocol === "gemini" ? payload.nextPageToken : protocol === "anthropic" && payload.has_more ? payload.last_id : undefined
+      if (typeof next !== "string" || !next || cursor === next) break
+      cursor = next
     }
-
-    const payload = await res.json() as unknown
-    const ids = collectModelIds(payload)
-    if (ids.length === 0) {
-      return { success: false, error: "No models returned by the endpoint" }
-    }
-    return { success: true, models: ids }
+    if (!found.size) return { success: false, error: "No models returned by the endpoint" }
+    return { success: true, models: [...found].sort((a, b) => a.localeCompare(b)) }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)
     return { success: false, error: `Failed to fetch models: ${message}` }
@@ -195,36 +204,16 @@ async function callAiApi(
   const config = await getApiConfig()
   if (!config) return { success: false, error: "AI API key not configured. Go to Settings → AI." }
 
-  const fullMessages = [
-    { role: "system", content: buildSystemPrompt(opts.language) },
-    ...messages,
-  ]
-
   try {
-    const res = await fetch(`${config.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${config.apiKey}` },
-      body: JSON.stringify({
-        model: config.modelId,
-        messages: fullMessages,
-        max_tokens: opts.maxTokens ?? 1024,
-        temperature: opts.temperature ?? 0.7,
-      }),
-    })
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => "")
-      return { success: false, error: `API error ${res.status}: ${body.slice(0, 300)}` }
-    }
-
-    const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> }
-    const analysis = data.choices?.[0]?.message?.content?.trim()
-    if (!analysis) return { success: false, error: "Empty response from AI model." }
-    return { success: true, analysis }
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err)
-    return { success: false, error: `AI request failed: ${message}` }
-  }
+    const request = providerRequest(config, buildSystemPrompt(opts.language), messages as import("@xnlc/types").AgentWireMessage[], [])
+    const body = request.body as Record<string, unknown>
+    if (!config.protocol || config.protocol === "openai") { body.stream = false; delete body.stream_options }
+    const response = await fetch(request.url, { method: "POST", headers: providerHeaders(config), body: JSON.stringify(body), signal: AbortSignal.timeout(60_000) })
+    if (!response.ok) throw new Error("AI API error " + response.status)
+    const result = providerResult(config.protocol, await response.json())
+    if (!result.text.trim()) throw new Error("Empty response from AI model")
+    return { success: true, analysis: result.text }
+  } catch (error) { return { success: false, error: error instanceof Error ? error.message : String(error) } }
 }
 
 // ── Streaming API call (SSE) ────────────────────────────────
@@ -238,6 +227,14 @@ async function callAiApiStream(
   const config = await getApiConfig()
   if (!config) return { success: false, error: "AI API key not configured. Go to Settings → AI." }
 
+  if (config.protocol && config.protocol !== "openai") {
+    const result = await callAiApi(messages, opts)
+    if (result.success) {
+      sendToRenderer("ai:stream-chunk", { requestId, content: result.analysis || "" })
+      sendToRenderer("ai:stream-done", { requestId, fullText: result.analysis || "" })
+    } else sendToRenderer("ai:stream-error", { requestId, error: result.error })
+    return { success: result.success, fullText: result.analysis, error: result.error }
+  }
   const fullMessages = [
     { role: "system", content: buildSystemPrompt(opts.language) },
     ...messages,
@@ -325,40 +322,48 @@ async function callAiApiStream(
 }
 
 export function registerAiAgent(): void {
-  ipcMain.handle("ai:get-config", async (): Promise<AiConfig> => ({
-    apiKey: decryptApiKey(await dbHelpers.getSetting("aiApiKey")),
-    endpoint: await dbHelpers.getSetting("aiEndpoint") || "https://api.openai.com/v1",
-    model: await dbHelpers.getSetting("aiModel") || "gpt-4o-mini",
-  }))
-
+  registerAgentWorkspace(getApiConfig)
+  ipcMain.handle("ai:get-config", async (): Promise<AiConfig> => {
+    const model = await dbHelpers.getSetting("aiModel") || "gpt-4o-mini"
+    return { apiKey: decryptApiKey(await dbHelpers.getSetting("aiApiKey")), endpoint: await dbHelpers.getSetting("aiEndpoint") || "https://api.openai.com/v1", model, protocol: (await dbHelpers.getSetting("aiProtocol") || "openai") as AiProtocol, models: readModelConfigs(await dbHelpers.getSetting("aiModels"), model) }
+  })
   ipcMain.handle("ai:save-config", async (_event, config: AiConfig): Promise<void> => {
+    if (!config || typeof config.apiKey !== "string" || typeof config.endpoint !== "string" || typeof config.model !== "string") throw new Error("Invalid AI configuration")
+    const protocol = config.protocol || "openai"
+    if (!["openai", "anthropic", "gemini", "ollama"].includes(protocol)) throw new Error("Invalid AI protocol")
+    validateProviderKey({ apiKey: config.apiKey.trim(), baseUrl: config.endpoint, modelId: config.model, protocol })
+    const url = new URL(config.endpoint)
+    if (!["https:", "http:"].includes(url.protocol) || (url.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))) throw new Error("Use HTTPS for remote AI providers")
+    const models = config.models === undefined ? readModelConfigs(await dbHelpers.getSetting("aiModels"), config.model) : validateModelConfigs(config.models)
+    if (!models.some(item => item.id === config.model.trim())) throw new Error("Select an enabled model")
     await dbHelpers.setSetting("aiApiKey", encryptApiKey(config.apiKey.trim()))
-    await dbHelpers.setSetting("aiEndpoint", config.endpoint.trim())
+    await dbHelpers.setSetting("aiEndpoint", config.endpoint.trim().replace(/\/+$/, ""))
     await dbHelpers.setSetting("aiModel", config.model.trim())
+    await dbHelpers.setSetting("aiProtocol", protocol)
+    await dbHelpers.setSetting("aiModels", JSON.stringify(models))
   })
 
   // ── Model discovery ─────────────────────────────────────
   // Значения из формы имеют приоритет над сохранёнными: список моделей нужно
   // получать для того endpoint/ключа, которые пользователь ввёл прямо сейчас.
-  ipcMain.handle("ai:list-models", async (_event, override?: { apiKey?: string; endpoint?: string }): Promise<AiModelsResult> => {
+  ipcMain.handle("ai:list-models", async (_event, override?: AiModelDiscovery): Promise<AiModelsResult> => {
     const stored = await getApiConfig()
-    const apiKey = override?.apiKey?.trim() || stored?.apiKey || ""
-    const endpoint = (override?.endpoint?.trim() || stored?.baseUrl || "https://api.openai.com/v1")
+    const apiKey = override?.apiKey?.trim() ?? stored?.apiKey ?? ""
+    const endpoint = override?.endpoint?.trim() ?? stored?.baseUrl ?? "https://api.openai.com/v1"
 
-    if (!apiKey) {
+    const protocol = override?.protocol || stored?.protocol || "openai"
+    if (!apiKey && protocol !== "ollama" && !/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(endpoint)) {
       return { success: false, error: "AI API key not configured. Go to Settings → AI." }
     }
 
-    return fetchAiModels(apiKey, endpoint)
+    try { validateProviderKey({ apiKey, baseUrl: endpoint, modelId: "", protocol }) }
+    catch { return { success: false, error: "API key contains unsupported characters. Re-enter it in AI settings." } }
+    return fetchAiModels(apiKey, endpoint, protocol)
   })
 
   // ── Crash Analysis ───────────────────────────────────────
   ipcMain.handle("ai:analyze-crash", async (_event, logContent: string): Promise<AiAnalysisResult> => {
-    const truncated = truncateLog(logContent)
-    const prompt = CRASH_ANALYSIS_PROMPT + truncated
-    const language = await dbHelpers.getSetting("language") || "ru"
-
-    return callAiApi([{ role: "user", content: prompt }], { maxTokens: 512, temperature: 0.3, language })
+    return callAiApi([{ role: "user", content: CRASH_ANALYSIS_PROMPT + truncateLog(logContent) }], { language: await dbHelpers.getSetting("language") || "ru" })
   })
 
   // ── Crash Analysis (streaming) ──────────────────────────

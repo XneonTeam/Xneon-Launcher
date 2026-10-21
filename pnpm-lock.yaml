@@ -18,6 +18,9 @@ importers:
       '@types/prismjs':
         specifier: ^1.26.6
         version: 1.26.6
+      '@xnlc/agent':
+        specifier: workspace:*
+        version: link:packages/xnlc-agent
       '@xnlc/core':
         specifier: workspace:*
         version: link:packages/xnlc-core
@@ -181,6 +184,12 @@ importers:
       wait-on:
         specifier: ^9.0.10
         version: 9.1.0
+
+  packages/xnlc-agent:
+    dependencies:
+      '@xnlc/types':
+        specifier: workspace:*
+        version: link:../xnlc-types
 
   packages/xnlc-core:
     dependencies:

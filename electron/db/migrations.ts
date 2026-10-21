@@ -18,6 +18,9 @@ const DEFAULT_SETTINGS: Record<string, string> = {
 }
 
 function createTables() {
+  run(`CREATE TABLE IF NOT EXISTS agent_chats (
+    id TEXT PRIMARY KEY, title TEXT NOT NULL, updatedAt INTEGER NOT NULL, data TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0
+  )`)
   run(`
     CREATE TABLE IF NOT EXISTS accounts (
       id TEXT PRIMARY KEY,
@@ -348,7 +351,7 @@ export { DEFAULT_SETTINGS }
  * better-sqlite3», нужен для разового бэкапа sql.js-БД), поэтому в
  * `user_version` пишем максимум из двух.
  */
-export const SCHEMA_VERSION = 7
+export const SCHEMA_VERSION = 8
 
 function readUserVersion(): number {
   const rows = queryAll<{ user_version?: number }>("PRAGMA user_version")
@@ -376,6 +379,7 @@ export function initializeSchema() {
   transaction(() => {
     createTables()
     if (needsColumnMigrations) {
+      addColumnIfMissing("agent_chats", "archived", "archived INTEGER NOT NULL DEFAULT 0")
       migrateAccounts()
       migrateBuilds()
       migrateResources()
