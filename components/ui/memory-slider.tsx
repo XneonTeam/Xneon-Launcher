@@ -46,12 +46,12 @@ export function MemorySlider({
   const visibleSnapPoints = snapPoints.filter((point) => point >= min && point <= max)
 
   return (
-    <div className="flex items-center gap-3 w-full">
-      <div className="relative flex-1">
-        <div className="absolute top-0 h-1/2 w-full">
-          <div className="relative inline-block align-middle w-[calc(100%-0.75rem)] h-3 left-[calc(0.75rem/2)]">
+    <div data-ui="ui-memory-slider-div-1" className="flex items-center gap-3 w-full">
+      <div data-ui="ui-memory-slider-div-2" className="relative flex-1">
+        <div data-ui="ui-memory-slider-div-3" className="absolute top-0 h-1/2 w-full">
+          <div data-ui="ui-memory-slider-div-4" className="relative inline-block align-middle w-[calc(100%-0.75rem)] h-3 left-[calc(0.75rem/2)]">
             {visibleSnapPoints.map((point) => (
-              <div
+              <div data-ui="ui-memory-slider-div-5"
                 key={point}
                 className="absolute inline-block w-1 h-full rounded-sm -translate-x-1/2"
                 style={{
@@ -62,7 +62,7 @@ export function MemorySlider({
             ))}
           </div>
         </div>
-        <input
+        <input data-ui="ui-memory-slider-input-1"
           type="range"
           min={min}
           max={max}
@@ -76,13 +76,13 @@ export function MemorySlider({
             "--max-value": max,
           } as React.CSSProperties}
         />
-        <div className="flex flex-row justify-between text-xs m-0">
-          <span>{min} {unit}</span>
-          <span>{max} {unit}</span>
+        <div data-ui="ui-memory-slider-div-6" className="flex flex-row justify-between text-xs m-0">
+          <span data-ui="ui-memory-slider-span-1">{min} {unit}</span>
+          <span data-ui="ui-memory-slider-span-2">{max} {unit}</span>
         </div>
       </div>
-      <div className={cn("flex items-center rounded-xl border border-border bg-input/60 px-2 h-10 w-24 shrink-0")}>
-        <input
+      <div data-ui="ui-memory-slider-div-7" className={cn("flex items-center rounded-xl border border-border bg-input/60 px-2 h-10 w-24 shrink-0")}>
+        <input data-ui="ui-memory-slider-input-2"
           type="number"
           value={clamped}
           min={min}
@@ -91,7 +91,7 @@ export function MemorySlider({
           onChange={handleNumberChange}
           className="w-full bg-transparent text-foreground text-sm outline-none"
         />
-        {unit && <span className="text-xs text-muted-foreground ml-1 shrink-0">{unit}</span>}
+        {unit && <span data-ui="ui-memory-slider-span-3" className="text-xs text-muted-foreground ml-1 shrink-0">{unit}</span>}
       </div>
     </div>
   )

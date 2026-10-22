@@ -1,3 +1,4 @@
+import { CONTENT_ENTER_DELAYED } from "./content-motion"
 // ============================================================
 // XNLC — Trash view (общий)
 // Одна страница корзины для сборок и серверов: список удалённых
@@ -142,24 +143,24 @@ export function TrashView<T>({
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+      <div data-ui="trash-view-div-1" data-component="trash-view" className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
         {labels.loading}
       </div>
     )
   }
 
   if (items.length === 0) {
-    return <EmptyState variant="trash" title={labels.empty} className="flex-1" />
+    return <EmptyState variant="trash" title={labels.empty} className={`flex-1 ${CONTENT_ENTER_DELAYED}`} />
   }
 
   /** Переключатель доп. опции: рендерится в обоих окнах подтверждения. */
   const confirmOption = confirmExtra ? (
-    <button
+    <button data-ui="trash-view-button-1"
       type="button"
       onClick={() => setExtraChecked((v) => !v)}
       className="mb-2 flex w-full items-center gap-2.5 rounded-xl border border-border bg-muted/30 p-3 text-left transition-colors hover:bg-muted/50"
     >
-      <span
+      <span data-ui="trash-view-span-1"
         className={
           "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors " +
           (extraChecked ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40 bg-muted/50")
@@ -168,15 +169,15 @@ export function TrashView<T>({
         {extraChecked && <IconCheck className="h-3 w-3" strokeWidth={3} />}
       </span>
       {confirmExtra.icon}
-      <span className="text-sm text-foreground">{confirmExtra.label}</span>
+      <span data-ui="trash-view-span-2" className="text-sm text-foreground">{confirmExtra.label}</span>
     </button>
   ) : null
 
   return (
-    <div className="flex-1 space-y-3">
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs text-muted-foreground">{labels.itemCount(items.length)}</p>
-        <button type="button" onClick={() => { setExtraChecked(confirmExtra?.defaultChecked ?? true); setPurgeOpen(true) }}
+    <div data-ui="trash-view-div-2" data-component="trash-view" className={`flex-1 space-y-3 ${CONTENT_ENTER_DELAYED}`}>
+      <div data-ui="trash-view-div-3" className="flex items-center justify-between mb-2">
+        <p data-ui="trash-view-p-1" className="text-xs text-muted-foreground">{labels.itemCount(items.length)}</p>
+        <button data-ui="trash-view-button-2" type="button" onClick={() => { setExtraChecked(confirmExtra?.defaultChecked ?? true); setPurgeOpen(true) }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors">
           <IconTrash className="w-3.5 h-3.5" />
           {labels.purgeAll}
@@ -186,11 +187,11 @@ export function TrashView<T>({
       {items.map((item) => {
         const data = row(item)
         return (
-          <div key={data.key}
+          <div data-ui="trash-view-div-4" key={data.key}
             className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:bg-muted/50 transition-colors">
             {/* Аватарка та же, что и в обычном списке раздела: своя иконка,
                 а без неё — цветная плашка с заглушкой вызывающей стороны. */}
-            <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
+            <div data-ui="trash-view-div-5" className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
               {data.icon ? (
                 <EntityIcon
                   src={data.icon}
@@ -198,24 +199,24 @@ export function TrashView<T>({
                   imgClassName="w-full h-full object-cover"
                 />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10 flex items-center justify-center">
+                <div data-ui="trash-view-div-6" className="w-full h-full bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10 flex items-center justify-center">
                   {data.fallbackIcon}
                 </div>
               )}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">{data.name}</p>
+            <div data-ui="trash-view-div-7" className="flex-1 min-w-0">
+              <p data-ui="trash-view-p-2" className="text-sm font-medium text-foreground truncate">{data.name}</p>
               {data.meta}
               {data.extra}
             </div>
-            <button type="button" onClick={() => void handleRestore(item, data.key)} disabled={restoringKey !== null}
+            <button data-ui="trash-view-button-3" type="button" onClick={() => void handleRestore(item, data.key)} disabled={restoringKey !== null}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               {restoringKey === data.key
                 ? <IconLoader2 className="w-3.5 h-3.5 animate-spin" />
                 : <IconRefresh className="w-3.5 h-3.5" />}
               {labels.restore}
             </button>
-            <button type="button" onClick={() => { setExtraChecked(confirmExtra?.defaultChecked ?? true); setPendingDelete(item) }}
+            <button data-ui="trash-view-button-4" type="button" onClick={() => { setExtraChecked(confirmExtra?.defaultChecked ?? true); setPendingDelete(item) }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors">
               <IconTrash className="w-3.5 h-3.5" />
             </button>

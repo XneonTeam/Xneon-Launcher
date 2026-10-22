@@ -1,8 +1,8 @@
+import { CONTENT_ENTER, CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
 import { IconCloud, IconLogout, IconLoader2, IconArrowLeft } from "@tabler/icons-react"
-import { ProviderIcon, providerColor } from "./provider-icon"
+import { ProviderIcon } from "./provider-icon"
 import { CloudProviderCard } from "./cloud-provider-card"
 import { CloudFileBrowser } from "./cloud-file-browser"
 import { WebDavSetupModal } from "./cloud-webdav-setup"
@@ -15,7 +15,7 @@ const api = typeof window !== "undefined" ? window.electronAPI : undefined
 type ProviderInfo = { id: string; name: string }
 type ConnectedProvider = { id: string; name: string }
 
-export function CloudPage({ rootResetToken }: { rootResetToken?: number }) {
+export function CloudPage({ rootResetToken, pendingThemeId, onPendingThemeHandled }: { rootResetToken?: number; pendingThemeId?: string | null; onPendingThemeHandled?: () => void }) {
   const { t } = useTranslation()
   const [providers, setProviders] = useState<ProviderInfo[]>([])
   const [connected, setConnected] = useState<ConnectedProvider | null>(null)
@@ -132,30 +132,30 @@ export function CloudPage({ rootResetToken }: { rootResetToken?: number }) {
   if (connected) {
     return (
       /* Нормальное окно раздела: без карточки, рамки и размытых пятен */
-      <div className="flex h-full min-h-0 flex-col animate-in fade-in-0 duration-300">
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <button onClick={() => setConnected(null)}
+      <div data-ui="cloud-index-div-1" data-component="cloud-page" id="cloud-page" className="flex h-full min-h-0 flex-col">
+        <div data-ui="cloud-index-div-2" className="flex min-h-0 flex-1 flex-col">
+          <div data-ui="cloud-index-div-3" className={`flex items-center justify-between mb-4 ${CONTENT_ENTER_DELAYED}`}>
+            <div data-ui="cloud-index-div-4" className="flex items-center gap-3">
+              <button data-ui="cloud-index-button-1" onClick={() => setConnected(null)}
                 className="w-9 h-9 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center">
                 <IconArrowLeft className="w-5 h-5" strokeWidth={1.5} />
               </button>
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${providerColor(connected.id)}20` }}>
+              <div data-ui="cloud-index-div-5" className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
                 <ProviderIcon id={connected.id} className="w-5 h-5" />
               </div>
-              <div>
-                <h2 className="text-xl font-bold text-foreground">{connected.name}</h2>
-                <p className="mt-0.5 text-sm text-muted-foreground">{t("cloud.connected")}</p>
+              <div data-ui="cloud-index-div-6">
+                <h2 data-ui="cloud-index-h2-1" className="text-xl font-bold text-foreground">{connected.name}</h2>
+                <p data-ui="cloud-index-p-1" className="mt-0.5 text-sm text-muted-foreground">{t("cloud.connected")}</p>
               </div>
             </div>
-            <button onClick={handleDisconnect}
+            <button data-ui="cloud-index-button-2" onClick={handleDisconnect}
               className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium bg-muted/50 hover:bg-destructive/20 text-muted-foreground hover:text-destructive border border-border transition-all">
               <IconLogout className="w-4 h-4" strokeWidth={1.75} />
               {t("cloud.disconnect")}
             </button>
           </div>
           <ErrorBoundary>
-            <CloudFileBrowser providerId={connected.id} />
+            <CloudFileBrowser providerId={connected.id} pendingThemeId={pendingThemeId} onPendingThemeHandled={onPendingThemeHandled} />
           </ErrorBoundary>
         </div>
       </div>
@@ -164,7 +164,7 @@ export function CloudPage({ rootResetToken }: { rootResetToken?: number }) {
 
   return (
     /* Нормальное окно раздела: без карточки, рамки и размытых пятен */
-    <div className="flex h-full min-h-0 flex-col animate-in fade-in-0 duration-300">
+    <div data-ui="cloud-index-div-7" data-component="cloud-page" id="cloud-page" className="flex h-full min-h-0 flex-col">
       {showWebdav && (
         <WebDavSetupModal
           onClose={() => setShowWebdav(false)}
@@ -181,25 +181,25 @@ export function CloudPage({ rootResetToken }: { rootResetToken?: number }) {
         />
       )}
 
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="mb-6 flex items-center gap-3">
+      <div data-ui="cloud-index-div-8" className="flex min-h-0 flex-1 flex-col">
+        <div data-ui="cloud-index-div-9" className={`mb-6 flex items-center gap-3 ${CONTENT_ENTER_DELAYED}`}>
           {/* Значок у заголовка — как у остальных разделов лаунчера */}
-          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+          <div data-ui="cloud-index-div-10" className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
             <IconCloud className="w-5 h-5 text-primary" />
           </div>
-          <div>
-            <h2 className="text-xl font-bold text-foreground">{t("cloud.title")}</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">{t("cloud.selectProvider")}</p>
+          <div data-ui="cloud-index-div-11">
+            <h2 data-ui="cloud-index-h2-2" className="text-xl font-bold text-foreground">{t("cloud.title")}</h2>
+            <p data-ui="cloud-index-p-2" className="mt-0.5 text-sm text-muted-foreground">{t("cloud.selectProvider")}</p>
           </div>
         </div>
 
         {checking ? (
-          <div className="flex-1 flex items-center justify-center">
-            <IconLoader2 className="w-8 h-8 text-muted-foreground animate-spin" />
+          <div data-ui="cloud-index-div-12" className="flex-1 flex items-center justify-center">
+            <IconLoader2 className="w-8 h-8 text-primary animate-spin" />
           </div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div data-ui="cloud-index-div-13" className={`min-h-0 flex-1 overflow-y-auto pr-1 ${CONTENT_ENTER}`}>
+            <div data-ui="cloud-index-div-14" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {providers.map(p => (
                 <CloudProviderCard
                   key={p.id}

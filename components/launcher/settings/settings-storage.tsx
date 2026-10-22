@@ -1,23 +1,27 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { SETTINGS_CONTENT_ENTER } from "./settings-motion"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
   IconRefresh, IconTrash, IconFolder, IconCoffee, IconChevronDown, IconChevronRight,
   IconPuzzle, IconPhoto, IconSparkles, IconMap, IconSettings, IconBug,
-  IconDatabase, IconAlertTriangle, IconPackage, IconFolderOpen, IconServer,
+  IconDatabase, IconAlertTriangle, IconFolderOpen, IconServer, IconLoader2,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { formatBytes } from "@/lib/format"
 import { LoaderIcon } from "@/components/launcher/instance/loader-icon"
+import { EntityIcon } from "@/components/launcher/instance/entity-icon"
+import { fsErrorMessage } from "@/lib/fs-errors"
 import type { BuildStorageEntry, ServerStorageEntry, StorageScanResult } from "@xnlc/types"
+import { getCachedStorageScan, loadStorageScan } from "./storage-scan-cache"
 
 type CleanKind = "build-logs" | "build-crash-reports" | "build-cache"
 
 function SizeBar({ parts, total }: { parts: Array<{ size: number; className: string }>; total: number }) {
-  if (total <= 0) return <div className="h-2 w-full rounded-full bg-muted" />
+  if (total <= 0) return <div data-ui="settings-settings-storage-div-1" data-component="size-bar" className="h-2 w-full rounded-full bg-muted" />
   return (
-    <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
+    <div data-ui="settings-settings-storage-div-2" data-component="size-bar" className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
       {parts.filter((p) => p.size > 0).map((p, i) => (
-        <div key={i} className={cn("h-full", p.className)} style={{ width: `${Math.max(0.5, (p.size / total) * 100)}%` }} />
+        <div data-ui="settings-settings-storage-div-3" key={i} className={cn("h-full", p.className)} style={{ width: `${Math.max(0.5, (p.size / total) * 100)}%` }} />
       ))}
     </div>
   )
@@ -31,7 +35,7 @@ function CleanButton({ label, size, disabled, onClean }: {
 }) {
   const { t } = useTranslation()
   return (
-    <button
+    <button data-ui="settings-settings-storage-button-1" data-component="clean-button"
       type="button"
       disabled={disabled || size <= 0}
       onClick={onClean}
@@ -39,7 +43,7 @@ function CleanButton({ label, size, disabled, onClean }: {
     >
       <IconTrash className="h-3 w-3" strokeWidth={1.75} />
       {label} · {formatBytes(size)}
-      {disabled && <span className="sr-only">{t("storage.cleaning")}</span>}
+      {disabled && <span data-ui="settings-settings-storage-span-1" className="sr-only">{t("storage.cleaning")}</span>}
     </button>
   )
 }
@@ -55,27 +59,27 @@ function BuildStorageRow({ entry, onClean, cleaning }: {
 
   const parts = [
     { size: entry.mods, className: "bg-primary" },
-    { size: entry.resourcepacks, className: "bg-violet-500" },
-    { size: entry.shaderpacks, className: "bg-sky-500" },
-    { size: entry.saves, className: "bg-green-500" },
-    { size: entry.config, className: "bg-yellow-500" },
-    { size: entry.logs + entry.crashReports + entry.cache, className: "bg-red-400" },
+    { size: entry.resourcepacks, className: "bg-accent" },
+    { size: entry.shaderpacks, className: "bg-info" },
+    { size: entry.saves, className: "bg-success" },
+    { size: entry.config, className: "bg-warning" },
+    { size: entry.logs + entry.crashReports + entry.cache, className: "bg-destructive" },
     { size: entry.other, className: "bg-muted-foreground/40" },
   ]
 
   const breakdown: Array<{ icon: React.ReactNode; label: string; size: number }> = [
     { icon: <IconPuzzle className="h-3.5 w-3.5 text-primary" strokeWidth={1.75} />, label: t("storage.category.mods"), size: entry.mods },
-    { icon: <IconPhoto className="h-3.5 w-3.5 text-violet-500" strokeWidth={1.75} />, label: t("storage.category.resourcepacks"), size: entry.resourcepacks },
-    { icon: <IconSparkles className="h-3.5 w-3.5 text-sky-500" strokeWidth={1.75} />, label: t("storage.category.shaderpacks"), size: entry.shaderpacks },
-    { icon: <IconMap className="h-3.5 w-3.5 text-green-500" strokeWidth={1.75} />, label: t("storage.category.saves"), size: entry.saves },
-    { icon: <IconSettings className="h-3.5 w-3.5 text-yellow-500" strokeWidth={1.75} />, label: t("storage.category.config"), size: entry.config },
-    { icon: <IconBug className="h-3.5 w-3.5 text-red-400" strokeWidth={1.75} />, label: t("storage.category.logsAndCache"), size: entry.logs + entry.crashReports + entry.cache },
+    { icon: <IconPhoto className="h-3.5 w-3.5 text-accent" strokeWidth={1.75} />, label: t("storage.category.resourcepacks"), size: entry.resourcepacks },
+    { icon: <IconSparkles className="h-3.5 w-3.5 text-info" strokeWidth={1.75} />, label: t("storage.category.shaderpacks"), size: entry.shaderpacks },
+    { icon: <IconMap className="h-3.5 w-3.5 text-success" strokeWidth={1.75} />, label: t("storage.category.saves"), size: entry.saves },
+    { icon: <IconSettings className="h-3.5 w-3.5 text-warning" strokeWidth={1.75} />, label: t("storage.category.config"), size: entry.config },
+    { icon: <IconBug className="h-3.5 w-3.5 text-destructive" strokeWidth={1.75} />, label: t("storage.category.logsAndCache"), size: entry.logs + entry.crashReports + entry.cache },
   ]
 
   return (
-    <div className="rounded-xl border border-border bg-muted/20">
-      <div className="flex w-full items-center gap-3 p-3">
-        <button
+    <div data-ui="settings-settings-storage-div-4" data-component="build-storage-row" className="rounded-xl border border-border bg-muted/20">
+      <div data-ui="settings-settings-storage-div-5" className="flex w-full items-center gap-3 p-3">
+        <button data-ui="settings-settings-storage-button-2"
           type="button"
           onClick={() => setExpanded((v) => !v)}
           className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
@@ -84,37 +88,44 @@ function BuildStorageRow({ entry, onClean, cleaning }: {
             ? <IconChevronDown className="h-4 w-4" strokeWidth={1.75} />
             : <IconChevronRight className="h-4 w-4" strokeWidth={1.75} />}
         </button>
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-background">
+        <div data-ui="settings-settings-storage-div-6" className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-background">
           {entry.icon ? (
-            <img src={entry.icon} alt="" className="h-full w-full object-cover" />
+            // Встроенные логотипы Xneon лежат в public как SVG с захардкоженным
+            // оранжевым — EntityIcon подменяет их на инлайн-SVG с currentColor,
+            // поэтому иконка красится в цвет темы, как на карточках сборок.
+            <EntityIcon
+              src={entry.icon}
+              className="h-full w-full p-1.5 text-primary"
+              imgClassName="h-full w-full object-cover"
+            />
           ) : (
-            <IconPackage className="h-5 w-5 text-primary/40" strokeWidth={1.75} />
+            <LoaderIcon loaderId={entry.modLoader} className="h-5 w-5 text-primary/40" />
           )}
         </div>
-        <button
+        <button data-ui="settings-settings-storage-button-3"
           type="button"
           onClick={() => setExpanded((v) => !v)}
           className="min-w-0 flex-1 text-left"
         >
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="truncate text-sm font-medium text-foreground">{entry.name}</span>
-            <span className="shrink-0 text-sm font-semibold text-foreground">{formatBytes(entry.total)}</span>
+          <div data-ui="settings-settings-storage-div-7" className="flex items-baseline justify-between gap-2">
+            <span data-ui="settings-settings-storage-span-2" className="truncate text-sm font-medium text-foreground">{entry.name}</span>
+            <span data-ui="settings-settings-storage-span-3" className="shrink-0 text-sm font-semibold text-foreground">{formatBytes(entry.total)}</span>
           </div>
-          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-            <span>{entry.version}</span>
-            <span className="flex items-center gap-1 capitalize">
+          <div data-ui="settings-settings-storage-div-8" className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span data-ui="settings-settings-storage-span-4">{entry.version}</span>
+            <span data-ui="settings-settings-storage-span-5" className="flex items-center gap-1 capitalize">
               <LoaderIcon loaderId={entry.modLoader} className="w-3.5 h-3.5 flex-shrink-0" />
               {entry.modLoader}
             </span>
             {cleanable > 0 && (
-              <span className="text-green-400/80">· {t("storage.canFree", { size: formatBytes(cleanable) })}</span>
+              <span data-ui="settings-settings-storage-span-6" className="text-success/80">· {t("storage.canFree", { size: formatBytes(cleanable) })}</span>
             )}
           </div>
-          <div className="mt-1.5">
+          <div data-ui="settings-settings-storage-div-9" className="mt-1.5">
             <SizeBar parts={parts} total={entry.total} />
           </div>
         </button>
-        <button
+        <button data-ui="settings-settings-storage-button-4"
           type="button"
           onClick={() => void window.electronAPI?.openPath(entry.path)}
           className="shrink-0 rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -125,22 +136,22 @@ function BuildStorageRow({ entry, onClean, cleaning }: {
       </div>
 
       {expanded && (
-        <div className="border-t border-border/60 px-4 pb-3 pt-2">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
+        <div data-ui="settings-settings-storage-div-10" className="border-t border-border/60 px-4 pb-3 pt-2">
+          <div data-ui="settings-settings-storage-div-11" className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
             {breakdown.map((item) => (
-              <div key={item.label} className="flex items-center gap-1.5 py-0.5 text-xs text-muted-foreground">
+              <div data-ui="settings-settings-storage-div-12" key={item.label} className="flex items-center gap-1.5 py-0.5 text-xs text-muted-foreground">
                 {item.icon}
-                <span className="truncate">{item.label}</span>
-                <span className="ml-auto shrink-0 font-medium text-foreground">{formatBytes(item.size)}</span>
+                <span data-ui="settings-settings-storage-span-7" className="truncate">{item.label}</span>
+                <span data-ui="settings-settings-storage-span-8" className="ml-auto shrink-0 font-medium text-foreground">{formatBytes(item.size)}</span>
               </div>
             ))}
           </div>
-          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+          <div data-ui="settings-settings-storage-div-13" className="mt-2.5 flex flex-wrap items-center gap-1.5">
             <CleanButton label={t("storage.clean.logs")} size={entry.logs} disabled={cleaning} onClean={() => onClean("build-logs")} />
             <CleanButton label={t("storage.clean.crashReports")} size={entry.crashReports} disabled={cleaning} onClean={() => onClean("build-crash-reports")} />
             <CleanButton label={t("storage.clean.cache")} size={entry.cache} disabled={cleaning} onClean={() => onClean("build-cache")} />
             {cleanable <= 0 && (
-              <span className="text-[11px] text-muted-foreground">{t("storage.nothingToClean")}</span>
+              <span data-ui="settings-settings-storage-span-9" className="text-[11px] text-muted-foreground">{t("storage.nothingToClean")}</span>
             )}
           </div>
         </div>
@@ -154,27 +165,27 @@ function ServerStorageRow({ entry }: { entry: ServerStorageEntry }) {
   const [expanded, setExpanded] = useState(false)
 
   const parts = [
-    { size: entry.world, className: "bg-green-500" },
+    { size: entry.world, className: "bg-success" },
     { size: entry.mods, className: "bg-primary" },
-    { size: entry.config, className: "bg-yellow-500" },
-    { size: entry.logs, className: "bg-red-400" },
-    { size: entry.plugins, className: "bg-sky-500" },
-    { size: entry.cache, className: "bg-violet-500" },
+    { size: entry.config, className: "bg-warning" },
+    { size: entry.logs, className: "bg-destructive" },
+    { size: entry.plugins, className: "bg-info" },
+    { size: entry.cache, className: "bg-accent" },
     { size: entry.other, className: "bg-muted-foreground/40" },
   ]
 
   const breakdown: Array<{ icon: React.ReactNode; label: string; size: number }> = [
-    { icon: <IconMap className="h-3.5 w-3.5 text-green-500" strokeWidth={1.75} />, label: t("storage.category.world"), size: entry.world },
+    { icon: <IconMap className="h-3.5 w-3.5 text-success" strokeWidth={1.75} />, label: t("storage.category.world"), size: entry.world },
     { icon: <IconPuzzle className="h-3.5 w-3.5 text-primary" strokeWidth={1.75} />, label: t("storage.category.mods"), size: entry.mods },
-    { icon: <IconSettings className="h-3.5 w-3.5 text-yellow-500" strokeWidth={1.75} />, label: t("storage.category.config"), size: entry.config },
-    { icon: <IconBug className="h-3.5 w-3.5 text-red-400" strokeWidth={1.75} />, label: t("storage.category.logsAndCache"), size: entry.logs + entry.cache },
-    { icon: <IconServer className="h-3.5 w-3.5 text-sky-500" strokeWidth={1.75} />, label: t("storage.category.plugins"), size: entry.plugins },
+    { icon: <IconSettings className="h-3.5 w-3.5 text-warning" strokeWidth={1.75} />, label: t("storage.category.config"), size: entry.config },
+    { icon: <IconBug className="h-3.5 w-3.5 text-destructive" strokeWidth={1.75} />, label: t("storage.category.logsAndCache"), size: entry.logs + entry.cache },
+    { icon: <IconServer className="h-3.5 w-3.5 text-info" strokeWidth={1.75} />, label: t("storage.category.plugins"), size: entry.plugins },
   ]
 
   return (
-    <div className="rounded-xl border border-border bg-muted/20">
-      <div className="flex w-full items-center gap-3 p-3">
-        <button
+    <div data-ui="settings-settings-storage-div-14" data-component="server-storage-row" className="rounded-xl border border-border bg-muted/20">
+      <div data-ui="settings-settings-storage-div-15" className="flex w-full items-center gap-3 p-3">
+        <button data-ui="settings-settings-storage-button-5"
           type="button"
           onClick={() => setExpanded((v) => !v)}
           className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
@@ -183,34 +194,40 @@ function ServerStorageRow({ entry }: { entry: ServerStorageEntry }) {
             ? <IconChevronDown className="h-4 w-4" strokeWidth={1.75} />
             : <IconChevronRight className="h-4 w-4" strokeWidth={1.75} />}
         </button>
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-background">
+        <div data-ui="settings-settings-storage-div-16" className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-background">
           {entry.icon ? (
-            <img src={entry.icon} alt="" className="h-full w-full object-cover" />
+            // См. BuildStorageRow: EntityIcon подменяет встроенный логотип на
+            // инлайн-SVG с currentColor, чтобы иконка красилась в тему.
+            <EntityIcon
+              src={entry.icon}
+              className="h-full w-full p-1.5 text-primary"
+              imgClassName="h-full w-full object-cover"
+            />
           ) : (
-            <IconServer className="h-5 w-5 text-primary/40" strokeWidth={1.75} />
+            <LoaderIcon loaderId={entry.modLoader} className="h-5 w-5 text-primary/40" />
           )}
         </div>
-        <button
+        <button data-ui="settings-settings-storage-button-6"
           type="button"
           onClick={() => setExpanded((v) => !v)}
           className="min-w-0 flex-1 text-left"
         >
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="truncate text-sm font-medium text-foreground">{entry.name}</span>
-            <span className="shrink-0 text-sm font-semibold text-foreground">{formatBytes(entry.total)}</span>
+          <div data-ui="settings-settings-storage-div-17" className="flex items-baseline justify-between gap-2">
+            <span data-ui="settings-settings-storage-span-10" className="truncate text-sm font-medium text-foreground">{entry.name}</span>
+            <span data-ui="settings-settings-storage-span-11" className="shrink-0 text-sm font-semibold text-foreground">{formatBytes(entry.total)}</span>
           </div>
-          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-            {entry.gameVersion && <span>{entry.gameVersion}</span>}
-            <span className="flex items-center gap-1 capitalize">
+          <div data-ui="settings-settings-storage-div-18" className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+            {entry.gameVersion && <span data-ui="settings-settings-storage-span-12">{entry.gameVersion}</span>}
+            <span data-ui="settings-settings-storage-span-13" className="flex items-center gap-1 capitalize">
               <LoaderIcon loaderId={entry.modLoader} className="w-3.5 h-3.5 flex-shrink-0" />
               {entry.modLoader}
             </span>
           </div>
-          <div className="mt-1.5">
+          <div data-ui="settings-settings-storage-div-19" className="mt-1.5">
             <SizeBar parts={parts} total={entry.total} />
           </div>
         </button>
-        <button
+        <button data-ui="settings-settings-storage-button-7"
           type="button"
           onClick={() => void window.electronAPI?.openPath(entry.path)}
           className="shrink-0 rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -221,13 +238,13 @@ function ServerStorageRow({ entry }: { entry: ServerStorageEntry }) {
       </div>
 
       {expanded && (
-        <div className="border-t border-border/60 px-4 pb-3 pt-2">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
+        <div data-ui="settings-settings-storage-div-20" className="border-t border-border/60 px-4 pb-3 pt-2">
+          <div data-ui="settings-settings-storage-div-21" className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
             {breakdown.map((item) => (
-              <div key={item.label} className="flex items-center gap-1.5 py-0.5 text-xs text-muted-foreground">
+              <div data-ui="settings-settings-storage-div-22" key={item.label} className="flex items-center gap-1.5 py-0.5 text-xs text-muted-foreground">
                 {item.icon}
-                <span className="truncate">{item.label}</span>
-                <span className="ml-auto shrink-0 font-medium text-foreground">{formatBytes(item.size)}</span>
+                <span data-ui="settings-settings-storage-span-14" className="truncate">{item.label}</span>
+                <span data-ui="settings-settings-storage-span-15" className="ml-auto shrink-0 font-medium text-foreground">{formatBytes(item.size)}</span>
               </div>
             ))}
           </div>
@@ -239,27 +256,36 @@ function ServerStorageRow({ entry }: { entry: ServerStorageEntry }) {
 
 export function SettingsStorage() {
   const { t } = useTranslation()
-  const [scan, setScan] = useState<StorageScanResult | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [scan, setScan] = useState<StorageScanResult | null>(getCachedStorageScan)
+  const [loading, setLoading] = useState(() => !getCachedStorageScan())
+  const scanRequest = useRef(0)
   const [cleaning, setCleaning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastFreed, setLastFreed] = useState<number | null>(null)
 
-  const runScan = useCallback(async () => {
+  const runScan = useCallback(async (refresh = true) => {
+    const request = ++scanRequest.current
     setLoading(true)
     setError(null)
     try {
-      const result = await window.electronAPI?.scanStorage()
-      if (result) setScan(result)
+      const result = await loadStorageScan(refresh)
+      if (request === scanRequest.current && result) setScan(result)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      if (request === scanRequest.current) setError(fsErrorMessage(t, e instanceof Error ? e.message : String(e)))
     } finally {
-      setLoading(false)
+      if (request === scanRequest.current) setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
-    void runScan()
+    const cached = getCachedStorageScan()
+    if (cached) {
+      setScan(cached)
+      setLoading(false)
+    } else {
+      void runScan(false)
+    }
+    return () => { scanRequest.current++ }
   }, [runScan])
 
   const handleClean = useCallback(async (buildId: string, kind: CleanKind) => {
@@ -270,12 +296,12 @@ export function SettingsStorage() {
         setLastFreed(result.freedBytes)
         await runScan()
       } else if (result?.error) {
-        setError(result.error)
+        setError(fsErrorMessage(t, result.error))
       }
     } finally {
       setCleaning(false)
     }
-  }, [runScan])
+  }, [runScan, t])
 
   const handleCleanTrash = useCallback(async () => {
     setCleaning(true)
@@ -298,12 +324,12 @@ export function SettingsStorage() {
         setLastFreed(result.freedBytes)
         await runScan()
       } else if (result?.error) {
-        setError(result.error)
+        setError(fsErrorMessage(t, result.error))
       }
     } finally {
       setCleaning(false)
     }
-  }, [runScan])
+  }, [runScan, t])
 
   const totals = useMemo(() => {
     if (!scan) return null
@@ -314,73 +340,73 @@ export function SettingsStorage() {
   }, [scan])
 
   return (
-    <div className="space-y-6">
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+    <div data-ui="settings-settings-storage-div-23" data-component="settings-storage" className={cn("space-y-6", scan && SETTINGS_CONTENT_ENTER)}>
+      <section data-ui="settings-settings-storage-section-1" className="space-y-4">
+        <div data-ui="settings-settings-storage-div-24" className="flex items-center justify-between">
+          <h3 data-ui="settings-settings-storage-h3-1" className="text-lg font-medium text-foreground flex items-center gap-2">
             <IconDatabase className="w-5 h-5 text-primary" strokeWidth={1.75} />
             {t("storage.title")}
           </h3>
-          <button
+          <button data-ui="settings-settings-storage-button-8"
             type="button"
             disabled={loading}
             onClick={() => void runScan()}
             className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
           >
-            <IconRefresh className={cn("h-3.5 w-3.5", loading && "animate-spin")} strokeWidth={1.75} />
+            {loading ? <IconLoader2 className="h-3.5 w-3.5 animate-spin text-primary" strokeWidth={1.75} /> : <IconRefresh className="h-3.5 w-3.5" strokeWidth={1.75} />}
             {loading ? t("storage.scanning") : t("storage.rescan")}
           </button>
         </div>
 
         {error && (
-          <div className="flex items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+          <div data-ui="settings-settings-storage-div-25" className="flex items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
             <IconAlertTriangle className="h-4 w-4 shrink-0" strokeWidth={1.75} />
             {error}
           </div>
         )}
 
         {lastFreed !== null && lastFreed > 0 && (
-          <div className="rounded-xl border border-green-500/40 bg-green-500/10 px-4 py-2.5 text-sm text-green-400">
+          <div data-ui="settings-settings-storage-div-26" className="rounded-xl border border-success/40 bg-success/10 px-4 py-2.5 text-sm text-success">
             {t("storage.freed", { size: formatBytes(lastFreed) })}
           </div>
         )}
 
         {loading && !scan ? (
-          <div className="flex items-center justify-center py-16">
-            <IconRefresh className="h-6 w-6 animate-spin text-muted-foreground" strokeWidth={1.75} />
+          <div data-ui="settings-settings-storage-div-27" className="flex items-center justify-center py-16">
+            <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : scan && totals ? (
           <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              <div className="rounded-xl border border-border bg-muted/30 p-3">
-                <div className="text-[11px] text-muted-foreground">{t("storage.summary.builds")}</div>
-                <div className="mt-0.5 text-lg font-bold text-foreground">{formatBytes(totals.buildsTotal)}</div>
+            <div data-ui="settings-settings-storage-div-28" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              <div data-ui="settings-settings-storage-div-29" className="rounded-xl border border-border bg-muted/30 p-3">
+                <div data-ui="settings-settings-storage-div-30" className="text-[11px] text-muted-foreground">{t("storage.summary.builds")}</div>
+                <div data-ui="settings-settings-storage-div-31" className="mt-0.5 text-lg font-bold text-foreground">{formatBytes(totals.buildsTotal)}</div>
               </div>
-              <div className="rounded-xl border border-border bg-muted/30 p-3">
-                <div className="text-[11px] text-muted-foreground">{t("storage.summary.servers")}</div>
-                <div className="mt-0.5 text-lg font-bold text-foreground">{formatBytes(totals.serversTotal)}</div>
+              <div data-ui="settings-settings-storage-div-32" className="rounded-xl border border-border bg-muted/30 p-3">
+                <div data-ui="settings-settings-storage-div-33" className="text-[11px] text-muted-foreground">{t("storage.summary.servers")}</div>
+                <div data-ui="settings-settings-storage-div-34" className="mt-0.5 text-lg font-bold text-foreground">{formatBytes(totals.serversTotal)}</div>
               </div>
-              <div className="rounded-xl border border-border bg-muted/30 p-3">
-                <div className="text-[11px] text-muted-foreground">{t("storage.summary.java")}</div>
-                <div className="mt-0.5 text-lg font-bold text-foreground">{formatBytes(scan.javaRuntimes.size)}</div>
+              <div data-ui="settings-settings-storage-div-35" className="rounded-xl border border-border bg-muted/30 p-3">
+                <div data-ui="settings-settings-storage-div-36" className="text-[11px] text-muted-foreground">{t("storage.summary.java")}</div>
+                <div data-ui="settings-settings-storage-div-37" className="mt-0.5 text-lg font-bold text-foreground">{formatBytes(scan.javaRuntimes.size)}</div>
               </div>
-              <div className="rounded-xl border border-border bg-muted/30 p-3">
-                <div className="text-[11px] text-muted-foreground">{t("storage.summary.trash")}</div>
-                <div className="mt-0.5 text-lg font-bold text-foreground">{formatBytes(scan.trash.size)}</div>
+              <div data-ui="settings-settings-storage-div-38" className="rounded-xl border border-border bg-muted/30 p-3">
+                <div data-ui="settings-settings-storage-div-39" className="text-[11px] text-muted-foreground">{t("storage.summary.trash")}</div>
+                <div data-ui="settings-settings-storage-div-40" className="mt-0.5 text-lg font-bold text-foreground">{formatBytes(scan.trash.size)}</div>
               </div>
-              <div className="rounded-xl border border-border bg-muted/30 p-3">
-                <div className="text-[11px] text-muted-foreground">{t("storage.summary.cleanable")}</div>
-                <div className="mt-0.5 text-lg font-bold text-green-400">{formatBytes(totals.cleanable + scan.trash.size)}</div>
+              <div data-ui="settings-settings-storage-div-41" className="rounded-xl border border-border bg-muted/30 p-3">
+                <div data-ui="settings-settings-storage-div-42" className="text-[11px] text-muted-foreground">{t("storage.summary.cleanable")}</div>
+                <div data-ui="settings-settings-storage-div-43" className="mt-0.5 text-lg font-bold text-success">{formatBytes(totals.cleanable + scan.trash.size)}</div>
               </div>
             </div>
 
             {scan.trash.size > 0 && (
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/20 px-4 py-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div data-ui="settings-settings-storage-div-44" className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/20 px-4 py-3">
+                <div data-ui="settings-settings-storage-div-45" className="flex items-center gap-2 text-sm text-muted-foreground">
                   <IconTrash className="h-4 w-4" strokeWidth={1.75} />
                   {t("storage.trashBin")} · {formatBytes(scan.trash.size)}
                 </div>
-                <button
+                <button data-ui="settings-settings-storage-button-9"
                   type="button"
                   disabled={cleaning}
                   onClick={() => void handleCleanTrash()}
@@ -392,10 +418,10 @@ export function SettingsStorage() {
               </div>
             )}
 
-            <section className="space-y-2">
-              <h4 className="text-sm font-medium text-foreground">{t("storage.buildsSection")}</h4>
+            <section data-ui="settings-settings-storage-section-2" className="space-y-2">
+              <h4 data-ui="settings-settings-storage-h4-1" className="text-sm font-medium text-foreground">{t("storage.buildsSection")}</h4>
               {scan.builds.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{t("storage.noBuilds")}</p>
+                <p data-ui="settings-settings-storage-p-1" className="text-sm text-muted-foreground">{t("storage.noBuilds")}</p>
               ) : (
                 scan.builds.map((entry) => (
                   <BuildStorageRow
@@ -408,13 +434,13 @@ export function SettingsStorage() {
               )}
             </section>
 
-            <section className="space-y-2">
-              <h4 className="text-sm font-medium text-foreground flex items-center gap-1.5">
+            <section data-ui="settings-settings-storage-section-3" className="space-y-2">
+              <h4 data-ui="settings-settings-storage-h4-2" className="text-sm font-medium text-foreground flex items-center gap-1.5">
                 <IconServer className="h-4 w-4 text-primary" strokeWidth={1.75} />
                 {t("storage.serversSection")}
               </h4>
               {scan.servers.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{t("storage.noServers")}</p>
+                <p data-ui="settings-settings-storage-p-2" className="text-sm text-muted-foreground">{t("storage.noServers")}</p>
               ) : (
                 scan.servers.map((entry) => (
                   <ServerStorageRow key={entry.serverId} entry={entry} />
@@ -423,24 +449,24 @@ export function SettingsStorage() {
             </section>
 
             {scan.javaRuntimes.entries.length > 0 && (
-              <section className="space-y-2">
-                <h4 className="text-sm font-medium text-foreground flex items-center gap-1.5">
+              <section data-ui="settings-settings-storage-section-4" className="space-y-2">
+                <h4 data-ui="settings-settings-storage-h4-3" className="text-sm font-medium text-foreground flex items-center gap-1.5">
                   <IconCoffee className="h-4 w-4 text-primary" strokeWidth={1.75} />
                   {t("storage.javaSection")}
                 </h4>
-                <p className="text-xs text-muted-foreground">{t("storage.javaHint")}</p>
-                <div className="space-y-1.5">
+                <p data-ui="settings-settings-storage-p-3" className="text-xs text-muted-foreground">{t("storage.javaHint")}</p>
+                <div data-ui="settings-settings-storage-div-46" className="space-y-1.5">
                   {scan.javaRuntimes.entries.map((runtime) => (
-                    <div key={runtime.path} className="flex items-center gap-3 rounded-xl border border-border bg-muted/20 px-4 py-2.5">
+                    <div data-ui="settings-settings-storage-div-47" key={runtime.path} className="flex items-center gap-3 rounded-xl border border-border bg-muted/20 px-4 py-2.5">
                       <IconCoffee className="h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium text-foreground">{runtime.label}</div>
+                      <div data-ui="settings-settings-storage-div-48" className="min-w-0 flex-1">
+                        <div data-ui="settings-settings-storage-div-49" className="truncate text-sm font-medium text-foreground">{runtime.label}</div>
                         {runtime.versionLabel && (
-                          <div className="truncate text-[11px] text-muted-foreground">{runtime.versionLabel} · {runtime.component}</div>
+                          <div data-ui="settings-settings-storage-div-50" className="truncate text-[11px] text-muted-foreground">{runtime.versionLabel} · {runtime.component}</div>
                         )}
                       </div>
-                      <span className="shrink-0 text-sm font-medium text-foreground">{formatBytes(runtime.size)}</span>
-                      <button
+                      <span data-ui="settings-settings-storage-span-16" className="shrink-0 text-sm font-medium text-foreground">{formatBytes(runtime.size)}</span>
+                      <button data-ui="settings-settings-storage-button-10"
                         type="button"
                         disabled={cleaning}
                         onClick={() => void handleDeleteRuntime(runtime.path)}
@@ -455,9 +481,9 @@ export function SettingsStorage() {
               </section>
             )}
 
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div data-ui="settings-settings-storage-div-51" className="flex items-center gap-2 text-xs text-muted-foreground">
               <IconFolder className="h-3.5 w-3.5" strokeWidth={1.75} />
-              <span className="truncate">{scan.gameDir.path}</span>
+              <span data-ui="settings-settings-storage-span-17" className="truncate">{scan.gameDir.path}</span>
             </div>
           </>
         ) : null}

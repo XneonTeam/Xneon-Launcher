@@ -12,9 +12,12 @@ import {
   IconInfoCircle,
   IconTools,
   IconUnlink,
+  IconTrash,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
+
+const actionFocusClass = "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
 
 export interface ActionConfirmDialogProps {
   open: boolean
@@ -26,7 +29,7 @@ export interface ActionConfirmDialogProps {
   cancelText?: string
   type?: "confirm" | "alert"
   variant?: "warning" | "danger" | "info"
-  icon?: "lock" | "warning" | "info" | "repair" | "unlink"
+  icon?: "lock" | "warning" | "info" | "repair" | "unlink" | "trash"
   /** Дополнительный блок между описанием и кнопками (например, переключатель). */
   extra?: ReactNode
 }
@@ -49,10 +52,12 @@ export function ActionConfirmDialog({
   const resolvedCancelText = cancelText ?? t("common.cancel")
   const renderIcon = () => {
     switch (icon) {
+      case "trash":
+        return <IconTrash className="w-6 h-6 text-destructive" strokeWidth={1.75} />
       case "lock":
-        return <IconLock className="w-6 h-6 text-amber-500" />
+        return <IconLock className="w-6 h-6 text-warning" />
       case "unlink":
-        return <IconUnlink className="w-6 h-6 text-amber-500" />
+        return <IconUnlink className="w-6 h-6 text-warning" />
       case "repair":
         return <IconTools className="w-6 h-6 text-primary" />
       case "warning":
@@ -68,7 +73,7 @@ export function ActionConfirmDialog({
       case "danger":
         return "bg-destructive/10 border-destructive/20"
       case "warning":
-        return "bg-amber-500/10 border-amber-500/20"
+        return "bg-warning/10 border-warning/20"
       case "info":
       default:
         return "bg-primary/10 border-primary/20"
@@ -77,9 +82,9 @@ export function ActionConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
-      <DialogContent className="max-w-md p-6 bg-card border border-border shadow-2xl rounded-3xl" showCloseButton={false}>
+      <DialogContent data-window="instance-action-confirm-dialog-window-1" className="max-w-md p-6 bg-card border border-border shadow-2xl rounded-3xl" showCloseButton={false}>
         <DialogHeader>
-          <div className={cn("mx-auto w-12 h-12 rounded-2xl flex items-center justify-center mb-2 border", getIconBg())}>
+          <div data-ui="instance-action-confirm-dialog-div-1" data-component="action-confirm-dialog" className={cn("mx-auto w-12 h-12 rounded-2xl flex items-center justify-center mb-2 border", getIconBg())}>
             {renderIcon()}
           </div>
           <DialogTitle className="text-center text-lg font-bold text-foreground">
@@ -90,43 +95,44 @@ export function ActionConfirmDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="rounded-xl bg-muted/50 border border-border p-4 text-sm text-muted-foreground leading-relaxed max-h-56 overflow-y-auto whitespace-pre-line text-left">
+        <div data-ui="instance-action-confirm-dialog-div-2" data-component="action-confirm-dialog" className="rounded-xl bg-muted/50 border border-border p-4 text-sm text-muted-foreground leading-relaxed max-h-56 overflow-y-auto whitespace-pre-line text-left">
           {description}
         </div>
 
         {extra}
 
-        <div className="flex gap-2 pt-2">
+        <div data-ui="instance-action-confirm-dialog-div-3" data-component="action-confirm-dialog" className="flex gap-2 pt-2">
           {type === "confirm" ? (
             <>
-              <button
+              <button data-ui="instance-action-confirm-dialog-button-1"
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
+                className={cn("flex-1 px-4 py-2.5 rounded-xl text-sm font-medium bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors", actionFocusClass)}
               >
                 {resolvedCancelText}
               </button>
-              <button
+              <button data-ui="instance-action-confirm-dialog-button-2"
                 type="button"
                 onClick={() => {
                   onConfirm?.()
                   onClose()
                 }}
                 className={cn(
-                  "flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-primary-foreground transition-all active:scale-[0.98] shadow-sm",
+                  "flex-1 px-4 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-[0.98] shadow-sm",
+                  actionFocusClass,
                   variant === "danger"
-                    ? "bg-destructive hover:bg-destructive/90"
-                    : "bg-primary hover:bg-primary/90 shadow-[0_0_15px_var(--glow-primary)]"
+                    ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                    : "bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_15px_var(--glow-primary)]"
                 )}
               >
                 {resolvedConfirmText}
               </button>
             </>
           ) : (
-            <button
+            <button data-ui="instance-action-confirm-dialog-button-3"
               type="button"
               onClick={onClose}
-              className="w-full px-4 py-2.5 rounded-xl text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_15px_var(--glow-primary)] transition-all active:scale-[0.98]"
+              className={cn("w-full px-4 py-2.5 rounded-xl text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_15px_var(--glow-primary)] transition-all active:scale-[0.98]", actionFocusClass)}
             >
               {resolvedConfirmText}
             </button>

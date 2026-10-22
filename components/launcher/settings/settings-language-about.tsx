@@ -1,74 +1,75 @@
+import { SETTINGS_CONTENT_ENTER_DELAYED } from "./settings-motion"
 import { cn } from "@/lib/utils"
 import { APP_NAME, APP_VERSION } from "@/lib/app-meta"
 import { IconCheck, IconBrandGithub, IconBrandDiscord, IconDeviceGamepad2, IconInfoCircle, IconLanguage, IconRotate } from "@tabler/icons-react"
 import type { Language } from "./types"
 
 const FLAG_RU = (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-8 h-8">
-    <path fill="#1435a1" d="M1 11H31V21H1z" />
-    <path d="M5,4H27c2.208,0,4,1.792,4,4v4H1v-4c0-2.208,1.792-4,4-4Z" fill="#fff" />
-    <path d="M5,20H27c2.208,0,4,1.792,4,4v4H1v-4c0-2.208,1.792-4,4-4Z" transform="rotate(180 16 24)" fill="#c53a28" />
-    <path d="M27,4H5c-2.209,0-4,1.791-4,4V24c0,2.209,1.791,4,4,4H27c2.209,0,4-1.791,4-4V8c0-2.209-1.791-4-4-4Zm3,20c0,1.654-1.346,3-3,3H5c-1.654,0-3-1.346-3-3V8c0-1.654,1.346-3,3-3H27c1.654,0,3,1.346,3,3V24Z" opacity=".15" />
-    <path d="M27,5H5c-1.657,0-3,1.343-3,3v1c0-1.657,1.343-3,3-3H27c1.657,0,3,1.343,3,3v-1c0-1.657-1.343-3-3-3Z" fill="#fff" opacity=".2" />
+  <svg data-ui="settings-settings-language-about-svg-1" data-icon="settings-settings-language-about-svg-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-8 h-8">
+    <path data-ui="settings-settings-language-about-path-1" fill="#1435a1" d="M1 11H31V21H1z" />
+    <path data-ui="settings-settings-language-about-path-2" d="M5,4H27c2.208,0,4,1.792,4,4v4H1v-4c0-2.208,1.792-4,4-4Z" fill="#fff" />
+    <path data-ui="settings-settings-language-about-path-3" d="M5,20H27c2.208,0,4,1.792,4,4v4H1v-4c0-2.208,1.792-4,4-4Z" transform="rotate(180 16 24)" fill="#c53a28" />
+    <path data-ui="settings-settings-language-about-path-4" d="M27,4H5c-2.209,0-4,1.791-4,4V24c0,2.209,1.791,4,4,4H27c2.209,0,4-1.791,4-4V8c0-2.209-1.791-4-4-4Zm3,20c0,1.654-1.346,3-3,3H5c-1.654,0-3-1.346-3-3V8c0-1.654,1.346-3,3-3H27c1.654,0,3,1.346,3,3V24Z" opacity=".15" />
+    <path data-ui="settings-settings-language-about-path-5" d="M27,5H5c-1.657,0-3,1.343-3,3v1c0-1.657,1.343-3,3-3H27c1.657,0,3,1.343,3,3v-1c0-1.657-1.343-3-3-3Z" fill="#fff" opacity=".2" />
   </svg>
 )
 
 const FLAG_EN = (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-8 h-8">
-    <rect x="1" y="4" width="30" height="24" rx="4" ry="4" fill="#fff" />
-    <path d="M1.638,5.846H30.362c-.711-1.108-1.947-1.846-3.362-1.846H5c-1.414,0-2.65,.738-3.362,1.846Z" fill="#a62842" />
-    <path d="M2.03,7.692c-.008,.103-.03,.202-.03,.308v1.539H31v-1.539c0-.105-.022-.204-.03-.308H2.03Z" fill="#a62842" />
-    <path fill="#a62842" d="M2 11.385H31V13.231H2z" /><path fill="#a62842" d="M2 15.077H31V16.923000000000002H2z" /><path fill="#a62842" d="M1 18.769H31V20.615H1z" />
-    <path d="M1,24c0,.105,.023,.204,.031,.308H30.969c.008-.103,.031-.202,.031-.308v-1.539H1v1.539Z" fill="#a62842" />
-    <path d="M30.362,26.154H1.638c.711,1.108,1.947,1.846,3.362,1.846H27c1.414,0,2.65-.738,3.362-1.846Z" fill="#a62842" />
-    <path d="M5,4h11v12.923H1V8c0-2.208,1.792-4,4-4Z" fill="#102d5e" />
-    <path d="M27,4H5c-2.209,0-4,1.791-4,4V24c0,2.209,1.791,4,4,4H27c2.209,0,4-1.791,4-4V8c0-2.209-1.791-4-4-4Zm3,20c0,1.654-1.346,3-3,3H5c-1.654,0-3-1.346-3-3V8c0-1.654,1.346-3,3-3H27c1.654,0,3,1.346,3,3V24Z" opacity=".15" />
-    <path d="M27,5H5c-1.657,0-3,1.343-3,3v1c0-1.657,1.343-3,3-3H27c1.657,0,3,1.343,3,3v-1c0-1.657-1.343-3-3-3Z" fill="#fff" opacity=".2" />
-    <path fill="#fff" d="M4.601 7.463L5.193 7.033 4.462 7.033 4.236 6.338 4.01 7.033 3.279 7.033 3.87 7.463 3.644 8.158 4.236 7.729 4.827 8.158 4.601 7.463z" />
-    <path fill="#fff" d="M7.58 7.463L8.172 7.033 7.441 7.033 7.215 6.338 6.989 7.033 6.258 7.033 6.849 7.463 6.623 8.158 7.215 7.729 7.806 8.158 7.58 7.463z" />
-    <path fill="#fff" d="M10.56 7.463L11.151 7.033 10.42 7.033 10.194 6.338 9.968 7.033 9.237 7.033 9.828 7.463 9.603 8.158 10.194 7.729 10.785 8.158 10.56 7.463z" />
-    <path fill="#fff" d="M4.601 11.104L5.193 10.674 4.462 10.674 4.236 9.979 4.01 10.674 3.279 10.674 3.87 11.104 3.644 11.799 4.236 11.369 4.827 11.799 4.601 11.104z" />
-    <path fill="#fff" d="M7.58 11.104L8.172 10.674 7.441 10.674 7.215 9.979 6.989 10.674 6.258 10.674 6.849 11.104 6.623 11.799 7.215 11.369 7.806 11.799 7.58 11.104z" />
-    <path fill="#fff" d="M10.56 11.104L11.151 10.674 10.42 10.674 10.194 9.979 9.968 10.674 9.237 10.674 9.828 11.104 9.603 11.799 10.194 11.369 10.785 11.799 10.56 11.104z" />
-    <path fill="#fff" d="M13.539 11.104L14.13 10.674 13.399 10.674 13.173 9.979 12.947 10.674 12.216 10.674 12.808 11.104 12.582 11.799 13.173 11.369 13.765 11.799 13.539 11.104z" />
-    <path fill="#fff" d="M13.539 7.463L14.13 7.033 13.399 7.033 13.173 6.338 12.947 7.033 12.216 7.033 12.808 7.463 12.582 8.158 13.173 7.729 13.765 8.158 13.539 7.463z" />
-    <path fill="#fff" d="M6.066 9.283L6.658 8.854 5.927 8.854 5.701 8.158 5.475 8.854 4.744 8.854 5.335 9.283 5.109 9.979 5.701 9.549 6.292 9.979 6.066 9.283z" />
-    <path fill="#fff" d="M9.046 9.283L9.637 8.854 8.906 8.854 8.68 8.158 8.454 8.854 7.723 8.854 8.314 9.283 8.089 9.979 8.68 9.549 9.271 9.979 9.046 9.283z" />
-    <path fill="#fff" d="M12.025 9.283L12.616 8.854 11.885 8.854 11.659 8.158 11.433 8.854 10.702 8.854 11.294 9.283 11.068 9.979 11.659 9.549 12.251 9.979 12.025 9.283z" />
-    <path fill="#fff" d="M4.601 14.744L5.193 14.315 4.462 14.315 4.236 13.619 4.01 14.315 3.279 14.315 3.87 14.744 3.644 15.44 4.236 15.01 4.827 15.44 4.601 14.744z" />
-    <path fill="#fff" d="M7.58 14.744L8.172 14.315 7.441 14.315 7.215 13.619 6.989 14.315 6.258 14.315 6.849 14.744 6.623 15.44 7.215 15.01 7.806 15.44 7.58 14.744z" />
-    <path fill="#fff" d="M10.56 14.744L11.151 14.315 10.42 14.315 10.194 13.619 9.968 14.315 9.237 14.315 9.828 14.744 9.603 15.44 10.194 15.01 10.785 15.44 10.56 14.744z" />
-    <path fill="#fff" d="M13.539 14.744L14.13 14.315 13.399 14.315 13.173 13.619 12.947 14.315 12.216 14.315 12.808 14.744 12.582 15.44 13.173 15.01 13.765 15.44 13.539 14.744z" />
-    <path fill="#fff" d="M6.066 12.924L6.658 12.494 5.927 12.494 5.701 11.799 5.475 12.494 4.744 12.494 5.335 12.924 5.109 13.619 5.701 13.19 6.292 13.619 6.066 12.924z" />
-    <path fill="#fff" d="M9.046 12.924L9.637 12.494 8.906 12.494 8.68 11.799 8.454 12.494 7.723 12.494 8.314 12.924 8.089 13.619 8.68 13.19 9.271 13.619 9.046 12.924z" />
-    <path fill="#fff" d="M12.025 12.924L12.616 12.494 11.885 12.494 11.659 11.799 11.433 12.494 10.702 12.494 11.294 12.924 11.068 13.619 11.659 13.19 12.251 13.619 12.025 12.924z" />
+  <svg data-ui="settings-settings-language-about-svg-2" data-icon="settings-settings-language-about-svg-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-8 h-8">
+    <rect data-ui="settings-settings-language-about-rect-1" x="1" y="4" width="30" height="24" rx="4" ry="4" fill="#fff" />
+    <path data-ui="settings-settings-language-about-path-6" d="M1.638,5.846H30.362c-.711-1.108-1.947-1.846-3.362-1.846H5c-1.414,0-2.65,.738-3.362,1.846Z" fill="#a62842" />
+    <path data-ui="settings-settings-language-about-path-7" d="M2.03,7.692c-.008,.103-.03,.202-.03,.308v1.539H31v-1.539c0-.105-.022-.204-.03-.308H2.03Z" fill="#a62842" />
+    <path data-ui="settings-settings-language-about-path-8" fill="#a62842" d="M2 11.385H31V13.231H2z" /><path data-ui="settings-settings-language-about-path-9" fill="#a62842" d="M2 15.077H31V16.923000000000002H2z" /><path data-ui="settings-settings-language-about-path-10" fill="#a62842" d="M1 18.769H31V20.615H1z" />
+    <path data-ui="settings-settings-language-about-path-11" d="M1,24c0,.105,.023,.204,.031,.308H30.969c.008-.103,.031-.202,.031-.308v-1.539H1v1.539Z" fill="#a62842" />
+    <path data-ui="settings-settings-language-about-path-12" d="M30.362,26.154H1.638c.711,1.108,1.947,1.846,3.362,1.846H27c1.414,0,2.65-.738,3.362-1.846Z" fill="#a62842" />
+    <path data-ui="settings-settings-language-about-path-13" d="M5,4h11v12.923H1V8c0-2.208,1.792-4,4-4Z" fill="#102d5e" />
+    <path data-ui="settings-settings-language-about-path-14" d="M27,4H5c-2.209,0-4,1.791-4,4V24c0,2.209,1.791,4,4,4H27c2.209,0,4-1.791,4-4V8c0-2.209-1.791-4-4-4Zm3,20c0,1.654-1.346,3-3,3H5c-1.654,0-3-1.346-3-3V8c0-1.654,1.346-3,3-3H27c1.654,0,3,1.346,3,3V24Z" opacity=".15" />
+    <path data-ui="settings-settings-language-about-path-15" d="M27,5H5c-1.657,0-3,1.343-3,3v1c0-1.657,1.343-3,3-3H27c1.657,0,3,1.343,3,3v-1c0-1.657-1.343-3-3-3Z" fill="#fff" opacity=".2" />
+    <path data-ui="settings-settings-language-about-path-16" fill="#fff" d="M4.601 7.463L5.193 7.033 4.462 7.033 4.236 6.338 4.01 7.033 3.279 7.033 3.87 7.463 3.644 8.158 4.236 7.729 4.827 8.158 4.601 7.463z" />
+    <path data-ui="settings-settings-language-about-path-17" fill="#fff" d="M7.58 7.463L8.172 7.033 7.441 7.033 7.215 6.338 6.989 7.033 6.258 7.033 6.849 7.463 6.623 8.158 7.215 7.729 7.806 8.158 7.58 7.463z" />
+    <path data-ui="settings-settings-language-about-path-18" fill="#fff" d="M10.56 7.463L11.151 7.033 10.42 7.033 10.194 6.338 9.968 7.033 9.237 7.033 9.828 7.463 9.603 8.158 10.194 7.729 10.785 8.158 10.56 7.463z" />
+    <path data-ui="settings-settings-language-about-path-19" fill="#fff" d="M4.601 11.104L5.193 10.674 4.462 10.674 4.236 9.979 4.01 10.674 3.279 10.674 3.87 11.104 3.644 11.799 4.236 11.369 4.827 11.799 4.601 11.104z" />
+    <path data-ui="settings-settings-language-about-path-20" fill="#fff" d="M7.58 11.104L8.172 10.674 7.441 10.674 7.215 9.979 6.989 10.674 6.258 10.674 6.849 11.104 6.623 11.799 7.215 11.369 7.806 11.799 7.58 11.104z" />
+    <path data-ui="settings-settings-language-about-path-21" fill="#fff" d="M10.56 11.104L11.151 10.674 10.42 10.674 10.194 9.979 9.968 10.674 9.237 10.674 9.828 11.104 9.603 11.799 10.194 11.369 10.785 11.799 10.56 11.104z" />
+    <path data-ui="settings-settings-language-about-path-22" fill="#fff" d="M13.539 11.104L14.13 10.674 13.399 10.674 13.173 9.979 12.947 10.674 12.216 10.674 12.808 11.104 12.582 11.799 13.173 11.369 13.765 11.799 13.539 11.104z" />
+    <path data-ui="settings-settings-language-about-path-23" fill="#fff" d="M13.539 7.463L14.13 7.033 13.399 7.033 13.173 6.338 12.947 7.033 12.216 7.033 12.808 7.463 12.582 8.158 13.173 7.729 13.765 8.158 13.539 7.463z" />
+    <path data-ui="settings-settings-language-about-path-24" fill="#fff" d="M6.066 9.283L6.658 8.854 5.927 8.854 5.701 8.158 5.475 8.854 4.744 8.854 5.335 9.283 5.109 9.979 5.701 9.549 6.292 9.979 6.066 9.283z" />
+    <path data-ui="settings-settings-language-about-path-25" fill="#fff" d="M9.046 9.283L9.637 8.854 8.906 8.854 8.68 8.158 8.454 8.854 7.723 8.854 8.314 9.283 8.089 9.979 8.68 9.549 9.271 9.979 9.046 9.283z" />
+    <path data-ui="settings-settings-language-about-path-26" fill="#fff" d="M12.025 9.283L12.616 8.854 11.885 8.854 11.659 8.158 11.433 8.854 10.702 8.854 11.294 9.283 11.068 9.979 11.659 9.549 12.251 9.979 12.025 9.283z" />
+    <path data-ui="settings-settings-language-about-path-27" fill="#fff" d="M4.601 14.744L5.193 14.315 4.462 14.315 4.236 13.619 4.01 14.315 3.279 14.315 3.87 14.744 3.644 15.44 4.236 15.01 4.827 15.44 4.601 14.744z" />
+    <path data-ui="settings-settings-language-about-path-28" fill="#fff" d="M7.58 14.744L8.172 14.315 7.441 14.315 7.215 13.619 6.989 14.315 6.258 14.315 6.849 14.744 6.623 15.44 7.215 15.01 7.806 15.44 7.58 14.744z" />
+    <path data-ui="settings-settings-language-about-path-29" fill="#fff" d="M10.56 14.744L11.151 14.315 10.42 14.315 10.194 13.619 9.968 14.315 9.237 14.315 9.828 14.744 9.603 15.44 10.194 15.01 10.785 15.44 10.56 14.744z" />
+    <path data-ui="settings-settings-language-about-path-30" fill="#fff" d="M13.539 14.744L14.13 14.315 13.399 14.315 13.173 13.619 12.947 14.315 12.216 14.315 12.808 14.744 12.582 15.44 13.173 15.01 13.765 15.44 13.539 14.744z" />
+    <path data-ui="settings-settings-language-about-path-31" fill="#fff" d="M6.066 12.924L6.658 12.494 5.927 12.494 5.701 11.799 5.475 12.494 4.744 12.494 5.335 12.924 5.109 13.619 5.701 13.19 6.292 13.619 6.066 12.924z" />
+    <path data-ui="settings-settings-language-about-path-32" fill="#fff" d="M9.046 12.924L9.637 12.494 8.906 12.494 8.68 11.799 8.454 12.494 7.723 12.494 8.314 12.924 8.089 13.619 8.68 13.19 9.271 13.619 9.046 12.924z" />
+    <path data-ui="settings-settings-language-about-path-33" fill="#fff" d="M12.025 12.924L12.616 12.494 11.885 12.494 11.659 11.799 11.433 12.494 10.702 12.494 11.294 12.924 11.068 13.619 11.659 13.19 12.251 13.619 12.025 12.924z" />
   </svg>
 )
 
 const FLAG_UK = (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-8 h-8">
-    <path d="M31,8c0-2.209-1.791-4-4-4H5c-2.209,0-4,1.791-4,4v9H31V8Z" fill="#2455b2" />
-    <path d="M5,28H27c2.209,0,4-1.791,4-4v-8H1v8c0,2.209,1.791,4,4,4Z" fill="#f9da49" />
-    <path d="M5,28H27c2.209,0,4-1.791,4-4V8c0-2.209-1.791-4-4-4H5c-2.209,0-4,1.791-4,4V24c0,2.209,1.791,4,4,4ZM2,8c0-1.654,1.346-3,3-3H27c1.654,0,3,1.346,3,3V24c0,1.654-1.346,3-3,3H5c-1.654,0-3-1.346-3-3V8Z" opacity=".15" />
-    <path d="M27,5H5c-1.657,0-3,1.343-3,3v1c0-1.657,1.343-3,3-3H27c1.657,0,3,1.343,3,3v-1c0-1.657-1.343-3-3-3Z" fill="#fff" opacity=".2" />
+  <svg data-ui="settings-settings-language-about-svg-3" data-icon="settings-settings-language-about-svg-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-8 h-8">
+    <path data-ui="settings-settings-language-about-path-34" d="M31,8c0-2.209-1.791-4-4-4H5c-2.209,0-4,1.791-4,4v9H31V8Z" fill="#2455b2" />
+    <path data-ui="settings-settings-language-about-path-35" d="M5,28H27c2.209,0,4-1.791,4-4v-8H1v8c0,2.209,1.791,4,4,4Z" fill="#f9da49" />
+    <path data-ui="settings-settings-language-about-path-36" d="M5,28H27c2.209,0,4-1.791,4-4V8c0-2.209-1.791-4-4-4H5c-2.209,0-4,1.791-4,4V24c0,2.209,1.791,4,4,4ZM2,8c0-1.654,1.346-3,3-3H27c1.654,0,3,1.346,3,3V24c0,1.654-1.346,3-3,3H5c-1.654,0-3-1.346-3-3V8Z" opacity=".15" />
+    <path data-ui="settings-settings-language-about-path-37" d="M27,5H5c-1.657,0-3,1.343-3,3v1c0-1.657,1.343-3,3-3H27c1.657,0,3,1.343,3,3v-1c0-1.657-1.343-3-3-3Z" fill="#fff" opacity=".2" />
   </svg>
 )
 
 const FLAG_DE = (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-8 h-8">
-    <path fill="#cc2b1d" d="M1 11H31V21H1z" />
-    <path d="M5,4H27c2.208,0,4,1.792,4,4v4H1v-4c0-2.208,1.792-4,4-4Z" />
-    <path d="M5,20H27c2.208,0,4,1.792,4,4v4H1v-4c0-2.208,1.792-4,4-4Z" transform="rotate(180 16 24)" fill="#f8d147" />
-    <path d="M27,4H5c-2.209,0-4,1.791-4,4V24c0,2.209,1.791,4,4,4H27c2.209,0,4-1.791,4-4V8c0-2.209-1.791-4-4-4Zm3,20c0,1.654-1.346,3-3,3H5c-1.654,0-3-1.346-3-3V8c0-1.654,1.346-3,3-3H27c1.654,0,3,1.346,3,3V24Z" opacity=".15" />
+  <svg data-ui="settings-settings-language-about-svg-4" data-icon="settings-settings-language-about-svg-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-8 h-8">
+    <path data-ui="settings-settings-language-about-path-38" fill="#cc2b1d" d="M1 11H31V21H1z" />
+    <path data-ui="settings-settings-language-about-path-39" d="M5,4H27c2.208,0,4,1.792,4,4v4H1v-4c0-2.208,1.792-4,4-4Z" />
+    <path data-ui="settings-settings-language-about-path-40" d="M5,20H27c2.208,0,4,1.792,4,4v4H1v-4c0-2.208,1.792-4,4-4Z" transform="rotate(180 16 24)" fill="#f8d147" />
+    <path data-ui="settings-settings-language-about-path-41" d="M27,4H5c-2.209,0-4,1.791-4,4V24c0,2.209,1.791,4,4,4H27c2.209,0,4-1.791,4-4V8c0-2.209-1.791-4-4-4Zm3,20c0,1.654-1.346,3-3,3H5c-1.654,0-3-1.346-3-3V8c0-1.654,1.346-3,3-3H27c1.654,0,3,1.346,3,3V24Z" opacity=".15" />
   </svg>
 )
 
 const FLAG_ES = (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-8 h-8">
-    <path fill="#f1c142" d="M1 10H31V22H1z" />
-    <path d="M5,4H27c2.208,0,4,1.792,4,4v3H1v-3c0-2.208,1.792-4,4-4Z" fill="#a0251e" />
-    <path d="M5,21H27c2.208,0,4,1.792,4,4v3H1v-3c0-2.208,1.792-4,4-4Z" transform="rotate(180 16 24.5)" fill="#a0251e" />
-    <path d="M27,4H5c-2.209,0-4,1.791-4,4V24c0,2.209,1.791,4,4,4H27c2.209,0,4-1.791,4-4V8c0-2.209-1.791-4-4-4Zm3,20c0,1.654-1.346,3-3,3H5c-1.654,0-3-1.346-3-3V8c0-1.654,1.346-3,3-3H27c1.654,0,3,1.346,3,3V24Z" opacity=".15" />
+  <svg data-ui="settings-settings-language-about-svg-5" data-icon="settings-settings-language-about-svg-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-8 h-8">
+    <path data-ui="settings-settings-language-about-path-42" fill="#f1c142" d="M1 10H31V22H1z" />
+    <path data-ui="settings-settings-language-about-path-43" d="M5,4H27c2.208,0,4,1.792,4,4v3H1v-3c0-2.208,1.792-4,4-4Z" fill="#a0251e" />
+    <path data-ui="settings-settings-language-about-path-44" d="M5,21H27c2.208,0,4,1.792,4,4v3H1v-3c0-2.208,1.792-4,4-4Z" transform="rotate(180 16 24.5)" fill="#a0251e" />
+    <path data-ui="settings-settings-language-about-path-45" d="M27,4H5c-2.209,0-4,1.791-4,4V24c0,2.209,1.791,4,4,4H27c2.209,0,4-1.791,4-4V8c0-2.209-1.791-4-4-4Zm3,20c0,1.654-1.346,3-3,3H5c-1.654,0-3-1.346-3-3V8c0-1.654,1.346-3,3-3H27c1.654,0,3,1.346,3,3V24Z" opacity=".15" />
   </svg>
 )
 
@@ -105,15 +106,15 @@ interface SettingsLanguageProps {
 export function SettingsLanguage({ selectedLanguage, setSelectedLanguage, autoGameLanguage, setAutoGameLanguage, t }: SettingsLanguageProps) {
   const mcCodes = MC_CODES[selectedLanguage] ?? MC_CODES.en
   return (
-    <div className="space-y-8 animate-in fade-in-0 slide-in-from-left-4 duration-300">
-      <section className="space-y-4">
-        <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+    <div data-ui="settings-settings-language-about-div-1" data-component="settings-language" className={`space-y-8 ${SETTINGS_CONTENT_ENTER_DELAYED}`}>
+      <section data-ui="settings-settings-language-about-section-1" className="space-y-4">
+        <h3 data-ui="settings-settings-language-about-h3-1" className="text-lg font-medium text-foreground flex items-center gap-2">
           <IconLanguage className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("settings.language.select")}
         </h3>
-        <div className="grid grid-cols-1 gap-3">
+        <div data-ui="settings-settings-language-about-div-2" className="grid grid-cols-1 gap-3">
           {languages.map((lang) => (
-            <button
+            <button data-ui="settings-settings-language-about-button-1"
               key={lang.id}
               onClick={() => setSelectedLanguage(lang.id)}
               className={cn(
@@ -123,13 +124,13 @@ export function SettingsLanguage({ selectedLanguage, setSelectedLanguage, autoGa
                   : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50"
               )}
             >
-              <div className="flex-shrink-0">{lang.flagSvg}</div>
-              <div className="flex-1">
-                <div className="font-medium text-foreground">{lang.nativeName}</div>
-                <div className="text-sm text-muted-foreground">{lang.name}</div>
+              <div data-ui="settings-settings-language-about-div-3" className="flex-shrink-0">{lang.flagSvg}</div>
+              <div data-ui="settings-settings-language-about-div-4" className="flex-1">
+                <div data-ui="settings-settings-language-about-div-5" className="font-medium text-foreground">{lang.nativeName}</div>
+                <div data-ui="settings-settings-language-about-div-6" className="text-sm text-muted-foreground">{lang.name}</div>
               </div>
               {selectedLanguage === lang.id && (
-                <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                <div data-ui="settings-settings-language-about-div-7" className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
                   <IconCheck className="w-4 h-4 text-primary-foreground" strokeWidth={2} />
                 </div>
               )}
@@ -138,20 +139,20 @@ export function SettingsLanguage({ selectedLanguage, setSelectedLanguage, autoGa
         </div>
       </section>
 
-      <section className="space-y-4">
-        <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+      <section data-ui="settings-settings-language-about-section-2" className="space-y-4">
+        <h3 data-ui="settings-settings-language-about-h3-2" className="text-lg font-medium text-foreground flex items-center gap-2">
           <IconDeviceGamepad2 className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("settings.gameLanguage.title")}
         </h3>
-        <div className="p-4 rounded-xl border border-border bg-muted/30">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex-1">
-              <div className="font-medium text-foreground">{t("settings.gameLanguage.label")}</div>
-              <p className="text-sm text-muted-foreground mt-1">
+        <div data-ui="settings-settings-language-about-div-8" className="p-4 rounded-xl border border-border bg-muted/30">
+          <div data-ui="settings-settings-language-about-div-9" className="flex items-center justify-between gap-4">
+            <div data-ui="settings-settings-language-about-div-10" className="flex-1">
+              <div data-ui="settings-settings-language-about-div-11" className="font-medium text-foreground">{t("settings.gameLanguage.label")}</div>
+              <p data-ui="settings-settings-language-about-p-1" className="text-sm text-muted-foreground mt-1">
                 {t("settings.gameLanguage.desc", { code: mcCodes.modern })}
               </p>
             </div>
-            <button
+            <button data-ui="settings-settings-language-about-button-2"
               type="button"
               role="switch"
               aria-checked={autoGameLanguage}
@@ -161,15 +162,15 @@ export function SettingsLanguage({ selectedLanguage, setSelectedLanguage, autoGa
                 autoGameLanguage ? "bg-primary shadow-[0_0_15px_var(--glow-primary)]" : "bg-muted"
               )}
             >
-              <span
+              <span data-ui="settings-settings-language-about-span-1"
                 className={cn(
-                  "absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all duration-300",
+                  "absolute top-1 w-6 h-6 rounded-full bg-foreground shadow-md transition-all duration-300",
                   autoGameLanguage ? "left-7" : "left-1"
                 )}
               />
             </button>
           </div>
-          <p className="text-xs text-muted-foreground mt-3">
+          <p data-ui="settings-settings-language-about-p-2" className="text-xs text-muted-foreground mt-3">
             {t("settings.gameLanguage.note", { legacyCode: mcCodes.legacy })}
           </p>
         </div>
@@ -184,72 +185,72 @@ interface SettingsAboutProps {
 
 export function SettingsAbout({ t }: SettingsAboutProps) {
   return (
-    <div className="space-y-8 animate-in fade-in-0 slide-in-from-left-4 duration-300">
-      <section className="text-center py-8">
-        <div className="w-20 h-20 rounded-2xl bg-primary/20 flex items-center justify-center mx-auto mb-4 shadow-[0_0_30px_var(--glow-primary)]">
-          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 192 192" className="text-primary">
-            <path d="M 121.270 53.270 L 93 81.539 93 86.387 C 93 90.685, 93.440 91.676, 96.882 95.118 C 100.594 98.829, 102.357 99.451, 108 99.039 C 109.813 98.907, 117.168 92.210, 134.750 74.686 L 159 50.515 159 88.493 L 159 126.471 146.236 113.736 L 133.472 101 126.244 101 L 119.016 101 111.008 108.754 L 103 116.508 103 126.876 C 103 138.904, 103.732 138.905, 92.871 126.857 L 85.778 118.988 89.363 115.019 C 93.760 110.153, 94.655 106.955, 92.869 102.487 C 92.037 100.404, 80.782 88.072, 64.162 71.030 L 36.823 43 19.709 43 L 2.595 43 16.024 56.750 C 35.123 76.307, 55.993 97.939, 59.465 101.779 L 62.430 105.058 33.215 134.285 C 17.147 150.360, 4 163.847, 4 164.256 C 4 164.665, 11.982 165, 21.739 165 L 39.477 165 55.296 149.250 L 71.114 133.500 86.307 149.285 L 101.500 165.071 109.827 165.035 C 117.581 165.002, 118.346 164.808, 120.939 162.215 C 123.315 159.838, 123.831 158.300, 124.445 151.746 C 124.841 147.520, 124.845 139.549, 124.454 134.031 C 124.062 128.514, 123.997 124, 124.308 124 C 124.619 124, 133.974 133.225, 145.097 144.500 L 165.320 165 171.144 165 C 176.166 165, 177.418 164.598, 180.234 162.083 L 183.500 159.165 183.774 103.301 L 184.048 47.437 172.678 36.218 L 161.307 25 155.423 25 L 149.539 25 121.270 53.270" stroke="none" fill="currentColor" fill-rule="evenodd"/>
+    <div data-ui="settings-settings-language-about-div-12" data-component="settings-about" className="space-y-8">
+      <section data-ui="settings-settings-language-about-section-3" className="text-center py-8">
+        <div data-ui="settings-settings-language-about-div-13" className="w-20 h-20 rounded-2xl bg-primary/20 flex items-center justify-center mx-auto mb-4 shadow-[0_0_30px_var(--glow-primary)]">
+          <svg data-ui="settings-settings-language-about-svg-6" data-icon="settings-settings-language-about-svg-6" xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 192 192" className="text-primary">
+            <path data-ui="settings-settings-language-about-path-46" d="M 121.270 53.270 L 93 81.539 93 86.387 C 93 90.685, 93.440 91.676, 96.882 95.118 C 100.594 98.829, 102.357 99.451, 108 99.039 C 109.813 98.907, 117.168 92.210, 134.750 74.686 L 159 50.515 159 88.493 L 159 126.471 146.236 113.736 L 133.472 101 126.244 101 L 119.016 101 111.008 108.754 L 103 116.508 103 126.876 C 103 138.904, 103.732 138.905, 92.871 126.857 L 85.778 118.988 89.363 115.019 C 93.760 110.153, 94.655 106.955, 92.869 102.487 C 92.037 100.404, 80.782 88.072, 64.162 71.030 L 36.823 43 19.709 43 L 2.595 43 16.024 56.750 C 35.123 76.307, 55.993 97.939, 59.465 101.779 L 62.430 105.058 33.215 134.285 C 17.147 150.360, 4 163.847, 4 164.256 C 4 164.665, 11.982 165, 21.739 165 L 39.477 165 55.296 149.250 L 71.114 133.500 86.307 149.285 L 101.500 165.071 109.827 165.035 C 117.581 165.002, 118.346 164.808, 120.939 162.215 C 123.315 159.838, 123.831 158.300, 124.445 151.746 C 124.841 147.520, 124.845 139.549, 124.454 134.031 C 124.062 128.514, 123.997 124, 124.308 124 C 124.619 124, 133.974 133.225, 145.097 144.500 L 165.320 165 171.144 165 C 176.166 165, 177.418 164.598, 180.234 162.083 L 183.500 159.165 183.774 103.301 L 184.048 47.437 172.678 36.218 L 161.307 25 155.423 25 L 149.539 25 121.270 53.270" stroke="none" fill="currentColor" fill-rule="evenodd"/>
           </svg>
         </div>
-        <h3 className="text-2xl font-bold text-foreground mb-2">{APP_NAME}</h3>
-        <p className="text-muted-foreground">{t("settings.about.version", { version: APP_VERSION })}</p>
+        <h3 data-ui="settings-settings-language-about-h3-3" className="text-2xl font-bold text-foreground mb-2">{APP_NAME}</h3>
+        <p data-ui="settings-settings-language-about-p-3" className="text-muted-foreground">{t("settings.about.version", { version: APP_VERSION })}</p>
       </section>
-      <section className="space-y-4">
-        <h3 className="text-lg font-medium text-foreground">{t("settings.about.social")}</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <a href="https://github.com/XneonTeam/Xneon-Launcher" target="_blank" rel="noopener noreferrer"
+      <section data-ui="settings-settings-language-about-section-4" className="space-y-4">
+        <h3 data-ui="settings-settings-language-about-h3-4" className="text-lg font-medium text-foreground">{t("settings.about.social")}</h3>
+        <div data-ui="settings-settings-language-about-div-14" className="grid grid-cols-2 gap-4">
+          <a data-ui="settings-settings-language-about-a-1" href="https://github.com/XneonTeam/Xneon-Launcher" target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary hover:bg-primary/5 transition-all duration-200 group"
           >
-            <div className="w-12 h-12 rounded-xl bg-foreground/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+            <div data-ui="settings-settings-language-about-div-15" className="w-12 h-12 rounded-xl bg-foreground/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
               <IconBrandGithub className="w-6 h-6 text-foreground" strokeWidth={1.5} />
             </div>
-            <div>
-              <div className="font-medium text-foreground">GitHub</div>
-              <div className="text-sm text-muted-foreground">{t("settings.about.source")}</div>
+            <div data-ui="settings-settings-language-about-div-16">
+              <div data-ui="settings-settings-language-about-div-17" className="font-medium text-foreground">GitHub</div>
+              <div data-ui="settings-settings-language-about-div-18" className="text-sm text-muted-foreground">{t("settings.about.source")}</div>
             </div>
           </a>
-          <a href="https://discord.gg/a9mDjtqcbQ" target="_blank" rel="noopener noreferrer"
+          <a data-ui="settings-settings-language-about-a-2" href="https://discord.gg/a9mDjtqcbQ" target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-accent hover:bg-accent/5 transition-all duration-200 group"
           >
-            <div className="w-12 h-12 rounded-xl bg-foreground/10 flex items-center justify-center group-hover:bg-accent/20 transition-colors">
+            <div data-ui="settings-settings-language-about-div-19" className="w-12 h-12 rounded-xl bg-foreground/10 flex items-center justify-center group-hover:bg-accent/20 transition-colors">
               <IconBrandDiscord className="w-6 h-6 text-foreground" strokeWidth={1.5} />
             </div>
-            <div>
-              <div className="font-medium text-foreground">Discord</div>
-              <div className="text-sm text-muted-foreground">{t("settings.about.community")}</div>
+            <div data-ui="settings-settings-language-about-div-20">
+              <div data-ui="settings-settings-language-about-div-21" className="font-medium text-foreground">Discord</div>
+              <div data-ui="settings-settings-language-about-div-22" className="text-sm text-muted-foreground">{t("settings.about.community")}</div>
             </div>
           </a>
         </div>
       </section>
-      <section className="space-y-4">
-        <h3 className="text-lg font-medium text-foreground flex items-center gap-2">
+      <section data-ui="settings-settings-language-about-section-5" className="space-y-4">
+        <h3 data-ui="settings-settings-language-about-h3-5" className="text-lg font-medium text-foreground flex items-center gap-2">
           <IconInfoCircle className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("settings.about.info")}
         </h3>
-        <div className="p-4 rounded-xl border border-border bg-muted/30 space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-muted-foreground">{t("settings.about.developer")}</span>
-            <span className="text-foreground flex items-center gap-2">
-              <img src="https://github.com/MAINER4IK.png" alt="" className="w-6 h-6 rounded-full" />
+        <div data-ui="settings-settings-language-about-div-23" className="p-4 rounded-xl border border-border bg-muted/30 space-y-2">
+          <div data-ui="settings-settings-language-about-div-24" className="flex justify-between items-center">
+            <span data-ui="settings-settings-language-about-span-2" className="text-muted-foreground">{t("settings.about.developer")}</span>
+            <span data-ui="settings-settings-language-about-span-3" className="text-foreground flex items-center gap-2">
+              <img data-ui="settings-settings-language-about-img-1" src="https://github.com/MAINER4IK.png" alt="" className="w-6 h-6 rounded-full" />
               MAINER4IK
             </span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">{t("settings.about.license")}</span>
-            <span className="text-foreground">GPL-3.0</span>
+          <div data-ui="settings-settings-language-about-div-25" className="flex justify-between">
+            <span data-ui="settings-settings-language-about-span-4" className="text-muted-foreground">{t("settings.about.license")}</span>
+            <span data-ui="settings-settings-language-about-span-5" className="text-foreground">GPL-3.0</span>
           </div>
         </div>
       </section>
-      <section className="space-y-4">
-        <h3 className="text-lg font-medium text-foreground">{t("settings.about.onboarding.title")}</h3>
-        <div className="p-4 rounded-xl border border-border bg-muted/30 flex items-center justify-between gap-4">
-          <div>
-            <div className="font-medium text-foreground">{t("settings.about.onboarding.reset")}</div>
-            <p className="text-sm text-muted-foreground mt-1">
+      <section data-ui="settings-settings-language-about-section-6" className="space-y-4">
+        <h3 data-ui="settings-settings-language-about-h3-6" className="text-lg font-medium text-foreground">{t("settings.about.onboarding.title")}</h3>
+        <div data-ui="settings-settings-language-about-div-26" className="p-4 rounded-xl border border-border bg-muted/30 flex items-center justify-between gap-4">
+          <div data-ui="settings-settings-language-about-div-27">
+            <div data-ui="settings-settings-language-about-div-28" className="font-medium text-foreground">{t("settings.about.onboarding.reset")}</div>
+            <p data-ui="settings-settings-language-about-p-4" className="text-sm text-muted-foreground mt-1">
               {t("settings.about.onboarding.description")}
             </p>
           </div>
-          <button
+          <button data-ui="settings-settings-language-about-button-3"
             type="button"
             onClick={() => {
               void window.electronAPI?.setSetting("onboardingCompleted", "false")

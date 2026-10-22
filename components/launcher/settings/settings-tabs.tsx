@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils"
-import { IconDeviceGamepad2, IconCoffee, IconPalette, IconLanguage, IconInfoCircle, IconBrain, IconDatabase } from "@tabler/icons-react"
+import { IconDeviceGamepad2, IconCoffee, IconPalette, IconLanguage, IconInfoCircle, IconRobot, IconDatabase } from "@tabler/icons-react"
 import type { SettingsTab } from "./types"
 
 const ICONS: Record<string, React.ComponentType<{ className?: string; strokeWidth?: number }>> = {
@@ -8,7 +8,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string; strokeWidt
   IconPalette,
   IconLanguage,
   IconInfoCircle,
-  IconBrain,
+  IconRobot,
   IconDatabase,
 }
 
@@ -21,12 +21,14 @@ interface SettingsTabsProps {
 
 export function SettingsTabs({ tabs, activeTab, setActiveTab, t }: SettingsTabsProps) {
   return (
-    <div className="flex gap-0.5 p-1 mb-6 rounded-xl bg-muted/30 border border-border/50 w-fit mx-auto">
+    <div data-ui="settings-settings-tabs-div-1" data-component="settings-tabs" className="flex gap-0.5 p-1 mb-6 rounded-xl bg-muted/30 border border-border/50 w-fit mx-auto">
       {tabs.map((tab) => {
         const Icon = ICONS[tab.icon]
         return (
-          <button
+          <button data-ui="settings-settings-tabs-button-1"
             key={tab.id}
+            data-tab={tab.id}
+            data-active={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
               "flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-200",

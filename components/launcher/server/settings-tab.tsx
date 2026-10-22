@@ -1,6 +1,7 @@
+import { CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useState, useCallback, useEffect } from "react"
 import { useTranslation } from "react-i18next"
-import { IconCheck, IconClipboard, IconCoffee, IconCode, IconCpu, IconFolderPlus, IconLoader, IconLoader2, IconServer, IconSettings, IconX, IconGauge } from "@tabler/icons-react"
+import { IconCheck, IconClipboard, IconCoffee, IconCode, IconCpu, IconFolderPlus, IconLoader2, IconServer, IconSettings, IconX, IconGauge } from "@tabler/icons-react"
 import type { McServerInfo, XnConnectState, XnConnectUsage } from "@xnlc/types"
 import type { JavaInstallation } from "@/components/launcher/settings/types"
 import { cn } from "@/lib/utils"
@@ -170,17 +171,17 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
     : detectedJava.find(j => j.path === javaPath)?.label || javaPath.split(/[\\/]/).pop() || javaPath
 
   return (
-    <div className="space-y-5 overflow-y-auto h-full p-4 pr-1">
+    <div data-ui="server-settings-tab-div-1" data-component="settings-tab" className={`space-y-5 overflow-y-auto h-full p-4 pr-1 ${CONTENT_ENTER_DELAYED}`}>
       {/* Status indicator */}
-      <div className="flex items-center gap-2 text-xs text-muted-foreground h-5">
+      <div data-ui="server-settings-tab-div-2" className="flex items-center gap-2 text-xs text-muted-foreground h-5">
         {saving ? (
-          <span className="flex items-center gap-1.5">
-            <IconLoader className="w-3 h-3 animate-spin text-primary" />
+          <span data-ui="server-settings-tab-span-1" className="flex items-center gap-1.5">
+            <IconLoader2 className="w-3 h-3 text-primary animate-spin" />
             {t("servers.settings.saving")}
           </span>
         ) : saved ? (
-          <span className="flex items-center gap-1.5">
-            <IconCheck className="w-3 h-3 text-green-400" />
+          <span data-ui="server-settings-tab-span-2" className="flex items-center gap-1.5">
+            <IconCheck className="w-3 h-3 text-success" />
             {t("servers.settings.saved")}
           </span>
         ) : null}
@@ -188,12 +189,12 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
 
       {/* Name */}
       <SettingGroup label={(
-        <span className="flex items-center gap-2">
+        <span data-ui="server-settings-tab-span-3" className="flex items-center gap-2">
           <IconServer className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("servers.name")}
         </span>
       )}>
-        <input
+        <input data-ui="server-settings-tab-input-1"
           value={name}
           onChange={e => setName(e.target.value)}
           onBlur={handleSaveName}
@@ -204,13 +205,13 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
 
       {/* Java */}
       <SettingGroup label={(
-        <span className="flex items-center gap-2">
+        <span data-ui="server-settings-tab-span-4" className="flex items-center gap-2">
           <IconCoffee className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("settings.javaPath")}
         </span>
       )}>
-        <div className="flex items-center gap-3">
-          <button
+        <div data-ui="server-settings-tab-div-3" className="flex items-center gap-3">
+          <button data-ui="server-settings-tab-button-1"
             type="button"
             onClick={() => setShowJavaModal(true)}
             className={cn(
@@ -218,9 +219,9 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
               isAuto ? "border-border bg-muted/40 text-muted-foreground hover:border-primary/50 hover:bg-muted/50" : "border-primary/50 bg-primary/5 text-foreground hover:bg-primary/10"
             )}
           >
-            <span className="truncate">{selectedJavaLabel}</span>
+            <span data-ui="server-settings-tab-span-5" className="truncate">{selectedJavaLabel}</span>
           </button>
-          <button
+          <button data-ui="server-settings-tab-button-2"
             type="button"
             onClick={handlePickJavaFile}
             className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/20 px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
@@ -233,14 +234,14 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
 
       {/* Memory */}
       <SettingGroup label={(
-        <span className="flex items-center gap-2">
+        <span data-ui="server-settings-tab-span-6" className="flex items-center gap-2">
           <IconCpu className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("settings.ram")} (MB)
         </span>
       )}>
-        <div className="space-y-4">
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Xmx (max)</label>
+        <div data-ui="server-settings-tab-div-4" className="space-y-4">
+          <div data-ui="server-settings-tab-div-5">
+            <label data-ui="server-settings-tab-label-1" className="text-xs text-muted-foreground mb-1.5 block">Xmx (max)</label>
             <MemorySlider
               value={parseInt(xmx, 10) || 8192}
               onChange={(v) => { setXmx(String(v)); save({ xmx: v }) }}
@@ -252,8 +253,8 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
               unit="MB"
             />
           </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Xms (start)</label>
+          <div data-ui="server-settings-tab-div-6">
+            <label data-ui="server-settings-tab-label-2" className="text-xs text-muted-foreground mb-1.5 block">Xms (start)</label>
             <MemorySlider
               value={parseInt(xms, 10) || 1024}
               onChange={(v) => { setXms(String(v)); save({ xms: v }) }}
@@ -270,12 +271,12 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
 
       {/* Extra Java Args */}
       <SettingGroup label={(
-        <span className="flex items-center gap-2">
+        <span data-ui="server-settings-tab-span-7" className="flex items-center gap-2">
           <IconCode className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("settings.java.args")}
         </span>
       )}>
-        <input
+        <input data-ui="server-settings-tab-input-2"
           value={extraJavaArgs}
           onChange={e => setExtraJavaArgs(e.target.value)}
           onBlur={handleSaveArgs}
@@ -287,33 +288,33 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
       {/* XN Connect Relay */}
       <SettingGroup
         label={(
-          <span className="flex items-center gap-2">
+          <span data-ui="server-settings-tab-span-8" className="flex items-center gap-2">
             <XnConnectLogo className="w-5 h-5 text-primary" />
             XN Connect
           </span>
         )}
         action={usage && (
-          <div
+          <div data-ui="server-settings-tab-div-7"
             className={cn(
               "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border",
               usage.used >= usage.max
-                ? "border-red-500/30 bg-red-500/10 text-red-400"
+                ? "border-destructive/30 bg-destructive/10 text-destructive"
                 : "border-border bg-muted/50 text-muted-foreground"
             )}
             title={t("servers.settings.xnconnect.usageHint")}
           >
             <IconGauge className="w-3.5 h-3.5" strokeWidth={1.75} />
-            <span className="font-mono">{usage.used}/{usage.max}</span>
-            <span>·</span>
-            <span className="capitalize">{usage.plan}</span>
+            <span data-ui="server-settings-tab-span-9" className="font-mono">{usage.used}/{usage.max}</span>
+            <span data-ui="server-settings-tab-span-10">·</span>
+            <span data-ui="server-settings-tab-span-11" className="capitalize">{usage.plan}</span>
           </div>
         )}
       >
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-sm text-muted-foreground">
+        <div data-ui="server-settings-tab-div-8" className="flex items-center justify-between mb-2">
+          <p data-ui="server-settings-tab-p-1" className="text-sm text-muted-foreground">
             {t("servers.settings.xnconnect.desc")}
           </p>
-          <button
+          <button data-ui="server-settings-tab-button-3"
             onClick={handleToggleRelay}
             disabled={relayToggling}
             className={cn(
@@ -322,8 +323,8 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
               relayToggling && "opacity-70 cursor-wait"
             )}
           >
-            <div className={cn(
-              "absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform shadow-sm flex items-center justify-center",
+            <div data-ui="server-settings-tab-div-9" className={cn(
+              "absolute top-0.5 w-5 h-5 rounded-full bg-foreground transition-transform shadow-sm flex items-center justify-center",
               relayEnabled ? "translate-x-5.5" : "translate-x-0.5"
             )}>
               {relayToggling && (
@@ -333,13 +334,13 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
           </button>
         </div>
         {relayEnabled && (
-          <div className="text-xs text-muted-foreground space-y-1">
+          <div data-ui="server-settings-tab-div-10" className="text-xs text-muted-foreground space-y-1">
             {(relayState.status === "running" ? relayState.publicAddress : tunnelAddress) && (
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-foreground/80">
+              <div data-ui="server-settings-tab-div-11" className="flex items-center gap-2">
+                <span data-ui="server-settings-tab-span-12" className="font-mono text-foreground/80">
                   {relayState.status === "running" ? relayState.publicAddress : tunnelAddress}
                 </span>
-                <button
+                <button data-ui="server-settings-tab-button-4"
                   onClick={() => {
                     const addr = relayState.status === "running" ? relayState.publicAddress : tunnelAddress
                     if (addr) navigator.clipboard.writeText(addr)
@@ -353,36 +354,36 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
             )}
             {relayState.status === "stopped" && (
               serverIsLive
-                ? <span className="text-orange-400">{t("servers.statusStopped")}</span>
-                : <span>{t("servers.settings.xnconnect.serverOffline")}</span>
+                ? <span data-ui="server-settings-tab-span-13" className="text-primary">{t("servers.statusStopped")}</span>
+                : <span data-ui="server-settings-tab-span-14">{t("servers.settings.xnconnect.serverOffline")}</span>
             )}
             {relayState.status === "auth_required" && (
-              <span className="text-yellow-400">{t("servers.settings.xnconnect.authWaiting")}</span>
+              <span data-ui="server-settings-tab-span-15" className="text-warning">{t("servers.settings.xnconnect.authWaiting")}</span>
             )}
             {relayState.status === "starting" && (
-              <span className="text-blue-400">{t("servers.statusStarting")}</span>
+              <span data-ui="server-settings-tab-span-16" className="text-info">{t("servers.statusStarting")}</span>
             )}
             {relayState.status === "running" && (
-              <span className="text-green-400">{t("servers.settings.xnconnect.active")}</span>
+              <span data-ui="server-settings-tab-span-17" className="text-success">{t("servers.settings.xnconnect.active")}</span>
             )}
           </div>
         )}
         {relayState.status === "limit_reached" && (
-          <div className="p-3 rounded-xl border border-red-500/30 bg-red-500/10 space-y-2.5">
-            <p className="text-xs font-medium text-red-400">
+          <div data-ui="server-settings-tab-div-12" className="p-3 rounded-xl border border-destructive/30 bg-destructive/10 space-y-2.5">
+            <p data-ui="server-settings-tab-p-2" className="text-xs font-medium text-destructive">
               {t("servers.settings.xnconnect.limitReached", { used: relayState.used, max: relayState.max })}
             </p>
-            <p className="text-xs text-muted-foreground leading-relaxed">
+            <p data-ui="server-settings-tab-p-3" className="text-xs text-muted-foreground leading-relaxed">
               {t("servers.settings.xnconnect.limitReachedDesc")}
             </p>
-            <div className="flex gap-2">
-              <button
+            <div data-ui="server-settings-tab-div-13" className="flex gap-2">
+              <button data-ui="server-settings-tab-button-5"
                 onClick={() => window.electronAPI?.openExternal("https://connect.xneon.org/dashboard")}
                 className="px-3 h-8 rounded-lg border border-border bg-muted/30 text-xs text-foreground hover:bg-muted/60 transition-colors"
               >
                 {t("servers.settings.xnconnect.openDashboard")}
               </button>
-              <button
+              <button data-ui="server-settings-tab-button-6"
                 onClick={() => window.electronAPI?.openExternal("https://connect.xneon.org/subscribe")}
                 className="px-3 h-8 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
               >
@@ -395,7 +396,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
 
       {/* XN-Connect Auth Modal */}
       {relayState.status === "auth_required" && (
-        <ModalLayer
+        <ModalLayer windowId="server-settings-tab-window-1"
           onClose={() => {
             window.electronAPI?.xnConnectStop(server.id)
             setRelayEnabled(false)
@@ -403,13 +404,13 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
           }}
           className="animate-in fade-in-0"
         >
-          <div className="w-full max-w-md p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+          <div data-ui="server-settings-tab-div-14" className="w-full max-w-md p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
+            <div data-ui="server-settings-tab-div-15" className="flex items-center justify-between mb-5">
+              <h3 data-ui="server-settings-tab-h3-1" className="text-lg font-semibold text-foreground flex items-center gap-2">
                 <XnConnectLogo className="w-5 h-5 text-primary" />
                 {t("servers.settings.xnconnect.authTitle")}
               </h3>
-              <button
+              <button data-ui="server-settings-tab-button-7"
                 onClick={() => {
                   window.electronAPI?.xnConnectStop(server.id)
                   setRelayEnabled(false)
@@ -421,17 +422,17 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
               </button>
             </div>
 
-            <p className="text-sm text-muted-foreground mb-4">
+            <p data-ui="server-settings-tab-p-4" className="text-sm text-muted-foreground mb-4">
               {t("servers.settings.xnconnect.authDesc")}
             </p>
 
-            <div className="p-3 rounded-xl bg-muted/50 border border-border mb-4">
-              <p className="text-xs text-muted-foreground mb-2">{t("servers.settings.xnconnect.authLink")}</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 text-xs text-foreground break-all font-mono leading-relaxed">
+            <div data-ui="server-settings-tab-div-16" className="p-3 rounded-xl bg-muted/50 border border-border mb-4">
+              <p data-ui="server-settings-tab-p-5" className="text-xs text-muted-foreground mb-2">{t("servers.settings.xnconnect.authLink")}</p>
+              <div data-ui="server-settings-tab-div-17" className="flex items-center gap-2">
+                <code data-ui="server-settings-tab-code-1" className="flex-1 text-xs text-foreground break-all font-mono leading-relaxed">
                   {relayState.authUrl}
                 </code>
-                <button
+                <button data-ui="server-settings-tab-button-8"
                   onClick={() => navigator.clipboard.writeText(relayState.authUrl)}
                   className="flex-shrink-0 w-8 h-8 rounded-lg bg-muted hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
                   title={t("servers.settings.xnconnect.copy")}
@@ -441,13 +442,13 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
+            <div data-ui="server-settings-tab-div-18" className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
               <IconLoader2 className="w-3 h-3 animate-spin text-primary" />
               {t("servers.settings.xnconnect.authConfirm")}
             </div>
 
-            <div className="flex gap-3">
-              <button
+            <div data-ui="server-settings-tab-div-19" className="flex gap-3">
+              <button data-ui="server-settings-tab-button-9"
                 onClick={() => {
                   window.electronAPI?.xnConnectStop(server.id)
                   setRelayEnabled(false)
@@ -457,7 +458,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
               >
                 {t("servers.cancel")}
               </button>
-              <a
+              <a data-ui="server-settings-tab-a-1"
                 href={relayState.authUrl}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -472,11 +473,11 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
 
       {/* Java modal */}
       {showJavaModal && (
-        <ModalLayer onClose={() => setShowJavaModal(false)} className="animate-in fade-in-0">
-          <div className="w-full max-w-lg p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-semibold text-foreground">Java</h3>
-              <button
+        <ModalLayer windowId="server-settings-tab-window-2" onClose={() => setShowJavaModal(false)} className="animate-in fade-in-0">
+          <div data-ui="server-settings-tab-div-20" className="w-full max-w-lg p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
+            <div data-ui="server-settings-tab-div-21" className="flex items-center justify-between mb-5">
+              <h3 data-ui="server-settings-tab-h3-2" className="text-lg font-semibold text-foreground">Java</h3>
+              <button data-ui="server-settings-tab-button-10"
                 onClick={() => setShowJavaModal(false)}
                 className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
               >
@@ -484,8 +485,8 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
               </button>
             </div>
 
-            <div className="space-y-3 mb-4">
-              <button
+            <div data-ui="server-settings-tab-div-22" className="space-y-3 mb-4">
+              <button data-ui="server-settings-tab-button-11"
                 onClick={() => handlePickJava("")}
                 className={cn(
                   "w-full p-4 rounded-xl border transition-all duration-200 text-left",
@@ -494,29 +495,29 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
                     : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50"
                 )}
               >
-                <div className="flex items-center justify-between">
-                  <div className="font-medium text-foreground">{t("settings.java.automatic")}</div>
-                  <span className={cn(
+                <div data-ui="server-settings-tab-div-23" className="flex items-center justify-between">
+                  <div data-ui="server-settings-tab-div-24" className="font-medium text-foreground">{t("settings.java.automatic")}</div>
+                  <span data-ui="server-settings-tab-span-18" className={cn(
                     "text-xs px-2 py-1 rounded-md font-medium",
                     isAuto ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
                   )}>
                     {isAuto ? t("settings.java.selected") : t("settings.java.select")}
                   </span>
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">{t("servers.settings.java.autoDesc")}</div>
+                <div data-ui="server-settings-tab-div-25" className="text-xs text-muted-foreground mt-1">{t("servers.settings.java.autoDesc")}</div>
               </button>
 
               {loadingJava ? (
-                <div className="w-full p-4 rounded-xl border border-border bg-muted/30 flex items-center justify-center gap-2">
+                <div data-ui="server-settings-tab-div-26" className="w-full p-4 rounded-xl border border-border bg-muted/30 flex items-center justify-center gap-2">
                   <IconLoader2 className="w-4 h-4 animate-spin text-primary" strokeWidth={1.5} />
-                  <span className="text-sm text-muted-foreground">{t("settings.java.searching")}</span>
+                  <span data-ui="server-settings-tab-span-19" className="text-sm text-muted-foreground">{t("settings.java.searching")}</span>
                 </div>
               ) : detectedJava.length > 0 ? (
-                <div className="space-y-2">
-                  <div className="text-xs font-medium text-muted-foreground px-1">{t("settings.java.detected")}</div>
-                  <div className="max-h-[304px] space-y-2 overflow-y-auto pr-1">
+                <div data-ui="server-settings-tab-div-27" className="space-y-2">
+                  <div data-ui="server-settings-tab-div-28" className="text-xs font-medium text-muted-foreground px-1">{t("settings.java.detected")}</div>
+                  <div data-ui="server-settings-tab-div-29" className="max-h-[304px] space-y-2 overflow-y-auto pr-1">
                     {detectedJava.map((java, index) => (
-                      <button
+                      <button data-ui="server-settings-tab-button-12"
                         key={index}
                         onClick={() => handlePickJava(java.path)}
                         className={cn(
@@ -526,35 +527,35 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
                             : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50"
                         )}
                       >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="font-medium text-foreground text-sm">{java.label}</div>
-                          <span className={cn(
+                        <div data-ui="server-settings-tab-div-30" className="flex items-center justify-between gap-3">
+                          <div data-ui="server-settings-tab-div-31" className="font-medium text-foreground text-sm">{java.label}</div>
+                          <span data-ui="server-settings-tab-span-20" className={cn(
                             "shrink-0 text-xs px-2 py-1 rounded-md font-medium",
                             javaPath === java.path ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
                           )}>
                             {javaPath === java.path ? t("settings.java.selected") : t("settings.java.select")}
                           </span>
                         </div>
-                        <div className="text-xs text-muted-foreground mt-1 truncate">{java.path}</div>
+                        <div data-ui="server-settings-tab-div-32" className="text-xs text-muted-foreground mt-1 truncate">{java.path}</div>
                       </button>
                     ))}
                   </div>
                 </div>
               ) : null}
 
-              <button
+              <button data-ui="server-settings-tab-button-13"
                 onClick={handlePickJavaFile}
                 className="w-full p-4 rounded-xl border border-dashed border-border bg-muted/20 hover:border-accent hover:bg-accent/5 transition-all flex items-center justify-between px-4 text-muted-foreground hover:text-accent"
               >
-                <div className="flex items-center gap-2">
+                <div data-ui="server-settings-tab-div-33" className="flex items-center gap-2">
                   <IconFolderPlus className="w-5 h-5" strokeWidth={1.5} />
-                  <span className="text-sm">{t("servers.settings.java.selectFile")}</span>
+                  <span data-ui="server-settings-tab-span-21" className="text-sm">{t("servers.settings.java.selectFile")}</span>
                 </div>
-                <span className="text-xs px-2 py-1 rounded-md bg-muted/50 font-medium">{t("servers.settings.java.browse")}</span>
+                <span data-ui="server-settings-tab-span-22" className="text-xs px-2 py-1 rounded-md bg-muted/50 font-medium">{t("servers.settings.java.browse")}</span>
               </button>
             </div>
 
-            <button
+            <button data-ui="server-settings-tab-button-14"
               onClick={() => setShowJavaModal(false)}
               className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground text-sm transition-colors"
             >
@@ -570,9 +571,9 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
 
 function SettingGroup({ label, action, children }: { label: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <label className="text-sm font-medium text-foreground">{label}</label>
+    <div data-ui="server-settings-tab-div-34" data-component="setting-group" className="space-y-2">
+      <div data-ui="server-settings-tab-div-35" className="flex items-center gap-2">
+        <label data-ui="server-settings-tab-label-3" className="text-sm font-medium text-foreground">{label}</label>
         {action}
       </div>
       {children}

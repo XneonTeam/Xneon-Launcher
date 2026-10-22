@@ -1,10 +1,11 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { lazy, Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { CSSProperties } from "react"
 import { useTranslation } from "react-i18next"
-import { IconCoffee, IconInfoCircle, IconLayoutGrid, IconNews, IconPhoto, IconRefresh, IconRocket } from "@tabler/icons-react"
+import { IconCoffee, IconInfoCircle, IconLayoutGrid, IconNews, IconPhoto, IconRefresh, IconDeviceDesktop, IconLoader2 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
-import { NewsReaderModal } from "@/components/launcher/news-reader-modal"
 import { formatDate, NEWS_CARD_STYLE, NEWS_CARD_TEXT_HEIGHT, NEWS_GRID_GAP, NEWS_GRID_OVERSCAN_ROWS, NEWS_SCROLL_STYLE, type NewsEntry } from "@/lib/home-page-shared"
+
+const NewsReaderModal = lazy(() => import("@/components/launcher/news-reader-modal").then(m => ({ default: m.NewsReaderModal })))
 
 const REFRESH_INTERVAL = 30 * 60 * 1000
 const NEWS_STORAGE_KEY = "xnlc:news-cache:v1"
@@ -63,19 +64,19 @@ const NewsCard = memo(function NewsCard({ entry, height, onRead }: { entry: News
   const tag = entry.tag ?? entry.category ?? entry.newsType?.[0]
   const style = useMemo<CSSProperties>(() => (height ? { ...NEWS_CARD_STYLE, height } : NEWS_CARD_STYLE), [height])
   return (
-    <div className="group relative overflow-hidden rounded-2xl bg-card border border-border hover:border-primary/40 transition-colors flex flex-col" style={style}>
-      <div className="aspect-video w-full overflow-hidden bg-muted/50 flex-shrink-0">
-        {imgUrl ? <img src={imgUrl} alt={entry.title} loading="lazy" decoding="async" className="w-full h-full object-cover transform-gpu" />
-          : <div className="w-full h-full flex items-center justify-center"><IconPhoto className="w-10 h-10 text-muted-foreground/30" strokeWidth={1.75} /></div>}
+    <div data-ui="home-news-div-1" data-component="news-card" className="group relative overflow-hidden rounded-2xl bg-card border border-border hover:border-primary/40 transition-colors flex flex-col" style={style}>
+      <div data-ui="home-news-div-2" className="aspect-video w-full overflow-hidden bg-muted/50 flex-shrink-0">
+        {imgUrl ? <img data-ui="home-news-img-1" src={imgUrl} alt={entry.title} loading="lazy" decoding="async" className="w-full h-full object-cover transform-gpu" />
+          : <div data-ui="home-news-div-3" className="w-full h-full flex items-center justify-center"><IconPhoto className="w-10 h-10 text-muted-foreground/30" strokeWidth={1.75} /></div>}
       </div>
-      <div className="p-4 flex flex-col gap-2 flex-1">
-        {tag && <span className="self-start px-2 py-0.5 rounded-md bg-primary/15 text-primary text-[11px] font-semibold uppercase tracking-wide">{tag}</span>}
-        <p className="font-semibold text-foreground text-sm leading-snug line-clamp-2">{entry.title}</p>
-        {entry.text && <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{entry.text}</p>}
-        <div className="flex items-center justify-between mt-auto pt-1">
-          <span className="text-xs text-muted-foreground/70">{formatDate(entry.date)}</span>
+      <div data-ui="home-news-div-4" className="p-4 flex flex-col gap-2 flex-1">
+        {tag && <span data-ui="home-news-span-1" className="self-start px-2 py-0.5 rounded-md bg-primary/15 text-primary text-[11px] font-semibold uppercase tracking-wide">{tag}</span>}
+        <p data-ui="home-news-p-1" className="font-semibold text-foreground text-sm leading-snug line-clamp-2">{entry.title}</p>
+        {entry.text && <p data-ui="home-news-p-2" className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{entry.text}</p>}
+        <div data-ui="home-news-div-5" className="flex items-center justify-between mt-auto pt-1">
+          <span data-ui="home-news-span-2" className="text-xs text-muted-foreground/70">{formatDate(entry.date)}</span>
           {entry.readMoreLink && (
-            <button
+            <button data-ui="home-news-button-1"
               type="button"
               onClick={() => onRead(entry)}
               className="text-xs text-primary hover:text-primary/80 transition-colors font-medium"
@@ -128,10 +129,10 @@ const VirtualNewsGrid = memo(function VirtualNewsGrid({ entries, onRead }: { ent
   const visibleEntries = entries.slice(startRow * columns, endRow * columns)
 
   return (
-    <div ref={scrollRef} onScroll={scheduleViewportUpdate} className="overflow-y-auto flex-1 px-4 pb-4 pr-5" style={NEWS_SCROLL_STYLE}>
-      <div style={{ height: startRow * rowHeight }} />
-      <div className="grid grid-cols-2 gap-3">{visibleEntries.map(entry => <NewsCard key={entry.id} entry={entry} height={cardHeight} onRead={onRead} />)}</div>
-      <div style={{ height: Math.max(0, (rowCount - endRow) * rowHeight) }} />
+    <div data-ui="home-news-div-6" data-component="virtual-news-grid" ref={scrollRef} onScroll={scheduleViewportUpdate} className="overflow-y-auto flex-1 px-4 pb-4 pr-5" style={NEWS_SCROLL_STYLE}>
+      <div data-ui="home-news-div-7" style={{ height: startRow * rowHeight }} />
+      <div data-ui="home-news-div-8" className="grid grid-cols-2 gap-3">{visibleEntries.map(entry => <NewsCard key={entry.id} entry={entry} height={cardHeight} onRead={onRead} />)}</div>
+      <div data-ui="home-news-div-9" style={{ height: Math.max(0, (rowCount - endRow) * rowHeight) }} />
     </div>
   )
 })
@@ -151,8 +152,8 @@ function fetchMojangNewsDirect(): Promise<NewsEntry[]> {
 
 async function fetchLauncherNewsDirect(): Promise<NewsEntry[]> {
   try {
-    // Адрес ленты живёт в main-процессе (XNLC_NEWS_URL, по умолчанию localhost
-    // для разработки), а разбор ответа — в одном месте (parseLauncherNewsItems).
+    // Адрес ленты живёт в main-процессе (XNLC_NEWS_URL, по умолчанию сайт
+    // лаунчера), а разбор ответа — в одном месте (parseLauncherNewsItems).
     // Здесь только помечаем записи лаунчера: от этого зависит рубрика карточки.
     if (!window.electronAPI?.fetchLauncherNews) return cachedLauncherNews ?? []
     const res = await window.electronAPI.fetchLauncherNews()
@@ -240,30 +241,30 @@ export const NewsSection = memo(function NewsSection() {
   const filters = useMemo(() => [
     { id: "all" as const, label: t("home.news.all"), icon: IconLayoutGrid },
     { id: "java" as const, label: t("home.news.java"), icon: IconCoffee },
-    { id: "launcher" as const, label: t("home.news.launcher"), icon: IconRocket },
+    { id: "launcher" as const, label: t("home.news.launcher"), icon: IconDeviceDesktop },
   ], [t])
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] min-h-0">
-      <div className="relative rounded-2xl bg-card/80 border border-border overflow-hidden flex flex-col" style={{ height: "100%" }}>
-        <div className="p-4 flex-shrink-0">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center"><IconNews className="w-4 h-4 text-primary" strokeWidth={2} /></div>
-              <h2 className="text-base font-semibold text-foreground">{t("home.news.title")}</h2>
+    <div data-ui="home-news-div-10" data-component="news-section" className="flex flex-col h-[calc(100vh-5rem)] min-h-0">
+      <div data-ui="home-news-div-11" className="relative rounded-2xl bg-card/80 border border-border overflow-hidden flex flex-col" style={{ height: "100%" }}>
+        <div data-ui="home-news-div-12" className="p-4 flex-shrink-0">
+          <div data-ui="home-news-div-13" className="flex items-center justify-between mb-4">
+            <div data-ui="home-news-div-14" className="flex items-center gap-3">
+              <div data-ui="home-news-div-15" className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center"><IconNews className="w-4 h-4 text-primary" strokeWidth={2} /></div>
+              <h2 data-ui="home-news-h2-1" className="text-base font-semibold text-foreground">{t("home.news.title")}</h2>
             </div>
-            <div className="flex items-center gap-2">
-              <button
+            <div data-ui="home-news-div-16" className="flex items-center gap-2">
+              <button data-ui="home-news-button-2"
                 type="button"
                 onClick={handleRefresh}
                 disabled={refreshing}
                 className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
               >
-                <IconRefresh className={cn("w-4 h-4", refreshing && "animate-spin")} strokeWidth={1.75} />
+                {refreshing ? <IconLoader2 className="w-4 h-4 text-primary animate-spin" strokeWidth={1.75} /> : <IconRefresh className="w-4 h-4" strokeWidth={1.75} />}
               </button>
-              <div className="flex gap-1 p-1 rounded-lg bg-muted/40">
+              <div data-ui="home-news-div-17" className="flex gap-0.5 p-1 rounded-xl bg-muted/30 border border-border/50">
                 {filters.map(({ id, label, icon: Icon }) => (
-                  <button key={id} type="button" onClick={() => setFilter(prev => prev === id ? prev : id)} className={cn("flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all border", filter === id ? "border-transparent bg-primary text-primary-foreground shadow-sm" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
+                  <button data-ui="home-news-button-3" key={id} type="button" onClick={() => setFilter(prev => prev === id ? prev : id)} className={cn("flex items-center justify-center gap-1.5 px-3 py-1 rounded-lg text-[13px] font-medium transition-all duration-200", filter === id ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80")}>
                     <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />
                     {label}
                   </button>
@@ -274,20 +275,20 @@ export const NewsSection = memo(function NewsSection() {
         </div>
 
         {loading ? (
-          <div className="overflow-y-auto flex-1 px-4 pb-4 pr-5" style={NEWS_SCROLL_STYLE}>
-            <div className="grid grid-cols-2 gap-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="rounded-2xl bg-card border border-border overflow-hidden animate-pulse"><div className="aspect-video bg-muted/50" /><div className="p-4 space-y-2"><div className="h-2.5 bg-muted/60 rounded w-1/3" /><div className="h-3 bg-muted/60 rounded w-full" /><div className="h-3 bg-muted/60 rounded w-4/5" /></div></div>)}</div>
+          <div data-ui="home-news-div-18" className="overflow-y-auto flex-1 px-4 pb-4 pr-5" style={NEWS_SCROLL_STYLE}>
+            <div data-ui="home-news-div-19" className="grid grid-cols-2 gap-3">{Array.from({ length: 4 }).map((_, i) => <div data-ui="home-news-div-20" key={i} className="rounded-2xl bg-card border border-border overflow-hidden animate-pulse"><div data-ui="home-news-div-21" className="aspect-video bg-muted/50" /><div data-ui="home-news-div-22" className="p-4 space-y-2"><div data-ui="home-news-div-23" className="h-2.5 bg-muted/60 rounded w-1/3" /><div data-ui="home-news-div-24" className="h-3 bg-muted/60 rounded w-full" /><div data-ui="home-news-div-25" className="h-3 bg-muted/60 rounded w-4/5" /></div></div>)}</div>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="overflow-y-auto flex-1 px-4 pb-4 pr-5" style={NEWS_SCROLL_STYLE}>
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mb-4"><IconInfoCircle className="w-7 h-7 text-muted-foreground/40" strokeWidth={1.75} /></div>
-              <p className="text-sm text-muted-foreground">{t("home.newsError")}</p>
+          <div data-ui="home-news-div-26" className="overflow-y-auto flex-1 px-4 pb-4 pr-5" style={NEWS_SCROLL_STYLE}>
+            <div data-ui="home-news-div-27" className="flex flex-col items-center justify-center py-16 text-center">
+              <div data-ui="home-news-div-28" className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mb-4"><IconInfoCircle className="w-7 h-7 text-muted-foreground/40" strokeWidth={1.75} /></div>
+              <p data-ui="home-news-p-3" className="text-sm text-muted-foreground">{t("home.newsError")}</p>
             </div>
           </div>
         ) : <VirtualNewsGrid entries={filtered} onRead={handleRead} />}
       </div>
 
-      <NewsReaderModal entry={readerEntry} onClose={handleReaderClose} />
+      {readerEntry && <Suspense fallback={null}><NewsReaderModal entry={readerEntry} onClose={handleReaderClose} /></Suspense>}
     </div>
   )
 })

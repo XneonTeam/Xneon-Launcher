@@ -18,18 +18,18 @@ export function VersionInstallProgress({ state }: { state: InstallState }) {
   const { t } = useTranslation()
   if (state.phase === "error") {
     return (
-      <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-500/5 px-3 py-2 text-xs text-red-400">
+      <div data-ui="instance-version-install-progress-div-1" data-component="version-install-progress" className="mt-3 flex items-start gap-2 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2 text-xs text-destructive">
         <IconAlertCircle className="w-4 h-4 shrink-0 mt-px" strokeWidth={1.75} />
-        <span className="break-words">{state.error || t("versionInstall.failed")}</span>
+        <span data-ui="instance-version-install-progress-span-1" className="break-words">{state.error || t("versionInstall.failed")}</span>
       </div>
     )
   }
 
   if (state.phase === "done") {
     return (
-      <div className="mt-3 flex items-center gap-2 text-xs text-green-500">
+      <div data-ui="instance-version-install-progress-div-2" data-component="version-install-progress" className="mt-3 flex items-center gap-2 text-xs text-success">
         <IconCircleCheck className="w-4 h-4 shrink-0" strokeWidth={1.75} />
-        <span>{t("versionInstall.installed")}</span>
+        <span data-ui="instance-version-install-progress-span-2">{t("versionInstall.installed")}</span>
       </div>
     )
   }
@@ -38,20 +38,20 @@ export function VersionInstallProgress({ state }: { state: InstallState }) {
   const width = indeterminate ? 100 : Math.max(2, Math.min(100, state.percent ?? 0))
 
   return (
-    <div className="mt-3">
-      <div className="flex items-center justify-between gap-3 mb-1.5">
-        <span className="flex items-center gap-1.5 min-w-0 text-[11px] text-muted-foreground">
+    <div data-ui="instance-version-install-progress-div-3" data-component="version-install-progress" className="mt-3">
+      <div data-ui="instance-version-install-progress-div-4" className="flex items-center justify-between gap-3 mb-1.5">
+        <span data-ui="instance-version-install-progress-span-3" className="flex items-center gap-1.5 min-w-0 text-[11px] text-muted-foreground">
           <IconLoader2 className="w-3.5 h-3.5 shrink-0 animate-spin text-primary" strokeWidth={2} />
-          <span className="truncate">{t("common.installing")}</span>
+          <span data-ui="instance-version-install-progress-span-4" className="truncate">{t("common.installing")}</span>
         </span>
-        <span className="shrink-0 text-[11px] font-mono text-muted-foreground tabular-nums">
+        <span data-ui="instance-version-install-progress-span-5" className="shrink-0 text-[11px] font-mono text-muted-foreground tabular-nums">
           {indeterminate ? "" : `${state.percent}%`}
         </span>
       </div>
-      <div className={cn("h-1.5 w-full rounded-full bg-muted", indeterminate && "progress-indeterminate")}>
+      <div data-ui="instance-version-install-progress-div-5" className={cn("h-1.5 w-full rounded-full bg-muted", indeterminate && "progress-indeterminate")}>
         {/* Размер файла неизвестен — полоса бежит; иначе заполняется процентами. */}
         {!indeterminate && (
-          <div
+          <div data-ui="instance-version-install-progress-div-6"
             className="h-full rounded-full bg-primary transition-[width] duration-200 ease-out"
             style={{ width: `${width}%` }}
           />

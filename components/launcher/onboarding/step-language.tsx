@@ -11,10 +11,10 @@ type StepLanguageProps = {
 
 export function StepLanguage({ selectedLanguage, copy, onSelect }: StepLanguageProps) {
   return (
-    <div className="space-y-5">
-      <div className="grid gap-3 lg:grid-cols-2">
+    <div data-ui="onboarding-step-language-div-1" data-component="step-language" className="space-y-5">
+      <div data-ui="onboarding-step-language-div-2" className="grid gap-3 lg:grid-cols-2">
         {languages.map((language) => (
-          <button
+          <button data-ui="onboarding-step-language-button-1"
             key={language.id}
             type="button"
             onClick={() => onSelect(language.id as OnboardingLanguage)}
@@ -25,13 +25,13 @@ export function StepLanguage({ selectedLanguage, copy, onSelect }: StepLanguageP
                 : "border-border bg-card hover:border-primary/40"
             )}
           >
-            <div className="relative flex items-center gap-4">
-              <div className="rounded-xl border border-border bg-background p-3">{language.flagSvg}</div>
-              <div className="min-w-0 flex-1">
-                <div className="text-base font-semibold text-foreground">{language.nativeName}</div>
-                <div className="mt-1 text-sm text-muted-foreground">{language.name}</div>
+            <div data-ui="onboarding-step-language-div-3" className="relative flex items-center gap-4">
+              <div data-ui="onboarding-step-language-div-4" className="rounded-xl border border-border bg-background p-3">{language.flagSvg}</div>
+              <div data-ui="onboarding-step-language-div-5" className="min-w-0 flex-1">
+                <div data-ui="onboarding-step-language-div-6" className="text-base font-semibold text-foreground">{language.nativeName}</div>
+                <div data-ui="onboarding-step-language-div-7" className="mt-1 text-sm text-muted-foreground">{language.name}</div>
               </div>
-              <div
+              <div data-ui="onboarding-step-language-div-8"
                 className={cn(
                   "flex h-8 w-8 items-center justify-center rounded-full border transition-colors",
                   selectedLanguage === language.id

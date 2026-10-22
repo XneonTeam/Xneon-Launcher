@@ -8,6 +8,7 @@ release/
 
 # Local sub-package build outputs (TS build artifacts, can be regenerated)
 packages/*/lib/
+packages/*/lib-cjs/
 packages/*/*.tsbuildinfo
 
 # IDE
@@ -80,6 +81,8 @@ plans/
 # Локальные артефакты проверок: скриншоты и временные файлы тестов
 .shots/
 .tmp-*
+# Скриншоты проверок UI (снимаются через CDP при правках интерфейса)
+screenshots/
 
 # Cloud server data
 data/
@@ -109,6 +112,11 @@ test-*.mjs
 # Тесты authlib: причина та же, что и у скинов выше, иначе
 # `pnpm run test:authlib` не работает в чистом клоне.
 !scripts/test-authlib.mjs
+!scripts/test-agent.mjs
+!scripts/test-theme-rendering.mjs
+!scripts/test-content-motion.mjs
+!scripts/test-dialog-focus.mjs
+!scripts/test-cloud-themes.mjs
 # Скачанные артефакты (authlib-injector.jar и прочие) в репозиторий не кладём.
 *.jar
 update-*.js
@@ -129,3 +137,5 @@ launcher-screenshot.png
 __pycache__/
 *.pyc
 
+
+!scripts/test-startup.mjs

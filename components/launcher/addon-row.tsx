@@ -64,36 +64,36 @@ export function AddonRow({
         : t("common.installing")
 
   return (
-    <div
+    <div data-ui="addon-row-div-1" data-component="addon-row"
       className={cn(
         "group min-w-0 rounded-xl border border-border bg-card px-3.5 py-2.5 transition-colors hover:border-primary/50",
         installing && "border-primary/50 bg-primary/5",
       )}
     >
-      <div className="flex min-w-0 items-center gap-3.5">
-        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-muted flex-shrink-0">
+      <div data-ui="addon-row-div-2" className="flex min-w-0 items-center gap-3.5">
+        <div data-ui="addon-row-div-3" className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-muted flex-shrink-0">
           {project.iconUrl ? (
-            <img src={project.iconUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+            <img data-ui="addon-row-img-1" src={project.iconUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
           ) : (
-            <span className="text-sm font-bold text-muted-foreground">{project.name[0]}</span>
+            <span data-ui="addon-row-span-1" className="text-sm font-bold text-muted-foreground">{project.name[0]}</span>
           )}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <p className="min-w-0 truncate text-sm font-medium text-foreground transition-colors group-hover:text-primary">{project.name}</p>
+        <div data-ui="addon-row-div-4" className="min-w-0 flex-1">
+          <div data-ui="addon-row-div-5" className="flex min-w-0 items-center gap-1.5">
+            <p data-ui="addon-row-p-1" className="min-w-0 truncate text-sm font-medium text-foreground transition-colors group-hover:text-primary">{project.name}</p>
             <SourceMark source={project.source} />
           </div>
-          <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-            <span className="shrink-0 text-xs text-muted-foreground">{formatDownloads(project.downloadCount)}</span>
+          <div data-ui="addon-row-div-6" className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+            <span data-ui="addon-row-span-2" className="shrink-0 text-xs text-muted-foreground">{formatDownloads(project.downloadCount)}</span>
             {showCategories && project.categories?.slice(0, 3).map(cat => (
               <CategoryBadge key={cat} name={cat} source={project.source} className="min-w-0 px-1.5 text-[11px]" />
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div data-ui="addon-row-div-7" className="flex items-center gap-1.5 shrink-0">
           {/* Страница проекта на сайте площадки: из каталога раньше её открыть было нельзя. */}
           {siteUrl && (
-            <button
+            <button data-ui="addon-row-button-1"
               type="button"
               onClick={() => openProjectPage(project, projectKind)}
               title={t("common.openOnSite")}
@@ -103,7 +103,7 @@ export function AddonRow({
               <IconExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
             </button>
           )}
-          <button
+          <button data-ui="addon-row-button-2"
             type="button"
             onClick={onDetails}
             className="flex items-center gap-1.5 rounded-lg bg-muted px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted/80"
@@ -112,12 +112,12 @@ export function AddonRow({
             {t("builds.details")}
           </button>
           {installed ? (
-            <span className="flex items-center justify-center gap-1.5 rounded-lg bg-primary/10 px-3.5 py-1.5 text-xs font-medium text-primary">
+            <span data-ui="addon-row-span-3" className="flex items-center justify-center gap-1.5 rounded-lg bg-primary/10 px-3.5 py-1.5 text-xs font-medium text-primary">
               <IconCheck className="h-3.5 w-3.5" strokeWidth={1.75} />
               {t("builds.installed")}
             </span>
           ) : (
-            <button
+            <button data-ui="addon-row-button-3"
               type="button"
               disabled={installDisabled || installing}
               onClick={() => {
@@ -129,12 +129,12 @@ export function AddonRow({
               {installing ? (
                 <>
                   <IconLoader2 className="h-3.5 w-3.5 animate-spin shrink-0" strokeWidth={2} />
-                  {percent !== null && <span className="font-mono tabular-nums">{percent}%</span>}
+                  {percent !== null && <span data-ui="addon-row-span-4" className="font-mono tabular-nums">{percent}%</span>}
                 </>
               ) : (
                 <>
                   <IconPlus className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
-                  <span>{installLabel}</span>
+                  <span data-ui="addon-row-span-5">{installLabel}</span>
                 </>
               )}
             </button>
@@ -143,21 +143,21 @@ export function AddonRow({
       </div>
 
       {installing && (
-        <div className="mt-2.5 pt-2 border-t border-border/50">
-          <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-            <span className="flex items-center gap-1.5 min-w-0">
+        <div data-ui="addon-row-div-8" className="mt-2.5 pt-2 border-t border-border/50">
+          <div data-ui="addon-row-div-9" className="mb-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+            <span data-ui="addon-row-span-6" className="flex items-center gap-1.5 min-w-0">
               <IconLoader2 className="h-3 w-3 shrink-0 animate-spin text-primary" strokeWidth={2} />
-              <span className="truncate">{phaseLabel}</span>
+              <span data-ui="addon-row-span-7" className="truncate">{phaseLabel}</span>
             </span>
-            <span className="shrink-0 font-mono tabular-nums">
+            <span data-ui="addon-row-span-8" className="shrink-0 font-mono tabular-nums">
               {percent !== null ? `${percent}%` : ""}
             </span>
           </div>
-          <div className={cn("h-1.5 w-full rounded-full bg-muted", percent === null && "progress-indeterminate")}>
+          <div data-ui="addon-row-div-10" className={cn("h-1.5 w-full rounded-full bg-muted", percent === null && "progress-indeterminate")}>
             {/* Пока байтов нет (поиск версии, окно зависимостей) полоса бежит,
                 как только пошёл прогресс — заполняется процентами. */}
             {percent !== null && (
-              <div
+              <div data-ui="addon-row-div-11"
                 className="h-full rounded-full bg-primary transition-[width] duration-200 ease-out"
                 style={{ width: `${Math.max(2, percent)}%` }}
               />

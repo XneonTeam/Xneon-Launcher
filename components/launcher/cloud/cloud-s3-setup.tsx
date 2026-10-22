@@ -27,46 +27,46 @@ export function S3SetupModal({ onClose, onConnect, connecting }: Props) {
   const inputClass = "w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/50 transition-colors"
 
   return (
-    <ModalLayer onClose={onClose} className="bg-black/50">
-      <div className="w-full max-w-sm mx-4 rounded-2xl bg-card border border-border shadow-xl overflow-hidden">
-        <div className="p-5">
-          <h3 className="text-lg font-semibold text-foreground mb-1">S3 Storage</h3>
-          <p className="text-sm text-muted-foreground mb-4">{t("cloud.s3.desc")}</p>
+    <ModalLayer windowId="cloud-cloud-s3-setup-window-1" onClose={onClose} className="bg-black/50">
+      <div data-ui="cloud-cloud-s3-setup-div-1" data-component="s3-setup-modal" className="w-full max-w-sm mx-4 rounded-2xl bg-card border border-border shadow-xl overflow-hidden">
+        <div data-ui="cloud-cloud-s3-setup-div-2" className="p-5">
+          <h3 data-ui="cloud-cloud-s3-setup-h3-1" className="text-lg font-semibold text-foreground mb-1">S3 Storage</h3>
+          <p data-ui="cloud-cloud-s3-setup-p-1" className="text-sm text-muted-foreground mb-4">{t("cloud.s3.desc")}</p>
 
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Endpoint URL</label>
-              <input value={endpoint} onChange={e => setEndpoint(e.target.value)}
+          <div data-ui="cloud-cloud-s3-setup-div-3" className="space-y-3">
+            <div data-ui="cloud-cloud-s3-setup-div-4">
+              <label data-ui="cloud-cloud-s3-setup-label-1" className="text-xs font-medium text-muted-foreground mb-1 block">Endpoint URL</label>
+              <input data-ui="cloud-cloud-s3-setup-input-1" value={endpoint} onChange={e => setEndpoint(e.target.value)}
                 placeholder="https://s3.amazonaws.com"
                 className={inputClass} />
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Bucket</label>
-              <input value={bucket} onChange={e => setBucket(e.target.value)}
+            <div data-ui="cloud-cloud-s3-setup-div-5">
+              <label data-ui="cloud-cloud-s3-setup-label-2" className="text-xs font-medium text-muted-foreground mb-1 block">Bucket</label>
+              <input data-ui="cloud-cloud-s3-setup-input-2" value={bucket} onChange={e => setBucket(e.target.value)}
                 placeholder="my-bucket"
                 className={inputClass} />
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Access Key ID</label>
-              <input value={accessKeyId} onChange={e => setAccessKeyId(e.target.value)}
+            <div data-ui="cloud-cloud-s3-setup-div-6">
+              <label data-ui="cloud-cloud-s3-setup-label-3" className="text-xs font-medium text-muted-foreground mb-1 block">Access Key ID</label>
+              <input data-ui="cloud-cloud-s3-setup-input-3" value={accessKeyId} onChange={e => setAccessKeyId(e.target.value)}
                 placeholder="AKIAIOSFODNN7EXAMPLE"
                 className={inputClass} />
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Secret Access Key</label>
-              <input type="password" value={secretAccessKey} onChange={e => setSecretAccessKey(e.target.value)}
+            <div data-ui="cloud-cloud-s3-setup-div-7">
+              <label data-ui="cloud-cloud-s3-setup-label-4" className="text-xs font-medium text-muted-foreground mb-1 block">Secret Access Key</label>
+              <input data-ui="cloud-cloud-s3-setup-input-4" type="password" value={secretAccessKey} onChange={e => setSecretAccessKey(e.target.value)}
                 placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
                 className={inputClass} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Region</label>
-                <input value={region} onChange={e => setRegion(e.target.value)}
+            <div data-ui="cloud-cloud-s3-setup-div-8" className="grid grid-cols-2 gap-3">
+              <div data-ui="cloud-cloud-s3-setup-div-9">
+                <label data-ui="cloud-cloud-s3-setup-label-5" className="text-xs font-medium text-muted-foreground mb-1 block">Region</label>
+                <input data-ui="cloud-cloud-s3-setup-input-5" value={region} onChange={e => setRegion(e.target.value)}
                   placeholder="us-east-1"
                   className={inputClass} />
               </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Path Style</label>
+              <div data-ui="cloud-cloud-s3-setup-div-10">
+                <label data-ui="cloud-cloud-s3-setup-label-6" className="text-xs font-medium text-muted-foreground mb-1 block">Path Style</label>
                 <Select value={forcePathStyle} onValueChange={setForcePathStyle}>
                   <SelectTrigger className="w-full rounded-xl bg-muted/50 border-border text-sm">
                     <SelectValue />
@@ -80,12 +80,12 @@ export function S3SetupModal({ onClose, onConnect, connecting }: Props) {
             </div>
           </div>
         </div>
-        <div className="p-3 border-t border-border flex justify-end gap-2">
-          <button onClick={onClose}
+        <div data-ui="cloud-cloud-s3-setup-div-11" className="p-3 border-t border-border flex justify-end gap-2">
+          <button data-ui="cloud-cloud-s3-setup-button-1" onClick={onClose}
             className="px-4 py-2 rounded-xl text-sm font-medium bg-muted/50 hover:bg-muted text-foreground transition-colors">
             {t("common.cancel")}
           </button>
-          <button onClick={handleSubmit} disabled={connecting || !endpoint.trim() || !bucket.trim() || !accessKeyId.trim() || !secretAccessKey.trim()}
+          <button data-ui="cloud-cloud-s3-setup-button-2" onClick={handleSubmit} disabled={connecting || !endpoint.trim() || !bucket.trim() || !accessKeyId.trim() || !secretAccessKey.trim()}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-primary hover:bg-primary/90 text-primary-foreground transition-all disabled:opacity-50">
             {connecting && <IconLoader2 className="w-4 h-4 animate-spin" />}
             {t("cloud.connect")}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react"
-import { IconRefresh, IconDownload, IconCheck, IconPlayerPlay } from "@tabler/icons-react"
+import { IconRefresh, IconDownload, IconCheck, IconPlayerPlay, IconLoader2 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { APP_VERSION } from "@/lib/app-meta"
 import { useTranslation } from "react-i18next"
@@ -85,16 +85,16 @@ export function SettingsUpdate() {
   })()
 
   return (
-    <div className="p-4 rounded-xl border border-border bg-muted/30 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="font-medium text-foreground">{t("launcherUpdate.title")}</div>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t("launcherUpdate.currentVersion")} <span className="text-foreground font-medium">v{APP_VERSION}</span>
+    <div data-ui="settings-settings-update-div-1" data-component="settings-update" className="p-4 rounded-xl border border-border bg-muted/30 space-y-4">
+      <div data-ui="settings-settings-update-div-2" className="flex items-center justify-between">
+        <div data-ui="settings-settings-update-div-3">
+          <div data-ui="settings-settings-update-div-4" className="font-medium text-foreground">{t("launcherUpdate.title")}</div>
+          <p data-ui="settings-settings-update-p-1" className="text-sm text-muted-foreground mt-1">
+            {t("launcherUpdate.currentVersion")} <span data-ui="settings-settings-update-span-1" className="text-foreground font-medium">v{APP_VERSION}</span>
           </p>
         </div>
         {status === "idle" && (
-          <button
+          <button data-ui="settings-settings-update-button-1"
             onClick={handleCheck}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors"
           >
@@ -103,13 +103,13 @@ export function SettingsUpdate() {
           </button>
         )}
         {status === "checking" && (
-          <button disabled className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-muted text-muted-foreground font-medium">
-            <IconRefresh className="w-4 h-4 animate-spin" strokeWidth={2} />
+          <button data-ui="settings-settings-update-button-2" disabled className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-muted text-muted-foreground font-medium">
+            <IconLoader2 className="w-4 h-4 text-primary animate-spin" strokeWidth={2} />
             {t("launcherUpdate.checking")}
           </button>
         )}
         {status === "available" && (
-          <button
+          <button data-ui="settings-settings-update-button-3"
             onClick={handleDownload}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors"
           >
@@ -118,16 +118,16 @@ export function SettingsUpdate() {
           </button>
         )}
         {status === "downloaded" && (
-          <button
+          <button data-ui="settings-settings-update-button-4"
             onClick={handleInstall}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-green-600 text-white font-medium hover:bg-green-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors"
           >
             <IconPlayerPlay className="w-4 h-4" strokeWidth={2} />
             {t("launcherUpdate.restart")}
           </button>
         )}
         {(status === "not-available" || status === "error") && (
-          <button
+          <button data-ui="settings-settings-update-button-5"
             onClick={handleCheck}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-muted text-muted-foreground font-medium hover:bg-muted/80 transition-colors"
           >
@@ -138,22 +138,22 @@ export function SettingsUpdate() {
       </div>
 
       {status === "available" && progress > 0 && (
-        <div className="space-y-2">
-          <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
-            <div
+        <div data-ui="settings-settings-update-div-5" className="space-y-2">
+          <div data-ui="settings-settings-update-div-6" className="w-full h-2 rounded-full bg-muted overflow-hidden">
+            <div data-ui="settings-settings-update-div-7"
               className="h-full rounded-full bg-primary transition-all duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>
-          <p className="text-xs text-muted-foreground text-right">{Math.round(progress)}%</p>
+          <p data-ui="settings-settings-update-p-2" className="text-xs text-muted-foreground text-right">{Math.round(progress)}%</p>
         </div>
       )}
 
       {statusLabel && (
-        <p className={cn(
+        <p data-ui="settings-settings-update-p-3" className={cn(
           "text-sm",
-          status === "error" ? "text-red-400" :
-          status === "downloaded" ? "text-green-400" :
+          status === "error" ? "text-destructive" :
+          status === "downloaded" ? "text-success" :
           "text-muted-foreground"
         )}>
           {statusLabel}

@@ -15,9 +15,9 @@ export function InstanceTrashToast({ name, onUndo }: InstanceTrashToastProps) {
   const { t } = useTranslation()
 
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-2 shadow-2xl">
-      <p className="text-sm text-foreground">{t("instanceList.trashed", { name })}</p>
-      <button type="button" onClick={onUndo} className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80">
+    <div data-ui="instance-instance-trash-toast-div-1" data-component="instance-trash-toast" className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-2 shadow-2xl">
+      <p data-ui="instance-instance-trash-toast-p-1" className="text-sm text-foreground">{t("instanceList.trashed", { name })}</p>
+      <button data-ui="instance-instance-trash-toast-button-1" type="button" onClick={onUndo} className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80">
         <IconRotateClockwise className="w-3.5 h-3.5" />
         {t("instanceList.undo")}
       </button>

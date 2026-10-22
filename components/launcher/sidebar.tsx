@@ -11,9 +11,10 @@ import {
   IconShirt,
   IconServer,
   IconChartBar,
+  IconRobot,
 } from "@tabler/icons-react";
 
-export type TabId = "home" | "builds" | "logs" | "cloud" | "accounts" | "settings" | "themes" | "skins" | "servers" | "stats";
+export type TabId = "home" | "builds" | "agent" | "logs" | "cloud" | "accounts" | "settings" | "themes" | "skins" | "servers" | "stats";
 
 interface SidebarItem {
   id: TabId;
@@ -53,6 +54,11 @@ const sidebarItems: SidebarItem[] = [
     icon: <IconShirt className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
   },
   {
+    id: "agent",
+    labelKey: "sidebar.agent",
+    icon: <IconRobot className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
+  },
+  {
     id: "logs",
     labelKey: "sidebar.logs",
     icon: <IconFileText className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
@@ -81,20 +87,23 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   const settingsItem = sidebarItems.find((item) => item.id === "settings");
 
   const renderItem = (item: SidebarItem) => (
-    <div key={item.id} className="relative group">
-      <button
+    <div data-ui="sidebar-div-1" key={item.id} className="relative group sidebar-item-wrapper" data-sidebar-item={item.id}>
+      <button data-ui="sidebar-button-1"
+        id={`sidebar-item-${item.id}`}
+        aria-label={t(item.labelKey)}
+        data-active={activeTab === item.id}
         onClick={() => onTabChange(item.id)}
         className={cn(
-          "relative rounded-xl flex items-center transition-all duration-300 justify-center mx-auto w-12 h-12",
-          "hover:bg-primary/10",
+          "sidebar-item-btn relative rounded-xl flex items-center transition-all duration-300 justify-center mx-auto w-12 h-12",
+          "hover:bg-sidebar-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
           activeTab === item.id
-            ? "bg-primary/20 text-primary shadow-[0_0_15px_var(--glow-primary)]"
-            : "text-muted-foreground hover:text-primary"
+            ? "bg-sidebar-primary/20 text-sidebar-primary shadow-[0_0_15px_var(--glow-primary)]"
+            : "text-sidebar-foreground/65 hover:text-sidebar-primary"
         )}
       >
-        <span
+        <span data-ui="sidebar-span-1"
           className={cn(
-            "absolute left-0 w-1 h-6 rounded-r-full bg-primary transition-all duration-300",
+            "sidebar-item-indicator absolute left-0 w-1 h-6 rounded-r-full bg-sidebar-primary transition-all duration-300",
             activeTab === item.id ? "opacity-100" : "opacity-0"
           )}
         />
@@ -102,18 +111,18 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         {item.icon}
       </button>
 
-      <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 rounded-lg bg-popover border border-border shadow-lg text-sm font-medium text-popover-foreground whitespace-nowrap opacity-0 scale-95 pointer-events-none transition-all duration-150 z-50 group-hover:opacity-100 group-hover:scale-100">
+      <div data-ui="sidebar-div-2" className="sidebar-tooltip absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 rounded-lg bg-popover border border-border shadow-lg text-sm font-medium text-popover-foreground whitespace-nowrap opacity-0 scale-95 pointer-events-none transition-all duration-150 z-50 group-hover:opacity-100 group-hover:scale-100">
         {t(item.labelKey)}
       </div>
     </div>
   );
 
   return (
-    <aside className="h-full bg-sidebar/95 border-r border-sidebar-border flex flex-col py-6 gap-2 w-[72px]">
-      <nav className="flex flex-col gap-1 flex-1 px-2">
+    <aside data-ui="sidebar-aside-1" data-component="sidebar" id="launcher-sidebar" className="h-full bg-sidebar/95 border-r border-sidebar-border flex flex-col py-6 gap-2 w-[72px]">
+      <nav data-ui="sidebar-nav-1" id="sidebar-nav" className="flex flex-col gap-1 flex-1 px-2">
         {mainItems.map(renderItem)}
         {settingsItem && (
-          <div className="mt-auto pt-2 border-t border-sidebar-border/40">
+          <div data-ui="sidebar-div-3" id="sidebar-footer" className="mt-auto pt-2 border-t border-sidebar-border/40">
             {renderItem(settingsItem)}
           </div>
         )}

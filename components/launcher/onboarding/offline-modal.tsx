@@ -26,11 +26,11 @@ export function OfflineModal({
   const isValidUsername = OFFLINE_USERNAME_REGEX.test(offlineUsername.trim())
   const canAdd = Boolean(offlineUsername.trim()) && (isValidUsername || allowInvalidUsername)
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
-        <div className="mb-6 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-foreground">{copy.accountOfflineTitle}</h3>
-          <button
+    <div data-ui="onboarding-offline-modal-div-1" data-component="offline-modal" className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">
+      <div data-ui="onboarding-offline-modal-div-2" className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+        <div data-ui="onboarding-offline-modal-div-3" className="mb-6 flex items-center justify-between">
+          <h3 data-ui="onboarding-offline-modal-h3-1" className="text-lg font-semibold text-foreground">{copy.accountOfflineTitle}</h3>
+          <button data-ui="onboarding-offline-modal-button-1"
             type="button"
             onClick={onClose}
             className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -39,10 +39,10 @@ export function OfflineModal({
           </button>
         </div>
 
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">{copy.accountNicknameLabel}</label>
-            <input
+        <div data-ui="onboarding-offline-modal-div-4" className="space-y-4">
+          <div data-ui="onboarding-offline-modal-div-5" className="space-y-2">
+            <label data-ui="onboarding-offline-modal-label-1" className="text-sm text-muted-foreground">{copy.accountNicknameLabel}</label>
+            <input data-ui="onboarding-offline-modal-input-1"
               type="text"
               value={offlineUsername}
               onChange={(e) => onUsernameChange(e.target.value)}
@@ -54,11 +54,11 @@ export function OfflineModal({
               }}
             />
             {!isValidUsername && offlineUsername.trim() && !allowInvalidUsername && (
-              <p className="text-xs text-destructive">{copy.accountOfflineInvalidHint}</p>
+              <p data-ui="onboarding-offline-modal-p-1" className="text-xs text-destructive">{copy.accountOfflineInvalidHint}</p>
             )}
           </div>
 
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+          <label data-ui="onboarding-offline-modal-label-2" className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
             <Checkbox
               checked={allowInvalidUsername}
               onCheckedChange={(v) => onAllowInvalidChange(!!v)}
@@ -66,8 +66,8 @@ export function OfflineModal({
             {copy.accountOfflineAllowInvalid}
           </label>
 
-          <div className="flex gap-3 pt-2">
-            <button
+          <div data-ui="onboarding-offline-modal-div-6" className="flex gap-3 pt-2">
+            <button data-ui="onboarding-offline-modal-button-2"
               type="button"
               onClick={onClose}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-muted/30 px-4 py-3 text-foreground transition-colors hover:bg-muted/50"
@@ -75,7 +75,7 @@ export function OfflineModal({
               <IconArrowLeft className="h-4 w-4" strokeWidth={1.75} />
               {copy.back}
             </button>
-            <button
+            <button data-ui="onboarding-offline-modal-button-3"
               type="button"
               onClick={onAdd}
               disabled={!canAdd}

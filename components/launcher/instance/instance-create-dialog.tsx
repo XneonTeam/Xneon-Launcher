@@ -181,18 +181,18 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
   return (
     <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) reset() }}>
       <DialogTrigger asChild>
-        <button type="button" onClick={() => { setOpen(true); reset() }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90">
+        <button data-ui="instance-instance-create-dialog-button-1" data-component="instance-create-dialog" type="button" onClick={() => { setOpen(true); reset() }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90">
           <IconPlus className="w-4 h-4" strokeWidth={1.75} />
           {t("builds.createBuild")}
         </button>
       </DialogTrigger>
-      <DialogContent className="!w-[580px] !max-w-[90vw] sm:!max-w-[580px] max-h-[82vh] overflow-y-auto">
+      <DialogContent data-window="instance-instance-create-dialog-window-1" className="!w-[580px] !max-w-[90vw] sm:!max-w-[580px] max-h-[82vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t("builds.creatingBuild")}</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 py-3">
-          <div className="inline-flex rounded-xl bg-muted/40 p-1">
-            <button
+        <div data-ui="instance-instance-create-dialog-div-1" data-component="instance-create-dialog" className="grid gap-4 py-3">
+          <div data-ui="instance-instance-create-dialog-div-2" className="inline-flex rounded-xl bg-muted/40 p-1">
+            <button data-ui="instance-instance-create-dialog-button-2"
               type="button"
               onClick={() => setMode("create")}
               className={cn(
@@ -202,7 +202,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
             >
               {t("builds.createBuild")}
             </button>
-            <button
+            <button data-ui="instance-instance-create-dialog-button-3"
               type="button"
               onClick={() => setMode("import")}
               className={cn(
@@ -215,31 +215,31 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
           </div>
 
           {mode === "create" ? (
-            <div className="grid gap-4 rounded-2xl border border-border bg-card p-4">
-              <div className="flex items-center justify-center gap-4">
-                <div
+            <div data-ui="instance-instance-create-dialog-div-3" className="grid gap-4 rounded-2xl border border-border bg-card p-4">
+              <div data-ui="instance-instance-create-dialog-div-4" className="flex items-center justify-center gap-4">
+                <div data-ui="instance-instance-create-dialog-div-5"
                   className="w-16 h-16 rounded-xl bg-muted/70 overflow-hidden border border-border cursor-pointer hover:border-primary/50 transition-colors flex-shrink-0 flex items-center justify-center"
                   onClick={() => setShowIconPicker(true)}
                 >
                   {iconHasImage ? <EntityIcon src={icon} className="w-full h-full p-2 text-primary" imgClassName="w-full h-full object-cover" /> : <IconCamera className="w-6 h-6 text-muted-foreground" />}
                 </div>
                 {iconHasImage && (
-                  <button type="button" onClick={() => setIcon("")} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+                  <button data-ui="instance-instance-create-dialog-button-4" type="button" onClick={() => setIcon("")} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
                     <IconTrash className="w-3.5 h-3.5" strokeWidth={1.75} />
                     {t("builds.remove")}
                   </button>
                 )}
               </div>
-              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t("builds.name")} className="w-full px-4 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary" />
-              <input type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder={t("builds.description")} className="w-full px-4 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary" />
-              <div className={cn("grid gap-3", requiresLoaderVersion ? "grid-cols-3" : "grid-cols-2")}>
+              <input data-ui="instance-instance-create-dialog-input-1" type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t("builds.name")} className="w-full px-4 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary" />
+              <input data-ui="instance-instance-create-dialog-input-2" type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder={t("builds.description")} className="w-full px-4 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary" />
+              <div data-ui="instance-instance-create-dialog-div-6" className={cn("grid gap-3", requiresLoaderVersion ? "grid-cols-3" : "grid-cols-2")}>
                 <Select value={version} onValueChange={setVersion}>
                   <SelectTrigger className="w-full h-[42px] rounded-xl bg-muted/50 border-border text-foreground">
                     <SelectValue placeholder="Minecraft" />
                   </SelectTrigger>
                   <SelectContent>
-                    {!versionsLoaded ? <div className="px-3 py-2 text-sm text-muted-foreground">{t("home.loadingVersions")}</div>
-                      : versions.length === 0 ? <div className="px-3 py-2 text-sm text-muted-foreground">{t("home.failedToLoadVersions")}</div>
+                    {!versionsLoaded ? <div data-ui="instance-instance-create-dialog-div-7" className="px-3 py-2 text-sm text-muted-foreground">{t("home.loadingVersions")}</div>
+                      : versions.length === 0 ? <div data-ui="instance-instance-create-dialog-div-8" className="px-3 py-2 text-sm text-muted-foreground">{t("home.failedToLoadVersions")}</div>
                       : versions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -250,7 +250,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                   <SelectContent>
                     {BUILD_MOD_LOADERS.map((item) => (
                       <SelectItem key={item.id} value={item.id}>
-                        <span className="flex items-center gap-2">
+                        <span data-ui="instance-instance-create-dialog-span-1" className="flex items-center gap-2">
                           <LoaderIcon loaderId={item.id} className="w-4 h-4 flex-shrink-0" />
                           {item.name}
                         </span>
@@ -264,15 +264,15 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                       <SelectValue placeholder={loaderVersionsLoaded ? t("home.loaderVersion") : t("home.loadingVersions")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {!loaderVersionsLoaded ? <div className="px-3 py-2 text-sm text-muted-foreground">{t("home.loaderVersionLoading")}</div>
-                        : loaderVersions.length === 0 ? <div className="px-3 py-2 text-sm text-muted-foreground">{t("home.noLoaderVersions")}</div>
+                      {!loaderVersionsLoaded ? <div data-ui="instance-instance-create-dialog-div-9" className="px-3 py-2 text-sm text-muted-foreground">{t("home.loaderVersionLoading")}</div>
+                        : loaderVersions.length === 0 ? <div data-ui="instance-instance-create-dialog-div-10" className="px-3 py-2 text-sm text-muted-foreground">{t("home.noLoaderVersions")}</div>
                         : loaderVersions.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 )}
               </div>
               {requiresLoaderVersion && (
-                <p className="text-xs text-muted-foreground">
+                <p data-ui="instance-instance-create-dialog-p-1" className="text-xs text-muted-foreground">
                   {!loaderVersionsLoaded
                     ? t("home.loaderVersionLoading")
                     : loaderVersion
@@ -282,24 +282,24 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
               )}
             </div>
           ) : (
-            <div className="grid gap-4 rounded-2xl border border-border bg-card p-4">
+            <div data-ui="instance-instance-create-dialog-div-11" className="grid gap-4 rounded-2xl border border-border bg-card p-4">
               {selectedImportSource ? (
                 <>
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <button
+                  <div data-ui="instance-instance-create-dialog-div-12" className="flex items-center justify-between gap-3">
+                    <div data-ui="instance-instance-create-dialog-div-13" className="flex items-center gap-3">
+                      <button data-ui="instance-instance-create-dialog-button-5"
                         type="button"
                         onClick={() => setSelectedImportSource(null)}
                         className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-muted/20 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
                       >
                         <IconArrowLeft className="h-4 w-4" strokeWidth={1.75} />
                       </button>
-                      <div>
-                        <div className="text-sm font-medium text-foreground">{sourceNames[selectedImportSource]}</div>
-                        <div className="text-xs text-muted-foreground">{t("builds.chooseBuildsToImport")}</div>
+                      <div data-ui="instance-instance-create-dialog-div-14">
+                        <div data-ui="instance-instance-create-dialog-div-15" className="text-sm font-medium text-foreground">{sourceNames[selectedImportSource]}</div>
+                        <div data-ui="instance-instance-create-dialog-div-16" className="text-xs text-muted-foreground">{t("builds.chooseBuildsToImport")}</div>
                       </div>
                     </div>
-                    <button
+                    <button data-ui="instance-instance-create-dialog-button-6"
                       type="button"
                       onClick={handleImport}
                       disabled={!selectedImportIds.some((id) => filteredImportableInstances.some((item) => item.id === id)) || importing}
@@ -310,10 +310,10 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
+                  <div data-ui="instance-instance-create-dialog-div-17" className="flex items-center gap-2">
+                    <div data-ui="instance-instance-create-dialog-div-18" className="relative flex-1">
                       <IconFolder className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <input
+                      <input data-ui="instance-instance-create-dialog-input-3"
                         type="text"
                         readOnly
                         value={customPaths[selectedImportSource] || t("builds.autoDetect")}
@@ -321,7 +321,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                         title={customPaths[selectedImportSource] || t("builds.pathAutoDetected")}
                       />
                     </div>
-                    <button
+                    <button data-ui="instance-instance-create-dialog-button-7"
                       type="button"
                       onClick={() => void handlePickCustomPath(selectedImportSource)}
                       className="flex h-[38px] shrink-0 items-center gap-1.5 px-3 rounded-xl border border-border bg-muted/30 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
@@ -332,15 +332,15 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                   </div>
 
                   {importing && importProgress && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span className="truncate">{importProgress.message}</span>
-                        <span className="shrink-0 ml-2">{importProgress.total > 0 ? Math.round((importProgress.current / importProgress.total) * 100) : 0}%</span>
+                    <div data-ui="instance-instance-create-dialog-div-19" className="space-y-2">
+                      <div data-ui="instance-instance-create-dialog-div-20" className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span data-ui="instance-instance-create-dialog-span-2" className="truncate">{importProgress.message}</span>
+                        <span data-ui="instance-instance-create-dialog-span-3" className="shrink-0 ml-2">{importProgress.total > 0 ? Math.round((importProgress.current / importProgress.total) * 100) : 0}%</span>
                       </div>
-                      <div className={cn("h-1.5 w-full rounded-full bg-muted/50", importProgress.total <= 0 && "progress-indeterminate")}>
+                      <div data-ui="instance-instance-create-dialog-div-21" className={cn("h-1.5 w-full rounded-full bg-muted/50", importProgress.total <= 0 && "progress-indeterminate")}>
                         {/* Размер неизвестен — полоса бежит вместо пустой шкалы. */}
                         {importProgress.total > 0 && (
-                          <div
+                          <div data-ui="instance-instance-create-dialog-div-22"
                             className="h-full rounded-full bg-primary transition-all duration-300"
                             style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
                           />
@@ -349,15 +349,15 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                     </div>
                   )}
 
-                  <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+                  <div data-ui="instance-instance-create-dialog-div-23" className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
                     {filteredImportableInstances.length === 0 && (
-                      <div className="rounded-xl border border-dashed border-border px-4 py-6 text-sm text-center text-muted-foreground">
+                      <div data-ui="instance-instance-create-dialog-div-24" className="rounded-xl border border-dashed border-border px-4 py-6 text-sm text-center text-muted-foreground">
                         {t("builds.nothingFoundForLauncher")}
                       </div>
                     )}
 
                     {filteredImportableInstances.map((instance) => (
-                      <button
+                      <button data-ui="instance-instance-create-dialog-button-8"
                         key={instance.id}
                         type="button"
                         onClick={() => toggleImportSelection(instance.id)}
@@ -368,26 +368,26 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                             : "border-border bg-muted/20 hover:border-primary/40"
                         )}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg bg-background border border-border shrink-0">
+                        <div data-ui="instance-instance-create-dialog-div-25" className="flex items-center gap-3">
+                          <div data-ui="instance-instance-create-dialog-div-26" className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg bg-background border border-border shrink-0">
                             {instance.icon ? (
-                              <img src={instance.icon} alt="" className="h-full w-full object-cover" />
+                              <img data-ui="instance-instance-create-dialog-img-1" src={instance.icon} alt="" className="h-full w-full object-cover" />
                             ) : (
-                              <img src={SOURCE_ICON_SRC[instance.source]} alt="" className="h-5 w-5 object-contain" />
+                              <img data-ui="instance-instance-create-dialog-img-2" src={SOURCE_ICON_SRC[instance.source]} alt="" className="h-5 w-5 object-contain" />
                             )}
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="truncate font-medium text-foreground">{instance.name}</span>
+                          <div data-ui="instance-instance-create-dialog-div-27" className="min-w-0 flex-1">
+                            <div data-ui="instance-instance-create-dialog-div-28" className="flex items-center gap-2">
+                              <span data-ui="instance-instance-create-dialog-span-4" className="truncate font-medium text-foreground">{instance.name}</span>
                             </div>
-                            <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <span>{instance.version}</span>
-                              <span>•</span>
+                            <div data-ui="instance-instance-create-dialog-div-29" className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <span data-ui="instance-instance-create-dialog-span-5">{instance.version}</span>
+                              <span data-ui="instance-instance-create-dialog-span-6">•</span>
                               <LoaderIcon loaderId={instance.modLoader} className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span className="capitalize">{instance.loaderVersion ? `${instance.modLoader} ${instance.loaderVersion}` : instance.modLoader}</span>
+                              <span data-ui="instance-instance-create-dialog-span-7" className="capitalize">{instance.loaderVersion ? `${instance.modLoader} ${instance.loaderVersion}` : instance.modLoader}</span>
                             </div>
                           </div>
-                          <div className={cn(
+                          <div data-ui="instance-instance-create-dialog-div-30" className={cn(
                             "flex h-7 w-7 items-center justify-center rounded-full border shrink-0",
                             selectedImportIds.includes(instance.id)
                               ? "border-primary bg-primary text-primary-foreground"
@@ -402,73 +402,73 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                 </>
               ) : (
                 <>
-                  <div className="rounded-2xl border border-border bg-muted/10 p-4">
-                    <div className="text-sm font-medium text-foreground">{t("builds.localImport")}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">{t("builds.localImportDesc")}</div>
+                  <div data-ui="instance-instance-create-dialog-div-31" className="rounded-2xl border border-border bg-muted/10 p-4">
+                    <div data-ui="instance-instance-create-dialog-div-32" className="text-sm font-medium text-foreground">{t("builds.localImport")}</div>
+                    <div data-ui="instance-instance-create-dialog-div-33" className="mt-1 text-xs text-muted-foreground">{t("builds.localImportDesc")}</div>
 
-                    <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                      <button
+                    <div data-ui="instance-instance-create-dialog-div-34" className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                      <button data-ui="instance-instance-create-dialog-button-9"
                         type="button"
                         onClick={() => void handleImportModpackFile()}
                         className="flex min-h-[112px] items-center justify-center rounded-2xl border border-border bg-muted/20 p-2.5 text-center transition-colors hover:border-primary/40 hover:bg-muted/30"
                       >
-                        <div className="flex flex-col items-center justify-center gap-2.5">
-                          <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-green-500/20 bg-background text-green-500">
-                            <svg className="h-8 w-8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                              <path fill="currentColor" d="M12.252.004a11.78 11.768 0 0 0-8.92 3.73a11 11 0 0 0-2.17 3.11a11.37 11.359 0 0 0-1.16 5.169c0 1.42.17 2.5.6 3.77c.24.759.77 1.899 1.17 2.529a12.3 12.298 0 0 0 8.85 5.639c.44.05 2.54.07 2.76.02c.2-.04.22.1-.26-1.7l-.36-1.37l-1.01-.06a8.5 8.489 0 0 1-5.18-1.8a5.3 5.3 0 0 1-1.3-1.26c0-.05.34-.28.74-.5a37.572 37.545 0 0 1 2.88-1.629c.03 0 .5.45 1.06.98l1 .97l2.07-.43l2.06-.43l1.47-1.47c.8-.8 1.48-1.5 1.48-1.52c0-.09-.42-1.63-.46-1.7c-.04-.06-.2-.03-1.02.18c-.53.13-1.2.3-1.45.4l-.48.15l-.53.53l-.53.53l-.93.1l-.93.07l-.52-.5a2.7 2.7 0 0 1-.96-1.7l-.13-.6l.43-.57c.68-.9.68-.9 1.46-1.1c.4-.1.65-.2.83-.33c.13-.099.65-.579 1.14-1.069l.9-.9l-.7-.7l-.7-.7l-1.95.54c-1.07.3-1.96.53-1.97.53c-.03 0-2.23 2.48-2.63 2.97l-.29.35l.28 1.03c.16.56.3 1.16.31 1.34l.03.3l-.34.23c-.37.23-2.22 1.3-2.84 1.63-.36.2-.37.2-.44.1c-.08-.1-.23-.6-.32-1.03c-.18-.86-.17-2.75.02-3.73a8.84 8.84 0 0 1 7.9-6.93c.43-.03.77-.08.78-.1c.06-.17.5-2.999.47-3.039c-.01-.02-.1-.02-.2-.03Zm3.68.67c-.2 0-.3.1-.37.38c-.06.23-.46 2.42-.46 2.52c0 .04.1.11.22.16a8.51 8.499 0 0 1 2.99 2a8.38 8.379 0 0 1 2.16 3.449a6.9 6.9 0 0 1 .4 2.8c0 1.07 0 1.27-.1 1.73a9.4 9.4 0 0 1-1.76 3.769c-.32.4-.98 1.06-1.37 1.38c-.38.32-1.54 1.1-1.7 1.14c-.1.03-.1.06-.07.26c.03.18.64 2.56.7 2.78l.06.06a12.07 12.058 0 0 0 7.27-9.4c.13-.77.13-2.58 0-3.4a11.96 11.948 0 0 0-5.73-8.578c-.7-.42-2.05-1.06-2.25-1.06Z"/>
+                        <div data-ui="instance-instance-create-dialog-div-35" className="flex flex-col items-center justify-center gap-2.5">
+                          <div data-ui="instance-instance-create-dialog-div-36" className="flex h-14 w-14 items-center justify-center rounded-xl border border-primary/20 bg-background text-primary">
+                            <svg data-ui="instance-instance-create-dialog-svg-1" data-icon="instance-instance-create-dialog-svg-1" className="h-8 w-8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                              <path data-ui="instance-instance-create-dialog-path-1" fill="currentColor" d="M12.252.004a11.78 11.768 0 0 0-8.92 3.73a11 11 0 0 0-2.17 3.11a11.37 11.359 0 0 0-1.16 5.169c0 1.42.17 2.5.6 3.77c.24.759.77 1.899 1.17 2.529a12.3 12.298 0 0 0 8.85 5.639c.44.05 2.54.07 2.76.02c.2-.04.22.1-.26-1.7l-.36-1.37l-1.01-.06a8.5 8.489 0 0 1-5.18-1.8a5.3 5.3 0 0 1-1.3-1.26c0-.05.34-.28.74-.5a37.572 37.545 0 0 1 2.88-1.629c.03 0 .5.45 1.06.98l1 .97l2.07-.43l2.06-.43l1.47-1.47c.8-.8 1.48-1.5 1.48-1.52c0-.09-.42-1.63-.46-1.7c-.04-.06-.2-.03-1.02.18c-.53.13-1.2.3-1.45.4l-.48.15l-.53.53l-.53.53l-.93.1l-.93.07l-.52-.5a2.7 2.7 0 0 1-.96-1.7l-.13-.6l.43-.57c.68-.9.68-.9 1.46-1.1c.4-.1.65-.2.83-.33c.13-.099.65-.579 1.14-1.069l.9-.9l-.7-.7l-.7-.7l-1.95.54c-1.07.3-1.96.53-1.97.53c-.03 0-2.23 2.48-2.63 2.97l-.29.35l.28 1.03c.16.56.3 1.16.31 1.34l.03.3l-.34.23c-.37.23-2.22 1.3-2.84 1.63-.36.2-.37.2-.44.1c-.08-.1-.23-.6-.32-1.03c-.18-.86-.17-2.75.02-3.73a8.84 8.84 0 0 1 7.9-6.93c.43-.03.77-.08.78-.1c.06-.17.5-2.999.47-3.039c-.01-.02-.1-.02-.2-.03Zm3.68.67c-.2 0-.3.1-.37.38c-.06.23-.46 2.42-.46 2.52c0 .04.1.11.22.16a8.51 8.499 0 0 1 2.99 2a8.38 8.379 0 0 1 2.16 3.449a6.9 6.9 0 0 1 .4 2.8c0 1.07 0 1.27-.1 1.73a9.4 9.4 0 0 1-1.76 3.769c-.32.4-.98 1.06-1.37 1.38c-.38.32-1.54 1.1-1.7 1.14c-.1.03-.1.06-.07.26c.03.18.64 2.56.7 2.78l.06.06a12.07 12.058 0 0 0 7.27-9.4c.13-.77.13-2.58 0-3.4a11.96 11.948 0 0 0-5.73-8.578c-.7-.42-2.05-1.06-2.25-1.06Z"/>
                             </svg>
                           </div>
-                          <div className="text-sm font-medium leading-tight text-foreground">{t("builds.importMrpack")}</div>
+                          <div data-ui="instance-instance-create-dialog-div-37" className="text-sm font-medium leading-tight text-foreground">{t("builds.importMrpack")}</div>
                         </div>
                       </button>
 
-                      <button
+                      <button data-ui="instance-instance-create-dialog-button-10"
                         type="button"
                         onClick={() => void handleImportModpackFile()}
                         className="flex min-h-[112px] items-center justify-center rounded-2xl border border-border bg-muted/20 p-2.5 text-center transition-colors hover:border-primary/40 hover:bg-muted/30"
                       >
-                        <div className="flex flex-col items-center justify-center gap-2.5">
-                          <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-orange-500/20 bg-background text-orange-500">
-                            <svg className="h-8 w-8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                              <path fill="currentColor" d="M18.326 9.215s4.9-.773 5.674-3.027h-7.507V4.4H0l2.032 2.358v2.415s5.127-.266 7.11 1.237c2.714 2.516-3.053 5.917-3.053 5.917l-.99 3.273c1.547-1.473 4.494-3.377 9.899-3.286c-2.057.65-4.125 1.665-5.735 3.286h10.925l-1.029-3.273s-7.918-4.668-.833-7.112"/>
+                        <div data-ui="instance-instance-create-dialog-div-38" className="flex flex-col items-center justify-center gap-2.5">
+                          <div data-ui="instance-instance-create-dialog-div-39" className="flex h-14 w-14 items-center justify-center rounded-xl border border-primary/20 bg-background text-primary">
+                            <svg data-ui="instance-instance-create-dialog-svg-2" data-icon="instance-instance-create-dialog-svg-2" className="h-8 w-8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                              <path data-ui="instance-instance-create-dialog-path-2" fill="currentColor" d="M18.326 9.215s4.9-.773 5.674-3.027h-7.507V4.4H0l2.032 2.358v2.415s5.127-.266 7.11 1.237c2.714 2.516-3.053 5.917-3.053 5.917l-.99 3.273c1.547-1.473 4.494-3.377 9.899-3.286c-2.057.65-4.125 1.665-5.735 3.286h10.925l-1.029-3.273s-7.918-4.668-.833-7.112"/>
                             </svg>
                           </div>
-                          <div className="text-sm font-medium leading-tight text-foreground">{t("builds.importZip")}</div>
+                          <div data-ui="instance-instance-create-dialog-div-40" className="text-sm font-medium leading-tight text-foreground">{t("builds.importZip")}</div>
                         </div>
                       </button>
 
-                      <button
+                      <button data-ui="instance-instance-create-dialog-button-11"
                         type="button"
                         onClick={() => void handleImportModpackFile()}
                         className="flex min-h-[112px] items-center justify-center rounded-2xl border border-border bg-muted/20 p-2.5 text-center transition-colors hover:border-primary/40 hover:bg-muted/30"
                       >
-                        <div className="flex flex-col items-center justify-center gap-2.5">
-                          <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-primary/25 bg-background text-primary">
+                        <div data-ui="instance-instance-create-dialog-div-41" className="flex flex-col items-center justify-center gap-2.5">
+                          <div data-ui="instance-instance-create-dialog-div-42" className="flex h-14 w-14 items-center justify-center rounded-xl border border-primary/25 bg-background text-primary">
                             <IconDownload className="h-8 w-8" strokeWidth={1.5} />
                           </div>
-                          <div className="text-sm font-medium leading-tight text-foreground">{t("builds.importXneon")}</div>
+                          <div data-ui="instance-instance-create-dialog-div-43" className="text-sm font-medium leading-tight text-foreground">{t("builds.importXneon")}</div>
                         </div>
                       </button>
 
                       {groupedSources.map(([source]) => (
-                        <button
+                        <button data-ui="instance-instance-create-dialog-button-12"
                           key={source}
                           type="button"
                           onClick={() => setSelectedImportSource(source)}
                           className="flex min-h-[112px] w-full items-center justify-center rounded-2xl border border-border bg-muted/20 p-2.5 text-center transition-colors hover:border-primary/40 hover:bg-muted/30"
                         >
-                          <div className="flex flex-col items-center justify-center gap-2.5">
-                            <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-border bg-background">
-                              <img src={SOURCE_ICON_SRC[source]} alt="" className="h-8 w-8 object-contain" />
+                          <div data-ui="instance-instance-create-dialog-div-44" className="flex flex-col items-center justify-center gap-2.5">
+                            <div data-ui="instance-instance-create-dialog-div-45" className="flex h-14 w-14 items-center justify-center rounded-xl border border-border bg-background">
+                              <img data-ui="instance-instance-create-dialog-img-3" src={SOURCE_ICON_SRC[source]} alt="" className="h-8 w-8 object-contain" />
                             </div>
-                            <div className="text-sm font-medium leading-tight text-foreground">{sourceNames[source]}</div>
+                            <div data-ui="instance-instance-create-dialog-div-46" className="text-sm font-medium leading-tight text-foreground">{sourceNames[source]}</div>
                           </div>
                         </button>
                       ))}
                     </div>
 
                     {groupedSources.length === 0 && (
-                      <div className="mt-3 text-xs text-muted-foreground">
+                      <div data-ui="instance-instance-create-dialog-div-47" className="mt-3 text-xs text-muted-foreground">
                         {t("builds.noOtherLaunchers")}
                       </div>
                     )}
@@ -478,12 +478,12 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
             </div>
           )}
         </div>
-        <div className="flex justify-end gap-2">
+        <div data-ui="instance-instance-create-dialog-div-48" data-component="instance-create-dialog" className="flex justify-end gap-2">
           <DialogClose className="px-4 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
             {t("settings.cancel")}
           </DialogClose>
           {mode === "create" && (
-            <button type="button" onClick={handleCreate} disabled={createDisabled} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed">
+            <button data-ui="instance-instance-create-dialog-button-13" type="button" onClick={handleCreate} disabled={createDisabled} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed">
               <IconPlus className="w-4 h-4" strokeWidth={1.75} />
               {t("builds.createBuild")}
             </button>

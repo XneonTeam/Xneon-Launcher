@@ -1,4 +1,6 @@
+import { CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useEffect, useMemo, useRef, useState } from "react"
+import { supportsQuickPlay } from "@xnlc/core/game-features"
 import { useAccounts } from "@/src/AccountsContext"
 import { getAvatarUrl } from "@/lib/home-page-shared"
 import { useHomeLaunch } from "@/src/hooks/use-home-launch"
@@ -51,7 +53,8 @@ export function HomePage() {
   const [selectedModLoader, setSelectedModLoader] = useState(saved.modLoader ?? "vanilla")
   const [selectedLoaderVersion, setSelectedLoaderVersion] = useState(saved.loaderVersion ?? "")
   const [accountComboOpen, setAccountComboOpen] = useState(false)
-  const { versions, versionsLoaded, selectedVersion, setSelectedVersion, buildIcons } = useHomeVersions(selectedModLoader, saved.version)
+  const { versions, versionsLoaded, selectedVersion, setSelectedVersion, buildIcons, buildMinecraftVersions } = useHomeVersions(selectedModLoader, saved.version)
+  const quickPlayAvailable = supportsQuickPlay(selectedModLoader === "instance" ? buildMinecraftVersions[selectedVersion] : selectedVersion)
   const { loaderVersions, loaderVersionsLoaded, defaultLoaderVersion } = useLoaderVersionOptions(selectedModLoader, selectedVersion)
   const account = activeAccount ?? accounts[0]
   const activeAvatarUrl = useMemo(() => account ? getAvatarUrl(account, account.username, avatarVersion) : "", [account, avatarVersion])
@@ -98,7 +101,7 @@ export function HomePage() {
   }, [selectedLoaderVersion, selectedModLoader, selectedVersion])
 
   return (
-    <div className="flex h-[calc(100vh-5rem)] gap-5 animate-in fade-in-0 slide-in-from-bottom-2 duration-300 overflow-hidden items-start">
+    <div data-ui="home-index-div-1" data-component="home-page" id="home-page-root" className={`flex h-[calc(100vh-5rem)] gap-5 overflow-hidden items-start ${CONTENT_ENTER_DELAYED}`}>
       <HomeControls
         accounts={accounts}
         account={account}
@@ -123,8 +126,9 @@ export function HomePage() {
         isRunning={isRunning}
         onPlay={handlePlay}
         onQuickPlayLaunch={handleQuickPlay}
+        quickPlayAvailable={quickPlayAvailable}
       />
-      <div className="flex-1 overflow-hidden"><NewsSection /></div>
+      <div data-ui="home-index-div-2" id="home-news-container" className="flex-1 overflow-hidden"><NewsSection /></div>
     </div>
   )
 }

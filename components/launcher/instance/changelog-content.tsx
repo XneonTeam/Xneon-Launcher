@@ -88,7 +88,7 @@ interface ChangelogContentProps {
 export const ChangelogContent = memo(function ChangelogContent({ content, components, className }: ChangelogContentProps) {
   const normalized = normalizeForMarkdown(content ?? "")
   return (
-    <div className={cn("changelog-content", className)}>
+    <div data-ui="instance-changelog-content-div-1" data-component="changelog-content" className={cn("changelog-content", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw, rehypeSanitize]}

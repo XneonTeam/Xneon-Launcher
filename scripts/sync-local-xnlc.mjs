@@ -19,6 +19,7 @@ const localPackages = [
   "xnlc-servers",
   "xnlc-skins",
   "xnlc-types",
+  "xnlc-agent",
 ]
 
 function linkPackage(targetDir, sourceDir, label) {

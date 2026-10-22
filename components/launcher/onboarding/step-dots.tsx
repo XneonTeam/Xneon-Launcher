@@ -19,13 +19,13 @@ type StepDotsProps = {
 
 export function StepDots({ steps, stepIndex, onSelectStep }: StepDotsProps) {
   return (
-    <div className="flex gap-2">
+    <div data-ui="onboarding-step-dots-div-1" data-component="step-dots" className="flex gap-2">
       {steps.map((step, index) => {
         const StepIcon = STEP_ICONS[index] ?? IconPlayerPlay
         const state = getStepState(index, stepIndex)
 
         return (
-          <button
+          <button data-ui="onboarding-step-dots-button-1"
             key={step.title}
             type="button"
             onClick={() => onSelectStep(index)}
@@ -38,20 +38,20 @@ export function StepDots({ steps, stepIndex, onSelectStep }: StepDotsProps) {
                   : "border-border bg-card hover:border-primary/35 hover:bg-muted/20"
             )}
           >
-            <div
+            <div data-ui="onboarding-step-dots-div-2"
               className={cn(
                 "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border",
                 state === "current"
                   ? "border-primary/30 bg-primary/15 text-primary"
                   : state === "done"
-                    ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-300"
+                    ? "border-success/20 bg-success/10 text-success"
                     : "border-border bg-background text-muted-foreground"
               )}
             >
               {state === "done" ? <IconCheck className="h-4 w-4" strokeWidth={2.2} /> : <StepIcon className="h-4 w-4" strokeWidth={1.9} />}
             </div>
-            <div className="min-w-0">
-              <div className="truncate text-sm font-medium text-foreground">{step.title}</div>
+            <div data-ui="onboarding-step-dots-div-3" className="min-w-0">
+              <div data-ui="onboarding-step-dots-div-4" className="truncate text-sm font-medium text-foreground">{step.title}</div>
             </div>
           </button>
         )

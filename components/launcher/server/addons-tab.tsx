@@ -1,3 +1,4 @@
+import { CONTENT_ENTER, CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useState, useEffect, useCallback, useRef, useMemo, useDeferredValue } from "react"
 import { useTranslation } from "react-i18next"
 import {
@@ -33,7 +34,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
 
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [results, setResults] = useState<ModSearchResult[]>([])
   const [totalHits, setTotalHits] = useState(0)
   const [page, setPage] = useState(1)
@@ -323,13 +324,13 @@ export function AddonsTab({ server }: AddonsTabProps) {
 
   if (!contentType) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center">
+      <div data-ui="server-addons-tab-div-1" data-component="addons-tab" className={`flex flex-col items-center justify-center h-full gap-4 text-center ${CONTENT_ENTER_DELAYED}`}>
+        <div data-ui="server-addons-tab-div-2" className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center">
           <IconPlug className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />
         </div>
-        <div>
-          <p className="font-medium text-foreground">{t("servers.addons.noAddons")}</p>
-          <p className="text-sm text-muted-foreground mt-1">
+        <div data-ui="server-addons-tab-div-3">
+          <p data-ui="server-addons-tab-p-1" className="font-medium text-foreground">{t("servers.addons.noAddons")}</p>
+          <p data-ui="server-addons-tab-p-2" className="text-sm text-muted-foreground mt-1">
             {t("servers.addons.noAddonsDesc")}
           </p>
         </div>
@@ -342,12 +343,12 @@ export function AddonsTab({ server }: AddonsTabProps) {
   const searchTitle = contentType === "plugin" ? t("servers.addons.plugins") : t("servers.addons.mods")
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col gap-2">
+    <div data-ui="server-addons-tab-div-4" data-component="addons-tab" className="flex-1 min-h-0 flex flex-col gap-2">
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[240px]">
+      <div data-ui="server-addons-tab-div-5" className={`flex items-center justify-between gap-3 flex-wrap ${CONTENT_ENTER_DELAYED}`}>
+        <div data-ui="server-addons-tab-div-6" className="relative flex-1 min-w-[240px]">
           <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
+          <input data-ui="server-addons-tab-input-1"
             type="text"
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
@@ -355,7 +356,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
             className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-muted/50 border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary"
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div data-ui="server-addons-tab-div-7" className="flex items-center gap-2">
           <Select value={source} onValueChange={v => { setSource(v as SearchSource); setPage(1) }}>
             {/* Ширина по содержимому: значок + «Обе платформы» должны влезать целиком */}
             <SelectTrigger className="w-auto min-w-[150px] h-8 text-xs rounded-xl bg-muted/50 border border-border text-foreground">
@@ -365,13 +366,13 @@ export function AddonsTab({ server }: AddonsTabProps) {
             <SelectContent>
               {/* Порядок пунктов: Modrinth → CurseForge → обе платформы (и Modrinth по умолчанию). */}
               <SelectItem value="modrinth">
-                <span className="flex items-center gap-1.5"><SourceMark source="modrinth" />Modrinth</span>
+                <span data-ui="server-addons-tab-span-1" className="flex items-center gap-1.5"><SourceMark source="modrinth" />Modrinth</span>
               </SelectItem>
               <SelectItem value="curseforge">
-                <span className="flex items-center gap-1.5"><SourceMark source="curseforge" />CurseForge</span>
+                <span data-ui="server-addons-tab-span-2" className="flex items-center gap-1.5"><SourceMark source="curseforge" />CurseForge</span>
               </SelectItem>
               <SelectItem value="both">
-                <span className="flex items-center gap-1.5">
+                <span data-ui="server-addons-tab-span-3" className="flex items-center gap-1.5">
                   <SourceMark source="modrinth" />
                   <SourceMark source="curseforge" />
                   {t("servers.addons.bothPlatforms")}
@@ -395,7 +396,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
             selectedCategories={selectedCategories}
             onApply={(cats) => { setSelectedCategories(cats); setPage(1) }}
           />
-          <button
+          <button data-ui="server-addons-tab-button-1"
             type="button"
             onClick={() => fileInputRef?.click()}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium bg-muted text-foreground hover:bg-muted/80 transition-colors"
@@ -403,7 +404,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
             <IconUpload className="w-4 h-4" strokeWidth={1.75} />
             {t("servers.addons.uploadJar")}
           </button>
-          <input
+          <input data-ui="server-addons-tab-input-2"
             ref={setFileInputRef}
             type="file"
             accept=".jar,.zip"
@@ -420,17 +421,17 @@ export function AddonsTab({ server }: AddonsTabProps) {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 min-h-0 flex flex-col rounded-2xl border border-border bg-card/40 p-4">
-        <div className="flex items-center justify-between shrink-0">
-          <h3 className="text-sm font-medium text-muted-foreground">{searchTitle}</h3>
+      <div data-ui="server-addons-tab-div-8" className="flex-1 min-h-0 flex flex-col rounded-2xl border border-border bg-card/40 p-4">
+        <div data-ui="server-addons-tab-div-9" className="flex items-center justify-between shrink-0">
+          <h3 data-ui="server-addons-tab-h3-1" className="text-sm font-medium text-muted-foreground">{searchTitle}</h3>
           {!loading && results.length > 0 && (
-            <span className="text-xs text-muted-foreground">{formatDownloads(totalHits)} {t("servers.addons.results")}</span>
+            <span data-ui="server-addons-tab-span-4" className="text-xs text-muted-foreground">{formatDownloads(totalHits)} {t("servers.addons.results")}</span>
           )}
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto pr-1 mt-2">
+        <div data-ui="server-addons-tab-div-10" className={`flex-1 min-h-0 overflow-y-auto pr-1 mt-2 ${!loading ? CONTENT_ENTER : ""}`}>
           {results.length > 0 ? (
-            <div className="grid gap-2 pb-2">
+            <div data-ui="server-addons-tab-div-11" className="grid gap-2 pb-2">
               {deferredResults.map(project => (
                 <AddonRow
                   key={project.id}

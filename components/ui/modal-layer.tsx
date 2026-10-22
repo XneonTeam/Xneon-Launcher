@@ -1,14 +1,16 @@
 import { useEffect, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 
 type ModalLayerProps = {
   onClose: () => void
   className?: string
+  windowId?: string
   children: ReactNode
 }
 
 /** Фон модалки: закрывает по клику и по Esc; клик внутри панели — нет. */
-export function ModalLayer({ onClose, className, children }: ModalLayerProps) {
+export function ModalLayer({ onClose, className, windowId, children }: ModalLayerProps) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       // Вложенный Radix-диалог гасит Esc сам — не закрываем и внешний слой.
@@ -18,17 +20,18 @@ export function ModalLayer({ onClose, className, children }: ModalLayerProps) {
     return () => window.removeEventListener("keydown", onKey)
   }, [onClose])
 
-  return (
-    <div
+  return createPortal(
+    <div data-ui="ui-modal-layer-div-1" data-slot="modal-overlay" data-window={windowId}
       // Затемнение задано здесь, а не у каждого вызова: иначе модалки без своего
       // `bg-*` (аккаунты, миры, серверы) открывались поверх яркого интерфейса.
       // Свой фон можно передать через className — он перекроет значение по умолчанию.
       className={cn("fixed inset-0 z-50 flex items-center justify-center bg-black/50", className)}
       onClick={onClose}
     >
-      <div className="contents" onClick={(event) => event.stopPropagation()}>
+      <div data-ui="ui-modal-layer-div-2" data-slot="modal-content" className="contents" onClick={(event) => event.stopPropagation()}>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

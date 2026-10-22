@@ -31,19 +31,19 @@ const PROVIDERS: { id: ProviderId; title: string; descriptionKey: string; color:
   {
     id: "microsoft", title: "Microsoft",
     descriptionKey: "accounts.microsoftDesc",
-    color: "#2563EB",
+    color: "var(--primary)",
     siteName: "Microsoft",
   },
   {
     id: "elyby", title: "Ely.By",
     descriptionKey: "accounts.elyByDesc",
-    color: "#217e5c",
+    color: "var(--primary)",
     siteName: "Ely.by",
   },
   {
     id: "xnskins", title: "XN Skins",
     descriptionKey: "accounts.xneonSkinsDesc",
-    color: "#f97316",
+    color: "var(--primary)",
     siteName: "XN Skins",
   },
 ]
@@ -160,11 +160,11 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
   const provider = chosenProvider ? PROVIDERS.find(p => p.id === chosenProvider) : null
 
   return (
-    <div className="space-y-5">
+    <div data-ui="onboarding-step-account-div-1" data-component="step-account" className="space-y-5">
       {!chosenProvider && (
-        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <div data-ui="onboarding-step-account-div-2" className="grid grid-cols-2 gap-4 xl:grid-cols-4">
           {PROVIDERS.map((p) => (
-            <button
+            <button data-ui="onboarding-step-account-button-1"
               key={p.id}
               type="button"
               disabled={anyLoginLoading}
@@ -174,40 +174,40 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
                 "disabled:cursor-not-allowed disabled:opacity-60"
               )}
             >
-              <div
+              <div data-ui="onboarding-step-account-div-3"
                 className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl"
-                style={{ backgroundColor: `${p.color}20`, color: p.color }}
+                style={{ backgroundColor: `color-mix(in srgb, ${p.color} 12.5%, transparent)`, color: p.color }}
               >
                 {p.id === "microsoft" ? <MicrosoftIcon className="h-6 w-6" />
                   : p.id === "elyby" ? <ElyByIcon className="h-6 w-6" />
                   : <XnSkinsIcon className="h-6 w-6" />}
               </div>
-              <div className="font-medium text-foreground">{p.title}</div>
-              <div className="mt-1 text-sm text-muted-foreground">{t(p.descriptionKey)}</div>
+              <div data-ui="onboarding-step-account-div-4" className="font-medium text-foreground">{p.title}</div>
+              <div data-ui="onboarding-step-account-div-5" className="mt-1 text-sm text-muted-foreground">{t(p.descriptionKey)}</div>
             </button>
           ))}
 
-          <button
+          <button data-ui="onboarding-step-account-button-2"
             type="button"
             onClick={onOpenOffline}
             className={cn(
               "relative overflow-hidden rounded-xl border border-border bg-muted/30 p-4 text-left transition-all duration-200 hover:border-primary/50 hover:bg-muted/50"
             )}
           >
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl"
-              style={{ backgroundColor: "#75757520", color: "#757575" }}>
+            <div data-ui="onboarding-step-account-div-6" className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl"
+              style={{ backgroundColor: "color-mix(in srgb, var(--muted-foreground) 12.5%, transparent)", color: "var(--muted-foreground)" }}>
               <IconUserMinus className="h-6 w-6" />
             </div>
-            <div className="font-medium text-foreground">{copy.accountOfflineTitle}</div>
-            <div className="mt-1 text-sm text-muted-foreground">{copy.accountOfflinePlaceholder}</div>
+            <div data-ui="onboarding-step-account-div-7" className="font-medium text-foreground">{copy.accountOfflineTitle}</div>
+            <div data-ui="onboarding-step-account-div-8" className="mt-1 text-sm text-muted-foreground">{copy.accountOfflinePlaceholder}</div>
           </button>
         </div>
       )}
 
       {chosenProvider && provider && !deviceCodeInfo && (
-        <div className="rounded-2xl border border-border bg-card/50 p-5 space-y-4">
-          <div className="flex items-center gap-3">
-            <button
+        <div data-ui="onboarding-step-account-div-9" className="rounded-2xl border border-border bg-card/50 p-5 space-y-4">
+          <div data-ui="onboarding-step-account-div-10" className="flex items-center gap-3">
+            <button data-ui="onboarding-step-account-button-3"
               type="button"
               onClick={() => { resetDeviceState(); setChosenProvider(null) }}
               disabled={authLoading}
@@ -215,76 +215,76 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
             >
               <IconArrowLeft className="h-4 w-4" />
             </button>
-            <div
+            <div data-ui="onboarding-step-account-div-11"
               className="flex h-10 w-10 items-center justify-center rounded-xl"
-              style={{ backgroundColor: `${provider.color}20`, color: provider.color }}
+              style={{ backgroundColor: `color-mix(in srgb, ${provider.color} 12.5%, transparent)`, color: provider.color }}
             >
               {provider.id === "microsoft" ? <MicrosoftIcon className="h-5 w-5" />
                 : provider.id === "elyby" ? <ElyByIcon className="h-5 w-5" />
                 : <XnSkinsIcon className="h-5 w-5" />}
             </div>
-            <div>
-              <div className="font-medium text-foreground">{provider.title}</div>
-              <div className="text-xs text-muted-foreground">{copy.chooseMethod}</div>
+            <div data-ui="onboarding-step-account-div-12">
+              <div data-ui="onboarding-step-account-div-13" className="font-medium text-foreground">{provider.title}</div>
+              <div data-ui="onboarding-step-account-div-14" className="text-xs text-muted-foreground">{copy.chooseMethod}</div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3">
-            <button
+          <div data-ui="onboarding-step-account-div-15" className="grid grid-cols-1 gap-3">
+            <button data-ui="onboarding-step-account-button-4"
               onClick={() => { resetDeviceState(); onProviderLogin(chosenProvider) }}
               disabled={authLoading}
               className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 transition-all text-left disabled:opacity-60"
             >
-              <div
+              <div data-ui="onboarding-step-account-div-16"
                 className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-                style={{ backgroundColor: `${provider.color}20`, color: provider.color }}
+                style={{ backgroundColor: `color-mix(in srgb, ${provider.color} 12.5%, transparent)`, color: provider.color }}
               >
-                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="4" y="10" width="16" height="10" rx="2" stroke="currentColor" strokeWidth="1.8" />
-                  <path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" strokeWidth="1.8" />
-                  <circle cx="12" cy="15" r="1.4" fill="currentColor" />
+                <svg data-ui="onboarding-step-account-svg-1" data-icon="onboarding-step-account-svg-1" className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect data-ui="onboarding-step-account-rect-1" x="4" y="10" width="16" height="10" rx="2" stroke="currentColor" strokeWidth="1.8" />
+                  <path data-ui="onboarding-step-account-path-1" d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" strokeWidth="1.8" />
+                  <circle data-ui="onboarding-step-account-circle-1" cx="12" cy="15" r="1.4" fill="currentColor" />
                 </svg>
               </div>
-              <div>
-                <div className="font-medium text-foreground">OAuth2</div>
-                <div className="text-sm text-muted-foreground mt-1">{copy.methodOAuthDesc}</div>
+              <div data-ui="onboarding-step-account-div-17">
+                <div data-ui="onboarding-step-account-div-18" className="font-medium text-foreground">OAuth2</div>
+                <div data-ui="onboarding-step-account-div-19" className="text-sm text-muted-foreground mt-1">{copy.methodOAuthDesc}</div>
               </div>
             </button>
 
-            <button
+            <button data-ui="onboarding-step-account-button-5"
               onClick={() => void handleStartDeviceCode(chosenProvider)}
               disabled={authLoading}
               className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 transition-all text-left disabled:opacity-60"
             >
-              <div
+              <div data-ui="onboarding-step-account-div-20"
                 className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-                style={{ backgroundColor: `${provider.color}20`, color: provider.color }}
+                style={{ backgroundColor: `color-mix(in srgb, ${provider.color} 12.5%, transparent)`, color: provider.color }}
               >
-                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
-                  <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
-                  <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
-                  <path d="M14 14h4v4h-4z" fill="currentColor" />
+                <svg data-ui="onboarding-step-account-svg-2" data-icon="onboarding-step-account-svg-2" className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect data-ui="onboarding-step-account-rect-2" x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+                  <rect data-ui="onboarding-step-account-rect-3" x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+                  <rect data-ui="onboarding-step-account-rect-4" x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+                  <path data-ui="onboarding-step-account-path-2" d="M14 14h4v4h-4z" fill="currentColor" />
                 </svg>
               </div>
-              <div>
-                <div className="font-medium text-foreground">Device Code</div>
-                <div className="text-sm text-muted-foreground mt-1">{copy.methodDeviceDesc.replace("{{site}}", provider.siteName)}</div>
+              <div data-ui="onboarding-step-account-div-21">
+                <div data-ui="onboarding-step-account-div-22" className="font-medium text-foreground">Device Code</div>
+                <div data-ui="onboarding-step-account-div-23" className="text-sm text-muted-foreground mt-1">{copy.methodDeviceDesc.replace("{{site}}", provider.siteName)}</div>
               </div>
               {authLoading && <IconLoader2 className="ml-auto h-5 w-5 animate-spin text-primary" />}
             </button>
           </div>
 
           {authError && (
-            <p className="text-sm text-destructive text-center">{authError}</p>
+            <p data-ui="onboarding-step-account-p-1" className="text-sm text-destructive text-center">{authError}</p>
           )}
         </div>
       )}
 
       {chosenProvider && deviceCodeInfo && provider && (
-        <div className="rounded-2xl border border-border bg-card/50 p-5 space-y-4">
-          <div className="flex items-center gap-3">
-            <button
+        <div data-ui="onboarding-step-account-div-24" className="rounded-2xl border border-border bg-card/50 p-5 space-y-4">
+          <div data-ui="onboarding-step-account-div-25" className="flex items-center gap-3">
+            <button data-ui="onboarding-step-account-button-6"
               type="button"
               onClick={() => { resetDeviceState(); setChosenProvider(null) }}
               disabled={devicePolling}
@@ -292,25 +292,25 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
             >
               <IconArrowLeft className="h-4 w-4" />
             </button>
-            <div
+            <div data-ui="onboarding-step-account-div-26"
               className="flex h-10 w-10 items-center justify-center rounded-xl"
-              style={{ backgroundColor: `${provider.color}20`, color: provider.color }}
+              style={{ backgroundColor: `color-mix(in srgb, ${provider.color} 12.5%, transparent)`, color: provider.color }}
             >
               {provider.id === "microsoft" ? <MicrosoftIcon className="h-5 w-5" />
                 : provider.id === "elyby" ? <ElyByIcon className="h-5 w-5" />
                 : <XnSkinsIcon className="h-5 w-5" />}
             </div>
-            <div>
-              <div className="font-medium text-foreground">{provider.title}</div>
-              <div className="text-xs text-muted-foreground">Device Code</div>
+            <div data-ui="onboarding-step-account-div-27">
+              <div data-ui="onboarding-step-account-div-28" className="font-medium text-foreground">{provider.title}</div>
+              <div data-ui="onboarding-step-account-div-29" className="text-xs text-muted-foreground">Device Code</div>
             </div>
           </div>
 
           {deviceStatus === "waiting" && (
-            <div className="text-center space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground mb-3">{copy.openLink}</p>
-                <a
+            <div data-ui="onboarding-step-account-div-30" className="text-center space-y-4">
+              <div data-ui="onboarding-step-account-div-31">
+                <p data-ui="onboarding-step-account-p-2" className="text-sm text-muted-foreground mb-3">{copy.openLink}</p>
+                <a data-ui="onboarding-step-account-a-1"
                   href={deviceCodeInfo.verificationUriComplete}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -320,18 +320,18 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
                 </a>
               </div>
 
-              <button
+              <button data-ui="onboarding-step-account-button-7"
                 type="button"
                 onClick={() => handleCopyCode(deviceCodeInfo.userCode)}
                 className="inline-flex items-center gap-2 rounded-xl border-2 border-dashed border-primary/50 bg-primary/5 px-6 py-3 transition-all hover:border-primary hover:bg-primary/10"
               >
-                <span className="text-2xl font-mono font-bold tracking-[0.3em] text-foreground">
+                <span data-ui="onboarding-step-account-span-1" className="text-2xl font-mono font-bold tracking-[0.3em] text-foreground">
                   {deviceCodeInfo.userCode}
                 </span>
-                <span className="text-xs text-muted-foreground">{copied ? copy.copied : copy.clickToCopy}</span>
+                <span data-ui="onboarding-step-account-span-2" className="text-xs text-muted-foreground">{copied ? copy.copied : copy.clickToCopy}</span>
               </button>
 
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <div data-ui="onboarding-step-account-div-32" className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                 <IconLoader2 className="h-4 w-4 animate-spin" />
                 {copy.waitingConfirmation}
               </div>
@@ -339,9 +339,9 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
           )}
 
           {deviceStatus === "expired" && (
-            <div className="text-center space-y-3">
-              <p className="text-sm text-destructive">{authError || copy.codeExpired}</p>
-              <button
+            <div data-ui="onboarding-step-account-div-33" className="text-center space-y-3">
+              <p data-ui="onboarding-step-account-p-3" className="text-sm text-destructive">{authError || copy.codeExpired}</p>
+              <button data-ui="onboarding-step-account-button-8"
                 onClick={() => void handleStartDeviceCode(chosenProvider)}
                 className="px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium transition-colors"
               >
@@ -351,7 +351,7 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
           )}
 
           {deviceStatus === "done" && (
-            <div className="flex items-center justify-center gap-2 text-sm text-primary">
+            <div data-ui="onboarding-step-account-div-34" className="flex items-center justify-center gap-2 text-sm text-primary">
               <IconCheck className="h-4 w-4" />
               {copy.loginSuccess}
             </div>
@@ -360,9 +360,9 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
       )}
 
       {accounts.length > 0 && (
-        <div className="space-y-3">
+        <div data-ui="onboarding-step-account-div-35" className="space-y-3">
           {accounts.map((account) => (
-            <div
+            <div data-ui="onboarding-step-account-div-36"
               key={account.id}
               className={cn(
                 "flex items-center gap-4 rounded-xl border p-4 transition-all duration-200",
@@ -371,24 +371,24 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
                   : "border-border bg-muted/30 hover:border-primary/50"
               )}
             >
-              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl">
+              <div data-ui="onboarding-step-account-div-37" className="h-12 w-12 shrink-0 overflow-hidden rounded-xl">
                 <CachedAvatar src={getAvatarUrl(account, account.username)} alt="" className="h-full w-full object-cover" />
               </div>
 
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-medium text-foreground">{account.username}</span>
+              <div data-ui="onboarding-step-account-div-38" className="min-w-0 flex-1">
+                <div data-ui="onboarding-step-account-div-39" className="flex items-center gap-2">
+                  <span data-ui="onboarding-step-account-span-3" className="truncate font-medium text-foreground">{account.username}</span>
                   {account.isActive && (
-                    <span className="shrink-0 rounded-full bg-primary/20 px-2 py-0.5 text-xs font-medium text-primary">
+                    <span data-ui="onboarding-step-account-span-4" className="shrink-0 rounded-full bg-primary/20 px-2 py-0.5 text-xs font-medium text-primary">
                       {copy.accountSelected}
                     </span>
                   )}
                 </div>
-                <span className="text-sm text-muted-foreground">{account.type}</span>
+                <span data-ui="onboarding-step-account-span-5" className="text-sm text-muted-foreground">{account.type}</span>
               </div>
 
               {!account.isActive && (
-                <button
+                <button data-ui="onboarding-step-account-button-9"
                   type="button"
                   onClick={() => setActiveAccount(account.id)}
                   className="flex shrink-0 items-center gap-1.5 rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-primary/20 hover:text-primary"

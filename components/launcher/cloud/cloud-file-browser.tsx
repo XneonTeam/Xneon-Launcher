@@ -1,12 +1,9 @@
+import { CONTENT_ENTER, CONTENT_ENTER_DELAYED } from "../content-motion"
+import { IconPalette } from "@tabler/icons-react"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import {
-  IconFolder, IconFile, IconDownload, IconTrash, IconLoader2,
-  IconRefresh, IconUpload, IconArrowUp, IconLayoutGrid, IconColorSwatch,
-  IconUser, IconHome, IconCloud, IconServer, IconPuzzle, IconPhoto, IconSparkles, IconMap,
-  IconSettings, IconBug, IconPlug, IconCheck,
-} from "@tabler/icons-react"
+import { IconFolder, IconFile, IconDownload, IconTrash, IconLoader2, IconRefresh, IconUpload, IconArrowUp, IconLayoutGrid, IconColorSwatch, IconUser, IconHome, IconCloud, IconServer, IconPuzzle, IconPhoto, IconSparkles, IconMap, IconSettings, IconBug, IconPlug, IconCheck } from "@tabler/icons-react"
 import { formatBytes, timeAgo } from "./utils"
 import { useAccounts, type Account } from "@/src/AccountsContext"
 import { CachedAvatar } from "@/components/ui/cached-avatar"
@@ -16,8 +13,12 @@ import type { CloudUploadCategory } from "@xnlc/types"
 import { useAlertDialog } from "@/lib/use-alert-dialog"
 import { ActionConfirmDialog } from "@/components/launcher/instance/action-confirm-dialog"
 import { ModalLayer } from "@/components/ui/modal-layer"
+import { ThemeCompactPreview } from "../settings/theme-preview"
+import { parseThemes } from "../settings/theme-model"
+import type { Theme } from "../settings/types"
 
 const FALLBACK_AVATAR = "avatar://head/Steve"
+const cloudSectionIcons = { accounts: IconUser, builds: IconColorSwatch, servers: IconServer, themes: IconPalette }
 
 function CloudFileIcon({ icon, name }: { icon?: string; name: string }) {
   const retryCount = useRef(0)
@@ -30,19 +31,19 @@ function CloudFileIcon({ icon, name }: { icon?: string; name: string }) {
     }
   }, [icon])
   if (!icon) return null
-  return <img src={icon} alt="" className="w-full h-full object-cover rounded" onError={handleError} />
+  return <img data-ui="cloud-cloud-file-browser-img-1" data-component="cloud-file-icon" src={icon} alt="" className="w-full h-full object-cover rounded" onError={handleError} />
 }
 
 function BuildThumbIcon({ icon }: { icon?: string }) {
   const [failed, setFailed] = useState(false)
   if (!icon || failed) {
     return (
-      <div className="w-full h-full flex items-center justify-center">
+      <div data-ui="cloud-cloud-file-browser-div-1" data-component="build-thumb-icon" className="w-full h-full flex items-center justify-center">
         <IconColorSwatch className="w-5 h-5 text-primary" />
       </div>
     )
   }
-  return <img src={icon} alt="" className="w-full h-full object-cover" onError={() => setFailed(true)} />
+  return <img data-ui="cloud-cloud-file-browser-img-2" data-component="build-thumb-icon" src={icon} alt="" className="w-full h-full object-cover" onError={() => setFailed(true)} />
 }
 
 function FileIcon({ file, currentPath, localBuilds, localServers }: {
@@ -51,7 +52,13 @@ function FileIcon({ file, currentPath, localBuilds, localServers }: {
   localBuilds: Array<{ id: string; name: string; icon?: string; modLoader?: string }>
   localServers: Array<{ id: string; name: string; icon?: string; version?: string; modloader?: string }>
 }) {
-  if (file.isDir) return <IconFolder className="w-5 h-5 text-primary/70" />
+  if (file.isDir) {
+    const Icon = !currentPath && Object.hasOwn(cloudSectionIcons, file.name)
+      ? cloudSectionIcons[file.name as keyof typeof cloudSectionIcons]
+      : IconFolder
+    return <Icon className="w-5 h-5 text-primary/70" strokeWidth={1.75} />
+  }
+  if (file.name.endsWith(".xntheme")) return <IconColorSwatch className="h-5 w-5 text-primary" />
 
   if (currentPath === "accounts" && file.name.endsWith(".json")) {
     const username = file.name.replace(/\.json$/i, "")
@@ -64,7 +71,7 @@ function FileIcon({ file, currentPath, localBuilds, localServers }: {
     if (localBuild?.icon) return <CloudFileIcon icon={localBuild.icon} name={buildName} />
     // Нет иконки сборки — показываем лоадер, чтобы строка не была «голой»
     return (
-      <div className="w-full h-full flex items-center justify-center text-primary">
+      <div data-ui="cloud-cloud-file-browser-div-2" data-component="file-icon" className="w-full h-full flex items-center justify-center text-primary">
         <LoaderIcon loaderId={localBuild?.modLoader ?? "instance"} className="w-5 h-5" />
       </div>
     )
@@ -77,7 +84,7 @@ function FileIcon({ file, currentPath, localBuilds, localServers }: {
     // запасным вариантом, когда иконка не задана.
     if (localServer?.icon) return <CloudFileIcon icon={localServer.icon} name={serverName} />
     return (
-      <div className="w-full h-full flex items-center justify-center text-primary">
+      <div data-ui="cloud-cloud-file-browser-div-3" data-component="file-icon" className="w-full h-full flex items-center justify-center text-primary">
         <LoaderIcon loaderId={localServer?.modloader ?? "instance"} className="w-5 h-5" />
       </div>
     )
@@ -96,13 +103,16 @@ type CloudFile = {
   path: string
   isDir: boolean
   category?: string
+  themePreview?: Theme
 }
 
 type Props = {
   providerId: string
+  pendingThemeId?: string | null
+  onPendingThemeHandled?: () => void
 }
 
-export function CloudFileBrowser({ providerId }: Props) {
+export function CloudFileBrowser({ providerId, pendingThemeId, onPendingThemeHandled }: Props) {
   const { t } = useTranslation()
   const { addAccount } = useAccounts()
   const [files, setFiles] = useState<CloudFile[]>([])
@@ -111,9 +121,12 @@ export function CloudFileBrowser({ providerId }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentPath, setCurrentPath] = useState<string>("")
-  const [filter, setFilter] = useState<"all" | "builds" | "servers" | "accounts">("all")
+  const [filter, setFilter] = useState<"all" | "builds" | "servers" | "accounts" | "themes">("all")
+  const [importingTheme, setImportingTheme] = useState<string | null>(null)
   const [quota, setQuota] = useState<{ used: number; total: number } | null>(null)
   const [showUploadChoice, setShowUploadChoice] = useState(false)
+  const [uploadChoiceThemeId, setUploadChoiceThemeId] = useState<string | null>(null)
+  const [uploadedThemeId, setUploadedThemeId] = useState<string | null>(null)
   const [importModalFile, setImportModalFile] = useState<CloudFile | null>(null)
   // Выбор содержимого перед загрузкой в облако (сборка/сервер)
   const [uploadModalTarget, setUploadModalTarget] = useState<{ kind: "build" | "server"; id: string; name: string } | null>(null)
@@ -154,6 +167,13 @@ export function CloudFileBrowser({ providerId }: Props) {
   useEffect(() => { fetchFiles(); fetchQuota() }, [fetchFiles, fetchQuota])
 
   useEffect(() => {
+    if (!pendingThemeId) return
+    setUploadChoiceThemeId(pendingThemeId)
+    setShowUploadChoice(true)
+    onPendingThemeHandled?.()
+  }, [pendingThemeId, onPendingThemeHandled])
+
+  useEffect(() => {
     window.electronAPI?.loadBuildsLight().then(builds => {
       setLocalBuilds(builds.map(b => ({ id: b.id, name: b.name, icon: b.icon, version: b.version, modLoader: b.modLoader })))
     }).catch(() => {})
@@ -175,6 +195,17 @@ export function CloudFileBrowser({ providerId }: Props) {
   const handleDownload = useCallback(async (file: CloudFile) => {
     if (!api) return
     if (file.isDir) return
+    if (file.name.endsWith(".xntheme")) {
+      if (importingTheme) return
+      setImportingTheme(file.id)
+      try {
+        const result = await api.cloudImportTheme(providerId, file.path)
+        if (!result.success) throw new Error(result.error || t("cloud.importError"))
+        showAlert(t("themeCloud.imported", { name: result.name }), { variant: "info", title: t("cloud.done") })
+      } catch (error) { showAlert(error instanceof Error ? error.message : String(error)) }
+      finally { setImportingTheme(null) }
+      return
+    }
     const isAccount = file.path.includes("/accounts/") || currentPath.includes("accounts")
     const isBuild = file.path.endsWith(".zip") && (file.path.includes("/builds/") || currentPath.includes("builds"))
     const isServer = file.path.endsWith(".zip") && (file.path.includes("/servers/") || currentPath.includes("servers"))
@@ -204,7 +235,7 @@ export function CloudFileBrowser({ providerId }: Props) {
         showAlert(t("cloud.onlyElectron"))
       }
     }
-  }, [providerId, currentPath, addAccount, showAlert])
+  }, [providerId, currentPath, addAccount, showAlert, importingTheme, t])
 
   const handleDelete = useCallback((file: CloudFile) => {
     if (!api) return
@@ -266,15 +297,37 @@ export function CloudFileBrowser({ providerId }: Props) {
     finally { setUploadingId(null); setShowUploadChoice(false) }
   }, [providerId, fetchFiles, fetchQuota, showAlert])
 
+  const handleUploadTheme = useCallback(async (theme: Theme) => {
+    if (!api || uploadingId) return
+    const uploadId = crypto.randomUUID()
+    setUploadingId(theme.id)
+    setUploadedThemeId(null)
+    setUploadProgress({})
+    try {
+      const result = await api.cloudUploadTheme(providerId, theme.id, uploadId)
+      if (!result.success) throw new Error(result.error || t("themeCloud.failed"))
+      setUploadedThemeId(theme.id)
+      void fetchFiles()
+      void fetchQuota()
+    } catch (e) {
+      showAlert(t("cloud.error", { message: e instanceof Error ? e.message : String(e) }))
+    } finally {
+      setUploadingId(null)
+    }
+  }, [providerId, uploadingId, fetchFiles, fetchQuota, showAlert, t])
+
   const translateFolderName = useCallback((name: string) => {
     if (name === "builds") return t("cloud.builds")
     if (name === "servers") return t("cloud.servers")
     if (name === "accounts") return t("cloud.accounts")
+    if (name === "themes") return t("themeCloud.folder")
     return name
   }, [t])
 
   const getDisplayName = useCallback((file: CloudFile) => {
     if (file.isDir) return translateFolderName(file.name)
+    if (file.themePreview) return file.themePreview.name
+    if (file.name.endsWith(".xntheme")) return file.name.replace(/\.xntheme$/i, "")
     const isAccounts = currentPath === "accounts"
     const isBuilds = currentPath === "builds"
     const isServers = currentPath === "servers"
@@ -286,11 +339,12 @@ export function CloudFileBrowser({ providerId }: Props) {
 
   const getFileTypeBadge = useCallback((file: CloudFile) => {
     if (file.isDir) return null
+    if (file.name.endsWith(".xntheme")) return <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">{t("themeCloud.type")}</span>
     const isAccounts = currentPath === "accounts"
     const isBuilds = currentPath === "builds"
     const isServers = currentPath === "servers"
     if (isAccounts) {
-      return <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">{t("cloud.type.account")}</span>
+      return <span data-ui="cloud-cloud-file-browser-span-1" className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">{t("cloud.type.account")}</span>
     }
     if (isBuilds && file.name.endsWith(".zip")) {
       const buildName = file.name.replace(/\.zip$/i, "")
@@ -299,13 +353,13 @@ export function CloudFileBrowser({ providerId }: Props) {
         b.name.toLowerCase().includes(buildName.toLowerCase()) ||
         buildName.toLowerCase().includes(b.name.toLowerCase()))
       return (
-        <div className="flex items-center gap-1">
-          <span className="text-xs px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">{t("cloud.type.build")}</span>
+        <div data-ui="cloud-cloud-file-browser-div-4" className="flex items-center gap-1">
+          <span data-ui="cloud-cloud-file-browser-span-2" className="text-xs px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">{t("cloud.type.build")}</span>
           {localBuild?.version && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground font-medium">{localBuild.version}</span>
+            <span data-ui="cloud-cloud-file-browser-span-3" className="text-xs px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground font-medium">{localBuild.version}</span>
           )}
           {localBuild?.modLoader && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">
+            <span data-ui="cloud-cloud-file-browser-span-4" className="inline-flex items-center px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">
               <LoaderIcon loaderId={localBuild.modLoader} className="w-3.5 h-3.5" />
             </span>
           )}
@@ -319,13 +373,13 @@ export function CloudFileBrowser({ providerId }: Props) {
         s.name.toLowerCase().includes(serverName.toLowerCase()) ||
         serverName.toLowerCase().includes(s.name.toLowerCase()))
       return (
-        <div className="flex items-center gap-1">
-          <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium">{t("cloud.type.server")}</span>
+        <div data-ui="cloud-cloud-file-browser-div-5" className="flex items-center gap-1">
+          <span data-ui="cloud-cloud-file-browser-span-5" className="text-xs px-1.5 py-0.5 rounded bg-success/10 text-success font-medium">{t("cloud.type.server")}</span>
           {localServer?.version && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground font-medium">{localServer.version}</span>
+            <span data-ui="cloud-cloud-file-browser-span-6" className="text-xs px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground font-medium">{localServer.version}</span>
           )}
           {localServer?.modloader && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">
+            <span data-ui="cloud-cloud-file-browser-span-7" className="inline-flex items-center px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">
               <LoaderIcon loaderId={localServer.modloader} className="w-3.5 h-3.5" />
             </span>
           )}
@@ -344,16 +398,20 @@ export function CloudFileBrowser({ providerId }: Props) {
   const usedPercent = quota && quota.total > 0 ? Math.round((quota.used / quota.total) * 100) : 0
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div data-ui="cloud-cloud-file-browser-div-6" data-component="cloud-file-browser" data-filter={filter} className="flex-1 flex flex-col min-h-0">
       {showUploadChoice && (
         <UploadChoiceModal
           providerId={providerId}
-          onClose={() => setShowUploadChoice(false)}
+          onClose={() => { setShowUploadChoice(false); setUploadChoiceThemeId(null) }}
           onPickBuild={(id, name) => setUploadModalTarget({ kind: "build", id, name })}
           onPickServer={(id, name) => setUploadModalTarget({ kind: "server", id, name })}
           onUploadAccount={handleUploadAccount}
+          onPickTheme={handleUploadTheme}
           uploading={uploadingId}
           progress={uploadProgress}
+          initialTab={uploadChoiceThemeId ? "themes" : "builds"}
+          initialThemeId={uploadChoiceThemeId}
+          uploadedThemeId={uploadedThemeId}
         />
       )}
 
@@ -388,90 +446,94 @@ export function CloudFileBrowser({ providerId }: Props) {
         />
       )}
 
-      <div className="flex items-center gap-2 mb-3 p-1 rounded-lg bg-muted/40">
-        {(["all", "builds", "servers", "accounts"] as const).map(f => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all border",
-              filter === f ? "border-transparent bg-primary text-primary-foreground shadow-sm" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
-            {f === "all" ? <IconLayoutGrid className="w-3.5 h-3.5" /> : f === "builds" ? <IconColorSwatch className="w-3.5 h-3.5" /> : f === "servers" ? <IconServer className="w-3.5 h-3.5" /> : <IconUser className="w-3.5 h-3.5" />}
-            {f === "all" ? t("cloud.all") : f === "builds" ? t("cloud.builds") : f === "servers" ? t("cloud.servers") : t("cloud.accounts")}
+      <div data-ui="cloud-cloud-file-browser-div-7" className={`flex gap-0.5 p-1 mb-6 rounded-xl bg-muted/30 border border-border/50 w-fit mx-auto ${CONTENT_ENTER_DELAYED}`}>
+        {(["all", "builds", "servers", "accounts", "themes"] as const).map(f => (
+          <button data-ui="cloud-cloud-file-browser-button-1" key={f} data-active={filter === f} aria-pressed={filter === f} onClick={() => setFilter(f)}
+            className={cn("flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-200",
+              filter === f ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80")}>
+            {(() => {
+              const Icon = f === "all" ? IconLayoutGrid : cloudSectionIcons[f]
+              return <Icon className="w-4 h-4" strokeWidth={1.75} />
+            })()}
+            {f === "all" ? t("cloud.all") : f === "builds" ? t("cloud.builds") : f === "servers" ? t("cloud.servers") : f === "themes" ? t("themeCloud.folder") : t("cloud.accounts")}
           </button>
         ))}
       </div>
 
-      <div className="flex items-center gap-2 mb-3">
+      <div data-ui="cloud-cloud-file-browser-div-8" className={`flex items-center gap-2 mb-3 ${CONTENT_ENTER_DELAYED}`}>
         {currentPath && (
-          <button onClick={handleGoUp}
+          <button data-ui="cloud-cloud-file-browser-button-2" onClick={handleGoUp}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
             <IconArrowUp className="w-3.5 h-3.5" /> ..
           </button>
         )}
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        <div data-ui="cloud-cloud-file-browser-div-9" className="flex items-center gap-1 text-xs text-muted-foreground">
           <IconHome className="w-3.5 h-3.5" />
           {currentPath.split("/").filter(Boolean).map((part, i, arr) => (
-            <span key={i} className="flex items-center gap-1">
-              <span className="text-muted-foreground/40">/</span>
-              <button onClick={() => setCurrentPath(arr.slice(0, i + 1).join("/"))}
+            <span data-ui="cloud-cloud-file-browser-span-8" key={i} className="flex items-center gap-1">
+              <span data-ui="cloud-cloud-file-browser-span-9" className="text-muted-foreground/40">/</span>
+              <button data-ui="cloud-cloud-file-browser-button-3" onClick={() => setCurrentPath(arr.slice(0, i + 1).join("/"))}
                 className="hover:text-foreground transition-colors cursor-pointer">{translateFolderName(part)}</button>
             </span>
           ))}
-          {!currentPath && <span>{t("cloud.root")}</span>}
+          {!currentPath && <span data-ui="cloud-cloud-file-browser-span-10">{t("cloud.root")}</span>}
         </div>
-        <button onClick={fetchFiles}
+        <button data-ui="cloud-cloud-file-browser-button-4" onClick={fetchFiles}
           className="ml-auto p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-          <IconRefresh className={cn("w-4 h-4", loading && "animate-spin")} />
+          {loading ? <IconLoader2 className="w-4 h-4 text-primary animate-spin" /> : <IconRefresh className="w-4 h-4" />}
         </button>
-        <button onClick={() => setShowUploadChoice(true)}
+        <button data-ui="cloud-cloud-file-browser-button-5" onClick={() => { setUploadChoiceThemeId(null); setUploadedThemeId(null); setShowUploadChoice(true) }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-medium transition-all">
           <IconUpload className="w-3.5 h-3.5" /> {t("cloud.upload")}
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div data-ui="cloud-cloud-file-browser-div-10" className={cn("flex-1 overflow-y-auto", !loading && CONTENT_ENTER)}>
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <IconLoader2 className="w-6 h-6 text-muted-foreground animate-spin" />
+          <div data-ui="cloud-cloud-file-browser-div-11" className="flex items-center justify-center py-12">
+            <IconLoader2 className="w-6 h-6 text-primary animate-spin" />
           </div>
         ) : error ? (
-          <div className="text-center py-12">
-            <p className="text-sm text-destructive">{error}</p>
-            <button onClick={fetchFiles} className="mt-2 text-xs text-primary hover:underline">{t("cloud.retry")}</button>
+          <div data-ui="cloud-cloud-file-browser-div-12" className="text-center py-12">
+            <p data-ui="cloud-cloud-file-browser-p-1" className="text-sm text-destructive">{error}</p>
+            <button data-ui="cloud-cloud-file-browser-button-6" onClick={fetchFiles} className="mt-2 text-xs text-primary hover:underline">{t("cloud.retry")}</button>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-12">
+          <div data-ui="cloud-cloud-file-browser-div-13" className="text-center py-12">
             <IconCloud className="w-10 h-10 text-muted-foreground/20 mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground/50">{t("cloud.folderEmpty")}</p>
+            <p data-ui="cloud-cloud-file-browser-p-2" className="text-sm text-muted-foreground/50">{t("cloud.folderEmpty")}</p>
           </div>
         ) : (
-          <div className="space-y-1">
+          <div data-ui="cloud-cloud-file-browser-div-14" className="space-y-1">
             {filtered.map(file => (
-              <div key={file.id}
+              <div data-ui="cloud-cloud-file-browser-div-15" data-component="cloud-file-row" data-directory={file.isDir} key={file.id}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group",
                   file.isDir ? "hover:bg-muted/40 cursor-pointer" : "hover:bg-muted/30"
                 )}
                 onClick={() => file.isDir ? handleFolderClick(file.path) : undefined}>
-                <div className="w-9 h-9 rounded-lg bg-muted/50 flex items-center justify-center shrink-0 overflow-hidden">
-                  <FileIcon file={file} currentPath={currentPath} localBuilds={localBuilds} localServers={localServers} />
+                <div data-ui="cloud-cloud-file-browser-div-16" className={cn("flex items-center justify-center shrink-0 overflow-hidden", file.themePreview ? "w-40" : "w-9 h-9 rounded-lg bg-muted/50")}>
+                  {file.themePreview ? <ThemeCompactPreview theme={file.themePreview} /> : <FileIcon file={file} currentPath={currentPath} localBuilds={localBuilds} localServers={localServers} />}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-foreground truncate">{getDisplayName(file)}</p>
+                <div data-ui="cloud-cloud-file-browser-div-17" className="flex-1 min-w-0">
+                  <div data-ui="cloud-cloud-file-browser-div-18" className="flex items-center gap-2">
+                    <p data-ui="cloud-cloud-file-browser-p-3" className="text-sm font-medium text-foreground truncate">{getDisplayName(file)}</p>
                     {getFileTypeBadge(file)}
                   </div>
-                  <p className="text-xs text-muted-foreground/60">
+                  <p data-ui="cloud-cloud-file-browser-p-4" className="text-xs text-muted-foreground/60">
                     {file.isDir ? t("cloud.folder") : formatBytes(file.size)}
                     {file.modifiedAt && ` · ${timeAgo(file.modifiedAt)}`}
                   </p>
                 </div>
-                {!file.isDir && (currentPath === "builds" || currentPath === "servers" || currentPath === "accounts") && (
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={(e) => { e.stopPropagation(); handleDownload(file) }}
+                {!file.isDir && (currentPath === "builds" || currentPath === "servers" || currentPath === "accounts" || file.name.endsWith(".xntheme")) && (
+                  <div data-ui="cloud-cloud-file-browser-div-19" className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button data-ui="cloud-cloud-file-browser-button-7" onClick={(e) => { e.stopPropagation(); handleDownload(file) }}
+                      disabled={!!importingTheme}
                       className="p-1.5 rounded-lg hover:bg-primary/15 text-muted-foreground hover:text-primary transition-colors"
 title={t("cloud.download")}>
-                      <IconDownload className="w-4 h-4" />
+                      {importingTheme === file.id ? <IconLoader2 className="h-4 w-4 animate-spin" /> : <IconDownload className="w-4 h-4" />}
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDelete(file) }}
+                    <button data-ui="cloud-cloud-file-browser-button-8" onClick={(e) => { e.stopPropagation(); handleDelete(file) }}
                       className="p-1.5 rounded-lg hover:bg-destructive/15 text-muted-foreground hover:text-destructive transition-colors"
                       title={t("cloud.delete")}>
                       <IconTrash className="w-4 h-4" />
@@ -485,13 +547,13 @@ title={t("cloud.download")}>
       </div>
 
       {quota && (
-        <div className="mt-3 pt-3 border-t border-border">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{t("cloud.storageStatus")}</span>
-            <span>{formatBytes(quota.used)}{quota.total != null ? ` / ${formatBytes(quota.total)}` : ""}</span>
+        <div data-ui="cloud-cloud-file-browser-div-20" className="mt-3 pt-3 border-t border-border">
+          <div data-ui="cloud-cloud-file-browser-div-21" className="flex items-center justify-between text-xs text-muted-foreground">
+            <span data-ui="cloud-cloud-file-browser-span-11">{t("cloud.storageStatus")}</span>
+            <span data-ui="cloud-cloud-file-browser-span-12">{formatBytes(quota.used)}{quota.total != null ? ` / ${formatBytes(quota.total)}` : ""}</span>
           </div>
-          <div className="w-full h-1.5 rounded-full bg-muted mt-2 overflow-hidden">
-            <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${usedPercent}%` }} />
+          <div data-ui="cloud-cloud-file-browser-div-22" className="w-full h-1.5 rounded-full bg-muted mt-2 overflow-hidden">
+            <div data-ui="cloud-cloud-file-browser-div-23" className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${usedPercent}%` }} />
           </div>
         </div>
       )}
@@ -513,26 +575,32 @@ title={t("cloud.download")}>
   )
 }
 
-function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onUploadAccount, uploading, progress }: {
+function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onUploadAccount, onPickTheme, uploading, progress, initialTab = "builds", initialThemeId, uploadedThemeId }: {
   providerId: string
   onClose: () => void
   onPickBuild: (id: string, name: string) => void
   onPickServer: (id: string, name: string) => void
   onUploadAccount: (account: { id: string; type: string; username: string; uuid?: string }) => void
+  onPickTheme: (theme: Theme) => void
   uploading: string | null
   progress: Record<string, { percent: number; stage: "zip" | "upload" }>
+  initialTab?: "builds" | "servers" | "accounts" | "themes"
+  initialThemeId?: string | null
+  uploadedThemeId?: string | null
 }) {
   const { t } = useTranslation()
   const accountTypeInfo = getAccountTypeInfo(t)
   const [localBuilds, setLocalBuilds] = useState<Array<{ id: string; name: string; icon?: string; version?: string; modLoader?: string }>>([])
   const [localServers, setLocalServers] = useState<Array<{ id: string; name: string; icon?: string; version?: string; modloader?: string }>>([])
   const [localAccounts, setLocalAccounts] = useState<Array<{ id: string; type: string; username: string; uuid?: string }>>([])
-  const [tab, setTab] = useState<"builds" | "servers" | "accounts">("builds")
+  const [tab, setTab] = useState<"builds" | "servers" | "accounts" | "themes">(initialTab)
+  const [localThemes, setLocalThemes] = useState<Theme[]>([])
 
   // Список локальных сборок/серверов/аккаунтов: один эффект вместо двух —
   // первый дублировал этот же запрос при монтировании (uploading === null).
   useEffect(() => {
     if (uploading !== null) return
+    void window.electronAPI?.getSetting("customThemes").then(raw => setLocalThemes(parseThemes(raw))).catch(() => setLocalThemes([]))
     window.electronAPI?.loadBuildsLight().then(builds => {
       setLocalBuilds(builds.map(b => ({ id: b.id, name: b.name, icon: b.icon, version: b.version, modLoader: b.modLoader })))
     })
@@ -545,64 +613,65 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
   }, [uploading])
 
   return (
-    <ModalLayer onClose={onClose} className="animate-in fade-in-0">
-      <div className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
-        <div className="flex border-b border-border">
-          <button onClick={() => setTab("builds")}
+    <ModalLayer windowId="cloud-cloud-file-browser-window-1" onClose={onClose} className="animate-in fade-in-0">
+      <div data-ui="cloud-cloud-file-browser-div-24" data-component="upload-choice-modal" className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
+        <div data-ui="cloud-cloud-file-browser-div-25" className="flex border-b border-border">
+          <button type="button" onClick={() => setTab("themes")} className={cn("flex-1 px-3 py-3 text-sm font-medium transition-colors", tab === "themes" ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>{t("themeCloud.folder")}</button>
+          <button data-ui="cloud-cloud-file-browser-button-9" onClick={() => setTab("builds")}
             className={cn("flex-1 px-4 py-3 text-sm font-medium transition-colors",
               tab === "builds" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground")}>
             {t("cloud.builds")}
           </button>
-          <button onClick={() => setTab("servers")}
+          <button data-ui="cloud-cloud-file-browser-button-10" onClick={() => setTab("servers")}
             className={cn("flex-1 px-4 py-3 text-sm font-medium transition-colors",
               tab === "servers" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground")}>
             {t("cloud.servers")}
           </button>
-          <button onClick={() => setTab("accounts")}
+          <button data-ui="cloud-cloud-file-browser-button-11" onClick={() => setTab("accounts")}
             className={cn("flex-1 px-4 py-3 text-sm font-medium transition-colors",
               tab === "accounts" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground")}>
             {t("cloud.accounts")}
           </button>
         </div>
-        <div className="max-h-80 overflow-y-auto p-3">
+        <div data-ui="cloud-cloud-file-browser-div-26" className="max-h-80 overflow-y-auto p-3">
           {tab === "builds" ? (
             localBuilds.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">{t("cloud.noBuilds")}</p>
+              <p data-ui="cloud-cloud-file-browser-p-5" className="text-sm text-muted-foreground text-center py-8">{t("cloud.noBuilds")}</p>
             ) : (
-              <div className="space-y-2">
+              <div data-ui="cloud-cloud-file-browser-div-27" className="space-y-2">
                 {localBuilds.map(b => {
                   const isUploading = uploading === b.id
                   const prog = progress[b.id]
                   const pct = prog?.percent ?? 0
                   return (
-                    <div key={b.id} className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary/50 transition-all">
-                      <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-primary/10">
+                    <div data-ui="cloud-cloud-file-browser-div-28" key={b.id} className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary/50 transition-all">
+                      <div data-ui="cloud-cloud-file-browser-div-29" className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-primary/10">
                         <BuildThumbIcon icon={b.icon} />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="font-medium text-foreground truncate block">{b.name}</span>
-                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                          {b.version && <span>{b.version}</span>}
+                      <div data-ui="cloud-cloud-file-browser-div-30" className="flex-1 min-w-0">
+                        <span data-ui="cloud-cloud-file-browser-span-13" className="font-medium text-foreground truncate block">{b.name}</span>
+                        <div data-ui="cloud-cloud-file-browser-div-31" className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                          {b.version && <span data-ui="cloud-cloud-file-browser-span-14">{b.version}</span>}
                           {b.modLoader && (
                             <>
-                              <span>·</span>
+                              <span data-ui="cloud-cloud-file-browser-span-15">·</span>
                               <LoaderIcon loaderId={b.modLoader} className="w-4 h-4 flex-shrink-0" />
-                              <span className="capitalize">{b.modLoader}</span>
+                              <span data-ui="cloud-cloud-file-browser-span-16" className="capitalize">{b.modLoader}</span>
                             </>
                           )}
                         </div>
                         {isUploading && prog && (
-                          <div className="mt-2">
-                            <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
-                              <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
+                          <div data-ui="cloud-cloud-file-browser-div-32" className="mt-2">
+                            <div data-ui="cloud-cloud-file-browser-div-33" className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                              <div data-ui="cloud-cloud-file-browser-div-34" className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
                             </div>
-                            <p className="text-[11px] text-muted-foreground mt-1">
+                            <p data-ui="cloud-cloud-file-browser-p-6" className="text-[11px] text-muted-foreground mt-1">
                               {prog.stage === "zip" ? t("cloud.packing") : t("cloud.uploading")} · {pct}%
                             </p>
                           </div>
                         )}
                       </div>
-                      <button onClick={() => onPickBuild(b.id, b.name)} disabled={isUploading}
+                      <button data-ui="cloud-cloud-file-browser-button-12" onClick={() => onPickBuild(b.id, b.name)} disabled={isUploading}
                         className="px-3 py-2 rounded-lg bg-muted/50 hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors text-sm flex-shrink-0 disabled:opacity-50">
                         {isUploading ? <IconLoader2 className="w-4 h-4 animate-spin" /> : t("upload.choose")}
                       </button>
@@ -613,46 +682,46 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
             )
           ) : tab === "servers" ? (
             localServers.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">{t("cloud.noServers")}</p>
+              <p data-ui="cloud-cloud-file-browser-p-7" className="text-sm text-muted-foreground text-center py-8">{t("cloud.noServers")}</p>
             ) : (
-              <div className="space-y-2">
+              <div data-ui="cloud-cloud-file-browser-div-35" className="space-y-2">
                 {localServers.map(s => {
                   const isUploading = uploading === s.id
                   const prog = progress[s.id]
                   const pct = prog?.percent ?? 0
                   return (
-                    <div key={s.id} className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary/50 transition-all">
-                      <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-primary/10">
+                    <div data-ui="cloud-cloud-file-browser-div-36" key={s.id} className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary/50 transition-all">
+                      <div data-ui="cloud-cloud-file-browser-div-37" className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-primary/10">
                         {s.icon ? (
-                          <img src={s.icon} alt="" className="w-full h-full object-cover" />
+                          <img data-ui="cloud-cloud-file-browser-img-3" src={s.icon} alt="" className="w-full h-full object-cover" />
                         ) : (
                           <IconServer className="w-6 h-6 text-primary" strokeWidth={1.75} />
                         )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="font-medium text-foreground truncate block">{s.name}</span>
-                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                          <span>{s.version}</span>
+                      <div data-ui="cloud-cloud-file-browser-div-38" className="flex-1 min-w-0">
+                        <span data-ui="cloud-cloud-file-browser-span-17" className="font-medium text-foreground truncate block">{s.name}</span>
+                        <div data-ui="cloud-cloud-file-browser-div-39" className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                          <span data-ui="cloud-cloud-file-browser-span-18">{s.version}</span>
                           {s.modloader && (
                             <>
-                              <span>·</span>
+                              <span data-ui="cloud-cloud-file-browser-span-19">·</span>
                               <LoaderIcon loaderId={s.modloader} className="w-4 h-4 flex-shrink-0" />
-                              <span className="capitalize">{s.modloader}</span>
+                              <span data-ui="cloud-cloud-file-browser-span-20" className="capitalize">{s.modloader}</span>
                             </>
                           )}
                         </div>
                         {isUploading && prog && (
-                          <div className="mt-2">
-                            <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
-                              <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
+                          <div data-ui="cloud-cloud-file-browser-div-40" className="mt-2">
+                            <div data-ui="cloud-cloud-file-browser-div-41" className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                              <div data-ui="cloud-cloud-file-browser-div-42" className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
                             </div>
-                            <p className="text-[11px] text-muted-foreground mt-1">
+                            <p data-ui="cloud-cloud-file-browser-p-8" className="text-[11px] text-muted-foreground mt-1">
                               {prog.stage === "zip" ? t("cloud.archivingServer") : t("cloud.uploadingCloud")} · {pct}%
                             </p>
                           </div>
                         )}
                       </div>
-                      <button onClick={() => onPickServer(s.id, s.name)} disabled={isUploading}
+                      <button data-ui="cloud-cloud-file-browser-button-13" onClick={() => onPickServer(s.id, s.name)} disabled={isUploading}
                         className="px-3 py-2 rounded-lg bg-muted/50 hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors text-sm flex-shrink-0 disabled:opacity-50">
                         {isUploading ? <IconLoader2 className="w-4 h-4 animate-spin" /> : t("upload.choose")}
                       </button>
@@ -662,33 +731,51 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
               </div>
             )
           ) : (
-            localAccounts.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">{t("cloud.noAccounts")}</p>
+            tab === "themes" ? (
+              <div className="space-y-2">{localThemes.length ? localThemes.map(theme => {
+                const isUploading = uploading === theme.id
+                const isUploaded = uploadedThemeId === theme.id
+                const prog = progress[theme.id]
+                const highlighted = initialThemeId === theme.id
+                return <div key={theme.id} className={cn("rounded-xl border bg-muted/20 p-3 transition-colors", highlighted ? "border-primary/60" : "border-border")}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-40 shrink-0"><ThemeCompactPreview theme={theme} /></div>
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{theme.name}</span>
+                    <button type="button" disabled={!!uploading || isUploaded} onClick={() => onPickTheme(theme)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/50 text-primary transition-colors hover:bg-primary/15 disabled:cursor-default disabled:opacity-60" aria-label={t(isUploaded ? "themeCloud.done" : "cloud.upload")}>
+                      {isUploading ? <IconLoader2 size={18} className="animate-spin" /> : isUploaded ? <IconCheck size={18} /> : <IconUpload size={18} />}
+                    </button>
+                  </div>
+                  {isUploading && prog && <div className="mt-2 space-y-1"><div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${prog.percent}%` }} /></div><p className="text-[11px] text-muted-foreground">{t(prog.stage === "zip" ? "themeCloud.packing" : "themeCloud.uploading")} · {Math.round(prog.percent)}%</p></div>}
+                  {isUploaded && <p role="status" className="mt-2 text-[11px] text-success">{t("themeCloud.done")}</p>}
+                </div>
+              }) : <p className="py-8 text-center text-sm text-muted-foreground">{t("settings.themes.customEmpty")}</p>}</div>
+            ) : localAccounts.length === 0 ? (
+              <p data-ui="cloud-cloud-file-browser-p-9" className="text-sm text-muted-foreground text-center py-8">{t("cloud.noAccounts")}</p>
             ) : (
-              <div className="space-y-2">
+              <div data-ui="cloud-cloud-file-browser-div-43" className="space-y-2">
                 {localAccounts.map(a => {
                   const info = accountTypeInfo[a.type as AccountType] || accountTypeInfo.offline
                   const isUploading = uploading === a.id
                   const prog = progress[a.id]
                   const pct = prog?.percent ?? 0
                   return (
-                    <div key={a.id} className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary/50 transition-all">
-                      <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ backgroundColor: `${info.color}20` }}>
+                    <div data-ui="cloud-cloud-file-browser-div-44" key={a.id} className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary/50 transition-all">
+                      <div data-ui="cloud-cloud-file-browser-div-45" className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ backgroundColor: `color-mix(in srgb, ${info.color} 12.5%, transparent)` }}>
                         <CachedAvatar src={getAvatarUrl(a, a.username)} alt="" className="w-full h-full object-cover" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="font-medium text-foreground truncate block">{a.username}</span>
-                        <span className="text-sm text-muted-foreground">{info.name}</span>
+                      <div data-ui="cloud-cloud-file-browser-div-46" className="flex-1 min-w-0">
+                        <span data-ui="cloud-cloud-file-browser-span-21" className="font-medium text-foreground truncate block">{a.username}</span>
+                        <span data-ui="cloud-cloud-file-browser-span-22" className="text-sm text-muted-foreground">{info.name}</span>
                         {isUploading && prog && (
-                          <div className="mt-2">
-                            <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
-                              <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
+                          <div data-ui="cloud-cloud-file-browser-div-47" className="mt-2">
+                            <div data-ui="cloud-cloud-file-browser-div-48" className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                              <div data-ui="cloud-cloud-file-browser-div-49" className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
                             </div>
-                            <p className="text-[11px] text-muted-foreground mt-1">{t("cloud.uploading")} · {pct}%</p>
+                            <p data-ui="cloud-cloud-file-browser-p-10" className="text-[11px] text-muted-foreground mt-1">{t("cloud.uploading")} · {pct}%</p>
                           </div>
                         )}
                       </div>
-                      <button onClick={() => onUploadAccount(a)} disabled={isUploading}
+                      <button data-ui="cloud-cloud-file-browser-button-14" onClick={() => onUploadAccount(a)} disabled={isUploading}
                         className="px-3 py-2 rounded-lg bg-muted/50 hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors text-sm flex-shrink-0 disabled:opacity-50">
                         {isUploading ? <IconLoader2 className="w-4 h-4 animate-spin" /> : t("cloud.upload")}
                       </button>
@@ -699,8 +786,8 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
             )
           )}
         </div>
-        <div className="p-3 border-t border-border flex justify-end">
-          <button onClick={onClose}
+        <div data-ui="cloud-cloud-file-browser-div-50" className="p-3 border-t border-border flex justify-end">
+          <button data-ui="cloud-cloud-file-browser-button-15" onClick={onClose}
             className="px-4 py-2 rounded-xl text-sm font-medium bg-muted/50 hover:bg-muted text-foreground transition-colors">
             {t("cloud.close")}
           </button>
@@ -787,20 +874,20 @@ function SelectiveImportModal({
     : file.name.replace(/\.zip$/i, "")
 
   return (
-    <ModalLayer onClose={onClose} className="animate-in fade-in-0">
-      <div className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
-        <div className="p-4 border-b border-border">
-          <h3 className="font-semibold text-foreground text-base">{t("cloud.importTitle", { name })}</h3>
-          <p className="text-xs text-muted-foreground mt-1">
+    <ModalLayer windowId="cloud-cloud-file-browser-window-2" onClose={onClose} className="animate-in fade-in-0">
+      <div data-ui="cloud-cloud-file-browser-div-51" data-component="selective-import-modal" className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
+        <div data-ui="cloud-cloud-file-browser-div-52" className="p-4 border-b border-border">
+          <h3 data-ui="cloud-cloud-file-browser-h3-1" className="font-semibold text-foreground text-base">{t("cloud.importTitle", { name })}</h3>
+          <p data-ui="cloud-cloud-file-browser-p-11" className="text-xs text-muted-foreground mt-1">
             {t("cloud.importChooseComponents", { what: isServer ? t("cloud.type.server") : t("cloud.type.build") })}
           </p>
         </div>
 
-        <div className="p-4 space-y-2 max-h-80 overflow-y-auto">
+        <div data-ui="cloud-cloud-file-browser-div-53" className="p-4 space-y-2 max-h-80 overflow-y-auto">
           {categories.map(c => {
             const isChecked = selected.has(c.id)
             return (
-              <button
+              <button data-ui="cloud-cloud-file-browser-button-16"
                 key={c.id}
                 type="button"
                 onClick={() => toggleCategory(c.id)}
@@ -811,34 +898,34 @@ function SelectiveImportModal({
                     : "border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/40"
                 )}
               >
-                <div className={cn(
+                <div data-ui="cloud-cloud-file-browser-div-54" className={cn(
                   "w-5 h-5 rounded flex items-center justify-center border transition-colors",
                   isChecked ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/30 bg-background"
                 )}>
                   {isChecked && <IconCheck className="w-3.5 h-3.5" strokeWidth={3} />}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 text-sm font-medium">
+                <div data-ui="cloud-cloud-file-browser-div-55" className="flex-1 min-w-0">
+                  <div data-ui="cloud-cloud-file-browser-div-56" className="flex items-center gap-1.5 text-sm font-medium">
                     {c.icon}
-                    <span>{c.label}</span>
+                    <span data-ui="cloud-cloud-file-browser-span-23">{c.label}</span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground truncate">{c.desc}</p>
+                  <p data-ui="cloud-cloud-file-browser-p-12" className="text-[11px] text-muted-foreground truncate">{c.desc}</p>
                 </div>
               </button>
             )
           })}
-          {error && <p className="text-xs text-destructive mt-2">{error}</p>}
+          {error && <p data-ui="cloud-cloud-file-browser-p-13" className="text-xs text-destructive mt-2">{error}</p>}
         </div>
 
-        <div className="p-3 border-t border-border flex justify-end gap-2 bg-muted/20">
-          <button
+        <div data-ui="cloud-cloud-file-browser-div-57" className="p-3 border-t border-border flex justify-end gap-2 bg-muted/20">
+          <button data-ui="cloud-cloud-file-browser-button-17"
             onClick={onClose}
             disabled={importing}
             className="px-4 py-2 rounded-xl text-sm font-medium bg-muted/50 hover:bg-muted text-foreground transition-colors disabled:opacity-50"
           >
             {t("common.cancel")}
           </button>
-          <button
+          <button data-ui="cloud-cloud-file-browser-button-18"
             onClick={handleImport}
             disabled={importing || selected.size === 0}
             className="px-4 py-2 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-1.5"
@@ -922,23 +1009,23 @@ function SelectiveUploadModal({
   const pct = progress?.percent ?? 0
 
   return (
-    <ModalLayer onClose={() => { if (!uploading) onClose() }} className="animate-in fade-in-0">
-      <div className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
-        <div className="p-4 border-b border-border">
-          <h3 className="font-semibold text-foreground text-base">{t("upload.title", { name })}</h3>
-          <p className="text-xs text-muted-foreground mt-1">
+    <ModalLayer windowId="cloud-cloud-file-browser-window-3" onClose={() => { if (!uploading) onClose() }} className="animate-in fade-in-0">
+      <div data-ui="cloud-cloud-file-browser-div-58" data-component="selective-upload-modal" className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
+        <div data-ui="cloud-cloud-file-browser-div-59" className="p-4 border-b border-border">
+          <h3 data-ui="cloud-cloud-file-browser-h3-2" className="font-semibold text-foreground text-base">{t("upload.title", { name })}</h3>
+          <p data-ui="cloud-cloud-file-browser-p-14" className="text-xs text-muted-foreground mt-1">
             {t(isServer ? "upload.subtitleServer" : "upload.subtitleBuild")}
           </p>
         </div>
 
-        <div className="p-4 space-y-2 max-h-80 overflow-y-auto">
-          <button
+        <div data-ui="cloud-cloud-file-browser-div-60" className="p-4 space-y-2 max-h-80 overflow-y-auto">
+          <button data-ui="cloud-cloud-file-browser-button-19"
             type="button"
             onClick={() => setSelected(allSelected ? new Set() : new Set(allIds))}
             disabled={uploading}
             className="w-full flex items-center gap-3 p-2.5 rounded-xl border text-left transition-all text-xs font-medium border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/40 disabled:opacity-50"
           >
-            <div className={cn(
+            <div data-ui="cloud-cloud-file-browser-div-61" className={cn(
               "w-5 h-5 rounded flex items-center justify-center border transition-colors",
               allSelected ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/30 bg-background"
             )}>
@@ -950,7 +1037,7 @@ function SelectiveUploadModal({
           {categories.map(c => {
             const isChecked = selected.has(c.id)
             return (
-              <button
+              <button data-ui="cloud-cloud-file-browser-button-20"
                 key={c.id}
                 type="button"
                 onClick={() => toggle(c.id)}
@@ -962,46 +1049,46 @@ function SelectiveUploadModal({
                     : "border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/40"
                 )}
               >
-                <div className={cn(
+                <div data-ui="cloud-cloud-file-browser-div-62" className={cn(
                   "w-5 h-5 rounded flex items-center justify-center border transition-colors",
                   isChecked ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/30 bg-background"
                 )}>
                   {isChecked && <IconCheck className="w-3.5 h-3.5" strokeWidth={3} />}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 text-sm font-medium">
+                <div data-ui="cloud-cloud-file-browser-div-63" className="flex-1 min-w-0">
+                  <div data-ui="cloud-cloud-file-browser-div-64" className="flex items-center gap-1.5 text-sm font-medium">
                     {c.icon}
-                    <span>{t(c.labelKey)}</span>
+                    <span data-ui="cloud-cloud-file-browser-span-24">{t(c.labelKey)}</span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground truncate">{t(c.descKey)}</p>
+                  <p data-ui="cloud-cloud-file-browser-p-15" className="text-[11px] text-muted-foreground truncate">{t(c.descKey)}</p>
                 </div>
               </button>
             )
           })}
 
           {progress && uploading && (
-            <div className="pt-1">
-              <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
-                <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
+            <div data-ui="cloud-cloud-file-browser-div-65" className="pt-1">
+              <div data-ui="cloud-cloud-file-browser-div-66" className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                <div data-ui="cloud-cloud-file-browser-div-67" className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
               </div>
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p data-ui="cloud-cloud-file-browser-p-16" className="text-[11px] text-muted-foreground mt-1">
                 {progress.stage === "zip" ? t("upload.packing") : t("upload.uploading")} · {pct}%
               </p>
             </div>
           )}
 
-          {error && <p className="text-xs text-destructive mt-2">{error}</p>}
+          {error && <p data-ui="cloud-cloud-file-browser-p-17" className="text-xs text-destructive mt-2">{error}</p>}
         </div>
 
-        <div className="p-3 border-t border-border flex justify-end gap-2 bg-muted/20">
-          <button
+        <div data-ui="cloud-cloud-file-browser-div-68" className="p-3 border-t border-border flex justify-end gap-2 bg-muted/20">
+          <button data-ui="cloud-cloud-file-browser-button-21"
             onClick={onClose}
             disabled={uploading}
             className="px-4 py-2 rounded-xl text-sm font-medium bg-muted/50 hover:bg-muted text-foreground transition-colors disabled:opacity-50"
           >
             {t("common.cancel")}
           </button>
-          <button
+          <button data-ui="cloud-cloud-file-browser-button-22"
             onClick={handleConfirm}
             disabled={uploading || selected.size === 0}
             className="px-4 py-2 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-1.5"

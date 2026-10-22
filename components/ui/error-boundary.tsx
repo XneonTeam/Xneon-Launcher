@@ -48,23 +48,23 @@ export class ErrorBoundary extends Component<Props, State> {
     if (!this.state.hasError) return this.props.children
 
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-8 text-center">
+      <div data-ui="ui-error-boundary-div-1" className="flex h-full w-full flex-col items-center justify-center gap-3 p-8 text-center">
         <IconAlertTriangle className="h-10 w-10 text-destructive" strokeWidth={1.5} />
-        <p className="text-sm font-medium text-foreground">
+        <p data-ui="ui-error-boundary-p-1" className="text-sm font-medium text-foreground">
           {i18n.t("common.errorTitle", "Что-то пошло не так")}
         </p>
-        <p className="max-w-md text-xs text-muted-foreground break-words">
+        <p data-ui="ui-error-boundary-p-2" className="max-w-md text-xs text-muted-foreground break-words">
           {this.state.error?.message || i18n.t("common.errorUnknown", "Неизвестная ошибка")}
         </p>
-        <div className="mt-1 flex items-center gap-2">
-          <button
+        <div data-ui="ui-error-boundary-div-2" className="mt-1 flex items-center gap-2">
+          <button data-ui="ui-error-boundary-button-1"
             type="button"
             onClick={() => this.setState({ hasError: false, error: null })}
             className="rounded-xl bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             {i18n.t("common.retry", "Попробовать снова")}
           </button>
-          <button
+          <button data-ui="ui-error-boundary-button-2"
             type="button"
             onClick={() => window.location.reload()}
             className="flex items-center gap-1.5 rounded-xl border border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"

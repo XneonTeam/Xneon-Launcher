@@ -28,9 +28,9 @@ export function SettingsResolution({
 }: SettingsResolutionProps) {
   const { t } = useTranslation()
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div data-ui="settings-settings-resolution-div-1" data-component="settings-resolution" className="grid grid-cols-2 gap-3">
       {presetResolutions.map((res: Resolution) => (
-        <button
+        <button data-ui="settings-settings-resolution-button-1"
           key={res.label}
           onClick={() => { setSelectedResolution(res.label); setUseCustomResolution(false) }}
           className={cn(
@@ -40,28 +40,28 @@ export function SettingsResolution({
               : "border-border bg-muted/30 text-muted-foreground hover:border-primary/50 hover:bg-muted/50"
           )}
         >
-          <span className="font-medium">{res.label}</span>
+          <span data-ui="settings-settings-resolution-span-1" className="font-medium">{res.label}</span>
         </button>
       ))}
-      <div className="col-span-2 space-y-3 flex flex-col items-center">
-        <label className="flex items-center gap-3 cursor-pointer">
+      <div data-ui="settings-settings-resolution-div-2" className="col-span-2 space-y-3 flex flex-col items-center">
+        <label data-ui="settings-settings-resolution-label-1" className="flex items-center gap-3 cursor-pointer">
           <Checkbox
             checked={useCustomResolution}
             onCheckedChange={(v) => setUseCustomResolution(!!v)}
           />
-          <span className="text-foreground">{t("settings.customResolution")}</span>
+          <span data-ui="settings-settings-resolution-span-2" className="text-foreground">{t("settings.customResolution")}</span>
         </label>
         {useCustomResolution && (
-          <div className="flex gap-3 items-center justify-center animate-in fade-in-0 slide-in-from-top-2">
-            <input
+          <div data-ui="settings-settings-resolution-div-3" className="flex gap-3 items-center justify-center animate-in fade-in-0 slide-in-from-top-2">
+            <input data-ui="settings-settings-resolution-input-1"
               type="number"
               value={customWidth}
               onChange={(e) => setCustomWidth(e.target.value)}
               placeholder={t("settings.width")}
               className="w-28 px-3 py-2 rounded-lg bg-input border border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none"
             />
-            <span className="text-muted-foreground">x</span>
-            <input
+            <span data-ui="settings-settings-resolution-span-3" className="text-muted-foreground">x</span>
+            <input data-ui="settings-settings-resolution-input-2"
               type="number"
               value={customHeight}
               onChange={(e) => setCustomHeight(e.target.value)}

@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from "react"
+import i18n from "@/src/i18n"
 
 export type ActivityNotificationKind = "info" | "success" | "error" | "progress"
 export type ActivityNotificationSource = "launch" | "import" | "install"
@@ -107,10 +108,10 @@ function createNotification(input: ActivityNotificationInput, read: boolean, liv
 }
 
 function getImportTitle(source: ImportSessionSource | null): string {
-  if (source === "modrinth") return "Импорт с Modrinth"
-  if (source === "curseforge") return "Импорт с CurseForge"
-  if (source === "ftb") return "Импорт с FTB"
-  return "Импорт из файла"
+  if (source === "modrinth") return i18n.t("activity.importFromSource", { source: "Modrinth" })
+  if (source === "curseforge") return i18n.t("activity.importFromSource", { source: "CurseForge" })
+  if (source === "ftb") return i18n.t("activity.importFromSource", { source: "FTB" })
+  return i18n.t("activity.importFromFile")
 }
 
 export function ActivityCenterProvider({ children }: PropsWithChildren) {
@@ -253,7 +254,7 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
       upsertLiveNotification("modpack-import", {
         kind: "progress",
         source: "import",
-        title: source ? getImportTitle(source) : "Импорт сборки",
+        title: source ? getImportTitle(source) : i18n.t("activity.importBuild"),
         message: progress.message,
         progress: percent,
         busy: !finished,
@@ -332,8 +333,8 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
       upsertLiveNotification(CONTENT_INSTALL_LIVE_KEY, {
         kind: "progress",
         source: "install",
-        title: "Установка контента",
-        message: progress.fileName ? `Загрузка: ${progress.fileName}` : "Установка...",
+        title: i18n.t("activity.installContent"),
+        message: progress.fileName ? i18n.t("activity.downloadFile", { fileName: progress.fileName }) : i18n.t("activity.installing"),
         progress: shown,
         itemName: progress.fileName || null,
         busy: !progress.done,

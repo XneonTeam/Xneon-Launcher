@@ -47,7 +47,7 @@ export function AddonCategoryDialog({ categories, contentType, selectedCategorie
       setOpen(next)
     }}>
       <DialogTrigger asChild>
-        <button
+        <button data-ui="server-addons-addon-category-dialog-button-1" data-component="addon-category-dialog"
           type="button"
           className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
             (selectedCategories?.length ?? 0) > 0
@@ -61,20 +61,20 @@ export function AddonCategoryDialog({ categories, contentType, selectedCategorie
             : t("servers.addons.categories")}
         </button>
       </DialogTrigger>
-      <DialogContent className="max-w-md max-h-[70vh] flex flex-col">
+      <DialogContent data-window="server-addons-addon-category-dialog-window-1" className="max-w-md max-h-[70vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{t("servers.addons.categoriesTitle")}</DialogTitle>
           <DialogDescription>{t("servers.addons.categoriesDesc")}</DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-1 overflow-y-auto flex-1 min-h-0 pr-1">
+        <div data-ui="server-addons-addon-category-dialog-div-1" data-component="addon-category-dialog" className="flex flex-col gap-1 overflow-y-auto flex-1 min-h-0 pr-1">
           {filteredCategories.length === 0 && (
-            <p className="text-xs text-muted-foreground py-2">{t("servers.addons.noCategories")}</p>
+            <p data-ui="server-addons-addon-category-dialog-p-1" className="text-xs text-muted-foreground py-2">{t("servers.addons.noCategories")}</p>
           )}
           {[...groups.entries()].map(([key, cats]) => {
             const collapsed = collapsedSourceGroups.has(key)
             return (
-              <div key={key} className="flex flex-col gap-0.5">
-                <button
+              <div data-ui="server-addons-addon-category-dialog-div-2" key={key} className="flex flex-col gap-0.5">
+                <button data-ui="server-addons-addon-category-dialog-button-2"
                   type="button"
                   onClick={() => setCollapsedSourceGroups(prev => {
                     const next = new Set(prev)
@@ -88,22 +88,22 @@ export function AddonCategoryDialog({ categories, contentType, selectedCategorie
                     ? <IconChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
                     : <IconChevronDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />}
                   {key === "both" ? (
-                    <span className="inline-flex items-center gap-1">
+                    <span data-ui="server-addons-addon-category-dialog-span-1" className="inline-flex items-center gap-1">
                       <ProviderIcon source="modrinth" />
                       <ProviderIcon source="curseforge" />
                     </span>
                   ) : (
                     <ProviderIcon source={key} />
                   )}
-                  <span className="min-w-0 flex-1 text-left truncate">{groupLabels[key] ?? key}</span>
-                  <span className="rounded-full bg-background border border-border px-2 py-0.5 text-[10px] font-normal text-muted-foreground">{cats.length}</span>
+                  <span data-ui="server-addons-addon-category-dialog-span-2" className="min-w-0 flex-1 text-left truncate">{groupLabels[key] ?? key}</span>
+                  <span data-ui="server-addons-addon-category-dialog-span-3" className="rounded-full bg-background border border-border px-2 py-0.5 text-[10px] font-normal text-muted-foreground">{cats.length}</span>
                 </button>
                 {!collapsed && cats.map((cat) => {
                   const checked = draftCats.some(c => c.name === cat.name)
                   const hasSvg = cat.icon && cat.icon.trimStart().startsWith("<svg")
                   const hasImg = cat.icon && !hasSvg && cat.icon.startsWith("http")
                   return (
-                    <label
+                    <label data-ui="server-addons-addon-category-dialog-label-1"
                       key={`${key}:${cat.name}`}
                       className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted/50 cursor-pointer text-sm"
                     >
@@ -115,21 +115,21 @@ export function AddonCategoryDialog({ categories, contentType, selectedCategorie
                         }}
                       />
                       {hasSvg && (
-                        <span
+                        <span data-ui="server-addons-addon-category-dialog-span-4"
                           className="w-4 h-4 shrink-0 text-muted-foreground [&_svg]:w-full [&_svg]:h-full"
                           dangerouslySetInnerHTML={{ __html: cat.icon }}
                         />
                       )}
                       {hasImg && (
-                        <img
+                        <img data-ui="server-addons-addon-category-dialog-img-1"
                           src={cat.icon}
                           alt=""
                           className="w-4 h-4 shrink-0 rounded-sm object-contain"
                         />
                       )}
-                      <span className="flex-1">{cat.name}</span>
+                      <span data-ui="server-addons-addon-category-dialog-span-5" className="flex-1">{cat.name}</span>
                       {cat.header !== "categories" && (
-                        <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">{cat.header}</span>
+                        <span data-ui="server-addons-addon-category-dialog-span-6" className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">{cat.header}</span>
                       )}
                     </label>
                   )
@@ -139,7 +139,7 @@ export function AddonCategoryDialog({ categories, contentType, selectedCategorie
           })}
         </div>
         {(draftCats.length > 0) && (
-          <button
+          <button data-ui="server-addons-addon-category-dialog-button-3"
             type="button"
             onClick={() => setDraftCats([])}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
@@ -147,15 +147,15 @@ export function AddonCategoryDialog({ categories, contentType, selectedCategorie
             {t("servers.addons.resetAll")}
           </button>
         )}
-        <div className="flex justify-end gap-2 mt-3">
-          <button
+        <div data-ui="server-addons-addon-category-dialog-div-3" data-component="addon-category-dialog" className="flex justify-end gap-2 mt-3">
+          <button data-ui="server-addons-addon-category-dialog-button-4"
             type="button"
             onClick={() => setOpen(false)}
             className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
             {t("servers.cancel")}
           </button>
-          <button
+          <button data-ui="server-addons-addon-category-dialog-button-5"
             type="button"
             onClick={() => {
               onApply(draftCats)

@@ -31,7 +31,7 @@ interface ElytraIconProps {
 
 export function ElytraIcon({ className }: ElytraIconProps) {
   return (
-    <svg
+    <svg data-ui="ui-elytra-icon-svg-1" data-icon="ui-elytra-icon-svg-1"
       viewBox="0 0 16 16"
       xmlns="http://www.w3.org/2000/svg"
       // Пиксельный арт: без сглаживания, иначе пиксели «плывут».
@@ -40,7 +40,7 @@ export function ElytraIcon({ className }: ElytraIconProps) {
       aria-hidden="true"
     >
       {ELYTRA_PATHS.map((path, index) => (
-        <path key={index} fill={path.color} fillOpacity={path.opacity} d={path.d} />
+        <path data-ui="ui-elytra-icon-path-1" key={index} fill={path.color} fillOpacity={path.opacity} d={path.d} />
       ))}
     </svg>
   )

@@ -25,7 +25,7 @@ export function EntityIcon({ src, className, imgClassName, alt = "", onImgError 
       // из-за этого логотип уезжал вниз на несколько пикселей. Блочный флекс
       // центрируется самой раскладкой. Внутри flex-родителя разницы нет: flex-элемент
       // всё равно блокифицируется.
-      <span
+      <span data-ui="instance-entity-icon-span-1" data-component="entity-icon"
         className={cn(
           "flex items-center justify-center [&>svg]:w-full [&>svg]:h-full",
           "group-focus/item:text-accent-foreground",
@@ -36,5 +36,5 @@ export function EntityIcon({ src, className, imgClassName, alt = "", onImgError 
     )
   }
 
-  return <img src={src ?? undefined} alt={alt} className={imgClassName ?? className} onError={onImgError} />
+  return <img data-ui="instance-entity-icon-img-1" data-component="entity-icon" src={src ?? undefined} alt={alt} className={imgClassName ?? className} onError={onImgError} />
 }
