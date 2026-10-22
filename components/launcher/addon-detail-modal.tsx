@@ -5,9 +5,11 @@ import rehypeSanitize from "rehype-sanitize"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
+import { openAgent } from "./agent/store"
 import { openProjectPage, projectPageUrl, type ProjectKind } from "@/lib/project-links"
 import {
   IconX,
+  IconRobot,
   IconFileText,
   IconPhoto,
   IconHistory,
@@ -27,6 +29,7 @@ import { LoaderIcon } from "./instance/loader-icon"
 import { ChangelogContent } from "./instance/changelog-content"
 import { MOD_LOADERS } from "./instance/constants"
 import { isInstalledVersion, matchesBuildLoader } from "./instance/utils"
+import { GameVersionChips, LoaderBadges } from "./instance/version-chips"
 import { VersionInstallProgress, type InstallState } from "./instance/version-install-progress"
 import type { Build, ModDetails, ModalTab, ModVersion } from "./instance/types"
 
@@ -35,32 +38,32 @@ function loaderLabel(loaderId: string): string {
 }
 
 const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
-  h1: ({ children }) => <h1 className="text-2xl font-bold text-foreground mt-6 mb-3 pb-2 border-b border-border">{children}</h1>,
-  h2: ({ children }) => <h2 className="text-xl font-bold text-foreground mt-5 mb-2">{children}</h2>,
-  h3: ({ children }) => <h3 className="text-lg font-semibold text-foreground mt-4 mb-2">{children}</h3>,
-  p: ({ children }) => <p className="text-muted-foreground mb-3 leading-relaxed">{children}</p>,
-  li: ({ children }) => <li className="text-muted-foreground ml-4 mb-1">{children}</li>,
-  ul: ({ children }) => <ul className="list-disc mb-4 space-y-1">{children}</ul>,
-  ol: ({ children }) => <ol className="list-decimal mb-4 space-y-1">{children}</ol>,
-  code: ({ children }) => <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono text-foreground">{children}</code>,
-  pre: ({ children }) => <pre className="bg-muted p-4 rounded-lg text-sm font-mono overflow-x-auto mb-4">{children}</pre>,
-  a: ({ href, children }) => <a href={href} className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
-  strong: ({ children }) => <strong className="text-foreground font-semibold">{children}</strong>,
-  blockquote: ({ children }) => <blockquote className="border-l-4 border-primary/50 pl-4 my-4 text-muted-foreground italic">{children}</blockquote>,
-  hr: () => <hr className="border-border my-6" />,
-  img: ({ src, alt }) => <img src={src} alt={alt || ""} className="rounded-lg max-w-full my-4" />,
+  h1: ({ children }) => <h1 data-ui="addon-detail-modal-h1-1" className="text-2xl font-bold text-foreground mt-6 mb-3 pb-2 border-b border-border">{children}</h1>,
+  h2: ({ children }) => <h2 data-ui="addon-detail-modal-h2-1" className="text-xl font-bold text-foreground mt-5 mb-2">{children}</h2>,
+  h3: ({ children }) => <h3 data-ui="addon-detail-modal-h3-1" className="text-lg font-semibold text-foreground mt-4 mb-2">{children}</h3>,
+  p: ({ children }) => <p data-ui="addon-detail-modal-p-1" className="text-muted-foreground mb-3 leading-relaxed">{children}</p>,
+  li: ({ children }) => <li data-ui="addon-detail-modal-li-1" className="text-muted-foreground ml-4 mb-1">{children}</li>,
+  ul: ({ children }) => <ul data-ui="addon-detail-modal-ul-1" className="list-disc mb-4 space-y-1">{children}</ul>,
+  ol: ({ children }) => <ol data-ui="addon-detail-modal-ol-1" className="list-decimal mb-4 space-y-1">{children}</ol>,
+  code: ({ children }) => <code data-ui="addon-detail-modal-code-1" className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono text-foreground">{children}</code>,
+  pre: ({ children }) => <pre data-ui="addon-detail-modal-pre-1" className="bg-muted p-4 rounded-lg text-sm font-mono overflow-x-auto mb-4">{children}</pre>,
+  a: ({ href, children }) => <a data-ui="addon-detail-modal-a-1" href={href} className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+  strong: ({ children }) => <strong data-ui="addon-detail-modal-strong-1" className="text-foreground font-semibold">{children}</strong>,
+  blockquote: ({ children }) => <blockquote data-ui="addon-detail-modal-blockquote-1" className="border-l-4 border-primary/50 pl-4 my-4 text-muted-foreground italic">{children}</blockquote>,
+  hr: () => <hr data-ui="addon-detail-modal-hr-1" className="border-border my-6" />,
+  img: ({ src, alt }) => <img data-ui="addon-detail-modal-img-1" src={src} alt={alt || ""} className="rounded-lg max-w-full my-4" />,
   table: ({ children }) => (
-    <div className="my-4 overflow-x-auto rounded-xl border border-border">
-      <table className="w-full border-collapse text-sm">{children}</table>
+    <div data-ui="addon-detail-modal-div-1" className="my-4 overflow-x-auto rounded-xl border border-border">
+      <table data-ui="addon-detail-modal-table-1" className="w-full border-collapse text-sm">{children}</table>
     </div>
   ),
-  thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
-  tbody: ({ children }) => <tbody>{children}</tbody>,
-  tr: ({ children }) => <tr className="border-b border-border last:border-0">{children}</tr>,
+  thead: ({ children }) => <thead data-ui="addon-detail-modal-thead-1" className="bg-muted/50">{children}</thead>,
+  tbody: ({ children }) => <tbody data-ui="addon-detail-modal-tbody-1">{children}</tbody>,
+  tr: ({ children }) => <tr data-ui="addon-detail-modal-tr-1" className="border-b border-border last:border-0">{children}</tr>,
   th: ({ children }) => (
-    <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-foreground whitespace-nowrap">{children}</th>
+    <th data-ui="addon-detail-modal-th-1" className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-foreground whitespace-nowrap">{children}</th>
   ),
-  td: ({ children }) => <td className="px-4 py-2.5 align-top text-muted-foreground">{children}</td>,
+  td: ({ children }) => <td data-ui="addon-detail-modal-td-1" className="px-4 py-2.5 align-top text-muted-foreground">{children}</td>,
 }
 
 export interface AddonDetailModalProps {
@@ -72,7 +75,8 @@ export interface AddonDetailModalProps {
   /** Версии, отобранные вызывающей стороной (сборка или сервер). */
   displayedModalVersions: ModVersion[]
   /** Установка версии. Вернуть false, если установка отложена (например, ждём подтверждения зависимостей). */
-  onInstallVersion: (version: ModVersion) => Promise<boolean | void> | void
+  onInstallVersion?: (version: ModVersion) => Promise<boolean | void> | void
+  loadError?: string
   onClose: () => void
   /** Сборка, для которой открыт мод. Нужна только для подсказок по загрузчику (инстансы). */
   activeBuild?: Build
@@ -104,6 +108,7 @@ export function AddonDetailModal({
   loadingModal,
   displayedModalVersions,
   onInstallVersion,
+  loadError,
   onClose,
   activeBuild,
   installedVersion,
@@ -258,101 +263,106 @@ export function AddonDetailModal({
   const gallery = selectedDetails.gallery
 
   return (
-    <div
+    <div data-ui="addon-detail-modal-div-2" data-component="addon-detail-modal"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={onClose}
     >
-      <div
+      <div data-ui="addon-detail-modal-div-3"
         className="w-full max-w-5xl max-h-[85vh] mx-4 rounded-2xl bg-card border border-border shadow-2xl overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-5 border-b border-border flex-shrink-0">
-          <div className="flex items-start gap-4">
+        <div data-ui="addon-detail-modal-div-4" className="p-5 border-b border-border flex-shrink-0">
+          <div data-ui="addon-detail-modal-div-5" className="flex items-start gap-4">
             {iconUrl ? (
-              <img src={iconUrl} alt="" className="w-16 h-16 rounded-xl flex-shrink-0" />
+              <img data-ui="addon-detail-modal-img-2" src={iconUrl} alt="" className="w-16 h-16 rounded-xl flex-shrink-0" />
             ) : (
-              <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
-                <span className="text-2xl font-bold">{title[0]}</span>
+              <div data-ui="addon-detail-modal-div-6" className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
+                <span data-ui="addon-detail-modal-span-1" className="text-2xl font-bold">{title[0]}</span>
               </div>
             )}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-bold text-foreground">{title}</h2>
-                  <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{description}</p>
+            <div data-ui="addon-detail-modal-div-7" className="flex-1 min-w-0">
+              <div data-ui="addon-detail-modal-div-8" className="flex items-start justify-between gap-4">
+                <div data-ui="addon-detail-modal-div-9">
+                  <h2 data-ui="addon-detail-modal-h2-2" className="text-xl font-bold text-foreground">{title}</h2>
+                  <p data-ui="addon-detail-modal-p-2" className="text-sm text-muted-foreground mt-1 line-clamp-2">{description}</p>
                   {selectedDetails.links && (
-                    <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                    <div data-ui="addon-detail-modal-div-10" className="flex flex-wrap items-center gap-2 mt-2.5">
                       {selectedDetails.links.sourceUrl && (
-                        <a
+                        <a data-ui="addon-detail-modal-a-2"
                           href={selectedDetails.links.sourceUrl}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
                         >
                           <IconBrandGithub className="w-3.5 h-3.5" />
-                          <span>{t("addon.links.source")}</span>
+                          <span data-ui="addon-detail-modal-span-2">{t("addon.links.source")}</span>
                         </a>
                       )}
                       {selectedDetails.links.wikiUrl && (
-                        <a
+                        <a data-ui="addon-detail-modal-a-3"
                           href={selectedDetails.links.wikiUrl}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
                         >
                           <IconBook className="w-3.5 h-3.5" />
-                          <span>{t("addon.links.wiki")}</span>
+                          <span data-ui="addon-detail-modal-span-3">{t("addon.links.wiki")}</span>
                         </a>
                       )}
                       {selectedDetails.links.issuesUrl && (
-                        <a
+                        <a data-ui="addon-detail-modal-a-4"
                           href={selectedDetails.links.issuesUrl}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
                         >
                           <IconBug className="w-3.5 h-3.5" />
-                          <span>{t("addon.links.issues")}</span>
+                          <span data-ui="addon-detail-modal-span-4">{t("addon.links.issues")}</span>
                         </a>
                       )}
                       {selectedDetails.links.discordUrl && (
-                        <a
+                        <a data-ui="addon-detail-modal-a-5"
                           href={selectedDetails.links.discordUrl}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
                         >
                           <IconBrandDiscord className="w-3.5 h-3.5" />
-                          <span>{t("addon.links.discord")}</span>
+                          <span data-ui="addon-detail-modal-span-5">{t("addon.links.discord")}</span>
                         </a>
                       )}
                       {selectedDetails.links.websiteUrl && (
-                        <a
+                        <a data-ui="addon-detail-modal-a-6"
                           href={selectedDetails.links.websiteUrl}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
                         >
                           <IconExternalLink className="w-3.5 h-3.5" />
-                          <span>{t("addon.links.website")}</span>
+                          <span data-ui="addon-detail-modal-span-6">{t("addon.links.website")}</span>
                         </a>
                       )}
                       {/* Страница проекта на площадке (Modrinth/CurseForge/FTB). */}
                       {siteUrl && (
-                        <button
+                        <button data-ui="addon-detail-modal-button-1"
                           type="button"
                           onClick={() => openProjectPage(selectedDetails, projectKind)}
                           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
                         >
                           <IconExternalLink className="w-3.5 h-3.5" />
-                          <span>{t("common.openOnSite")}</span>
+                          <span data-ui="addon-detail-modal-span-7">{t("common.openOnSite")}</span>
                         </button>
                       )}
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={onClose} className="p-2 rounded-lg border border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                <div data-ui="addon-detail-modal-div-11" className="flex items-center gap-2">
+                  {(selectedDetails.source === "modrinth" || selectedDetails.source === "curseforge") && <button type="button" title={t("agent.askAboutProject")} aria-label={t("agent.askAboutProject")} className="p-2 rounded-lg border border-primary/25 bg-primary/10 text-primary hover:bg-primary/20" onClick={() => {
+                    const projectId = selectedDetails.source === "curseforge" ? String(selectedDetails.modId || selectedDetails.id) : selectedDetails.projectId || selectedDetails.id
+                    void openAgent([{ id: `${selectedDetails.source}:${projectId}`, kind: "project", name: title, source: selectedDetails.source as "modrinth" | "curseforge", projectId, iconUrl, content: JSON.stringify({ source: selectedDetails.source, projectId, name: title, summary: description, description: selectedDetails.description?.slice(0, 18000) }) }])
+                    onClose()
+                  }}><IconRobot className="w-5 h-5" /></button>}
+                  <button data-ui="addon-detail-modal-button-2" onClick={onClose} className="p-2 rounded-lg border border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                     <IconX className="w-5 h-5" />
                   </button>
                 </div>
@@ -361,14 +371,14 @@ export function AddonDetailModal({
           </div>
         </div>
 
-        <div className="flex border-b border-border px-2 flex-shrink-0">
+        <div data-ui="addon-detail-modal-div-12" className="flex border-b border-border px-2 flex-shrink-0">
           {([
             { id: "description" as ModalTab, icon: IconFileText },
             { id: "gallery" as ModalTab, icon: IconPhoto },
             { id: "changelog" as ModalTab, icon: IconHistory },
             { id: "versions" as ModalTab, icon: IconDownload },
           ]).map(({ id, icon: Icon }) => (
-            <button
+            <button data-ui="addon-detail-modal-button-3"
               key={id}
               onClick={() => setModalTab(id)}
               className={cn(
@@ -378,34 +388,35 @@ export function AddonDetailModal({
             >
               <Icon className="w-4 h-4" strokeWidth={1.75} />
               {t(`addon.tab.${id}`)}
-              {modalTab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full" />}
+              {modalTab === id && <span data-ui="addon-detail-modal-span-8" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full" />}
             </button>
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div data-ui="addon-detail-modal-div-13" className="flex-1 overflow-y-auto p-6">
+          {loadError && <p role="alert" className="mb-4 rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">{loadError}</p>}
           {loadingModal && <Spinner />}
           {!loadingModal && modalTab === "description" && (
-            <div>
+            <div data-ui="addon-detail-modal-div-14">
               {body ? (
                 <ChangelogContent content={body} components={mdComponents} />
               ) : description ? (
                 <ChangelogContent content={description} components={mdComponents} />
               ) : (
-                <p className="text-muted-foreground">{description}</p>
+                <p data-ui="addon-detail-modal-p-3" className="text-muted-foreground">{description}</p>
               )}
             </div>
           )}
           {!loadingModal && modalTab === "gallery" && (
-            <div>
+            <div data-ui="addon-detail-modal-div-15">
               {gallery && gallery.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div data-ui="addon-detail-modal-div-16" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {gallery.map((img, i) => (
-                    <div key={i} className="group relative overflow-hidden rounded-xl border border-border bg-muted/20">
-                      <img src={img.url} alt={img.title || ""} className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300" />
+                    <div data-ui="addon-detail-modal-div-17" key={i} className="group relative overflow-hidden rounded-xl border border-border bg-muted/20">
+                      <img data-ui="addon-detail-modal-img-3" src={img.url} alt={img.title || ""} className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300" />
                       {img.title && (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-3">
-                          <span className="max-w-full truncate rounded-full bg-black/50 backdrop-blur-sm px-3 py-1 text-xs font-medium text-foreground shadow-sm">
+                        <div data-ui="addon-detail-modal-div-18" className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-3">
+                          <span data-ui="addon-detail-modal-span-9" className="max-w-full truncate rounded-full bg-black/50 backdrop-blur-sm px-3 py-1 text-xs font-medium text-foreground shadow-sm">
                             {img.title}
                           </span>
                         </div>
@@ -414,54 +425,54 @@ export function AddonDetailModal({
                   ))}
                 </div>
               ) : (
-                <p className="col-span-2 text-center text-muted-foreground py-12">{t("addon.noScreenshots")}</p>
+                <p data-ui="addon-detail-modal-p-4" className="col-span-2 text-center text-muted-foreground py-12">{t("addon.noScreenshots")}</p>
               )}
             </div>
           )}
           {!loadingModal && modalTab === "changelog" && (
-            <div className="space-y-4">
+            <div data-ui="addon-detail-modal-div-19" className="space-y-4">
               {displayedModalVersions.length > 0 ? (
                 displayedModalVersions.slice(0, 5).map((ver) => (
-                  <div key={ver.id} className="p-4 rounded-xl bg-muted/20 border border-border">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-semibold text-foreground">{ver.name}</h4>
-                      <span className="text-xs text-muted-foreground">{ver.datePublished ? new Date(ver.datePublished).toLocaleDateString() : ""}</span>
+                  <div data-ui="addon-detail-modal-div-20" key={ver.id} className="p-4 rounded-xl bg-muted/20 border border-border">
+                    <div data-ui="addon-detail-modal-div-21" className="flex items-center justify-between mb-2">
+                      <h4 data-ui="addon-detail-modal-h4-1" className="font-semibold text-foreground">{ver.name}</h4>
+                      <span data-ui="addon-detail-modal-span-10" className="text-xs text-muted-foreground">{ver.datePublished ? new Date(ver.datePublished).toLocaleDateString() : ""}</span>
                     </div>
                     {(() => {
                       const changelogText = ver.changelog || cfChangelogs[ver.id]
                       if (changelogText) {
                         return (
-                          <div className="text-sm text-muted-foreground">
+                          <div data-ui="addon-detail-modal-div-22" className="text-sm text-muted-foreground">
                             <ChangelogContent content={changelogText} components={mdComponents} />
                           </div>
                         )
                       }
                       if (loadingChangelog) {
                         return (
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                          <div data-ui="addon-detail-modal-div-23" className="flex items-center gap-2 text-xs text-muted-foreground py-2">
                             <IconLoader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-                            <span>{t("addon.changelog.loading")}</span>
+                            <span data-ui="addon-detail-modal-span-11">{t("addon.changelog.loading")}</span>
                           </div>
                         )
                       }
-                      return <p className="text-sm text-muted-foreground">{t("addon.changelog.empty")}</p>
+                      return <p data-ui="addon-detail-modal-p-5" className="text-sm text-muted-foreground">{t("addon.changelog.empty")}</p>
                     })()}
                   </div>
                 ))
               ) : (
-                <p className="text-center text-muted-foreground py-12">{t("addon.changelog.empty")}</p>
+                <p data-ui="addon-detail-modal-p-6" className="text-center text-muted-foreground py-12">{t("addon.changelog.empty")}</p>
               )}
             </div>
           )}
           {!loadingModal && modalTab === "versions" && (
-            <div className="space-y-2">
+            <div data-ui="addon-detail-modal-div-24" className="space-y-2">
               {/* Предупреждение показывается только если пользователь сам нажал «Показать все версии» */}
               {showAllVersionsActive && activeBuild && (
-                <div className="flex items-center gap-2 rounded-xl border border-yellow-500/20 bg-yellow-500/5 px-3.5 py-2.5 text-xs text-yellow-500/90">
+                <div data-ui="addon-detail-modal-div-25" className="flex items-center gap-2 rounded-xl border border-warning/20 bg-warning/5 px-3.5 py-2.5 text-xs text-warning/90">
                   <IconAlertTriangle className="w-4 h-4 shrink-0" strokeWidth={1.75} />
-                  <span>
+                  <span data-ui="addon-detail-modal-span-12">
                     {t("addon.versions.allNoteBefore")}{" "}
-                    <span className="font-medium">{t("addon.versions.allNoteEmphasis")}</span>{" "}
+                    <span data-ui="addon-detail-modal-span-13" className="font-medium">{t("addon.versions.allNoteEmphasis")}</span>{" "}
                     {t("addon.versions.allNoteAfter")}
                   </span>
                 </div>
@@ -476,16 +487,16 @@ export function AddonDetailModal({
                   const busy = install?.phase === "running"
                   const isCurrent = isInstalledVersion(ver, installedVersion, activeBuild?.version)
                   return (
-                  <div
+                  <div data-ui="addon-detail-modal-div-26"
                     key={ver.id}
                     className={cn(
                       "p-4 rounded-xl border transition-colors",
                       mismatch
-                        ? "border-red-500/20 bg-red-500/5"
+                        ? "border-destructive/20 bg-destructive/5"
                         : installState?.phase === "error"
-                          ? "border-red-500/25 bg-red-500/5"
+                          ? "border-destructive/25 bg-destructive/5"
                           : installState?.phase === "done"
-                            ? "border-green-500/25 bg-green-500/5"
+                            ? "border-success/25 bg-success/5"
                             : installState
                               ? "border-primary/40 bg-primary/5"
                               : isCurrent
@@ -493,47 +504,38 @@ export function AddonDetailModal({
                                 : "bg-muted/20 border-border hover:bg-muted/30"
                     )}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-foreground truncate">{ver.name}</p>
+                    <div data-ui="addon-detail-modal-div-27" className="flex items-center justify-between">
+                      <div data-ui="addon-detail-modal-div-28" className="flex-1 min-w-0">
+                        <div data-ui="addon-detail-modal-div-29" className="flex items-center gap-2">
+                          <p data-ui="addon-detail-modal-p-7" className="font-medium text-foreground truncate">{ver.name}</p>
                           {isCurrent && (
-                            <span className="inline-flex shrink-0 items-center gap-1 rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                            <span data-ui="addon-detail-modal-span-14" className="inline-flex shrink-0 items-center gap-1 rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                               <IconCheck className="w-3 h-3" />
                               {t("addon.versions.current")}
                             </span>
                           )}
                         </div>
-                        <div className="flex flex-wrap items-center gap-2 mt-1">
-                          <span className="text-xs text-muted-foreground">
-                            {ver.gameVersion ?? ""}
-                          </span>
-                          {ver.loaders && ver.loaders.length > 0 && (
-                            <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                              {ver.loaders.map(l => (
-                                <LoaderIcon key={l} loaderId={String(l).toLowerCase()} className="w-3.5 h-3.5" />
-                              ))}
-                              <span>{Array.isArray(ver.loaders) ? ver.loaders.join(", ") : ""}</span>
-                            </span>
-                          )}
+                        <div data-ui="addon-detail-modal-div-30" className="flex flex-wrap items-center gap-2 mt-1">
+                          <GameVersionChips gameVersion={ver.gameVersion} />
+                          <LoaderBadges loaders={ver.loaders} />
                           {mismatch && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 font-medium">
+                            <span data-ui="addon-detail-modal-span-15" className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/15 text-destructive font-medium">
                               {t("addon.otherLoader")}
                             </span>
                           )}
                           {ver.versionType && (
-                            <span className={cn(
+                            <span data-ui="addon-detail-modal-span-16" className={cn(
                               "rounded px-1.5 py-0.5 text-[10px] font-medium uppercase",
-                              ver.versionType === "release" ? "bg-green-500/10 text-green-500"
-                                : ver.versionType === "beta" ? "bg-yellow-500/10 text-yellow-500"
-                                  : "bg-red-500/10 text-red-500",
+                              ver.versionType === "release" ? "bg-success/10 text-success"
+                                : ver.versionType === "beta" ? "bg-warning/10 text-warning"
+                                  : "bg-destructive/10 text-destructive",
                             )}>
                               {ver.versionType}
                             </span>
                           )}
                         </div>
                       </div>
-                      <button
+                      {onInstallVersion && <button data-ui="addon-detail-modal-button-4"
                         onClick={() => void runVersionInstall(ver, () => onInstallVersion(ver))}
                         disabled={busy || isCurrent}
                         className={cn(
@@ -559,7 +561,7 @@ export function AddonDetailModal({
                             {t("addon.download")}
                           </>
                         )}
-                      </button>
+                      </button>}
                     </div>
 
                     {installState && <VersionInstallProgress state={installState} />}
@@ -567,22 +569,22 @@ export function AddonDetailModal({
                   )
                 })
               ) : (
-                <div className="flex flex-col items-center justify-center py-14 text-center">
+                <div data-ui="addon-detail-modal-div-31" className="flex flex-col items-center justify-center py-14 text-center">
                   <IconPackage className="h-8 w-8 text-muted-foreground/60 mb-3" strokeWidth={1.5} />
-                  <p className="text-sm font-medium text-foreground">{t("addon.versions.noneFor", { target: resolvedTargetLabel })}</p>
-                  <div className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1.5">
+                  <p data-ui="addon-detail-modal-p-8" className="text-sm font-medium text-foreground">{t("addon.versions.noneFor", { target: resolvedTargetLabel })}</p>
+                  <div data-ui="addon-detail-modal-div-32" className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1.5">
                     {activeBuild ? (
                       <>
-                        <span>{t("addon.versions.notFoundFor")}</span>
+                        <span data-ui="addon-detail-modal-span-17">{t("addon.versions.notFoundFor")}</span>
                         <LoaderIcon loaderId={activeBuild.modLoader} className="w-3.5 h-3.5" />
-                        <span>{loaderLabel(activeBuild.modLoader)} {activeBuild.version}</span>
+                        <span data-ui="addon-detail-modal-span-18">{loaderLabel(activeBuild.modLoader)} {activeBuild.version}</span>
                       </>
                     ) : (
-                      <span>{t("addon.versions.noMatching")}</span>
+                      <span data-ui="addon-detail-modal-span-19">{t("addon.versions.noMatching")}</span>
                     )}
                   </div>
                   {onShowAllVersions && allVersionsCount > 0 && (
-                    <button
+                    <button data-ui="addon-detail-modal-button-5"
                       onClick={onShowAllVersions}
                       className="mt-4 flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-border bg-muted/40 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                     >

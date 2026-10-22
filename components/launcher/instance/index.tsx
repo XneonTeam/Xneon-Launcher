@@ -1,4 +1,6 @@
+import { CONTENT_ENTER } from "../content-motion"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { cn } from "@/lib/utils"
 import { InstanceDetail } from "./instance-detail"
 import { InstanceList } from "./instance-list"
 import { InstanceModrinth } from "./instance-modrinth"
@@ -36,14 +38,14 @@ export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
 
   const [mrSearch, setMrSearch] = useState("")
   const [mrResults, setMrResults] = useState<ModSearchResult[]>([])
-  const [mrLoading, setMrLoading] = useState(false)
+  const [mrLoading, setMrLoading] = useState(true)
 
   const [cfSearch, setCfSearch] = useState("")
   const [cfResults, setCfResults] = useState<ModSearchResult[]>([])
-  const [cfLoading, setCfLoading] = useState(false)
+  const [cfLoading, setCfLoading] = useState(true)
   const [ftbSearch, setFtbSearch] = useState("")
   const [ftbResults, setFtbResults] = useState<ModSearchResult[]>([])
-  const [ftbLoading, setFtbLoading] = useState(false)
+  const [ftbLoading, setFtbLoading] = useState(true)
   const [mrSortBy, setMrSortBy] = useState<ModSort>("downloads")
   const [cfSortBy, setCfSortBy] = useState<ModSort>("downloads")
   const { visibleVersions, versionsLoaded } = useMinecraftVersionOptions()
@@ -77,7 +79,7 @@ export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
   const [ftbPackCatsSelected, setFtbPackCatsSelected] = useState<SelectedModCategory[]>([])
 
   const {
-    builds, setBuilds, activeBuildId, setActiveBuildId, activeBuild,
+    builds, buildsHydrated, setBuilds, activeBuildId, setActiveBuildId, activeBuild,
     fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, restoreBuildFromTrash, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, addCategory, collapsedGroups, toggleGroupCollapse, groups, categoryIcons, setCategoryIcon,
     updateBuild, addModToBuild, addLocalModToBuild,
     addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds,
@@ -481,7 +483,7 @@ export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
   }
 
   return (
-    <div className="relative h-full flex flex-col animate-in fade-in-0 slide-in-from-bottom-4 duration-300">
+    <div data-ui="instance-index-div-1" data-component="instance-page" id="builds-page" data-view={resolvedView} className={cn("relative h-full flex flex-col", resolvedView === "my" && buildsHydrated && CONTENT_ENTER)}>
       <InstanceImportOverlay
         importProgress={importProgress}
         importError={importError}

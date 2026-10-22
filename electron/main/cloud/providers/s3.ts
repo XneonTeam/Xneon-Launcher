@@ -149,7 +149,7 @@ async function listS3Files(config: S3Config, prefix: string): Promise<CloudFileI
       const isDir = key.endsWith("/")
       files.push({
         id: key, name, size: parseInt(sizes[i] ?? "0", 10), modifiedAt: lastMods[i],
-        path: name, isDir,
+        path: key.slice(BASE_PREFIX.length).replace(/\/$/, ""), isDir,
       })
     }
 

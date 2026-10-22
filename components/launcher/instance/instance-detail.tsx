@@ -1,7 +1,9 @@
+import { CONTENT_ENTER_DELAYED } from "../content-motion"
 import { memo, useCallback, useState, useEffect, useMemo } from "react"
 import { useTranslation } from "react-i18next"
-import { IconArrowLeft, IconInfoCircle, IconSettings, IconPuzzle, IconPhoto, IconSparkles, IconMap, IconCamera, IconServer, IconLock } from "@tabler/icons-react"
+import { IconArrowLeft, IconInfoCircle, IconSettings, IconPuzzle, IconPhoto, IconSparkles, IconMap, IconCamera, IconServer, IconLock, IconRobot } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
+import { openAgent } from "../agent/store"
 import { LoaderIcon, loaderLabel } from "./loader-icon"
 import { EntityIcon } from "./entity-icon"
 import { matchesBuildVersion, pickCompatibleVersion } from "./utils"
@@ -762,33 +764,39 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
   }, [selectedDetails, installVersionWithDeps])
 
   return (
-    <div className="h-full flex flex-col animate-in fade-in-0 duration-300">
-      <div className="flex items-center justify-between gap-4 mb-5">
-        <div className="flex items-center gap-4">
-          <button
+    <div data-ui="instance-instance-detail-div-1" data-component="instance-detail" id="build-detail-page" data-tab={detailTab} className="h-full flex flex-col">
+      <div data-ui="instance-instance-detail-div-2" className={`flex items-center justify-between gap-4 mb-5 ${CONTENT_ENTER_DELAYED}`}>
+        <div data-ui="instance-instance-detail-div-3" className="flex items-center gap-4">
+          <button data-ui="instance-instance-detail-button-1"
             type="button"
             onClick={goToMyBuilds}
             className="p-2 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
           >
             <IconArrowLeft className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-3 rounded-2xl bg-muted/50 px-4 py-2.5">
+          <div data-ui="instance-instance-detail-div-4" className="flex items-center gap-3 rounded-2xl bg-muted/50 px-4 py-2.5">
             {buildHasImage && (
-              <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
+              <div data-ui="instance-instance-detail-div-5" className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
                 <EntityIcon src={activeBuild.icon} className="w-full h-full p-1 text-primary" imgClassName="w-full h-full object-cover" />
               </div>
             )}
-            <div className="flex flex-col">
-              <h1 className="text-xl font-bold text-foreground">{activeBuild.name}</h1>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div data-ui="instance-instance-detail-div-6" className="flex flex-col">
+              <h1 data-ui="instance-instance-detail-h1-1" className="text-xl font-bold text-foreground">{activeBuild.name}</h1>
+              <div data-ui="instance-instance-detail-div-7" className="flex items-center gap-2 text-sm text-muted-foreground">
                 <LoaderIcon loaderId={activeBuild.modLoader} className="w-4 h-4 text-muted-foreground inline-block flex-shrink-0" />
-                <span>{loaderLabel(activeBuild.modLoader)} · {activeBuild.version}</span>
+                <span data-ui="instance-instance-detail-span-1">{loaderLabel(activeBuild.modLoader)} · {activeBuild.version}</span>
               </div>
             </div>
           </div>
+          <button data-ui="instance-open-agent-button" type="button" title={t("agent.askAboutBuild")} aria-label={t("agent.askAboutBuild")} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => {
+            const { icon, coverImage, customEnv, mods, resourcepacks, shaders, installedMods, ...context } = activeBuild
+            void openAgent([{ id: `build:${activeBuild.id}`, kind: "build", name: activeBuild.name, iconUrl: icon || undefined, content: JSON.stringify(context, null, 2) }])
+          }}>
+            <IconRobot className="w-5 h-5" aria-hidden="true" />
+          </button>
         </div>
-        <div className="flex flex-col gap-1">
-          <div className="flex gap-0.5 p-1 rounded-xl bg-muted/30 border border-border/50">
+        <div data-ui="instance-instance-detail-div-8" className="flex flex-col gap-1">
+          <div data-ui="instance-instance-detail-div-9" className="flex gap-0.5 p-1 rounded-xl bg-muted/30 border border-border/50">
             {([
               { tab: "general" as const, icon: IconInfoCircle, label: t("builds.tab.general"), locked: false },
               { tab: "settings" as const, icon: IconSettings, label: t("builds.tab.settings"), locked: false },
@@ -798,8 +806,10 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
                 { tab: "shaders" as const, icon: IconSparkles, label: t("builds.tab.shaders"), locked: isLocked },
               ] : []),
             ]).map(({ tab, icon: Icon, label, locked }) => (
-              <button
+              <button data-ui="instance-instance-detail-button-2"
                 key={tab}
+                data-tab={tab}
+                data-active={detailTab === tab}
                 type="button"
                 onClick={() => handleTabClick(tab)}
                 title={locked ? t("buildDetail.tab.locked") : undefined}
@@ -813,19 +823,21 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
                 )}
               >
                 <Icon className="w-4 h-4" strokeWidth={1.75} />
-                <span>{label}</span>
-                {locked && <IconLock className="w-3 h-3 text-amber-500/80 shrink-0 ml-0.5" />}
+                <span data-ui="instance-instance-detail-span-2">{label}</span>
+                {locked && <IconLock className="w-3 h-3 text-warning/80 shrink-0 ml-0.5" />}
               </button>
             ))}
           </div>
-          <div className="flex gap-0.5 p-1 rounded-xl bg-muted/30 border border-border/50">
+          <div data-ui="instance-instance-detail-div-10" className="flex gap-0.5 p-1 rounded-xl bg-muted/30 border border-border/50">
             {([
               { tab: "servers" as const, icon: IconServer, label: t("builds.tab.servers") },
               { tab: "worlds" as const, icon: IconMap, label: t("builds.tab.worlds") },
               { tab: "screenshots" as const, icon: IconCamera, label: t("builds.tab.screenshots") },
             ]).map(({ tab, icon: Icon, label }) => (
-              <button
+              <button data-ui="instance-instance-detail-button-3"
                 key={tab}
+                data-tab={tab}
+                data-active={detailTab === tab}
                 type="button"
                 onClick={() => setDetailTab(tab)}
                 className={cn(

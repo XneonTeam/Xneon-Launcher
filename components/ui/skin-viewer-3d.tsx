@@ -33,6 +33,13 @@ export function SkinViewer3D({ skinUrl, capeUrl, slim, backEquipment = "cape", f
     viewer.animation = new IdleAnimation()
     viewerRef.current = viewer
     return () => { viewer.dispose(); viewerRef.current = null }
+  }, [])
+
+  // Resize the existing renderer instead of disposing and recreating it.
+  // Recreating on every window resize cleared the model, while the skin-load
+  // effect did not rerun because skinUrl and slim had not changed.
+  useEffect(() => {
+    viewerRef.current?.setSize(width, height)
   }, [width, height])
 
   useEffect(() => {
@@ -65,5 +72,5 @@ export function SkinViewer3D({ skinUrl, capeUrl, slim, backEquipment = "cape", f
     viewer.playerWrapper.rotation.y = faceBack ? Math.PI : 0
   }, [faceBack])
 
-  return <canvas ref={canvasRef} className={cn("rounded-xl", className)} />
+  return <canvas data-ui="ui-skin-viewer-3d-canvas-1" ref={canvasRef} className={cn("rounded-xl", className)} />
 }

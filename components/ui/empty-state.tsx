@@ -34,15 +34,15 @@ export function EmptyState({
   const Icon = icon ?? EMPTY_STATE_ICONS[variant]
 
   return (
-    <div className={cn("flex flex-col items-center justify-center text-center", compact ? "gap-1" : "gap-1.5", className)}>
+    <div data-ui="ui-empty-state-div-1" className={cn("flex flex-col items-center justify-center text-center", compact ? "gap-1" : "gap-1.5", className)}>
       <Icon
         aria-hidden="true"
         strokeWidth={1.5}
         className={cn("shrink-0 text-muted-foreground/60", compact ? "h-7 w-7" : "h-12 w-12")}
       />
-      <p className={cn("font-medium text-muted-foreground", compact ? "text-xs" : "text-sm")}>{title}</p>
+      <p data-ui="ui-empty-state-p-1" className={cn("font-medium text-muted-foreground", compact ? "text-xs" : "text-sm")}>{title}</p>
       {description ? (
-        <p className="max-w-[280px] text-xs leading-relaxed text-muted-foreground/70">{description}</p>
+        <p data-ui="ui-empty-state-p-2" className="max-w-[280px] text-xs leading-relaxed text-muted-foreground/70">{description}</p>
       ) : null}
       {action}
     </div>

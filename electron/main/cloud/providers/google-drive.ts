@@ -20,7 +20,7 @@ const GOOGLE_SCOPES = "https://www.googleapis.com/auth/drive.file https://www.go
 const GOOGLE_API = "https://www.googleapis.com/drive/v3"
 const GOOGLE_UPLOAD_API = "https://www.googleapis.com/upload/drive/v3"
 const BASE_FOLDER = "Xneon Launcher"
-const SUB_FOLDERS = ["builds", "accounts", "servers"]
+const SUB_FOLDERS = ["builds", "accounts", "servers", "themes"]
 
 type TokenData = {
   access_token: string

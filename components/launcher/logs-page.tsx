@@ -1,29 +1,27 @@
+import { CONTENT_ENTER_DELAYED } from "./content-motion"
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import { useLaunchLogs, type LogEntry, type LogLevel } from "@/src/LaunchLogsContext"
 import { useTranslation } from "react-i18next"
-import {
-  IconFileText, IconCopy, IconCheck, IconRefresh, IconTrash,
-  IconSearch, IconArrowDown, IconShare, IconDeviceGamepad2,
-  IconBug, IconAlertTriangle, IconCircleX, IconTerminal2, IconBrain,
-} from "@tabler/icons-react"
-import { AiAnalysisDialog } from "./ai-analysis-dialog"
+import { IconFileText, IconCopy, IconCheck, IconTrash, IconSearch, IconArrowDown, IconShare, IconDeviceGamepad2, IconBug, IconAlertTriangle, IconCircleX, IconTerminal2, IconBrain, IconLoader2 } from "@tabler/icons-react"
+import { openAgentWithLog } from "./agent/store"
+import { stripAnsi } from "@/lib/ansi"
 
 // --- Syntax Highlight Patterns for Minecraft Logs ---
 
 const LEVEL_COLORS: Record<string, string> = {
-  INFO: "#5cb85c",
-  ERROR: "#f62451",
-  WARN: "#FF6625",
-  WARNING: "#FF6625",
-  DEBUG: "#A4A4A4",
-  TRACE: "#A4A4A4",
-  FATAL: "#f62451",
+  INFO: "var(--success)",
+  ERROR: "var(--destructive)",
+  WARN: "var(--warning)",
+  WARNING: "var(--warning)",
+  DEBUG: "var(--muted-foreground)",
+  TRACE: "var(--muted-foreground)",
+  FATAL: "var(--destructive)",
 }
 
 const CLASS_COLORS = [
-  "#8be9fd", "#50fa7b", "#ffb86c", "#ff79c6", "#bd93f9",
-  "#ff5555", "#f1fa8c", "#6272a4", "#44d5c3", "#e6a8d7",
+  "var(--info)", "var(--success)", "var(--warning)", "var(--accent)", "var(--primary)",
+  "var(--destructive)", "var(--warning)", "var(--muted-foreground)", "var(--accent)", "var(--primary)",
 ]
 
 const JAVA_KEYWORDS = new RegExp(String.raw`\b(?:public|private|protected|static|final|class|interface|extends|implements|void|int|boolean|double|float|long|short|byte|char|String|Object|null|true|false|return|if|else|while|for|switch|case|break|continue|try|catch|finally|throw|new|this|super|import|package|synchronized|volatile|transient|native|strictfp|assert|enum|instanceof)\b`, "g")
@@ -44,22 +42,22 @@ const ANNOTATION_PATTERN = new RegExp(String.raw`@[A-Z][a-zA-Z0-9_$]*`, "g")
 
 
 const LS: Record<LogLevel, string> = {
-  error: "text-[#f62451] font-semibold", warn: "text-[#FF6625] font-semibold",
-  debug: "text-[#A4A4A4]", game: "text-[#e8e8e8]",
-  launcher: "text-[#5cb85c]", info: "text-[#e8e8e8]",
+  error: "text-destructive font-semibold", warn: "text-warning font-semibold",
+  debug: "text-muted-foreground", game: "text-foreground",
+  launcher: "text-success", info: "text-foreground",
 }
 
 const ROW_BG: Partial<Record<LogLevel, string>> = {
-  launcher: "bg-[#5cb85c]/10 border-l-2 border-[#5cb85c]/50 hover:bg-[#5cb85c]/15",
-  debug: "bg-[#A4A4A4]/5 border-l-2 border-[#A4A4A4]/30 hover:bg-[#A4A4A4]/10",
-  error: "bg-[#f62451]/15 border-l-2 border-[#f62451]/60 hover:bg-[#f62451]/25",
-  warn: "bg-[#FF6625]/15 border-l-2 border-[#FF6625]/60 hover:bg-[#FF6625]/25",
+  launcher: "bg-success/10 border-l-2 border-success/50 hover:bg-success/15",
+  debug: "bg-muted-foreground/5 border-l-2 border-muted-foreground/30 hover:bg-muted-foreground/10",
+  error: "bg-destructive/15 border-l-2 border-destructive/60 hover:bg-destructive/25",
+  warn: "bg-warning/15 border-l-2 border-warning/60 hover:bg-warning/25",
 }
 
 const PFX_CLR: Record<string, string> = {
-  INFO: "text-[#5cb85c]", ERROR: "text-[#f62451]",
-  WARN: "text-[#FF6625]", WARNING: "text-[#FF6625]",
-  DEBUG: "text-[#A4A4A4]", TRACE: "text-[#A4A4A4]",
+  INFO: "text-success", ERROR: "text-destructive",
+  WARN: "text-warning", WARNING: "text-warning",
+  DEBUG: "text-muted-foreground", TRACE: "text-muted-foreground",
 }
 
 const MC_RE = /(\[.*?\] \[.*?\/(INFO|ERROR|WARN|WARNING|DEBUG|TRACE)\]:)/g
@@ -88,10 +86,10 @@ const fmtTime = (ts: number) => {
 }
 
 const txtColor = (l: LogLevel) =>
-  l === "error" ? "text-[#f62451]" : l === "warn" ? "text-[#FF6625]" : l === "debug" ? "text-[#A4A4A4]" : "text-[#e8e8e8]"
+  l === "error" ? "text-destructive" : l === "warn" ? "text-warning" : l === "debug" ? "text-muted-foreground" : "text-foreground"
 
 const pfxColor = (l: LogLevel) =>
-  l === "error" ? "text-[#f62451]" : l === "warn" ? "text-[#FF6625]" : "text-[#5cb85c]"
+  l === "error" ? "text-destructive" : l === "warn" ? "text-warning" : "text-success"
 
 function hashString(str: string): number {
   let h = 0
@@ -130,15 +128,15 @@ function tokenizeLog(text: string, level: LogLevel): Token[] {
     const tsMatch = fullPrefix.match(new RegExp(String.raw`\\[(\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?)\\]`))
     const threadMatch = fullPrefix.match(new RegExp(String.raw`\\[([^\\/\\]]*)\\/(INFO|ERROR|WARN|WARNING|DEBUG|TRACE)\\]`))
 
-    if (tsMatch) push("timestamp", "#6272a4", tsMatch[0])
+    if (tsMatch) push("timestamp", "var(--muted-foreground)", tsMatch[0])
     if (threadMatch) {
       const beforeThread = fullPrefix.substring(tsMatch ? tsMatch[0].length : 0, threadMatch.index)
       if (beforeThread) push("text", undefined, beforeThread)
-      push("bracket", "#A4A4A4", "[")
-      push("thread", "#bd93f9", threadMatch[1])
-      push("separator", "#A4A4A4", "/")
+      push("bracket", "var(--muted-foreground)", "[")
+      push("thread", "var(--primary)", threadMatch[1])
+      push("separator", "var(--muted-foreground)", "/")
       push("level", levelColor, threadMatch[2])
-      push("bracket", "#A4A4A4", "]: ")
+      push("bracket", "var(--muted-foreground)", "]: ")
     } else {
       push("prefix", levelColor, fullPrefix)
     }
@@ -151,7 +149,7 @@ function tokenizeLog(text: string, level: LogLevel): Token[] {
     if (cbMatch) {
       const idx = remaining.indexOf(cbMatch[0])
       if (idx > 0) push("text", undefined, remaining.substring(0, idx))
-      push("caused", "#ff79c6", cbMatch[0])
+      push("caused", "var(--accent)", cbMatch[0])
       remaining = remaining.substring(idx + cbMatch[0].length)
     }
   }
@@ -167,11 +165,11 @@ function tokenizeLog(text: string, level: LogLevel): Token[] {
         if (classMatch) {
           const className = classMatch[1]
           push("class", getClassColor(className), className)
-          push("dot", "#A4A4A4", ".")
-          push("method", "#50fa7b", classMatch[3] + (classMatch[4] || ""))
-          if (classMatch[5]) push("source", "#6272a4", classMatch[5])
+          push("dot", "var(--muted-foreground)", ".")
+          push("method", "var(--success)", classMatch[3] + (classMatch[4] || ""))
+          if (classMatch[5]) push("source", "var(--muted-foreground)", classMatch[5])
         } else {
-          push("trace", "#A4A4A4", frame)
+          push("trace", "var(--muted-foreground)", frame)
         }
       }
     }
@@ -184,7 +182,7 @@ function tokenizeLog(text: string, level: LogLevel): Token[] {
       if (i % 2 === 0) {
         if (parts[i]) push("text", undefined, parts[i])
       } else {
-        push("exception", "#f62451", parts[i])
+        push("exception", "var(--destructive)", parts[i])
       }
     }
     remaining = ""
@@ -192,13 +190,13 @@ function tokenizeLog(text: string, level: LogLevel): Token[] {
 
   if (remaining) {
     const patterns: Array<{ re: RegExp; type: string; color?: string }> = [
-      { re: URL_PATTERN, type: "url", color: "#8be9fd" },
-      { re: UUID_PATTERN, type: "uuid", color: "#ffb86c" },
-      { re: HEX_PATTERN, type: "hex", color: "#ff79c6" },
-      { re: NUMBER_PATTERN, type: "number", color: "#bd93f9" },
-      { re: MIXIN_PATTERN, type: "mixin", color: "#f1fa8c" },
-      { re: ANNOTATION_PATTERN, type: "annotation", color: "#f1fa8c" },
-      { re: JAVA_KEYWORDS, type: "keyword", color: "#ff79c6" },
+      { re: URL_PATTERN, type: "url", color: "var(--info)" },
+      { re: UUID_PATTERN, type: "uuid", color: "var(--warning)" },
+      { re: HEX_PATTERN, type: "hex", color: "var(--accent)" },
+      { re: NUMBER_PATTERN, type: "number", color: "var(--primary)" },
+      { re: MIXIN_PATTERN, type: "mixin", color: "var(--warning)" },
+      { re: ANNOTATION_PATTERN, type: "annotation", color: "var(--warning)" },
+      { re: JAVA_KEYWORDS, type: "keyword", color: "var(--accent)" },
       { re: CLASS_PATTERN, type: "class", color: undefined },
     ]
 
@@ -270,12 +268,12 @@ function renderSyntaxHighlighted(text: string, level: LogLevel): React.ReactNode
   return (
     <>
       {tokens.map((t, i) => (
-        <span
+        <span data-ui="logs-page-span-1"
           key={i}
           style={t.color ? { color: t.color } : undefined}
           className={cn(
             !t.color && t.type === "text" && txtColor(level),
-            t.type === "url" && "underline decoration-[#8be9fd]/50 hover:decoration-[#8be9fd]",
+            t.type === "url" && "underline decoration-info/50 hover:decoration-info",
             t.type === "exception" && "font-bold",
             t.type === "keyword" && "font-semibold",
           )}
@@ -293,19 +291,19 @@ function renderMcLog(text: string, level: LogLevel) {
   let last = 0, m: RegExpExecArray | null
   MC_RE.lastIndex = 0
   while ((m = MC_RE.exec(text)) !== null) {
-    if (m.index > last) parts.push(<span key={`t${last}`} className={tc}>{text.slice(last, m.index)}</span>)
-    parts.push(<span key={`l${m.index}`} className={cn("font-semibold", PFX_CLR[m[2]] ?? lc)}>{m[1]}</span>)
+    if (m.index > last) parts.push(<span data-ui="logs-page-span-2" key={`t${last}`} className={tc}>{text.slice(last, m.index)}</span>)
+    parts.push(<span data-ui="logs-page-span-3" key={`l${m.index}`} className={cn("font-semibold", PFX_CLR[m[2]] ?? lc)}>{m[1]}</span>)
     last = m.index + m[1].length
   }
   if (last < text.length) {
-    parts.push(<span key={`tail-${last}`} className={tc}>{text.slice(last)}</span>)
+    parts.push(<span data-ui="logs-page-span-4" key={`tail-${last}`} className={tc}>{text.slice(last)}</span>)
   }
-  return parts.length ? <>{parts}</> : <span className={tc}>{text}</span>
+  return parts.length ? <>{parts}</> : <span data-ui="logs-page-span-5" className={tc}>{text}</span>
 }
 
 function renderLog(text: string, level: LogLevel) {
   return (level === "game" || level === "info" || OWN_FMT.test(text))
-    ? renderMcLog(text, level) : <span className={LS[level]}>{text}</span>
+    ? renderMcLog(text, level) : <span data-ui="logs-page-span-6" className={LS[level]}>{text}</span>
 }
 
 // --- LogRow ---
@@ -314,20 +312,20 @@ const LogRow = memo(function LogRow({ entry, label }: { entry: LogEntry; label: 
   const own = OWN_FMT.test(entry.text) || entry.level === "launcher"
   const isErr = entry.level === "error", isWarn = entry.level === "warn"
   return (
-    <div className={cn("flex gap-2 px-2 py-0.5 rounded hover:bg-white/5 group transition-colors", ROW_BG[entry.level])}>
+    <div data-ui="logs-page-div-1" data-component="log-row" data-level={entry.level} className={cn("flex gap-2 px-2 py-0.5 rounded hover:bg-muted/50 group transition-colors", ROW_BG[entry.level])}>
       {own ? (
-        <span className="flex-1 break-all whitespace-pre-wrap">
-          {isErr ? <span className="font-semibold text-[#f62451]">{renderLog(entry.text, entry.level)}</span>
-            : isWarn ? <span className="font-semibold text-[#FF6625]">{renderLog(entry.text, entry.level)}</span>
+        <span data-ui="logs-page-span-7" className="flex-1 break-all whitespace-pre-wrap">
+          {isErr ? <span data-ui="logs-page-span-8" className="font-semibold text-destructive">{renderLog(entry.text, entry.level)}</span>
+            : isWarn ? <span data-ui="logs-page-span-9" className="font-semibold text-warning">{renderLog(entry.text, entry.level)}</span>
             : renderLog(entry.text, entry.level)}
         </span>
       ) : isErr ? (
-        <span className="flex-1 break-all whitespace-pre-wrap font-semibold text-[#f62451]">{entry.text}</span>
+        <span data-ui="logs-page-span-10" className="flex-1 break-all whitespace-pre-wrap font-semibold text-destructive">{entry.text}</span>
       ) : (
         <>
-          <span className="text-muted-foreground/40 flex-shrink-0 select-none w-[54px]">{fmtTime(entry.ts)}</span>
-          <span className={cn("flex-shrink-0 w-[52px] font-semibold text-[10px] uppercase tracking-wide mt-px", LS[entry.level])}>{label}</span>
-          <span className="flex-1 break-all whitespace-pre-wrap">{renderSyntaxHighlighted(entry.text, entry.level)}</span>
+          <span data-ui="logs-page-span-11" className="text-muted-foreground/40 flex-shrink-0 select-none w-[54px]">{fmtTime(entry.ts)}</span>
+          <span data-ui="logs-page-span-12" className={cn("flex-shrink-0 w-[52px] font-semibold text-[10px] uppercase tracking-wide mt-px", LS[entry.level])}>{label}</span>
+          <span data-ui="logs-page-span-13" className="flex-1 break-all whitespace-pre-wrap">{renderSyntaxHighlighted(entry.text, entry.level)}</span>
         </>
       )}
     </div>
@@ -345,7 +343,6 @@ export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | n
   const [search, setSearch] = useState("")
   const deferredSearch = useDeferredValue(search)
   const [autoScroll, setAutoScroll] = useState(true)
-  const [aiDialogOpen, setAiDialogOpen] = useState(false)
   const [crashFocus, setCrashFocus] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
@@ -440,44 +437,44 @@ export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | n
 
   const shareCls = cn(
     "flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors",
-    shareState === "done" ? "bg-green-500/20 text-green-500" : shareState === "error" ? "bg-destructive/20 text-destructive" : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground",
+    shareState === "done" ? "bg-success/20 text-success" : shareState === "error" ? "bg-destructive/20 text-destructive" : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground",
     (shareState === "loading" || logs.length === 0) && "opacity-50 cursor-not-allowed",
   )
 
   return (
-    <div className="w-full h-full min-h-0 flex flex-col gap-4 animate-in fade-in-0 duration-300">
+    <div data-ui="logs-page-div-2" data-component="logs-page" id="logs-page" data-filter={filter} className={`w-full h-full min-h-0 flex flex-col gap-4 ${CONTENT_ENTER_DELAYED}`}>
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+      <div data-ui="logs-page-div-3" className="flex items-center justify-between gap-4 flex-wrap flex-shrink-0">
+        <div data-ui="logs-page-div-4" className="flex items-center gap-3">
+          <div data-ui="logs-page-div-5" className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
             <IconFileText className="w-5 h-5 text-primary" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-foreground">{t("logs.title")}</h1>
-            <p className="text-sm text-muted-foreground">{t("logs.subtitle")}</p>
+          <div data-ui="logs-page-div-6">
+            <h1 data-ui="logs-page-h1-1" className="text-xl font-bold text-foreground">{t("logs.title")}</h1>
+            <p data-ui="logs-page-p-1" className="text-sm text-muted-foreground">{t("logs.subtitle")}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={handleCopy}
+        <div data-ui="logs-page-div-7" className="flex items-center gap-2">
+          <button data-ui="logs-page-button-1" type="button" onClick={handleCopy}
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-            {copied ? <><IconCheck className="w-4 h-4 text-green-500" />{t("logs.copied")}</> : <><IconCopy className="w-4 h-4" />{t("logs.copy")}</>}
+            {copied ? <><IconCheck className="w-4 h-4 text-success" />{t("logs.copied")}</> : <><IconCopy className="w-4 h-4" />{t("logs.copy")}</>}
           </button>
 
-          <button type="button" disabled={shareState === "loading" || logs.length === 0} onClick={() => void handleShare()} className={shareCls}>
-            {shareState === "loading" ? <><IconRefresh className="w-4 h-4 animate-spin" />{t("logs.uploading")}</>
-              : shareState === "done" ? <><IconCheck className="w-4 h-4 text-green-500" />{t("logs.copied")}</>
+          <button data-ui="logs-page-button-2" type="button" disabled={shareState === "loading" || logs.length === 0} onClick={() => void handleShare()} className={shareCls}>
+            {shareState === "loading" ? <><IconLoader2 className="w-4 h-4 text-primary animate-spin" />{t("logs.uploading")}</>
+              : shareState === "done" ? <><IconCheck className="w-4 h-4 text-success" />{t("logs.copied")}</>
               : shareState === "error" ? <><IconTrash className="w-4 h-4" />{t("logs.shareError")}</>
               : <><IconShare className="w-4 h-4" />{t("logs.share")}</>}
           </button>
 
-          <button type="button" onClick={clearLogs}
+          <button data-ui="logs-page-button-3" type="button" onClick={clearLogs}
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-muted/50 hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors">
             <IconTrash className="w-4 h-4" />{t("logs.clear")}
           </button>
 
           {logs.length > 0 && (
-            <button type="button" onClick={() => setAiDialogOpen(true)}
+            <button data-ui="logs-page-button-4" type="button" onClick={() => void openAgentWithLog(logs.map(entry => stripAnsi(entry.text)).join("\n"))}
               className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-primary/10 hover:bg-primary/20 text-primary transition-colors">
               <IconBrain className="w-4 h-4" />{t("ai.analyze")}
             </button>
@@ -486,31 +483,31 @@ export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | n
       </div>
 
       {/* Filters + Search */}
-      <div className="flex items-center gap-3 flex-wrap flex-shrink-0">
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-muted/40 flex-shrink-0">
+      <div data-ui="logs-page-div-8" className="flex items-center gap-3 flex-wrap flex-shrink-0">
+        <div data-ui="logs-page-div-9" className="flex gap-0.5 p-1 rounded-xl bg-muted/30 border border-border/50 flex-shrink-0">
           {FILTER_DEFS.map(({ id, icon: Icon }) => (
-            <button key={id} type="button" onClick={() => setFilter(id)}
-              className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border",
-                filter === id ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted")}>
+            <button data-ui="logs-page-button-5" key={id} type="button" onClick={() => setFilter(id)}
+              className={cn("flex items-center justify-center gap-1.5 px-3 py-1 rounded-lg text-[13px] font-medium transition-all duration-200",
+                filter === id ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80")}>
               <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />
               {id === "all" ? t("logs.all") : levelLabels[id as LogLevel]}
-              {id !== "all" && <span className="opacity-60">{levelCounts[id]}</span>}
+              {id !== "all" && <span data-ui="logs-page-span-14" className="opacity-60">{levelCounts[id]}</span>}
             </button>
           ))}
         </div>
 
-        <div className="relative flex-1 min-w-[180px]">
+        <div data-ui="logs-page-div-10" className="relative flex-1 min-w-[180px]">
           <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={t("logs.search")}
+          <input data-ui="logs-page-input-1" data-slot="logs-search" type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={t("logs.search")}
             className="w-full pl-9 pr-4 py-2 rounded-xl bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary" />
         </div>
 
-        <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-muted/50 text-xs text-muted-foreground flex-shrink-0">
-          {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />}
+        <div data-ui="logs-page-div-11" className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-muted/50 text-xs text-muted-foreground flex-shrink-0">
+          {isRunning && <span data-ui="logs-page-span-15" className="w-1.5 h-1.5 rounded-full bg-success animate-pulse inline-block" />}
           {isRunning ? t("logs.running", { count: logs.length }) : t("logs.entries", { count: logs.length })}
         </div>
 
-        <button type="button" onClick={() => setAutoScroll(v => !v)}
+        <button data-ui="logs-page-button-6" type="button" onClick={() => setAutoScroll(v => !v)}
           className={cn("flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors flex-shrink-0",
             autoScroll ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground hover:text-foreground")}>
           <IconArrowDown className="w-3.5 h-3.5" />{t("logs.autoScroll")}
@@ -518,20 +515,19 @@ export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | n
       </div>
 
       {/* Log area */}
-      <div ref={containerRef} onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-y-auto bg-[#0d0d14] font-mono text-[12px] leading-5 rounded-2xl border border-border">
+      <div data-ui="logs-page-div-12" data-slot="logs-output" ref={containerRef} onScroll={handleScroll}
+        className="flex-1 min-h-0 overflow-y-auto bg-background font-mono text-[12px] leading-5 rounded-2xl border border-border">
         {filtered.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
-            <IconFileText className="w-10 h-10 mb-3 opacity-30" /><p className="text-sm">{t("logs.empty")}</p>
+          <div data-ui="logs-page-div-13" className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
+            <IconFileText className="w-10 h-10 mb-3 opacity-30" /><p data-ui="logs-page-p-2" className="text-sm">{t("logs.empty")}</p>
           </div>
         ) : (
-          <div className="p-3 space-y-0.5">
+          <div data-ui="logs-page-div-14" className="p-3 space-y-0.5">
             {visibleLogs.map(entry => <LogRow key={entry.id} entry={entry} label={levelLabels[entry.level] ?? entry.level} />)}
           </div>
         )}
       </div>
 
-      <AiAnalysisDialog open={aiDialogOpen} onOpenChange={setAiDialogOpen} />
     </div>
   )
 }

@@ -60,7 +60,7 @@ export function LoaderIcon({ loaderId, className = "w-4 h-4" }: LoaderIconProps)
   const hasOwnColor = /(^|\s)text-/.test(className)
 
   return (
-    <span
+    <span data-ui="instance-loader-icon-span-1" data-component="loader-icon"
       className={cn(
         "inline-flex items-center justify-center [&>svg]:w-full [&>svg]:h-full",
         !hasOwnColor && "text-primary group-focus/item:text-accent-foreground",

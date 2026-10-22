@@ -144,8 +144,8 @@ export function StatsRangePicker({
   }
 
   return (
-    <div ref={rootRef} className="relative">
-      <button
+    <div data-ui="stats-stats-range-picker-div-1" data-component="stats-range-picker" ref={rootRef} className="relative">
+      <button data-ui="stats-stats-range-picker-button-1"
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={cn(
@@ -160,10 +160,10 @@ export function StatsRangePicker({
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-[300px] rounded-2xl border border-border bg-popover p-4 shadow-2xl">
+        <div data-ui="stats-stats-range-picker-div-2" className="absolute right-0 z-50 mt-2 w-[300px] rounded-2xl border border-border bg-popover p-4 shadow-2xl">
           {/* month header */}
-          <div className="mb-3 flex items-center justify-between">
-            <button
+          <div data-ui="stats-stats-range-picker-div-3" className="mb-3 flex items-center justify-between">
+            <button data-ui="stats-stats-range-picker-button-2"
               type="button"
               onClick={() => shiftMonth(-1)}
               className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -171,8 +171,8 @@ export function StatsRangePicker({
             >
               <IconChevronLeft className="h-4 w-4" strokeWidth={2} />
             </button>
-            <span className="text-sm font-semibold capitalize text-foreground">{monthLabel}</span>
-            <button
+            <span data-ui="stats-stats-range-picker-span-1" className="text-sm font-semibold capitalize text-foreground">{monthLabel}</span>
+            <button data-ui="stats-stats-range-picker-button-3"
               type="button"
               onClick={() => shiftMonth(1)}
               className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -183,24 +183,24 @@ export function StatsRangePicker({
           </div>
 
           {/* weekday header */}
-          <div className="mb-1 grid grid-cols-7 gap-1">
+          <div data-ui="stats-stats-range-picker-div-4" className="mb-1 grid grid-cols-7 gap-1">
             {WEEKDAYS.map((w) => (
-              <div key={w} className="text-center text-[10px] font-medium text-muted-foreground">
+              <div data-ui="stats-stats-range-picker-div-5" key={w} className="text-center text-[10px] font-medium text-muted-foreground">
                 {w}
               </div>
             ))}
           </div>
 
           {/* day grid */}
-          <div className="grid grid-cols-7 gap-1">
+          <div data-ui="stats-stats-range-picker-div-6" className="grid grid-cols-7 gap-1">
             {cells.map((day, idx) => {
-              if (day === null) return <div key={`blank-${idx}`} />
+              if (day === null) return <div data-ui="stats-stats-range-picker-div-7" key={`blank-${idx}`} />
               const ts = new Date(viewMonth.year, viewMonth.month, day).getTime()
               const inRange = ts >= startOfDay(draftFrom) && ts <= startOfDay(draftTo)
               const isEdge = sameDay(ts, draftFrom) || sameDay(ts, draftTo)
               const isToday = sameDay(ts, Date.now())
               return (
-                <button
+                <button data-ui="stats-stats-range-picker-button-4"
                   key={ts}
                   type="button"
                   onClick={() => pickDay(day)}
@@ -221,9 +221,9 @@ export function StatsRangePicker({
           </div>
 
           {/* presets */}
-          <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border pt-3">
+          <div data-ui="stats-stats-range-picker-div-8" className="mt-3 flex flex-wrap gap-1.5 border-t border-border pt-3">
             {presets.map((p) => (
-              <button
+              <button data-ui="stats-stats-range-picker-button-5"
                 key={p.key}
                 type="button"
                 onClick={() => applyPreset(p)}
@@ -235,15 +235,15 @@ export function StatsRangePicker({
           </div>
 
           {/* actions */}
-          <div className="mt-3 flex justify-end gap-2 border-t border-border pt-3">
-            <button
+          <div data-ui="stats-stats-range-picker-div-9" className="mt-3 flex justify-end gap-2 border-t border-border pt-3">
+            <button data-ui="stats-stats-range-picker-button-6"
               type="button"
               onClick={() => setOpen(false)}
               className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               {t("stats.cancel")}
             </button>
-            <button
+            <button data-ui="stats-stats-range-picker-button-7"
               type="button"
               onClick={() => {
                 onChange({ from: startOfDay(draftFrom), to: endOfDay(draftTo) })

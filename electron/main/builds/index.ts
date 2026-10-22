@@ -981,8 +981,7 @@ export function registerBuildHandlers() {
               url = await mods.curseforgeGetDownloadUrl(f.curseforge.project, f.curseforge.file) ?? ""
             }
             if (!url) {
-              console.warn(`[ftb] Нет ссылки для ${fileName}, пропускаю`)
-              return
+              throw new Error(`FTB download URL not found: ${filePath}`)
             }
             await fs.mkdir(path.dirname(targetPath), { recursive: true }).catch(() => {})
             await fs.writeFile(targetPath, await downloadBuffer(url, signal, fileName))

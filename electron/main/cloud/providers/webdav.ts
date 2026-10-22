@@ -6,7 +6,7 @@ import { createClient } from "webdav"
 import { readCloudToken, writeCloudToken, clearCloudToken } from "../token-store"
 
 const BASE_FOLDER = "Xneon Launcher"
-const SUB_FOLDERS = ["builds", "accounts", "servers"]
+const SUB_FOLDERS = ["builds", "accounts", "servers", "themes"]
 
 type WebDavConfig = {
   url: string

@@ -27,15 +27,15 @@ export function SettingsVersions({
   ]
 
   return (
-    <div className="space-y-3">
+    <div data-ui="settings-settings-versions-div-1" data-component="settings-versions" className="space-y-3">
       {options.map(opt => (
-        <label key={opt.label} className={cn(
+        <label data-ui="settings-settings-versions-label-1" key={opt.label} className={cn(
           "flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all",
           opt.value ? "border-primary bg-primary/10" : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50"
         )}>
-          <div>
-            <p className="text-sm font-medium text-foreground">{opt.label}</p>
-            <p className="text-xs text-muted-foreground">{opt.description}</p>
+          <div data-ui="settings-settings-versions-div-2">
+            <p data-ui="settings-settings-versions-p-1" className="text-sm font-medium text-foreground">{opt.label}</p>
+            <p data-ui="settings-settings-versions-p-2" className="text-xs text-muted-foreground">{opt.description}</p>
           </div>
           <Checkbox
             checked={opt.value}

@@ -1,9 +1,7 @@
+import { CONTENT_ENTER, CONTENT_ENTER_DELAYED } from "./content-motion"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import {
-  IconRefresh, IconClock, IconDeviceGamepad2, IconHistory, IconChartBar,
-  IconPackage, IconServer,
-} from "@tabler/icons-react"
+import { IconRefresh, IconClock, IconDeviceGamepad2, IconHistory, IconChartBar, IconPackage, IconServer, IconLoader2 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { formatPlaytime, formatDateTime } from "@/lib/format"
 import type { StatsOverview } from "@xnlc/types"
@@ -24,13 +22,13 @@ function defaultRange(): StatsRange {
 
 function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+    <div data-ui="stats-page-div-1" data-component="stat-card" className="rounded-2xl border border-border bg-card p-4">
+      <div data-ui="stats-page-div-2" className="flex items-center gap-2 text-xs text-muted-foreground">
         {icon}
         {label}
       </div>
-      <div className="mt-1.5 text-2xl font-bold text-foreground">{value}</div>
-      {sub && <div className="mt-0.5 truncate text-xs text-muted-foreground">{sub}</div>}
+      <div data-ui="stats-page-div-3" className="mt-1.5 text-2xl font-bold text-foreground">{value}</div>
+      {sub && <div data-ui="stats-page-div-4" className="mt-0.5 truncate text-xs text-muted-foreground">{sub}</div>}
     </div>
   )
 }
@@ -42,11 +40,11 @@ function EntryIcon({ icon, fallback }: { icon?: string; fallback: React.ReactNod
     }
     const hasImg = icon.trimStart().startsWith("http") || icon.startsWith("data:")
     if (hasImg) {
-      return <img src={icon} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
+      return <img data-ui="stats-page-img-1" data-component="entry-icon" src={icon} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
     }
   }
   return (
-    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10 text-primary/40">
+    <div data-ui="stats-page-div-5" data-component="entry-icon" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10 text-primary/40">
       {fallback}
     </div>
   )
@@ -57,20 +55,20 @@ function DailyChart({ data }: { data: Array<{ date: string; seconds: number }> }
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 
   return (
-    <div className="relative">
+    <div data-ui="stats-page-div-6" data-component="daily-chart" className="relative">
       {hoveredIndex !== null && data[hoveredIndex] && (
-        <div className="pointer-events-none absolute -top-9 left-1/2 z-10 -translate-x-1/2 rounded-lg border border-border bg-popover px-3 py-1.5 text-xs font-medium text-popover-foreground shadow-lg whitespace-nowrap">
+        <div data-ui="stats-page-div-7" className="pointer-events-none absolute -top-9 left-1/2 z-10 -translate-x-1/2 rounded-lg border border-border bg-popover px-3 py-1.5 text-xs font-medium text-popover-foreground shadow-lg whitespace-nowrap">
           {new Date(data[hoveredIndex].date + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" })}
           {" — "}
           {data[hoveredIndex].seconds > 0 ? formatPlaytime(data[hoveredIndex].seconds) : t("stats.noPlaytime")}
         </div>
       )}
-      <div className="flex h-36 items-end gap-[3px]">
+      <div data-ui="stats-page-div-8" className="flex h-36 items-end gap-[3px]">
         {data.map((day, index) => {
           const height = day.seconds > 0 ? Math.max(4, (day.seconds / max) * 100) : 2
           const isHovered = hoveredIndex === index
           return (
-            <button
+            <button data-ui="stats-page-button-1"
               key={day.date}
               type="button"
               onMouseEnter={() => setHoveredIndex(index)}
@@ -81,8 +79,8 @@ function DailyChart({ data }: { data: Array<{ date: string; seconds: number }> }
               style={{ height: "100%" }}
               aria-label={`${day.date}: ${formatPlaytime(day.seconds)}`}
             >
-              <div className="absolute bottom-0 left-0 right-0 flex items-end" style={{ height: "100%" }}>
-                <div
+              <div data-ui="stats-page-div-9" className="absolute bottom-0 left-0 right-0 flex items-end" style={{ height: "100%" }}>
+                <div data-ui="stats-page-div-10"
                   className={cn(
                     "w-full rounded-t transition-all duration-150",
                     day.seconds > 0
@@ -96,14 +94,14 @@ function DailyChart({ data }: { data: Array<{ date: string; seconds: number }> }
           )
         })}
       </div>
-      <div className="mt-1.5 flex justify-between text-[10px] text-muted-foreground">
-        <span>{new Date(data[0]?.date + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
-        <span>
+      <div data-ui="stats-page-div-11" className="mt-1.5 flex justify-between text-[10px] text-muted-foreground">
+        <span data-ui="stats-page-span-1">{new Date(data[0]?.date + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
+        <span data-ui="stats-page-span-2">
           {data.length > 0
             ? `${data.length} ${data.length === 1 ? "day" : "days"}`
             : t("stats.last30days")}
         </span>
-        <span>{new Date(data[data.length - 1]?.date + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
+        <span data-ui="stats-page-span-3">{new Date(data[data.length - 1]?.date + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
       </div>
     </div>
   )
@@ -120,23 +118,23 @@ type RankingEntry = {
 function RankingList({ entries, emptyKey, maxSeconds }: { entries: RankingEntry[]; emptyKey: string; maxSeconds: number }) {
   const { t } = useTranslation()
   if (entries.length === 0) {
-    return <p className="py-8 text-center text-sm text-muted-foreground">{t(emptyKey)}</p>
+    return <p data-ui="stats-page-p-1" data-component="ranking-list" className="py-8 text-center text-sm text-muted-foreground">{t(emptyKey)}</p>
   }
   return (
-    <div className="space-y-3">
+    <div data-ui="stats-page-div-12" data-component="ranking-list" className="space-y-3">
       {entries.map((entry, index) => (
-        <div key={entry.id} className="flex items-center gap-3">
-          <span className="w-5 shrink-0 text-center text-sm font-bold text-muted-foreground">{index + 1}</span>
+        <div data-ui="stats-page-div-13" key={entry.id} className="flex items-center gap-3">
+          <span data-ui="stats-page-span-4" className="w-5 shrink-0 text-center text-sm font-bold text-muted-foreground">{index + 1}</span>
           <EntryIcon icon={entry.icon} fallback={<IconPackage className="h-4 w-4" strokeWidth={1.75} />} />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="truncate text-sm font-medium text-foreground">{entry.name}</span>
-              <span className="shrink-0 text-xs font-medium text-muted-foreground">
+          <div data-ui="stats-page-div-14" className="min-w-0 flex-1">
+            <div data-ui="stats-page-div-15" className="flex items-baseline justify-between gap-2">
+              <span data-ui="stats-page-span-5" className="truncate text-sm font-medium text-foreground">{entry.name}</span>
+              <span data-ui="stats-page-span-6" className="shrink-0 text-xs font-medium text-muted-foreground">
                 {formatPlaytime(entry.seconds)} · {t("stats.sessionsCount", { count: entry.sessions })}
               </span>
             </div>
-            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-              <div
+            <div data-ui="stats-page-div-16" className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div data-ui="stats-page-div-17"
                 className="h-full rounded-full bg-primary transition-all duration-300"
                 style={{ width: `${Math.max(2, (entry.seconds / maxSeconds) * 100)}%` }}
               />
@@ -201,20 +199,20 @@ export function StatsPage() {
   )
 
   return (
-    <div className="flex h-full min-h-0 flex-col animate-in fade-in-0 duration-300">
-      <div className="mb-5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+    <div data-ui="stats-page-div-18" data-component="stats-page" id="stats-page" data-tab={activeTab} className="flex h-full min-h-0 flex-col">
+      <div data-ui="stats-page-div-19" className={`mb-5 flex items-center justify-between ${CONTENT_ENTER_DELAYED}`}>
+        <div data-ui="stats-page-div-20" className="flex items-center gap-3">
+          <div data-ui="stats-page-div-21" className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
             <IconChartBar className="w-5 h-5 text-primary" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-foreground">{t("stats.title")}</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">{t("stats.subtitle")}</p>
+          <div data-ui="stats-page-div-22">
+            <h1 data-ui="stats-page-h1-1" className="text-xl font-bold text-foreground">{t("stats.title")}</h1>
+            <p data-ui="stats-page-p-2" className="mt-0.5 text-sm text-muted-foreground">{t("stats.subtitle")}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex gap-1 p-1 rounded-xl bg-muted/40 border border-border">
-            <button
+        <div data-ui="stats-page-div-23" className="flex items-center gap-3">
+          <div data-ui="stats-page-div-24" className="flex gap-1 p-1 rounded-xl bg-muted/40 border border-border">
+            <button data-ui="stats-page-button-2"
               type="button"
               onClick={() => setActiveTab("builds")}
               className={cn(
@@ -227,7 +225,7 @@ export function StatsPage() {
               <IconPackage className="h-3.5 w-3.5" strokeWidth={1.75} />
               {t("stats.tabBuilds")}
             </button>
-            <button
+            <button data-ui="stats-page-button-3"
               type="button"
               onClick={() => setActiveTab("servers")}
               className={cn(
@@ -242,26 +240,26 @@ export function StatsPage() {
             </button>
           </div>
           <StatsRangePicker value={range} onChange={setRange} />
-          <button
+          <button data-ui="stats-page-button-4"
             type="button"
             disabled={loading}
             onClick={() => void load()}
             className="flex items-center gap-1.5 rounded-xl border border-border bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
           >
-            <IconRefresh className={cn("h-4 w-4", loading && "animate-spin")} strokeWidth={1.75} />
+            {loading ? <IconLoader2 className="h-4 w-4 text-primary animate-spin" strokeWidth={1.75} /> : <IconRefresh className="h-4 w-4" strokeWidth={1.75} />}
             {t("stats.refresh")}
           </button>
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto pr-2">
+      <div key={activeTab} data-ui="stats-page-div-25" className={cn("min-h-0 flex-1 overflow-y-auto pr-2", stats && CONTENT_ENTER)}>
         {!stats ? (
-          <div className="flex items-center justify-center py-24">
-            <IconRefresh className="h-6 w-6 animate-spin text-muted-foreground" strokeWidth={1.75} />
+          <div data-ui="stats-page-div-26" className="flex items-center justify-center py-24">
+            <IconLoader2 className="h-6 w-6 text-primary animate-spin" strokeWidth={1.75} />
           </div>
         ) : activeTab === "builds" ? (
-          <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div data-ui="stats-page-div-27" className="space-y-5">
+            <div data-ui="stats-page-div-28" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <StatCard
                 icon={<IconClock className="h-3.5 w-3.5" strokeWidth={1.75} />}
                 label={t("stats.totalPlaytime")}
@@ -287,14 +285,14 @@ export function StatsPage() {
               />
             </div>
 
-            <div className="grid gap-5 lg:grid-cols-2">
-              <section className="rounded-2xl border border-border bg-card p-5">
-                <h2 className="mb-4 text-base font-semibold text-foreground">{t("stats.activityTitle")}</h2>
+            <div data-ui="stats-page-div-29" className="grid gap-5 lg:grid-cols-2">
+              <section data-ui="stats-page-section-1" className="rounded-2xl border border-border bg-card p-5">
+                <h2 data-ui="stats-page-h2-1" className="mb-4 text-base font-semibold text-foreground">{t("stats.activityTitle")}</h2>
                 <DailyChart data={stats.dailyPlaytime} />
               </section>
 
-              <section className="rounded-2xl border border-border bg-card p-5">
-                <h2 className="mb-4 text-base font-semibold text-foreground">{t("stats.topBuilds")}</h2>
+              <section data-ui="stats-page-section-2" className="rounded-2xl border border-border bg-card p-5">
+                <h2 data-ui="stats-page-h2-2" className="mb-4 text-base font-semibold text-foreground">{t("stats.topBuilds")}</h2>
                 <RankingList
                   entries={stats.topBuilds.map((b) => ({ id: b.buildId, name: b.name, icon: b.icon, seconds: b.seconds, sessions: b.sessions }))}
                   emptyKey="stats.noSessionsYet"
@@ -304,8 +302,8 @@ export function StatsPage() {
             </div>
           </div>
         ) : (
-          <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div data-ui="stats-page-div-30" className="space-y-5">
+            <div data-ui="stats-page-div-31" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <StatCard
                 icon={<IconClock className="h-3.5 w-3.5" strokeWidth={1.75} />}
                 label={t("stats.totalServerUptime")}
@@ -331,18 +329,18 @@ export function StatsPage() {
               />
             </div>
 
-            <div className="grid gap-5 lg:grid-cols-2">
-              <section className="rounded-2xl border border-border bg-card p-5">
-                <h2 className="mb-4 text-base font-semibold text-foreground">{t("stats.serverActivityTitle")}</h2>
+            <div data-ui="stats-page-div-32" className="grid gap-5 lg:grid-cols-2">
+              <section data-ui="stats-page-section-3" className="rounded-2xl border border-border bg-card p-5">
+                <h2 data-ui="stats-page-h2-3" className="mb-4 text-base font-semibold text-foreground">{t("stats.serverActivityTitle")}</h2>
                 <DailyChart data={stats.dailyServerUptime ?? []} />
               </section>
 
-              <section className="rounded-2xl border border-border bg-card p-5">
-                <div className="mb-4 flex items-center gap-2">
+              <section data-ui="stats-page-section-4" className="rounded-2xl border border-border bg-card p-5">
+                <div data-ui="stats-page-div-33" className="mb-4 flex items-center gap-2">
                   <IconServer className="h-5 w-5 text-primary" strokeWidth={1.75} />
-                  <h2 className="text-base font-semibold text-foreground">{t("stats.topServers")}</h2>
+                  <h2 data-ui="stats-page-h2-4" className="text-base font-semibold text-foreground">{t("stats.topServers")}</h2>
                   {stats.serverTotalUptime > 0 && (
-                    <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                    <span data-ui="stats-page-span-7" className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
                       {formatPlaytime(stats.serverTotalUptime)}
                     </span>
                   )}

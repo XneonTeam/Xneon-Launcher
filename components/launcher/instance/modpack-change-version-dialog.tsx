@@ -11,7 +11,7 @@ import {
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { LoaderIcon } from "./loader-icon"
+import { GameVersionChips, LoaderBadges } from "./version-chips"
 import type { ImportProgress } from "@xnlc/types"
 import type { Build, ModVersion } from "./types"
 
@@ -181,13 +181,13 @@ export function ModpackChangeVersionDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !applying && !v && onClose()}>
-      <DialogContent className="max-w-xl max-h-[85vh] flex flex-col p-0 overflow-hidden bg-card border-border shadow-2xl">
+      <DialogContent data-window="instance-modpack-change-version-dialog-window-1" className="max-w-xl max-h-[85vh] flex flex-col p-0 overflow-hidden bg-card border-border shadow-2xl">
         <DialogHeader className="p-5 border-b border-border flex-shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-primary/10 text-primary">
+          <div data-ui="instance-modpack-change-version-dialog-div-1" data-component="modpack-change-version-dialog" className="flex items-center gap-2.5">
+            <div data-ui="instance-modpack-change-version-dialog-div-2" className="p-2 rounded-xl bg-primary/10 text-primary">
               <IconArrowsExchange className="w-5 h-5" strokeWidth={2} />
             </div>
-            <div>
+            <div data-ui="instance-modpack-change-version-dialog-div-3">
               <DialogTitle className="text-lg font-bold text-foreground">
                 {t("modpackVersion.title")}
               </DialogTitle>
@@ -198,10 +198,10 @@ export function ModpackChangeVersionDialog({
           </div>
         </DialogHeader>
 
-        <div className="p-4 border-b border-border/70 bg-muted/20 flex items-center gap-2">
-          <div className="relative flex-1">
+        <div data-ui="instance-modpack-change-version-dialog-div-4" data-component="modpack-change-version-dialog" className="p-4 border-b border-border/70 bg-muted/20 flex items-center gap-2">
+          <div data-ui="instance-modpack-change-version-dialog-div-5" className="relative flex-1">
             <IconSearch className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
+            <input data-ui="instance-modpack-change-version-dialog-input-1"
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -211,23 +211,23 @@ export function ModpackChangeVersionDialog({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-2 min-h-[260px]">
+        <div data-ui="instance-modpack-change-version-dialog-div-6" data-component="modpack-change-version-dialog" className="flex-1 overflow-y-auto p-4 space-y-2 min-h-[260px]">
           {loading && (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+            <div data-ui="instance-modpack-change-version-dialog-div-7" className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
               <IconLoader2 className="w-7 h-7 animate-spin text-primary" />
-              <span className="text-sm">{t("modpackVersion.loadingVersions")}</span>
+              <span data-ui="instance-modpack-change-version-dialog-span-1" className="text-sm">{t("modpackVersion.loadingVersions")}</span>
             </div>
           )}
 
           {error && !loading && (
-            <div className="flex items-center gap-2.5 p-3.5 rounded-xl border border-destructive/20 bg-destructive/10 text-destructive text-sm">
+            <div data-ui="instance-modpack-change-version-dialog-div-8" className="flex items-center gap-2.5 p-3.5 rounded-xl border border-destructive/20 bg-destructive/10 text-destructive text-sm">
               <IconAlertTriangle className="w-5 h-5 shrink-0" />
-              <span>{error}</span>
+              <span data-ui="instance-modpack-change-version-dialog-span-2">{error}</span>
             </div>
           )}
 
           {!loading && !error && filteredVersions.length === 0 && (
-            <div className="text-center py-16 text-muted-foreground text-sm">
+            <div data-ui="instance-modpack-change-version-dialog-div-9" className="text-center py-16 text-muted-foreground text-sm">
               {t("modpackVersion.noVersions")}
             </div>
           )}
@@ -242,7 +242,7 @@ export function ModpackChangeVersionDialog({
               const isSelected = v.id === selectedVersionId
 
               return (
-                <button
+                <button data-ui="instance-modpack-change-version-dialog-button-1"
                   key={v.id}
                   type="button"
                   onClick={() => setSelectedVersionId(v.id)}
@@ -254,60 +254,43 @@ export function ModpackChangeVersionDialog({
                       : "border-border/60 bg-muted/30 hover:bg-muted/60 hover:border-border"
                   )}
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-sm text-foreground truncate">
+                  <div data-ui="instance-modpack-change-version-dialog-div-10" className="min-w-0 flex-1">
+                    <div data-ui="instance-modpack-change-version-dialog-div-11" className="flex items-center gap-2 flex-wrap">
+                      <span data-ui="instance-modpack-change-version-dialog-span-3" className="font-semibold text-sm text-foreground truncate">
                         {v.name || v.versionNumber || v.id}
                       </span>
                       {v.versionType && (
-                        <span
+                        <span data-ui="instance-modpack-change-version-dialog-span-4"
                           className={cn(
                             "px-1.5 py-0.5 rounded text-[10px] font-medium uppercase",
                             v.versionType === "release"
-                              ? "bg-green-500/15 text-green-500"
+                              ? "bg-success/15 text-success"
                               : v.versionType === "beta"
-                                ? "bg-yellow-500/15 text-yellow-500"
-                                : "bg-red-500/15 text-red-500"
+                                ? "bg-warning/15 text-warning"
+                                : "bg-destructive/15 text-destructive"
                           )}
                         >
                           {v.versionType}
                         </span>
                       )}
                       {isCurrent && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/15 text-green-500 flex items-center gap-1">
+                        <span data-ui="instance-modpack-change-version-dialog-span-5" className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-success/15 text-success flex items-center gap-1">
                           <IconCheck className="w-3 h-3" />
                           {t("modpackVersion.installed")}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap">
-                      {v.gameVersion && (
-                        <span>{v.gameVersion}</span>
-                      )}
-                      {v.loaders && v.loaders.length > 0 && (
-                        <>
-                          <span>•</span>
-                          <span className="inline-flex items-center gap-1.5 capitalize">
-                            {v.loaders.map((ldr) => (
-                              <span key={ldr} className="inline-flex items-center gap-1">
-                                <LoaderIcon loaderId={ldr.toLowerCase()} className="w-3.5 h-3.5 shrink-0" />
-                                <span>{ldr}</span>
-                              </span>
-                            ))}
-                          </span>
-                        </>
-                      )}
+                    <div data-ui="instance-modpack-change-version-dialog-div-12" className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap">
+                      <GameVersionChips gameVersion={v.gameVersion} />
+                      <LoaderBadges loaders={v.loaders} />
                       {v.datePublished && (
-                        <>
-                          <span>•</span>
-                          <span>{new Date(v.datePublished).toLocaleDateString()}</span>
-                        </>
+                        <span data-ui="instance-modpack-change-version-dialog-span-6">{new Date(v.datePublished).toLocaleDateString()}</span>
                       )}
                     </div>
                   </div>
 
-                  <div>
-                    <div
+                  <div data-ui="instance-modpack-change-version-dialog-div-13">
+                    <div data-ui="instance-modpack-change-version-dialog-div-14"
                       className={cn(
                         "w-5 h-5 rounded-full border flex items-center justify-center transition-colors",
                         isSelected
@@ -324,24 +307,24 @@ export function ModpackChangeVersionDialog({
         </div>
 
         {applying && (
-          <div className="px-4 py-4 border-t border-border bg-muted/5 space-y-2 shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
+          <div data-ui="instance-modpack-change-version-dialog-div-15" className="px-4 py-4 border-t border-border bg-muted/5 space-y-2 shrink-0">
+            <div data-ui="instance-modpack-change-version-dialog-div-16" className="flex items-center gap-3">
+              <div data-ui="instance-modpack-change-version-dialog-div-17" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
                 <IconDownload className="w-4 h-4 animate-pulse" />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-foreground">
+              <div data-ui="instance-modpack-change-version-dialog-div-18" className="min-w-0 flex-1">
+                <p data-ui="instance-modpack-change-version-dialog-p-1" className="truncate text-sm font-medium text-foreground">
                   {importProgress?.message || applyProgress || t("modpackVersion.updating")}
                 </p>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                <p data-ui="instance-modpack-change-version-dialog-p-2" className="mt-0.5 truncate text-xs text-muted-foreground">
                   {applyingVersionLabel ? t("modpackVersion.installingVersion", { version: applyingVersionLabel }) : t("import.loadingFiles")}
                 </p>
               </div>
-              <span className="shrink-0 text-sm font-semibold text-foreground">{progressPercent}%</span>
+              <span data-ui="instance-modpack-change-version-dialog-span-7" className="shrink-0 text-sm font-semibold text-foreground">{progressPercent}%</span>
             </div>
 
-            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-              <div
+            <div data-ui="instance-modpack-change-version-dialog-div-19" className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div data-ui="instance-modpack-change-version-dialog-div-20"
                 className="h-full rounded-full bg-primary transition-[width] duration-300"
                 style={{ width: `${progressPercent}%` }}
               />
@@ -349,8 +332,8 @@ export function ModpackChangeVersionDialog({
           </div>
         )}
 
-        <div className="p-4 border-t border-border flex items-center justify-between bg-card shrink-0">
-          <button
+        <div data-ui="instance-modpack-change-version-dialog-div-21" data-component="modpack-change-version-dialog" className="p-4 border-t border-border flex items-center justify-between bg-card shrink-0">
+          <button data-ui="instance-modpack-change-version-dialog-button-2"
             type="button"
             onClick={onClose}
             disabled={applying}
@@ -359,7 +342,7 @@ export function ModpackChangeVersionDialog({
             {t("common.cancel")}
           </button>
 
-          <button
+          <button data-ui="instance-modpack-change-version-dialog-button-3"
             type="button"
             onClick={handleApply}
             disabled={!selectedVersion || applying || selectedVersion.name === currentModpackVersion}
@@ -373,12 +356,12 @@ export function ModpackChangeVersionDialog({
             {applying ? (
               <>
                 <IconLoader2 className="w-4 h-4 animate-spin" />
-                <span>{progressTotal > 0 ? t("modpackVersion.updatingPercent", { percent: progressPercent }) : t("modpackVersion.updating")}</span>
+                <span data-ui="instance-modpack-change-version-dialog-span-8">{progressTotal > 0 ? t("modpackVersion.updatingPercent", { percent: progressPercent }) : t("modpackVersion.updating")}</span>
               </>
             ) : (
               <>
                 <IconDownload className="w-4 h-4" />
-                <span>{t("modpackVersion.apply")}</span>
+                <span data-ui="instance-modpack-change-version-dialog-span-9">{t("modpackVersion.apply")}</span>
               </>
             )}
           </button>

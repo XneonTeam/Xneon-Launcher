@@ -25,7 +25,7 @@ function writeServersDatFile(datPath: string, nbt: any): void {
 }
 
 export function registerServerHandlers() {
-  ipcMain.handle("servers:list", async (_event, buildName: string): Promise<Array<{ name: string; ip: string }>> => {
+  ipcMain.handle("servers:list", async (_event, buildName: string): Promise<Array<{ name: string; ip: string; resourcePack?: "prompt" | "enabled" | "disabled" }>> => {
     try {
       const intentPath = getBuildIntentPath(buildName)
       const datPath = path.join(intentPath, "servers.dat")
@@ -38,6 +38,7 @@ export function registerServerHandlers() {
       return servers.values.map((s: any) => ({
         name: String(s.name ?? ""),
         ip: String(s.ip ?? ""),
+        resourcePack: s.acceptTextures === undefined ? "prompt" : s.acceptTextures ? "enabled" : "disabled",
       }))
     } catch {
       return []
@@ -46,7 +47,7 @@ export function registerServerHandlers() {
 
   ipcMain.handle(
     "servers:write-dat",
-    async (_event, buildName: string, servers: Array<{ name: string; ip: string }>) => {
+    async (_event, buildName: string, servers: Array<{ name: string; ip: string; resourcePack?: "prompt" | "enabled" | "disabled" }>) => {
       try {
         const intentPath = getBuildIntentPath(buildName)
         if (!fs.existsSync(intentPath)) {
@@ -65,11 +66,13 @@ export function registerServerHandlers() {
           nbt = { servers: { type: 10, values: [] } }
         }
 
-        nbt.servers.values = servers.map((s) => ({
-          name: s.name,
-          ip: s.ip,
-          hidden: 0,
-        }))
+        const existing = new Map<string, any>((nbt.servers?.values || []).map((s: any) => [s.ip, s]))
+        nbt.servers = { type: 10, values: servers.map((s) => {
+          const entry = { ...existing.get(s.ip), name: s.name, ip: s.ip }
+          if (s.resourcePack === "prompt") delete entry.acceptTextures
+          else if (s.resourcePack === "enabled" || s.resourcePack === "disabled") entry.acceptTextures = s.resourcePack === "enabled" ? 1 : 0
+          return entry
+        }) }
 
         writeServersDatFile(datPath, nbt)
         return { success: true }

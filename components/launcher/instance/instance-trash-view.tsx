@@ -33,7 +33,7 @@ export function InstanceTrashView({ goToMyBuilds, onRestore }: InstanceTrashView
           ? <LoaderIcon loaderId={item.modLoader} className="w-5 h-5 text-primary/40" />
           : <IconPackage className="w-5 h-5 text-primary/40" />,
         extra: (
-          <p className="text-xs text-muted-foreground">
+          <p data-ui="instance-instance-trash-view-p-1" className="text-xs text-muted-foreground">
             {t("trash.deletedAt", { date: new Date(item.trashedAt).toLocaleDateString() })}
           </p>
         ),

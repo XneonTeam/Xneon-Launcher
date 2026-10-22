@@ -1,3 +1,4 @@
+import { useContentEnter } from "../content-motion"
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import {
@@ -42,13 +43,13 @@ registerPrismLanguages()
 
 function JavaIcon({ className }: { className?: string }) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-      <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
-      <path d="M10 10c-1 -1 1 -1 0 -2" />
-      <path d="M12 10c-1 -1 1 -1 0 -2" />
-      <path d="M8 12h6v4a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" />
-      <path d="M14 13h1a1.5 1.5 0 0 1 0 3h-1" />
+    <svg data-ui="server-files-tab-svg-1" data-icon="server-files-tab-svg-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path data-ui="server-files-tab-path-1" d="M14 3v4a1 1 0 0 0 1 1h4" />
+      <path data-ui="server-files-tab-path-2" d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
+      <path data-ui="server-files-tab-path-3" d="M10 10c-1 -1 1 -1 0 -2" />
+      <path data-ui="server-files-tab-path-4" d="M12 10c-1 -1 1 -1 0 -2" />
+      <path data-ui="server-files-tab-path-5" d="M8 12h6v4a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" />
+      <path data-ui="server-files-tab-path-6" d="M14 13h1a1.5 1.5 0 0 1 0 3h-1" />
     </svg>
   )
 }
@@ -131,6 +132,7 @@ export function FilesTab({ serverId }: FilesTabProps) {
   const [entries, setEntries] = useState<McFsEntry[]>([])
   const [currentPath, setCurrentPath] = useState("")
   const [loading, setLoading] = useState(true)
+  const contentEnter = useContentEnter(!loading)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
 
@@ -362,12 +364,12 @@ export function FilesTab({ serverId }: FilesTabProps) {
   const hasTabs = tabs.length > 0
 
   return (
-    <div ref={containerRef} className="flex h-full">
+    <div data-ui="server-files-tab-div-1" data-component="files-tab" ref={containerRef} className={`flex h-full ${contentEnter ?? ""}`}>
       {/* File browser panel */}
-      <div className={cn("flex flex-col h-full overflow-hidden", hasTabs ? "border-r border-border" : "w-full")} style={hasTabs ? { width: `${splitPos}%` } : undefined}>
+      <div data-ui="server-files-tab-div-2" className={cn("flex flex-col h-full overflow-hidden", hasTabs ? "border-r border-border" : "w-full")} style={hasTabs ? { width: `${splitPos}%` } : undefined}>
         {/* Toolbar */}
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
-          <button
+        <div data-ui="server-files-tab-div-3" className="flex items-center gap-2 px-4 py-2 border-b border-border">
+          <button data-ui="server-files-tab-button-1"
             onClick={() => navigateTo(-1)}
             disabled={!currentPath}
             className={cn(
@@ -380,7 +382,7 @@ export function FilesTab({ serverId }: FilesTabProps) {
           >
             <IconHome className="w-4 h-4" />
           </button>
-          <button
+          <button data-ui="server-files-tab-button-2"
             onClick={() => {
               const parts = currentPath.split(/[/\\]/).filter(Boolean)
               if (parts.length > 0) {
@@ -399,7 +401,7 @@ export function FilesTab({ serverId }: FilesTabProps) {
           >
             <IconArrowLeft className="w-4 h-4" />
           </button>
-          <button
+          <button data-ui="server-files-tab-button-3"
             onClick={() => loadDirectory(currentPath)}
             className="p-1.5 rounded-lg bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
             title={t("files.refresh")}
@@ -408,17 +410,17 @@ export function FilesTab({ serverId }: FilesTabProps) {
           </button>
 
           {/* Breadcrumb */}
-          <div className="flex items-center gap-0.5 flex-1 min-w-0 overflow-x-auto">
-            <button
+          <div data-ui="server-files-tab-div-4" className="flex items-center gap-0.5 flex-1 min-w-0 overflow-x-auto">
+            <button data-ui="server-files-tab-button-4"
               onClick={() => navigateTo(-1)}
               className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-1 py-0.5 rounded hover:bg-muted/50 flex-shrink-0"
             >
               /
             </button>
             {pathParts.map((part, i) => (
-              <span key={i} className="flex items-center flex-shrink-0">
+              <span data-ui="server-files-tab-span-1" key={i} className="flex items-center flex-shrink-0">
                 <IconChevronRight className="w-3 h-3 text-muted-foreground/50" />
-                <button
+                <button data-ui="server-files-tab-button-5"
                   onClick={() => navigateTo(i)}
                   className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-1 py-0.5 rounded hover:bg-muted/50 truncate max-w-[120px]"
                 >
@@ -428,9 +430,9 @@ export function FilesTab({ serverId }: FilesTabProps) {
             ))}
           </div>
 
-          <div className="relative flex-shrink-0">
+          <div data-ui="server-files-tab-div-5" className="relative flex-shrink-0">
             <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <input
+            <input data-ui="server-files-tab-input-1"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder={t("files.search")}
@@ -438,15 +440,15 @@ export function FilesTab({ serverId }: FilesTabProps) {
             />
           </div>
 
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <button
+          <div data-ui="server-files-tab-div-6" className="flex items-center gap-1 flex-shrink-0">
+            <button data-ui="server-files-tab-button-6"
               onClick={() => { setCreatingType("folder"); setCreatingName("") }}
               className="p-1.5 rounded-lg bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
               title={t("files.newFolder")}
             >
               <IconFolder className="w-4 h-4" />
             </button>
-            <button
+            <button data-ui="server-files-tab-button-7"
               onClick={() => { setCreatingType("file"); setCreatingName("") }}
               className="p-1.5 rounded-lg bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
               title={t("files.newFile")}
@@ -457,16 +459,16 @@ export function FilesTab({ serverId }: FilesTabProps) {
         </div>
 
         {/* Info bar */}
-        <div className="flex items-center gap-3 px-4 py-1.5 border-b border-border bg-muted/10 text-[11px] text-muted-foreground">
-          <span>{entries.length} {t("files.items")}</span>
-          <span>{formatSize(totalSize)}</span>
+        <div data-ui="server-files-tab-div-7" className="flex items-center gap-3 px-4 py-1.5 border-b border-border bg-muted/10 text-[11px] text-muted-foreground">
+          <span data-ui="server-files-tab-span-2">{entries.length} {t("files.items")}</span>
+          <span data-ui="server-files-tab-span-3">{formatSize(totalSize)}</span>
         </div>
 
         {/* Create input */}
         {creatingType && (
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-primary/5">
-            <span className="text-xs text-muted-foreground">{creatingType === "folder" ? "📁" : "📄"}</span>
-            <input
+          <div data-ui="server-files-tab-div-8" className="flex items-center gap-2 px-4 py-2 border-b border-border bg-primary/5">
+            <span data-ui="server-files-tab-span-4" className="text-xs text-muted-foreground">{creatingType === "folder" ? "📁" : "📄"}</span>
+            <input data-ui="server-files-tab-input-2"
               ref={createInputRef}
               value={creatingName}
               onChange={e => setCreatingName(e.target.value)}
@@ -477,10 +479,10 @@ export function FilesTab({ serverId }: FilesTabProps) {
               placeholder={creatingType === "folder" ? t("files.folderName") : t("files.fileName")}
               className="flex-1 px-2 py-1 rounded bg-muted/50 border border-border text-foreground text-sm focus:outline-none focus:border-primary"
             />
-            <button onClick={handleCreate} className="p-1 rounded bg-primary/20 hover:bg-primary/30 text-primary transition-colors">
+            <button data-ui="server-files-tab-button-8" onClick={handleCreate} className="p-1 rounded bg-primary/20 hover:bg-primary/30 text-primary transition-colors">
               <IconCheck className="w-4 h-4" />
             </button>
-            <button onClick={() => setCreatingType(null)} className="p-1 rounded bg-muted/50 hover:bg-muted text-muted-foreground transition-colors">
+            <button data-ui="server-files-tab-button-9" onClick={() => setCreatingType(null)} className="p-1 rounded bg-muted/50 hover:bg-muted text-muted-foreground transition-colors">
               <IconX className="w-4 h-4" />
             </button>
           </div>
@@ -488,15 +490,15 @@ export function FilesTab({ serverId }: FilesTabProps) {
 
         {/* Error */}
         {error && (
-          <div className="mx-4 mt-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+          <div data-ui="server-files-tab-div-9" className="mx-4 mt-2 px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
             {error}
           </div>
         )}
 
         {/* File list */}
-        <div className="flex-1 overflow-y-auto">
+        <div data-ui="server-files-tab-div-10" className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="flex items-center justify-center h-full">
+            <div data-ui="server-files-tab-div-11" className="flex items-center justify-center h-full">
               <IconLoader2 className="w-6 h-6 text-primary animate-spin" />
             </div>
           ) : sortedEntries.length === 0 ? (
@@ -506,7 +508,7 @@ export function FilesTab({ serverId }: FilesTabProps) {
               className="h-full"
             />
           ) : (
-            <div className="divide-y divide-border/50">
+            <div data-ui="server-files-tab-div-12" className="divide-y divide-border/50">
               {sortedEntries.map(entry => {
                 const Icon = getFileIcon(entry)
                 const iconColor = getFileIconColor(entry)
@@ -516,7 +518,7 @@ export function FilesTab({ serverId }: FilesTabProps) {
                 const isActive = activeTab === entryPath
 
                 return (
-                  <div
+                  <div data-ui="server-files-tab-div-13"
                     key={entry.name}
                     className={cn(
                       "flex items-center gap-3 px-4 py-2 hover:bg-muted/30 transition-colors group cursor-pointer",
@@ -533,10 +535,10 @@ export function FilesTab({ serverId }: FilesTabProps) {
                       className={cn("w-5 h-5 flex-shrink-0", iconColor)}
                       strokeWidth={1.5}
                     />
-                    <div className="flex-1 min-w-0">
+                    <div data-ui="server-files-tab-div-14" className="flex-1 min-w-0">
                       {isRenaming ? (
-                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                          <input
+                        <div data-ui="server-files-tab-div-15" className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                          <input data-ui="server-files-tab-input-3"
                             ref={renameInputRef}
                             value={renameValue}
                             onChange={e => setRenameValue(e.target.value)}
@@ -547,25 +549,25 @@ export function FilesTab({ serverId }: FilesTabProps) {
                             onBlur={handleRename}
                             className="flex-1 px-1.5 py-0.5 rounded bg-muted border border-border text-foreground text-sm focus:outline-none focus:border-primary"
                           />
-                          <button onClick={handleRename} className="p-0.5 rounded hover:bg-primary/20 text-primary">
+                          <button data-ui="server-files-tab-button-10" onClick={handleRename} className="p-0.5 rounded hover:bg-primary/20 text-primary">
                             <IconCheck className="w-3.5 h-3.5" />
                           </button>
-                          <button onClick={() => setRenamingEntry(null)} className="p-0.5 rounded hover:bg-muted text-muted-foreground">
+                          <button data-ui="server-files-tab-button-11" onClick={() => setRenamingEntry(null)} className="p-0.5 rounded hover:bg-muted text-muted-foreground">
                             <IconX className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       ) : (
-                        <span className="text-sm text-foreground truncate block">{entry.name}</span>
+                        <span data-ui="server-files-tab-span-5" className="text-sm text-foreground truncate block">{entry.name}</span>
                       )}
                     </div>
                     {!entry.isDir && (
-                      <span className="text-[11px] text-muted-foreground/60 flex-shrink-0 font-mono">
+                      <span data-ui="server-files-tab-span-6" className="text-[11px] text-muted-foreground/60 flex-shrink-0 font-mono">
                         {formatSize(entry.size)}
                       </span>
                     )}
                     {!isRenaming && (
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                        <button
+                      <div data-ui="server-files-tab-div-16" className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                        <button data-ui="server-files-tab-button-12"
                           onClick={e => {
                             e.stopPropagation()
                             setRenamingEntry(entry.name)
@@ -576,9 +578,9 @@ export function FilesTab({ serverId }: FilesTabProps) {
                         >
                           <IconPencil className="w-3.5 h-3.5" />
                         </button>
-                        <button
+                        <button data-ui="server-files-tab-button-13"
                           onClick={e => { e.stopPropagation(); handleDelete(entry) }}
-                          className="p-1 rounded hover:bg-red-500/10 text-red-400"
+                          className="p-1 rounded hover:bg-destructive/10 text-destructive"
                           title={t("files.delete")}
                         >
                           <IconTrash className="w-3.5 h-3.5" />
@@ -597,22 +599,22 @@ export function FilesTab({ serverId }: FilesTabProps) {
       {hasTabs && (
         <>
           {/* Drag handle */}
-          <div
+          <div data-ui="server-files-tab-div-17"
             onMouseDown={handleDragStart}
             className="w-1 h-full cursor-col-resize flex-shrink-0 group relative hover:bg-primary/30 transition-colors"
           >
-            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-border group-hover:bg-primary transition-colors" />
+            <div data-ui="server-files-tab-div-18" className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-border group-hover:bg-primary transition-colors" />
           </div>
-          <div className="flex flex-col h-full overflow-hidden" style={{ width: `${100 - splitPos}%` }}>
+          <div data-ui="server-files-tab-div-19" className="flex flex-col h-full overflow-hidden" style={{ width: `${100 - splitPos}%` }}>
             {/* Tabs bar */}
-            <div className="flex items-center overflow-x-auto bg-muted/20 border-b border-border min-h-[36px]">
+            <div data-ui="server-files-tab-div-20" className="flex items-center overflow-x-auto bg-muted/20 border-b border-border min-h-[36px]">
               {tabs.map(tab => {
                 const isActive = tab.path === activeTab
                 const fileName = tab.path.split("/").pop() ?? tab.path
                 const isJava = fileName.endsWith(".jar") || fileName.endsWith(".java")
                 const iconColor = isJava ? "text-primary" : "text-muted-foreground"
                 return (
-                  <div
+                  <div data-ui="server-files-tab-div-21"
                     key={tab.path}
                     className={cn(
                       "flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 border-r border-border cursor-pointer transition-colors group flex-shrink-0 min-w-0 max-w-[180px] hover:bg-muted/50",
@@ -625,13 +627,13 @@ export function FilesTab({ serverId }: FilesTabProps) {
                     ) : (
                       <IconFile className={cn("w-3.5 h-3.5 flex-shrink-0", iconColor)} />
                     )}
-                    <span className={cn("text-xs truncate", isActive ? "text-foreground font-medium" : "text-muted-foreground")}>
+                    <span data-ui="server-files-tab-span-7" className={cn("text-xs truncate", isActive ? "text-foreground font-medium" : "text-muted-foreground")}>
                       {fileName}
                     </span>
                     {!tab.saved && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
+                      <div data-ui="server-files-tab-div-22" className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
                     )}
-                    <button
+                    <button data-ui="server-files-tab-button-14"
                       onClick={e => { e.stopPropagation(); closeTab(tab.path) }}
                       className="p-0.5 rounded hover:bg-muted/80 text-muted-foreground/0 group-hover:text-muted-foreground transition-colors flex-shrink-0"
                     >
@@ -643,15 +645,15 @@ export function FilesTab({ serverId }: FilesTabProps) {
             </div>
 
             {editorError && (
-              <div className="mx-4 mt-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+              <div data-ui="server-files-tab-div-23" className="mx-4 mt-2 px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
                 {editorError}
               </div>
             )}
 
             {/* Editor content */}
-            <div className="flex-1 min-h-0 overflow-auto">
+            <div data-ui="server-files-tab-div-24" className="flex-1 min-h-0 overflow-auto">
               {editorLoading ? (
-                <div className="flex items-center justify-center h-full">
+                <div data-ui="server-files-tab-div-25" className="flex items-center justify-center h-full">
                   <IconLoader2 className="w-6 h-6 text-primary animate-spin" />
                 </div>
               ) : activeTabData ? (
@@ -670,7 +672,7 @@ export function FilesTab({ serverId }: FilesTabProps) {
                   }}
                 />
               ) : (
-                <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                <div data-ui="server-files-tab-div-26" className="flex items-center justify-center h-full text-muted-foreground text-sm">
                   {t("files.noFileOpen")}
                 </div>
               )}
@@ -682,16 +684,16 @@ export function FilesTab({ serverId }: FilesTabProps) {
       {/* Context menu overlay */}
       {contextMenu && (
         <>
-          <div
+          <div data-ui="server-files-tab-div-27"
             className="fixed inset-0 z-50"
             onClick={() => setContextMenu(null)}
           />
-          <div
+          <div data-ui="server-files-tab-div-28"
             className="fixed z-50 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[160px]"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
             {!contextMenu.entry.isDir && isTextFile(contextMenu.entry.name) && (
-              <button
+              <button data-ui="server-files-tab-button-15"
                 onClick={() => { openFile(contextMenu.entry.name); setContextMenu(null) }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted/50 transition-colors"
               >
@@ -699,7 +701,7 @@ export function FilesTab({ serverId }: FilesTabProps) {
                 {t("files.edit")}
               </button>
             )}
-            <button
+            <button data-ui="server-files-tab-button-16"
               onClick={() => {
                 setRenamingEntry(contextMenu.entry.name)
                 setRenameValue(contextMenu.entry.name)
@@ -710,9 +712,9 @@ export function FilesTab({ serverId }: FilesTabProps) {
               <IconPencil className="w-4 h-4 text-muted-foreground" />
               {t("files.rename")}
             </button>
-            <button
+            <button data-ui="server-files-tab-button-17"
               onClick={() => handleDelete(contextMenu.entry)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
             >
               <IconTrash className="w-4 h-4" />
               {t("files.delete")}

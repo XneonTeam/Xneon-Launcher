@@ -95,10 +95,10 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
   if (!open) return null
 
   return (
-    <ModalLayer onClose={onClose} className="z-50">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-3xl max-h-[85vh] mx-4 bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
-        <input
+    <ModalLayer windowId="edit-skin-modal-window-1" onClose={onClose} className="z-50">
+      <div data-ui="edit-skin-modal-div-1" data-component="edit-skin-modal" className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div data-ui="edit-skin-modal-div-2" data-component="edit-skin-modal" className="relative z-10 w-full max-w-3xl max-h-[85vh] mx-4 bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
+        <input data-ui="edit-skin-modal-input-1"
           ref={fileInputRef}
           type="file"
           accept=".png"
@@ -107,19 +107,19 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
         />
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h2 className="text-lg font-bold text-foreground">
+        <div data-ui="edit-skin-modal-div-3" className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 data-ui="edit-skin-modal-h2-1" className="text-lg font-bold text-foreground">
             {skin ? t("skins.editSkin") : t("skins.addSkin")}
           </h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+          <button data-ui="edit-skin-modal-button-1" onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
             <IconX className="w-5 h-5" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="flex gap-6 p-6 overflow-y-auto max-h-[calc(85vh-130px)]">
+        <div data-ui="edit-skin-modal-div-4" className="flex gap-6 p-6 overflow-y-auto max-h-[calc(85vh-130px)]">
           {/* Left — 3D preview */}
-          <div className="flex-shrink-0 w-64 h-[25rem] flex items-center justify-center rounded-xl bg-muted/30 border border-border overflow-hidden">
+          <div data-ui="edit-skin-modal-div-5" className="flex-shrink-0 w-64 h-[25rem] flex items-center justify-center rounded-xl bg-muted/30 border border-border overflow-hidden">
             {previewUrl ? (
               <SkinViewer3D
                 skinUrl={previewUrl}
@@ -129,25 +129,25 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
                 height={400}
               />
             ) : (
-              <svg viewBox="0 0 60 80" fill="none" className="w-16 h-[85px] text-muted-foreground">
-                <rect x="18" y="2" width="24" height="24" rx="2" className="stroke-current opacity-25" strokeWidth="1.5" />
-                <rect x="23" y="12" width="4" height="3" rx="0.5" className="fill-current opacity-10" />
-                <rect x="33" y="12" width="4" height="3" rx="0.5" className="fill-current opacity-10" />
-                <rect x="18" y="28" width="24" height="24" rx="2" className="stroke-current opacity-20" strokeWidth="1.5" />
-                <rect x="6" y="28" width="10" height="24" rx="2" className="stroke-current opacity-15" strokeWidth="1.5" />
-                <rect x="44" y="28" width="10" height="24" rx="2" className="stroke-current opacity-15" strokeWidth="1.5" />
-                <rect x="18" y="54" width="11" height="24" rx="2" className="stroke-current opacity-18" strokeWidth="1.5" />
-                <rect x="31" y="54" width="11" height="24" rx="2" className="stroke-current opacity-18" strokeWidth="1.5" />
+              <svg data-ui="edit-skin-modal-svg-1" data-icon="edit-skin-modal-svg-1" viewBox="0 0 60 80" fill="none" className="w-16 h-[85px] text-muted-foreground">
+                <rect data-ui="edit-skin-modal-rect-1" x="18" y="2" width="24" height="24" rx="2" className="stroke-current opacity-25" strokeWidth="1.5" />
+                <rect data-ui="edit-skin-modal-rect-2" x="23" y="12" width="4" height="3" rx="0.5" className="fill-current opacity-10" />
+                <rect data-ui="edit-skin-modal-rect-3" x="33" y="12" width="4" height="3" rx="0.5" className="fill-current opacity-10" />
+                <rect data-ui="edit-skin-modal-rect-4" x="18" y="28" width="24" height="24" rx="2" className="stroke-current opacity-20" strokeWidth="1.5" />
+                <rect data-ui="edit-skin-modal-rect-5" x="6" y="28" width="10" height="24" rx="2" className="stroke-current opacity-15" strokeWidth="1.5" />
+                <rect data-ui="edit-skin-modal-rect-6" x="44" y="28" width="10" height="24" rx="2" className="stroke-current opacity-15" strokeWidth="1.5" />
+                <rect data-ui="edit-skin-modal-rect-7" x="18" y="54" width="11" height="24" rx="2" className="stroke-current opacity-18" strokeWidth="1.5" />
+                <rect data-ui="edit-skin-modal-rect-8" x="31" y="54" width="11" height="24" rx="2" className="stroke-current opacity-18" strokeWidth="1.5" />
               </svg>
             )}
           </div>
 
           {/* Right — controls */}
-          <div className="flex-1 flex flex-col gap-5 min-w-0">
+          <div data-ui="edit-skin-modal-div-6" className="flex-1 flex flex-col gap-5 min-w-0">
             {/* Texture section — drop zone */}
-            <section>
-              <h3 className="text-sm font-semibold text-foreground mb-2">{t("skins.texture")}</h3>
-              <div
+            <section data-ui="edit-skin-modal-section-1">
+              <h3 data-ui="edit-skin-modal-h3-1" className="text-sm font-semibold text-foreground mb-2">{t("skins.texture")}</h3>
+              <div data-ui="edit-skin-modal-div-7"
                 className={cn(
                   "flex flex-col items-center gap-2 px-4 py-5 rounded-xl border-2 border-dashed transition-all duration-200 cursor-pointer",
                   dragOver
@@ -160,21 +160,21 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
                 onClick={() => fileInputRef.current?.click()}
               >
                 <IconUpload className={cn("w-5 h-5 transition-colors", dragOver ? "text-primary" : "text-muted-foreground")} />
-                <span className="text-sm text-muted-foreground">
+                <span data-ui="edit-skin-modal-span-1" className="text-sm text-muted-foreground">
                   {pendingFile
                     ? pendingFile.name
                     : t("skins.replaceTexture")}
                 </span>
-                <span className="text-xs text-primary font-medium">{t("skins.dragDropHint")}</span>
+                <span data-ui="edit-skin-modal-span-2" className="text-xs text-primary font-medium">{t("skins.dragDropHint")}</span>
               </div>
             </section>
 
             {/* Arm style */}
-            <section>
-              <h3 className="text-sm font-semibold text-foreground mb-2">{t("skins.armStyle")}</h3>
-              <div className="flex gap-2">
+            <section data-ui="edit-skin-modal-section-2">
+              <h3 data-ui="edit-skin-modal-h3-2" className="text-sm font-semibold text-foreground mb-2">{t("skins.armStyle")}</h3>
+              <div data-ui="edit-skin-modal-div-8" className="flex gap-2">
                 {(["classic", "slim"] as const).map(v => (
-                  <button
+                  <button data-ui="edit-skin-modal-button-2"
                     key={v}
                     onClick={() => setVariant(v)}
                     className={cn(
@@ -191,10 +191,10 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
             </section>
 
             {/* Cape section */}
-            <section>
-              <h3 className="text-sm font-semibold text-foreground mb-2">{t("skins.capes")}</h3>
-              <div className="flex flex-wrap gap-2 max-h-60 overflow-y-auto">
-                <button
+            <section data-ui="edit-skin-modal-section-3">
+              <h3 data-ui="edit-skin-modal-h3-3" className="text-sm font-semibold text-foreground mb-2">{t("skins.capes")}</h3>
+              <div data-ui="edit-skin-modal-div-9" className="flex flex-wrap gap-2 max-h-60 overflow-y-auto">
+                <button data-ui="edit-skin-modal-button-3"
                   onClick={() => setSelectedCapeId(null)}
                   className={cn(
                     "flex flex-col items-center justify-center rounded-xl border-2 cursor-pointer transition-all duration-200 shrink-0",
@@ -206,12 +206,12 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
                   title={t("skins.none")}
                 >
                   <IconX className="w-5 h-5 text-muted-foreground" />
-                  <span className="text-[10px] text-muted-foreground mt-1">{t("skins.none")}</span>
+                  <span data-ui="edit-skin-modal-span-3" className="text-[10px] text-muted-foreground mt-1">{t("skins.none")}</span>
                 </button>
                 {capes.map(cape => {
                   const previewDataUrl = capePreviews.get(cape.id)
                   return (
-                    <button
+                    <button data-ui="edit-skin-modal-button-4"
                       key={cape.id}
                       onClick={() => setSelectedCapeId(cape.id)}
                       className={cn(
@@ -224,18 +224,18 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
                       title={cape.alias ?? cape.id.slice(0, 8)}
                     >
                       {previewDataUrl ? (
-                        <img
+                        <img data-ui="edit-skin-modal-img-1"
                           src={previewDataUrl}
                           alt=""
                           className="absolute inset-0 w-full h-full object-contain"
                           draggable={false}
                         />
                       ) : cape.url ? (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <IconLoader2 className="w-4 h-4 text-muted-foreground animate-spin" />
+                        <div data-ui="edit-skin-modal-div-10" className="w-full h-full flex items-center justify-center">
+                          <IconLoader2 className="w-4 h-4 text-primary animate-spin" />
                         </div>
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center">
+                        <div data-ui="edit-skin-modal-div-11" className="w-full h-full flex items-center justify-center">
                           <IconShirt className="w-5 h-5 text-muted-foreground" />
                         </div>
                       )}
@@ -248,14 +248,14 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border">
-          <button
+        <div data-ui="edit-skin-modal-div-12" className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border">
+          <button data-ui="edit-skin-modal-button-5"
             onClick={onClose}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-muted/50 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
             {t("common.cancel")}
           </button>
-          <button
+          <button data-ui="edit-skin-modal-button-6"
             onClick={handleSave}
             disabled={saving}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"

@@ -5,7 +5,7 @@ import { IconArrowLeft, IconArrowRight, IconCheck, IconLoader2, IconPlayerPlay, 
 import { cn } from "@/lib/utils"
 import { useAccounts } from "@/src/AccountsContext"
 import { changeLanguage } from "@/src/i18n"
-import { applyTheme, presetThemes } from "./settings/data"
+import type { Theme } from "./settings/types"
 import { ONBOARDING_COPY, type OnboardingLanguage } from "./onboarding/translations"
 import { memoryToMb } from "@/lib/memory"
 import { StepDots } from "./onboarding/step-dots"
@@ -18,6 +18,8 @@ import { OfflineModal } from "./onboarding/offline-modal"
 
 type OnboardingModalProps = {
   selectedTheme: string
+  /** Пресеты вместе со своими темами — из реестра тем лаунчера. */
+  themes: Theme[]
   onSelectTheme: (themeId: string) => void
   onFinish: () => void
   onSkip: () => void
@@ -42,7 +44,7 @@ function getAvatarUrl(account: { uuid?: string; type?: string; skinUrl?: string 
   return `avatar://head/${encodeURIComponent(name)}${qs}`
 }
 
-export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip }: OnboardingModalProps) {
+export function OnboardingModal({ selectedTheme, themes, onSelectTheme, onFinish, onSkip }: OnboardingModalProps) {
   const { accounts, addAccount, activeAccount, setActiveAccount } = useAccounts()
   const { t } = useTranslation()
   const [mounted, setMounted] = useState(false)
@@ -128,12 +130,14 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
     setError("")
   }
 
+  /**
+   * Выбор темы целиком делегирован реестру (`onSelectTheme` — это
+   * `registry.selectTheme`): он применяет тему и пишет её в localStorage + БД.
+   * Раньше здесь был ещё и свой поиск по `presetThemes` с `applyTheme` — он не
+   * знал о своих темах и дублировал работу реестра.
+   */
   const persistTheme = (themeId: string) => {
     onSelectTheme(themeId)
-    localStorage.setItem("theme", themeId)
-    window.electronAPI?.setSetting("theme", themeId)
-    const theme = presetThemes.find((t) => t.id === themeId)
-    if (theme) applyTheme(theme)
     setError("")
   }
 
@@ -211,7 +215,7 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
   const renderStepContent = () => {
     switch (stepIndex) {
       case 0: return <StepLanguage selectedLanguage={selectedLanguage} copy={copy} onSelect={persistLanguage} />
-      case 1: return <StepTheme selectedTheme={selectedTheme} onSelect={persistTheme} />
+      case 1: return <StepTheme themes={themes} selectedTheme={selectedTheme} onSelect={persistTheme} />
       case 2: return <StepImport copy={copy} importableInstances={importableInstances} selectedImportIds={selectedImportIds} activeFilter={activeFilter} importingInstances={importingInstances} importedCount={importedCount} onToggle={toggleImportSelection} onFilterSource={filterSource} onImport={importSelectedInstances} />
       case 3: return <StepAccount copy={copy} accounts={accounts as any} anyLoginLoading={anyLoginLoading} getAvatarUrl={getAvatarUrl} setActiveAccount={setActiveAccount} onProviderLogin={handleProviderLogin} onOpenOffline={() => setShowOfflineAccountModal(true)} />
       case 4: return <StepMemory copy={copy} memoryMin={memoryMin} memoryMax={memoryMax} onChange={(min, max) => { setMemoryMin(min); setMemoryMax(max) }} onError={setError} />
@@ -222,43 +226,43 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
   if (!mounted) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/72 px-4 py-5 backdrop-blur-sm">
-      <div className="mx-auto flex h-[min(680px,calc(100vh-6rem))] w-full max-w-[980px] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
-        <div className="border-b border-border px-5 py-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex min-w-0 items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary shadow-[0_0_16px_var(--glow-primary)]">
+    <div data-ui="onboarding-modal-div-1" data-component="onboarding-modal" className="fixed inset-0 z-[100] flex items-center justify-center bg-background/72 px-4 py-5 backdrop-blur-sm">
+      <div data-ui="onboarding-modal-div-2" className="mx-auto flex h-[min(680px,calc(100vh-6rem))] w-full max-w-[980px] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+        <div data-ui="onboarding-modal-div-3" className="border-b border-border px-5 py-4">
+          <div data-ui="onboarding-modal-div-4" className="flex items-start justify-between gap-4">
+            <div data-ui="onboarding-modal-div-5" className="flex min-w-0 items-start gap-3">
+              <div data-ui="onboarding-modal-div-6" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary shadow-[0_0_16px_var(--glow-primary)]">
                 <CurrentStepIcon className="h-5 w-5" strokeWidth={1.8} />
               </div>
-              <div className="min-w-0">
-                <h2 className="text-xl font-semibold text-foreground">{t("onboarding.initialSetup")}</h2>
-                <p className="mt-1 text-sm text-muted-foreground">{currentStep.description}</p>
+              <div data-ui="onboarding-modal-div-7" className="min-w-0">
+                <h2 data-ui="onboarding-modal-h2-1" className="text-xl font-semibold text-foreground">{t("onboarding.initialSetup")}</h2>
+                <p data-ui="onboarding-modal-p-1" className="mt-1 text-sm text-muted-foreground">{currentStep.description}</p>
               </div>
             </div>
-            <button type="button" onClick={onSkip}
+            <button data-ui="onboarding-modal-button-1" type="button" onClick={onSkip}
               className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
               <IconX className="h-4 w-4" strokeWidth={1.8} /> {copy.skip}
             </button>
           </div>
-          <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-primary transition-all duration-300"
+          <div data-ui="onboarding-modal-div-8" className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
+            <div data-ui="onboarding-modal-div-9" className="h-full rounded-full bg-primary transition-all duration-300"
               style={{ width: `${((stepIndex + 1) / steps.length) * 100}%` }} />
           </div>
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <div className="text-sm text-muted-foreground">
+          <div data-ui="onboarding-modal-div-10" className="mt-3 flex items-center justify-between gap-3">
+            <div data-ui="onboarding-modal-div-11" className="text-sm text-muted-foreground">
               {t("onboarding.step", { current: stepIndex + 1, total: steps.length })}
             </div>
           </div>
-          <div className="mt-4">
+          <div data-ui="onboarding-modal-div-12" className="mt-4">
             <StepDots steps={steps} stepIndex={stepIndex} onSelectStep={(i) => { setError(""); setStepIndex(i) }} />
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-          <div className="mx-auto max-w-5xl">
+        <div data-ui="onboarding-modal-div-13" className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          <div data-ui="onboarding-modal-div-14" className="mx-auto max-w-5xl">
             {renderStepContent()}
             {error && (
-              <div className="mt-5 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <div data-ui="onboarding-modal-div-15" className="mt-5 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                 {error}
               </div>
             )}
@@ -269,13 +273,13 @@ export function OnboardingModal({ selectedTheme, onSelectTheme, onFinish, onSkip
           <OfflineModal copy={copy} offlineUsername={offlineUsername} allowInvalidUsername={allowInvalidUsername} onUsernameChange={setOfflineUsername} onAllowInvalidChange={setAllowInvalidUsername} onAdd={addOfflineAccount} onClose={() => setShowOfflineAccountModal(false)} />
         )}
 
-        <div className="flex items-center justify-between gap-3 border-t border-border px-5 py-4">
-          <button type="button" onClick={handleBack} disabled={stepIndex === 0 || saving}
+        <div data-ui="onboarding-modal-div-16" className="flex items-center justify-between gap-3 border-t border-border px-5 py-4">
+          <button data-ui="onboarding-modal-button-2" type="button" onClick={handleBack} disabled={stepIndex === 0 || saving}
             className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-border bg-card px-5 text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50">
             <IconArrowLeft className="h-4 w-4" strokeWidth={1.9} /> {copy.back}
           </button>
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={() => void handleContinue()} disabled={!canProceed || anyLoginLoading || saving}
+          <div data-ui="onboarding-modal-div-17" className="flex items-center gap-3">
+            <button data-ui="onboarding-modal-button-3" type="button" onClick={() => void handleContinue()} disabled={!canProceed || anyLoginLoading || saving}
               className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-primary px-6 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60">
               {saving ? <IconLoader2 className="h-4 w-4 animate-spin" strokeWidth={2} /> : null}
               {isLastStep ? copy.finish : copy.next}

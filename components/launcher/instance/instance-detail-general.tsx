@@ -1,3 +1,4 @@
+import { CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
@@ -197,32 +198,32 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
   }, [activeBuild.id, activeBuild.loaderVersion, loaderVersions, loaderVersionsLoaded, defaultLoaderVersion, showLoaderVersionSelect, updateBuild])
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-        <div className="rounded-3xl border border-border bg-card/60 p-5">
-          <label className="mb-4 block text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+    <div data-ui="instance-instance-detail-general-div-1" data-component="instance-detail-general" className={`flex-1 overflow-y-auto ${CONTENT_ENTER_DELAYED}`}>
+      <div data-ui="instance-instance-detail-general-div-2" className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+        <div data-ui="instance-instance-detail-general-div-3" className="rounded-3xl border border-border bg-card/60 p-5">
+          <label data-ui="instance-instance-detail-general-label-1" className="mb-4 block text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
             {t("builds.cover")}
           </label>
 
-          <div className="flex flex-col items-center text-center">
-            <div
+          <div data-ui="instance-instance-detail-general-div-4" className="flex flex-col items-center text-center">
+            <div data-ui="instance-instance-detail-general-div-5"
               className="relative flex h-32 w-32 cursor-pointer items-center justify-center overflow-hidden rounded-[28px] border border-border bg-muted/70 transition-colors hover:border-primary/50"
               onClick={() => setShowIconPicker(true)}
             >
               {buildHasImage ? (
                 <EntityIcon src={activeBuild.icon} className="h-full w-full p-3 text-primary" imgClassName="h-full w-full object-cover" />
               ) : (
-                <div className="flex h-full w-full items-center justify-center">
+                <div data-ui="instance-instance-detail-general-div-6" className="flex h-full w-full items-center justify-center">
                   <IconCamera className="h-10 w-10 text-muted-foreground/50" />
                 </div>
               )}
             </div>
 
-            <div className="mt-4 text-sm font-medium text-foreground">{activeBuild.name || t("buildDetail.newBuild")}</div>
-            <div className="mt-1 text-xs text-muted-foreground">{t("buildDetail.changeIconHint")}</div>
+            <div data-ui="instance-instance-detail-general-div-7" className="mt-4 text-sm font-medium text-foreground">{activeBuild.name || t("buildDetail.newBuild")}</div>
+            <div data-ui="instance-instance-detail-general-div-8" className="mt-1 text-xs text-muted-foreground">{t("buildDetail.changeIconHint")}</div>
 
             {buildHasImage && (
-              <button
+              <button data-ui="instance-instance-detail-general-button-1"
                 type="button"
                 onClick={() => updateBuild(activeBuild.id, { icon: "", coverImage: undefined })}
                 className="mt-4 flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
@@ -233,23 +234,23 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
             )}
           </div>
 
-          <div className="mt-6 grid gap-3 rounded-2xl border border-border/70 bg-muted/20 p-4 text-left">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{t("buildDetail.played")}</div>
-              <div className="mt-1 text-sm text-foreground">{formatPlaytime(activeBuild.playtime ?? 0)}</div>
+          <div data-ui="instance-instance-detail-general-div-9" className="mt-6 grid gap-3 rounded-2xl border border-border/70 bg-muted/20 p-4 text-left">
+            <div data-ui="instance-instance-detail-general-div-10">
+              <div data-ui="instance-instance-detail-general-div-11" className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{t("buildDetail.played")}</div>
+              <div data-ui="instance-instance-detail-general-div-12" className="mt-1 text-sm text-foreground">{formatPlaytime(activeBuild.playtime ?? 0)}</div>
             </div>
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{t("buildDetail.created")}</div>
-              <div className="mt-1 text-sm text-foreground">{formattedCreatedAt}</div>
+            <div data-ui="instance-instance-detail-general-div-13">
+              <div data-ui="instance-instance-detail-general-div-14" className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{t("buildDetail.created")}</div>
+              <div data-ui="instance-instance-detail-general-div-15" className="mt-1 text-sm text-foreground">{formattedCreatedAt}</div>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col gap-4 rounded-3xl border border-border bg-card/40 p-5">
-          <div className="flex flex-col gap-4">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("builds.name")}</label>
-              <input
+        <div data-ui="instance-instance-detail-general-div-16" className="flex flex-col gap-4 rounded-3xl border border-border bg-card/40 p-5">
+          <div data-ui="instance-instance-detail-general-div-17" className="flex flex-col gap-4">
+            <div data-ui="instance-instance-detail-general-div-18">
+              <label data-ui="instance-instance-detail-general-label-2" className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("builds.name")}</label>
+              <input data-ui="instance-instance-detail-general-input-1"
                 type="text"
                 value={activeBuild.name}
                 onChange={e => updateBuild(activeBuild.id, { name: e.target.value })}
@@ -259,9 +260,9 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
               />
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("builds.description")}</label>
-              <textarea
+            <div data-ui="instance-instance-detail-general-div-19">
+              <label data-ui="instance-instance-detail-general-label-3" className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("builds.description")}</label>
+              <textarea data-ui="instance-instance-detail-general-textarea-1"
                 value={activeBuild.description}
                 onChange={e => updateBuild(activeBuild.id, { description: e.target.value })}
                 rows={2}
@@ -270,22 +271,22 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
             </div>
 
             {isModpack && isLocked && (
-              <div className="rounded-2xl border border-border/80 bg-muted/20 p-4">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-3 min-w-0">
+              <div data-ui="instance-instance-detail-general-div-20" className="rounded-2xl border border-border/80 bg-muted/20 p-4">
+                <div data-ui="instance-instance-detail-general-div-21" className="flex items-center justify-between gap-3 flex-wrap">
+                  <div data-ui="instance-instance-detail-general-div-22" className="flex items-center gap-3 min-w-0">
                     {activeBuild.icon ? (
                       <EntityIcon src={activeBuild.icon} className="w-10 h-10 p-0.5 rounded-xl text-primary" imgClassName="w-10 h-10 rounded-xl object-cover shrink-0" />
                     ) : (
-                      <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-base shrink-0">
+                      <div data-ui="instance-instance-detail-general-div-23" className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-base shrink-0">
                         {activeBuild.name[0]}
                       </div>
                     )}
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm text-foreground truncate">{activeBuild.name}</span>
+                    <div data-ui="instance-instance-detail-general-div-24" className="min-w-0">
+                      <div data-ui="instance-instance-detail-general-div-25" className="flex items-center gap-2">
+                        <span data-ui="instance-instance-detail-general-span-1" className="font-semibold text-sm text-foreground truncate">{activeBuild.name}</span>
                         <PlatformBadge source={activeBuild.source} showLabel className="text-[10px] py-0.5 px-1.5" />
                         {activeBuild.projectSlug && (
-                          <button
+                          <button data-ui="instance-instance-detail-general-button-2"
                             type="button"
                             onClick={() => window.open(`https://modrinth.com/modpack/${activeBuild.projectSlug}`, "_blank")}
                             title={t("buildDetail.openOnModrinth")}
@@ -295,23 +296,23 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
                           </button>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
-                        <span className="font-medium text-foreground/80">
+                      <div data-ui="instance-instance-detail-general-div-26" className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                        <span data-ui="instance-instance-detail-general-span-2" className="font-medium text-foreground/80">
                           {activeBuild.modpackVersion ? t("buildDetail.modpackVersion", { version: activeBuild.modpackVersion }) : activeBuild.version}
                         </span>
-                        <span>•</span>
-                        <span className="inline-flex items-center gap-1.5 capitalize font-medium text-foreground/90">
+                        <span data-ui="instance-instance-detail-general-span-3">•</span>
+                        <span data-ui="instance-instance-detail-general-span-4" className="inline-flex items-center gap-1.5 capitalize font-medium text-foreground/90">
                           <LoaderIcon loaderId={activeBuild.modLoader} className="w-3.5 h-3.5 shrink-0" />
-                          <span>{activeBuild.modLoader}</span>
+                          <span data-ui="instance-instance-detail-general-span-5">{activeBuild.modLoader}</span>
                         </span>
-                        <span>•</span>
-                        <span>{activeBuild.version}</span>
+                        <span data-ui="instance-instance-detail-general-span-6">•</span>
+                        <span data-ui="instance-instance-detail-general-span-7">{activeBuild.version}</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <button
+                  <div data-ui="instance-instance-detail-general-div-27" className="flex items-center gap-2 flex-wrap">
+                    <button data-ui="instance-instance-detail-general-button-3"
                       type="button"
                       onClick={() => setShowRepairConfirm(true)}
                       disabled={repairing}
@@ -321,62 +322,62 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
                       {repairing ? (
                         <IconLoader2 className="w-3.5 h-3.5 animate-spin text-primary" />
                       ) : repairDone ? (
-                        <IconCheck className="w-3.5 h-3.5 text-green-500" />
+                        <IconCheck className="w-3.5 h-3.5 text-success" />
                       ) : (
                         <IconTools className="w-3.5 h-3.5 text-muted-foreground" />
                       )}
-                      <span>{repairing ? t("buildDetail.repair.repairing") : repairDone ? t("buildDetail.repair.done") : t("buildDetail.repair.action")}</span>
+                      <span data-ui="instance-instance-detail-general-span-8">{repairing ? t("buildDetail.repair.repairing") : repairDone ? t("buildDetail.repair.done") : t("buildDetail.repair.action")}</span>
                     </button>
 
-                    <button
+                    <button data-ui="instance-instance-detail-general-button-4"
                       type="button"
                       onClick={() => setShowChangeVersionDialog(true)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium transition-colors shadow-sm"
                     >
                       <IconArrowsExchange className="w-3.5 h-3.5" />
-                      <span>{t("buildDetail.changeVersion")}</span>
+                      <span data-ui="instance-instance-detail-general-span-9">{t("buildDetail.changeVersion")}</span>
                     </button>
 
-                    <button
+                    <button data-ui="instance-instance-detail-general-button-5"
                       type="button"
                       onClick={handleToggleLock}
                       title={t("buildDetail.unlink.tooltip")}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border/80 bg-muted/40 hover:bg-muted text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
                     >
                       <IconUnlink className="w-3.5 h-3.5" />
-                      <span>{t("buildDetail.unlink.action")}</span>
+                      <span data-ui="instance-instance-detail-general-span-10">{t("buildDetail.unlink.action")}</span>
                     </button>
                   </div>
                 </div>
 
-                <div className="mt-3 pt-3 border-t border-border/50 flex items-center gap-2 text-xs text-muted-foreground">
-                  <IconLock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                  <span>{t("buildDetail.lockedNotice")}</span>
+                <div data-ui="instance-instance-detail-general-div-28" className="mt-3 pt-3 border-t border-border/50 flex items-center gap-2 text-xs text-muted-foreground">
+                  <IconLock className="w-3.5 h-3.5 text-warning shrink-0" />
+                  <span data-ui="instance-instance-detail-general-span-11">{t("buildDetail.lockedNotice")}</span>
                 </div>
               </div>
             )}
 
             {isModpack && !isLocked && (
-              <div className="flex items-center justify-between gap-3 p-3 rounded-2xl border border-border/70 bg-muted/20 text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
+              <div data-ui="instance-instance-detail-general-div-29" className="flex items-center justify-between gap-3 p-3 rounded-2xl border border-border/70 bg-muted/20 text-xs text-muted-foreground">
+                <div data-ui="instance-instance-detail-general-div-30" className="flex items-center gap-2">
                   <IconLockOpen className="w-4 h-4 text-muted-foreground" />
-                  <span>{t("buildDetail.unlinkedNotice")}</span>
+                  <span data-ui="instance-instance-detail-general-span-12">{t("buildDetail.unlinkedNotice")}</span>
                 </div>
-                <button
+                <button data-ui="instance-instance-detail-general-button-6"
                   type="button"
                   onClick={handleToggleLock}
                   className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-muted text-xs font-medium text-foreground transition-colors shrink-0"
                 >
                   <IconLink className="w-3 h-3 text-primary" />
-                  <span>{t("buildDetail.relink")}</span>
+                  <span data-ui="instance-instance-detail-general-span-13">{t("buildDetail.relink")}</span>
                 </button>
               </div>
             )}
 
             {(!isModpack || !isLocked) && (
-              <div className={showLoaderVersionSelect ? "grid gap-3 lg:grid-cols-3" : "grid gap-3 lg:grid-cols-2"}>
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("builds.version")}</label>
+              <div data-ui="instance-instance-detail-general-div-31" className={showLoaderVersionSelect ? "grid gap-3 lg:grid-cols-3" : "grid gap-3 lg:grid-cols-2"}>
+                <div data-ui="instance-instance-detail-general-div-32">
+                  <label data-ui="instance-instance-detail-general-label-4" className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("builds.version")}</label>
                   <Select value={activeBuild.version} onValueChange={(value) => updateBuild(activeBuild.id, { version: value })}>
                     <SelectTrigger className="h-10 w-full rounded-xl border-border bg-muted/40 text-foreground">
                       <SelectValue placeholder={versionsLoaded ? t("builds.version") : t("home.loadingVersions")} />
@@ -389,8 +390,8 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
                   </Select>
                 </div>
 
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("builds.modLoader")}</label>
+                <div data-ui="instance-instance-detail-general-div-33">
+                  <label data-ui="instance-instance-detail-general-label-5" className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("builds.modLoader")}</label>
                   <Select value={activeBuild.modLoader} onValueChange={handleModLoaderChange}>
                     <SelectTrigger className="h-10 w-full rounded-xl border-border bg-muted/40 text-foreground">
                       <SelectValue placeholder={t("builds.modLoader")} />
@@ -398,7 +399,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
                     <SelectContent>
                       {BUILD_MOD_LOADERS.map((item) => (
                         <SelectItem key={item.id} value={item.id}>
-                          <span className="flex items-center gap-2">
+                          <span data-ui="instance-instance-detail-general-span-14" className="flex items-center gap-2">
                             <LoaderIcon loaderId={item.id} className="w-4 h-4 flex-shrink-0" />
                             {item.name}
                           </span>
@@ -409,15 +410,15 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
                 </div>
 
                 {showLoaderVersionSelect && (
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("home.loaderVersion")}</label>
+                  <div data-ui="instance-instance-detail-general-div-34">
+                    <label data-ui="instance-instance-detail-general-label-6" className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("home.loaderVersion")}</label>
                     <Select value={activeBuild.loaderVersion ?? ""} onValueChange={handleLoaderVersionChange} disabled={!loaderVersionsLoaded || loaderVersions.length === 0}>
                       <SelectTrigger className="h-10 w-full rounded-xl border-border bg-muted/40 text-foreground">
                         <SelectValue placeholder={loaderVersionsLoaded ? t("home.loaderVersion") : t("home.loadingVersions")} />
                       </SelectTrigger>
                       <SelectContent>
-                        {!loaderVersionsLoaded ? <div className="px-3 py-2 text-sm text-muted-foreground">{t("home.loaderVersionLoading")}</div>
-                          : loaderVersions.length === 0 ? <div className="px-3 py-2 text-sm text-muted-foreground">{t("home.noLoaderVersions")}</div>
+                        {!loaderVersionsLoaded ? <div data-ui="instance-instance-detail-general-div-35" className="px-3 py-2 text-sm text-muted-foreground">{t("home.loaderVersionLoading")}</div>
+                          : loaderVersions.length === 0 ? <div data-ui="instance-instance-detail-general-div-36" className="px-3 py-2 text-sm text-muted-foreground">{t("home.noLoaderVersions")}</div>
                           : loaderVersions.map((item) => (
                             <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
                           ))}
@@ -428,10 +429,10 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-3 pt-2 border-t border-border/50 flex-wrap">
-              <div className="flex items-center gap-4">
+            <div data-ui="instance-instance-detail-general-div-37" className="flex items-center justify-between gap-3 pt-2 border-t border-border/50 flex-wrap">
+              <div data-ui="instance-instance-detail-general-div-38" className="flex items-center gap-4">
                 {activeBuild.intentPath && (
-                  <button
+                  <button data-ui="instance-instance-detail-general-button-7"
                     type="button"
                     onClick={() => window.electronAPI?.openPath(activeBuild.intentPath!)}
                     className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-3.5 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted"
@@ -442,7 +443,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
                 )}
                 {/* Удаление сборки перенесено сюда из контекстного меню списка:
                     на странице сборки действие должно быть под рукой. */}
-                <button
+                <button data-ui="instance-instance-detail-general-button-8"
                   type="button"
                   onClick={() => setShowTrashDialog(true)}
                   className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3.5 py-2 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"

@@ -274,6 +274,16 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
   }, [t])
 
   useEffect(() => {
+    const agentLaunch = (event: Event) => {
+      const success = (event as CustomEvent<{ success: boolean }>).detail?.success
+      setIsRunningTracked(!!success)
+      patchLaunchUi({ isLaunching: false, phase: "idle", ...(success ? { progress: 100, status: tRef.current("launcherStatus.starting") } : {}) })
+    }
+    window.addEventListener("launcher:agent-launch", agentLaunch)
+    return () => window.removeEventListener("launcher:agent-launch", agentLaunch)
+  }, [patchLaunchUi, setIsRunningTracked])
+
+  useEffect(() => {
     // Пока игра грузится, уведомление тоже держим живым: прогресса в процентах
     // ещё нет, поэтому полоса будет бегущей, а не «100%».
     const isBooting = isRunning && !gameReady

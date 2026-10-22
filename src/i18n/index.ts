@@ -1,7 +1,7 @@
 import i18n from "i18next"
 import { initReactI18next } from "react-i18next"
 
-// ru и en держим в статическом импорте: ru — язык по умолчанию и fallback, en — второй
+// ru и en держим в статическом импорте: ru — язык по умолчанию, en — первый fallback
 // гарантированный язык. Иначе при холодном старте с сохранённым, например, "de"
 // в resources попадал только de, и fallbackLng: "ru" было нечем обслужить — i18next
 // возвращал сам ключ вместо русского текста.
@@ -38,7 +38,7 @@ function initI18n(): Promise<void> {
       await i18n.use(initReactI18next).init({
         resources,
         lng: lang,
-        fallbackLng: "ru",
+        fallbackLng: ["en", "ru"],
         interpolation: {
           escapeValue: false,
         },

@@ -41,6 +41,7 @@ type HomeControlsProps = {
   isRunning: boolean
   onPlay: () => void
   onQuickPlayLaunch?: (type: "singleplayer" | "multiplayer", address: string) => void
+  quickPlayAvailable: boolean
 }
 
 const QUICK_PLAY_MAX = 10
@@ -71,9 +72,9 @@ type PingState = { loading: boolean; result?: QuickPlayServerStatus }
 const entryKey = (entry: QuickPlayEntry) => `${entry.type}:${entry.address}`
 
 function latencyTone(ms: number) {
-  if (ms <= 90) return "text-emerald-400"
-  if (ms <= 200) return "text-yellow-400"
-  return "text-orange-400"
+  if (ms <= 90) return "text-success"
+  if (ms <= 200) return "text-warning"
+  return "text-primary"
 }
 
 /** Стандартная иконка сервера — тот же ассет, что и во вкладке «Серверы». */
@@ -91,7 +92,7 @@ function ServerFavicon({ icon, label }: { icon?: string; label: string }) {
       return <EntityIcon src={icon} className="h-9 w-9 rounded-lg border border-border/60 p-1 text-primary" />
     }
     return (
-      <img
+      <img data-ui="home-controls-img-1" data-component="server-favicon"
         src={icon}
         alt={label}
         onError={() => setCustomFailed(true)}
@@ -102,7 +103,7 @@ function ServerFavicon({ icon, label }: { icon?: string; label: string }) {
 
   if (!defaultFailed) {
     return (
-      <img
+      <img data-ui="home-controls-img-2" data-component="server-favicon"
         src={DEFAULT_SERVER_ICON}
         alt={label}
         onError={() => setDefaultFailed(true)}
@@ -112,8 +113,8 @@ function ServerFavicon({ icon, label }: { icon?: string; label: string }) {
   }
 
   return (
-    <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-muted/40">
-      <IconServer className="h-4 w-4 text-blue-400/70" />
+    <span data-ui="home-controls-span-1" data-component="server-favicon" className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-muted/40">
+      <IconServer className="h-4 w-4 text-info/70" />
     </span>
   )
 }
@@ -136,7 +137,7 @@ function QuickPlayServerRow({ entry, ping, onLaunch }: {
   }
 
   return (
-    <div
+    <div data-ui="home-controls-div-1" data-component="quick-play-server-row"
       role="button"
       tabIndex={0}
       onClick={onLaunch}
@@ -144,43 +145,43 @@ function QuickPlayServerRow({ entry, ping, onLaunch }: {
       title={tooltip}
       className="group flex cursor-pointer items-start gap-2 rounded-xl border border-border bg-card/80 p-2.5 transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:border-primary/60 focus-visible:outline-none"
     >
-      <span className="relative flex-shrink-0">
+      <span data-ui="home-controls-span-2" className="relative flex-shrink-0">
         <ServerFavicon icon={status?.icon} label={entry.label} />
-        <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/65 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+        <span data-ui="home-controls-span-3" className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/65 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
           <IconPlayerPlay className="h-4 w-4 text-primary" strokeWidth={2} fill="currentColor" />
         </span>
       </span>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center gap-2">
-          <span className="truncate text-[13px] font-medium text-foreground transition-colors group-hover:text-primary">
+      <div data-ui="home-controls-div-2" className="flex min-w-0 flex-1 flex-col">
+        <div data-ui="home-controls-div-3" className="flex items-center gap-2">
+          <span data-ui="home-controls-span-4" className="truncate text-[13px] font-medium text-foreground transition-colors group-hover:text-primary">
             {entry.label}
           </span>
           {online && (
-            <span className={cn("ml-auto flex-shrink-0 font-mono text-[10px] tabular-nums", latencyTone(latency))}>
+            <span data-ui="home-controls-span-5" className={cn("ml-auto flex-shrink-0 font-mono text-[10px] tabular-nums", latencyTone(latency))}>
               {latency} ms
             </span>
           )}
         </div>
 
         {ping?.loading ? (
-          <span className="mt-0.5 animate-pulse text-[11px] text-muted-foreground">
+          <span data-ui="home-controls-span-6" className="mt-0.5 animate-pulse text-[11px] text-muted-foreground">
             {t("home.quickPlayPinging")}
           </span>
         ) : online ? (
           <>
             {status?.motd_raw ? (
-              <div className="mt-1 max-h-[27px] overflow-hidden [&_div]:text-[11px] [&_div]:leading-[13px]">
+              <div data-ui="home-controls-div-4" className="mt-1 max-h-[27px] overflow-hidden [&_div]:text-[11px] [&_div]:leading-[13px]">
                 {parseMotd(status.motd_raw)}
               </div>
             ) : null}
-            <div className="mt-1 flex items-center gap-1.5">
-              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-emerald-400">
+            <div data-ui="home-controls-div-5" className="mt-1 flex items-center gap-1.5">
+              <span data-ui="home-controls-span-7" className="inline-flex items-center gap-1 rounded-md bg-success/10 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-success">
                 <IconUsers className="h-3 w-3" strokeWidth={2} />
                 {status?.players_online ?? 0}/{status?.players_max ?? 0}
               </span>
               {status?.version ? (
-                <span
+                <span data-ui="home-controls-span-8"
                   className="max-w-[130px] truncate rounded-md bg-muted/50 px-1.5 py-0.5 text-[10px] text-muted-foreground"
                   title={status.version}
                 >
@@ -190,7 +191,7 @@ function QuickPlayServerRow({ entry, ping, onLaunch }: {
             </div>
           </>
         ) : (
-          <span className="mt-0.5 text-[11px] text-red-400/80" title={status?.error}>
+          <span data-ui="home-controls-span-9" className="mt-0.5 text-[11px] text-destructive/80" title={status?.error}>
             {t("servers.offline")}
           </span>
         )}
@@ -210,7 +211,7 @@ function QuickPlayWorldRow({ world, onPlay }: {
   }
 
   return (
-    <div
+    <div data-ui="home-controls-div-6" data-component="quick-play-world-row"
       role="button"
       tabIndex={0}
       onClick={onPlay}
@@ -218,32 +219,32 @@ function QuickPlayWorldRow({ world, onPlay }: {
       title={`${world.name} (${world.folder})`}
       className="group flex cursor-pointer items-start gap-2 rounded-xl border border-border bg-card/80 p-2.5 transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:border-primary/60 focus-visible:outline-none"
     >
-      <span className="relative flex-shrink-0">
-        <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-border/60 bg-muted/40">
+      <span data-ui="home-controls-span-10" className="relative flex-shrink-0">
+        <span data-ui="home-controls-span-11" className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-border/60 bg-muted/40">
           {world.iconDataUrl ? (
-            <img src={world.iconDataUrl} alt="" className="h-full w-full object-cover" style={{ imageRendering: "pixelated" }} />
+            <img data-ui="home-controls-img-3" src={world.iconDataUrl} alt="" className="h-full w-full object-cover" style={{ imageRendering: "pixelated" }} />
           ) : (
-            <IconMap className="h-4 w-4 text-emerald-400/70" />
+            <IconMap className="h-4 w-4 text-success/70" />
           )}
         </span>
-        <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/65 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+        <span data-ui="home-controls-span-12" className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/65 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
           <IconPlayerPlay className="h-4 w-4 text-primary" strokeWidth={2} fill="currentColor" />
         </span>
       </span>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-[13px] font-medium text-foreground transition-colors group-hover:text-primary">
+      <div data-ui="home-controls-div-7" className="flex min-w-0 flex-1 flex-col">
+        <span data-ui="home-controls-span-13" className="truncate text-[13px] font-medium text-foreground transition-colors group-hover:text-primary">
           {world.name}
         </span>
 
-        <div className="mt-1 flex items-center gap-1.5">
+        <div data-ui="home-controls-div-8" className="mt-1 flex items-center gap-1.5">
           {world.gameMode ? (
-            <span className="rounded-md bg-muted/50 px-1.5 py-0.5 text-[10px] capitalize text-muted-foreground">
+            <span data-ui="home-controls-span-14" className="rounded-md bg-muted/50 px-1.5 py-0.5 text-[10px] capitalize text-muted-foreground">
               {world.gameMode}
             </span>
           ) : null}
           {world.mcVersion ? (
-            <span className="rounded-md bg-muted/50 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+            <span data-ui="home-controls-span-15" className="rounded-md bg-muted/50 px-1.5 py-0.5 text-[10px] text-muted-foreground">
               {world.mcVersion}
             </span>
           ) : null}
@@ -253,9 +254,10 @@ function QuickPlayWorldRow({ world, onPlay }: {
   )
 }
 
-function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunch }: {
+function QuickPlaySection({ selectedModLoader, selectedVersion, available, onQuickPlayLaunch }: {
   selectedModLoader: string
   selectedVersion: string
+  available: boolean
   onQuickPlayLaunch?: (type: "singleplayer" | "multiplayer", address: string) => void
 }) {
   const { t } = useTranslation()
@@ -263,7 +265,7 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
   const [entries, setEntries] = useState<QuickPlayEntry[]>([])
   const [pings, setPings] = useState<Record<string, PingState>>({})
   const [pinging, setPinging] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(available)
   const [tab, setTab] = useState<QuickPlayTab | null>(null)
   const [page, setPage] = useState(0)
 
@@ -308,7 +310,10 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
   }, [])
 
   const loadEntries = useCallback(async () => {
-    if (!window.electronAPI) return
+    if (!available || !window.electronAPI) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       if (buildName) {
@@ -331,7 +336,7 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
     } finally {
       setLoading(false)
     }
-  }, [buildName, pingEntries])
+  }, [available, buildName, pingEntries])
 
   useEffect(() => { loadEntries() }, [loadEntries])
 
@@ -352,26 +357,17 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
   const visibleWorlds = worlds.slice(pageStart, pageStart + QUICK_PLAY_PER_PAGE)
   const visibleServers = entries.slice(pageStart, pageStart + QUICK_PLAY_PER_PAGE)
 
-  if (!hasWorlds && !hasEntries && !loading) return null
-
   return (
-    <div className="flex flex-col gap-3">
-      {loading && (
-        <div className="flex items-center justify-center py-6">
-          <IconLoader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        </div>
-      )}
-
-      {(hasWorlds || hasEntries) && (
-        <div className="flex flex-col gap-2">
+    <div data-ui="home-controls-div-9" data-component="quick-play-section" className="flex flex-col gap-3">
+        <div data-ui="home-controls-div-11" className="flex flex-col gap-2">
           {/* Один заголовок на всю быструю игру: и мир, и сервер запускаются
               через --quickPlay*, поэтому подпись не должна висеть только на
               списке серверов. */}
-          <div className="flex items-center gap-1.5 px-1">
+          <div data-ui="home-controls-div-12" className="flex items-center gap-1.5 px-1">
             <IconBolt className="w-3.5 h-3.5 text-primary" />
-            <span className="flex-1 text-xs font-medium text-muted-foreground">{t("home.quickPlay")}</span>
-            {activeTab === "servers" && (
-              <button
+            <span data-ui="home-controls-span-16" className="flex-1 text-xs font-medium text-muted-foreground">{t("home.quickPlay")}</span>
+            {available && activeTab === "servers" && (
+              <button data-ui="home-controls-button-1"
                 type="button"
                 onClick={() => void pingEntries(entries)}
                 disabled={pinging}
@@ -379,7 +375,7 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
                 aria-label={t("home.quickPlayRefresh")}
                 className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
               >
-                <IconRefresh className={cn("w-3.5 h-3.5", pinging && "animate-spin")} />
+                {pinging ? <IconLoader2 className="w-3.5 h-3.5 text-primary animate-spin" /> : <IconRefresh className="w-3.5 h-3.5" />}
               </button>
             )}
           </div>
@@ -387,9 +383,9 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
           {/* Переключатель групп виден всегда, даже если одна из групп пуста:
               иначе при одном мире и без серверов вкладок не было вообще, а
               вместо них висела одна подпись. */}
-          <div className="flex items-center gap-1.5 px-1">
-            <div className="flex items-center gap-0.5 rounded-lg border border-border bg-muted/30 p-0.5">
-              <button
+          <div data-ui="home-controls-div-13" className="flex items-center gap-1.5 px-1">
+            <div data-ui="home-controls-div-14" className="flex items-center gap-0.5 rounded-lg border border-border bg-muted/30 p-0.5">
+              <button data-ui="home-controls-button-2"
                 type="button"
                 onClick={() => { setTab("servers"); setPage(0) }}
                 className={cn(
@@ -400,7 +396,7 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
                 <IconServer className="h-3.5 w-3.5" strokeWidth={1.75} />
                 {t("servers.title")}
               </button>
-              <button
+              <button data-ui="home-controls-button-3"
                 type="button"
                 onClick={() => { setTab("worlds"); setPage(0) }}
                 className={cn(
@@ -414,8 +410,8 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
             </div>
 
             {totalPages > 1 && (
-              <div className="ml-auto flex items-center gap-0.5">
-                <button
+              <div data-ui="home-controls-div-15" className="ml-auto flex items-center gap-0.5">
+                <button data-ui="home-controls-button-4"
                   type="button"
                   onClick={() => setPage(Math.max(0, safePage - 1))}
                   disabled={safePage === 0}
@@ -424,10 +420,10 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
                 >
                   <IconChevronLeft className="w-3.5 h-3.5" />
                 </button>
-                <span className="min-w-[26px] text-center font-mono text-[10px] tabular-nums text-muted-foreground">
+                <span data-ui="home-controls-span-17" className="min-w-[26px] text-center font-mono text-[10px] tabular-nums text-muted-foreground">
                   {safePage + 1}/{totalPages}
                 </span>
-                <button
+                <button data-ui="home-controls-button-5"
                   type="button"
                   onClick={() => setPage(Math.min(totalPages - 1, safePage + 1))}
                   disabled={safePage >= totalPages - 1}
@@ -440,8 +436,18 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
             )}
           </div>
 
-          {activeTab === "worlds" && (hasWorlds ? (
-            <div className="flex flex-col gap-1.5">
+          {!available && (
+            <p className="py-4 text-center text-[11px] text-muted-foreground">{t("home.quickPlayUnsupported")}</p>
+          )}
+
+          {available && loading && (
+            <div data-ui="home-controls-div-10" className="flex items-center justify-center py-6">
+              <IconLoader2 className="h-5 w-5 animate-spin text-primary" />
+            </div>
+          )}
+
+          {available && !loading && activeTab === "worlds" && (hasWorlds ? (
+            <div data-ui="home-controls-div-16" className="flex flex-col gap-1.5">
               {visibleWorlds.map((world) => (
                 <QuickPlayWorldRow
                   key={world.folder}
@@ -451,11 +457,11 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
               ))}
             </div>
           ) : (
-            <p className="py-4 text-center text-[11px] text-muted-foreground">{t("home.quickPlayNoWorlds")}</p>
+            <p data-ui="home-controls-p-1" className="py-4 text-center text-[11px] text-muted-foreground">{t("home.quickPlayNoWorlds")}</p>
           ))}
 
-          {activeTab === "servers" && (hasEntries ? (
-            <div className="flex flex-col gap-1.5">
+          {available && !loading && activeTab === "servers" && (hasEntries ? (
+            <div data-ui="home-controls-div-17" className="flex flex-col gap-1.5">
               {visibleServers.map((entry) => (
                 <QuickPlayServerRow
                   key={entryKey(entry)}
@@ -466,10 +472,9 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, onQuickPlayLaunc
               ))}
             </div>
           ) : (
-            <p className="py-4 text-center text-[11px] text-muted-foreground">{t("home.quickPlayNoServers")}</p>
+            <p data-ui="home-controls-p-2" className="py-4 text-center text-[11px] text-muted-foreground">{t("home.quickPlayNoServers")}</p>
           ))}
         </div>
-      )}
     </div>
   )
 }
@@ -483,7 +488,7 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
     versions, versionsLoaded, selectedVersion, setSelectedVersion, buildIcons,
     selectedModLoader, setSelectedModLoader, loaderVersions, loaderVersionsLoaded, selectedLoaderVersion, setSelectedLoaderVersion,
     activeAvatarUrl, accountAvatarUrls,
-    launchUi, launchDetails, isRunning, onPlay, onQuickPlayLaunch,
+    launchUi, launchDetails, isRunning, onPlay, onQuickPlayLaunch, quickPlayAvailable,
   } = props
   const showLoaderVersionSelect = selectedModLoader !== "vanilla" && selectedModLoader !== "instance"
   const loaderVersionSelectionPending = showLoaderVersionSelect && (!loaderVersionsLoaded || !selectedLoaderVersion)
@@ -494,46 +499,46 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
   const playDisabled = isBooting || (launchUi.isLaunching && !isRunning) || loaderVersionSelectionPending || noVersionsAvailable
 
   return (
-    <div className="w-72 flex-shrink-0 flex flex-col justify-start gap-4 px-1">
-      <div className="relative overflow-hidden rounded-2xl bg-card/80 border border-border transition-colors">
-        <div className="relative z-10">
-          <button type="button" className="w-full px-4 py-3 text-left hover:bg-muted/20 transition-colors duration-150" onClick={() => setAccountComboOpen(true)}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-muted-foreground">{t("home.account")}</span>
+    <div data-ui="home-controls-div-18" data-component="home-controls" id="home-controls-panel" className="w-72 flex-shrink-0 flex flex-col justify-start gap-4 px-1">
+      <div data-ui="home-controls-div-19" id="home-account-card" className="relative overflow-hidden rounded-2xl bg-card/80 border border-border transition-colors">
+        <div data-ui="home-controls-div-20" className="relative z-10">
+          <button data-ui="home-controls-button-6" type="button" className="w-full px-4 py-3 text-left hover:bg-muted/20 transition-colors duration-150" onClick={() => setAccountComboOpen(true)}>
+            <div data-ui="home-controls-div-21" className="flex items-center justify-between mb-2">
+              <span data-ui="home-controls-span-18" className="text-xs font-medium text-muted-foreground">{t("home.account")}</span>
               <IconChevronDown className="w-3.5 h-3.5 text-muted-foreground/60" size={14} strokeWidth={2} />
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 ring-2 ring-primary/30">
-                {account ? <CachedAvatar src={activeAvatarUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-muted flex items-center justify-center"><span className="text-sm font-bold text-muted-foreground">P</span></div>}
+            <div data-ui="home-controls-div-22" className="flex items-center gap-3">
+              <div data-ui="home-controls-div-23" className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 ring-2 ring-primary/30">
+                {account ? <CachedAvatar src={activeAvatarUrl} alt="" className="w-full h-full object-cover" /> : <div data-ui="home-controls-div-24" className="w-full h-full bg-muted flex items-center justify-center"><span data-ui="home-controls-span-19" className="text-sm font-bold text-muted-foreground">P</span></div>}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-foreground text-sm truncate">{account?.username ?? "Player"}</p>
-                <p className="text-xs text-muted-foreground">{ACCOUNT_TYPE_LABELS[account?.type ?? "offline"]}</p>
+              <div data-ui="home-controls-div-25" className="flex-1 min-w-0">
+                <p data-ui="home-controls-p-3" className="font-semibold text-foreground text-sm truncate">{account?.username ?? "Player"}</p>
+                <p data-ui="home-controls-p-4" className="text-xs text-muted-foreground">{ACCOUNT_TYPE_LABELS[account?.type ?? "offline"]}</p>
               </div>
             </div>
           </button>
 
           <Dialog open={accountComboOpen} onOpenChange={setAccountComboOpen}>
-            <DialogContent className="max-w-md p-0 gap-0">
+            <DialogContent data-window="home-controls-window-1" className="max-w-md p-0 gap-0">
               <DialogHeader className="px-5 pt-5 pb-3">
                 <DialogTitle>{t("home.account")}</DialogTitle>
               </DialogHeader>
-              <div className="flex flex-col gap-1 px-3 pb-3 max-h-[400px] overflow-y-auto">
+              <div data-ui="home-controls-div-26" className="flex flex-col gap-1 px-3 pb-3 max-h-[400px] overflow-y-auto">
                 {accounts.map(acc => {
                   const isActive = acc.id === account?.id
                   return (
-                    <button key={acc.id} type="button" onClick={() => { setActiveAccount(acc.id); setAccountComboOpen(false) }} className={cn("flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-colors duration-150 text-left", isActive ? "bg-primary/15 border border-primary/25" : "hover:bg-muted/60 border border-transparent")}>
-                      <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0"><CachedAvatar src={accountAvatarUrls[acc.id]} alt="" className="w-full h-full object-cover" /></div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-foreground truncate">{acc.username}</p>
-                        <p className="text-[11px] text-muted-foreground">{ACCOUNT_TYPE_LABELS[acc.type] ?? acc.type}</p>
+                    <button data-ui="home-controls-button-7" key={acc.id} type="button" onClick={() => { setActiveAccount(acc.id); setAccountComboOpen(false) }} className={cn("flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-colors duration-150 text-left", isActive ? "bg-primary/15 border border-primary/25" : "hover:bg-muted/60 border border-transparent")}>
+                      <div data-ui="home-controls-div-27" className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0"><CachedAvatar src={accountAvatarUrls[acc.id]} alt="" className="w-full h-full object-cover" /></div>
+                      <div data-ui="home-controls-div-28" className="flex-1 min-w-0">
+                        <p data-ui="home-controls-p-5" className="font-medium text-sm text-foreground truncate">{acc.username}</p>
+                        <p data-ui="home-controls-p-6" className="text-[11px] text-muted-foreground">{ACCOUNT_TYPE_LABELS[acc.type] ?? acc.type}</p>
                       </div>
                       {isActive && <IconCheck className="w-4 h-4 text-primary flex-shrink-0" strokeWidth={2} />}
                     </button>
                   )
                 })}
                 {accounts.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4">{t("home.noAccounts")}</p>
+                  <p data-ui="home-controls-p-7" className="text-sm text-muted-foreground text-center py-4">{t("home.noAccounts")}</p>
                 )}
               </div>
             </DialogContent>
@@ -541,9 +546,9 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
         </div>
       </div>
 
-      <div className="relative overflow-hidden rounded-2xl bg-card/80 border border-border p-4 flex flex-col gap-3">
-        <div className="relative z-10">
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">{t("home.version")}</label>
+      <div data-ui="home-controls-div-29" id="home-version-card" className="relative overflow-hidden rounded-2xl bg-card/80 border border-border p-4 flex flex-col gap-3">
+        <div data-ui="home-controls-div-30" id="home-version-select" className="relative z-10">
+          <label data-ui="home-controls-label-1" className="block text-xs font-medium text-muted-foreground mb-1.5">{t("home.version")}</label>
           <Select value={selectedVersion} onValueChange={setSelectedVersion}>
             <SelectTrigger className="w-full h-[42px] rounded-xl bg-muted/50 border border-border text-foreground text-sm">
               <SelectValue
@@ -557,13 +562,13 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
               />
             </SelectTrigger>
             <SelectContent>
-              {!versionsLoaded ? <div className="px-3 py-2 text-sm text-muted-foreground">{t("home.loadingVersions")}</div>
+              {!versionsLoaded ? <div data-ui="home-controls-div-31" className="px-3 py-2 text-sm text-muted-foreground">{t("home.loadingVersions")}</div>
                 : versions.length === 0
-                  ? <div className="px-3 py-2 text-sm text-muted-foreground">
+                  ? <div data-ui="home-controls-div-32" className="px-3 py-2 text-sm text-muted-foreground">
                       {selectedModLoader === "instance" ? t("home.noBuilds") : t("home.failedToLoadVersions")}
                     </div>
                   : versions.map(v => <SelectItem key={v} value={v}>
-                    <span className="flex items-center gap-2">
+                    <span data-ui="home-controls-span-20" className="flex items-center gap-2">
                       {buildIcons[v] ? (
                         <EntityIcon src={buildIcons[v]} className="w-4 h-4 rounded-sm text-primary shrink-0" imgClassName="w-4 h-4 rounded-sm object-cover shrink-0" />
                       ) : null}
@@ -574,13 +579,13 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
           </Select>
         </div>
 
-        <div className="relative z-10">
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">{t("home.modLoader")}</label>
+        <div data-ui="home-controls-div-33" className="relative z-10">
+          <label data-ui="home-controls-label-2" className="block text-xs font-medium text-muted-foreground mb-1.5">{t("home.modLoader")}</label>
           <Select value={selectedModLoader} onValueChange={setSelectedModLoader}>
             <SelectTrigger className="w-full h-[42px] rounded-xl bg-muted/50 border border-border text-foreground text-sm"><SelectValue placeholder={t("home.modLoader")} /></SelectTrigger>
             <SelectContent>{MOD_LOADERS.map(l => (
               <SelectItem key={l.id} value={l.id}>
-                <span className="flex items-center gap-2">
+                <span data-ui="home-controls-span-21" className="flex items-center gap-2">
                   <LoaderIcon loaderId={l.id} className="w-4 h-4 flex-shrink-0" />
                   {t(`home.modLoader.${l.id}`, l.name)}
                 </span>
@@ -589,18 +594,18 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
           </Select>
         </div>
         {showLoaderVersionSelect && (
-          <div className="relative z-10">
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">{t("home.loaderVersion")}</label>
+          <div data-ui="home-controls-div-34" className="relative z-10">
+            <label data-ui="home-controls-label-3" className="block text-xs font-medium text-muted-foreground mb-1.5">{t("home.loaderVersion")}</label>
             <Select value={selectedLoaderVersion} onValueChange={setSelectedLoaderVersion} disabled={!loaderVersionsLoaded || loaderVersions.length === 0}>
               <SelectTrigger className="w-full h-[42px] rounded-xl bg-muted/50 border border-border text-foreground text-sm"><SelectValue placeholder={loaderVersionsLoaded ? t("home.loaderVersion") : t("home.loadingVersions")} /></SelectTrigger>
               <SelectContent>
-                {!loaderVersionsLoaded ? <div className="px-3 py-2 text-sm text-muted-foreground">{t("home.loaderVersionLoading")}</div>
-                  : loaderVersions.length === 0 ? <div className="px-3 py-2 text-sm text-muted-foreground">{t("home.noLoaderVersions")}</div>
+                {!loaderVersionsLoaded ? <div data-ui="home-controls-div-35" className="px-3 py-2 text-sm text-muted-foreground">{t("home.loaderVersionLoading")}</div>
+                  : loaderVersions.length === 0 ? <div data-ui="home-controls-div-36" className="px-3 py-2 text-sm text-muted-foreground">{t("home.noLoaderVersions")}</div>
                   : loaderVersions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
               </SelectContent>
             </Select>
             {loaderVersionSelectionPending && (
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p data-ui="home-controls-p-8" className="mt-1 text-[11px] text-muted-foreground">
                 {!loaderVersionsLoaded ? t("home.loaderVersionLoading") : t("home.chooseLoaderVersion")}
               </p>
             )}
@@ -608,8 +613,8 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
         )}
       </div>
 
-      <button type="button" onClick={onPlay} disabled={playDisabled} className={cn("relative w-full py-4 rounded-2xl font-bold text-lg text-primary-foreground overflow-hidden", !launchUi.isLaunching && isRunning && !isBooting ? "bg-red-600 hover:bg-red-500" : "bg-primary hover:bg-primary/90", "transition-colors duration-200 group", "active:scale-[0.98]", "disabled:opacity-70 disabled:cursor-not-allowed")}>
-        <span className="relative z-10 flex items-center justify-center gap-3">
+      <button data-ui="home-controls-button-8" id="home-play-button" type="button" onClick={onPlay} disabled={playDisabled} className={cn("relative w-full py-4 rounded-2xl font-bold text-lg overflow-hidden", !launchUi.isLaunching && isRunning && !isBooting ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : "bg-primary text-primary-foreground hover:bg-primary/90", "transition-colors duration-200 group", "active:scale-[0.98]", "disabled:opacity-70 disabled:cursor-not-allowed")}>
+        <span data-ui="home-controls-span-22" className="relative z-10 flex items-center justify-center gap-3">
           {launchUi.isLaunching || isBooting ? <><IconLoader2 className="w-5 h-5 animate-spin" />{launchUi.phase === "installing" && launchUi.progress !== null ? `${t("home.installing")} ${launchUi.progress}%` : t("home.launching")}</>
             : isRunning ? <><IconPlayerStop className="w-5 h-5" strokeWidth={1.75} />{t("home.stop")}</>
             : <><IconPlayerPlay className="w-5 h-5" strokeWidth={1.75} />{t("home.play")}</>}
@@ -617,37 +622,39 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
       </button>
 
       {(launchUi.status || launchUi.progress !== null) && (
-        <div className="relative z-50 px-1 flex flex-col gap-2">
+        <div data-ui="home-controls-div-37" className="relative z-50 px-1 flex flex-col gap-2">
           {launchUi.progress !== null && (
-            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+            <div data-ui="home-controls-div-38" className="h-1.5 rounded-full bg-muted overflow-hidden">
               {gameReady ? (
                 // Полностью запущено — зелёная шкала на 100%.
-                <div className="h-full w-full rounded-full bg-green-500 transition-colors" />
+                <div data-ui="home-controls-div-39" className="h-full w-full rounded-full bg-success transition-colors" />
               ) : isBooting ? (
                 // Процесс есть, окно ещё грузится: тот же бегущий градиентный
                 // сегмент, что на стартовом экране лаунчера, вместо зелёного.
-                <div className="progress-launch h-full w-full rounded-full" />
+                <div data-ui="home-controls-div-40" className="progress-launch h-full w-full rounded-full" />
               ) : (
-                <div
+                <div data-ui="home-controls-div-41"
                   className="h-full rounded-full bg-primary transition-[width] duration-200"
                   style={{ width: `${Math.max(0, Math.min(100, launchUi.progress))}%` }}
                 />
               )}
             </div>
           )}
-          {launchUi.status && <p className="text-[11px] text-muted-foreground line-clamp-2">{launchUi.status}</p>}
-          {launchDetails && <p className="text-[11px] text-muted-foreground/80 line-clamp-2">{launchDetails}</p>}
+          {launchUi.status && <p data-ui="home-controls-p-9" className="text-[11px] text-muted-foreground line-clamp-2">{launchUi.status}</p>}
+          {launchDetails && <p data-ui="home-controls-p-10" className="text-[11px] text-muted-foreground/80 line-clamp-2">{launchDetails}</p>}
         </div>
       )}
 
-      <button type="button" onClick={handleOpenLauncherFolder} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-card/80 border border-border text-foreground hover:bg-muted/40 hover:border-primary/40 transition-colors">
+      <button data-ui="home-controls-button-9" type="button" onClick={handleOpenLauncherFolder} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-card/80 border border-border text-foreground hover:bg-muted/40 hover:border-primary/40 transition-colors">
         <IconFolder className="w-4 h-4" />
         {t("home.openFolder")}
       </button>
 
       <QuickPlaySection
+        key={`${selectedModLoader}:${selectedVersion}:${quickPlayAvailable}`}
         selectedModLoader={selectedModLoader}
         selectedVersion={selectedVersion}
+        available={quickPlayAvailable}
         onQuickPlayLaunch={onQuickPlayLaunch}
       />
     </div>

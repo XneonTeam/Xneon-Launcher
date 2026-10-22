@@ -6,8 +6,41 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    {
+      name: 'tabler-direct-imports',
+      enforce: 'pre',
+      apply: 'serve',
+      // Корневой barrel Tabler открывает тысячи неиспользуемых SVG при холодной
+      // оптимизации. В dev запрашиваем только реально импортированные иконки.
+      transform(code, id) {
+        if (!/\.[jt]sx?(?:\?|$)/.test(id) || id.includes('node_modules') || !code.includes('@tabler/icons-react')) return
+        return code.replace(/import\s*\{([^}]+)\}\s*from\s*['"]@tabler\/icons-react['"]/g, (_match, bindings: string) => bindings.split(',').map(binding => {
+          const specifier = binding.trim()
+          if (!specifier) return ''
+          if (specifier.startsWith('type ')) return `import { ${specifier} } from '@tabler/icons-react'`
+          const [name, local = name] = specifier.split(/\s+as\s+/)
+          if (['Icon', 'IconProps', 'TablerIcon'].includes(name)) return `import type { ${specifier} } from '@tabler/icons-react'`
+          return `import ${local} from '@tabler/icons-react/dist/esm/icons/${name}.mjs'`
+        }).join('\n'))
+      },
+    },
+    react(),
+  ],
   base: './',
+  // Зависимости известны заранее, включая ленивые разделы: собираем их одним
+  // проходом без повторного crawl и перезагрузок страницы при открытии вкладок.
+  optimizeDeps: {
+    noDiscovery: true,
+    holdUntilCrawlEnd: false,
+    include: [
+      'react', 'react-dom', 'react-dom/client', 'react/jsx-runtime', 'react/jsx-dev-runtime',
+      'react-i18next', 'i18next',
+      '@radix-ui/react-checkbox', '@radix-ui/react-dialog', '@radix-ui/react-select',
+      'clsx', 'tailwind-merge', 'react-markdown', 'remark-gfm',
+      'rehype-raw', 'rehype-sanitize', 'prismjs', 'react-simple-code-editor', 'skinview3d',
+    ],
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),
@@ -18,6 +51,13 @@ export default defineConfig({
     strictPort: true,
     watch: {
       ignored: [
+        // Chokidar не читает .gitignore: локальный store содержит десятки тысяч
+        // файлов и установка наблюдателей блокировала dev-сервер на 40–50 секунд.
+        '**/.pnpm-store/**',
+        '**/.electron-mcp/**',
+        '**/.dsh-*/**',
+        '**/logs/**',
+        '**/screenshots/**',
         '**/tsconfig.tsbuildinfo',
         '**/release/**',
         '**/dist-electron/**',
@@ -43,6 +83,11 @@ export default defineConfig({
     // download only when the tab is opened.
     modulePreload: false,
     rollupOptions: {
+      // Асинхронные хуки CSS и ресурсов перекрываются: их время нельзя
+      // измерить точно. Отключаем только эту диагностику профилировщика.
+      checks: {
+        pluginTimings: false,
+      },
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return

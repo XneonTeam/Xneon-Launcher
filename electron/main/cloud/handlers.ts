@@ -1,3 +1,4 @@
+import { registerCloudThemeHandlers, cloudThemePreview } from "./theme-handlers"
 import { opFailure } from "../errors"
 import { ipcMain, shell, app } from "electron"
 import path from "path"
@@ -158,6 +159,7 @@ async function createBuildZipInWorker(intentPath: string, archivePath: string, i
 }
 
 export function registerCloudHandlers() {
+  registerCloudThemeHandlers()
   ipcMain.handle("cloud:list-providers", () => {
     return listProviders()
   })
@@ -196,7 +198,14 @@ export function registerCloudHandlers() {
     try {
       const provider = getProvider(providerId)
       const result = await provider.listFiles(folderPath)
-      return result
+      if (!result.success || !result.files) return result
+      const files = []
+      for (const file of result.files) {
+        const themePreview = !file.isDir && file.name.endsWith(".xntheme")
+          ? await cloudThemePreview(providerId, file) : undefined
+        files.push(themePreview ? { ...file, themePreview } : file)
+      }
+      return { ...result, files }
     } catch (e) {
       return opFailure(e)
     }
