@@ -11,6 +11,7 @@ import { getLoaderMetaClient } from "./loader-meta-client-singleton.js";
 import { withRetry } from "../retry.js";
 import * as path from "path";
 import * as fs from "fs/promises";
+import { libraryNameToPath } from "../utils/index.js";
 
 declare const fetch: typeof globalThis.fetch;
 
@@ -107,6 +108,7 @@ export class MetaClient {
 
     const installedJson = await this.readInstalledVersionJson(versionId);
     if (installedJson) {
+      this.normalizeLegacyVersion(installedJson, versionId);
       this.cache.set(versionId, installedJson);
       return installedJson;
     }
@@ -196,6 +198,7 @@ export class MetaClient {
       console.warn(`[MetaClient] Failed to fetch loader meta for Minecraft ${versionId}; using raw Mojang data`);
     }
 
+    this.normalizeLegacyVersion(data, versionId);
     this.cache.set(versionId, data);
     return data;
   }
@@ -203,6 +206,22 @@ export class MetaClient {
   async getLatestRelease(): Promise<string> {
     const manifest = await this.fetchManifest();
     return manifest.latest.release;
+  }
+
+  private normalizeLegacyVersion(data: VersionJson, versionId: string): void {
+    // Компоненты Prism допускают отсутствие path; процессоры старого Forge
+    // читают vanilla JSON напрямую и требуют явного downloads.artifact.path.
+    for (const library of data.libraries ?? []) {
+      const artifact = library.downloads?.artifact;
+      if (artifact && !artifact.path) artifact.path = libraryNameToPath(library.name);
+      for (const [classifier, entry] of Object.entries(library.downloads?.classifiers ?? {})) {
+        if (!entry.path) entry.path = libraryNameToPath(library.name).replace(/\.jar$/, `-${classifier}.jar`);
+      }
+    }
+    // Для старого Mojang JSON эти признаки нужны даже без доступа к Prism meta.
+    if (/^1\.[0-5](?:\.\d+)?$/.test(versionId) || data.type === "old_beta") {
+      data.traits = Array.from(new Set([...(data.traits ?? []), "legacyLaunch"]));
+    }
   }
 
   async getLatestSnapshot(): Promise<string> {

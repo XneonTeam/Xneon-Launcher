@@ -15,7 +15,7 @@ interface GradleParts {
  * JNA для Forge на Windows. Поднимать значение нужно только при изменении
  * логики сборки профиля.
  */
-export const PROFILE_REVISION = 1;
+export const PROFILE_REVISION = 7;
 
 function parseGradleSpecifier(name: string): GradleParts | null {
   const normalized = name.replace(/@[^:]+$/, "");
@@ -33,18 +33,6 @@ function matchName(a: GradleParts, b: GradleParts): boolean {
   return a.groupId === b.groupId && a.artifactId === b.artifactId && (a.classifier ?? "") === (b.classifier ?? "");
 }
 
-function compareVersions(a: string, b: string): number {
-  const aParts = a.split(/[^0-9]+/).filter(Boolean).map(Number);
-  const bParts = b.split(/[^0-9]+/).filter(Boolean).map(Number);
-  const maxLen = Math.max(aParts.length, bParts.length);
-  for (let i = 0; i < maxLen; i++) {
-    const aVal = aParts[i] ?? 0;
-    const bVal = bParts[i] ?? 0;
-    if (aVal !== bVal) return aVal - bVal;
-  }
-  return 0;
-}
-
 export class ProfileBuilder {
   private minecraftVersion = "";
   private mainClass = "";
@@ -59,20 +47,28 @@ export class ProfileBuilder {
   private versionType = "";
   private downloads?: VersionJson["downloads"];
   private assetIndex?: VersionJson["assetIndex"];
+  private assets?: string;
   private javaVersion?: VersionJson["javaVersion"];
   private gameArgs: Array<string | any> = [];
   private jvmArgs: Array<string | any> = [];
 
-  setMinecraftBase(baseJson: Partial<Pick<VersionJson, "downloads" | "assetIndex" | "javaVersion" | "type">>): void {
+  setMinecraftBase(baseJson: Partial<Pick<VersionJson, "downloads" | "assetIndex" | "assets" | "javaVersion" | "type">>): void {
     if (baseJson.downloads) this.downloads = baseJson.downloads;
     if (baseJson.assetIndex) this.assetIndex = baseJson.assetIndex;
+    if (baseJson.assets) this.assets = baseJson.assets;
     if (baseJson.javaVersion) this.javaVersion = baseJson.javaVersion;
     if (baseJson.type) this.versionType = baseJson.type;
   }
 
   applyComponent(component: ComponentData): void {
+    if (component.uid === "net.minecraft") this.minecraftVersion = component.version;
     if (component.mainClass) this.mainClass = component.mainClass;
-    if (component.minecraftArguments) this.minecraftArguments = component.minecraftArguments;
+    if (component.minecraftArguments !== undefined) {
+      this.minecraftArguments = component.minecraftArguments;
+      // Строка компонента заменяет игровые аргументы предыдущих компонентов,
+      // в том числе modern arguments.game ванильного клиента.
+      this.gameArgs = [];
+    }
 
     // Arguments: collect both game and jvm args (may contain rule objects)
     if (component.arguments?.game) {
@@ -137,7 +133,7 @@ export class ProfileBuilder {
     const existingIndex = this.libraries.findIndex((existing) => {
       const existingParsed = parseGradleSpecifier(existing.name);
       if (!existingParsed) return false;
-      return matchName(parsed, existingParsed);
+      return matchName(parsed, existingParsed) && Boolean(lib.natives) === Boolean(existing.natives);
     });
 
     if (existingIndex < 0) {
@@ -146,7 +142,6 @@ export class ProfileBuilder {
     }
 
     const existing = this.libraries[existingIndex];
-    const existingParsed = parseGradleSpecifier(existing.name);
     const newApplies = this.appliesToThisOS(lib);
     const existingApplies = this.appliesToThisOS(existing);
 
@@ -161,9 +156,8 @@ export class ProfileBuilder {
     if (!newApplies && existingApplies) {
       return;
     }
-    if (existingParsed && compareVersions(parsed.version, existingParsed.version) > 0) {
-      this.libraries[existingIndex] = lib;
-    }
+    // Компонент загрузчика вправе закрепить более старую совместимую версию.
+    this.libraries[existingIndex] = lib;
   }
 
   /** Подходит ли библиотека текущей ОС по правилам rules. */
@@ -195,6 +189,7 @@ export class ProfileBuilder {
     if (this.minecraftArguments) versionJson.minecraftArguments = this.minecraftArguments;
     if (this.downloads) versionJson.downloads = this.downloads;
     if (this.assetIndex) versionJson.assetIndex = this.assetIndex;
+    if (this.assets) versionJson.assets = this.assets;
     if (this.javaVersion) versionJson.javaVersion = this.javaVersion;
 
     return versionJson;

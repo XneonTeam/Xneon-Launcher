@@ -17,13 +17,15 @@ export class VersionResolver {
     return this.resolveInheritance(versionJson, osInfo);
   }
 
-  private async resolveInheritance(versionJson: VersionJson, osInfo: OSInfo): Promise<VersionJson> {
+  private async resolveInheritance(versionJson: VersionJson, osInfo: OSInfo, ancestry = new Set<string>()): Promise<VersionJson> {
+    if (ancestry.has(versionJson.id)) throw new Error(`Circular version inheritance: ${[...ancestry, versionJson.id].join(" -> ")}`);
+    ancestry.add(versionJson.id);
     if (!versionJson.inheritsFrom) {
       return this.normalizeFamily(versionJson);
     }
 
     const parentJson = await this.metaClient.fetchVersionJson(versionJson.inheritsFrom);
-    const resolved = await this.resolveInheritance(parentJson, osInfo);
+    const resolved = await this.resolveInheritance(parentJson, osInfo, ancestry);
 
     // Merge libraries (child overrides parent)
     const mergedLibraries = this.mergeLibraries(resolved.libraries, versionJson.libraries, osInfo);
@@ -69,6 +71,7 @@ export class VersionResolver {
     return this.normalizeFamily({
       ...resolved,
       ...versionJson,
+      jar: versionJson.jar ?? resolved.jar ?? resolved.id,
       mainClass: versionJson.mainClass ?? resolved.mainClass,
       minecraftArguments: versionJson.minecraftArguments ?? resolved.minecraftArguments,
       libraries: mergedLibraries,

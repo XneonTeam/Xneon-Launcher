@@ -12,6 +12,7 @@ import type { LoaderMetaClient } from "../core/loader-meta-client.js";
 import { getLoaderMetaClient } from "../core/loader-meta-client-singleton.js";
 import { MetaClient } from "../core/meta-client.js";
 import type { ILoaderHandler } from "./types.js";
+import { ProfileBuilder } from "../core/profile-builder.js";
 
 export class LiteLoaderHandler implements ILoaderHandler {
   private loaderMetaClient: LoaderMetaClient;
@@ -63,28 +64,26 @@ export class LiteLoaderHandler implements ILoaderHandler {
     const versionDir = path.join(this.gameDir, "versions", profileName);
     if (!fs.existsSync(versionDir)) fs.mkdirSync(versionDir, { recursive: true });
 
-    const versionJson: VersionJson = {
-      ...baseMcJson,
-      id: profileName,
-      time: new Date().toISOString(),
-      releaseTime: new Date().toISOString(),
-      type: "modified",
-      mainClass: metaLite.mainClass || baseMcJson.mainClass,
-      inheritsFrom: mcVersion,
-      jar: mcVersion,
-      libraries: [
-        ...(metaLite.libraries || []),
-        ...(baseMcJson.libraries || [])
-      ],
-      traits: metaLite["+traits"]
-    };
-
-    if (metaLite.arguments) {
-      versionJson.arguments = {
-        game: [...(metaLite.arguments.game || []), ...(baseMcJson.arguments?.game || [])],
-        jvm: [...(metaLite.arguments.jvm || []), ...(baseMcJson.arguments?.jvm || [])],
-      };
+    const requiredMinecraft = metaLite.requires.find(r => r.uid === "net.minecraft")?.equals;
+    if (requiredMinecraft && requiredMinecraft !== mcVersion) {
+      throw new Error(`LiteLoader ${liteloaderVersion} requires Minecraft ${requiredMinecraft}, got ${mcVersion}`);
     }
+    const builder = new ProfileBuilder();
+    builder.setMinecraftBase(baseMcJson);
+    builder.applyComponent({ uid: "net.minecraft", version: mcVersion, ...baseMcJson });
+    builder.applyComponent({
+      uid: "com.mumfrey.liteloader", version: liteloaderVersion,
+      mainClass: metaLite.mainClass, minecraftArguments: metaLite.minecraftArguments,
+      arguments: metaLite.arguments, libraries: metaLite.libraries,
+      plusLibraries: metaLite["+libraries"], traits: metaLite["+traits"],
+      tweakers: metaLite["+tweakers"], gameArgs: metaLite["+gameArgs"], jvmArgs: metaLite["+jvmArgs"],
+      jarMods: metaLite.jarMods, mods: metaLite.mods, agents: metaLite.agents,
+    });
+    const versionJson = builder.build();
+    versionJson.id = profileName;
+    versionJson.time = new Date().toISOString();
+    versionJson.releaseTime = metaLite.releaseTime;
+    versionJson.type = "modified";
 
     const jsonPath = path.join(versionDir, `${profileName}.json`);
     fs.writeFileSync(jsonPath, JSON.stringify(versionJson, null, 2));

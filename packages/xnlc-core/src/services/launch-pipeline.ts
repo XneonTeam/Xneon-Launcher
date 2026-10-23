@@ -36,9 +36,10 @@ import {
 import { XnlcVersionService } from "./version-service.js";
 import { XnlcLoaderService } from "./loader-service.js";
 import { PROFILE_REVISION } from "../core/profile-builder.js";
+import { LegacyPreparation } from "../core/legacy-preparation.js";
 
 /** Загрузчики, чьи профили собирает ProfileBuilder (для них проверяем ревизию). */
-const PROFILE_BUILDER_LOADERS = new Set(["forge", "neoforge", "optifine", "liteloader"]);
+const PROFILE_BUILDER_LOADERS = new Set(["forge", "neoforge", "optifine", "liteloader", "fabric", "fabric-legacy", "quilt"]);
 
 export class XnlcLaunchPipeline {
   constructor(
@@ -104,6 +105,7 @@ export class XnlcLaunchPipeline {
       this.logJavaRuntime(javaRuntime);
     }
 
+    if (loaderType === "optifine" && javaRuntime) this.loaderService.setInstallerJava(javaRuntime.path);
     const versionJson = await this.resolveLaunchVersion(resolvedSelection, onProgress);
     console.log(`Launch version resolved id=${versionJson.id} inheritsFrom=${versionJson.inheritsFrom ?? ""} mainClass=${versionJson.mainClass} ${formatLibrarySummary(versionJson)}`);
     
@@ -128,6 +130,8 @@ export class XnlcLaunchPipeline {
     // Step 5: Download libraries for resolved version
     await this.librariesManager.downloadLibraries(resolvedJson, withStage("libraries", tracker.onProgress));
     const libraries = this.librariesManager.resolveLibraries(resolvedJson);
+    const clientJarPath = await new LegacyPreparation(this.options.gameDir).prepare(
+      resolvedJson, withStage("libraries", tracker.onProgress));
 
     // Step 6: Download assets
     await this.assetsManager.downloadAssets(resolvedJson, this.options.gameDir, withStage("assets", tracker.onProgress));
@@ -158,6 +162,7 @@ export class XnlcLaunchPipeline {
       auth,
       {
         javaPath,
+        clientJarPath,
         memoryMin: config.memoryMin,
         memoryMax: config.memoryMax,
         width: config.width,
@@ -170,6 +175,7 @@ export class XnlcLaunchPipeline {
 
     // Step 10: Launch
     return this.javaRunner.launch(fullCommand, this.options.gameDir, {
+      javaMajorVersion: javaRuntime.version,
       env: config.env,
       wrapperCommand: config.wrapperCommand,
     });

@@ -358,7 +358,7 @@ export class ServerManager {
       if (readyLogged) return
       readyLogged = true
       const seconds = ((running.readyAt - running.startTime) / 1000).toFixed(1)
-      pushLog(`[XNL] Server is up in ${seconds}s — ${reason}`)
+      pushLog(`[XNLC] Server is up in ${seconds}s — ${reason}`)
       if (child.pid) {
         onStateChange({ status: "running", startTime: running.startTime, pid: child.pid })
       }
@@ -366,7 +366,7 @@ export class ServerManager {
 
     readyFallbackTimer = setTimeout(() => {
       readyFallbackTimer = undefined
-      pushLog(`[XNL] Startup marker not seen in ${Math.round(STARTUP_FALLBACK_MS / 1000)}s — marking the server as running`)
+      pushLog(`[XNLC] Startup marker not seen in ${Math.round(STARTUP_FALLBACK_MS / 1000)}s — marking the server as running`)
       markStarted("startup marker timeout")
     }, STARTUP_FALLBACK_MS)
 
@@ -377,7 +377,7 @@ export class ServerManager {
         if (isStartupDoneLine(line)) {
           markStarted("startup marker matched")
         } else if (EULA_PROMPT_PATTERN.test(line)) {
-          pushLog("[XNL] Сервер требует согласия с EULA — примите его в лаунчере и запустите заново")
+          pushLog("[XNLC] Сервер требует согласия с EULA — примите его в лаунчере и запустите заново")
         }
       } else if (running.phase === "running" && isStoppingLine(line)) {
         running.phase = "stopping"
@@ -400,7 +400,7 @@ export class ServerManager {
     })
 
     child.on("error", (err) => {
-      pushLog(`[XNL] Process error: ${err.message}`)
+      pushLog(`[XNLC] Process error: ${err.message}`)
       this.cleanup(id)
       onStateChange({ status: "stopped" })
     })
@@ -410,13 +410,13 @@ export class ServerManager {
       const how = signal ? `signal ${signal}` : `code ${code}`
       // Краш на старте — только если это не наша остановка.
       if (running.phase === "starting" && !running.killedByLauncher && code !== 0) {
-        pushLog(`[XNL] Server crashed during startup (${how}) — see the log above`)
+        pushLog(`[XNLC] Server crashed during startup (${how}) — see the log above`)
       }
       if (readyFallbackTimer) clearTimeout(readyFallbackTimer)
       if (running.killedByLauncher) {
-        pushLog(`[XNL] Server process stopped by the launcher${signal ? ` (${how})` : ""}`)
+        pushLog(`[XNLC] Server process stopped by the launcher${signal ? ` (${how})` : ""}`)
       } else {
-        pushLog(`[XNL] Server exited with ${how}`)
+        pushLog(`[XNLC] Server exited with ${how}`)
       }
       this.cleanup(id)
       this.running.delete(id)
@@ -442,7 +442,7 @@ export class ServerManager {
         r.stdinWriter.write("stop\n")
       } catch {}
     } else {
-      r.pushLine('[XNL] Stop requested during startup — killing the process (no "stop" command sent)')
+      r.pushLine('[XNLC] Stop requested during startup — killing the process (no "stop" command sent)')
     }
 
     const stopPromise = new Promise<void>((resolve) => {
@@ -494,7 +494,7 @@ export class ServerManager {
     if (!r) throw new Error("Server is not running")
     // Неготовому серверу команда не дойдёт: её выполнит первый тик консоли.
     if (r.phase !== "running") {
-      r.pushLine(`[XNL] Command "${command}" was not sent: the server is still starting`)
+      r.pushLine(`[XNLC] Command "${command}" was not sent: the server is still starting`)
       throw new Error("Server is still starting — the command was not sent")
     }
     const line = command.endsWith("\n") ? command : `${command}\n`

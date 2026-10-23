@@ -5,18 +5,15 @@ import {
   ResolvedLibrary,
   OSInfo,
   LaunchAuth,
-  VersionJsonArguments,
-  AssetIndex
 } from "../types/index.js";
 import {
   getLibraryDir,
   getNativesDir,
-  getAssetObjectsDir,
-  getAssetIndexDir,
-  getVersionDir,
   libraryNameToPath,
-  flattenVersionJsonArguments
+  flattenVersionJsonArguments,
+  tokenizeCommandLine
 } from "../utils/index.js";
+import { ensureLegacyBootstrap, LEGACY_MAIN_CLASS } from "./legacy-bootstrap.js";
 
 export class LaunchBuilder {
   constructor(
@@ -38,20 +35,22 @@ export class LaunchBuilder {
       height?: number;
       extraJvmArgs?: string[];
       extraGameArgs?: string[];
+      clientJarPath?: string;
     }
   ): string[] {
     const { javaPath, memoryMin, memoryMax, width, height, extraJvmArgs = [], extraGameArgs = [] } = options;
 
     const nativesDir = getNativesDir(this.gameDir);
-    const classpath = this.buildClasspath(libraries, versionJson);
+    const legacy = versionJson.traits?.includes("legacyLaunch") === true;
+    const bootstrap = legacy ? ensureLegacyBootstrap(this.gameDir) : undefined;
+    const classpath = this.buildClasspath(libraries, versionJson, options.clientJarPath, bootstrap);
     
     const jvmArgs = this.buildJvmArgs(versionJson, {
       nativesDir,
       classpath,
       memoryMin,
       memoryMax,
-      extraJvmArgs,
-      javaVersion: 8
+      extraJvmArgs
     });
 
     const gameArgs = this.buildGameArgs(versionJson, auth, {
@@ -60,42 +59,44 @@ export class LaunchBuilder {
       extraGameArgs
     });
 
+    if (legacy) {
+      const mainClass = versionJson.mainClass === "net.minecraft.launchwrapper.Launch"
+        ? "net.minecraft.client.Minecraft" : versionJson.mainClass;
+      return [javaPath, ...jvmArgs, LEGACY_MAIN_CLASS, mainClass,
+        auth.profileName || auth.username, this.getSession(auth), String(width || 854), String(height || 480),
+        versionJson.traits?.includes("noapplet") ? "-" : String(versionJson.appletClass || "net.minecraft.client.MinecraftApplet"),
+        ...gameArgs];
+    }
     return [javaPath, ...jvmArgs, versionJson.mainClass, ...gameArgs];
   }
 
-  private buildClasspath(libraries: ResolvedLibrary[], versionJson: VersionJson): string {
-    const paths: string[] = [];
-
-    if (versionJson.jarMods && versionJson.jarMods.length > 0) {
-      for (const mod of versionJson.jarMods) {
-        const libPath = mod.downloads?.artifact?.path || libraryNameToPath(mod.name);
-        const fullPath = path.join(getLibraryDir(this.gameDir), libPath);
-        if (fs.existsSync(fullPath)) {
-          paths.push(fullPath);
-        }
-      }
-    }
+  private buildClasspath(libraries: ResolvedLibrary[], versionJson: VersionJson, clientJarPath?: string, bootstrap?: string): string {
+    const paths: string[] = bootstrap ? [bootstrap] : [];
+    if (versionJson.jarMods?.length && !clientJarPath) throw new Error("Jar mods have not been prepared");
 
     // mavenFiles are download-only (ForgeWrapper finds them via its own file detector).
     // Adding them to classpath causes module split-package ResolutionException.
-    const libs = libraries.filter(l => !l.isNative && l.includeInClasspath);
+    const libs = libraries.filter(l => !l.isNative && l.includeInClasspath !== false && !l.downloadOnly);
     paths.push(...libs.map(l => l.path));
 
-    if (!versionJson.traits?.includes("no_vjar")) {
-      const jarName = versionJson.jar || versionJson.id;
-      const versionJarPath = path.join(this.gameDir, "versions", jarName, `${jarName}.jar`);
+    // ForgeWrapper сам подключает пропатченный клиент после работы installer.
+    // Ванильный JAR в системном classpath иначе затеняет исправленные классы.
+    const usesForgeWrapper = versionJson.mainClass === "io.github.zekerzhayard.forgewrapper.installer.Main";
+    if (!versionJson.traits?.includes("no_vjar") && !usesForgeWrapper) {
+      const jarName = versionJson.jar || versionJson.inheritsFrom || versionJson.id;
+      const versionJarPath = clientJarPath ?? path.join(this.gameDir, "versions", jarName, `${jarName}.jar`);
       if (fs.existsSync(versionJarPath)) {
         paths.push(versionJarPath);
       }
-      if (versionJson.inheritsFrom) {
-        const parentJarPath = path.join(this.gameDir, "versions", versionJson.inheritsFrom, `${versionJson.inheritsFrom}.jar`);
-        if (fs.existsSync(parentJarPath)) {
-          paths.push(parentJarPath);
-        }
+      if (versionJson.xnlcJarIsOverlay && versionJson.inheritsFrom) {
+        const base = versionJson.inheritsFrom;
+        const parentJar = path.join(this.gameDir, "versions", base, `${base}.jar`);
+        if (!fs.existsSync(parentJar)) throw new Error(`Base client jar missing for overlay: ${parentJar}`);
+        paths.push(parentJar);
       }
     }
 
-    return paths.join(path.delimiter);
+    return Array.from(new Set(paths)).join(this.osInfo.os === "windows" ? ";" : ":");
   }
 
   private buildJvmArgs(versionJson: VersionJson, context: any): string[] {
@@ -126,13 +127,18 @@ export class LaunchBuilder {
         {
           classpath: typeof context.classpath === 'string' ? context.classpath.replace(/\\/g, '/') : context.classpath,
           natives_directory: context.nativesDir,
+          library_directory: getLibraryDir(this.gameDir),
+          classpath_separator: this.osInfo.os === "windows" ? ";" : ":",
+          launcher_name: this.launcherName,
+          launcher_version: this.launcherVersion,
         }
       ).filter((arg) => !/^-Xm[sx]/.test(arg));
       args.push(...jvmArgs);
     }
 
-    if (versionJson.traits?.includes("legacyFML")) {
+    if (versionJson.traits?.includes("legacyFML") || versionJson.jarMods?.length) {
       args.push("-Dfml.ignoreInvalidMinecraftCertificates=true");
+      args.push("-Dfml.ignorePatchDiscrepancies=true");
     }
 
     if (versionJson.agents) {
@@ -151,11 +157,12 @@ export class LaunchBuilder {
     let args: string[] = [];
 
     if (versionJson.minecraftArguments) {
-      args.push(...versionJson.minecraftArguments.split(" "));
+      args.push(...tokenizeCommandLine(versionJson.minecraftArguments));
     }
 
     if (versionJson.arguments?.game) {
-      args.push(...flattenVersionJsonArguments(versionJson.arguments.game, undefined, this.osInfo));
+      args.push(...flattenVersionJsonArguments(versionJson.arguments.game,
+        { has_custom_resolution: Boolean(context.width || context.height) }, this.osInfo));
     }
 
     const placeholders = this.getPlaceholders(versionJson, auth, context);
@@ -171,36 +178,35 @@ export class LaunchBuilder {
       auth_player_name: auth.profileName || auth.username,
       auth_uuid: auth.uuid,
       auth_access_token: auth.accessToken,
-      auth_session: isOffline ? "-" : auth.accessToken,
-      user_type: isOffline ? "offline" : "mojang",
+      auth_xuid: auth.xuid ?? "",
+      clientid: auth.clientId ?? "",
+      auth_session: this.getSession(auth),
+      user_type: isOffline ? "legacy" : "msa",
       version_name: versionJson.id,
       game_directory: this.gameDir,
       assets_root: path.join(this.gameDir, "assets"),
       assets_index_name: versionJson.assetIndex?.id || versionJson.assets || "legacy",
+      game_assets: versionJson.assetIndex?.id === "pre-1.6" ? path.join(this.gameDir, "resources")
+        : path.join(this.gameDir, "assets", "virtual", versionJson.assetIndex?.id || versionJson.assets || "legacy"),
       version_type: String(versionJson.type),
       resolution_width: String(context.width || 854),
       resolution_height: String(context.height || 480),
       launcher_name: this.launcherName,
       launcher_version: this.launcherVersion,
-      user_properties: "{}",
+      user_properties: auth.userProperties || "{}",
     };
   }
 
   private replacePlaceholders(arg: string, placeholders: Record<string, string>): string {
-    return arg.replace(/\$\{([^}]+)\}/g, (match, p1) => placeholders[p1] || match);
+    return arg.replace(/\$\{([^}]+)\}/g, (match, p1) => placeholders[p1] ?? match);
+  }
+
+  private getSession(auth: LaunchAuth): string {
+    return auth.mode === "offline" ? "-" : `token:${auth.accessToken}:${auth.uuid.replace(/-/g, "")}`;
   }
 
   private replacePlaceholderArgs(args: string[], placeholders: Record<string, string>): string[] {
-    const seen = new Set<string>();
-    const deduped: string[] = [];
-    for (let i = 0; i < args.length; i++) {
-      const arg = this.replacePlaceholders(args[i], placeholders);
-      const key = arg;
-      if (!seen.has(key)) {
-        seen.add(key);
-        deduped.push(arg);
-      }
-    }
-    return deduped;
+    // Повторяющиеся значения могут относиться к разным ключам (-p, --add-opens).
+    return args.map(arg => this.replacePlaceholders(arg, placeholders));
   }
 }

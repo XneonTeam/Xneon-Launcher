@@ -38,6 +38,10 @@
     "./retry": {
       "types": "./lib/retry.d.ts",
       "default": "./lib/retry.js"
+    },
+    "./game-features": {
+      "types": "./lib/game-features.d.ts",
+      "default": "./lib/game-features.js"
     }
   },
   "dependencies": {
@@ -45,6 +49,9 @@
     "adm-zip": "^0.6.0"
   },
   "scripts": {
+    "test": "node --test tests/launch-regressions.mjs tests/game-features.mjs",
+    "test:matrix": "node tests/release-matrix.mjs",
+    "generate:legacy": "node scripts/generate-legacy-bootstrap.mjs",
     "build": "node ./scripts/clean-legacy-forge-launch.mjs && tsc -p tsconfig.json",
     "clean": "rm -rf lib",
     "prepublishOnly": "npm run build"
