@@ -247,7 +247,7 @@ function TimelineItem({ item, timeline, onPreview, pending, context = [], projec
     <div className="min-w-0 max-w-full">
       {item.kind === "assistant" && !projects.length && !!context.length && <AttachedProjectCards attachments={context} />}
       {item.kind === "user" ? <div className="agent-user-bubble whitespace-pre-wrap">{item.text}</div> : <div className="agent-markdown">
-        {item.text ? sections.map((section, index) => <div key={index} className="agent-project-section">{section.project && <div className="agent-project-mention"><AgentEntityIcon src={typeof section.project.iconUrl === "string" ? section.project.iconUrl : typeof section.project.icon_url === "string" ? section.project.icon_url : undefined} kind={String(section.project.contentType || section.project.kind || "mod")} name={String(section.project.name || "")} /><span>{String(section.project.name || "")}</span></div>}<ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml components={{
+        {item.text ? sections.map((section, index) => <div key={index} className="agent-project-section">{section.project && <ProjectCards projects={[section.project]} limit={1} />}<ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml components={{
           a: ({ href, children }) => <a href={href} onClick={event => { event.preventDefault(); if (href && /^https?:\/\//.test(href)) void window.electronAPI?.openExternal(href) }}>{children}</a>,
           img: ({ alt }) => cardNames.length ? null : <span className="text-muted-foreground">{alt}</span>,
         }}>{section.text}</ReactMarkdown></div>) : <span className="inline-flex items-center gap-2 text-muted-foreground"><IconLoader2 size={15} className="animate-spin" />{t("agent.thinking")}</span>}
