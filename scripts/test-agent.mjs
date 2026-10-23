@@ -194,6 +194,7 @@ await check("Разделение карточек сохраняет код и 
 await check("Под карточкой нет повторного заголовка и подписи логотипа", () => {
   assert.equal(cards.projectAnswerText("## Sodium\n\n![Sodium](https://example.com/icon.png)\n\n**Sodium** — мод.\n\n## Что делает Sodium?", ["Sodium"]), "**Sodium** — мод.\n\n## Что делает Sodium?")
   assert.equal(cards.projectAnswerText("Sodium\nИконка Sodium\nОписание", ["Sodium"]), "Описание")
+  assert.equal(cards.projectAnswerText("Sodium — это популярный мод.\nПродолжение", ["Sodium"]), "это популярный мод.\nПродолжение")
   assert.equal(cards.projectAnswerText("## Sodium\nТекст", []), "## Sodium\nТекст")
 })
 const event = value => `data: ${JSON.stringify(value)}\r\n\r\n`
@@ -893,10 +894,11 @@ await check("Страница агента инициализируется с �
   const start = page.indexOf("export function AgentPage() {")
   const end = page.indexOf("  useEffect(() =>", start)
   const initializer = page.slice(start, end).replace("export function AgentPage()", "function initializePage()") + "return { visibleChats, archivedCount, showArchive }; }"
-  const initializePage = new Function("useTranslation", "useAgentState", "useState", "useRef", stripTypeScriptTypes(initializer) + "; return initializePage;")(
+  const initializePage = new Function("useTranslation", "useAgentState", "useState", "useRef", "useContentEnter", stripTypeScriptTypes(initializer) + "; return initializePage;")(
     () => ({ t: value => value, i18n: { language: "ru" } }),
     () => ({ chats: [{ id: "active", archived: false }, { id: "archived", archived: true }], chat: null, running: false }),
     value => [value, () => {}], value => ({ current: value }),
+    () => "",
   )
   const result = initializePage()
   assert.deepEqual(result.visibleChats.map(chat => chat.id), ["active"])

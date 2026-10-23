@@ -71,6 +71,13 @@ export function projectAnswerText(text: string, names: string[]): string {
   const normalize = (value: string) => value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, "")
   const titles = new Set(names.map(normalize))
   const lines = text.split("\n")
+  if (lines.length) {
+    const prefixes = names.map(name => name.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu)?.join("[^\p{L}\p{N}]*")).filter((value): value is string => !!value)
+    if (prefixes.length) {
+      const prefix = new RegExp(`^\\s*(?:${prefixes.join("|")})\\s*[—–:-]\\s*`, "iu")
+      lines[0] = lines[0].replace(prefix, "")
+    }
+  }
   while (lines.length) {
     const line = lines[0].trim()
     const title = normalize(line.replace(/[*_`]/g, "").replace(/^#{1,6}\s*/, "").replace(/^\d+[.)]\s*/, ""))
