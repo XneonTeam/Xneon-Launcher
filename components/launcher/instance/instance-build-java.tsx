@@ -61,18 +61,18 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
   const { maxMb, snapPoints } = useMemoryOptions()
 
   return (
-    <div className="rounded-3xl border border-border bg-card/40 p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
+    <div data-ui="instance-instance-build-java-div-1" data-component="instance-build-java" className="rounded-3xl border border-border bg-card/40 p-6">
+      <div data-ui="instance-instance-build-java-div-2" className="flex items-start justify-between gap-4">
+        <div data-ui="instance-instance-build-java-div-3">
+          <div data-ui="instance-instance-build-java-div-4" className="flex items-center gap-2 text-lg font-semibold text-foreground">
             <IconSettings className="h-5 w-5 text-primary" strokeWidth={1.75} />
             {t("build.java.title")}
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p data-ui="instance-instance-build-java-p-1" className="mt-1 text-sm text-muted-foreground">
             {t("build.java.desc")}
           </p>
         </div>
-        <button
+        <button data-ui="instance-instance-build-java-button-1"
           type="button"
           onClick={() => updateBuild(build.id, { javaOverride: !override })}
           className={cn(
@@ -80,17 +80,17 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
             override ? "bg-primary text-primary-foreground" : "bg-muted/60 text-muted-foreground hover:bg-muted"
           )}
         >
-          <span className={cn("w-2 h-2 rounded-full", override ? "bg-primary-foreground" : "bg-muted-foreground/50")} />
+          <span data-ui="instance-instance-build-java-span-1" className={cn("w-2 h-2 rounded-full", override ? "bg-primary-foreground" : "bg-muted-foreground/50")} />
           {override ? t("build.java.overrideOn") : t("build.java.useLauncher")}
         </button>
       </div>
 
       {override && (
-        <div className="mt-6 grid gap-6">
-          <div>
-            <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("build.java.memory")}</label>
-            <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-2.5">
-              <label className="block text-sm font-medium text-foreground">{t("build.java.allocated")}</label>
+        <div data-ui="instance-instance-build-java-div-5" className="mt-6 grid gap-6">
+          <div data-ui="instance-instance-build-java-div-6">
+            <label data-ui="instance-instance-build-java-label-1" className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("build.java.memory")}</label>
+            <div data-ui="instance-instance-build-java-div-7" className="rounded-xl border border-border bg-muted/30 p-5 space-y-2.5">
+              <label data-ui="instance-instance-build-java-label-2" className="block text-sm font-medium text-foreground">{t("build.java.allocated")}</label>
               <MemorySlider
                 value={memoryToMb(build.memoryMax)}
                 min={512}
@@ -101,14 +101,14 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
                 unit="MB"
                 onChange={(v) => updateBuild(build.id, { memoryMax: mbToMemory(v) })}
               />
-              <p className="text-xs text-muted-foreground">{t("build.java.memoryDesc")}</p>
+              <p data-ui="instance-instance-build-java-p-2" className="text-xs text-muted-foreground">{t("build.java.memoryDesc")}</p>
             </div>
           </div>
 
-          <div>
-            <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("build.java.path")}</label>
-            <div className="flex items-center gap-3">
-              <button
+          <div data-ui="instance-instance-build-java-div-8">
+            <label data-ui="instance-instance-build-java-label-3" className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("build.java.path")}</label>
+            <div data-ui="instance-instance-build-java-div-9" className="flex items-center gap-3">
+              <button data-ui="instance-instance-build-java-button-2"
                 type="button"
                 onClick={() => setShowJavaModal(true)}
                 className={cn(
@@ -116,9 +116,9 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
                   isAuto ? "border-border bg-muted/40 text-muted-foreground hover:border-primary/50 hover:bg-muted/50" : "border-primary/50 bg-primary/5 text-foreground hover:bg-primary/10"
                 )}
               >
-                <span className="truncate">{selectedLabel}</span>
+                <span data-ui="instance-instance-build-java-span-2" className="truncate">{selectedLabel}</span>
               </button>
-              <button
+              <button data-ui="instance-instance-build-java-button-3"
                 type="button"
                 onClick={handlePickJavaFile}
                 className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-muted/20 px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
@@ -129,16 +129,16 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
             </div>
           </div>
 
-          <div>
-            <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("build.java.jvmArgs")}</label>
-            <textarea
+          <div data-ui="instance-instance-build-java-div-10">
+            <label data-ui="instance-instance-build-java-label-4" className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("build.java.jvmArgs")}</label>
+            <textarea data-ui="instance-instance-build-java-textarea-1"
               value={build.javaArgs ?? ""}
               onChange={e => updateBuild(build.id, { javaArgs: e.target.value })}
               rows={3}
               placeholder="-XX:+UseG1GC -XX:MaxGCPauseMillis=50"
               className="w-full resize-none rounded-2xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary"
             />
-            <p className="mt-1.5 text-xs text-muted-foreground">
+            <p data-ui="instance-instance-build-java-p-3" className="mt-1.5 text-xs text-muted-foreground">
               {t("build.java.argsHint")}
             </p>
           </div>
@@ -146,12 +146,12 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
       )}
 
       {showJavaModal && createPortal(
-        <ModalLayer onClose={() => setShowJavaModal(false)} className="animate-in fade-in-0">
-          <div className="w-full max-w-lg p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-semibold text-foreground">{t("build.java.path")}</h3>
-              <div className="flex items-center gap-2">
-                <button
+        <ModalLayer windowId="instance-instance-build-java-window-1" onClose={() => setShowJavaModal(false)} className="animate-in fade-in-0">
+          <div data-ui="instance-instance-build-java-div-11" className="w-full max-w-lg p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
+            <div data-ui="instance-instance-build-java-div-12" className="flex items-center justify-between mb-5">
+              <h3 data-ui="instance-instance-build-java-h3-1" className="text-lg font-semibold text-foreground">{t("build.java.path")}</h3>
+              <div data-ui="instance-instance-build-java-div-13" className="flex items-center gap-2">
+                <button data-ui="instance-instance-build-java-button-4"
                   type="button"
                   onClick={() => void loadJavaInstallations(true)}
                   disabled={loadingDetect}
@@ -159,9 +159,9 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
                   aria-label={t("common.refresh")}
                   className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
                 >
-                  <IconRefresh className={cn("w-4 h-4", loadingDetect && "animate-spin")} strokeWidth={1.5} />
+                  {loadingDetect ? <IconLoader2 className="w-4 h-4 text-primary animate-spin" strokeWidth={1.5} /> : <IconRefresh className="w-4 h-4" strokeWidth={1.5} />}
                 </button>
-                <button
+                <button data-ui="instance-instance-build-java-button-5"
                   onClick={() => setShowJavaModal(false)}
                   className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
                 >
@@ -170,8 +170,8 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
               </div>
             </div>
 
-            <div className="space-y-3 mb-4">
-              <button
+            <div data-ui="instance-instance-build-java-div-14" className="space-y-3 mb-4">
+              <button data-ui="instance-instance-build-java-button-6"
                 onClick={() => {
                   updateBuild(build.id, { javaPath: "" })
                   setShowJavaModal(false)
@@ -183,29 +183,29 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
                     : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50"
                 )}
               >
-                <div className="flex items-center justify-between">
-                  <div className="font-medium text-foreground">{t("build.java.auto")}</div>
-                  <span className={cn(
+                <div data-ui="instance-instance-build-java-div-15" className="flex items-center justify-between">
+                  <div data-ui="instance-instance-build-java-div-16" className="font-medium text-foreground">{t("build.java.auto")}</div>
+                  <span data-ui="instance-instance-build-java-span-3" className={cn(
                     "text-xs px-2 py-1 rounded-md font-medium",
                     isAuto ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
                   )}>
                     {isAuto ? t("build.java.selected") : t("build.java.choose")}
                   </span>
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">{t("build.java.autoDesc")}</div>
+                <div data-ui="instance-instance-build-java-div-17" className="text-xs text-muted-foreground mt-1">{t("build.java.autoDesc")}</div>
               </button>
 
               {loadingDetect ? (
-                <div className="w-full p-4 rounded-xl border border-border bg-muted/30 flex items-center justify-center gap-2">
+                <div data-ui="instance-instance-build-java-div-18" className="w-full p-4 rounded-xl border border-border bg-muted/30 flex items-center justify-center gap-2">
                   <IconLoader2 className="w-4 h-4 animate-spin text-primary" strokeWidth={1.5} />
-                  <span className="text-sm text-muted-foreground">{t("build.java.searching")}</span>
+                  <span data-ui="instance-instance-build-java-span-4" className="text-sm text-muted-foreground">{t("build.java.searching")}</span>
                 </div>
               ) : detected.length > 0 ? (
-                <div className="space-y-2">
-                  <div className="text-xs font-medium text-muted-foreground px-1">{t("build.java.detected")}</div>
-                  <div className="max-h-[304px] space-y-2 overflow-y-auto pr-1">
+                <div data-ui="instance-instance-build-java-div-19" className="space-y-2">
+                  <div data-ui="instance-instance-build-java-div-20" className="text-xs font-medium text-muted-foreground px-1">{t("build.java.detected")}</div>
+                  <div data-ui="instance-instance-build-java-div-21" className="max-h-[304px] space-y-2 overflow-y-auto pr-1">
                     {detected.map((java, index) => (
-                      <button
+                      <button data-ui="instance-instance-build-java-button-7"
                         key={index}
                         onClick={() => {
                           updateBuild(build.id, { javaPath: java.path })
@@ -218,35 +218,35 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
                             : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50"
                         )}
                       >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="font-medium text-foreground text-sm">{java.label}</div>
-                          <span className={cn(
+                        <div data-ui="instance-instance-build-java-div-22" className="flex items-center justify-between gap-3">
+                          <div data-ui="instance-instance-build-java-div-23" className="font-medium text-foreground text-sm">{java.label}</div>
+                          <span data-ui="instance-instance-build-java-span-5" className={cn(
                             "shrink-0 text-xs px-2 py-1 rounded-md font-medium",
                             build.javaPath === java.path ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
                           )}>
                             {build.javaPath === java.path ? t("build.java.selected") : t("build.java.choose")}
                           </span>
                         </div>
-                        <div className="text-xs text-muted-foreground mt-1 truncate">{java.path}</div>
+                        <div data-ui="instance-instance-build-java-div-24" className="text-xs text-muted-foreground mt-1 truncate">{java.path}</div>
                       </button>
                     ))}
                   </div>
                 </div>
               ) : null}
 
-              <button
+              <button data-ui="instance-instance-build-java-button-8"
                 onClick={handlePickJavaFile}
                 className="w-full p-4 rounded-xl border border-dashed border-border bg-muted/20 hover:border-accent hover:bg-accent/5 transition-all flex items-center justify-between px-4 text-muted-foreground hover:text-accent"
               >
-                <div className="flex items-center gap-2">
+                <div data-ui="instance-instance-build-java-div-25" className="flex items-center gap-2">
                   <IconFolderPlus className="w-5 h-5" strokeWidth={1.5} />
-                  <span className="text-sm">{t("build.java.pickFile")}</span>
+                  <span data-ui="instance-instance-build-java-span-6" className="text-sm">{t("build.java.pickFile")}</span>
                 </div>
-                <span className="text-xs px-2 py-1 rounded-md bg-muted/50 font-medium">{t("build.java.choose")}</span>
+                <span data-ui="instance-instance-build-java-span-7" className="text-xs px-2 py-1 rounded-md bg-muted/50 font-medium">{t("build.java.choose")}</span>
               </button>
             </div>
 
-            <button
+            <button data-ui="instance-instance-build-java-button-9"
               onClick={() => setShowJavaModal(false)}
               className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-foreground text-sm transition-colors"
             >

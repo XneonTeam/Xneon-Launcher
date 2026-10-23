@@ -18,6 +18,7 @@ import { MetaClient } from "../core/meta-client.js";
 import { ensureDirSync, getLibraryDir, getVersionDir } from "../utils/index.js";
 import { URLS } from "../constants/urls.js";
 import type { ILoaderHandler } from "./types.js";
+import { PROFILE_REVISION } from "../core/profile-builder.js";
 
 const OPTIFINE_BASE = URLS.official.optifine.root;
 const LAUNCHWRAPPER_URL = `${URLS.official.mojang.libraries}/net/minecraft/launchwrapper/1.12/launchwrapper-1.12.jar`;
@@ -70,6 +71,11 @@ export function optifineVersionId(mcVersion: string, filename: string): string {
 }
 
 export class OptifineHandler implements ILoaderHandler {
+  private javaPath = "java";
+
+  setJavaPath(javaPath: string): void {
+    this.javaPath = javaPath;
+  }
   constructor(
     private downloader: Downloader,
     private metaClient: MetaClient,
@@ -348,6 +354,8 @@ export class OptifineHandler implements ILoaderHandler {
       inheritsFrom: info.mcVersion,
       mainClass: MAIN_CLASS,
       jar: id,
+      xnlcJarIsOverlay: true,
+      xnlcProfileRevision: PROFILE_REVISION,
       type: "release",
       javaVersion: isLegacy
         ? { component: "jre-legacy", majorVersion: 8 }
@@ -416,7 +424,7 @@ export class OptifineHandler implements ILoaderHandler {
       return;
     }
 
-    const javaPath = "java";
+    const javaPath = this.javaPath;
     execFileSync(javaPath, [
       "-cp",
       installerJar,

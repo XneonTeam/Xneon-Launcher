@@ -557,20 +557,17 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
     debug(`[PreLaunch] Pre-launch command completed successfully`)
   }
 
-  // Quick Play: game args (NOT jvm args — Java VM doesn't recognize them)
+  // Quick Play поддерживается только начиная с 23w14a / 1.20.
   const extraGameArgs: string[] = []
   const quickPlayLogDir = path.join(payload.gameDir, "logs", "quick_play")
-  extraGameArgs.push("--quickPlayPath", quickPlayLogDir)
-  debug(`Quick Play: path=${quickPlayLogDir}`)
-
-  const qpOptions = payload.options as { quickPlaySingleplayer?: string; quickPlayMultiplayer?: string }
-  if (qpOptions.quickPlaySingleplayer) {
-    extraGameArgs.push("--quickPlaySingleplayer", qpOptions.quickPlaySingleplayer)
-    debug(`Quick Play: singleplayer world=${qpOptions.quickPlaySingleplayer}`)
-  } else if (qpOptions.quickPlayMultiplayer) {
-    extraGameArgs.push("--quickPlayMultiplayer", qpOptions.quickPlayMultiplayer)
-    debug(`Quick Play: multiplayer server=${qpOptions.quickPlayMultiplayer}`)
-  }
+  const { getQuickPlayArguments } = await import("@xnlc/core/game-features")
+  const quickPlayArgs = getQuickPlayArguments(payload.options.mcVersion, {
+    path: quickPlayLogDir,
+    singleplayer: payload.options.quickPlaySingleplayer,
+    multiplayer: payload.options.quickPlayMultiplayer,
+  })
+  extraGameArgs.push(...quickPlayArgs)
+  if (quickPlayArgs.length) debug(`Quick Play: ${quickPlayArgs.join(" ")}`)
 
   // Размер окна — это program-аргументы лаунчера, в version.json их нет,
   // поэтому передаём явно. Раньше width/height доходили только до подстановки

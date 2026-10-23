@@ -4,6 +4,7 @@ import { loadBuilds, pickCompatibleVersion } from "./utils"
 import type { Build, BuildMod, ModSearchResult, ModDependency, ModVersion } from "./types"
 import type { BuildExportCategory } from "@xnlc/types"
 import { enrichBuildModNames } from "@/lib/modrinth-metadata"
+import { fsErrorMessage } from "@/lib/fs-errors"
 import { useActivityCenter } from "@/src/ActivityCenterContext"
 import { useCategoryIcons } from "@/src/hooks/use-category-icons"
 import { useCategoryList } from "@/src/hooks/use-category-list"
@@ -40,6 +41,13 @@ const buildContentCache = new Map<string, {
   shaders: BuildMod[]
   installedMods: Record<string, string>
 }>()
+
+// Инструменты агента могут менять БД, пока раздел сборок размонтирован.
+if (typeof window !== "undefined") window.addEventListener("launcher:agent-updated", () => {
+  buildsLightCache = null
+  buildsLightCacheAt = 0
+  buildContentCache.clear()
+})
 
 export function getCachedBuildsLight(): Build[] | null {
   return buildsLightCache
@@ -499,7 +507,12 @@ export function useBuilds() {
       }
     }
     window.addEventListener("cloud:imported", handler)
-    return () => window.removeEventListener("cloud:imported", handler)
+    const agentHandler = () => { void reloadBuilds() }
+    window.addEventListener("launcher:agent-updated", agentHandler)
+    return () => {
+      window.removeEventListener("cloud:imported", handler)
+      window.removeEventListener("launcher:agent-updated", agentHandler)
+    }
   }, [reloadBuilds])
 
   /**
@@ -649,7 +662,9 @@ export function useBuilds() {
           kind: "error",
           source: "install",
           title: t("builds.trashFailedTitle"),
-          message: result?.error || t("builds.trashFailedBody"),
+          // Сырой текст Node («EBUSY: resource busy or locked, rmdir …») не
+          // переводится — превращаем его в локализованную подсказку по коду.
+          message: fsErrorMessage(t, result?.error),
         })
         return false
       }
@@ -659,7 +674,7 @@ export function useBuilds() {
         kind: "error",
         source: "install",
         title: t("builds.trashFailedTitle"),
-        message: error instanceof Error ? error.message : String(error),
+        message: fsErrorMessage(t, error instanceof Error ? error.message : String(error)),
       })
       return false
     }
@@ -1368,5 +1383,5 @@ export function useBuilds() {
     }
   }, [builds, refreshBuildContent])
 
-  return { builds, setBuilds, activeBuildId, setActiveBuildId, activeBuild, fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, restoreBuildFromTrash, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, addCategory, collapsedGroups, toggleGroupCollapse, groups, categoryIcons, setCategoryIcon, updateBuild, addModToBuild, addLocalModToBuild, addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds, toggleItemEnabled, updateItemVersion }
+  return { builds, buildsHydrated, setBuilds, activeBuildId, setActiveBuildId, activeBuild, fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, restoreBuildFromTrash, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, addCategory, collapsedGroups, toggleGroupCollapse, groups, categoryIcons, setCategoryIcon, updateBuild, addModToBuild, addLocalModToBuild, addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds, toggleItemEnabled, updateItemVersion }
 }

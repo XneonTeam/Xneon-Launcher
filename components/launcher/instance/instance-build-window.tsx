@@ -43,18 +43,18 @@ export function InstanceBuildWindow({ build, updateBuild }: InstanceBuildWindowP
   }
 
   return (
-    <div className="rounded-3xl border border-border bg-card/40 p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
+    <div data-ui="instance-instance-build-window-div-1" data-component="instance-build-window" className="rounded-3xl border border-border bg-card/40 p-6">
+      <div data-ui="instance-instance-build-window-div-2" className="flex items-start justify-between gap-4">
+        <div data-ui="instance-instance-build-window-div-3">
+          <div data-ui="instance-instance-build-window-div-4" className="flex items-center gap-2 text-lg font-semibold text-foreground">
             <IconDeviceDesktop className="h-5 w-5 text-primary" strokeWidth={1.75} />
             {t("build.window.title")}
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p data-ui="instance-instance-build-window-p-1" className="mt-1 text-sm text-muted-foreground">
             {t("build.window.desc")}
           </p>
         </div>
-        <button
+        <button data-ui="instance-instance-build-window-button-1"
           type="button"
           onClick={() => updateBuild(build.id, { windowOverride: !override })}
           className={cn(
@@ -62,16 +62,16 @@ export function InstanceBuildWindow({ build, updateBuild }: InstanceBuildWindowP
             override ? "bg-primary text-primary-foreground" : "bg-muted/60 text-muted-foreground hover:bg-muted"
           )}
         >
-          <span className={cn("w-2 h-2 rounded-full", override ? "bg-primary-foreground" : "bg-muted-foreground/50")} />
+          <span data-ui="instance-instance-build-window-span-1" className={cn("w-2 h-2 rounded-full", override ? "bg-primary-foreground" : "bg-muted-foreground/50")} />
           {override ? t("build.window.overrideOn") : t("build.java.useLauncher")}
         </button>
       </div>
 
       {override && (
-        <div className="mt-6 grid gap-5">
-          <div className="grid gap-2 sm:grid-cols-2">
+        <div data-ui="instance-instance-build-window-div-5" className="mt-6 grid gap-5">
+          <div data-ui="instance-instance-build-window-div-6" className="grid gap-2 sm:grid-cols-2">
             {presetResolutions.map(res => (
-              <button
+              <button data-ui="instance-instance-build-window-button-2"
                 key={res.label}
                 type="button"
                 onClick={() => applyPreset(res)}
@@ -82,48 +82,48 @@ export function InstanceBuildWindow({ build, updateBuild }: InstanceBuildWindowP
                     : "border-border bg-muted/30 hover:border-primary/40"
                 )}
               >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-foreground">{res.label}</span>
+                <div data-ui="instance-instance-build-window-div-7" className="flex items-center justify-between">
+                  <span data-ui="instance-instance-build-window-span-2" className="text-sm font-semibold text-foreground">{res.label}</span>
                   {!useCustom && matchedPreset?.label === res.label && (
                     <IconCheck className="h-4 w-4 text-primary" strokeWidth={2} />
                   )}
                 </div>
-                <div className="mt-0.5 text-xs text-muted-foreground">{res.width}×{res.height}</div>
+                <div data-ui="instance-instance-build-window-div-8" className="mt-0.5 text-xs text-muted-foreground">{res.width}×{res.height}</div>
               </button>
             ))}
           </div>
 
-          <div>
-            <label className="flex items-center gap-3 cursor-pointer">
+          <div data-ui="instance-instance-build-window-div-9">
+            <label data-ui="instance-instance-build-window-label-1" className="flex items-center gap-3 cursor-pointer">
               <Checkbox checked={useCustom} onCheckedChange={(v) => toggleCustom(!!v)} />
-              <span className="text-sm font-medium text-foreground">{t("build.window.customResolution")}</span>
+              <span data-ui="instance-instance-build-window-span-3" className="text-sm font-medium text-foreground">{t("build.window.customResolution")}</span>
             </label>
 
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{t("build.window.width")}</label>
-                <div className="flex items-center gap-2">
-                  <input
+            <div data-ui="instance-instance-build-window-div-10" className="mt-3 grid grid-cols-2 gap-3">
+              <div data-ui="instance-instance-build-window-div-11">
+                <label data-ui="instance-instance-build-window-label-2" className="mb-1.5 block text-xs font-medium text-muted-foreground">{t("build.window.width")}</label>
+                <div data-ui="instance-instance-build-window-div-12" className="flex items-center gap-2">
+                  <input data-ui="instance-instance-build-window-input-1"
                     type="number"
                     value={width ?? ""}
                     onChange={e => updateBuild(build.id, { windowWidth: normalizeNumber(e.target.value) })}
                     placeholder="1920"
                     className="h-11 w-full rounded-2xl border border-border bg-muted/40 px-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary"
                   />
-                  <span className="text-sm font-medium text-muted-foreground">px</span>
+                  <span data-ui="instance-instance-build-window-span-4" className="text-sm font-medium text-muted-foreground">px</span>
                 </div>
               </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{t("build.window.height")}</label>
-                <div className="flex items-center gap-2">
-                  <input
+              <div data-ui="instance-instance-build-window-div-13">
+                <label data-ui="instance-instance-build-window-label-3" className="mb-1.5 block text-xs font-medium text-muted-foreground">{t("build.window.height")}</label>
+                <div data-ui="instance-instance-build-window-div-14" className="flex items-center gap-2">
+                  <input data-ui="instance-instance-build-window-input-2"
                     type="number"
                     value={height ?? ""}
                     onChange={e => updateBuild(build.id, { windowHeight: normalizeNumber(e.target.value) })}
                     placeholder="1080"
                     className="h-11 w-full rounded-2xl border border-border bg-muted/40 px-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary"
                   />
-                  <span className="text-sm font-medium text-muted-foreground">px</span>
+                  <span data-ui="instance-instance-build-window-span-5" className="text-sm font-medium text-muted-foreground">px</span>
                 </div>
               </div>
             </div>

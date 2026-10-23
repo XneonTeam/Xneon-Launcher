@@ -194,7 +194,7 @@ export function cleanEnvForGame(base: Record<string, string>): Record<string, st
 
 export interface RuleCheck {
   action: "allow" | "disallow";
-  os?: { name?: string; arch?: string };
+  os?: { name?: string; arch?: string; version?: string };
   features?: Record<string, boolean>;
 }
 
@@ -215,6 +215,9 @@ export function checkRules(
         matches = false;
       }
       if (rule.os.arch && rule.os.arch !== getArchRule(osInfo)) {
+        matches = false;
+      }
+      if (rule.os.version && !new RegExp(rule.os.version).test(osInfo.version ?? os.release())) {
         matches = false;
       }
     }

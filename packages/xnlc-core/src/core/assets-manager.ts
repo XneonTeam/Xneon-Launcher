@@ -145,6 +145,20 @@ export class AssetsManager {
     for (const item of items) {
       this.readyCache.set(item.dest, true);
     }
+    // До 1.7 игра читает файлы по именам, а не объекты по хэшам.
+    const roots: string[] = [];
+    if (indexData.virtual) roots.push(path.join(gameDir, "assets", "virtual", assetIndex.id));
+    if (indexData.map_to_resources || assetIndex.id === "pre-1.6") roots.push(path.join(gameDir, "resources"));
+    for (const root of roots) {
+      for (const [name, entry] of Object.entries(indexData.objects)) {
+        const destination = path.resolve(root, name);
+        const relative = path.relative(root, destination);
+        if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error(`Invalid asset path: ${name}`);
+        if (fs.existsSync(destination) && fs.statSync(destination).size === entry.size) continue;
+        ensureDirSync(path.dirname(destination));
+        fs.copyFileSync(this.getAssetObjectPath(gameDir, entry.hash), destination);
+      }
+    }
   }
 
   async getAssetIndex(versionJson: VersionJson, gameDir: string): Promise<AssetIndex> {

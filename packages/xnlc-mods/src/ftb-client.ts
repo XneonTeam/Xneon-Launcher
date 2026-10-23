@@ -218,9 +218,13 @@ function normalizeFTBVersion(v: FTBVersion): ModVersion {
 }
 
 export function getFTBPath(file: FTBFile): string {
-  const name = file.name.startsWith("/") ? file.name.substring(1) : file.name;
-  const path = (file.path ?? "").replace("./", "");
-  return path + name;
+  // FTB отдаёт папки как с завершающим слешем, так и без него (./mods).
+  const segments = `${file.path ?? ""}/${file.name}`.replace(/\\/g, "/").split("/")
+    .filter(segment => segment !== "" && segment !== ".");
+  if (!segments.length || segments.some(segment => segment === ".." || segment.includes(":"))) {
+    throw new Error(`Invalid FTB file path: ${file.path}/${file.name}`);
+  }
+  return segments.join("/");
 }
 
 // ── Raw API ──────────────────────────────────────────────────

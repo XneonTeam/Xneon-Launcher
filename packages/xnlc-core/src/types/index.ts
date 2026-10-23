@@ -29,6 +29,7 @@ export type InstallationPhase =
 export interface OSInfo {
   os: OSType;
   arch: ArchType;
+  version?: string;
 }
 
 export interface MojangVersionEntry {
@@ -138,6 +139,8 @@ export interface VersionJson {
   mainClass: string;
   inheritsFrom?: string;
   jar?: string;
+  /** Собственный JAR содержит только изменённые классы; исходный клиент нужен следом. */
+  xnlcJarIsOverlay?: boolean;
   family?: string;
   minecraftArguments?: string;
   arguments?: VersionJsonArguments;
@@ -194,6 +197,9 @@ export interface AuthSession {
   profileId?: string;
   profileName?: string;
   userProperties?: string;
+  /** Необязательные идентификаторы Microsoft для аргументов современных клиентов. */
+  clientId?: string;
+  xuid?: string;
   meta?: Record<string, unknown>;
 }
 

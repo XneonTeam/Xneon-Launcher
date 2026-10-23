@@ -82,7 +82,7 @@ export type DbBuild = {
   resourcepacksCount?: number
   shadersCount?: number
   createdAt: string
-  source: "local" | "modrinth" | "curseforge"
+  source: "local" | "modrinth" | "curseforge" | "ftb"
   projectSlug?: string
   modpackVersion?: string
   /** Id конкретной версии модпака на площадке (только у связанных модпаков). */

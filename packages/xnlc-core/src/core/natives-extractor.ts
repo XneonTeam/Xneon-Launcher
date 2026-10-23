@@ -25,7 +25,8 @@ export class NativesExtractor {
     // libraries) haven't changed — avoids re-writing ~50 files on every launch.
     if (fs.existsSync(markerPath)) {
       try {
-        if (fs.readFileSync(markerPath, "utf-8") === markerId) {
+        const marker = JSON.parse(fs.readFileSync(markerPath, "utf-8"));
+        if (marker.id === markerId && Array.isArray(marker.files) && marker.files.every((file: string) => fs.existsSync(path.join(nativesDir, file)))) {
           return nativesDir;
         }
       } catch {
@@ -45,14 +46,14 @@ export class NativesExtractor {
     // 1. Get all resolved libraries and filter for natives
     const resolved = this.librariesManager.resolveLibraries(versionJson);
     const nativeLibs = resolved.filter(l => l.isNative);
+    const extractedFiles = new Set<string>();
 
     console.log(`[NativesExtractor] Native libraries to inspect: ${nativeLibs.length}`);
 
     for (const lib of nativeLibs) {
       const jarPath = lib.path;
       if (!fs.existsSync(jarPath)) {
-        console.warn(`[NativesExtractor] Native jar missing for ${lib.name}: ${jarPath}`);
-        continue;
+        throw new Error(`Native jar missing for ${lib.name}: ${jarPath}`);
       }
 
       try {
@@ -71,15 +72,16 @@ export class NativesExtractor {
           }
 
           zip.extractEntryTo(entryName, nativesDir, true, true, false);
+          extractedFiles.add(entryName);
           console.log(`[NativesExtractor] Extracted ${entryName} from ${lib.name}`);
         }
       } catch (e) {
-        console.error(`[NativesExtractor] Failed to extract ${jarPath}: ${e}`);
+        throw new Error(`Failed to extract native library ${jarPath}: ${e}`);
       }
     }
 
     try {
-      fs.writeFileSync(markerPath, markerId, "utf-8");
+      fs.writeFileSync(markerPath, JSON.stringify({ id: markerId, files: [...extractedFiles] }), "utf-8");
     } catch {
       // ignore marker write failures
     }
@@ -91,7 +93,7 @@ export class NativesExtractor {
     const nativeLibs = this.librariesManager
       .resolveLibraries(versionJson)
       .filter(l => l.isNative)
-      .map(l => `${l.name}:${l.sha1}`)
+      .map(l => `${l.name}:${l.classifier}:${l.path}:${l.sha1}`)
       .join("|");
     return `${versionJson.id}:${versionJson.jar ?? ""}:${nativeLibs}`;
   }

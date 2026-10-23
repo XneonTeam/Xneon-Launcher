@@ -62,6 +62,7 @@ export const URLS = {
     loader: {
       meta: loaderMeta,
       files: loaderFiles,
+      fmlLibraries: envUrl("XNLC_URL_FML_LIBRARIES", joinUrl(loaderFiles, "/fmllibs")),
     },
     quilt: {
       meta: quiltMeta,

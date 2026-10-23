@@ -64,13 +64,17 @@ export class DownloadTask {
         // dest is a directory; remove it so we can download the file
         fsSync.rmSync(dest, { recursive: true, force: true });
       } else {
-        let isValid = true;
+        let isValid = stats.size > 0;
 
         // Fast path: compare only the size. Hashing every installed file on
         // every launch (libraries + ~1600 assets) made launches feel like a
         // full re-download even when nothing was missing.
         if (typeof expectedSize === "number" && expectedSize > 0 && stats.size !== expectedSize) {
           isValid = false;
+        }
+        // Без размера нельзя признать неизвестный кэш исправным по одному exists.
+        if (isValid && expectedSha1 && !expectedSize) {
+          isValid = sha1Hash(fsSync.readFileSync(dest)) === expectedSha1;
         }
 
         if (isValid) {
@@ -181,7 +185,13 @@ export class DownloadTask {
         });
       }
 
-      await new Promise<void>((resolve) => writeStream.end(resolve));
+      // finish означает, что данные записаны, но дескриптор ещё может быть открыт.
+      // На Windows rename такого файла заканчивается EPERM — ждём именно close.
+      await new Promise<void>((resolve, reject) => {
+        writeStream.once("close", resolve);
+        writeStream.once("error", reject);
+        writeStream.end();
+      });
 
       if (expectedSha1) {
         const actualSha1 = sha1Hash(fsSync.readFileSync(tempPath));
@@ -199,6 +209,12 @@ export class DownloadTask {
       }
       fsSync.renameSync(tempPath, dest);
     } finally {
+      if (!writeStream.closed) {
+        await new Promise<void>((resolve) => {
+          writeStream.once("close", resolve);
+          writeStream.destroy();
+        });
+      }
       if (fsSync.existsSync(tempPath)) {
         try {
           const s = fsSync.statSync(tempPath);

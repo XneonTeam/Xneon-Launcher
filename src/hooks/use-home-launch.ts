@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react"
+import { supportsQuickPlay } from "@xnlc/core/game-features"
 import { useTranslation } from "react-i18next"
 import type { Account } from "@/src/AccountsContext"
 import { useLaunchControls } from "@/src/LaunchLogsContext"
@@ -142,6 +143,7 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
     if (!target) return
 
     const quickPlay: QuickPlayLaunchRequest = { type, address }
+    if (!supportsQuickPlay(target.build?.version ?? selectedVersion)) return
 
     if (target.build) {
       await launchInstance(target.build, { quickPlay })
@@ -149,7 +151,7 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
     }
 
     await launchVanilla(quickPlay)
-  }, [isRunning, launchUi.isLaunching, account, resolveLaunchTarget, launchInstance, launchVanilla])
+  }, [isRunning, launchUi.isLaunching, account, resolveLaunchTarget, launchInstance, launchVanilla, selectedVersion])
 
   const launchDetails = useMemo(() => {
     const parts: string[] = []

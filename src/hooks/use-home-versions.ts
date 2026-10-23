@@ -7,6 +7,7 @@ export function useHomeVersions(selectedModLoader: string, initialVersion?: stri
   const [selectedVersion, setSelectedVersion] = useState(initialVersion ?? "")
   const [latestRelease, setLatestRelease] = useState<string | null>(null)
   const [buildIcons, setBuildIcons] = useState<Record<string, string>>({})
+  const [buildMinecraftVersions, setBuildMinecraftVersions] = useState<Record<string, string>>({})
   const { allMinecraftVersions, visibleVersions, versionsLoaded: minecraftVersionsLoaded } = useMinecraftVersionOptions()
   const supportedVersionsCacheRef = useRef(new Map<string, string[]>())
 
@@ -50,12 +51,14 @@ export function useHomeVersions(selectedModLoader: string, initialVersion?: stri
           const icons: Record<string, string> = {}
           for (const b of builds) { if (b.icon) icons[b.name] = b.icon }
           setBuildIcons(icons)
+          setBuildMinecraftVersions(Object.fromEntries(builds.map(build => [build.name, build.version])))
           setVersions(buildNames)
           setVersionsLoaded(true)
           setSelectedVersion(prev => buildNames.includes(prev) ? prev : buildNames[0] ?? "")
         } catch (error) {
           console.error("Failed to load builds", error)
           setVersions([])
+          setBuildMinecraftVersions({})
           setVersionsLoaded(true)
         }
       }
@@ -139,5 +142,5 @@ export function useHomeVersions(selectedModLoader: string, initialVersion?: stri
     }
   }, [allMinecraftVersions, latestRelease, selectedModLoader, visibleVersions])
 
-  return { versions, versionsLoaded, selectedVersion, setSelectedVersion, buildIcons }
+  return { versions, versionsLoaded, selectedVersion, setSelectedVersion, buildIcons, buildMinecraftVersions }
 }

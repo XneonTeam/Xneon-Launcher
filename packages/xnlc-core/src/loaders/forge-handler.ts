@@ -11,6 +11,7 @@ import { LoaderMetaClient } from "../core/loader-meta-client.js";
 import { ProfileBuilder } from "../core/profile-builder.js";
 import { ensureDirSync, getVersionDir } from "../utils/index.js";
 import type { ILoaderHandler } from "./types.js";
+import { legacyForgeJarMods, legacyForgeMods } from "./legacy-forge-dependencies.js";
 
 export class ForgeHandler implements ILoaderHandler {
   constructor(
@@ -57,21 +58,12 @@ export class ForgeHandler implements ILoaderHandler {
     if (!metaForge) {
       throw new Error(`Forge ${forgeVersion} not found in loader meta`);
     }
+    const requiredMinecraft = metaForge.requires.find(r => r.uid === "net.minecraft")?.equals;
+    if (requiredMinecraft && requiredMinecraft !== mcVersion) {
+      throw new Error(`Forge ${forgeVersion} requires Minecraft ${requiredMinecraft}, got ${mcVersion}`);
+    }
 
     const baseMcJson = await this.metaClient.fetchVersionJson(mcVersion);
-
-    // Extract FML-specific args from minecraftArguments (avoids duplicating base MC placeholders)
-    const forgeGameArgs: string[] = [];
-    if (metaForge.arguments?.game) {
-      forgeGameArgs.push(...metaForge.arguments.game);
-    }
-    if (metaForge.minecraftArguments) {
-      const parts = metaForge.minecraftArguments.split(/\s+/);
-      const fmlIdx = parts.findIndex(p => p === "--launchTarget" || p.startsWith("--fml."));
-      if (fmlIdx >= 0) {
-        forgeGameArgs.push(...parts.slice(fmlIdx));
-      }
-    }
 
     const forgeComponent: ComponentData = {
       uid: "net.minecraftforge",
@@ -79,14 +71,15 @@ export class ForgeHandler implements ILoaderHandler {
       name: metaForge.name,
       requires: metaForge.requires,
       mainClass: metaForge.mainClass,
+      minecraftArguments: metaForge.minecraftArguments,
       arguments: {
-        game: forgeGameArgs.length > 0 ? forgeGameArgs : metaForge.arguments?.game,
+        game: metaForge.arguments?.game,
         jvm: metaForge.arguments?.jvm,
       },
       libraries: metaForge.libraries,
-      jarMods: metaForge.jarMods,
+      jarMods: [...legacyForgeJarMods(mcVersion, forgeVersion), ...(metaForge.jarMods ?? [])],
       agents: metaForge.agents,
-      mods: metaForge.mods,
+      mods: [...legacyForgeMods(mcVersion), ...(metaForge.mods ?? [])],
       mavenFiles: metaForge.mavenFiles,
       traits: metaForge["+traits"],
       tweakers: metaForge["+tweakers"],

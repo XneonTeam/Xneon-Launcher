@@ -11,6 +11,7 @@ import { Downloader, DownloadOptions } from "../core/downloader.js";
 import { getVersionDir, getLibraryDir, ensureDirSync } from "../utils/index.js";
 import { URLS } from "../constants/urls.js";
 import type { ILoaderHandler } from "./types.js";
+import { PROFILE_REVISION } from "../core/profile-builder.js";
 
 const FABRIC_META = URLS.official.fabric.metaV2;
 
@@ -47,6 +48,7 @@ export class FabricLegacyHandler implements ILoaderHandler {
     // Legacy Fabric profiles may have different structure
     // Ensure compatibility with older profile format
     const versionJson: VersionJson = this.normalizeLegacyProfile(profileJson, mcVersion, loaderVersion);
+    versionJson.xnlcProfileRevision = PROFILE_REVISION;
 
     // Write version.json
     const versionJsonPath = path.join(versionDir, `${profileName}.json`);
