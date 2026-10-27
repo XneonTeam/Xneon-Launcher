@@ -26,11 +26,15 @@
   <strong>Xneon Launcher</strong> — современный лаунчер для Minecraft с открытым исходным кодом: сборки и моды, локальные серверы, облачная синхронизация, скины, статистика и AI-помощник в одном приложении.
 </p>
 
+<p align="center">
+  🔗 <a href="https://docs.xneon.org"><strong>docs.xneon.org</strong></a> — документация лаунчера, тем, скинов и AI-помощника.
+</p>
+
 ## Возможности
 
 ### Игра
-- 🚀 **Запуск Minecraft** — Vanilla, Fabric, Quilt, Forge, NeoForge, LiteLoader и OptiFine на любых версиях
-- ⚡ **Быстрая игра** — миры и недавние серверы с MOTD, онлайном, версией и пингом прямо на главной
+- 🚀 **Запуск Minecraft** — Vanilla, Fabric, Quilt, Forge, NeoForge, LiteLoader и OptiFine; есть подготовка старых версий Forge и Legacy FML
+- ⚡ **Быстрая игра** — быстрый переход в миры и недавние серверы с MOTD, онлайном, версией и пингом. Панель доступна на всех версиях, а Quick Play-параметры передаются только клиентам Java Edition 1.20+ (снапшоты от `23w14a`)
 - ⚙️ **Гибкий запуск** — Java, память, аргументы JVM, команды до и после запуска, wrapper, переменные окружения, поведение лаунчера после старта игры
 - 📊 **Статистика** — время в игре, сессии, аптайм серверов, графики активности и топы сборок
 - 📜 **Логи запуска** — уровни, поиск, копирование и разбор краша через AI
@@ -46,31 +50,36 @@
 - 🌐 **XN Connect** — сервер получает внешний адрес `connect.xneon.org`: друзья заходят без белого IP и настройки проброса портов
 
 ### Аккаунты и оформление
-- 🔐 **Аккаунты** — Microsoft, Ely.by, XNSkins и оффлайн-режим, встроенный authlib-injector
-- 🎨 **Скины** — своя библиотека, каталог Laby с фильтрами, избранное, плащи и превью на элитре
-- ☁️ **Облако** — Google Drive, Dropbox, Яндекс.Диск, OneDrive, WebDAV и S3, выборочная загрузка и импорт
-- 🤖 **AI-помощник** — разбор крашей и ответы в потоковом режиме
-- 💾 **Хранилище** — разбор занятого места по категориям и очистка мусора
+- 🔐 **Аккаунты** — Microsoft, Ely.by, XNSkins и оффлайн-режим, встроенный authlib-injector; аватары обновляются после смены скина
+- 🎨 **Скины** — библиотека и каталог Laby с поиском и фильтрами, избранное, плащи и 3D-превью; результаты сканирования сохраняются при переключении вкладок
+- ☁️ **Облако** — Google Drive, Dropbox, Яндекс.Диск, OneDrive, WebDAV и S3; просмотр и выборочная синхронизация сборок, серверов и аккаунтов, импорт и экспорт тем
+- 🤖 **AI-помощник** — отдельные чаты, вложения с контекстом лаунчера, инструменты для работы со сборками и серверами, план действий и подтверждение операций. Поддерживаются OpenAI-совместимые API, Anthropic Messages, Google Gemini и Ollama
+- 💾 **Хранилище** — разбор занятого места по категориям, повторное использование результатов сканирования при возврате во вкладку и очистка мусора
 - 🌍 **Языки** — русский, английский, украинский, немецкий, испанский
-- 🖼 **Темы** — готовые и своя, тёмное и светлое оформление
+- 🖼 **Темы** — готовые и собственные палитры с настройкой всех цветов, фона, эффектов интерфейса и свечения; CSS-редактор, импорт и экспорт `.xntheme`, синхронизация через облако
+- ✨ **Анимации тем** — настройка появления содержимого или собственная CSS-анимация; панели и загруженные карточки появляются отдельно
 
 ## Скриншоты
 
+| Редактор собственной темы на основе Core | AI-агент |
+|---|---|
+| ![Палитра Core в редакторе собственной темы](docs/screenshots/1.0.7/theme-editor.png) | ![Страница AI-агента с карточкой Sodium](docs/screenshots/1.0.7/ai-agent.png) |
+
 | Главная | Сборки |
 |---|---|
-| ![Главная](docs/screenshots/1.0.6/home.png) | ![Сборки](docs/screenshots/1.0.6/builds.png) |
+| ![Главная](docs/screenshots/1.0.7/home.png) | ![Сборки](docs/screenshots/1.0.7/builds.png) |
 
 | Серверы | Консоль сервера |
 |---|---|
-| ![Серверы](docs/screenshots/1.0.6/servers.png) | ![Консоль сервера](docs/screenshots/1.0.6/server-console.png) |
+| ![Серверы](docs/screenshots/1.0.7/servers.png) | ![Консоль сервера](docs/screenshots/1.0.7/server-console.png) |
 
 | Скины | Статистика |
 |---|---|
-| ![Скины](docs/screenshots/1.0.6/skins.png) | ![Статистика](docs/screenshots/1.0.6/stats.png) |
+| ![Скины](docs/screenshots/1.0.7/skins.png) | ![Статистика](docs/screenshots/1.0.7/stats.png) |
 
 | Облако | Хранилище |
 |---|---|
-| ![Облако](docs/screenshots/1.0.6/cloud.png) | ![Хранилище](docs/screenshots/1.0.6/settings-storage.png) |
+| ![Облако](docs/screenshots/1.0.7/cloud.png) | ![Хранилище](docs/screenshots/1.0.7/settings-storage.png) |
 
 ## Быстрый старт
 
@@ -93,6 +102,8 @@ pnpm run package
 
 ## Импорт из других лаунчеров
 
+Кнопка **«Импорт .zip»** принимает не только модпаки (`.mrpack`, CurseForge и экспорт Xneon), но и готовые клиентские версии вроде Lunar Crack: архивы с `<версия>/<версия>.json`, `<версия>.jar` и `natives`. Такая версия распаковывается в `versions/<id>` новой сборки, её natives доступны при запуске, а сборка автоматически использует её через `customVersionPath`.
+
 Xneon автоматически обнаружит установленные сборки из:
 
 | Лаунчер | Windows | macOS | Linux |
@@ -101,11 +112,26 @@ Xneon автоматически обнаружит установленные �
 | MultiMC | `%APPDATA%\MultiMC\instances` | `~/Library/Application Support/multimc` | `~/.local/share/MultiMC` |
 | PolyMC | `%APPDATA%\PolyMC\instances` | `~/Library/Application Support/PolyMC` | `~/.local/share/PolyMC` |
 | GDLauncher Carbon | `%APPDATA%\gdlauncher_carbon\data\instances` | `~/Library/Application Support/gdlauncher_carbon/data/instances` | `~/.local/share/gdlauncher_carbon` |
-| XMCL / X Launcher | `~\.minecraftx\instances` | `~/Library/Application Support/{xmcl,.minecraftx}/instances` | `~/.minecraftx/instances` |
+| XMCL / X Launcher | `%APPDATA%\xmcl\instances` или `~\.minecraftx\instances` | `~/Library/Application Support/{xmcl,.minecraftx}/instances` | `~/.config/xmcl/instances` или `~/.minecraftx/instances` |
 | Modrinth App | `%APPDATA%\ModrinthApp\app.db` | `~/Library/Application Support/ModrinthApp/app.db` | `~/.local/share/ModrinthApp/app.db` |
-| AstralRinth | `%APPDATA%\AstralRinthApp\app.db` | `~/Library/Application Support/AstralRinthApp/app.db` | `~/.local/share/AstralRinthApp/app.db` |
+| Millida Launcher | `%APPDATA%\net.millida.launcher\minecraft\profiles` | `~/Library/Application Support/net.millida.launcher/minecraft/profiles` | `~/.local/share/net.millida.launcher/minecraft/profiles` |
+
+### Что переносится вместе со сборкой
+
+При импорте создаётся отдельная сборка Xneon с названием и иконкой исходной. В неё копируются:
+
+- моды, ресурспаки и шейдеры;
+- миры, настройки, скриншоты и остальные файлы игровой папки;
+- выбранный профиль из общего каталога `versions` другого лаунчера: JSON, JAR и наследование через `inheritsFrom`;
+- версия Minecraft, загрузчик и его версия.
+
+Профили `versions` переносятся из Prism Launcher, MultiMC, PolyMC, GDLauncher Carbon, XMCL, Modrinth App и Millida Launcher. После импорта такой профиль используется `@xnlc/core` через `customVersionPath` и доступен сборке для запуска. При ручной смене Minecraft или загрузчика в Xneon привязка к импортированному профилю сбрасывается.
+
+Если лаунчер установлен в нестандартном месте, в окне импорта можно вручную выбрать его корневую папку, каталог сборок или одну конкретную сборку. Для Modrinth App можно указать корень данных, `profiles` или `app.db`; для Millida — корень данных, игровой корень или `profiles`. Перенос игрового корня Millida через `game-root.txt` и внешние сборки XMCL через `instances.json` определяются автоматически.
 
 ## Разработка
+
+Документация для разработчиков и авторов тем: [docs.xneon.org](https://docs.xneon.org).
 
 ### Архитектура
 
@@ -116,6 +142,7 @@ Xneon автоматически обнаружит установленные �
   - `@xnlc/mods` — клиенты Modrinth, CurseForge и FTB
   - `@xnlc/servers` — ядра серверов, установка и управление процессами
   - `@xnlc/skins` — домен скинов: каталог Laby, библиотека, надевание
+  - `@xnlc/agent` — AI-провайдеры, потоковые ответы, инструменты, контекст и чаты помощника
   - `@xnlc/nbt` — чтение и запись NBT (`level.dat`, `servers.dat`)
   - `@xnlc/types` — общие типы и IPC-контракты
 
@@ -127,14 +154,11 @@ pnpm run dev:fast      # то же, без пересборки main перед 
 pnpm run build         # typecheck + сборка renderer и main
 pnpm run package       # electron-builder → release/
 pnpm run typecheck     # tsc --noEmit
-pnpm run test          # тесты домена скинов (67 тестов)
-pnpm run test:authlib  # authlib-injector: JAR и коды ошибок (нужен dist-electron)
-pnpm run test:all      # все наборы
 pnpm run sync:xnlc     # собрать и перелинковать пакеты @xnlc/*
 ```
 
 Переменные окружения: `XNLC_NEWS_URL` — адрес ленты новостей лаунчера (по умолчанию
-`http://localhost:3000/news.json`, только для разработки), `ELECTRON_DEBUG_PORT` — порт
+`https://launcher.xneon.org/news.json`), `ELECTRON_DEBUG_PORT` — порт
 remote-debugging для `scripts/launch-electron-dev.mjs` (по умолчанию не открывается).
 
 ### Структура

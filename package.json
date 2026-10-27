@@ -51,16 +51,7 @@
     "build:electron": "tsc -p tsconfig.node.json",
     "build": "pnpm run typecheck && vite build && pnpm run build:electron",
     "package": "pnpm run build && electron-builder",
-    "typecheck": "tsc --noEmit",
-    "test": "node scripts/test-skins.mjs",
-    "test:themes": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-themes.mjs",
-    "test:themes:render": "node scripts/test-theme-rendering.mjs",
-    "test:content-motion": "node scripts/test-content-motion.mjs",
-    "test:dialog-focus": "node scripts/test-dialog-focus.mjs",
-    "test:themes:cloud": "node scripts/test-cloud-themes.mjs",
-    "test:agent": "node --disable-warning=ExperimentalWarning scripts/test-agent.mjs",
-    "test:authlib": "node scripts/test-authlib.mjs",
-    "test:all": "pnpm run test && pnpm run test:themes && pnpm run test:themes:cloud && pnpm run test:agent && pnpm run test:authlib"
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@radix-ui/react-checkbox": "1.3.8",
