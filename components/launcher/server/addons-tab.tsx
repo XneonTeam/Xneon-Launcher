@@ -1,4 +1,4 @@
-import { CONTENT_ENTER, CONTENT_ENTER_DELAYED } from "../content-motion"
+import { useContentEnter, CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useState, useEffect, useCallback, useRef, useMemo, useDeferredValue } from "react"
 import { useTranslation } from "react-i18next"
 import {
@@ -35,6 +35,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [loading, setLoading] = useState(true)
+  const contentEnter = useContentEnter(!loading)
   const [results, setResults] = useState<ModSearchResult[]>([])
   const [totalHits, setTotalHits] = useState(0)
   const [page, setPage] = useState(1)
@@ -291,7 +292,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
   }, [contentDir, server.id, loadInstalled])
 
   const openDetails = useCallback(async (project: ModSearchResult) => {
-    setModalTab("description")
+    setModalTab("changelog")
     setLoadingDetail(true)
     setSelectedDetails({
       id: project.id, slug: project.slug, name: project.name, summary: project.summary,
@@ -325,8 +326,8 @@ export function AddonsTab({ server }: AddonsTabProps) {
   if (!contentType) {
     return (
       <div data-ui="server-addons-tab-div-1" data-component="addons-tab" className={`flex flex-col items-center justify-center h-full gap-4 text-center ${CONTENT_ENTER_DELAYED}`}>
-        <div data-ui="server-addons-tab-div-2" className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center">
-          <IconPlug className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />
+        <div data-ui="server-addons-tab-div-2" className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl border border-primary/20 bg-primary/10 text-primary">
+          <IconPlug className="w-10 h-10" strokeWidth={1.75} aria-hidden="true" />
         </div>
         <div data-ui="server-addons-tab-div-3">
           <p data-ui="server-addons-tab-p-1" className="font-medium text-foreground">{t("servers.addons.noAddons")}</p>
@@ -429,7 +430,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
           )}
         </div>
 
-        <div data-ui="server-addons-tab-div-10" className={`flex-1 min-h-0 overflow-y-auto pr-1 mt-2 ${!loading ? CONTENT_ENTER : ""}`}>
+        <div data-ui="server-addons-tab-div-10" className={`flex-1 min-h-0 overflow-y-auto pr-1 mt-2 ${contentEnter ?? ""}`}>
           {results.length > 0 ? (
             <div data-ui="server-addons-tab-div-11" className="grid gap-2 pb-2">
               {deferredResults.map(project => (

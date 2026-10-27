@@ -17,7 +17,7 @@ export function InstanceExportModal({ buildName, current, total }: InstanceExpor
   return (
     // Тот же фон, что у оверлея импорта и обычных диалогов: `bg-background/78`
     // на тёмной теме превращал экран в чёрный.
-    <div data-ui="instance-instance-export-modal-div-1" data-component="instance-export-modal" className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+    <div data-ui="instance-instance-export-modal-div-1" data-component="instance-export-modal" className="launcher-modal-overlay fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
       <div data-ui="instance-instance-export-modal-div-2" className="w-full max-w-sm rounded-2xl border border-border bg-card shadow-2xl">
         <div data-ui="instance-instance-export-modal-div-3" className="border-b border-border px-5 py-4">
           <p data-ui="instance-instance-export-modal-p-1" className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">{t("instanceList.exportZip")}</p>

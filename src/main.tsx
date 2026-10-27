@@ -5,16 +5,14 @@ import '@fontsource/plus-jakarta-sans/500.css'
 import '@fontsource/plus-jakarta-sans/600.css'
 import '@fontsource/plus-jakarta-sans/700.css'
 import './index.css'
+import { prepareStartupReveal, dismissStartupSplash } from './startup-splash'
+
+prepareStartupReveal()
 
 const root = document.getElementById('root')!
 const rootEl = ReactDOM.createRoot(root)
 
-window.addEventListener('app:hydrated', () => {
-  const splash = document.getElementById('splash')
-  if (!splash) return
-  // Заставка уже видима во время инициализации main. Не задерживаем быстрый старт.
-  splash.remove()
-}, { once: true })
+window.addEventListener('app:hydrated', () => { void dismissStartupSplash() }, { once: true })
 
 // Стартовый модуль не загружает весь граф лаунчера синхронно: HTML со splash
 // успевает отрисоваться, пока загружаются приложение и сохранённая тема.

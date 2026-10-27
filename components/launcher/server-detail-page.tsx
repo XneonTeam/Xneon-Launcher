@@ -1,7 +1,7 @@
 import { CONTENT_ENTER_DELAYED } from "./content-motion"
 import { useState, useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
-import { IconArrowLeft, IconTerminal, IconSettings, IconPlayerPlay, IconPlayerStop, IconFolder, IconPuzzle, IconAdjustments, IconUsers, IconRefresh, IconDownload, IconCpu, IconDatabase, IconClock, IconNetwork, IconCopy, IconCheck, IconCamera, IconTrash, IconLoader2 } from "@tabler/icons-react"
+import { IconArrowLeft, IconTerminal, IconSettings, IconPlayerPlay, IconPlayerStop, IconFolder, IconPuzzle, IconAdjustments, IconUsers, IconRefresh, IconDownload, IconCpu, IconDatabase, IconClock, IconNetwork, IconWorld, IconLink, IconCheck, IconCamera, IconTrash, IconLoader2 } from "@tabler/icons-react"
 import { useMcServerState, useMcServerLogs, useMcServerMetrics, useMcServerDownloadProgress } from "@/src/hooks/use-mc-servers"
 import { cn } from "@/lib/utils"
 import { IconPickerModal } from "@/components/launcher/instance/icon-picker-modal"
@@ -207,7 +207,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
         onDecline={handleEulaDecline}
       />
       {/* Header */}
-      <div data-ui="server-detail-page-div-2" className={`flex items-start gap-4 pb-4 border-b border-border ${CONTENT_ENTER_DELAYED}`}>
+      <div data-ui="server-detail-page-div-2" className={`launcher-page-header mb-5 flex flex-wrap items-start gap-4 ${CONTENT_ENTER_DELAYED}`}>
         {/* Back button */}
         <button data-ui="server-detail-page-button-1"
           onClick={onBack}
@@ -235,9 +235,9 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
         <IconPickerModal open={showIconPicker} onOpenChange={setShowIconPicker} value={icon} onChange={handleIconChange} />
 
         {/* Info */}
-        <div data-ui="server-detail-page-div-4" className="flex-1 min-w-0">
+        <div data-ui="server-detail-page-div-4" className="min-w-0 flex-1 basis-40">
           <h1 data-ui="server-detail-page-h1-1" className="m-0 text-lg font-bold text-foreground truncate">{server.name}</h1>
-          <div data-ui="server-detail-page-div-5" className="flex items-center gap-3 mt-1.5">
+          <div data-ui="server-detail-page-div-5" className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <span data-ui="server-detail-page-span-1" className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-muted/60 text-xs text-muted-foreground">
               <LoaderIcon loaderId={server.modloader} className="w-3 h-3 flex-shrink-0" />
               {loaderName} {server.gameVersion}
@@ -282,6 +282,21 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
               </>
             )}
           </div>
+      {/* Адреса подключения внутри шапки сервера. */}
+      {addresses && (
+        <div data-ui="server-detail-page-div-11" className="mt-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
+          <AddressChip icon={IconNetwork} label={t("servers.address.local")} value={addresses.local} copied={copiedAddr === addresses.local} onCopy={handleCopyAddr} />
+          {addresses.public && (
+            <AddressChip icon={IconWorld} label={t("servers.address.public")} value={addresses.public} copied={copiedAddr === addresses.public} onCopy={handleCopyAddr} />
+          )}
+          {addresses.custom ? (
+            // Чип показываем только когда адрес XN Connect реально есть: если
+            // функция выключена у сервера, никакого «XNEON» в шапке быть не должно.
+            <AddressChip icon={IconLink} label="XN Connect" value={addresses.custom} copied={copiedAddr === addresses.custom} onCopy={handleCopyAddr} />
+          ) : null}
+        </div>
+      )}
+
         </div>
 
         {/* Actions */}
@@ -349,22 +364,6 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
               {t("servers.settings.xnconnect.subscribe")}
             </button>
           </div>
-        </div>
-      )}
-
-      {/* Addresses */}
-      {addresses && (
-        <div data-ui="server-detail-page-div-11" className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/10">
-          <IconNetwork className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-          <AddressChip label="LAN" value={addresses.local} copied={copiedAddr === addresses.local} onCopy={handleCopyAddr} />
-          {addresses.public && (
-            <AddressChip label="Public" value={addresses.public} copied={copiedAddr === addresses.public} onCopy={handleCopyAddr} />
-          )}
-          {addresses.custom ? (
-            // Чип показываем только когда адрес XN Connect реально есть: если
-            // функция выключена у сервера, никакого «XNEON» в шапке быть не должно.
-            <AddressChip label="Xneon" value={addresses.custom} copied={copiedAddr === addresses.custom} onCopy={handleCopyAddr} />
-          ) : null}
         </div>
       )}
 
@@ -457,21 +456,21 @@ function formatUptime(seconds: number): string {
   return `${s}s`
 }
 
-function AddressChip({ label, value, copied, onCopy }: { label: string; value: string; copied: boolean; onCopy: (addr: string) => void }) {
+function AddressChip({ icon: Icon, label, value, copied, onCopy }: { icon: React.ElementType; label: string; value: string; copied: boolean; onCopy: (addr: string) => void }) {
   const { t } = useTranslation()
   return (
     <button data-ui="server-detail-page-button-9" data-component="address-chip"
       onClick={() => onCopy(value)}
-      className="group flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50 hover:bg-muted border border-border/50 transition-colors cursor-pointer"
+      type="button"
+      className="group inline-flex h-5 min-w-0 max-w-full items-center gap-1.5 rounded-sm bg-transparent text-left text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       title={`${label}: ${value} — ${t("servers.clickToCopy")}`}
     >
-      <span data-ui="server-detail-page-span-12" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
-      <span data-ui="server-detail-page-span-13" className="text-[11px] font-mono text-foreground/80">{value}</span>
-      {copied ? (
-        <IconCheck className="w-3 h-3 text-success" />
-      ) : (
-        <IconCopy className="w-3 h-3 text-muted-foreground/0 group-hover:text-muted-foreground transition-colors" />
-      )}
+      {copied ? <IconCheck className="h-3 w-3 shrink-0 text-primary" aria-hidden="true" /> : <Icon className="h-3 w-3 shrink-0 text-primary" strokeWidth={1.6} aria-hidden="true" />}
+      <span className="min-w-0">
+      <span data-ui="server-detail-page-span-12" className="sr-only">{label}: </span>
+      <span data-ui="server-detail-page-span-13" className="block truncate font-mono text-[11px] font-normal leading-5">{value}</span>
+      </span>
+
     </button>
   )
 }

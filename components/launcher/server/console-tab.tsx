@@ -205,8 +205,8 @@ export function ConsoleTab({ serverId, serverName, logs, isRunning, command, onC
           type="button"
           onClick={(e) => { e.stopPropagation(); setAutoScroll(v => !v) }}
           className={cn(
-            "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors",
-            autoScroll ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground hover:text-foreground",
+            "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border text-[11px] font-medium transition-colors",
+            autoScroll ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
           )}
         >
           <IconArrowDown className="w-3 h-3" />{t("logs.autoScroll")}

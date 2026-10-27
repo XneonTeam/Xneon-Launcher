@@ -114,7 +114,7 @@ export function ServerTile({ server, state, onClick, onStart, onStop, onDelete, 
         <div data-ui="server-tile-div-7" className="px-3 py-2.5 bg-card border-t border-border/50">
           <p data-ui="server-tile-p-1" className="text-sm font-semibold text-foreground truncate leading-tight">{server.name}</p>
           <div data-ui="server-tile-div-8" className="flex items-center gap-1.5 mt-1">
-            <LoaderIcon loaderId={server.modloader} className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <LoaderIcon loaderId={server.modloader} className="w-4 h-4 text-primary flex-shrink-0" />
             <span data-ui="server-tile-span-1" className="text-[11px] text-muted-foreground truncate">{loaderName} · {server.gameVersion}</span>
           </div>
         </div>

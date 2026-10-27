@@ -1,7 +1,7 @@
-import { CONTENT_ENTER, CONTENT_ENTER_DELAYED } from "./content-motion"
+import { useContentEnter, CONTENT_ENTER_DELAYED } from "./content-motion"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IconRefresh, IconClock, IconDeviceGamepad2, IconHistory, IconChartBar, IconPackage, IconServer, IconLoader2 } from "@tabler/icons-react"
+import { IconRefresh, IconClock, IconDeviceGamepad2, IconHistory, IconChartBar, IconPackage, IconColorSwatch, IconServer, IconLoader2 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { formatPlaytime, formatDateTime } from "@/lib/format"
 import type { StatsOverview } from "@xnlc/types"
@@ -149,6 +149,7 @@ function RankingList({ entries, emptyKey, maxSeconds }: { entries: RankingEntry[
 export function StatsPage() {
   const { t } = useTranslation()
   const [stats, setStats] = useState<StatsOverview | null>(null)
+  const contentEnter = useContentEnter(stats !== null)
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<"builds" | "servers">("builds")
   const [range, setRange] = useState<StatsRange>(() => defaultRange())
@@ -200,7 +201,7 @@ export function StatsPage() {
 
   return (
     <div data-ui="stats-page-div-18" data-component="stats-page" id="stats-page" data-tab={activeTab} className="flex h-full min-h-0 flex-col">
-      <div data-ui="stats-page-div-19" className={`mb-5 flex items-center justify-between ${CONTENT_ENTER_DELAYED}`}>
+      <div data-ui="stats-page-div-19" className={`launcher-page-header mb-5 flex items-center justify-between ${CONTENT_ENTER_DELAYED}`}>
         <div data-ui="stats-page-div-20" className="flex items-center gap-3">
           <div data-ui="stats-page-div-21" className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
             <IconChartBar className="w-5 h-5 text-primary" />
@@ -222,7 +223,7 @@ export function StatsPage() {
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
               )}
             >
-              <IconPackage className="h-3.5 w-3.5" strokeWidth={1.75} />
+              <IconColorSwatch className="h-3.5 w-3.5" strokeWidth={1.75} />
               {t("stats.tabBuilds")}
             </button>
             <button data-ui="stats-page-button-3"
@@ -252,7 +253,7 @@ export function StatsPage() {
         </div>
       </div>
 
-      <div key={activeTab} data-ui="stats-page-div-25" className={cn("min-h-0 flex-1 overflow-y-auto pr-2", stats && CONTENT_ENTER)}>
+      <div key={activeTab} data-ui="stats-page-div-25" className={cn("min-h-0 flex-1 overflow-y-auto pr-2", contentEnter)}>
         {!stats ? (
           <div data-ui="stats-page-div-26" className="flex items-center justify-center py-24">
             <IconLoader2 className="h-6 w-6 text-primary animate-spin" strokeWidth={1.75} />

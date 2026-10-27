@@ -17,6 +17,7 @@ const localeMap: Record<string, () => Promise<Record<string, string>>> = {
   uk: () => import("./locales/uk/translation.json").then(m => m.default || m),
   de: () => import("./locales/de/translation.json").then(m => m.default || m),
   es: () => import("./locales/es/translation.json").then(m => m.default || m),
+  pl: () => import("./locales/pl/translation.json").then(m => m.default || m),
 }
 
 let initPromise: Promise<void> | null = null

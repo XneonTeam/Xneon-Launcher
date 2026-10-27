@@ -1,4 +1,4 @@
-import { CONTENT_ENTER, CONTENT_ENTER_DELAYED } from "../content-motion"
+import { useContentEnter, CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useTranslation } from "react-i18next"
 import { EmptyState } from "@/components/ui/empty-state"
 import { IconDownload, IconInfoCircle, IconLoader2, IconPackage, IconSearch, IconExternalLink } from "@tabler/icons-react"
@@ -67,6 +67,7 @@ export function InstanceFtb({
   onApplyCategories,
 }: InstanceFtbProps) {
   const { t } = useTranslation()
+  const contentEnter = useContentEnter(!ftbLoading)
   const sortLabels = getSortLabels(t)
 
   return (
@@ -134,7 +135,7 @@ export function InstanceFtb({
         </Select>
       </div>
 
-      <div data-ui="instance-instance-ftb-div-4" className={`flex-1 overflow-y-auto overflow-x-hidden ${!ftbLoading ? CONTENT_ENTER : ""}`}>
+      <div data-ui="instance-instance-ftb-div-4" className={`flex-1 overflow-y-auto overflow-x-hidden ${contentEnter ?? ""}`}>
         {ftbLoading ? (
           <Spinner />
         ) : ftbResults.length === 0 ? (

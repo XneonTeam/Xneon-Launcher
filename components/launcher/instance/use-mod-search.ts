@@ -311,7 +311,7 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
   const [detailsKind, setDetailsKind] = useState<ProjectKind>("mod")
   const openProjectModal = useCallback(async (item: ModSearchResult, kind: ProjectKind = "mod") => {
     setDetailsKind(kind)
-    setModalTab("description"); setLoadingModal(true)
+    setModalTab("changelog"); setLoadingModal(true)
     setSelectedDetails({
       id: item.id, slug: item.slug, name: item.name, summary: item.summary,
       description: item.summary, iconUrl: item.iconUrl, downloadCount: item.downloadCount,

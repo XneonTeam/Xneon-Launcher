@@ -7,11 +7,11 @@ export function EmptySkinsState() {
   return (
     <div data-ui="skins-empty-skins-state-div-1" data-component="empty-skins-state" className="flex-1 flex flex-col items-center justify-center gap-6 text-center px-4">
       <div data-ui="skins-empty-skins-state-div-2" className="relative">
-        <div data-ui="skins-empty-skins-state-div-3" className="w-28 h-28 rounded-3xl bg-gradient-to-br from-muted/40 to-muted/10 border border-border/50 flex items-center justify-center">
-          <IconShirt className="w-12 h-12 text-muted-foreground/25" strokeWidth={1} />
+        <div data-ui="skins-empty-skins-state-div-3" className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl border border-primary/20 bg-primary/10 text-primary">
+          <IconShirt className="w-10 h-10" strokeWidth={1.75} aria-hidden="true" />
         </div>
-        <div data-ui="skins-empty-skins-state-div-4" className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-xl bg-card border border-border flex items-center justify-center shadow-sm">
-          <IconAlertCircle className="w-4 h-4 text-muted-foreground/50" />
+        <div data-ui="skins-empty-skins-state-div-4" className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-xl bg-card border border-primary/20 flex items-center justify-center shadow-sm">
+          <IconAlertCircle className="w-4 h-4 text-primary" strokeWidth={1.75} aria-hidden="true" />
         </div>
       </div>
       <div data-ui="skins-empty-skins-state-div-5" className="space-y-2">

@@ -17,6 +17,7 @@ import {
   IconCoffee,
 } from "@tabler/icons-react"
 import { ModalLayer } from "@/components/ui/modal-layer"
+import { ActionConfirmDialog } from "@/components/launcher/instance/action-confirm-dialog"
 import type { Account } from "@/src/AccountsContext"
 import type {
   AuthlibInjectorErrorPayload,
@@ -61,6 +62,7 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
   const [probeResult, setProbeResult] = useState<AuthlibInjectorServer | null>(null)
   const [probeError, setProbeError] = useState("")
   const [addingServer, setAddingServer] = useState(false)
+  const [pendingServerRemoval, setPendingServerRemoval] = useState<{ id: string; linkedCount: number } | null>(null)
 
   // Login progress: main присылает фазы (метаданные → вход → профили).
   const [loginPhase, setLoginPhase] = useState<AuthlibLoginPhase | null>(null)
@@ -266,17 +268,18 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
   const handleRemoveServer = async (serverId: string, e: React.MouseEvent) => {
     e.stopPropagation()
     try {
-      // Сервер удаляется вместе с привязкой аккаунтов — предупреждаем заранее.
       const accounts = await window.electronAPI?.loadAccounts() ?? []
       const linked = accounts.filter((a) => a.type === "authlib-injector" && a.serverId === serverId)
-      if (linked.length > 0) {
-        const confirmText = t("accounts.authlibRemoveServerConfirm", {
-          count: linked.length,
-          defaultValue: "Будут затронуты аккаунты: {{count}}. Сервер будет удалён. Продолжить?",
-        })
-        if (!window.confirm(confirmText)) return
-      }
+      setPendingServerRemoval({ id: serverId, linkedCount: linked.length })
+    } catch (err) {
+      console.error("Failed to prepare server removal:", err)
+    }
+  }
 
+  const confirmRemoveServer = async () => {
+    if (!pendingServerRemoval) return
+    const serverId = pendingServerRemoval.id
+    try {
       const result = await window.electronAPI?.authlibRemoveServer(serverId)
       const removed = result?.removedAccounts ?? 0
       await loadServers()
@@ -292,6 +295,8 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
       }
     } catch (err) {
       console.error("Failed to remove server:", err)
+    } finally {
+      setPendingServerRemoval(null)
     }
   }
 
@@ -796,6 +801,19 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
           </div>
         )}
       </div>
+      <ActionConfirmDialog
+        open={pendingServerRemoval !== null}
+        onClose={() => setPendingServerRemoval(null)}
+        onConfirm={() => void confirmRemoveServer()}
+        title={t("accounts.removeServer", "Удалить сервер")}
+        description={pendingServerRemoval?.linkedCount
+          ? t("accounts.authlibRemoveServerConfirm", { count: pendingServerRemoval.linkedCount, defaultValue: "Будут затронуты аккаунты: {{count}}. Сервер будет удалён. Продолжить?" })
+          : t("accounts.authlibRemoveServerConfirm", { count: 0, defaultValue: "Сервер будет удалён. Продолжить?" })}
+        confirmText={t("common.delete", "Удалить")}
+        cancelText={t("common.cancel", "Отмена")}
+        variant="danger"
+        icon="warning"
+      />
     </ModalLayer>
   )
 }

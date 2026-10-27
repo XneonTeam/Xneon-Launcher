@@ -21,7 +21,7 @@ const EMPTY_STATE_ICONS = {
   trash: IconTrash,
 } as const
 
-/** Пустое состояние: иконка Tabler в круге + текст. */
+/** Пустое состояние: акцентная иконка на подложке и текст. */
 export function EmptyState({
   title,
   description,
@@ -35,11 +35,9 @@ export function EmptyState({
 
   return (
     <div data-ui="ui-empty-state-div-1" className={cn("flex flex-col items-center justify-center text-center", compact ? "gap-1" : "gap-1.5", className)}>
-      <Icon
-        aria-hidden="true"
-        strokeWidth={1.5}
-        className={cn("shrink-0 text-muted-foreground/60", compact ? "h-7 w-7" : "h-12 w-12")}
-      />
+      <div className={cn("flex shrink-0 items-center justify-center border border-primary/20 bg-primary/10 text-primary", compact ? "mb-2 h-12 w-12 rounded-2xl" : "mb-2.5 h-20 w-20 rounded-3xl")}>
+        <Icon aria-hidden="true" strokeWidth={1.75} className={compact ? "h-6 w-6" : "h-10 w-10"} />
+      </div>
       <p data-ui="ui-empty-state-p-1" className={cn("font-medium text-muted-foreground", compact ? "text-xs" : "text-sm")}>{title}</p>
       {description ? (
         <p data-ui="ui-empty-state-p-2" className="max-w-[280px] text-xs leading-relaxed text-muted-foreground/70">{description}</p>

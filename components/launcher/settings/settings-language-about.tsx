@@ -1,7 +1,8 @@
+import { SettingsSwitch } from "./settings-switch"
 import { SETTINGS_CONTENT_ENTER_DELAYED } from "./settings-motion"
 import { cn } from "@/lib/utils"
 import { APP_NAME, APP_VERSION } from "@/lib/app-meta"
-import { IconCheck, IconBrandGithub, IconBrandDiscord, IconDeviceGamepad2, IconInfoCircle, IconLanguage, IconRotate } from "@tabler/icons-react"
+import { IconCheck, IconBrandGithub, IconBrandDiscord, IconDeviceGamepad2, IconInfoCircle, IconLanguage, IconRotate, IconAdjustments, IconMessages } from "@tabler/icons-react"
 import type { Language } from "./types"
 
 const FLAG_RU = (
@@ -73,12 +74,21 @@ const FLAG_ES = (
   </svg>
 )
 
+const FLAG_PL = (
+  <svg data-icon="settings-language-flag-pl" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-8 h-8" aria-hidden="true">
+    <rect x="1" y="4" width="30" height="24" rx="4" fill="#fff" />
+    <path d="M1 16h30v8a4 4 0 0 1-4 4H5a4 4 0 0 1-4-4Z" fill="#dc143c" />
+    <rect x="1" y="4" width="30" height="24" rx="4" fill="none" stroke="#000" strokeOpacity=".15" />
+  </svg>
+)
+
 export const languages: Language[] = [
   { id: "ru", name: "Russian", nativeName: "Русский", flagSvg: FLAG_RU },
   { id: "en", name: "English", nativeName: "English", flagSvg: FLAG_EN },
   { id: "uk", name: "Ukrainian", nativeName: "Українська", flagSvg: FLAG_UK },
   { id: "de", name: "German", nativeName: "Deutsch", flagSvg: FLAG_DE },
   { id: "es", name: "Spanish", nativeName: "Español", flagSvg: FLAG_ES },
+  { id: "pl", name: "Polish", nativeName: "Polski", flagSvg: FLAG_PL },
 ]
 
 /**
@@ -93,6 +103,7 @@ const MC_CODES: Record<string, { modern: string; legacy: string }> = {
   uk: { modern: "uk_ua", legacy: "uk_UA" },
   de: { modern: "de_de", legacy: "de_DE" },
   es: { modern: "es_es", legacy: "es_ES" },
+  pl: { modern: "pl_pl", legacy: "pl_PL" },
 }
 
 interface SettingsLanguageProps {
@@ -107,7 +118,7 @@ export function SettingsLanguage({ selectedLanguage, setSelectedLanguage, autoGa
   const mcCodes = MC_CODES[selectedLanguage] ?? MC_CODES.en
   return (
     <div data-ui="settings-settings-language-about-div-1" data-component="settings-language" className={`space-y-8 ${SETTINGS_CONTENT_ENTER_DELAYED}`}>
-      <section data-ui="settings-settings-language-about-section-1" className="space-y-4">
+      <section data-ui="settings-settings-language-about-section-1" data-settings-tone="blue" className="settings-color-panel space-y-4">
         <h3 data-ui="settings-settings-language-about-h3-1" className="text-lg font-medium text-foreground flex items-center gap-2">
           <IconLanguage className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("settings.language.select")}
@@ -116,6 +127,7 @@ export function SettingsLanguage({ selectedLanguage, setSelectedLanguage, autoGa
           {languages.map((lang) => (
             <button data-ui="settings-settings-language-about-button-1"
               key={lang.id}
+              aria-pressed={selectedLanguage === lang.id}
               onClick={() => setSelectedLanguage(lang.id)}
               className={cn(
                 "flex items-center gap-4 p-4 rounded-xl border transition-all duration-200 text-left",
@@ -139,7 +151,7 @@ export function SettingsLanguage({ selectedLanguage, setSelectedLanguage, autoGa
         </div>
       </section>
 
-      <section data-ui="settings-settings-language-about-section-2" className="space-y-4">
+      <section data-ui="settings-settings-language-about-section-2" data-settings-tone="violet" className="settings-color-panel space-y-4">
         <h3 data-ui="settings-settings-language-about-h3-2" className="text-lg font-medium text-foreground flex items-center gap-2">
           <IconDeviceGamepad2 className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("settings.gameLanguage.title")}
@@ -152,23 +164,7 @@ export function SettingsLanguage({ selectedLanguage, setSelectedLanguage, autoGa
                 {t("settings.gameLanguage.desc", { code: mcCodes.modern })}
               </p>
             </div>
-            <button data-ui="settings-settings-language-about-button-2"
-              type="button"
-              role="switch"
-              aria-checked={autoGameLanguage}
-              onClick={() => setAutoGameLanguage(!autoGameLanguage)}
-              className={cn(
-                "relative w-14 h-8 rounded-full transition-all duration-300 shrink-0",
-                autoGameLanguage ? "bg-primary shadow-[0_0_15px_var(--glow-primary)]" : "bg-muted"
-              )}
-            >
-              <span data-ui="settings-settings-language-about-span-1"
-                className={cn(
-                  "absolute top-1 w-6 h-6 rounded-full bg-foreground shadow-md transition-all duration-300",
-                  autoGameLanguage ? "left-7" : "left-1"
-                )}
-              />
-            </button>
+            <SettingsSwitch checked={autoGameLanguage} onCheckedChange={setAutoGameLanguage} label={t("settings.gameLanguage.label")} />
           </div>
           <p data-ui="settings-settings-language-about-p-2" className="text-xs text-muted-foreground mt-3">
             {t("settings.gameLanguage.note", { legacyCode: mcCodes.legacy })}
@@ -196,10 +192,10 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
         <p data-ui="settings-settings-language-about-p-3" className="text-muted-foreground">{t("settings.about.version", { version: APP_VERSION })}</p>
       </section>
       <section data-ui="settings-settings-language-about-section-4" className="space-y-4">
-        <h3 data-ui="settings-settings-language-about-h3-4" className="text-lg font-medium text-foreground">{t("settings.about.social")}</h3>
+        <h3 data-ui="settings-settings-language-about-h3-4" className="flex items-center gap-2 text-lg font-medium text-foreground"><IconMessages className="h-5 w-5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("settings.about.social")}</h3>
         <div data-ui="settings-settings-language-about-div-14" className="grid grid-cols-2 gap-4">
-          <a data-ui="settings-settings-language-about-a-1" href="https://github.com/XneonTeam/Xneon-Launcher" target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary hover:bg-primary/5 transition-all duration-200 group"
+          <a data-ui="settings-settings-language-about-a-1" data-settings-tone="primary" href="https://github.com/XneonTeam/Xneon-Launcher" target="_blank" rel="noopener noreferrer"
+            className="settings-color-panel flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary hover:bg-primary/5 transition-all duration-200 group"
           >
             <div data-ui="settings-settings-language-about-div-15" className="w-12 h-12 rounded-xl bg-foreground/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
               <IconBrandGithub className="w-6 h-6 text-foreground" strokeWidth={1.5} />
@@ -209,8 +205,8 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
               <div data-ui="settings-settings-language-about-div-18" className="text-sm text-muted-foreground">{t("settings.about.source")}</div>
             </div>
           </a>
-          <a data-ui="settings-settings-language-about-a-2" href="https://discord.gg/a9mDjtqcbQ" target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-accent hover:bg-accent/5 transition-all duration-200 group"
+          <a data-ui="settings-settings-language-about-a-2" data-settings-tone="violet" href="https://discord.gg/a9mDjtqcbQ" target="_blank" rel="noopener noreferrer"
+            className="settings-color-panel flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-accent hover:bg-accent/5 transition-all duration-200 group"
           >
             <div data-ui="settings-settings-language-about-div-19" className="w-12 h-12 rounded-xl bg-foreground/10 flex items-center justify-center group-hover:bg-accent/20 transition-colors">
               <IconBrandDiscord className="w-6 h-6 text-foreground" strokeWidth={1.5} />
@@ -227,7 +223,7 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
           <IconInfoCircle className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("settings.about.info")}
         </h3>
-        <div data-ui="settings-settings-language-about-div-23" className="p-4 rounded-xl border border-border bg-muted/30 space-y-2">
+        <div data-ui="settings-settings-language-about-div-23" data-settings-tone="blue" className="settings-color-panel p-4 rounded-xl border border-border bg-muted/30 space-y-2">
           <div data-ui="settings-settings-language-about-div-24" className="flex justify-between items-center">
             <span data-ui="settings-settings-language-about-span-2" className="text-muted-foreground">{t("settings.about.developer")}</span>
             <span data-ui="settings-settings-language-about-span-3" className="text-foreground flex items-center gap-2">
@@ -242,10 +238,10 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
         </div>
       </section>
       <section data-ui="settings-settings-language-about-section-6" className="space-y-4">
-        <h3 data-ui="settings-settings-language-about-h3-6" className="text-lg font-medium text-foreground">{t("settings.about.onboarding.title")}</h3>
-        <div data-ui="settings-settings-language-about-div-26" className="p-4 rounded-xl border border-border bg-muted/30 flex items-center justify-between gap-4">
+        <h3 data-ui="settings-settings-language-about-h3-6" className="flex items-center gap-2 text-lg font-medium text-foreground"><IconAdjustments className="h-5 w-5 shrink-0 text-primary" strokeWidth={1.7} aria-hidden="true" />{t("settings.about.onboarding.title")}</h3>
+        <div data-ui="settings-settings-language-about-div-26" data-settings-tone="amber" className="settings-color-panel p-4 rounded-xl border border-border bg-muted/30 flex items-center justify-between gap-4">
           <div data-ui="settings-settings-language-about-div-27">
-            <div data-ui="settings-settings-language-about-div-28" className="font-medium text-foreground">{t("settings.about.onboarding.reset")}</div>
+            <div data-ui="settings-settings-language-about-div-28" className="flex items-center gap-2 font-medium text-foreground"><IconRotate className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.7} aria-hidden="true" />{t("settings.about.onboarding.reset")}</div>
             <p data-ui="settings-settings-language-about-p-4" className="text-sm text-muted-foreground mt-1">
               {t("settings.about.onboarding.description")}
             </p>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
+import labyLogo from "@/assets/laby/logo.svg"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { formatUseCount } from "@xnlc/skins"
@@ -22,7 +23,7 @@ interface CatalogFiltersDialogProps {
   filters: CatalogFilters
   tags: LabyTag[]
   tagsLoading: boolean
-  /** Поиск идёт по загруженному пулу — предупреждаем, что он не серверный. */
+  /** Фильтрация применяется к загруженному каталогу. */
   localFiltering: boolean
   onApply: (filters: CatalogFilters) => void
 }
@@ -34,7 +35,7 @@ function FilterGroup({
   onToggle,
   children,
 }: {
-  title: string
+  title: React.ReactNode
   count: number
   collapsed: boolean
   onToggle: () => void
@@ -52,7 +53,7 @@ function FilterGroup({
         ) : (
           <IconChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         )}
-        <span data-ui="laby-catalog-filters-dialog-span-1" className="min-w-0 flex-1 text-left truncate">{title}</span>
+        <span data-ui="laby-catalog-filters-dialog-span-1" className="flex min-w-0 flex-1 items-center text-left truncate">{title}</span>
         <span data-ui="laby-catalog-filters-dialog-span-2" className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-normal text-muted-foreground">
           {count}
         </span>
@@ -73,7 +74,7 @@ function FilterGroup({
  * (проверено запросами), поэтому фильтр применяется к загруженному пулу и об
  * этом честно написано в подсказке.
  */
-export function CatalogFiltersDialog({ filters, tags, tagsLoading, localFiltering, onApply }: CatalogFiltersDialogProps) {
+export function CatalogFiltersDialog({ filters, tags, tagsLoading, onApply }: CatalogFiltersDialogProps) {
   const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<CatalogFilters>(filters)
@@ -125,7 +126,7 @@ export function CatalogFiltersDialog({ filters, tags, tagsLoading, localFilterin
         </DialogHeader>
 
         <div data-ui="laby-catalog-filters-dialog-div-2" data-component="catalog-filters-dialog" className="relative">
-          <IconSearch className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/50" />
+          <IconSearch aria-hidden="true" className="pointer-events-none absolute z-10 left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input data-ui="laby-catalog-filters-dialog-input-1"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -136,17 +137,8 @@ export function CatalogFiltersDialog({ filters, tags, tagsLoading, localFilterin
         </div>
 
         <div data-ui="laby-catalog-filters-dialog-div-3" data-component="catalog-filters-dialog" className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
-          {localFiltering && (
-            <p data-ui="laby-catalog-filters-dialog-p-1" className="rounded-lg bg-muted/40 px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
-              {t(
-                "laby.localFilteringHint",
-                "Laby не умеет фильтровать по тегу на сервере, поэтому фильтр работает по уже загруженному каталогу.",
-              )}
-            </p>
-          )}
-
           <FilterGroup
-            title={t("laby.groupTags", "Теги Laby")}
+            title={<span className="flex items-center gap-1.5"><span aria-hidden="true" className="block h-4 w-4 shrink-0 translate-y-px bg-primary" style={{ mask: `url(${labyLogo}) center / contain no-repeat`, WebkitMask: `url(${labyLogo}) center / contain no-repeat` }} />{t("laby.groupTags", "Теги Laby")}</span>}
             count={tags.length}
             collapsed={collapsed.has("tags")}
             onToggle={() => toggleGroup("tags")}
@@ -161,9 +153,6 @@ export function CatalogFiltersDialog({ filters, tags, tagsLoading, localFilterin
                   Теги можно отмечать пачкой: сервер их не фильтрует, выбор
                   считается локально, поэтому ограничения на количество нет.
                 */}
-                <p data-ui="laby-catalog-filters-dialog-p-4" className="mx-2 mb-1 rounded-lg bg-muted/40 px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
-                  {t("laby.multiTagHint", "Можно выбрать несколько тегов: подойдёт скин с любым из них")}
-                </p>
                 <label data-ui="laby-catalog-filters-dialog-label-1" className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50">
                   <Checkbox
                     checked={draft.tags.length === 0}

@@ -335,7 +335,7 @@ const LogRow = memo(function LogRow({ entry, label }: { entry: LogEntry; label: 
 // --- LogsPage ---
 
 export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | null } = {}) {
-  const { logs, clearLogs, isRunning } = useLaunchLogs()
+  const { logs, clearLogs } = useLaunchLogs()
   const [copied, setCopied] = useState(false)
   const [shareState, setShareState] = useState<"idle" | "loading" | "done" | "error">("idle")
   const [shareUrl, setShareUrl] = useState<string>("")
@@ -442,9 +442,9 @@ export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | n
   )
 
   return (
-    <div data-ui="logs-page-div-2" data-component="logs-page" id="logs-page" data-filter={filter} className={`w-full h-full min-h-0 flex flex-col gap-4 ${CONTENT_ENTER_DELAYED}`}>
+    <div data-ui="logs-page-div-2" data-component="logs-page" id="logs-page" data-filter={filter} className="w-full h-full min-h-0 flex flex-col gap-4">
       {/* Header */}
-      <div data-ui="logs-page-div-3" className="flex items-center justify-between gap-4 flex-wrap flex-shrink-0">
+      <div data-ui="logs-page-div-3" className={`launcher-page-header flex items-center justify-between gap-4 flex-wrap flex-shrink-0 ${CONTENT_ENTER_DELAYED}`}>
         <div data-ui="logs-page-div-4" className="flex items-center gap-3">
           <div data-ui="logs-page-div-5" className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
             <IconFileText className="w-5 h-5 text-primary" />
@@ -484,11 +484,11 @@ export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | n
 
       {/* Filters + Search */}
       <div data-ui="logs-page-div-8" className="flex items-center gap-3 flex-wrap flex-shrink-0">
-        <div data-ui="logs-page-div-9" className="flex gap-0.5 p-1 rounded-xl bg-muted/30 border border-border/50 flex-shrink-0">
+        <div data-ui="logs-page-div-9" className="flex gap-0.5 p-1 rounded-xl bg-muted border border-border flex-shrink-0">
           {FILTER_DEFS.map(({ id, icon: Icon }) => (
             <button data-ui="logs-page-button-5" key={id} type="button" onClick={() => setFilter(id)}
               className={cn("flex items-center justify-center gap-1.5 px-3 py-1 rounded-lg text-[13px] font-medium transition-all duration-200",
-                filter === id ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80")}>
+                filter === id ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
               <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />
               {id === "all" ? t("logs.all") : levelLabels[id as LogLevel]}
               {id !== "all" && <span data-ui="logs-page-span-14" className="opacity-60">{levelCounts[id]}</span>}
@@ -499,24 +499,19 @@ export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | n
         <div data-ui="logs-page-div-10" className="relative flex-1 min-w-[180px]">
           <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <input data-ui="logs-page-input-1" data-slot="logs-search" type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={t("logs.search")}
-            className="w-full pl-9 pr-4 py-2 rounded-xl bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary" />
-        </div>
-
-        <div data-ui="logs-page-div-11" className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-muted/50 text-xs text-muted-foreground flex-shrink-0">
-          {isRunning && <span data-ui="logs-page-span-15" className="w-1.5 h-1.5 rounded-full bg-success animate-pulse inline-block" />}
-          {isRunning ? t("logs.running", { count: logs.length }) : t("logs.entries", { count: logs.length })}
+            className="w-full pl-9 pr-4 py-2 rounded-xl bg-input border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary" />
         </div>
 
         <button data-ui="logs-page-button-6" type="button" onClick={() => setAutoScroll(v => !v)}
-          className={cn("flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors flex-shrink-0",
-            autoScroll ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground hover:text-foreground")}>
+          className={cn("flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-xs font-medium transition-colors flex-shrink-0",
+            autoScroll ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted hover:text-foreground")}>
           <IconArrowDown className="w-3.5 h-3.5" />{t("logs.autoScroll")}
         </button>
       </div>
 
       {/* Log area */}
       <div data-ui="logs-page-div-12" data-slot="logs-output" ref={containerRef} onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-y-auto bg-background font-mono text-[12px] leading-5 rounded-2xl border border-border">
+        className={`flex-1 min-h-0 overflow-y-auto bg-background font-mono text-[12px] leading-5 rounded-2xl border border-border ${CONTENT_ENTER_DELAYED}`}>
         {filtered.length === 0 ? (
           <div data-ui="logs-page-div-13" className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
             <IconFileText className="w-10 h-10 mb-3 opacity-30" /><p data-ui="logs-page-p-2" className="text-sm">{t("logs.empty")}</p>

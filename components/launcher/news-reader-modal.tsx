@@ -5,6 +5,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } fr
 import { formatDate, type NewsEntry } from "@/lib/home-page-shared"
 import { normalizeNewsArticleUrl } from "@/lib/news-url"
 import type { ElectronWebviewElement } from "@/src/webview"
+import { getAppliedReaderCss, splitThemeCssPrelude } from "./settings/theme-model"
 
 /**
  * Читалка новостей: статья открывается модалом прямо в окне лаунчера (`<webview>`),
@@ -95,6 +96,12 @@ function buildReaderCss() {
 `
 }
 
+/** Одна таблица гостя: импорт ресурсов, базовая палитра, затем правила автора. */
+export function buildThemeReaderCss() {
+  const reader = splitThemeCssPrelude(getAppliedReaderCss())
+  return `${reader.prelude}\n${buildReaderCss()}\n${reader.body}`
+}
+
 interface NewsReaderModalProps {
   /** Новость для чтения; `null` — модал закрыт. */
   entry: NewsEntry | null
@@ -161,7 +168,7 @@ export function NewsReaderModal({ entry, onClose }: NewsReaderModalProps) {
     // загрузки основного фрейма впрыскиваем их заново.
     const applyOverrides = () => {
       if (injectedKey === null) {
-        void el.insertCSS(buildReaderCss()).then((key) => { injectedKey = key }).catch(() => {})
+        void el.insertCSS(buildThemeReaderCss()).then((key) => { injectedKey = key }).catch(() => {})
       }
       if (!linksApplied) {
         linksApplied = true

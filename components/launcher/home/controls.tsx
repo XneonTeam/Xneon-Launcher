@@ -358,14 +358,14 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, available, onQui
   const visibleServers = entries.slice(pageStart, pageStart + QUICK_PLAY_PER_PAGE)
 
   return (
-    <div data-ui="home-controls-div-9" data-component="quick-play-section" className="flex flex-col gap-3">
+    <div data-ui="home-controls-div-9" data-component="quick-play-section" className="flex flex-col gap-3 rounded-xl bg-card p-3 text-card-foreground">
         <div data-ui="home-controls-div-11" className="flex flex-col gap-2">
           {/* Один заголовок на всю быструю игру: и мир, и сервер запускаются
               через --quickPlay*, поэтому подпись не должна висеть только на
               списке серверов. */}
           <div data-ui="home-controls-div-12" className="flex items-center gap-1.5 px-1">
             <IconBolt className="w-3.5 h-3.5 text-primary" />
-            <span data-ui="home-controls-span-16" className="flex-1 text-xs font-medium text-muted-foreground">{t("home.quickPlay")}</span>
+            <span data-ui="home-controls-span-16" className="flex-1 text-xs font-medium text-foreground">{t("home.quickPlay")}</span>
             {available && activeTab === "servers" && (
               <button data-ui="home-controls-button-1"
                 type="button"
@@ -384,13 +384,14 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, available, onQui
               иначе при одном мире и без серверов вкладок не было вообще, а
               вместо них висела одна подпись. */}
           <div data-ui="home-controls-div-13" className="flex items-center gap-1.5 px-1">
-            <div data-ui="home-controls-div-14" className="flex items-center gap-0.5 rounded-lg border border-border bg-muted/30 p-0.5">
+            <div data-ui="home-controls-div-14" className="flex items-center gap-0.5 rounded-lg border border-border bg-muted p-0.5">
               <button data-ui="home-controls-button-2"
                 type="button"
+                aria-pressed={activeTab === "servers"}
                 onClick={() => { setTab("servers"); setPage(0) }}
                 className={cn(
                   "flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors",
-                  activeTab === "servers" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground",
+                  activeTab === "servers" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
                 <IconServer className="h-3.5 w-3.5" strokeWidth={1.75} />
@@ -398,10 +399,11 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, available, onQui
               </button>
               <button data-ui="home-controls-button-3"
                 type="button"
+                aria-pressed={activeTab === "worlds"}
                 onClick={() => { setTab("worlds"); setPage(0) }}
                 className={cn(
                   "flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors",
-                  activeTab === "worlds" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground",
+                  activeTab === "worlds" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
                 <IconMap className="h-3.5 w-3.5" strokeWidth={1.75} />

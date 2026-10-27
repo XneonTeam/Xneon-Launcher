@@ -1,4 +1,4 @@
-import { CONTENT_ENTER } from "../content-motion"
+import { useContentEnter } from "../content-motion"
 import { useTranslation } from "react-i18next"
 import { EmptyState } from "@/components/ui/empty-state"
 import { IconDownload, IconInfoCircle, IconLoader2, IconExternalLink } from "@tabler/icons-react"
@@ -62,6 +62,7 @@ export function InstanceCurseForge({
   onApplyCategories,
 }: InstanceCurseForgeProps) {
   const { t } = useTranslation()
+  const contentEnter = useContentEnter(!cfLoading)
 
   return (
     <div data-ui="instance-instance-curseforge-div-1" data-component="instance-curse-forge" className="flex-1 min-h-0 flex flex-col">
@@ -83,7 +84,7 @@ export function InstanceCurseForge({
         onApplyCategories={onApplyCategories}
       />
 
-      <div data-ui="instance-instance-curseforge-div-2" className={`flex-1 overflow-y-auto overflow-x-hidden ${!cfLoading ? CONTENT_ENTER : ""}`}>
+      <div data-ui="instance-instance-curseforge-div-2" className={`flex-1 overflow-y-auto overflow-x-hidden ${contentEnter ?? ""}`}>
         {cfLoading ? (
           <Spinner />
         ) : cfResults.length === 0 ? (

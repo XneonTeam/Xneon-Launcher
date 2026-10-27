@@ -7,6 +7,7 @@ import { IconCamera, IconChevronLeft, IconChevronRight, IconFolderOpen, IconLoad
 import type { Build, ScreenshotInfo } from "./types"
 import { useAlertDialog } from "@/lib/use-alert-dialog"
 import { ModalLayer } from "@/components/ui/modal-layer"
+import { ZoomableImage } from "../zoomable-image"
 
 interface InstanceScreenshotsTabProps {
   build: Build
@@ -228,7 +229,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
             </div>
           </div>
 
-          <div data-ui="instance-instance-screenshots-tab-div-24" className="relative flex flex-1 items-center justify-center overflow-hidden px-4 pb-4">
+          <div data-ui="instance-instance-screenshots-tab-div-24" className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 pb-4">
             {shots[viewIndex - 1] && (
               <button data-ui="instance-instance-screenshots-tab-button-9"
                 type="button"
@@ -238,15 +239,11 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
                 <IconChevronLeft className="h-6 w-6" strokeWidth={1.75} />
               </button>
             )}
-            <div data-ui="instance-instance-screenshots-tab-div-25" className="flex h-full max-w-full items-center justify-center">
+            <div data-ui="instance-instance-screenshots-tab-div-25" className="flex h-full w-full min-h-0 items-center justify-center">
               {loadingFull || !fullImage ? (
                 <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
               ) : (
-                <img data-ui="instance-instance-screenshots-tab-img-2"
-                  src={fullImage}
-                  alt={shots[viewIndex]?.name ?? ""}
-                  className="max-h-full max-w-full rounded-xl object-contain shadow-2xl animate-in zoom-in-95"
-                />
+                <ZoomableImage key={shots[viewIndex]?.path} src={fullImage} alt={shots[viewIndex]?.name ?? ""} />
               )}
             </div>
             {shots[viewIndex + 1] && (

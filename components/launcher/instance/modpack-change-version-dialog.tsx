@@ -1,3 +1,5 @@
+import { ImportProgressPanel } from "./import-progress-panel"
+import { mergeImportProgress } from "./import-progress-model"
 import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
@@ -88,7 +90,7 @@ export function ModpackChangeVersionDialog({
       return
     }
     const off = window.electronAPI?.onImportProgress?.((progress) => {
-      setImportProgress(progress)
+      setImportProgress(previous => mergeImportProgress(previous, progress))
     })
     return () => {
       off?.()
@@ -307,28 +309,8 @@ export function ModpackChangeVersionDialog({
         </div>
 
         {applying && (
-          <div data-ui="instance-modpack-change-version-dialog-div-15" className="px-4 py-4 border-t border-border bg-muted/5 space-y-2 shrink-0">
-            <div data-ui="instance-modpack-change-version-dialog-div-16" className="flex items-center gap-3">
-              <div data-ui="instance-modpack-change-version-dialog-div-17" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
-                <IconDownload className="w-4 h-4 animate-pulse" />
-              </div>
-              <div data-ui="instance-modpack-change-version-dialog-div-18" className="min-w-0 flex-1">
-                <p data-ui="instance-modpack-change-version-dialog-p-1" className="truncate text-sm font-medium text-foreground">
-                  {importProgress?.message || applyProgress || t("modpackVersion.updating")}
-                </p>
-                <p data-ui="instance-modpack-change-version-dialog-p-2" className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {applyingVersionLabel ? t("modpackVersion.installingVersion", { version: applyingVersionLabel }) : t("import.loadingFiles")}
-                </p>
-              </div>
-              <span data-ui="instance-modpack-change-version-dialog-span-7" className="shrink-0 text-sm font-semibold text-foreground">{progressPercent}%</span>
-            </div>
-
-            <div data-ui="instance-modpack-change-version-dialog-div-19" className="h-1.5 overflow-hidden rounded-full bg-muted">
-              <div data-ui="instance-modpack-change-version-dialog-div-20"
-                className="h-full rounded-full bg-primary transition-[width] duration-300"
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
+          <div className="shrink-0 border-t border-border px-4 py-4">
+            <ImportProgressPanel progress={{ ...(importProgress ?? { current: 0, total: 100, message: applyProgress || t("modpackVersion.updating") }), operation: "update", title: applyingVersionLabel ? `${build.name} · ${applyingVersionLabel}` : build.name }} compact />
           </div>
         )}
 

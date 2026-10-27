@@ -3,6 +3,7 @@ import remarkGfm from "remark-gfm"
 import rehypeRaw from "rehype-raw"
 import rehypeSanitize from "rehype-sanitize"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { openAgent } from "./agent/store"
@@ -25,6 +26,7 @@ import {
   IconBrandDiscord,
 } from "@tabler/icons-react"
 import { Spinner } from "./instance/spinner"
+import { AddonGallery } from "./addon-gallery"
 import { LoaderIcon } from "./instance/loader-icon"
 import { ChangelogContent } from "./instance/changelog-content"
 import { MOD_LOADERS } from "./instance/constants"
@@ -262,13 +264,14 @@ export function AddonDetailModal({
   const body = selectedDetails.body
   const gallery = selectedDetails.gallery
 
-  return (
+  // Портал выводит окно из анимированных и обрезающих контейнеров вкладки.
+  return createPortal(
     <div data-ui="addon-detail-modal-div-2" data-component="addon-detail-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="launcher-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={onClose}
     >
       <div data-ui="addon-detail-modal-div-3"
-        className="w-full max-w-5xl max-h-[85vh] mx-4 rounded-2xl bg-card border border-border shadow-2xl overflow-hidden flex flex-col"
+        className="w-full max-w-5xl h-[85vh] max-h-[calc(100dvh-var(--launcher-titlebar-height,0px)-2rem)] mx-4 rounded-2xl bg-card border border-border shadow-2xl overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div data-ui="addon-detail-modal-div-4" className="p-5 border-b border-border flex-shrink-0">
@@ -292,9 +295,9 @@ export function AddonDetailModal({
                           href={selectedDetails.links.sourceUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground [&_svg]:text-primary transition-colors border border-border/60"
                         >
-                          <IconBrandGithub className="w-3.5 h-3.5" />
+                          <IconBrandGithub className="w-3.5 h-3.5 text-primary" />
                           <span data-ui="addon-detail-modal-span-2">{t("addon.links.source")}</span>
                         </a>
                       )}
@@ -303,9 +306,9 @@ export function AddonDetailModal({
                           href={selectedDetails.links.wikiUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground [&_svg]:text-primary transition-colors border border-border/60"
                         >
-                          <IconBook className="w-3.5 h-3.5" />
+                          <IconBook className="w-3.5 h-3.5 text-primary" />
                           <span data-ui="addon-detail-modal-span-3">{t("addon.links.wiki")}</span>
                         </a>
                       )}
@@ -314,9 +317,9 @@ export function AddonDetailModal({
                           href={selectedDetails.links.issuesUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground [&_svg]:text-primary transition-colors border border-border/60"
                         >
-                          <IconBug className="w-3.5 h-3.5" />
+                          <IconBug className="w-3.5 h-3.5 text-primary" />
                           <span data-ui="addon-detail-modal-span-4">{t("addon.links.issues")}</span>
                         </a>
                       )}
@@ -325,9 +328,9 @@ export function AddonDetailModal({
                           href={selectedDetails.links.discordUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground [&_svg]:text-primary transition-colors border border-border/60"
                         >
-                          <IconBrandDiscord className="w-3.5 h-3.5" />
+                          <IconBrandDiscord className="w-3.5 h-3.5 text-primary" />
                           <span data-ui="addon-detail-modal-span-5">{t("addon.links.discord")}</span>
                         </a>
                       )}
@@ -336,9 +339,9 @@ export function AddonDetailModal({
                           href={selectedDetails.links.websiteUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground [&_svg]:text-primary transition-colors border border-border/60"
                         >
-                          <IconExternalLink className="w-3.5 h-3.5" />
+                          <IconExternalLink className="w-3.5 h-3.5 text-primary" />
                           <span data-ui="addon-detail-modal-span-6">{t("addon.links.website")}</span>
                         </a>
                       )}
@@ -347,10 +350,10 @@ export function AddonDetailModal({
                         <button data-ui="addon-detail-modal-button-1"
                           type="button"
                           onClick={() => openProjectPage(selectedDetails, projectKind)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground [&_svg]:text-primary transition-colors border border-border/60"
                         >
-                          <IconExternalLink className="w-3.5 h-3.5" />
-                          <span data-ui="addon-detail-modal-span-7">{t("common.openOnSite")}</span>
+                          <IconExternalLink className="w-3.5 h-3.5 text-primary" />
+                          <span data-ui="addon-detail-modal-span-7" className="text-muted-foreground">{t("common.openOnSite")}</span>
                         </button>
                       )}
                     </div>
@@ -409,24 +412,7 @@ export function AddonDetailModal({
           )}
           {!loadingModal && modalTab === "gallery" && (
             <div data-ui="addon-detail-modal-div-15">
-              {gallery && gallery.length > 0 ? (
-                <div data-ui="addon-detail-modal-div-16" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {gallery.map((img, i) => (
-                    <div data-ui="addon-detail-modal-div-17" key={i} className="group relative overflow-hidden rounded-xl border border-border bg-muted/20">
-                      <img data-ui="addon-detail-modal-img-3" src={img.url} alt={img.title || ""} className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300" />
-                      {img.title && (
-                        <div data-ui="addon-detail-modal-div-18" className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-3">
-                          <span data-ui="addon-detail-modal-span-9" className="max-w-full truncate rounded-full bg-black/50 backdrop-blur-sm px-3 py-1 text-xs font-medium text-foreground shadow-sm">
-                            {img.title}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p data-ui="addon-detail-modal-p-4" className="col-span-2 text-center text-muted-foreground py-12">{t("addon.noScreenshots")}</p>
-              )}
+              <AddonGallery images={gallery ?? []} projectName={title} />
             </div>
           )}
           {!loadingModal && modalTab === "changelog" && (
@@ -598,6 +584,7 @@ export function AddonDetailModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

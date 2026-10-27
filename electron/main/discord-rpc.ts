@@ -1,6 +1,7 @@
 import fs from "fs/promises"
 import path from "path"
 import { app } from "electron"
+import { presenceSmallImage, type DiscordActivity } from "./discord-presence"
 
 const CLIENT_ID = "1279183673660538972"
 const RETRY_DELAY_MS = 15_000
@@ -178,15 +179,7 @@ export async function initDiscordRpc(): Promise<void> {
   }
 }
 
-export function setDiscordActivity(activity: {
-  state?: string
-  largeImageKey?: string
-  largeImageText?: string
-  smallImageKey?: string
-  smallImageText?: string
-  loader?: string
-  startTimestamp?: number
-}): void {
+export function setDiscordActivity(activity: DiscordActivity): void {
   if (activity.startTimestamp) {
     gameStartTimestamp = activity.startTimestamp
   }
@@ -198,25 +191,12 @@ export function setDiscordActivity(activity: {
   applyActivity(activity)
 }
 
-type DiscordActivity = {
-  state?: string
-  largeImageKey?: string
-  largeImageText?: string
-  smallImageKey?: string
-  smallImageText?: string
-  loader?: string
-  startTimestamp?: number
-}
-
 function applyActivity(activity: DiscordActivity): void {
   lastActivity = activity
   const {
     state = "В меню",
     largeImageKey = "logo",
     largeImageText = "Xneon Launcher",
-    smallImageKey,
-    smallImageText,
-    loader,
     startTimestamp,
   } = activity
 
@@ -230,33 +210,10 @@ function applyActivity(activity: DiscordActivity): void {
     ],
   }
 
-if (smallImageKey) {
-    activityData.smallImageKey = smallImageKey
-    if (smallImageText) {
-      activityData.smallImageText = smallImageText
-    }
-  }
-
-  const loaderIcons: Record<string, string> = {
-    fabric: "fabric_icon",
-    quilt: "quilt_icon",
-    optifine: "optifine_icon",
-  }
-
-  const loaderNames: Record<string, string> = {
-    fabric: "Fabric",
-    quilt: "Quilt",
-    optifine: "OptiFine",
-  }
-
-  const finalSmallImageKey = loader ? loaderIcons[loader.toLowerCase()] : smallImageKey
-  const finalSmallImageText = loader ? loaderNames[loader.toLowerCase()] : smallImageText
-
-  if (finalSmallImageKey) {
-    activityData.smallImageKey = finalSmallImageKey
-    if (finalSmallImageText) {
-      activityData.smallImageText = finalSmallImageText
-    }
+  const smallImage = presenceSmallImage(activity)
+  if (smallImage.key) {
+    activityData.smallImageKey = smallImage.key
+    if (smallImage.text) activityData.smallImageText = smallImage.text
   }
 
   if (startTimestamp) {

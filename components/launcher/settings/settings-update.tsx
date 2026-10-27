@@ -85,10 +85,10 @@ export function SettingsUpdate() {
   })()
 
   return (
-    <div data-ui="settings-settings-update-div-1" data-component="settings-update" className="p-4 rounded-xl border border-border bg-muted/30 space-y-4">
+    <div data-ui="settings-settings-update-div-1" data-component="settings-update" data-settings-tone="green" className="settings-color-panel p-4 rounded-xl border border-border bg-muted/30 space-y-4">
       <div data-ui="settings-settings-update-div-2" className="flex items-center justify-between">
         <div data-ui="settings-settings-update-div-3">
-          <div data-ui="settings-settings-update-div-4" className="font-medium text-foreground">{t("launcherUpdate.title")}</div>
+          <div data-ui="settings-settings-update-div-4" className="flex items-center gap-2 font-medium text-foreground"><IconDownload className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.7} aria-hidden="true" />{t("launcherUpdate.title")}</div>
           <p data-ui="settings-settings-update-p-1" className="text-sm text-muted-foreground mt-1">
             {t("launcherUpdate.currentVersion")} <span data-ui="settings-settings-update-span-1" className="text-foreground font-medium">v{APP_VERSION}</span>
           </p>
