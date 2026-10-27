@@ -1,4 +1,4 @@
-import { CONTENT_ENTER, CONTENT_ENTER_DELAYED } from "../content-motion"
+import { useContentEnter, CONTENT_ENTER_DELAYED } from "../content-motion"
 import { IconPalette } from "@tabler/icons-react"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useTranslation } from "react-i18next"
@@ -119,6 +119,7 @@ export function CloudFileBrowser({ providerId, pendingThemeId, onPendingThemeHan
   const [localBuilds, setLocalBuilds] = useState<Array<{ id: string; name: string; icon?: string; version?: string; modLoader?: string }>>([])
   const [localServers, setLocalServers] = useState<Array<{ id: string; name: string; icon?: string; version?: string; modloader?: string }>>([])
   const [loading, setLoading] = useState(true)
+  const contentEnter = useContentEnter(!loading)
   const [error, setError] = useState<string | null>(null)
   const [currentPath, setCurrentPath] = useState<string>("")
   const [filter, setFilter] = useState<"all" | "builds" | "servers" | "accounts" | "themes">("all")
@@ -488,7 +489,7 @@ export function CloudFileBrowser({ providerId, pendingThemeId, onPendingThemeHan
         </button>
       </div>
 
-      <div data-ui="cloud-cloud-file-browser-div-10" className={cn("flex-1 overflow-y-auto", !loading && CONTENT_ENTER)}>
+      <div data-ui="cloud-cloud-file-browser-div-10" className={cn("flex-1 overflow-y-auto", contentEnter)}>
         {loading ? (
           <div data-ui="cloud-cloud-file-browser-div-11" className="flex items-center justify-center py-12">
             <IconLoader2 className="w-6 h-6 text-primary animate-spin" />
@@ -500,7 +501,7 @@ export function CloudFileBrowser({ providerId, pendingThemeId, onPendingThemeHan
           </div>
         ) : filtered.length === 0 ? (
           <div data-ui="cloud-cloud-file-browser-div-13" className="text-center py-12">
-            <IconCloud className="w-10 h-10 text-muted-foreground/20 mx-auto mb-2" />
+            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl border border-primary/20 bg-primary/10 text-primary mx-auto mb-4"><IconCloud className="h-10 w-10" strokeWidth={1.75} aria-hidden="true" /></div>
             <p data-ui="cloud-cloud-file-browser-p-2" className="text-sm text-muted-foreground/50">{t("cloud.folderEmpty")}</p>
           </div>
         ) : (

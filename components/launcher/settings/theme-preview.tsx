@@ -107,12 +107,12 @@ export function ThemeWindowPreview({ theme, className }: { theme: Theme; classNa
           borderRight: `1px solid ${colors.sidebarBorder}`,
         }}
       >
-        <div data-ui="settings-theme-preview-div-11" style={{ height: "7cqh", width: "55%", borderRadius: "9999px", backgroundColor: colors.sidebarPrimary }} />
+        <div data-ui="settings-theme-preview-div-11" style={{ height: "7cqh", width: "55%", borderRadius: "var(--radius-round)", backgroundColor: colors.sidebarPrimary }} />
         <div data-ui="settings-theme-preview-div-12"
           style={{
             height: "5cqh",
             width: "85%",
-            borderRadius: "9999px",
+            borderRadius: "var(--radius-round)",
             backgroundColor: colors.sidebarPrimary,
             opacity: 0.55,
           }}
@@ -121,7 +121,7 @@ export function ThemeWindowPreview({ theme, className }: { theme: Theme; classNa
           style={{
             height: "5cqh",
             width: "70%",
-            borderRadius: "9999px",
+            borderRadius: "var(--radius-round)",
             backgroundColor: colors.sidebarForeground,
             opacity: 0.3,
           }}
@@ -130,7 +130,7 @@ export function ThemeWindowPreview({ theme, className }: { theme: Theme; classNa
           style={{
             height: "5cqh",
             width: "80%",
-            borderRadius: "9999px",
+            borderRadius: "var(--radius-round)",
             backgroundColor: colors.sidebarAccent,
             opacity: 0.7,
           }}
@@ -144,13 +144,13 @@ export function ThemeWindowPreview({ theme, className }: { theme: Theme; classNa
             style={{
               height: "5cqh",
               width: "42%",
-              borderRadius: "9999px",
+              borderRadius: "var(--radius-round)",
               backgroundColor: colors.foreground,
               opacity: 0.75,
             }}
           />
           <div data-ui="settings-theme-preview-div-18"
-            style={{ height: "6cqh", width: "16%", borderRadius: "9999px", backgroundColor: colors.primary }}
+            style={{ height: "6cqh", width: "16%", borderRadius: "var(--radius-round)", backgroundColor: colors.primary }}
           />
         </div>
 
@@ -167,7 +167,7 @@ export function ThemeWindowPreview({ theme, className }: { theme: Theme; classNa
             style={{
               height: "4cqh",
               width: "70%",
-              borderRadius: "9999px",
+              borderRadius: "var(--radius-round)",
               backgroundColor: colors.cardForeground,
               opacity: 0.6,
             }}
@@ -176,7 +176,7 @@ export function ThemeWindowPreview({ theme, className }: { theme: Theme; classNa
             style={{
               height: "4cqh",
               width: "45%",
-              borderRadius: "9999px",
+              borderRadius: "var(--radius-round)",
               backgroundColor: colors.mutedForeground,
               opacity: 0.85,
             }}
@@ -185,7 +185,7 @@ export function ThemeWindowPreview({ theme, className }: { theme: Theme; classNa
             style={{
               height: "4cqh",
               width: "58%",
-              borderRadius: "9999px",
+              borderRadius: "var(--radius-round)",
               backgroundColor: colors.muted,
             }}
           />
@@ -196,7 +196,7 @@ export function ThemeWindowPreview({ theme, className }: { theme: Theme; classNa
             style={{
               height: "9cqh",
               width: "32%",
-              borderRadius: "0.375rem",
+              borderRadius: "calc(var(--radius)/2)",
               backgroundColor: colors.primary,
               boxShadow: `0 0 12px ${primaryGlowValue}`,
             }}
@@ -205,7 +205,7 @@ export function ThemeWindowPreview({ theme, className }: { theme: Theme; classNa
             style={{
               height: "9cqh",
               width: "22%",
-              borderRadius: "0.375rem",
+              borderRadius: "calc(var(--radius)/2)",
               backgroundColor: colors.accent,
               boxShadow: `0 0 12px ${accentGlowValue}`,
             }}
@@ -214,13 +214,13 @@ export function ThemeWindowPreview({ theme, className }: { theme: Theme; classNa
             className="flex-1 border"
             style={{
               height: "9cqh",
-              borderRadius: "0.375rem",
+              borderRadius: "calc(var(--radius)/2)",
               backgroundColor: colors.input,
               borderColor: colors.border,
             }}
           />
           <div data-ui="settings-theme-preview-div-27"
-            style={{ height: "9cqh", width: "14%", borderRadius: "0.375rem", backgroundColor: colors.muted }}
+            style={{ height: "9cqh", width: "14%", borderRadius: "calc(var(--radius)/2)", backgroundColor: colors.muted }}
           />
         </div>
       </div>

@@ -3,7 +3,8 @@ import type { Theme, ThemeBackground, ThemeColorKey, ThemeFont, ThemeGlow } from
 /**
  * Модель кастомных тем.
  *
- * Встроенные пресеты меняют только два акцента, поэтому у них нет палитры.
+ * Встроенные пресеты используют общую палитру Core со своими акцентами.
+ * Старые темы без палитры по-прежнему поддерживаются отдельной веткой.
  * Кастомная тема описывает всю палитру целиком: фон окна, поверхности, текст,
  * границы, боковую панель и свечение. Здесь же живёт единственная функция,
  * которая применяет тему к документу, — `applyTheme`, и все помощники, которые
@@ -158,7 +159,7 @@ export const DARK_PALETTE: Record<ThemeColorKey, string> = {
   card: "#020204",
   cardForeground: "#ffffff",
   muted: "#07090d",
-  mutedForeground: "#555555",
+  mutedForeground: "#a2a8b3",
   border: "#0d1014",
   input: "#040609",
   primary: "#f64b00",
@@ -264,6 +265,9 @@ export function clampAlpha(value: unknown): number {
 /** id тега `<style>`, в который попадает CSS из режима «CSS» редактора. */
 export const THEME_CSS_STYLE_ID = "theme-custom-css"
 export const THEME_BASE_STYLE_ID = "theme-base-css"
+export const THEME_SELECTOR_API_VERSION = "1"
+let appliedReaderCss = ""
+export function getAppliedReaderCss(): string { return appliedReaderCss }
 
 export const THEME_ENTER_ANIMATIONS = {
   default: "xneon-settings-content-enter",
@@ -328,6 +332,7 @@ function resetThemeVars(root: HTMLElement) {
   root.style.removeProperty("--ambient-primary")
   root.style.removeProperty("--ambient-accent")
   root.style.removeProperty("--font-sans")
+  root.style.removeProperty("--radius")
   root.style.removeProperty("--theme-bg-opacity")
   root.style.removeProperty("--theme-bg-dim")
   root.style.removeProperty("--theme-bg-blur")
@@ -398,7 +403,7 @@ function applyCustomCss(css: string | undefined) {
     ...Object.values(THEME_CSS_VARS), "--sidebar-ring", "--glow-primary", "--glow-accent",
     "--ambient-primary", "--ambient-accent", "--font-sans", "--theme-bg-opacity",
     "--theme-bg-dim", "--theme-bg-blur", "color-scheme", "--theme-titlebar", "--destructive", "--destructive-foreground", "--warning", "--info", "--success",
-    "--theme-blur-titlebar", "--theme-blur-sidebar", "--theme-blur-card", "--theme-radius", ...THEME_ENTER_CSS_VARS, ...semanticCssVars, ...Object.keys(SURFACE_ALIASES),
+    "--theme-blur-titlebar", "--theme-blur-sidebar", "--theme-blur-card", "--theme-radius", "--radius", ...THEME_ENTER_CSS_VARS, ...semanticCssVars, ...Object.keys(SURFACE_ALIASES),
   ]
   const declarations: string[] = []
   for (const name of names) {
@@ -440,10 +445,17 @@ function persistStartupTheme(root: HTMLElement) {
 export function applyTheme(input: Theme) {
   const theme = resolveTheme(input)
   const root = document.documentElement
+  // Общий редактор оформляет окно и статью; старые архивы сохраняют свои дополнительные правила.
+  const commonCss = splitThemeCssPrelude(theme.css ?? "")
+  const legacyReaderCss = splitThemeCssPrelude(theme.readerCss ?? "")
+  appliedReaderCss = theme.cssEnabled === false ? "" : `${commonCss.prelude}\n${legacyReaderCss.prelude}\n${commonCss.body}\n${legacyReaderCss.body}`.trim()
   resetThemeVars(root)
   root.classList.toggle("dark", themeMode(theme) === "dark")
   root.classList.toggle("theme-appearance", !!theme.appearance)
-  if (root.dataset) root.dataset.themeMode = themeMode(theme)
+  if (root.dataset) {
+    root.dataset.themeMode = themeMode(theme)
+    root.dataset.themeApi = THEME_SELECTOR_API_VERSION
+  }
   const appearance = theme.appearance
   if (appearance?.enterAnimation || themeEnterAnimation(theme) !== "default" || appearance?.enterDuration !== undefined) {
     const motion = themeEnterMotion(theme)
@@ -474,6 +486,7 @@ export function applyTheme(input: Theme) {
   for (const [key, name] of Object.entries({ blurTitlebar: "--theme-blur-titlebar", blurSidebar: "--theme-blur-sidebar", blurCard: "--theme-blur-card", radius: "--theme-radius" })) {
     const value = appearance?.[key as "blurTitlebar" | "blurSidebar" | "blurCard" | "radius"]
     if (typeof value === "number") root.style.setProperty(name, `${value}px`)
+    if (key === "radius" && typeof value === "number") root.style.setProperty("--radius", `${value}px`)
   }
 
   applyFontVars(root, theme.font)
@@ -573,6 +586,7 @@ export function createCustomTheme(name: string, base?: Theme | null, existingIds
     id: newThemeId(name, existingIds),
     name: name.trim() || "Моя тема",
     ...(base?.description ? { description: base.description } : {}),
+    ...(base ? { baseThemeId: base.id } : {}),
     primary: palette.primary,
     accent: palette.accent,
     palette: { ...palette },
@@ -580,6 +594,18 @@ export function createCustomTheme(name: string, base?: Theme | null, existingIds
       primary: base ? themeGlow(base, "primary") : { color: palette.primary, alpha: DEFAULT_GLOW_ALPHA },
       accent: base ? themeGlow(base, "accent") : { color: palette.accent, alpha: DEFAULT_GLOW_ALPHA },
     },
+    ...(base ? {
+      font: base.font ? { ...base.font } : undefined,
+      background: base.background ? { ...base.background } : undefined,
+      css: base.css,
+      readerCss: base.readerCss,
+      cssEnabled: base.cssEnabled,
+      appearance: base.appearance ? {
+        ...base.appearance,
+        ...(base.appearance.lightPalette ? { lightPalette: { ...base.appearance.lightPalette } } : {}),
+        ...(base.appearance.darkPalette ? { darkPalette: { ...base.appearance.darkPalette } } : {}),
+      } : undefined,
+    } : {}),
     custom: true,
     createdAt: now,
     updatedAt: now,
@@ -589,7 +615,9 @@ export function createCustomTheme(name: string, base?: Theme | null, existingIds
 /** Копия любой темы (в том числе пресета) в виде кастомной. */
 export function duplicateTheme(theme: Theme, name: string, existingIds: string[] = []): Theme {
   const copy = createCustomTheme(name, theme, existingIds)
-  return { ...theme, ...copy, primary: theme.primary, accent: theme.accent }
+  const result = { ...theme, ...copy, primary: theme.primary, accent: theme.accent }
+  delete result.localFile
+  return result
 }
 
 /**
@@ -631,6 +659,7 @@ export function sanitizeTheme(input: unknown): Theme | null {
     accent,
   }
   if (typeof raw.description === "string" && raw.description.trim()) theme.description = raw.description.trim().slice(0, 240)
+  if (typeof raw.baseThemeId === "string" && raw.baseThemeId.trim()) theme.baseThemeId = raw.baseThemeId.trim().slice(0, 120)
   if (typeof raw.primaryOklch === "string" && raw.primaryOklch.trim()) theme.primaryOklch = raw.primaryOklch.trim()
   if (typeof raw.accentOklch === "string" && raw.accentOklch.trim()) theme.accentOklch = raw.accentOklch.trim()
   if (Object.keys(palette).length > 0) theme.palette = palette
@@ -667,6 +696,8 @@ export function sanitizeTheme(input: unknown): Theme | null {
   }
 
   if (typeof raw.css === "string" && raw.css.trim()) theme.css = raw.css.slice(0, 1024 * 1024)
+  if (typeof raw.readerCss === "string" && raw.readerCss.trim()) theme.readerCss = raw.readerCss.slice(0, 1024 * 1024)
+  if (typeof raw.localFile === "string" && raw.localFile.length <= 180 && !/[<>:"/\\|?*\x00-\x1f]/.test(raw.localFile) && /\.css$/i.test(raw.localFile)) theme.localFile = raw.localFile
   if (typeof raw.cssEnabled === "boolean") theme.cssEnabled = raw.cssEnabled
   if (raw.appearance && typeof raw.appearance === "object") {
     const input = raw.appearance as Record<string, unknown>
@@ -739,6 +770,30 @@ const CSS_VAR_TO_KEY = new Map<string, ThemeColorKey>(
  * Это ровно те переменные, которые пишет `applyTheme`, плюс необязательный хвост
  * из `theme.css`.
  */
+/** Сохраняем разрешённый порядок @import/@charset/@layer до палитровой шапки. */
+export function splitThemeCssPrelude(source: string): { prelude: string; body: string } {
+  let offset = 0
+  for (;;) {
+    const leading = source.slice(offset).match(/^(?:\s|\/\*[\s\S]*?\*\/)*@(import|charset|layer)\b/i)
+    if (!leading) break
+    let quote = "", depth = 0, comment = false, end = -1
+    for (let index = offset + leading[0].length; index < source.length; index++) {
+      const char = source[index], next = source[index + 1]
+      if (comment) { if (char === "*" && next === "/") { comment = false; index++ }; continue }
+      if (quote) { if (char === "\\") index++; else if (char === quote) quote = ""; continue }
+      if (char === "/" && next === "*") { comment = true; index++; continue }
+      if (char === '"' || char === "'") { quote = char; continue }
+      if (char === "(") depth++
+      else if (char === ")") depth--
+      else if (char === "{" && depth === 0) break
+      else if (char === ";" && depth === 0) { end = index + 1; break }
+    }
+    if (end < 0) break
+    offset = end
+  }
+  return { prelude: source.slice(0, offset).trim(), body: source.slice(offset).trim() }
+}
+
 export function serializeThemeCss(theme: Theme): string {
   const palette = themePreviewColors(theme)
   const lines = THEME_COLOR_KEYS.map((key) => `  ${THEME_CSS_VARS[key]}: ${palette[key]};`)
@@ -755,7 +810,8 @@ export function serializeThemeCss(theme: Theme): string {
     lines.push(`  --theme-bg-blur: ${theme.background.blur ?? 0}px;`)
   }
   const head = `:root {\n${lines.join("\n")}\n}`
-  return theme.css ? `${head}\n\n${theme.css}` : head
+  const { prelude, body } = splitThemeCssPrelude(theme.css ?? "")
+  return [prelude, head, body].filter(Boolean).join("\n\n")
 }
 
 /**
@@ -848,7 +904,8 @@ export function parseThemeCss(text: string, base: Theme): Theme | null {
   // Вырезаем только полностью восстановимые ведущие блоки (в т.ч. накопленные
   // дубли); блок с любым своим объявлением сохраняем целиком, чтобы не сломать
   // пересборкой экзотичные значения вида url(data:...;base64,...).
-  let cssSource = source.trim()
+  const { prelude, body } = splitThemeCssPrelude(source)
+  let cssSource = body
   for (;;) {
     const leadingRoot = cssSource.match(/^:root\s*\{([^}]*)\}/i)
     if (!leadingRoot) break
@@ -860,6 +917,7 @@ export function parseThemeCss(text: string, base: Theme): Theme | null {
     cssSource = cssSource.slice(leadingRoot[0].length).replace(/^\s+/, "")
   }
 
+  cssSource = [prelude, cssSource].filter(Boolean).join("\n\n")
   const next: Theme = { ...base, palette, glow, css: cssSource || undefined }
   if (hasThemeEnterKeyframes(cssSource)) {
     next.appearance = { ...next.appearance, enterAnimation: "custom", enterKeyframes: THEME_ENTER_ANIMATIONS.custom }

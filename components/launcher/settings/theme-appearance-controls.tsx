@@ -121,6 +121,18 @@ export function ThemeAppearanceEffects({ theme, onChange, active }: { theme: The
   const { t } = useTranslation()
   const appearance = theme.appearance ?? {}
   const patch = (value: Partial<ThemeAppearance>) => onChange((current) => ({ ...current, appearance: { ...current.appearance, ...value } }))
+  const [inheritedRadius, setInheritedRadius] = useState(12)
+  useEffect(() => {
+    if (!active || appearance.radius !== undefined) return
+    const frame = requestAnimationFrame(() => {
+      const rootStyle = getComputedStyle(document.documentElement)
+      const raw = rootStyle.getPropertyValue("--radius").trim()
+      const value = parseFloat(raw) * (raw.endsWith("rem") ? parseFloat(rootStyle.fontSize) : 1)
+      if (Number.isFinite(value)) setInheritedRadius(Math.round(value))
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [active, appearance.radius, theme.font?.size, theme.css])
+  const effectValue = (key: "blurTitlebar" | "blurSidebar" | "blurCard" | "radius") => appearance[key] ?? (key === "radius" ? inheritedRadius : 0)
   const motion = themeEnterMotion(theme)
   const animation = themeEnterAnimation(theme)
   const customName = appearance.enterKeyframes ?? THEME_ENTER_ANIMATIONS.custom
@@ -128,8 +140,8 @@ export function ThemeAppearanceEffects({ theme, onChange, active }: { theme: The
     <h4 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><IconAdjustmentsHorizontal className="h-4 w-4 text-primary" stroke={1.75} />{t("themeAdvanced.effectsTitle")}</h4>
     <div className="grid gap-3 sm:grid-cols-2">
       {(["blurTitlebar", "blurSidebar", "blurCard", "radius"] as const).map((key) => <label key={key} className="space-y-2 text-xs text-muted-foreground">
-        <span className="flex justify-between"><span>{t(`themeAdvanced.${key}`)}</span><span>{appearance[key] ?? 0}px</span></span>
-        <input data-ui="theme-effect" data-effect={key} type="range" min={0} max={40} value={appearance[key] ?? 0} onChange={(event) => patch({ [key]: Number(event.target.value) })} className={range} />
+        <span className="flex justify-between"><span>{t(`themeAdvanced.${key}`)}</span><span>{effectValue(key)}px</span></span>
+        <input data-ui="theme-effect" data-effect={key} type="range" min={0} max={40} value={effectValue(key)} onChange={(event) => patch({ [key]: Number(event.target.value) })} className={range} />
       </label>)}
     </div>
     <div data-ui="theme-enter-motion" className="mt-5 space-y-3 border-t border-border pt-4">

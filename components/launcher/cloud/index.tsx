@@ -134,7 +134,7 @@ export function CloudPage({ rootResetToken, pendingThemeId, onPendingThemeHandle
       /* Нормальное окно раздела: без карточки, рамки и размытых пятен */
       <div data-ui="cloud-index-div-1" data-component="cloud-page" id="cloud-page" className="flex h-full min-h-0 flex-col">
         <div data-ui="cloud-index-div-2" className="flex min-h-0 flex-1 flex-col">
-          <div data-ui="cloud-index-div-3" className={`flex items-center justify-between mb-4 ${CONTENT_ENTER_DELAYED}`}>
+          <div data-ui="cloud-index-div-3" className={`launcher-page-header flex items-center justify-between mb-4 ${CONTENT_ENTER_DELAYED}`}>
             <div data-ui="cloud-index-div-4" className="flex items-center gap-3">
               <button data-ui="cloud-index-button-1" onClick={() => setConnected(null)}
                 className="w-9 h-9 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center">
@@ -182,7 +182,7 @@ export function CloudPage({ rootResetToken, pendingThemeId, onPendingThemeHandle
       )}
 
       <div data-ui="cloud-index-div-8" className="flex min-h-0 flex-1 flex-col">
-        <div data-ui="cloud-index-div-9" className={`mb-6 flex items-center gap-3 ${CONTENT_ENTER_DELAYED}`}>
+        <div data-ui="cloud-index-div-9" className={`launcher-page-header mb-6 flex items-center gap-3 ${CONTENT_ENTER_DELAYED}`}>
           {/* Значок у заголовка — как у остальных разделов лаунчера */}
           <div data-ui="cloud-index-div-10" className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
             <IconCloud className="w-5 h-5 text-primary" />
