@@ -11,6 +11,7 @@ export {}
 // также объявлены в этом едином контракте.
 // Выбор медиафайлов темы: pickThemeMedia — из того же контракта.
 // Облачные архивы тем: cloudUploadTheme/cloudImportTheme — из @xnlc/types.
+// Локальная папка тем, импорт/экспорт и наблюдение: LocalTheme* — из @xnlc/types.
 // Отдельного шима больше нет: pruneLoaderProfiles и
 // checkBuildLoaderRequirements объявлены в самом пакете.
 

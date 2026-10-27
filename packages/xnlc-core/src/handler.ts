@@ -17,6 +17,8 @@ async function ask(question: string): Promise<string> {
 
 export interface HandlerOptions {
   gameDir?: string;
+  resourceDir?: string;
+  javaRoot?: string;
   javaPath?: string;
   memoryMax?: string;
   memoryMin?: string;
@@ -67,6 +69,8 @@ export class XnlcHandler {
   constructor(options: HandlerOptions = {}) {
     this.xnlc = new Xnlc({
       gameDir: options.gameDir ?? './minecraft',
+      resourceDir: options.resourceDir,
+      javaRoot: options.javaRoot,
       javaPath: options.javaPath,
       defaultJvmArgs: [],
     });

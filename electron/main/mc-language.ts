@@ -25,6 +25,7 @@ const MC_LOCALES: Record<string, { modern: string; legacy: string }> = {
   uk: { modern: "uk_ua", legacy: "uk_UA" },
   de: { modern: "de_de", legacy: "de_DE" },
   es: { modern: "es_es", legacy: "es_ES" },
+  pl: { modern: "pl_pl", legacy: "pl_PL" },
 }
 
 /** Коды для подсказки в UI (та же карта, но в одном месте — см. дубль в settings-language-about.tsx). */

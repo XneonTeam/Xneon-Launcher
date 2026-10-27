@@ -31,6 +31,7 @@ export const legacyTmpDbPath = path.join(getDataDir(), "data.db.tmp")
 const SQLITE_MAGIC = "SQLite format 3\u0000"
 
 let dbInitialized = false
+let initialization: Promise<void> | null = null
 let dbAvailable = true
 let dbFallbackMode = false
 let database: SqliteDatabase | null = null
@@ -75,7 +76,8 @@ export function getDatabase(): SqliteDatabase {
 }
 
 function describeParams(params: unknown[]): string {
-  return params.map((p, i) => `${i + 1}: ${typeof p} = ${JSON.stringify(p)}`).join(", ")
+  // Значения могут содержать пароли, токены и личные данные аккаунтов.
+  return params.map((p, i) => `${i + 1}: ${p === null ? "null" : typeof p}`).join(", ")
 }
 
 /**
@@ -157,10 +159,7 @@ export function transaction<T>(fn: () => T): T {
   if (!database) {
     throw new Error("Database is not initialized")
   }
-  if (database.inTransaction) {
-    // Вложенный вызов — просто продолжаем внешнюю транзакцию.
-    return fn()
-  }
+  // better-sqlite3 использует SAVEPOINT для независимого вложенного отката.
   return database.transaction(fn)()
 }
 
@@ -168,9 +167,6 @@ export function transaction<T>(fn: () => T): T {
 export function transactionImmediate<T>(fn: () => T): T {
   if (!database) {
     throw new Error("Database is not initialized")
-  }
-  if (database.inTransaction) {
-    return fn()
   }
   return database.transaction(fn).immediate()
 }
@@ -287,9 +283,14 @@ function quarantineUnreadableDatabase(): void {
   }
 }
 
-export async function initDatabaseCore(): Promise<void> {
-  if (dbInitialized) return
-  dbInitialized = true
+export function initDatabaseCore(): Promise<void> {
+  if (initialization) return initialization
+  if (dbInitialized) return Promise.resolve()
+  initialization = openDatabaseCore().finally(() => { initialization = null })
+  return initialization
+}
+
+async function openDatabaseCore(): Promise<void> {
 
   await fs.mkdir(path.dirname(dbPath), { recursive: true }).catch(() => {})
 
@@ -299,8 +300,8 @@ export async function initDatabaseCore(): Promise<void> {
     backupLegacyDatabaseIfNeeded()
 
     const db = new Database(dbPath)
-    applyPragmas(db)
     database = db
+    applyPragmas(db)
 
     dbAvailable = true
     dbFallbackMode = false
@@ -315,6 +316,8 @@ export async function initDatabaseCore(): Promise<void> {
       database?.close()
     } catch {}
     database = null
+  } finally {
+    dbInitialized = true
   }
 }
 
@@ -340,6 +343,7 @@ export function flushDatabaseSync(): void {
 }
 
 export function closeDatabase(): void {
+  dbInitialized = false
   if (!database) return
   try {
     flushDatabase()

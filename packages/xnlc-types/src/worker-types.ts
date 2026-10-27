@@ -31,6 +31,7 @@ export type WorkerLaunchPayload = {
     mcVersion: string
     loaderType: string
     loaderVersion?: string
+    customVersionPath?: string
     memoryMin: string
     memoryMax: string
     width: number

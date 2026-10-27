@@ -60,10 +60,10 @@ export class Xnlc {
   constructor(options: XnlcOptions) {
     this.options = options;
     this.osInfo = options.os ?? getOSInfo();
-    getGameDirStructure(options.gameDir);
+    getGameDirStructure(options.gameDir, options.resourceDir, options.javaRoot);
 
     // Initialize core components
-    this.metaClient = new MetaClient();
+    this.metaClient = new MetaClient(this.options.resourceDir ?? this.options.gameDir);
     this.versionResolver = new VersionResolver(this.metaClient);
     this.downloader = new Downloader();
     this.assetsManager = new AssetsManager(this.downloader);
@@ -75,7 +75,7 @@ export class Xnlc {
     // Initialize services
     this.versionService = new XnlcVersionService(
       this.metaClient, this.versionResolver, this.downloader,
-      this.librariesManager, this.assetsManager, this.options.gameDir, this.osInfo,
+      this.librariesManager, this.assetsManager, this.options.resourceDir ?? this.options.gameDir, this.osInfo, this.options.gameDir,
     );
     this.loaderService = new XnlcLoaderService(
       this.loaderResolver, this.versionResolver, this.osInfo,
@@ -89,19 +89,20 @@ export class Xnlc {
   }
 
   private initDependentComponents(): void {
-    this.librariesManager = new LibrariesManager(this.options.gameDir, this.osInfo);
+    this.librariesManager = new LibrariesManager(this.options.resourceDir ?? this.options.gameDir, this.osInfo);
     this.nativesExtractor = new NativesExtractor(this.librariesManager);
     this.launchBuilder = new LaunchBuilder(
       this.options.gameDir,
       this.osInfo,
       this.options.launcherName ?? "xnlc",
       this.options.launcherVersion ?? "1.0.0",
+      this.options.resourceDir,
     );
-    this.javaManager = new JavaManager(this.downloader, this.options.gameDir);
+    this.javaManager = new JavaManager(this.downloader, this.options.javaRoot ?? this.options.resourceDir ?? this.options.gameDir);
     this.loaderResolver = new LoaderResolver(
       this.downloader,
       this.metaClient,
-      this.options.gameDir,
+      this.options.resourceDir ?? this.options.gameDir,
       this.options.customVersionsDir,
     );
   }

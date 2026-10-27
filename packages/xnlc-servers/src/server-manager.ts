@@ -4,7 +4,7 @@ import path from "path"
 import fs from "fs"
 import os from "os"
 import type { McServerInfo, McServerState, McServerMetrics } from "@xnlc/types" with { "resolution-mode": "import" }
-import iconv from "iconv-lite"
+import { createInterface } from "node:readline"
 import { EULA_PROMPT_PATTERN, isStartupDoneLine, isStoppingLine } from "./startup-detection.js"
 
 const execAsync = promisify(exec)
@@ -269,6 +269,7 @@ export class ServerManager {
     const xms = server.xms
 
     const isArgsFile = jarPath.toLowerCase().endsWith(".txt")
+    const extraJavaArgs = server.extraJavaArgs ? this.parseExtraArgs(server.extraJavaArgs) : []
 
     let args: string[]
     if (isArgsFile) {
@@ -281,8 +282,11 @@ export class ServerManager {
       args = [
         `-Dfile.encoding=UTF-8`,
         `-Dsun.jnu.encoding=UTF-8`,
+        "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8", "-Dsun.stderr.encoding=UTF-8",
         `-Xmx${xmx}m`,
         `-Xms${xms}m`,
+        ...extraJavaArgs,
         ...parsed,
         "nogui",
       ]
@@ -290,20 +294,14 @@ export class ServerManager {
       args = [
         `-Dfile.encoding=UTF-8`,
         `-Dsun.jnu.encoding=UTF-8`,
+        "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8", "-Dsun.stderr.encoding=UTF-8",
         `-Xmx${xmx}m`,
         `-Xms${xms}m`,
+        ...extraJavaArgs,
         `-jar`, jarPath,
         "nogui",
       ]
-    }
-
-    if (server.extraJavaArgs) {
-      const extra = this.parseExtraArgs(server.extraJavaArgs)
-      if (isArgsFile) {
-        args.push(...extra)
-      } else {
-        args.splice(args.length - 1, 0, ...extra)
-      }
     }
 
     const child = spawn(javaPath, args, {
@@ -385,18 +383,15 @@ export class ServerManager {
       }
     }
 
-    child.stdout.on("data", (data: Buffer) => {
-      const text = decodeOutput(data)
-      for (const line of text.split("\n")) {
-        if (line.trim()) handleLine(line.trimEnd())
-      }
+    // Декодируем поток целиком: граница чанка может проходить внутри буквы UTF-8.
+    child.stdout.setEncoding("utf8")
+    child.stderr.setEncoding("utf8")
+    createInterface({ input: child.stdout, crlfDelay: Infinity }).on("line", (line) => {
+      if (line.trim()) handleLine(line.trimEnd())
     })
 
-    child.stderr.on("data", (data: Buffer) => {
-      const text = decodeOutput(data)
-      for (const line of text.split("\n")) {
-        if (line.trim()) pushLog(`[STDERR] ${line.trimEnd()}`)
-      }
+    createInterface({ input: child.stderr, crlfDelay: Infinity }).on("line", (line) => {
+      if (line.trim()) pushLog(`[STDERR] ${line.trimEnd()}`)
     })
 
     child.on("error", (err) => {
@@ -585,23 +580,6 @@ export class ServerManager {
 
 // Singleton
 export const serverManager = new ServerManager()
-
-// ── Output decoder ───────────────────────────────────
-// Minecraft server outputs CP1251 on Russian Windows, but with
-// -Dfile.encoding=UTF-8 most output is UTF-8. Try UTF-8 first,
-// fall back to CP1251 if replacement chars detected.
-function decodeOutput(data: Buffer): string {
-  const utf8 = data.toString("utf-8")
-  // If no replacement characters (U+FFFD), UTF-8 decoded fine
-  if (!utf8.includes("\uFFFD")) return utf8
-
-  // Try CP1251 decode
-  try {
-    return iconv.decode(data, "cp1251")
-  } catch {
-    return utf8
-  }
-}
 
 // Splits a command-line string into tokens, respecting double quotes. Used to
 // parse win_args.txt / unix_args.txt contents. Semicolons inside a quoted

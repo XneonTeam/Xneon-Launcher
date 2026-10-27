@@ -13,6 +13,7 @@ import { getLoaderMetaClient } from "../core/loader-meta-client-singleton.js";
 import { MetaClient } from "../core/meta-client.js";
 import type { ILoaderHandler } from "./types.js";
 import { ProfileBuilder } from "../core/profile-builder.js";
+import { ensureDirSync } from "../utils/sync.js";
 
 export class LiteLoaderHandler implements ILoaderHandler {
   private loaderMetaClient: LoaderMetaClient;
@@ -62,7 +63,7 @@ export class LiteLoaderHandler implements ILoaderHandler {
     
     const profileName = `liteloader-${liteloaderVersion}-${mcVersion}`;
     const versionDir = path.join(this.gameDir, "versions", profileName);
-    if (!fs.existsSync(versionDir)) fs.mkdirSync(versionDir, { recursive: true });
+    ensureDirSync(versionDir);
 
     const requiredMinecraft = metaLite.requires.find(r => r.uid === "net.minecraft")?.equals;
     if (requiredMinecraft && requiredMinecraft !== mcVersion) {

@@ -5,7 +5,7 @@ import { spawnSync } from "child_process"
 import type { ChildProcess } from "child_process"
 import type { LoaderType } from "@xnlc/core" with { "resolution-mode": "import" }
 import type { WorkerLaunchPayload } from "@xnlc/types" with { "resolution-mode": "import" }
-import { ensureSharedGameLinksSync } from "./shared-game-cache"
+import { prepareInstanceStorageSync, resolveMinecraftResourcePath } from "./shared-game-cache"
 
 let minecraftProcess: ChildProcess | null = null
 let launchStarted = false
@@ -429,20 +429,17 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
     debug("BMCLAPI enabled: overriding download URLs")
     applyBmclapiEnv()
   }
-  const javaPath = normalizeJavaPath(payload.options.javaPath)
+  const resourceDir = prepareInstanceStorageSync(payload.gameDir)
+  const javaPath = normalizeJavaPath(resolveMinecraftResourcePath(payload.options.javaPath, payload.gameDir, resourceDir))
   const defaultJvmArgs: string[] = []
 
-  // Point versions/libraries/assets at the shared cache before XNLC starts
-  // installing so downloads are reused across every build of the same version.
-  try {
-    fs.mkdirSync(payload.gameDir, { recursive: true })
-  } catch {
-    // ignore
-  }
-  ensureSharedGameLinksSync(payload.gameDir)
+  // Инстанс читает игру, библиотеки, ресурсы и Java из собственного каталога.
 
   const xnlc = new Xnlc({
     gameDir: payload.gameDir,
+    resourceDir,
+    javaRoot: payload.gameDir,
+    customVersionsDir: path.join(resourceDir, "versions"),
     defaultJvmArgs,
     javaPath,
   })
@@ -569,14 +566,10 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
   extraGameArgs.push(...quickPlayArgs)
   if (quickPlayArgs.length) debug(`Quick Play: ${quickPlayArgs.join(" ")}`)
 
-  // Размер окна — это program-аргументы лаунчера, в version.json их нет,
-  // поэтому передаём явно. Раньше width/height доходили только до подстановки
-  // ${resolution_width}, которой ванильные версии не пользуются, и настройка
-  // «Размер окна» не влияла ни на что.
+  // Аргументы разрешения формирует LaunchBuilder из стандартных полей.
   const windowWidth = payload.options.width
   const windowHeight = payload.options.height
   if (typeof windowWidth === "number" && windowWidth > 0 && typeof windowHeight === "number" && windowHeight > 0) {
-    extraGameArgs.push("--width", String(Math.round(windowWidth)), "--height", String(Math.round(windowHeight)))
     debug(`Window size: ${Math.round(windowWidth)}x${Math.round(windowHeight)}`)
   }
 
@@ -586,6 +579,7 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
       mcVersion: payload.options.mcVersion,
       loaderType: payload.options.loaderType as LoaderType,
       loaderVersion: payload.options.loaderVersion,
+      customVersionPath: resolveMinecraftResourcePath(payload.options.customVersionPath, payload.gameDir, resourceDir),
     },
     auth,
     {

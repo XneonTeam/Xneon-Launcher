@@ -110,6 +110,14 @@ function isMatchingInstalledVersion(
   item: CheckableItem,
   resource?: { versionId?: string | null; fileId?: number | null }
 ): boolean {
+  const hashes = candidate.files?.map(file => file.hashes?.sha1).filter(Boolean) ?? []
+  if (/^[a-f0-9]{40}$/i.test(item.id) && hashes.length) {
+    return hashes.some(hash => hash?.toLowerCase() === item.id.toLowerCase())
+  }
+  const exactVersionId = item.versionId || resource?.versionId
+  if (exactVersionId) return candidate.id === exactVersionId
+  const exactFileId = item.fileId || resource?.fileId
+  if (exactFileId) return candidate.id === String(exactFileId)
   // 1. По точному хэшу файла (SHA-1)
   if (item.id && candidate.files?.some((f) => {
     const hashes = (f as { hashes?: { sha1?: string } }).hashes
@@ -334,6 +342,12 @@ export async function checkContentUpdates(buildId: string, channel: UpdateChanne
       resourceMap = new Map(resources.map((r) => [r.sha1, r]))
     } catch {}
 
+    // Локальные файлы могли ещё не получить метаданные фонового сканирования.
+    const unresolvedHashes = items
+      .filter(item => !(item.source === "modrinth" && item.projectId) && !(item.source === "curseforge" && item.modId))
+      .map(item => item.id).filter(id => /^[a-f0-9]{40}$/i.test(id))
+    const identities = unresolvedHashes.length ? await mods.modrinthGetFilesByHash(unresolvedHashes) : {}
+
     // Modrinth пакетная оптимизация: проверяем все Modrinth-моды одним запросом!
     const mrItems = items.filter((i) => i.source === "modrinth" && i.id)
     let mrUpdatesMap: Record<string, ModVersion> = {}
@@ -347,7 +361,11 @@ export async function checkContentUpdates(buildId: string, channel: UpdateChanne
       }
     }
 
-    for (const item of items) {
+    for (const installedItem of items) {
+      const identity = identities[installedItem.id]
+      const item: CheckableItem = identity
+        ? { ...installedItem, source: "modrinth", projectId: identity.projectId, versionId: identity.versionId }
+        : installedItem
       tasks.push(async () => {
         try {
           const resource = resourceMap.get(item.id)

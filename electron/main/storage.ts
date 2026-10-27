@@ -1,3 +1,4 @@
+import { getMinecraftResourceRoot } from "./shared-game-cache"
 // ============================================================
 // XNLC — Storage Manager
 // Reports per-build disk usage and cleans up logs, crash
@@ -10,7 +11,6 @@ import fs from "fs/promises"
 import { dbHelpers } from "../db"
 import { getBuildIntentPath } from "./builds"
 import { getInstancesRoot } from "./builds/helpers"
-import { getGameDir } from "./minecraft-core"
 import { getMcServerDir } from "./paths"
 import type {
   BuildStorageEntry,
@@ -267,8 +267,8 @@ async function scanServers(): Promise<ServerStorageEntry[]> {
 }
 
 export async function scanStorage(): Promise<StorageScanResult> {
-  const gameDir = await getGameDir()
-  const runtimeRoot = path.join(gameDir, "runtime")
+  const gameDir = getMinecraftResourceRoot()
+  const runtimeRoot = path.join(getMinecraftResourceRoot(), "runtime")
   const trashPath = path.join(getInstancesRoot(), "intents", ".trash")
 
   const [builds, servers, javaEntries, trashSize, gameDirSize] = await Promise.all([
@@ -276,7 +276,7 @@ export async function scanStorage(): Promise<StorageScanResult> {
     scanServers(),
     scanJavaRuntimes(runtimeRoot),
     pathExists(trashPath).then((exists) => (exists ? getDirectorySize(trashPath) : 0)),
-    pathExists(gameDir).then((exists) => (exists ? getDirectorySize(gameDir) : 0)),
+    sumSubdirs(gameDir, ["assets", "libraries", "versions", "installers"]),
   ])
 
   return {
@@ -316,7 +316,7 @@ export async function cleanStorage(target: StorageCleanTarget): Promise<StorageC
 
     if (target.kind === "java-runtime") {
       // Safety: only allow deleting inside <gameDir>/runtime.
-      const runtimeRoot = path.join(await getGameDir(), "runtime")
+      const runtimeRoot = path.join(getMinecraftResourceRoot(), "runtime")
       const resolved = path.resolve(target.path)
       const resolvedRoot = path.resolve(runtimeRoot)
       if (!resolved.startsWith(resolvedRoot + path.sep)) {

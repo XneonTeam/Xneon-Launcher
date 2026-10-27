@@ -72,6 +72,8 @@ export function pruneStaleLoaderProfiles(
   if (!gameDir) return result
 
   const versionsDir = path.join(gameDir, "versions")
+  // Старые ссылки ведут в общее хранилище: чистить его по одной сборке нельзя.
+  try { if (fs.lstatSync(versionsDir).isSymbolicLink()) return result } catch { return result }
   let entries: fs.Dirent[]
   try {
     entries = fs.readdirSync(versionsDir, { withFileTypes: true })

@@ -1,18 +1,18 @@
 import * as path from "path";
 import { ensureDirSync } from "./sync.js";
 
-export function getGameDirStructure(gameDir: string): Record<string, string> {
+export function getGameDirStructure(gameDir: string, resourceDir = gameDir, javaRoot = resourceDir): Record<string, string> {
   const dirs = {
     root: gameDir,
-    versions: path.join(gameDir, "versions"),
-    libraries: path.join(gameDir, "libraries"),
-    assets: path.join(gameDir, "assets"),
-    assetIndexes: path.join(gameDir, "assets", "indexes"),
-    assetObjects: path.join(gameDir, "assets", "objects"),
+    versions: path.join(resourceDir, "versions"),
+    libraries: path.join(resourceDir, "libraries"),
+    assets: path.join(resourceDir, "assets"),
+    assetIndexes: path.join(resourceDir, "assets", "indexes"),
+    assetObjects: path.join(resourceDir, "assets", "objects"),
     resources: path.join(gameDir, "resources"),
     natives: path.join(gameDir, "natives"),
     logs: path.join(gameDir, "logs"),
-    runtime: path.join(gameDir, "runtime"),
+    runtime: path.join(javaRoot, "runtime"),
     mods: path.join(gameDir, "mods"),
     config: path.join(gameDir, "config"),
     resourcepacks: path.join(gameDir, "resourcepacks"),

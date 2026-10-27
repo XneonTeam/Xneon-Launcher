@@ -37,6 +37,7 @@ export type {
   ModpackImportResult,
   ModpackImportConflict,
   ImportProgress,
+  ImportProgressFile,
   ContentDownloadProgress,
   QuickPlayEntry,
   McProfile,
@@ -167,3 +168,4 @@ export type { AiProtocol, AiModelConfig, AiConfig, AiModelDiscovery } from "./ag
 export type { AgentHardware } from "./agent-types.js"
 
 export type { Theme, ThemeColorKey, ThemeGlow, ThemeFont, ThemeBackground, ThemeAppearance } from "./theme-types.js"
+export type { LocalThemeFile, LocalThemeSnapshot, LocalThemeImport } from "./theme-types.js"

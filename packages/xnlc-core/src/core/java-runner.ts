@@ -9,6 +9,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { pathToFileURL } from "node:url";
+import { StringDecoder } from "node:string_decoder";
 import AdmZip from "adm-zip/adm-zip.js";
 import { LaunchResult } from "../types/index.js";
 import { getLogsDir, cleanEnvForGame } from "../utils/index.js";
@@ -268,11 +269,11 @@ export class JavaRunner {
     const logFile = path.join(logsDir, "xnlc-launch.log");
     const logStream = fs.createWriteStream(logFile, { flags: "w" });
 
-    const decode = (data: Buffer) =>
-      process.platform === "win32" ? new TextDecoder("cp866").decode(data) : data.toString();
+    const stdoutDecoder = new StringDecoder("utf8");
+    const stderrDecoder = new StringDecoder("utf8");
 
     child.stdout?.on("data", (data: Buffer) => {
-      const text = decode(data);
+      const text = stdoutDecoder.write(data);
       if (this.pipeOutputToConsole) {
         process.stdout.write(text);
       }
@@ -280,7 +281,7 @@ export class JavaRunner {
     });
 
     child.stderr?.on("data", (data: Buffer) => {
-      const text = decode(data);
+      const text = stderrDecoder.write(data);
       if (this.pipeOutputToConsole) {
         process.stderr.write(text);
       }
@@ -289,6 +290,13 @@ export class JavaRunner {
 
     child.on("close", (code) => {
       this.currentProcess = null;
+      const stdoutTail = stdoutDecoder.end();
+      const stderrTail = stderrDecoder.end();
+      if (this.pipeOutputToConsole) {
+        process.stdout.write(stdoutTail);
+        process.stderr.write(stderrTail);
+      }
+      logStream.write(stdoutTail + stderrTail);
       logStream.end();
       // Временный @argfile / .cmd для длинной команды больше не нужен.
       if (cleanupPath) {

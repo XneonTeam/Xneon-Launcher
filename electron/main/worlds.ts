@@ -194,7 +194,7 @@ function parseWorldFolder(savesDir: string, folder: string): Promise<WorldInfo> 
       const data = (level as any).Data
       const levelName = data?.LevelName
       if (typeof levelName === "string" && levelName.trim()) name = levelName
-      const randomSeed = data?.RandomSeed
+      const randomSeed = data?.WorldGenSettings?.seed ?? data?.RandomSeed
       if (randomSeed !== undefined && randomSeed !== null) seed = formatBigInt(randomSeed)
       const gameType = data?.GameType
       const hardcoreValue = data?.hardcore

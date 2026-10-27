@@ -2,7 +2,7 @@ import path from "path"
 import fs from "fs/promises"
 import { app } from "electron"
 import type { LauncherInstance } from "./helpers"
-import { fileExists, getInstanceContentDirs, countFilesInDirs, resolveInstanceIconPath, isSupportedImportedLoader, discoverInstancesFromDirs } from "./helpers"
+import { fileExists, getInstanceContentDirs, countFilesInDirs, resolveInstanceIconPath, isSupportedImportedLoader, discoverInstancesFromDirs, readVersionSelection } from "./helpers"
 
 type GdLauncherInstanceJson = {
   name?: string
@@ -10,15 +10,24 @@ type GdLauncherInstanceJson = {
   created_at?: string
   modpack?: { platform?: string; project_id?: string | null } | null
   game_configuration?: {
-    version?: {
+    version?: string | {
       release?: string
       modloaders?: Array<{ type?: string; version?: string }>
     }
   }
 }
 
-function getGdLauncherInstancesDir(customPath?: string) {
-  if (customPath) return customPath
+async function getGdLauncherInstancesDir(customPath?: string): Promise<string> {
+  if (customPath) {
+    if (await fileExists(path.join(customPath, "instance.json"))) return path.dirname(customPath)
+    const candidates = path.basename(customPath).toLowerCase() === "instances"
+      ? [customPath]
+      : [path.join(customPath, "instances"), path.join(customPath, "data", "instances"), customPath]
+    for (const candidate of candidates) {
+      if (await fileExists(candidate)) return candidate
+    }
+    return candidates[0]
+  }
   const home = app.getPath("home")
   if (process.platform === "win32") {
     const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming")
@@ -37,12 +46,14 @@ async function readGdLauncherInstance(instanceDir: string): Promise<LauncherInst
 
     const raw = await fs.readFile(configPath, "utf-8")
     const parsed = JSON.parse(raw) as GdLauncherInstanceJson
-    const loaders = parsed.game_configuration?.version?.modloaders ?? []
+    const gameVersion = parsed.game_configuration?.version
+    const loaders = typeof gameVersion === "object" ? gameVersion.modloaders ?? [] : []
     const firstLoader = loaders[0]
     const loaderType = firstLoader?.type?.toLowerCase() ?? "vanilla"
     const loaderVersion = firstLoader?.version?.trim() || undefined
-    const version = parsed.game_configuration?.version?.release ?? "unknown"
+    const version = typeof gameVersion === "string" ? gameVersion : gameVersion?.release ?? "unknown"
     if (!isSupportedImportedLoader(loaderType)) return null
+    const importedVersion = await readVersionSelection(path.join(instanceDir, "instance", "versions"), [loaderType, loaderVersion ?? ""])
     const iconFile = await resolveInstanceIconPath(parsed.icon, [
       instanceDir,
       path.join(instanceDir, "instance"),
@@ -62,6 +73,8 @@ async function readGdLauncherInstance(instanceDir: string): Promise<LauncherInst
       icon: iconFile,
       path: instanceDir,
       source: "gdlauncher",
+      gameDataRoot: path.join(instanceDir, "instance"),
+      versionId: importedVersion?.id,
       modCount: await countFilesInDirs(modsDirs),
       resourcepackCount: await countFilesInDirs(rpDirs),
       shaderCount: await countFilesInDirs(spDirs),
@@ -72,7 +85,7 @@ async function readGdLauncherInstance(instanceDir: string): Promise<LauncherInst
 }
 
 export async function discoverGdLauncherInstances(customPath?: string): Promise<LauncherInstance[]> {
-  const instancesDir = getGdLauncherInstancesDir(customPath)
+  const instancesDir = await getGdLauncherInstancesDir(customPath)
   if (!(await fileExists(instancesDir))) return []
   return discoverInstancesFromDirs([instancesDir], readGdLauncherInstance)
 }

@@ -1,8 +1,7 @@
 import path from "path"
-import fs from "fs/promises"
 import { app } from "electron"
 import type { LauncherInstance } from "./helpers"
-import { fileExists, getInstanceContentDirs, countFilesInDirs, resolveInstanceIconPath, isSupportedImportedLoader, readSqliteDb, discoverInstancesFromDirs } from "./helpers"
+import { fileExists, getInstanceContentDirs, countFilesInDirs, resolveInstanceIconPath, isSupportedImportedLoader, readSqliteDb, sqliteTableExists, discoverInstancesFromDirs, readVersionSelection } from "./helpers"
 
 type ModrinthProfileRow = {
   path: string
@@ -13,140 +12,152 @@ type ModrinthProfileRow = {
   mod_loader_version: string | null
 }
 
-async function getModrinthAppProfilesDir(customPath?: string): Promise<string> {
-  if (customPath) {
-    const profiles = path.join(customPath, "profiles")
-    if (await fileExists(profiles)) return profiles
-    if (await fileExists(customPath)) return customPath
-  }
-  const home = app.getPath("home")
-  const isWindows = process.platform === "win32"
-  const appData = isWindows ? (process.env.APPDATA || "C:\\Windows\\System32\\config\\systemprofile\\AppData\\Roaming") : ""
+type ModrinthAppLocations = {
+  profilesDir: string
+  dbPath: string
+  dataDir: string
+}
 
-  const candidates: string[] = []
-  if (isWindows) {
-    candidates.push(path.join(appData, "ModrinthApp", "profiles"))
-  } else if (process.platform === "darwin") {
-    candidates.push(path.join(home, "Library", "Application Support", "ModrinthApp", "profiles"))
-  } else {
-    candidates.push(path.join(home, ".local", "share", "ModrinthApp", "profiles"))
+async function firstExisting(paths: string[]): Promise<string> {
+  for (const candidate of paths) {
+    if (await fileExists(candidate)) return candidate
   }
-
-  for (const d of candidates) { if (await fileExists(d)) return d }
   return ""
 }
 
-async function getModrinthAppDbPath(customPath?: string): Promise<string> {
+async function getModrinthAppLocations(customPath?: string): Promise<ModrinthAppLocations> {
   if (customPath) {
-    const dbPath = path.join(customPath, "app.db")
-    if (await fileExists(dbPath)) return dbPath
+    const isDb = path.basename(customPath).toLowerCase() === "app.db" && await fileExists(customPath)
+    const baseDir = isDb ? path.dirname(customPath) : customPath
+    const isProfilesDir = path.basename(baseDir).toLowerCase() === "profiles"
+    const profilesDir = await firstExisting(isProfilesDir
+      ? [baseDir]
+      : [path.join(baseDir, "profiles"), baseDir])
+    const dbPath = isDb ? customPath : await firstExisting([
+      path.join(baseDir, "app.db"),
+      ...(isProfilesDir ? [path.join(path.dirname(baseDir), "app.db")] : []),
+    ])
+    return {
+      profilesDir,
+      dbPath,
+      dataDir: dbPath ? path.dirname(dbPath) : (isProfilesDir ? path.dirname(baseDir) : baseDir),
+    }
   }
   const home = app.getPath("home")
-  const isWindows = process.platform === "win32"
-  const appData = isWindows ? (process.env.APPDATA || "C:\\Windows\\System32\\config\\systemprofile\\AppData\\Roaming") : ""
-
-  const candidates: string[] = []
-  if (isWindows) {
-    candidates.push(path.join(appData, "ModrinthApp", "app.db"))
+  let dataDir: string
+  if (process.platform === "win32") {
+    dataDir = path.join(process.env.APPDATA || path.join(home, "AppData", "Roaming"), "ModrinthApp")
   } else if (process.platform === "darwin") {
-    candidates.push(path.join(home, "Library", "Application Support", "ModrinthApp", "app.db"))
+    dataDir = path.join(home, "Library", "Application Support", "ModrinthApp")
   } else {
-    candidates.push(path.join(home, ".local", "share", "ModrinthApp", "app.db"))
+    dataDir = path.join(home, ".local", "share", "ModrinthApp")
   }
+  return {
+    profilesDir: await firstExisting([path.join(dataDir, "profiles")]),
+    dbPath: await firstExisting([path.join(dataDir, "app.db")]),
+    dataDir,
+  }
+}
 
-  for (const d of candidates) { if (await fileExists(d)) return d }
-  return ""
+function mapProfileRow(row: unknown[]): ModrinthProfileRow {
+  return {
+    path: String(row[0] ?? ""),
+    name: String(row[1] ?? ""),
+    icon_path: row[2] ? String(row[2]) : null,
+    game_version: String(row[3] ?? ""),
+    mod_loader: String(row[4] ?? ""),
+    mod_loader_version: row[5] ? String(row[5]) : null,
+  }
 }
 
 async function readModrinthDbProfiles(dbPath: string): Promise<ModrinthProfileRow[]> {
+  if (await sqliteTableExists(dbPath, "instances")) {
+    const rows = await readSqliteDb<ModrinthProfileRow>(
+      dbPath,
+      `SELECT i.path, i.name, i.icon_path, ics.game_version, ics.loader, ics.loader_version
+       FROM instances i
+       JOIN instance_content_sets ics
+         ON ics.id = i.applied_content_set_id AND ics.instance_id = i.id`,
+      mapProfileRow,
+    )
+    if (rows.length > 0 || !(await sqliteTableExists(dbPath, "profiles"))) return rows
+  }
+
+  // Modrinth App до миграции на content sets хранил всё в таблице profiles.
   return readSqliteDb<ModrinthProfileRow>(
     dbPath,
-    `SELECT i.path, i.name, i.icon_path, ics.game_version, ics.loader, ics.loader_version
-     FROM instances i
-     JOIN instance_content_sets ics ON ics.instance_id = i.id`,
-    (row) => ({
-      path: String(row[0] ?? ""),
-      name: String(row[1] ?? ""),
-      icon_path: row[2] ? String(row[2]) : null,
-      game_version: String(row[3] ?? ""),
-      mod_loader: String(row[4] ?? ""),
-      mod_loader_version: row[5] ? String(row[5]) : null,
-    }),
+    `SELECT path, name, icon_path, game_version, mod_loader, mod_loader_version FROM profiles`,
+    mapProfileRow,
   )
 }
 
 export async function discoverModrinthAppInstances(customPath?: string): Promise<LauncherInstance[]> {
-  const profilesDir = await getModrinthAppProfilesDir(customPath)
-  const dbPath = await getModrinthAppDbPath(customPath)
+  const { profilesDir, dbPath, dataDir } = await getModrinthAppLocations(customPath)
   if (!profilesDir) return []
 
+  const rows = dbPath ? await readModrinthDbProfiles(dbPath) : []
   const profileMap = new Map<string, ModrinthProfileRow>()
-  if (dbPath) {
-    try {
-      const rows = await readModrinthDbProfiles(dbPath)
-      for (const row of rows) {
-        profileMap.set(row.path, row)
-      }
-    } catch { /* ignore */ }
+  const foundPaths = new Set<string>()
+  const instances: LauncherInstance[] = []
+
+  for (const row of rows) {
+    const dir = path.isAbsolute(row.path) ? path.normalize(row.path) : path.join(profilesDir, row.path)
+    const normalized = path.normalize(dir)
+    profileMap.set(normalized, row)
+    if (!(await fileExists(dir))) continue
+    const instance = await readModrinthInstance(dir, row, dataDir, profilesDir, path.join(dataDir, "meta"))
+    if (instance) instances.push(instance)
+    foundPaths.add(normalized)
   }
 
-  // Обход каталогов профилей — общий скелет (см. discoverInstancesFromDirs).
-  return discoverInstancesFromDirs([profilesDir], async (dir): Promise<LauncherInstance | null> => {
-    const dirName = path.basename(dir)
-    const dbRow = profileMap.get(dirName) || profileMap.get(dir)
-
-    let version = "unknown"
-    let modLoader = "vanilla"
-    let loaderVersion: string | undefined
-    let iconPath: string | undefined
-
-    if (dbRow) {
-      version = dbRow.game_version || "unknown"
-      const loaderRaw = (dbRow.mod_loader || "").toLowerCase()
-      if (loaderRaw === "fabric") modLoader = "fabric"
-      else if (loaderRaw === "forge") modLoader = "forge"
-      else if (loaderRaw === "neoforge") modLoader = "neoforge"
-      else if (loaderRaw === "quilt") modLoader = "quilt"
-      loaderVersion = dbRow.mod_loader_version || undefined
-      iconPath = await resolveInstanceIconPath(dbRow.icon_path, [dir, profilesDir, path.dirname(dbPath || profilesDir)])
-    }
-
-    if (version === "unknown" || modLoader === "vanilla") {
-      try {
-        const indexPath = path.join(dir, "modrinth.index.json")
-        const raw = await fs.readFile(indexPath, "utf-8")
-        const index = JSON.parse(raw)
-        if (version === "unknown" && index.gameVersion) version = index.gameVersion
-        if (modLoader === "vanilla" && index.modLoaders?.length > 0) {
-          const loader = index.modLoaders[0]
-          const id = (loader.id || "").toLowerCase()
-          if (id.startsWith("fabric-")) modLoader = "fabric"
-          else if (id.startsWith("forge-")) modLoader = "forge"
-          else if (id.startsWith("neoforge-")) modLoader = "neoforge"
-          else if (id.startsWith("quilt-")) modLoader = "quilt"
-          loaderVersion = id.replace(/^(fabric|forge|neoforge|quilt)-/, "") || undefined
-        }
-      } catch { /* no index file or parse error */ }
-    }
-
-    if (!isSupportedImportedLoader(modLoader)) return null
-
-    const modsDirs = await getInstanceContentDirs(dir, "mods")
-    const rpDirs = await getInstanceContentDirs(dir, "resourcepacks")
-    const spDirs = await getInstanceContentDirs(dir, "shaderpacks")
-
-    return {
-      id: `modrinthapp:${dirName}`,
-      name: dbRow?.name?.trim() || dirName,
-      version,
-      modLoader,
-      loaderVersion,
-      icon: iconPath,
-      path: dir,
-      source: "modrinthapp",
-      modCount: await countFilesInDirs(modsDirs),
-      resourcepackCount: await countFilesInDirs(rpDirs),
-      shaderCount: await countFilesInDirs(spDirs),
-    }
+  const fromDirs = await discoverInstancesFromDirs([profilesDir], async (dir) => {
+    const normalized = path.normalize(dir)
+    if (foundPaths.has(normalized)) return null
+    return readModrinthInstance(dir, profileMap.get(normalized), dataDir, profilesDir, path.join(dataDir, "meta"))
   })
+
+  return [...instances, ...fromDirs].sort((a, b) => a.name.localeCompare(b.name, "ru"))
+}
+
+async function readModrinthInstance(
+  dir: string,
+  dbRow: ModrinthProfileRow | undefined,
+  dataDir: string,
+  profilesDir: string,
+  gameDataRoot: string,
+): Promise<LauncherInstance | null> {
+  const dirName = path.basename(dir)
+  const version = dbRow?.game_version || "unknown"
+  const loaderRaw = (dbRow?.mod_loader || "").toLowerCase()
+  const modLoader = ["fabric", "forge", "neoforge", "quilt"].includes(loaderRaw) ? loaderRaw : "vanilla"
+  const loaderVersion = dbRow?.mod_loader_version || undefined
+  const importedVersion = await readVersionSelection(path.join(gameDataRoot, "versions"), [modLoader, loaderVersion ?? ""])
+  const iconPath = await resolveInstanceIconPath(dbRow?.icon_path, [
+    dir,
+    profilesDir,
+    path.join(dataDir, "caches"),
+    dataDir,
+  ])
+
+  if (!isSupportedImportedLoader(modLoader)) return null
+
+  const modsDirs = await getInstanceContentDirs(dir, "mods")
+  const rpDirs = await getInstanceContentDirs(dir, "resourcepacks")
+  const spDirs = await getInstanceContentDirs(dir, "shaderpacks")
+
+  return {
+    id: `modrinthapp:${dirName}`,
+    name: dbRow?.name?.trim() || dirName,
+    version,
+    modLoader,
+    loaderVersion,
+    icon: iconPath,
+    path: dir,
+    source: "modrinthapp",
+    gameDataRoot,
+    versionId: importedVersion?.id,
+    modCount: await countFilesInDirs(modsDirs),
+    resourcepackCount: await countFilesInDirs(rpDirs),
+    shaderCount: await countFilesInDirs(spDirs),
+  }
 }

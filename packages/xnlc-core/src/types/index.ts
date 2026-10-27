@@ -328,6 +328,10 @@ export type DownloadProgressCallback = (progress: DownloadProgress) => void;
 
 export interface XnlcOptions {
   gameDir: string;
+  /** Общие игровые ресурсы; по умолчанию сохраняется автономная структура gameDir. */
+  resourceDir?: string;
+  /** Корень управляемой Java (каталог runtime внутри него). */
+  javaRoot?: string;
   os?: OSInfo;
   javaPath?: string;
   launcherName?: string;

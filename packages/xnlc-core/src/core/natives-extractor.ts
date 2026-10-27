@@ -16,8 +16,9 @@ export class NativesExtractor {
     private librariesManager: LibrariesManager,
   ) {}
 
-  async extractNatives(versionJson: VersionJson, gameDir: string): Promise<string> {
+  async extractNatives(versionJson: VersionJson, gameDir: string, resourceDir = gameDir): Promise<string> {
     const nativesDir = getNativesDir(gameDir);
+    const versionNativesDir = path.join(resourceDir, "versions", versionJson.id, "natives");
     const markerPath = path.join(nativesDir, ".xnlc-natives-version");
     const markerId = this.getNativeMarkerId(versionJson);
 
@@ -42,6 +43,25 @@ export class NativesExtractor {
       fs.rmSync(nativesDir, { recursive: true, force: true });
     }
     fs.mkdirSync(nativesDir, { recursive: true });
+
+    // ZIP-портированные клиенты могут поставлять готовые DLL/SO рядом с
+    // версией. Сначала берём их, затем дозаполняем набор из native JAR.
+    const bundledFiles = new Set<string>();
+    const copyBundled = (directory: string, relative = "") => {
+      if (!fs.existsSync(directory)) return;
+      for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+        const entryRelative = relative ? path.join(relative, entry.name) : entry.name;
+        if (entry.isDirectory()) {
+          copyBundled(path.join(directory, entry.name), entryRelative);
+        } else if (entry.isFile()) {
+          const destination = path.join(nativesDir, entryRelative);
+          fs.mkdirSync(path.dirname(destination), { recursive: true });
+          fs.copyFileSync(path.join(directory, entry.name), destination);
+          bundledFiles.add(entryRelative);
+        }
+      }
+    };
+    copyBundled(versionNativesDir);
 
     // 1. Get all resolved libraries and filter for natives
     const resolved = this.librariesManager.resolveLibraries(versionJson);
@@ -81,7 +101,7 @@ export class NativesExtractor {
     }
 
     try {
-      fs.writeFileSync(markerPath, JSON.stringify({ id: markerId, files: [...extractedFiles] }), "utf-8");
+    fs.writeFileSync(markerPath, JSON.stringify({ id: markerId, files: [...bundledFiles, ...extractedFiles] }), "utf-8");
     } catch {
       // ignore marker write failures
     }

@@ -4,7 +4,7 @@
 // Extracted from minecraft-launch-worker.ts
 // ============================================================
 
-import iconv from "iconv-lite"
+import { StringDecoder } from "node:string_decoder"
 
 export type OutputRelayCallback = (payload: Record<string, unknown>) => void
 
@@ -15,6 +15,7 @@ export type OutputRelayCallback = (payload: Record<string, unknown>) => void
  */
 export class OutputRelay {
   private buffer = ""
+  private readonly decoder = new StringDecoder("utf8")
   private suppressingMinecraftResources = false
 
   constructor(
@@ -23,7 +24,7 @@ export class OutputRelay {
   ) {}
 
   push(chunk: Buffer | string): void {
-    const text = typeof chunk === "string" ? chunk : iconv.decode(chunk, "cp866")
+    const text = typeof chunk === "string" ? chunk : this.decoder.write(chunk)
     this.buffer += text
     const lines = this.buffer.split(/\r?\n/)
     this.buffer = lines.pop() ?? ""
@@ -34,6 +35,7 @@ export class OutputRelay {
   }
 
   flush(): void {
+    this.buffer += this.decoder.end()
     if (!this.buffer) return
     this.processLine(this.buffer)
     this.buffer = ""

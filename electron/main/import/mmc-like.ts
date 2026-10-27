@@ -2,11 +2,11 @@ import path from "path"
 import fs from "fs/promises"
 import { app } from "electron"
 import type { LauncherInstance } from "./helpers"
-import { fileExists, getInstanceContentDirs, countFilesInDirs, isSupportedImportedLoader, discoverInstancesFromDirs } from "./helpers"
+import { fileExists, getInstanceContentDirs, countFilesInDirs, isSupportedImportedLoader, discoverInstancesFromDirs, readVersionSelection } from "./helpers"
 
 type MmcLikeType = "multimc" | "polymc" | "prism"
 
-async function getMmcLikeInstancesDirs(customPath?: string): Promise<{ type: MmcLikeType; dirs: string[] }[]> {
+async function getMmcLikeInstancesDirs(customPath?: string, customType?: MmcLikeType): Promise<{ type: MmcLikeType; dirs: string[] }[]> {
   const home = app.getPath("home")
   const isWindows = process.platform === "win32"
   const isMacOS = process.platform === "darwin"
@@ -16,7 +16,15 @@ async function getMmcLikeInstancesDirs(customPath?: string): Promise<{ type: Mmc
   if (customPath) {
     const instancesDir = path.join(customPath, "instances")
     if (await fileExists(instancesDir)) {
-      result.push({ type: "prism", dirs: [instancesDir] })
+      result.push({ type: customType ?? "prism", dirs: [instancesDir] })
+      return result
+    }
+    if (await fileExists(path.join(customPath, "instance.cfg"))) {
+      result.push({ type: customType ?? "prism", dirs: [path.dirname(customPath)] })
+      return result
+    }
+    if (await fileExists(customPath)) {
+      result.push({ type: customType ?? "prism", dirs: [customPath] })
       return result
     }
   }
@@ -141,6 +149,8 @@ async function readMmcLikeInstance(instanceDir: string, type: MmcLikeType): Prom
 
     if (!isSupportedImportedLoader(modLoader)) return null
 
+    const importedVersion = await readVersionSelection(path.join(instanceDir, "versions"), [modLoader])
+
     let iconPath: string | undefined
     for (const sub of [path.join(instanceDir, "minecraft"), path.join(instanceDir, ".minecraft"), instanceDir]) {
       const candidate = path.join(sub, "icon.png")
@@ -160,6 +170,8 @@ async function readMmcLikeInstance(instanceDir: string, type: MmcLikeType): Prom
       icon: iconPath,
       path: instanceDir,
       source: type,
+      gameDataRoot: instanceDir,
+      versionId: importedVersion?.id,
       modCount: await countFilesInDirs(modsDirs),
       resourcepackCount: await countFilesInDirs(rpDirs),
       shaderCount: await countFilesInDirs(spDirs),
@@ -169,8 +181,8 @@ async function readMmcLikeInstance(instanceDir: string, type: MmcLikeType): Prom
   }
 }
 
-export async function discoverMmcLikeInstances(customPath?: string): Promise<LauncherInstance[]> {
-  const mmcLikeConfigs = await getMmcLikeInstancesDirs(customPath)
+export async function discoverMmcLikeInstances(customPath?: string, customType?: MmcLikeType): Promise<LauncherInstance[]> {
+  const mmcLikeConfigs = await getMmcLikeInstancesDirs(customPath, customType)
   // Обход каталогов инстансов — общий скелет (см. discoverInstancesFromDirs):
   // раньше он был скопирован в четырёх импортёрах.
   const instances = await discoverInstancesFromDirs(

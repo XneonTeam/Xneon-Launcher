@@ -1,4 +1,5 @@
 import * as path from "path";
+import { pathToFileURL } from "node:url";
 import * as fs from "fs";
 import type { VersionJson, LoaderInstallResult, DownloadProgressCallback } from "../types/index.js";
 import type { ILoaderHandler } from "./types.js";
@@ -18,7 +19,7 @@ export class CustomVersionHandler implements ILoaderHandler {
 
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        const versionJsonPath = path.join((entry as any).path, `${entry.name}.json`);
+        const versionJsonPath = path.join(this.customVersionsDir, entry.name, `${entry.name}.json`);
         if (fs.existsSync(versionJsonPath)) {
           versions.push(entry.name);
         }
@@ -78,6 +79,25 @@ export class CustomVersionHandler implements ILoaderHandler {
     }
 
     let versionJson: VersionJson = JSON.parse(fs.readFileSync(versionJsonPath, "utf-8"));
+    // Старые клиентские профили используют artifact/classifies на верхнем
+    // уровне библиотеки, причём ключи classifies — ОС, а не classifier.
+    versionJson.libraries = (versionJson.libraries ?? []).map(lib => {
+      const legacy = lib as typeof lib & {
+        artifact?: NonNullable<typeof lib.downloads>["artifact"];
+        classifies?: NonNullable<typeof lib.downloads>["classifiers"];
+      };
+      if (!legacy.artifact && !legacy.classifies) return lib;
+      const classifiers = { ...lib.downloads?.classifiers };
+      for (const [key, value] of Object.entries(legacy.classifies ?? {})) {
+        const classifier = lib.natives?.[key] ?? key;
+        if (!classifiers[classifier]) classifiers[classifier] = value;
+      }
+      return { ...lib, downloads: {
+        ...lib.downloads,
+        artifact: lib.downloads?.artifact ?? legacy.artifact,
+        classifiers,
+      } };
+    });
     
     // If there's a custom jar, fix any library entries that have no downloads
     if (customJarPath) {
@@ -111,7 +131,7 @@ export class CustomVersionHandler implements ILoaderHandler {
                 downloads: {
                   artifact: {
                     path: mavenPath,
-                    url: `file://${libraryPath}`,
+                    url: pathToFileURL(libraryPath).href,
                     sha1: "",
                     size: libSize,
                   },
@@ -129,7 +149,7 @@ export class CustomVersionHandler implements ILoaderHandler {
                 downloads: {
                   artifact: {
                     path: mavenPath,
-                    url: `file://${hyphenLibraryPath}`,
+                    url: pathToFileURL(hyphenLibraryPath).href,
                     sha1: "",
                     size: libSize,
                   },
@@ -148,7 +168,7 @@ export class CustomVersionHandler implements ILoaderHandler {
               downloads: {
                 artifact: {
                   path: mavenPath,
-                  url: `file://${customJarPath}`,
+                  url: pathToFileURL(customJarPath).href,
                   sha1: "",
                   size: customJarSize,
                 },

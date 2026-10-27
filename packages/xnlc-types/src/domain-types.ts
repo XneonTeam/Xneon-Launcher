@@ -73,6 +73,8 @@ export type DbBuild = {
   version: string
   modLoader: string
   loaderVersion?: string
+  /** Импортированная клиентская версия внутри <gameDir>/versions. */
+  customVersionPath?: string
   icon: string
   coverImage?: string
   mods: DbBuildMod[]
@@ -264,7 +266,7 @@ export type ImportableLauncherInstance = {
   loaderVersion?: string
   icon?: string
   path: string
-  source: "gdlauncher" | "prism" | "multimc" | "polymc" | "astralrinth" | "xlauncher" | "modrinthapp"
+  source: "gdlauncher" | "prism" | "multimc" | "polymc" | "xlauncher" | "modrinthapp" | "millida"
   modCount?: number
   resourcepackCount?: number
   shaderCount?: number
@@ -358,6 +360,8 @@ export type ModpackImportResult = {
   version?: string
   modLoader?: string
   loaderVersion?: string
+  /** Импортированная клиентская версия внутри <gameDir>/versions. */
+  customVersionPath?: string
   modpackVersion?: string
   /** Id установленной версии модпака — нужен, чтобы «Восстановить» ставил именно её */
   modpackVersionId?: string
@@ -371,7 +375,25 @@ export type ModpackImportResult = {
 
 // ── Import Progress ─────────────────────────────────────────
 
+export type ImportProgressFile = {
+  id: string
+  name: string
+  fileName: string
+  iconUrl?: string
+  kind?: "mod" | "resourcepack" | "shader" | "file"
+  status: "queued" | "downloading" | "complete" | "error" | "cancelled"
+}
+
 export type ImportProgress = {
+  operation?: "modpack" | "archive" | "launcher" | "update"
+  phase?: "preparing" | "package" | "files" | "extracting" | "copying" | "scanning" | "complete" | "cancelling"
+  source?: "modrinth" | "curseforge" | "ftb" | "local"
+  title?: string
+  iconUrl?: string
+  files?: ImportProgressFile[]
+  file?: ImportProgressFile
+  fileCount?: number
+  completedFiles?: number
   current: number
   total: number
   message: string

@@ -17,6 +17,7 @@ export type LaunchRequestOptions = {
   modLoader?: string;
   loaderType?: LoaderType;
   loaderVersion?: string;
+  customVersionPath?: string;
   memoryMin?: string;
   memoryMax?: string;
   javaPath?: string;
@@ -28,6 +29,7 @@ export type ResolvedLaunchRequest = {
   mcVersion: string;
   loaderType: LoaderType;
   loaderVersion?: string;
+  customVersionPath?: string;
   memoryMin: string;
   memoryMax: string;
   javaPath?: string;
@@ -307,12 +309,14 @@ export function resolveLaunchRequest(options: LaunchRequestOptions): ResolvedLau
     liteloader: "liteloader",
     quilt: "quilt",
     optifine: "optifine",
+    custom: "custom",
   };
 
   return {
     mcVersion,
     loaderType: options.loaderType ?? (options.modLoader ? modLoaderToLoaderType[options.modLoader] : "vanilla"),
     loaderVersion: options.loaderVersion,
+    customVersionPath: options.customVersionPath,
     memoryMin: options.memoryMin ?? "512M",
     memoryMax: options.memoryMax ?? "4G",
     javaPath: options.javaPath,

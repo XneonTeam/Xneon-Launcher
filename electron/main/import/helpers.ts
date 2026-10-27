@@ -56,10 +56,78 @@ export type LauncherInstance = {
   loaderVersion?: string
   icon?: string
   path: string
-  source: "gdlauncher" | "prism" | "multimc" | "polymc" | "astralrinth" | "xlauncher" | "modrinthapp"
+  /** Корень чужого лаунчера с общими versions/libraries/assets. */
+  gameDataRoot?: string
+  /** Имя версии в versions, выбранное у этой сборки. */
+  versionId?: string
+  source: "gdlauncher" | "prism" | "multimc" | "polymc" | "xlauncher" | "modrinthapp" | "millida"
   modCount?: number
   resourcepackCount?: number
   shaderCount?: number
+}
+
+export async function readVersionSelection(
+  versionDir: string,
+  loaderHints: string[],
+): Promise<{ id: string; version: string; modLoader: string; loaderVersion?: string } | null> {
+  let entries: import("fs").Dirent[]
+  try { entries = await fs.readdir(versionDir, { withFileTypes: true }) } catch { return null }
+  const candidates: Array<{ id: string; jsonPath: string; score: number }> = []
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    const id = entry.name
+    const jsonPath = path.join(versionDir, id, `${id}.json`)
+    if (!(await fileExists(jsonPath))) continue
+    const normalized = id.toLowerCase()
+    const score = loaderHints.reduce((best, hint, index) => {
+      if (!hint || !normalized.includes(hint.toLowerCase())) return best
+      return Math.max(best, 100 - index)
+    }, 0)
+    candidates.push({ id, jsonPath, score })
+  }
+  candidates.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
+
+  for (const candidate of candidates) {
+    try {
+      const raw = JSON.parse(await fs.readFile(candidate.jsonPath, "utf-8")) as {
+        id?: string
+        inheritsFrom?: string
+        mainClass?: string
+        libraries?: Array<{ name?: string }>
+      }
+      const haystack = `${raw.mainClass ?? ""} ${(raw.libraries ?? []).map((lib) => lib.name ?? "").join(" ")} ${candidate.id}`.toLowerCase()
+      let modLoader = "vanilla"
+      if (haystack.includes("neoforged") || haystack.includes("neoforge")) modLoader = "neoforge"
+      else if (haystack.includes("quiltmc") || haystack.includes("quilt")) modLoader = "quilt"
+      else if (haystack.includes("fabricmc") || haystack.includes("fabric")) modLoader = "fabric"
+      else if (haystack.includes("minecraftforge") || haystack.includes("fmlclient") || haystack.includes("bootstraplauncher") || haystack.includes("forge")) modLoader = "forge"
+      else if (haystack.includes("liteloader")) modLoader = "liteloader"
+      else if (haystack.includes("optifine")) modLoader = "optifine"
+
+      let loaderVersion: string | undefined
+      const artifactPrefix = modLoader === "fabric" ? "net.fabricmc:fabric-loader:"
+        : modLoader === "quilt" ? "org.quiltmc:quilt-loader:"
+          : modLoader === "neoforge" ? "net.neoforged:neoforge:"
+            : modLoader === "forge" ? "net.minecraftforge:forge:"
+              : modLoader === "liteloader" ? "com.mumfrey:liteloader:"
+                : modLoader === "optifine" ? "optifine:optifine:" : ""
+      if (artifactPrefix) {
+        const artifact = (raw.libraries ?? []).find((lib) => lib.name?.toLowerCase().startsWith(artifactPrefix))
+        loaderVersion = artifact?.name?.split(":")[2]
+        if (modLoader === "forge" && loaderVersion && raw.inheritsFrom) {
+          loaderVersion = loaderVersion.replace(`${raw.inheritsFrom}-`, "")
+        }
+      }
+      if (!loaderVersion && modLoader !== "vanilla") {
+        const pattern = modLoader === "fabric" || modLoader === "quilt"
+          ? new RegExp(`${modLoader}-loader-([0-9][^-]*)-${raw.inheritsFrom ?? "[^-]+"}`, "i")
+          : new RegExp(`${modLoader}-([0-9][0-9A-Za-z._-]*)`, "i")
+        loaderVersion = candidate.id.match(pattern)?.[1]
+      }
+      return { id: candidate.id, version: raw.inheritsFrom || candidate.id, modLoader, loaderVersion }
+    } catch {}
+  }
+  return null
 }
 
 export async function fileExists(fp: string): Promise<boolean> {
@@ -208,7 +276,7 @@ async function resolveInstanceIconPath(iconPath: string | null | undefined, sear
 export { resolveInstanceIconPath }
 
 /**
- * Чтение чужой SQLite-базы (Modrinth App / AstralRinth `app.db`) в режиме только
+ * Чтение чужой SQLite-базы Modrinth App (`app.db`) в режиме только
  * для чтения: файл не наш, поэтому его нельзя ни пересоздавать, ни оставлять
  * рядом WAL/SHM. Соединение открывается на время запроса и сразу закрывается,
  * чтобы не держать дескриптор на чужой файл.
@@ -225,5 +293,17 @@ export async function readSqliteDb<T>(dbPath: string, query: string, mapRow: (ro
     try {
       db?.close()
     } catch {}
+  }
+}
+
+export async function sqliteTableExists(dbPath: string, tableName: string): Promise<boolean> {
+  let db: Database.Database | null = null
+  try {
+    db = new Database(dbPath, { readonly: true, fileMustExist: true })
+    return db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1").get(tableName) !== undefined
+  } catch {
+    return false
+  } finally {
+    try { db?.close() } catch {}
   }
 }

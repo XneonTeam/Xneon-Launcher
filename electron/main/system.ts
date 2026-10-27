@@ -1,4 +1,5 @@
 import { writeStartupTheme } from "./startup-theme"
+import { openExternalLink } from "./external-links"
 import { opFailure } from "./errors"
 import { app, dialog, ipcMain, shell } from "electron"
 import os from "os"
@@ -8,7 +9,7 @@ import fsSync from "fs"
 import { fileURLToPath } from "url"
 import { dbHelpers, isUsingFallbackStorage } from "../db"
 import { getMainWindow, sendToRenderer } from "./runtime"
-import { discoverAllInstances, discoverGdLauncherInstances, discoverInstancesFromPath, importLauncherInstance } from "./import"
+import { discoverAllInstances, discoverGdLauncherInstances, discoverInstancesFromPath, getDiscoveredInstancesByIds, importLauncherInstance } from "./import"
 import { execAsync, fileExists } from "./import/helpers"
 import {
   cleanupReplacedLoaderArtifacts,
@@ -505,7 +506,7 @@ export function registerSystemHandlers() {
   })
   ipcMain.handle("launcher:import-instances", async (_event, ids: string[]) => {
     const selectedIds = Array.isArray(ids) ? new Set(ids) : new Set<string>()
-    const allInstances = (await discoverAllInstances()).filter((entry) => selectedIds.has(entry.id))
+    const allInstances = await getDiscoveredInstancesByIds(selectedIds)
     if (allInstances.length === 0) return { success: true, imported: 0 }
 
     const existingBuilds = await dbHelpers.loadBuildsLight()
@@ -538,7 +539,7 @@ export function registerSystemHandlers() {
     sendToRenderer("settings:updated", { key, value })
   })
 
-  ipcMain.handle("shell:open-external", (_event, url: string) => shell.openExternal(url))
+  ipcMain.handle("shell:open-external", (_event, url: string) => openExternalLink(url))
   ipcMain.handle("shell:open-launcher-folder", async (): Promise<void> => {
     const launcherDir = await dbHelpers.getLauncherDirectory()
     await shell.openPath(launcherDir)

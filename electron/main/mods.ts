@@ -100,8 +100,14 @@ export function registerModsHandlers(): void {
 
   ipcMain.handle(
     "mods:modrinth-versions",
-    async (_event, slug: string): Promise<ModVersion[]> => {
+    async (_event, slug: string, sha1?: string): Promise<ModVersion[]> => {
       const mods = await loadModsModule()
+      if (!slug && sha1 && /^[a-f0-9]{40}$/i.test(sha1)) {
+        const match = await mods.modrinthGetFileByHash(sha1.toLowerCase())
+        if (!match) return []
+        slug = match.projectId
+      }
+      if (!slug) return []
       return await mods.modrinthGetVersions(slug) as ModVersion[]
     },
   )
