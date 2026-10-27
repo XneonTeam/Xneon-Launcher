@@ -234,12 +234,17 @@ function contextHash(value: unknown) {
 function contextScope(config = state.config) {
   return contextHash([config?.endpoint, config?.protocol || "openai", config?.model, i18n.language || "ru", AGENT_CORE_PROMPT, AGENT_SYSTEM_PROMPT])
 }
-function contextOverhead(messages: AgentWireMessage[], groups: string[] = []) {
+const QUESTIONS_MODE_BLOCKED_TOOLS = new Set(["ask_user", "update_plan"])
+function agentTurnTools(messages: AgentWireMessage[], groups: string[] = [], mode: AgentChat["mode"] = "confirm") {
   const tools = getAgentTurnTools(messages, groups)
-  return { instructions: Math.ceil(agentSystemPrompt(i18n.language || "ru", tools.map(tool => tool.name)).length / 4), tools: Math.ceil(JSON.stringify(tools.map(tool => tool.spec)).length / 4) }
+  return mode === "questions" ? tools.filter(tool => tool.risk === "read" && !QUESTIONS_MODE_BLOCKED_TOOLS.has(tool.name)) : tools
+}
+function contextOverhead(messages: AgentWireMessage[], groups: string[] = [], mode: AgentChat["mode"] = "confirm") {
+  const tools = agentTurnTools(messages, groups, mode)
+  return { instructions: Math.ceil(agentSystemPrompt(i18n.language || "ru", tools.map(tool => tool.name), mode === "questions").length / 4), tools: Math.ceil(JSON.stringify(tools.map(tool => tool.spec)).length / 4) }
 }
 /** Замер относится только к конкретному префиксу истории и провайдеру. Старые сохранённые поправки не переносим. */
-export function measureAgentContext(messages: AgentWireMessage[], tokens: number, config = state.config, overheadTokens = Object.values(contextOverhead(messages)).reduce((sum, value) => sum + value, 0)): NonNullable<AgentChat["contextUsage"]> {
+export function measureAgentContext(messages: AgentWireMessage[], tokens: number, config = state.config, overheadTokens = Object.values(contextOverhead(messages, [], state.chat?.mode)).reduce((sum, value) => sum + value, 0)): NonNullable<AgentChat["contextUsage"]> {
   return { model: config?.model || "", tokens, scope: contextScope(config), messageCount: messages.length, prefixHash: contextHash(messages), overheadTokens }
 }
 function contextSize(messages: AgentWireMessage[], overhead: number, measured?: AgentChat["contextUsage"], config = state.config) {
@@ -273,7 +278,7 @@ function userContent(text: string, attachments: AgentAttachment[]) {
 }
 
 /** Считаем тот же контекст, который уйдёт провайдеру, включая черновик и усечённые вложения. */
-export function agentContextUsage(messages: AgentWireMessage[], draft = "", attachments: AgentAttachment[] = [], contextWindow = AGENT_CONTEXT_TOKENS, measured?: AgentChat["contextUsage"], config = state.config, groups: string[] = []) {
+export function agentContextUsage(messages: AgentWireMessage[], draft = "", attachments: AgentAttachment[] = [], contextWindow = AGENT_CONTEXT_TOKENS, measured?: AgentChat["contextUsage"], config = state.config, groups: string[] = [], mode: AgentChat["mode"] = "confirm") {
   // До появления содержимого запроса контекст ещё не сформирован.
   // Не показываем служебный резерв как расход пустого чата.
   if (!messages.length && !draft.trim() && !attachments.length) {
@@ -282,7 +287,7 @@ export function agentContextUsage(messages: AgentWireMessage[], draft = "", atta
   const pending: AgentWireMessage[] = draft.trim() || attachments.length ? [{ role: "user", content: userContent(draft.trim() || translate("inspectAttachments"), attachments), ...(attachments.some(item => item.imageUrl) ? { images: attachments.flatMap(item => item.imageUrl ? [item.imageUrl] : []) } : {}) }] : []
   const all = [...messages, ...pending]
   let trimmed = false, full = false
-  const overhead = contextOverhead(messages, groups)
+  const overhead = contextOverhead(messages, groups, mode)
   const reserve = overhead.instructions + overhead.tools
   try { trimmed = agentContext(all, contextWindow, reserve, measured, config).length < all.length } catch { full = true }
   // Показываем текущее заполнение, а не размер после ещё не выполненной обрезки.
@@ -356,7 +361,7 @@ export function toolContextResult(serialized: string) {
 async function compactAgentContext(contextWindow: number, force = false) {
   const chat = state.chat
   if (!chat || state.stopping) return false
-  const usage = agentContextUsage(chat.messages, "", [], contextWindow, chat.contextUsage, state.config, chat.toolGroups)
+  const usage = agentContextUsage(chat.messages, "", [], contextWindow, chat.contextUsage, state.config, chat.toolGroups, chat.mode)
   if (!force && usage.tokens <= agentCompactionThreshold(contextWindow) && chat.messages.length <= AGENT_CONTEXT_MESSAGES && !usage.trimmed) return false
   const plan = prepareAgentCompaction(chat.messages, contextWindow, items => estimateContextTokens(items))
   if (!plan) return false
@@ -421,13 +426,13 @@ export async function sendAgentMessage() {
       let sentContext: AgentWireMessage[] = []
       let sentOverhead = 0
       try {
-        const tools = getAgentTurnTools(state.chat!.messages, state.chat!.toolGroups).map(tool => tool.spec)
-        const overhead = contextOverhead(state.chat!.messages, state.chat!.toolGroups)
+        const tools = agentTurnTools(state.chat!.messages, state.chat!.toolGroups, state.chat!.mode).map(tool => tool.spec)
+        const overhead = contextOverhead(state.chat!.messages, state.chat!.toolGroups, state.chat!.mode)
         sentOverhead = overhead.instructions + overhead.tools
         sentContext = agentContext(state.chat!.messages, model?.contextWindow || AGENT_CONTEXT_TOKENS, sentOverhead + (planReminder ? estimateContextTokens([planReminder]) : 0), state.chat!.contextUsage)
         if (sentContext.length < state.chat!.messages.length) throw new Error(translate("contextFull"))
         if (planReminder) sentContext = [...sentContext, planReminder]
-        result = await api().agentComplete({ requestId, messages: sentContext, tools, language: i18n.language || "ru" })
+        result = await api().agentComplete({ requestId, messages: sentContext, tools, language: i18n.language || "ru", ...(state.chat!.mode === "questions" ? { mode: "questions" as const } : {}) })
       } catch (error) {
         if (!overflowRecovered && isAgentContextOverflow(error)) {
           overflowRecovered = true
@@ -505,6 +510,7 @@ export async function sendAgentMessage() {
         try {
           if (state.stopping) throw new Error("The user stopped the agent. Do not execute this call.")
           if (!tool) throw new Error("Unknown tool")
+            if (state.chat?.mode === "questions" && (tool.risk !== "read" || QUESTIONS_MODE_BLOCKED_TOOLS.has(tool.name))) throw new Error("Questions mode is read-only. Do not attempt launcher changes; answer using available information.")
           const input = parseToolInput(tool, call.function.arguments)
           if (tool.name === "create_server") {
             const loader = String(input.loader || "vanilla").toLowerCase()

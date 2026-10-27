@@ -10,7 +10,7 @@ export function ContextIndicator() {
   const anchor = useRef<HTMLButtonElement>(null)
   const contextWindow = config?.models?.find(item => item.id === config.model)?.contextWindow || 256_000
   const measured = chat?.contextUsage?.model === config?.model ? chat?.contextUsage : undefined
-  const usage = useMemo(() => agentContextUsage(chat?.messages || [], chat?.draft, chat?.attachments, contextWindow, measured, config, chat?.toolGroups), [chat?.messages, chat?.draft, chat?.attachments, contextWindow, measured, config, i18n.language, chat?.toolGroups])
+  const usage = useMemo(() => agentContextUsage(chat?.messages || [], chat?.draft, chat?.attachments, contextWindow, measured, config, chat?.toolGroups, chat?.mode), [chat?.messages, chat?.draft, chat?.attachments, contextWindow, measured, config, i18n.language, chat?.toolGroups, chat?.mode])
   const format = (value: number) => value.toLocaleString(i18n.language)
   const label = t("agent.context.label", { percent: usage.percent })
   return <>
