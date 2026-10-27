@@ -1,4 +1,4 @@
-import { CONTENT_ENTER } from "../content-motion"
+import { useContentEnter } from "../content-motion"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import { InstanceDetail } from "./instance-detail"
@@ -385,6 +385,7 @@ export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
    * откат правок. В любом таком случае вместо пустого detail-вида показываем
    * список сборок.
    */
+  const contentEnter = useContentEnter(buildsHydrated)
   const resolvedView: ViewMode = view === "detail" && !activeBuild ? "my" : view
 
   const handleOpenCreate = useCallback(() => setCreateOpen(true), [])
@@ -483,7 +484,7 @@ export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
   }
 
   return (
-    <div data-ui="instance-index-div-1" data-component="instance-page" id="builds-page" data-view={resolvedView} className={cn("relative h-full flex flex-col", resolvedView === "my" && buildsHydrated && CONTENT_ENTER)}>
+    <div data-ui="instance-index-div-1" data-component="instance-page" id="builds-page" data-view={resolvedView} className="relative h-full flex flex-col">
       <InstanceImportOverlay
         importProgress={importProgress}
         importError={importError}
@@ -502,6 +503,7 @@ export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
       />
 
       {resolvedView === "my" && (
+        <div data-ui="instance-index-content" className={cn("flex flex-1 min-h-0 flex-col", contentEnter)}>
         <InstanceList
           builds={builds}
           totalBuilds={totalBuilds}
@@ -524,6 +526,7 @@ export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
           onSetCategoryIcon={setCategoryIcon}
           updatesCountByBuild={updatesCountByBuild}
         />
+        </div>
       )}
 
       {resolvedView === "modrinth" && (

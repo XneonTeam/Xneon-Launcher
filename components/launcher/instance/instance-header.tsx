@@ -1,3 +1,4 @@
+import { CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useTranslation } from "react-i18next"
 import { IconColorSwatch, IconTrash } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
@@ -11,13 +12,13 @@ interface InstanceHeaderProps {
   setCreateOpen: (v: boolean) => void
   onCreate: (params: { name: string; description: string; version: string; modLoader: string; loaderVersion?: string; icon: string }) => Promise<void>
   onImported: () => Promise<void>
-  onImportFile: () => Promise<void>
+  onImportFile: (format?: import("./use-import").LocalZipImportFormat) => Promise<void>
 }
 
 export function InstanceHeader({ view, setView, createOpen, setCreateOpen, onCreate, onImported, onImportFile }: InstanceHeaderProps) {
   const { t } = useTranslation()
   return (
-    <div data-ui="instance-instance-header-div-1" data-component="instance-header" className="flex items-center justify-between gap-4 mb-6">
+    <div data-ui="instance-instance-header-div-1" data-component="instance-header" className={`launcher-page-header flex items-center justify-between gap-4 mb-6 ${CONTENT_ENTER_DELAYED}`}>
       <div data-ui="instance-instance-header-div-2" className="flex items-center gap-3">
         <div data-ui="instance-instance-header-div-3" className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
           <IconColorSwatch className="w-5 h-5 text-primary" />
@@ -29,7 +30,7 @@ export function InstanceHeader({ view, setView, createOpen, setCreateOpen, onCre
       </div>
 
       <div data-ui="instance-instance-header-div-5" className="flex items-center gap-2">
-        <div data-ui="instance-instance-header-div-6" className="flex gap-0.5 p-1 rounded-xl bg-muted/30 border border-border/50">
+        <div data-ui="instance-instance-header-div-6" className="flex gap-0.5 p-1 rounded-xl bg-card border border-border/50">
         <button data-ui="instance-instance-header-button-1" key="my" type="button" onClick={() => setView("my")}
           className={cn("flex items-center justify-center gap-1.5 px-3 py-1 rounded-lg text-[13px] font-medium transition-all duration-200",
             view === "my" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80")}>
@@ -38,8 +39,8 @@ export function InstanceHeader({ view, setView, createOpen, setCreateOpen, onCre
         </button>
         <button data-ui="instance-instance-header-button-2" key="trash" type="button" onClick={() => setView("trash")}
           className={cn("flex items-center justify-center gap-1.5 px-3 py-1 rounded-lg text-[13px] font-medium transition-all duration-200",
-            view === "trash" ? "bg-destructive text-destructive-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80")}>
-          <IconTrash className="w-3.5 h-3.5" strokeWidth={1.75} />
+            view === "trash" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80")}>
+          <IconTrash className="w-3.5 h-3.5 text-current" strokeWidth={1.75} />
           {t("builds.trash")}
         </button>
         <div data-ui="instance-instance-header-div-7" className="w-px h-5 bg-border mx-0.5 self-center" />

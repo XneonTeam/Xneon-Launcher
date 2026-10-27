@@ -51,7 +51,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
     ? visibleVersions
     : [activeBuild.version, ...visibleVersions.filter((item) => item !== activeBuild.version)]
   const formattedCreatedAt = new Date(activeBuild.createdAt).toLocaleDateString()
-  const showLoaderVersionSelect = activeBuild.modLoader !== "vanilla" && activeBuild.modLoader !== "instance"
+  const showLoaderVersionSelect = activeBuild.modLoader !== "vanilla" && activeBuild.modLoader !== "instance" && !activeBuild.customVersionPath
 
   const [showChangeVersionDialog, setShowChangeVersionDialog] = useState(false)
   const [showTrashDialog, setShowTrashDialog] = useState(false)
@@ -177,7 +177,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
   }, [activeBuild.name, pushNotification, t])
 
   const handleModLoaderChange = useCallback((value: string) => {
-    updateBuild(activeBuild.id, { modLoader: value, loaderVersion: undefined })
+    updateBuild(activeBuild.id, { modLoader: value, loaderVersion: undefined, customVersionPath: undefined })
     pruneStaleLoaders(value, undefined)
   }, [activeBuild.id, pruneStaleLoaders, updateBuild])
 
@@ -207,7 +207,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
 
           <div data-ui="instance-instance-detail-general-div-4" className="flex flex-col items-center text-center">
             <div data-ui="instance-instance-detail-general-div-5"
-              className="relative flex h-32 w-32 cursor-pointer items-center justify-center overflow-hidden rounded-[28px] border border-border bg-muted/70 transition-colors hover:border-primary/50"
+              className="relative flex h-32 w-32 cursor-pointer items-center justify-center overflow-hidden rounded-[calc(var(--radius)*7/3)] border border-border bg-muted/70 transition-colors hover:border-primary/50"
               onClick={() => setShowIconPicker(true)}
             >
               {buildHasImage ? (
@@ -378,7 +378,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
               <div data-ui="instance-instance-detail-general-div-31" className={showLoaderVersionSelect ? "grid gap-3 lg:grid-cols-3" : "grid gap-3 lg:grid-cols-2"}>
                 <div data-ui="instance-instance-detail-general-div-32">
                   <label data-ui="instance-instance-detail-general-label-4" className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("builds.version")}</label>
-                  <Select value={activeBuild.version} onValueChange={(value) => updateBuild(activeBuild.id, { version: value })}>
+                  <Select value={activeBuild.version} onValueChange={(value) => updateBuild(activeBuild.id, { version: value, customVersionPath: undefined })}>
                     <SelectTrigger className="h-10 w-full rounded-xl border-border bg-muted/40 text-foreground">
                       <SelectValue placeholder={versionsLoaded ? t("builds.version") : t("home.loadingVersions")} />
                     </SelectTrigger>

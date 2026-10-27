@@ -3,11 +3,14 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { changeLanguage } from "@/src/i18n"
 import { cn } from "@/lib/utils"
-import { IconCpu, IconDeviceDesktop, IconShield, IconCloud, IconFolder, IconPlayerPlay, IconSettings } from "@tabler/icons-react"
+import { IconCpu, IconDeviceDesktop, IconShield, IconCloud, IconFolder, IconPlayerPlay, IconSettings, IconVersions } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { settingsTabs } from "./data"
 import { useThemeRegistry } from "./theme-store"
 import { SettingsTabs } from "./settings-tabs"
+import { SettingsSwitch } from "./settings-switch"
+import "./settings-layout.css"
+import "./settings-colors.css"
 import { SettingsResolution } from "./settings-resolution"
 import { SettingsJava } from "./settings-java"
 import { SettingsAuthlib } from "./settings-authlib"
@@ -290,7 +293,7 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
     <div data-ui="settings-index-div-1" data-component="settings-page" id="settings-page" data-tab={activeSettingsTab} className="flex h-full min-h-0 flex-col">
       <div data-ui="settings-index-div-2" className="flex h-full min-h-0 flex-col">
         {/* Значок у заголовка — как у остальных разделов лаунчера */}
-        <div data-ui="settings-index-div-3" className={`mb-4 flex items-center gap-3 ${SETTINGS_CONTENT_ENTER_DELAYED}`}>
+        <div data-ui="settings-index-div-3" className={`launcher-page-header mb-4 flex items-center gap-3 ${SETTINGS_CONTENT_ENTER_DELAYED}`}>
           <div data-ui="settings-index-div-4" className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
             <IconSettings className="w-5 h-5 text-primary" />
           </div>
@@ -300,11 +303,13 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
           </div>
         </div>
 
+        <div className="settings-workspace">
         <SettingsTabs tabs={settingsTabs} activeTab={activeSettingsTab} setActiveTab={setActiveSettingsTab} t={t} />
+        <div id="settings-panel" className="settings-panel">
 
         {activeSettingsTab === "game" && (
           <div data-ui="settings-index-div-6" data-settings-section="game" className={`min-h-0 flex-1 space-y-8 overflow-y-auto pr-6 pb-6 ${SETTINGS_CONTENT_ENTER_DELAYED}`}>
-            <section data-ui="settings-index-section-1" className="space-y-4">
+            <section data-ui="settings-index-section-1" data-settings-tone="blue" className="settings-color-panel space-y-4">
               <h3 data-ui="settings-index-h3-1" className="text-lg font-medium text-foreground flex items-center gap-2">
                 <IconDeviceDesktop className="w-5 h-5 text-primary" strokeWidth={1.75} />
                 {t("settings.resolution")}
@@ -322,9 +327,9 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
             </section>
 
             {/* Общий блок с первоначальной настройкой: RamAllocation */}
-            <RamAllocation memoryMax={memoryMax} onChange={setMemoryMax} />
+            <RamAllocation memoryMax={memoryMax} onChange={setMemoryMax} className="settings-color-panel settings-memory-panel" />
 
-            <section data-ui="settings-index-section-2" className="space-y-4">
+            <section data-ui="settings-index-section-2" data-settings-tone="blue" className="settings-color-panel space-y-4">
               <h3 data-ui="settings-index-h3-2" className="text-lg font-medium text-foreground flex items-center gap-2">
                 <IconCloud className="w-5 h-5 text-primary" strokeWidth={1.5} />
                 {t("settings.autoJoin.title")}
@@ -335,15 +340,7 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
                     <div data-ui="settings-index-div-10" className="font-medium text-foreground">{t("settings.autoJoin.label")}</div>
                     <p data-ui="settings-index-p-2" className="text-sm text-muted-foreground mt-1">{t("settings.autoJoin.desc")}</p>
                   </div>
-                  <button data-ui="settings-index-button-1"
-                    onClick={() => setAutoJoinServer(!autoJoinServer)}
-                    className={cn(
-                      "relative w-14 h-8 rounded-full transition-all duration-300",
-                      autoJoinServer ? "bg-primary shadow-[0_0_15px_var(--glow-primary)]" : "bg-muted"
-                    )}
-                  >
-                    <span data-ui="settings-index-span-1" className={cn("absolute top-1 w-6 h-6 rounded-full bg-foreground shadow-md transition-all duration-300", autoJoinServer ? "left-7" : "left-1")} />
-                  </button>
+                  <SettingsSwitch checked={autoJoinServer} onCheckedChange={setAutoJoinServer} label={t("settings.autoJoin.label")} />
                 </div>
                 {autoJoinServer && (
                   <div data-ui="settings-index-div-11" className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -372,7 +369,7 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
               </div>
             </section>
 
-            <section data-ui="settings-index-section-3" className="space-y-4">
+            <section data-ui="settings-index-section-3" data-settings-tone="primary" className="settings-color-panel space-y-4">
               <h3 data-ui="settings-index-h3-3" className="text-lg font-medium text-foreground flex items-center gap-2">
                 <IconPlayerPlay className="w-5 h-5 text-primary" strokeWidth={1.75} />
                 {t("settings.afterLaunch.title")}
@@ -380,7 +377,7 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
               <div data-ui="settings-index-div-14" className="p-4 rounded-xl border border-border bg-muted/30">
                 <p data-ui="settings-index-p-3" className="text-sm text-muted-foreground mb-3">{t("settings.afterLaunch.desc")}</p>
                 <Select value={afterLaunch} onValueChange={(v) => setAfterLaunch(v as "nothing" | "minimize" | "close")}>
-                  <SelectTrigger className="w-full max-w-xs">
+                  <SelectTrigger className="w-full max-w-xs rounded-xl border-border bg-input text-foreground focus:border-primary focus:ring-1 focus:ring-primary">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -392,8 +389,9 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
               </div>
             </section>
 
-            <section data-ui="settings-index-section-4" className="space-y-4">
+            <section data-ui="settings-index-section-4" data-settings-tone="amber" className="settings-color-panel space-y-4">
               <h3 data-ui="settings-index-h3-4" className="text-lg font-medium text-foreground flex items-center gap-2">
+                <IconVersions className="w-5 h-5 text-primary" strokeWidth={1.75} aria-hidden="true" />
                 {t("settings.versionTypes")}
               </h3>
               <SettingsVersions
@@ -406,7 +404,7 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
               />
             </section>
 
-            <section data-ui="settings-index-section-5" className="space-y-4">
+            <section data-ui="settings-index-section-5" data-settings-tone="cyan" className="settings-color-panel space-y-4">
               <h3 data-ui="settings-index-h3-5" className="text-lg font-medium text-foreground flex items-center gap-2">
                 <IconFolder className="w-5 h-5 text-primary" strokeWidth={1.75} />
                 {t("settings.buildsFolder.title")}
@@ -422,7 +420,7 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
               </div>
             </section>
 
-            <section data-ui="settings-index-section-6" className="space-y-4">
+            <section data-ui="settings-index-section-6" data-settings-tone="violet" className="settings-color-panel space-y-4">
               <h3 data-ui="settings-index-h3-6" className="text-lg font-medium text-foreground flex items-center gap-2">
                 <IconShield className="w-5 h-5 text-primary" strokeWidth={1.75} />
                 {t("settings.authlib")}
@@ -437,7 +435,7 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
               />
             </section>
 
-            <section data-ui="settings-index-section-7" className="space-y-4">
+            <section data-ui="settings-index-section-7" data-settings-tone="cyan" className="settings-color-panel space-y-4">
               <h3 data-ui="settings-index-h3-7" className="text-lg font-medium text-foreground flex items-center gap-2">
                 <IconCloud className="w-5 h-5 text-primary" strokeWidth={1.75} />
                 BMCL API
@@ -448,15 +446,7 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
                     <div data-ui="settings-index-div-20" className="font-medium text-foreground">BMCL API</div>
                     <p data-ui="settings-index-p-5" className="text-sm text-muted-foreground mt-1">{t("settings.bmclapiDesc")}</p>
                   </div>
-                  <button data-ui="settings-index-button-3"
-                    onClick={() => setUseBmclapi(!useBmclapi)}
-                    className={cn(
-                      "relative w-14 h-8 rounded-full transition-all duration-300",
-                      useBmclapi ? "bg-primary shadow-[0_0_15px_var(--glow-primary)]" : "bg-muted"
-                    )}
-                  >
-                    <span data-ui="settings-index-span-2" className={cn("absolute top-1 w-6 h-6 rounded-full bg-foreground shadow-md transition-all duration-300", useBmclapi ? "left-7" : "left-1")} />
-                  </button>
+                  <SettingsSwitch checked={useBmclapi} onCheckedChange={setUseBmclapi} label={t("settings.bmclapiDesc")} />
                 </div>
               </div>
             </section>
@@ -518,6 +508,8 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
             <SettingsUpdate />
           </div>
         )}
+        </div>
+        </div>
       </div>
     </div>
   )

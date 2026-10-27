@@ -25,7 +25,7 @@ export function ModalLayer({ onClose, className, windowId, children }: ModalLaye
       // Затемнение задано здесь, а не у каждого вызова: иначе модалки без своего
       // `bg-*` (аккаунты, миры, серверы) открывались поверх яркого интерфейса.
       // Свой фон можно передать через className — он перекроет значение по умолчанию.
-      className={cn("fixed inset-0 z-50 flex items-center justify-center bg-black/50", className)}
+      className={cn("launcher-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50", className)}
       onClick={onClose}
     >
       <div data-ui="ui-modal-layer-div-2" data-slot="modal-content" className="contents" onClick={(event) => event.stopPropagation()}>

@@ -328,7 +328,8 @@ export function CategoryAssignModal({
             <button data-ui="category-assign-modal-button-10" type="button"
               disabled={!draft.trim()}
               onClick={createCategory}
-              className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground shadow-[0_0_15px_var(--glow-primary)] transition-all hover:bg-primary/90 active:scale-[0.98] disabled:opacity-40 disabled:shadow-none">
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground shadow-[0_0_15px_var(--glow-primary)] transition-all hover:bg-primary/90 active:scale-[0.98] disabled:opacity-40 disabled:shadow-none">
+              <IconCategoryPlus className="h-4 w-4 shrink-0 text-current" strokeWidth={1.75} aria-hidden="true" />
               {t("categoryMenu.create")}
             </button>
           </div>

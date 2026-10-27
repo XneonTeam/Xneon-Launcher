@@ -188,7 +188,7 @@ export function versionKey(value?: string | null, gameVersion?: string | null): 
  */
 export function isInstalledVersion(
   version: ModVersion,
-  installed?: string | { id?: string; slug?: string; version?: string } | null,
+  installed?: string | { id?: string; slug?: string; version?: string; versionId?: string; fileId?: number } | null,
   gameVersion?: string | null,
 ): boolean {
   if (!installed) return false
@@ -199,6 +199,14 @@ export function isInstalledVersion(
 
   // 1. Если передан объект с ID или slug (именем файла на диске)
   if (typeof installed === "object") {
+    // Имя ZIP может быть одинаковым у всех выпусков ресурспака.
+    // При наличии точного идентификатора несовпадение нельзя заменять эвристикой.
+    const hashes = version.files?.map(file => file.hashes?.sha1).filter(Boolean) ?? []
+    if (installed.id && /^[a-f0-9]{40}$/i.test(installed.id) && hashes.length) {
+      return hashes.some(hash => hash?.toLowerCase() === installed.id?.toLowerCase())
+    }
+    if (installed.versionId) return version.id === installed.versionId
+    if (installed.fileId) return version.id === String(installed.fileId)
     // По точному хэшу файла (SHA-1)
     if (installed.id && version.files?.some(f => f.hashes?.sha1 && f.hashes.sha1.toLowerCase() === installed.id?.toLowerCase())) {
       return true

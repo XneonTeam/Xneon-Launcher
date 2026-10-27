@@ -62,7 +62,7 @@ export function CatalogCard({
           : "border-border/40 hover:border-border/80 hover:shadow-lg hover:shadow-black/20",
       )}
     >
-      <div data-ui="laby-catalog-card-div-2" className="h-full w-full overflow-hidden bg-gradient-to-b from-muted/10 to-muted/20">
+      <div data-ui="laby-catalog-card-div-2" className="h-full w-full overflow-hidden bg-card bg-gradient-to-b from-muted/10 to-muted/20">
         <SkinRender skin={skin} className="p-1" />
       </div>
 

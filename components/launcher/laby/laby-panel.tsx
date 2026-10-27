@@ -60,7 +60,7 @@ export function LabyPanel({
       <SkinAccountPicker />
 
       {/* Превью: текстура грузится напрямую с CDN Laby */}
-      <div data-ui="laby-laby-panel-div-1" className="relative h-[clamp(200px,30vh,300px)] shrink-0 overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-b from-muted/30 to-muted/10 shadow-inner">
+      <div data-ui="laby-laby-panel-div-1" className="relative h-[clamp(200px,30vh,300px)] shrink-0 overflow-hidden rounded-2xl border border-border/60 bg-card bg-gradient-to-b from-muted/30 to-muted/10 shadow-inner">
         <div data-ui="laby-laby-panel-div-2"
           className="pointer-events-none absolute inset-0"
           style={{

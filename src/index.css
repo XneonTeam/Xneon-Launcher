@@ -1,5 +1,67 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
+@import './theme-surfaces.css';
+@import './theme-opaque-surfaces.css';
+
+/* Кнопки корзины во всех разделах используют акцент выбранной темы. */
+:where(button, [role="menuitem"]):has(> svg.icon-tabler-trash):not(.bg-primary) {
+  color: var(--primary);
+  background-color: color-mix(in srgb, var(--primary) 8%, var(--card));
+  border-color: color-mix(in srgb, var(--primary) 24%, var(--border));
+}
+:where(button, [role="menuitem"]):has(> svg.icon-tabler-trash):not(.bg-primary):not(:disabled):hover {
+  color: var(--primary);
+  background-color: color-mix(in srgb, var(--primary) 16%, var(--card));
+}
+:where(button, [role="menuitem"]):has(> svg.icon-tabler-trash):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+:where(button, [role="menuitem"]):has(> svg.icon-tabler-trash) > svg.icon-tabler-trash {
+  color: inherit;
+}
+
+/* Общая подложка шапок разделов поверх фоновых изображений темы. */
+.launcher-page-header {
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+}
+
+/* Модальные окна занимают рабочую область; системные кнопки остаются доступны. */
+.launcher-modal-overlay {
+  top: var(--launcher-titlebar-height, 0px);
+}
+
+[data-slot="dialog-content"] {
+  top: calc(50% + var(--launcher-titlebar-height, 0px) / 2);
+  max-height: calc(100dvh - var(--launcher-titlebar-height, 0px) - 2rem);
+}
+
+/* Нейтральные иконки интерфейса используют акцент выбранной темы.
+   Явные цвета статусов и контрастные иконки на залитых кнопках сохраняются. */
+:where(#launcher-content, [data-component="addon-detail-modal"], [data-slot="modal-overlay"], [data-slot="dialog-content"]) :is(svg.icon-tabler, svg.tabler-icon):not([class*="text-"]) {
+  color: var(--primary);
+}
+:where(#launcher-content, [data-component="addon-detail-modal"], [data-slot="modal-overlay"], [data-slot="dialog-content"]) :is([class~="bg-primary"], [class~="agent-primary"], [class~="text-primary-foreground"]) :is(svg.icon-tabler, svg.tabler-icon):not([class*="text-"]) {
+  color: var(--primary-foreground);
+}
+
+/* При наведении на залитую кнопку иконка следует контрастному цвету подписи. */
+:where(#launcher-content, [data-component="addon-detail-modal"], [data-slot="modal-overlay"], [data-slot="dialog-content"]) :is([class~="hover:text-primary-foreground"]):hover :is(svg.icon-tabler, svg.tabler-icon):not([class*="text-"]) {
+  color: var(--primary-foreground);
+}
+:where(#launcher-content, [data-component="addon-detail-modal"], [data-slot="modal-overlay"], [data-slot="dialog-content"]) :is([class~="hover:text-accent-foreground"]):hover :is(svg.icon-tabler, svg.tabler-icon):not([class*="text-"]) {
+  color: var(--accent-foreground);
+}
+
+/* Действия удаления сохраняют смысловой цвет кнопки, включая наведение. */
+:where(#launcher-content, [data-component="addon-detail-modal"], [data-slot="modal-overlay"], [data-slot="dialog-content"]) :is([class~="text-destructive"], [class~="text-destructive-foreground"]) :is(svg.icon-tabler, svg.tabler-icon):not([class*="text-"]),
+:where(#launcher-content, [data-component="addon-detail-modal"], [data-slot="modal-overlay"], [data-slot="dialog-content"]) [class~="hover:text-destructive"]:hover :is(svg.icon-tabler, svg.tabler-icon):not([class*="text-"]),
+:where(#launcher-content, [data-component="addon-detail-modal"], [data-slot="modal-overlay"], [data-slot="dialog-content"]) [class~="focus:text-destructive"]:focus :is(svg.icon-tabler, svg.tabler-icon):not([class*="text-"]) {
+  color: inherit;
+}
 
 /* Любую контурную иконку или собственный SVG можно заменить картинкой из темы.
    Без переменных сохраняется исходное оформление. */
@@ -77,6 +139,7 @@ svg[data-icon] > :not(title) {
   --chart-4: oklch(0.7 0.18 80);
   --chart-5: oklch(0.6 0.2 30);
   --radius: 0.75rem;
+  --radius-round: 9999px;
   --sidebar: oklch(0.95 0.01 260);
   --sidebar-foreground: oklch(0.15 0.01 260);
   --sidebar-primary: oklch(0.65 0.22 40);
@@ -107,7 +170,7 @@ svg[data-icon] > :not(title) {
   --secondary: oklch(0.12 0.01 260);
   --secondary-foreground: oklch(0.9 0 0);
   --muted: oklch(0.14 0.01 260);
-  --muted-foreground: oklch(0.45 0 0);
+  --muted-foreground: oklch(0.7 0.01 260);
   --accent: oklch(0.6 0.25 80);
   --accent-foreground: oklch(1 0 0);
   --destructive: var(--primary);
@@ -175,10 +238,14 @@ svg[data-icon] > :not(title) {
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-xs: calc(var(--radius) / 6);
+  --radius-sm: max(0px, calc(var(--radius) - 4px));
+  --radius-md: max(0px, calc(var(--radius) - 2px));
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) * 4 / 3);
+  --radius-3xl: calc(var(--radius) * 2);
+  --radius-4xl: calc(var(--radius) * 8 / 3);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -254,7 +321,7 @@ html.theme-with-background #launcher-root {
   position: absolute;
   inset: 0 auto 0 0;
   width: 25%;
-  border-radius: 9999px;
+  border-radius: var(--radius-round);
   background: var(--primary);
   animation: indeterminate-bar 1.1s ease-in-out infinite;
 }
@@ -280,7 +347,7 @@ html.theme-with-background #launcher-root {
   position: absolute;
   inset: 0 auto 0 0;
   width: 40%;
-  border-radius: 9999px;
+  border-radius: var(--radius-round);
   background: linear-gradient(90deg, var(--primary), var(--accent));
   animation: launch-slide 1.4s ease-in-out infinite;
 }
@@ -292,12 +359,12 @@ html.theme-with-background #launcher-root {
 
 ::-webkit-scrollbar-track {
   background: var(--muted);
-  border-radius: 3px;
+  border-radius: calc(var(--radius) * 3 / 12);
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--border);
-  border-radius: 3px;
+  border-radius: calc(var(--radius) * 3 / 12);
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -352,7 +419,7 @@ html.theme-with-background #launcher-root {
     appearance: none;
     height: 0.25rem;
     background: transparent;
-    border-radius: 9999px;
+    border-radius: var(--radius-round);
   }
 
   &::-webkit-slider-thumb {
@@ -362,7 +429,7 @@ html.theme-with-background #launcher-root {
     height: 0.75rem;
     background: var(--primary);
     border: 2px solid var(--card);
-    border-radius: 50%;
+    border-radius: var(--radius-round);
     box-shadow: 0 0 8px var(--glow-primary);
     margin-top: -4px;
     transition:
@@ -373,7 +440,7 @@ html.theme-with-background #launcher-root {
   &::-moz-range-track {
     height: 0.25rem;
     background: transparent;
-    border-radius: 9999px;
+    border-radius: var(--radius-round);
     border: none;
   }
 
@@ -382,7 +449,7 @@ html.theme-with-background #launcher-root {
     width: 0.75rem;
     height: 0.75rem;
     background: var(--primary);
-    border-radius: 50%;
+    border-radius: var(--radius-round);
     box-shadow: 0 0 8px var(--glow-primary);
     transition:
       width 0.2s,
@@ -409,7 +476,7 @@ html.theme-with-background #launcher-root {
 code[class*="language-"],
 pre[class*="language-"] {
   color: var(--foreground);
-  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.6;
   tab-size: 4;

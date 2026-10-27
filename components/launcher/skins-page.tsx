@@ -29,7 +29,7 @@ export function SkinsPage() {
   return (
     <div data-ui="skins-page-div-1" data-component="skins-page" id="skins-page" data-tab={tab} className="flex h-full min-h-0 flex-col">
       {/* Заголовок страницы и переключатель разделов */}
-      <div data-ui="skins-page-div-2" className={`flex shrink-0 flex-wrap items-center gap-3 ${CONTENT_ENTER_DELAYED}`}>
+      <div data-ui="skins-page-div-2" className={`launcher-page-header flex shrink-0 flex-wrap items-center gap-3 ${CONTENT_ENTER_DELAYED}`}>
         <div data-ui="skins-page-div-3" className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/20">
           <IconShirt className="h-5 w-5 text-primary" />
         </div>

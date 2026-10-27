@@ -765,7 +765,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
 
   return (
     <div data-ui="instance-instance-detail-div-1" data-component="instance-detail" id="build-detail-page" data-tab={detailTab} className="h-full flex flex-col">
-      <div data-ui="instance-instance-detail-div-2" className={`flex items-center justify-between gap-4 mb-5 ${CONTENT_ENTER_DELAYED}`}>
+      <div data-ui="instance-instance-detail-div-2" className={`launcher-page-header flex items-center justify-between gap-4 mb-5 ${CONTENT_ENTER_DELAYED}`}>
         <div data-ui="instance-instance-detail-div-3" className="flex items-center gap-4">
           <button data-ui="instance-instance-detail-button-1"
             type="button"

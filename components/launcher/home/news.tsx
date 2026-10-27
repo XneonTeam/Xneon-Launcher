@@ -251,7 +251,7 @@ export const NewsSection = memo(function NewsSection() {
           <div data-ui="home-news-div-13" className="flex items-center justify-between mb-4">
             <div data-ui="home-news-div-14" className="flex items-center gap-3">
               <div data-ui="home-news-div-15" className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center"><IconNews className="w-4 h-4 text-primary" strokeWidth={2} /></div>
-              <h2 data-ui="home-news-h2-1" className="text-base font-semibold text-foreground">{t("home.news.title")}</h2>
+              <h2 data-ui="home-news-h2-1" className="text-base font-bold text-foreground">{t("home.news.title")}</h2>
             </div>
             <div data-ui="home-news-div-16" className="flex items-center gap-2">
               <button data-ui="home-news-button-2"

@@ -216,8 +216,9 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
 
       await api.launchMinecraft({
         version: build.version,
-        modLoader: build.modLoader as "vanilla" | "forge" | "fabric" | "quilt" | "liteloader" | "optifine" | "neoforge",
+        modLoader: (build.customVersionPath ? "custom" : build.modLoader) as "vanilla" | "forge" | "fabric" | "quilt" | "liteloader" | "optifine" | "neoforge" | "custom",
         ...(build.loaderVersion ? { loaderVersion: build.loaderVersion } : {}),
+        ...(build.customVersionPath ? { customVersionPath: build.customVersionPath } : {}),
         account: { type: activeAccount.type, username: activeAccount.username, uuid: activeAccount.uuid, accessToken: activeAccount.accessToken },
         memory: { min: build.javaOverride && build.memoryMin ? build.memoryMin : (settings.savedMemoryMin || "512M"), max: build.javaOverride && build.memoryMax ? build.memoryMax : (settings.savedMemoryMax || "4G") },
         javaPath: build.javaOverride ? build.javaPath : undefined,

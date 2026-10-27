@@ -7,7 +7,7 @@ import { CONTENT_ENTER_DELAYED } from "./content-motion"
 // `row()` (аватарка, метаданные) и колбэки IPC.
 // ============================================================
 
-import { useCallback, useEffect, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { IconTrash, IconRefresh, IconLoader2, IconCheck } from "@tabler/icons-react"
 import { EmptyState } from "@/components/ui/empty-state"
 import { EntityIcon } from "./instance/entity-icon"
@@ -92,19 +92,34 @@ export function TrashView<T>({
   const [purgeOpen, setPurgeOpen] = useState(false)
   const [extraChecked, setExtraChecked] = useState(confirmExtra?.defaultChecked ?? true)
   const [error, setError] = useState<string | null>(null)
+  const loadRef = useRef(load)
+  const mountedRef = useRef(false)
+  const requestRef = useRef(0)
+
+  // Родитель обновляется с прогрессом установки. Новая функция с тем же
+  // назначением не должна заново загружать корзину и скрывать её строки.
+  useEffect(() => { loadRef.current = load }, [load])
 
   const reload = useCallback(async () => {
+    if (!mountedRef.current) return
+    const request = ++requestRef.current
+    const current = () => mountedRef.current && requestRef.current === request
     setLoading(true)
     try {
-      setItems(await load())
+      const nextItems = await loadRef.current()
+      if (current()) setItems(nextItems)
     } catch {
-      setItems([])
+      if (current()) setItems([])
     } finally {
-      setLoading(false)
+      if (current()) setLoading(false)
     }
-  }, [load])
+  }, [])
 
-  useEffect(() => { void reload() }, [reload])
+  useEffect(() => {
+    mountedRef.current = true
+    void reload()
+    return () => { mountedRef.current = false; requestRef.current++ }
+  }, [reload])
 
   const handleRestore = useCallback(async (item: T, key: string) => {
     setRestoringKey(key)
@@ -178,7 +193,7 @@ export function TrashView<T>({
       <div data-ui="trash-view-div-3" className="flex items-center justify-between mb-2">
         <p data-ui="trash-view-p-1" className="text-xs text-muted-foreground">{labels.itemCount(items.length)}</p>
         <button data-ui="trash-view-button-2" type="button" onClick={() => { setExtraChecked(confirmExtra?.defaultChecked ?? true); setPurgeOpen(true) }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors">
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
           <IconTrash className="w-3.5 h-3.5" />
           {labels.purgeAll}
         </button>
@@ -217,7 +232,7 @@ export function TrashView<T>({
               {labels.restore}
             </button>
             <button data-ui="trash-view-button-4" type="button" onClick={() => { setExtraChecked(confirmExtra?.defaultChecked ?? true); setPendingDelete(item) }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors">
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
               <IconTrash className="w-3.5 h-3.5" />
             </button>
           </div>

@@ -50,7 +50,7 @@ const saved = await skins.library.importFromCatalog({ hash, accountId }, true)
 `403` за концом выдачи — это конец списка (`endOfFeed`), а не ошибка доступа.
 Если Laby недоступен, страница приходит из дискового кэша с `stale: true`.
 
-## Сборка и тесты
+## Сборка
 
 ```bash
 pnpm --filter @xnlc/skins build   # tsc → lib/

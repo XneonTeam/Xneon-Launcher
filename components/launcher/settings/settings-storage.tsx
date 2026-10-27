@@ -1,4 +1,5 @@
-import { SETTINGS_CONTENT_ENTER } from "./settings-motion"
+import { useContentEnter } from "../content-motion"
+import "./settings-storage.css"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
@@ -15,6 +16,20 @@ import type { BuildStorageEntry, ServerStorageEntry, StorageScanResult } from "@
 import { getCachedStorageScan, loadStorageScan } from "./storage-scan-cache"
 
 type CleanKind = "build-logs" | "build-crash-reports" | "build-cache"
+
+function StorageSummary({ label, value, icon: Icon, tone }: {
+  label: string; value: number; icon: React.ElementType; tone: "builds" | "servers" | "java" | "trash" | "cleanable"
+}) {
+  return (
+    <div className="storage-summary" data-tone={tone}>
+      <div className="storage-summary-heading">
+        <span className="storage-summary-symbol"><Icon className="h-4 w-4 text-current" strokeWidth={1.7} aria-hidden="true" /></span>
+        <span>{label}</span>
+      </div>
+      <div className="storage-summary-value">{formatBytes(value)}</div>
+    </div>
+  )
+}
 
 function SizeBar({ parts, total }: { parts: Array<{ size: number; className: string }>; total: number }) {
   if (total <= 0) return <div data-ui="settings-settings-storage-div-1" data-component="size-bar" className="h-2 w-full rounded-full bg-muted" />
@@ -58,26 +73,26 @@ function BuildStorageRow({ entry, onClean, cleaning }: {
   const cleanable = entry.logs + entry.crashReports + entry.cache
 
   const parts = [
-    { size: entry.mods, className: "bg-primary" },
-    { size: entry.resourcepacks, className: "bg-accent" },
-    { size: entry.shaderpacks, className: "bg-info" },
-    { size: entry.saves, className: "bg-success" },
-    { size: entry.config, className: "bg-warning" },
-    { size: entry.logs + entry.crashReports + entry.cache, className: "bg-destructive" },
-    { size: entry.other, className: "bg-muted-foreground/40" },
+    { size: entry.mods, className: "storage-part-mods" },
+    { size: entry.resourcepacks, className: "storage-part-resources" },
+    { size: entry.shaderpacks, className: "storage-part-shaders" },
+    { size: entry.saves, className: "storage-part-worlds" },
+    { size: entry.config, className: "storage-part-config" },
+    { size: entry.logs + entry.crashReports + entry.cache, className: "storage-part-cache" },
+    { size: entry.other, className: "storage-part-other" },
   ]
 
   const breakdown: Array<{ icon: React.ReactNode; label: string; size: number }> = [
     { icon: <IconPuzzle className="h-3.5 w-3.5 text-primary" strokeWidth={1.75} />, label: t("storage.category.mods"), size: entry.mods },
-    { icon: <IconPhoto className="h-3.5 w-3.5 text-accent" strokeWidth={1.75} />, label: t("storage.category.resourcepacks"), size: entry.resourcepacks },
-    { icon: <IconSparkles className="h-3.5 w-3.5 text-info" strokeWidth={1.75} />, label: t("storage.category.shaderpacks"), size: entry.shaderpacks },
-    { icon: <IconMap className="h-3.5 w-3.5 text-success" strokeWidth={1.75} />, label: t("storage.category.saves"), size: entry.saves },
-    { icon: <IconSettings className="h-3.5 w-3.5 text-warning" strokeWidth={1.75} />, label: t("storage.category.config"), size: entry.config },
-    { icon: <IconBug className="h-3.5 w-3.5 text-destructive" strokeWidth={1.75} />, label: t("storage.category.logsAndCache"), size: entry.logs + entry.crashReports + entry.cache },
+    { icon: <IconPhoto className="h-3.5 w-3.5 text-[var(--storage-resources)]" strokeWidth={1.75} />, label: t("storage.category.resourcepacks"), size: entry.resourcepacks },
+    { icon: <IconSparkles className="h-3.5 w-3.5 text-[var(--storage-shaders)]" strokeWidth={1.75} />, label: t("storage.category.shaderpacks"), size: entry.shaderpacks },
+    { icon: <IconMap className="h-3.5 w-3.5 text-[var(--storage-worlds)]" strokeWidth={1.75} />, label: t("storage.category.saves"), size: entry.saves },
+    { icon: <IconSettings className="h-3.5 w-3.5 text-[var(--storage-config)]" strokeWidth={1.75} />, label: t("storage.category.config"), size: entry.config },
+    { icon: <IconBug className="h-3.5 w-3.5 text-[var(--storage-cache)]" strokeWidth={1.75} />, label: t("storage.category.logsAndCache"), size: entry.logs + entry.crashReports + entry.cache },
   ]
 
   return (
-    <div data-ui="settings-settings-storage-div-4" data-component="build-storage-row" className="rounded-xl border border-border bg-muted/20">
+    <div data-ui="settings-settings-storage-div-4" data-component="build-storage-row" className="storage-row">
       <div data-ui="settings-settings-storage-div-5" className="flex w-full items-center gap-3 p-3">
         <button data-ui="settings-settings-storage-button-2"
           type="button"
@@ -165,25 +180,25 @@ function ServerStorageRow({ entry }: { entry: ServerStorageEntry }) {
   const [expanded, setExpanded] = useState(false)
 
   const parts = [
-    { size: entry.world, className: "bg-success" },
-    { size: entry.mods, className: "bg-primary" },
-    { size: entry.config, className: "bg-warning" },
-    { size: entry.logs, className: "bg-destructive" },
-    { size: entry.plugins, className: "bg-info" },
-    { size: entry.cache, className: "bg-accent" },
-    { size: entry.other, className: "bg-muted-foreground/40" },
+    { size: entry.world, className: "storage-part-worlds" },
+    { size: entry.mods, className: "storage-part-mods" },
+    { size: entry.config, className: "storage-part-config" },
+    { size: entry.logs, className: "storage-part-cache" },
+    { size: entry.plugins, className: "storage-part-plugins" },
+    { size: entry.cache, className: "storage-part-cache" },
+    { size: entry.other, className: "storage-part-other" },
   ]
 
   const breakdown: Array<{ icon: React.ReactNode; label: string; size: number }> = [
-    { icon: <IconMap className="h-3.5 w-3.5 text-success" strokeWidth={1.75} />, label: t("storage.category.world"), size: entry.world },
+    { icon: <IconMap className="h-3.5 w-3.5 text-[var(--storage-worlds)]" strokeWidth={1.75} />, label: t("storage.category.world"), size: entry.world },
     { icon: <IconPuzzle className="h-3.5 w-3.5 text-primary" strokeWidth={1.75} />, label: t("storage.category.mods"), size: entry.mods },
-    { icon: <IconSettings className="h-3.5 w-3.5 text-warning" strokeWidth={1.75} />, label: t("storage.category.config"), size: entry.config },
-    { icon: <IconBug className="h-3.5 w-3.5 text-destructive" strokeWidth={1.75} />, label: t("storage.category.logsAndCache"), size: entry.logs + entry.cache },
-    { icon: <IconServer className="h-3.5 w-3.5 text-info" strokeWidth={1.75} />, label: t("storage.category.plugins"), size: entry.plugins },
+    { icon: <IconSettings className="h-3.5 w-3.5 text-[var(--storage-config)]" strokeWidth={1.75} />, label: t("storage.category.config"), size: entry.config },
+    { icon: <IconBug className="h-3.5 w-3.5 text-[var(--storage-cache)]" strokeWidth={1.75} />, label: t("storage.category.logsAndCache"), size: entry.logs + entry.cache },
+    { icon: <IconServer className="h-3.5 w-3.5 text-[var(--storage-plugins)]" strokeWidth={1.75} />, label: t("storage.category.plugins"), size: entry.plugins },
   ]
 
   return (
-    <div data-ui="settings-settings-storage-div-14" data-component="server-storage-row" className="rounded-xl border border-border bg-muted/20">
+    <div data-ui="settings-settings-storage-div-14" data-component="server-storage-row" className="storage-row">
       <div data-ui="settings-settings-storage-div-15" className="flex w-full items-center gap-3 p-3">
         <button data-ui="settings-settings-storage-button-5"
           type="button"
@@ -257,6 +272,7 @@ function ServerStorageRow({ entry }: { entry: ServerStorageEntry }) {
 export function SettingsStorage() {
   const { t } = useTranslation()
   const [scan, setScan] = useState<StorageScanResult | null>(getCachedStorageScan)
+  const contentEnter = useContentEnter(scan !== null)
   const [loading, setLoading] = useState(() => !getCachedStorageScan())
   const scanRequest = useRef(0)
   const [cleaning, setCleaning] = useState(false)
@@ -340,7 +356,7 @@ export function SettingsStorage() {
   }, [scan])
 
   return (
-    <div data-ui="settings-settings-storage-div-23" data-component="settings-storage" className={cn("space-y-6", scan && SETTINGS_CONTENT_ENTER)}>
+    <div data-ui="settings-settings-storage-div-23" data-component="settings-storage" className={cn("space-y-6", contentEnter)}>
       <section data-ui="settings-settings-storage-section-1" className="space-y-4">
         <div data-ui="settings-settings-storage-div-24" className="flex items-center justify-between">
           <h3 data-ui="settings-settings-storage-h3-1" className="text-lg font-medium text-foreground flex items-center gap-2">
@@ -377,27 +393,21 @@ export function SettingsStorage() {
           </div>
         ) : scan && totals ? (
           <>
-            <div data-ui="settings-settings-storage-div-28" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              <div data-ui="settings-settings-storage-div-29" className="rounded-xl border border-border bg-muted/30 p-3">
-                <div data-ui="settings-settings-storage-div-30" className="text-[11px] text-muted-foreground">{t("storage.summary.builds")}</div>
-                <div data-ui="settings-settings-storage-div-31" className="mt-0.5 text-lg font-bold text-foreground">{formatBytes(totals.buildsTotal)}</div>
-              </div>
-              <div data-ui="settings-settings-storage-div-32" className="rounded-xl border border-border bg-muted/30 p-3">
-                <div data-ui="settings-settings-storage-div-33" className="text-[11px] text-muted-foreground">{t("storage.summary.servers")}</div>
-                <div data-ui="settings-settings-storage-div-34" className="mt-0.5 text-lg font-bold text-foreground">{formatBytes(totals.serversTotal)}</div>
-              </div>
-              <div data-ui="settings-settings-storage-div-35" className="rounded-xl border border-border bg-muted/30 p-3">
-                <div data-ui="settings-settings-storage-div-36" className="text-[11px] text-muted-foreground">{t("storage.summary.java")}</div>
-                <div data-ui="settings-settings-storage-div-37" className="mt-0.5 text-lg font-bold text-foreground">{formatBytes(scan.javaRuntimes.size)}</div>
-              </div>
-              <div data-ui="settings-settings-storage-div-38" className="rounded-xl border border-border bg-muted/30 p-3">
-                <div data-ui="settings-settings-storage-div-39" className="text-[11px] text-muted-foreground">{t("storage.summary.trash")}</div>
-                <div data-ui="settings-settings-storage-div-40" className="mt-0.5 text-lg font-bold text-foreground">{formatBytes(scan.trash.size)}</div>
-              </div>
-              <div data-ui="settings-settings-storage-div-41" className="rounded-xl border border-border bg-muted/30 p-3">
-                <div data-ui="settings-settings-storage-div-42" className="text-[11px] text-muted-foreground">{t("storage.summary.cleanable")}</div>
-                <div data-ui="settings-settings-storage-div-43" className="mt-0.5 text-lg font-bold text-success">{formatBytes(totals.cleanable + scan.trash.size)}</div>
-              </div>
+            <div data-ui="settings-settings-storage-div-28" className="storage-summary-grid">
+              <StorageSummary tone="builds" label={t("storage.summary.builds")} value={totals.buildsTotal} icon={IconPuzzle} />
+              <StorageSummary tone="servers" label={t("storage.summary.servers")} value={totals.serversTotal} icon={IconServer} />
+              <StorageSummary tone="java" label={t("storage.summary.java")} value={scan.javaRuntimes.size} icon={IconCoffee} />
+              <StorageSummary tone="trash" label={t("storage.summary.trash")} value={scan.trash.size} icon={IconTrash} />
+              <StorageSummary tone="cleanable" label={t("storage.summary.cleanable")} value={totals.cleanable + scan.trash.size} icon={IconSparkles} />
+            </div>
+            <div className="storage-legend">
+              {[
+                ["mods", "mods"], ["resources", "resourcepacks"], ["shaders", "shaderpacks"],
+                ["worlds", "saves"], ["config", "config"], ["plugins", "plugins"],
+                ["cache", "logsAndCache"], ["other", "other"],
+              ].map(([color, key]) => (
+                <span key={key}><i className={"storage-part-" + color} aria-hidden="true" />{t("storage.category." + key)}</span>
+              ))}
             </div>
 
             {scan.trash.size > 0 && (

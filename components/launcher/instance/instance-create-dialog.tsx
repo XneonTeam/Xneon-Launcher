@@ -1,3 +1,5 @@
+import { ImportProgressPanel } from "./import-progress-panel"
+import { mergeImportProgress } from "./import-progress-model"
 import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { IconArrowLeft, IconCamera, IconCheck, IconDownload, IconFolder, IconLoader2, IconPlus, IconRefresh, IconSettings, IconTrash } from "@tabler/icons-react"
@@ -11,25 +13,26 @@ import { EntityIcon } from "./entity-icon"
 import { useHomeVersions } from "@/src/hooks/use-home-versions"
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
 import type { ImportProgress } from "@xnlc/types"
+import type { LocalZipImportFormat } from "./use-import"
 
 interface InstanceCreateDialogProps {
   open: boolean
   setOpen: (v: boolean) => void
   onCreate: (params: { name: string; description: string; version: string; modLoader: string; loaderVersion?: string; icon: string }) => Promise<void>
   onImported: () => Promise<void>
-  onImportFile: () => Promise<void>
+  onImportFile: (format?: LocalZipImportFormat) => Promise<void>
 }
 
-type ImportSource = "gdlauncher" | "prism" | "multimc" | "polymc" | "astralrinth" | "xlauncher" | "modrinthapp"
+type ImportSource = "gdlauncher" | "prism" | "multimc" | "polymc" | "xlauncher" | "modrinthapp" | "millida"
 
 const SOURCE_ICON_SRC: Record<ImportSource, string> = {
   gdlauncher: "./launcher-icons/gdlauncher.png",
   prism: "./launcher-icons/prism.png",
   multimc: "./launcher-icons/multimc.png",
   polymc: "./launcher-icons/polymc.png",
-  astralrinth: "./launcher-icons/astralrinth.webp",
   xlauncher: "./launcher-icons/xlauncher.svg",
   modrinthapp: "./launcher-icons/modrinthapp.png",
+  millida: "./launcher-icons/millida.svg",
 }
 
 export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onImportFile }: InstanceCreateDialogProps) {
@@ -48,7 +51,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
   const fileImportPendingRef = useRef(false)
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null)
   const [customPaths, setCustomPaths] = useState<Record<ImportSource, string>>({
-    gdlauncher: "", prism: "", multimc: "", polymc: "", astralrinth: "", xlauncher: "", modrinthapp: "",
+    gdlauncher: "", prism: "", multimc: "", polymc: "", xlauncher: "", modrinthapp: "", millida: "",
   })
   const [showIconPicker, setShowIconPicker] = useState(false)
   const { versions, versionsLoaded, selectedVersion: version, setSelectedVersion: setVersion } = useHomeVersions(modLoader)
@@ -73,7 +76,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
   useEffect(() => {
     if (!open) { setImportProgress(null); return }
     const off = window.electronAPI?.onImportProgress?.((progress) => {
-      setImportProgress(progress)
+      setImportProgress(previous => mergeImportProgress(previous, progress))
       // Первое событие прогресса = файл уже выбран в системном окне: закрываем
       // диалог сразу, иначе «Локальный импорт» висит поверх всего импорта.
       if (fileImportPendingRef.current) {
@@ -125,9 +128,9 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
     prism: "Prism Launcher",
     multimc: "MultiMC",
     polymc: "PolyMC",
-    astralrinth: "AstralRinth",
     xlauncher: "X Launcher",
     modrinthapp: "Modrinth App",
+    millida: "Millida Launcher",
   }
 
   const filteredImportableInstances = useMemo(() => {
@@ -154,14 +157,18 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
     }
   }
 
-  const handleImportModpackFile = () => {
+  const handleImportModpackFile = (format: LocalZipImportFormat = "modpack") => {
     // Не ждём весь импорт: диалог закроется сам, когда прилетит первый прогресс
     // (то есть сразу после выбора файла).
     fileImportPendingRef.current = true
-    void onImportFile()
+    void onImportFile(format)
       .then(() => onImported())
       .catch(() => {})
       .finally(() => { fileImportPendingRef.current = false })
+  }
+
+  const handleImportZipFile = (format: LocalZipImportFormat) => {
+    handleImportModpackFile(format)
   }
 
   const handlePickCustomPath = useCallback(async (source: ImportSource) => {
@@ -191,25 +198,27 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
           <DialogTitle>{t("builds.creatingBuild")}</DialogTitle>
         </DialogHeader>
         <div data-ui="instance-instance-create-dialog-div-1" data-component="instance-create-dialog" className="grid gap-4 py-3">
-          <div data-ui="instance-instance-create-dialog-div-2" className="inline-flex rounded-xl bg-muted/40 p-1">
+          <div data-ui="instance-instance-create-dialog-div-2" className="flex gap-0.5 p-1 rounded-xl bg-muted/30 border border-border/50">
             <button data-ui="instance-instance-create-dialog-button-2"
               type="button"
               onClick={() => setMode("create")}
               className={cn(
-                "flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors border",
-                mode === "create" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
+                "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-4 py-1.5 text-[13px] font-medium transition-all duration-200",
+                mode === "create" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
               )}
             >
+              <IconPlus className="w-4 h-4" strokeWidth={1.75} />
               {t("builds.createBuild")}
             </button>
             <button data-ui="instance-instance-create-dialog-button-3"
               type="button"
               onClick={() => setMode("import")}
               className={cn(
-                "flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors border",
-                mode === "import" ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
+                "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-4 py-1.5 text-[13px] font-medium transition-all duration-200",
+                mode === "import" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
               )}
             >
+              <IconDownload className="w-4 h-4" strokeWidth={1.75} />
               {t("builds.import")}
             </button>
           </div>
@@ -332,21 +341,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                   </div>
 
                   {importing && importProgress && (
-                    <div data-ui="instance-instance-create-dialog-div-19" className="space-y-2">
-                      <div data-ui="instance-instance-create-dialog-div-20" className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span data-ui="instance-instance-create-dialog-span-2" className="truncate">{importProgress.message}</span>
-                        <span data-ui="instance-instance-create-dialog-span-3" className="shrink-0 ml-2">{importProgress.total > 0 ? Math.round((importProgress.current / importProgress.total) * 100) : 0}%</span>
-                      </div>
-                      <div data-ui="instance-instance-create-dialog-div-21" className={cn("h-1.5 w-full rounded-full bg-muted/50", importProgress.total <= 0 && "progress-indeterminate")}>
-                        {/* Размер неизвестен — полоса бежит вместо пустой шкалы. */}
-                        {importProgress.total > 0 && (
-                          <div data-ui="instance-instance-create-dialog-div-22"
-                            className="h-full rounded-full bg-primary transition-all duration-300"
-                            style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
-                          />
-                        )}
-                      </div>
-                    </div>
+                    <ImportProgressPanel progress={{ ...importProgress, operation: "launcher" }} compact />
                   )}
 
                   <div data-ui="instance-instance-create-dialog-div-23" className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
@@ -409,7 +404,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                     <div data-ui="instance-instance-create-dialog-div-34" className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
                       <button data-ui="instance-instance-create-dialog-button-9"
                         type="button"
-                        onClick={() => void handleImportModpackFile()}
+                        onClick={() => handleImportZipFile("modpack")}
                         className="flex min-h-[112px] items-center justify-center rounded-2xl border border-border bg-muted/20 p-2.5 text-center transition-colors hover:border-primary/40 hover:bg-muted/30"
                       >
                         <div data-ui="instance-instance-create-dialog-div-35" className="flex flex-col items-center justify-center gap-2.5">
@@ -424,7 +419,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
 
                       <button data-ui="instance-instance-create-dialog-button-10"
                         type="button"
-                        onClick={() => void handleImportModpackFile()}
+                        onClick={() => handleImportZipFile("curseforge")}
                         className="flex min-h-[112px] items-center justify-center rounded-2xl border border-border bg-muted/20 p-2.5 text-center transition-colors hover:border-primary/40 hover:bg-muted/30"
                       >
                         <div data-ui="instance-instance-create-dialog-div-38" className="flex flex-col items-center justify-center gap-2.5">
@@ -433,13 +428,13 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                               <path data-ui="instance-instance-create-dialog-path-2" fill="currentColor" d="M18.326 9.215s4.9-.773 5.674-3.027h-7.507V4.4H0l2.032 2.358v2.415s5.127-.266 7.11 1.237c2.714 2.516-3.053 5.917-3.053 5.917l-.99 3.273c1.547-1.473 4.494-3.377 9.899-3.286c-2.057.65-4.125 1.665-5.735 3.286h10.925l-1.029-3.273s-7.918-4.668-.833-7.112"/>
                             </svg>
                           </div>
-                          <div data-ui="instance-instance-create-dialog-div-40" className="text-sm font-medium leading-tight text-foreground">{t("builds.importZip")}</div>
+                          <div data-ui="instance-instance-create-dialog-div-40" className="text-sm font-medium leading-tight text-foreground">{t("builds.importCurseforgeZip")}</div>
                         </div>
                       </button>
 
                       <button data-ui="instance-instance-create-dialog-button-11"
                         type="button"
-                        onClick={() => void handleImportModpackFile()}
+                        onClick={() => handleImportZipFile("xneon")}
                         className="flex min-h-[112px] items-center justify-center rounded-2xl border border-border bg-muted/20 p-2.5 text-center transition-colors hover:border-primary/40 hover:bg-muted/30"
                       >
                         <div data-ui="instance-instance-create-dialog-div-41" className="flex flex-col items-center justify-center gap-2.5">

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { IconCalendar, IconChevronLeft, IconChevronRight } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
@@ -57,6 +58,52 @@ export function StatsRangePicker({
     return { year: d.getFullYear(), month: d.getMonth() }
   })
   const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const popoverId = useId()
+  const [position, setPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null)
+
+  // Портал выводит календарь из слоя анимированной шапки и её обрезающих родителей.
+  useLayoutEffect(() => {
+    if (!open) return
+    const updatePosition = () => {
+      const trigger = triggerRef.current
+      const popover = popoverRef.current
+      if (!trigger || !popover) return
+      const rect = trigger.getBoundingClientRect()
+      const titlebar = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--launcher-titlebar-height")) || 0
+      const margin = 8
+      const topEdge = titlebar + margin
+      if (rect.bottom < topEdge || rect.top > window.innerHeight - margin) {
+        setOpen(false)
+        return
+      }
+      const width = Math.min(300, window.innerWidth - margin * 2)
+      const below = Math.max(0, window.innerHeight - rect.bottom - margin * 2)
+      const above = Math.max(0, rect.top - topEdge - margin)
+      const height = popover.scrollHeight + 2
+      const useBelow = height <= below || below >= above
+      const maxHeight = useBelow ? below : above
+      const top = useBelow ? rect.bottom + margin : Math.max(topEdge, rect.top - margin - Math.min(height, maxHeight))
+      const left = Math.max(margin, Math.min(rect.right - width, window.innerWidth - width - margin))
+      setPosition(previous => previous?.top === top && previous.left === left && previous.width === width && previous.maxHeight === maxHeight
+        ? previous : { top, left, width, maxHeight })
+    }
+    const onScroll = (event: Event) => {
+      if (event.target instanceof Node && popoverRef.current?.contains(event.target)) return
+      updatePosition()
+    }
+    updatePosition()
+    const observer = new ResizeObserver(updatePosition)
+    if (popoverRef.current) observer.observe(popoverRef.current)
+    window.addEventListener("resize", updatePosition)
+    window.addEventListener("scroll", onScroll, true)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener("resize", updatePosition)
+      window.removeEventListener("scroll", onScroll, true)
+    }
+  }, [open, viewMonth.year, viewMonth.month])
 
   // Sync draft when the popover opens with an external value.
   useEffect(() => {
@@ -73,10 +120,13 @@ export function StatsRangePicker({
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+      if (!rootRef.current?.contains(e.target as Node) && !popoverRef.current?.contains(e.target as Node)) setOpen(false)
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false)
+      if (e.key === "Escape") {
+        setOpen(false)
+        triggerRef.current?.focus()
+      }
     }
     document.addEventListener("mousedown", onDown)
     document.addEventListener("keydown", onKey)
@@ -146,8 +196,12 @@ export function StatsRangePicker({
   return (
     <div data-ui="stats-stats-range-picker-div-1" data-component="stats-range-picker" ref={rootRef} className="relative">
       <button data-ui="stats-stats-range-picker-button-1"
+        ref={triggerRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={open ? popoverId : undefined}
+        onClick={() => { setPosition(null); setOpen((o) => !o) }}
         className={cn(
           "flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium transition-colors",
           open
@@ -159,8 +213,11 @@ export function StatsRangePicker({
         {label}
       </button>
 
-      {open && (
-        <div data-ui="stats-stats-range-picker-div-2" className="absolute right-0 z-50 mt-2 w-[300px] rounded-2xl border border-border bg-popover p-4 shadow-2xl">
+      {open && createPortal(
+        <div data-ui="stats-stats-range-picker-div-2" data-component="stats-range-popover" data-slot="popover-content"
+          id={popoverId} ref={popoverRef} role="dialog" aria-label={label}
+          className="fixed z-[80] w-[300px] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-popover p-4 shadow-2xl"
+          style={position ?? { visibility: "hidden" }}>
           {/* month header */}
           <div data-ui="stats-stats-range-picker-div-3" className="mb-3 flex items-center justify-between">
             <button data-ui="stats-stats-range-picker-button-2"
@@ -254,7 +311,8 @@ export function StatsRangePicker({
               {t("stats.show")}
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

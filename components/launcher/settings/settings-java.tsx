@@ -3,7 +3,7 @@ import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { ModalLayer } from "@/components/ui/modal-layer"
-import { IconCheck, IconFolderPlus, IconLoader2, IconRefresh, IconX } from "@tabler/icons-react"
+import { IconCheck, IconCoffee, IconFolderPlus, IconLoader2, IconRefresh, IconX } from "@tabler/icons-react"
 import type { JavaInstallation } from "./types"
 
 interface SettingsJavaProps {
@@ -48,6 +48,7 @@ export function SettingsJava({
   return (
     <>
       <div data-ui="settings-settings-java-div-1" data-component="settings-java" className={`space-y-3 ${SETTINGS_CONTENT_ENTER_DELAYED}`}>
+        <div data-settings-tone="amber" className="settings-color-panel settings-java-list">
         {autoVersions.map((java) => (
           <button data-ui="settings-settings-java-button-1"
             key={java.version}
@@ -61,7 +62,7 @@ export function SettingsJava({
               selectedJavaPath === java.version ? "border-primary bg-primary/10" : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50"
             )}
           >
-            <div data-ui="settings-settings-java-div-2" className="flex items-center gap-3">
+            <div data-ui="settings-settings-java-div-2" className="flex items-center gap-3"><IconCoffee className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
               <div data-ui="settings-settings-java-div-3" className="text-left">
                 <div data-ui="settings-settings-java-div-4" className="font-medium text-foreground">{java.label}</div>
                 <div data-ui="settings-settings-java-div-5" className="text-xs text-muted-foreground">{t("settings.java.auto")}</div>
@@ -72,8 +73,9 @@ export function SettingsJava({
             </div>
           </button>
         ))}
+        </div>
 
-        <button data-ui="settings-settings-java-button-2"
+        <button data-ui="settings-settings-java-button-2" data-settings-tone="amber"
           onClick={() => { void onPickJavaFile() }}
           className="w-full p-4 rounded-xl border border-dashed border-border bg-muted/20 hover:border-accent hover:bg-accent/5 transition-all duration-200 flex items-center justify-center gap-2 text-muted-foreground hover:text-accent"
         >
@@ -81,7 +83,7 @@ export function SettingsJava({
           {t("settings.selectJavaPath")}
         </button>
 
-        <div data-ui="settings-settings-java-div-7" className="space-y-2 pt-2">
+        <div data-ui="settings-settings-java-div-7" data-settings-tone="violet" className="settings-color-panel space-y-2 p-4">
           <label data-ui="settings-settings-java-label-1" className="block text-sm font-medium text-foreground">{t("settings.java.args")}</label>
           <textarea data-ui="settings-settings-java-textarea-1"
             value={javaArgs}

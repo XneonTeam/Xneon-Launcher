@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from "react"
+import { useEffect, useLayoutEffect, useRef, type CSSProperties } from "react"
 import { useTranslation } from "react-i18next"
 import { IconBell, IconCheck, IconLoader2, IconPlayerPlay, IconX } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
@@ -40,6 +40,20 @@ export function TitleBar() {
   const { t, i18n } = useTranslation()
   const { notifications, unreadCount, isOpen, setIsOpen, toggleOpen, markAllRead } = useActivityCenter()
   const panelRef = useRef<HTMLDivElement | null>(null)
+  const titleBarRef = useRef<HTMLElement | null>(null)
+
+  useLayoutEffect(() => {
+    const titleBar = titleBarRef.current
+    if (!titleBar) return
+    const updateHeight = () => document.documentElement.style.setProperty("--launcher-titlebar-height", `${titleBar.getBoundingClientRect().height}px`)
+    updateHeight()
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(titleBar)
+    return () => {
+      observer.disconnect()
+      document.documentElement.style.removeProperty("--launcher-titlebar-height")
+    }
+  }, [])
 
   useEffect(() => {
     if (!isOpen) return
@@ -57,8 +71,9 @@ export function TitleBar() {
 
   return (
     <header data-ui="title-bar-header-1" data-component="title-bar" id="launcher-titlebar"
-      className="relative z-50 flex h-10 items-center justify-between border-b border-sidebar-border bg-sidebar/95 px-3"
-      style={dragRegionStyle}
+      ref={titleBarRef}
+      className="relative z-[1000] flex h-10 shrink-0 items-center justify-between border-b border-sidebar-border bg-sidebar/95 px-3"
+      style={{ ...dragRegionStyle, pointerEvents: "auto" }}
     >
       <div data-ui="title-bar-div-1" className="flex items-center gap-2">
         <svg data-ui="title-bar-svg-1" data-icon="title-bar-svg-1" className="h-6 w-6 text-primary" viewBox="0 0 192 192" fill="currentColor">

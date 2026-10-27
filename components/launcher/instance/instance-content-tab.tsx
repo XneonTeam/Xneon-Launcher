@@ -16,7 +16,7 @@ import { ModalLayer } from "@/components/ui/modal-layer"
 import { Pagination } from "./pagination"
 import { MODS_PER_PAGE } from "./constants"
 import { contentProjectKey, formatDownloads, isInstalledVersion, matchesBuildVersion } from "./utils"
-import { GameVersionChips, LoaderBadges } from "./version-chips"
+import { LoaderIcon } from "./loader-icon"
 import { InstanceUpdatesDialog } from "./instance-updates-dialog"
 import { CategoriesDialog } from "./categories-dialog"
 import { ChangelogContent } from "./changelog-content"
@@ -574,7 +574,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
               ) : pagedInstalled.map((item) => {
                 const isEnabled = item.enabled ?? true
                 return (
-                <div data-ui="instance-instance-content-tab-div-18" key={item.id} className={`rounded-xl border p-3 transition-opacity ${isEnabled ? 'border-border bg-muted/20' : 'border-border/50 bg-muted/10 opacity-55'}`}>
+                <div data-ui="instance-instance-content-tab-div-18" key={item.id} className={`rounded-xl border bg-background p-3 transition-opacity ${isEnabled ? 'border-border' : 'border-border/50 opacity-55'}`}>
                   <div data-ui="instance-instance-content-tab-div-19" className="flex items-start gap-3">
                     <button data-ui="instance-instance-content-tab-button-5"
                       type="button"
@@ -615,8 +615,14 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                             ? window.electronAPI?.modsModrinthVersions(item.projectId)
                             : item.source === "curseforge" && item.modId
                               ? window.electronAPI?.modsCurseforgeDetails(item.modId).then(r => r?.versions ?? [])
-                              : Promise.resolve([])
-                          void Promise.resolve(fetchPromise).then((versions) => {
+                              : window.electronAPI?.modsModrinthVersions("", item.id)
+                          void Promise.resolve(fetchPromise).then(async versions => {
+                            // При неполных или устаревших метаданных определяем проект по файлу.
+                            if (!versions?.length && (item.projectId || item.modId)) {
+                              return await window.electronAPI?.modsModrinthVersions("", item.id)
+                            }
+                            return versions
+                          }).then((versions) => {
                             const list = (versions ?? []) as ModVersion[]
                             // Для модов фильтруем по загрузчику сборки (fabric/neoforge/...)
                             // и версии Minecraft, чтобы не показывать несовместимые.
@@ -625,11 +631,13 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                             const gameOnly = list.filter(v => matchesBuildVersion(v, activeBuild, false))
                             const shown = compatible.length > 0 ? compatible : (gameOnly.length > 0 ? gameOnly : list)
                             setVersionPickerVersions(shown)
-                            setVersionPickerLoading(false)
                             // Раскрываем changelog установленной версии сразу.
                             const current = shown.find(v => isInstalledVersion(v, item, activeBuild.version))
                             if (current) setSelectedPickerVersion(current)
-                          })
+                          }).catch(error => {
+                            console.error("Failed to load installed content versions:", error)
+                            pushNotification({ kind: "error", source: "install", title: t("common.errorTitle"), message: String(error) })
+                          }).finally(() => setVersionPickerLoading(false))
                         }}
                         className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
                         aria-label={t("common.refresh")}
@@ -777,7 +785,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                     const installedIndex = versionPickerVersions.findIndex(ver => isInstalledVersion(ver, installedRef, activeBuild?.version))
 
                     return versionPickerVersions.map((ver, index) => {
-                    const isCurrent = isInstalledVersion(ver, installedRef, activeBuild?.version)
+                    const isCurrent = index === installedIndex
                     const isSelected = selectedPickerVersion?.id === ver.id
                     const isOlder = installedIndex >= 0 ? index > installedIndex : false
 
@@ -810,8 +818,15 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                               )}
                             </div>
                             <div data-ui="instance-instance-content-tab-div-39" className="flex flex-wrap items-center gap-2 mt-1">
-                              <GameVersionChips gameVersion={ver.gameVersion} />
-                              <LoaderBadges loaders={ver.loaders} />
+                              <span data-ui="instance-instance-content-tab-span-20" className="text-xs text-muted-foreground">{ver.gameVersion ?? ""}</span>
+                              {ver.loaders && ver.loaders.length > 0 && (
+                                <span data-ui="instance-instance-content-tab-span-21" className="inline-flex items-center gap-1.5 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                                  {ver.loaders.map(loader => (
+                                    <LoaderIcon key={String(loader)} loaderId={String(loader).toLowerCase()} className="w-3.5 h-3.5" />
+                                  ))}
+                                  <span>{ver.loaders.join(", ")}</span>
+                                </span>
+                              )}
                               {ver.datePublished && (
                                 <span data-ui="instance-instance-content-tab-span-14" className="text-xs text-muted-foreground">
                                   {new Date(ver.datePublished).toLocaleDateString()}

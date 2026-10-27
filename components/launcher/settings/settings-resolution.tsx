@@ -32,6 +32,7 @@ export function SettingsResolution({
       {presetResolutions.map((res: Resolution) => (
         <button data-ui="settings-settings-resolution-button-1"
           key={res.label}
+          aria-pressed={selectedResolution === res.label && !useCustomResolution}
           onClick={() => { setSelectedResolution(res.label); setUseCustomResolution(false) }}
           className={cn(
             "p-3 rounded-xl border transition-all duration-200 text-left",

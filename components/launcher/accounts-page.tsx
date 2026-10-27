@@ -394,9 +394,8 @@ export function AccountsPage() {
   return (
     <>
       {/* Нормальное окно раздела: без карточки, рамки и размытых пятен */}
-      <div data-ui="accounts-page-div-1" data-component="accounts-page" id="accounts-page" className={`flex h-full min-h-0 flex-col ${CONTENT_ENTER_DELAYED}`}>
-        <div data-ui="accounts-page-div-2" className="min-h-0 flex-1 overflow-y-auto pr-1">
-          <div data-ui="accounts-page-div-3" className="flex items-center justify-between mb-6">
+      <div data-ui="accounts-page-div-1" data-component="accounts-page" id="accounts-page" className="flex h-full min-h-0 flex-col">
+          <div data-ui="accounts-page-div-3" className={`launcher-page-header mb-6 flex items-center justify-between ${CONTENT_ENTER_DELAYED}`}>
             <div data-ui="accounts-page-div-4" className="flex items-center gap-3">
               {/* Значок у заголовка — как у остальных разделов лаунчера */}
               <div data-ui="accounts-page-div-5" className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
@@ -416,10 +415,11 @@ export function AccountsPage() {
             </button>
           </div>
 
+        <div data-ui="accounts-page-div-2" className={`min-h-0 flex-1 overflow-y-auto pr-1 ${CONTENT_ENTER_DELAYED}`}>
           {accounts.length === 0 ? (
             <div data-ui="accounts-page-div-7" className="text-center py-16">
-              <div data-ui="accounts-page-div-8" className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
-                <IconUser className="w-10 h-10 text-muted-foreground" />
+              <div data-ui="accounts-page-div-8" className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl border border-primary/20 bg-primary/10 text-primary mx-auto mb-4">
+                <IconUser className="w-10 h-10" strokeWidth={1.75} aria-hidden="true" />
               </div>
               <p data-ui="accounts-page-p-2" className="text-lg text-muted-foreground">{t("accounts.noAccounts")}</p>
               <p data-ui="accounts-page-p-3" className="text-sm text-muted-foreground/70 mt-1">{t("accounts.noAccountsDesc")}</p>
@@ -433,10 +433,10 @@ export function AccountsPage() {
                   data-active={account.isActive}
                   data-account-type={account.type}
                   className={cn(
-                    "flex items-center gap-4 p-4 rounded-xl border transition-all duration-200",
+                    "flex items-center gap-4 p-4 rounded-xl border bg-background transition-all duration-200",
                     account.isActive
-                      ? "border-primary bg-primary/10 shadow-[0_0_15px_var(--glow-primary)]"
-                      : "border-border bg-muted/30 hover:border-primary/50"
+                      ? "border-primary shadow-[0_0_15px_var(--glow-primary)]"
+                      : "border-border hover:border-primary/50"
                   )}
                 >
                   <div data-ui="accounts-page-div-11"

@@ -118,7 +118,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   );
 
   return (
-    <aside data-ui="sidebar-aside-1" data-component="sidebar" id="launcher-sidebar" className="h-full bg-sidebar/95 border-r border-sidebar-border flex flex-col py-6 gap-2 w-[72px]">
+    <aside data-ui="sidebar-aside-1" data-component="sidebar" id="launcher-sidebar" className="relative z-40 h-full bg-sidebar/95 border-r border-sidebar-border flex flex-col py-6 gap-2 w-[72px]">
       <nav data-ui="sidebar-nav-1" id="sidebar-nav" className="flex flex-col gap-1 flex-1 px-2">
         {mainItems.map(renderItem)}
         {settingsItem && (

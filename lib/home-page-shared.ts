@@ -34,19 +34,8 @@ export const NEWS_CARD_TEXT_HEIGHT = 140
 export const NEWS_GRID_OVERSCAN_ROWS = 3
 export const LAUNCH_RE = /launching|starting|started|spawn|запуск/i
 
-/**
- * Игра реально поднялась: окно создано, звук и атласы инициализированы.
- * Раньше тут было `/render|game|world|player/i` — слишком широко, из-за чего
- * лаунчер объявлял «игра запущена», когда процесс только-только стартовал.
- */
-export const GAME_READY_RE = /Sound engine started|OpenAL initialized|Created: \d+x\d+x\d+ .*-atlas|Narrator library for .* successfully loaded/i
-
-/**
- * Страховка на случай нестандартной сборки, которая не печатает маркеры выше:
- * через это время живой процесс всё равно считается запущенной игрой, иначе
- * кнопка навсегда осталась бы в состоянии «Запускается...».
- */
-export const GAME_READY_FALLBACK_MS = 45_000
+// Интерфейс и RPC используют один критерий готовности игры.
+export { GAME_READY_RE, GAME_READY_FALLBACK_MS } from "@xnlc/core/game-readiness"
 export const INITIAL_LAUNCH_UI_STATE: LaunchUiState = {
   isLaunching: false,
   status: "",

@@ -68,7 +68,7 @@ export function SkinPreviewPanel({
       <SkinAccountPicker avatarVersion={skinVersionKey} />
 
       {/* Превью: высота подстраивается под окно */}
-      <div data-ui="skins-skin-preview-panel-div-1" className="relative h-[clamp(200px,30vh,300px)] shrink-0 overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-b from-muted/30 to-muted/10 shadow-inner">
+      <div data-ui="skins-skin-preview-panel-div-1" className="relative h-[clamp(200px,30vh,300px)] shrink-0 overflow-hidden rounded-2xl border border-border/60 bg-card bg-gradient-to-b from-muted/30 to-muted/10 shadow-inner">
         <div data-ui="skins-skin-preview-panel-div-2"
           className="pointer-events-none absolute inset-0"
           style={{
@@ -154,9 +154,9 @@ export function SkinPreviewPanel({
         >
           {isApplying ? (
             <IconLoader2 className="w-4 h-4 animate-spin" />
-          ) : (
+          ) : !hasPendingChange ? (
             <IconCheck className="w-4 h-4" />
-          )}
+          ) : null}
           {hasPendingChange ? t("skins.equip", "Экипировать") : t("skins.equippedState", "Надет")}
         </button>
 

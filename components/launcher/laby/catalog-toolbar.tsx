@@ -1,7 +1,8 @@
 import { CONTENT_ENTER_DELAYED } from "../content-motion"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
+import { FloatingContextMenu } from "@/components/ui/floating-context-menu"
 import { CatalogFiltersDialog, countActiveFilters, EMPTY_FILTERS, type CatalogFilters } from "./catalog-filters-dialog"
 import { LABY_TREND_ORDERS } from "@xnlc/skins"
 import type { LabyOrder, LabyTag } from "@xnlc/types"
@@ -62,27 +63,23 @@ export function CatalogToolbar({
   const active = countActiveFilters(filters)
 
   const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 })
 
   const isTrend = LABY_TREND_ORDERS.includes(order)
   // В режиме тренда кнопка показывает выбранный период, иначе — «Тренды дня».
   const trendOrder: LabyOrder = isTrend ? order : "trending_24h"
   const trendLabel = t(ORDER_LABEL_KEY[trendOrder], ORDER_FALLBACK[trendOrder])
 
-  // Закрытие по клику вне меню и по Escape.
+  // Плавающий слой сам закрывается снаружи и по Escape; прокрутка меняет
+  // положение кнопки, поэтому в этом случае закрываем список.
   useEffect(() => {
     if (!menuOpen) return
-    const onPointerDown = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false)
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenuOpen(false)
-    }
-    document.addEventListener("mousedown", onPointerDown)
-    document.addEventListener("keydown", onKeyDown)
+    const close = () => setMenuOpen(false)
+    document.addEventListener("scroll", close, true)
+    window.addEventListener("resize", close)
     return () => {
-      document.removeEventListener("mousedown", onPointerDown)
-      document.removeEventListener("keydown", onKeyDown)
+      document.removeEventListener("scroll", close, true)
+      window.removeEventListener("resize", close)
     }
   }, [menuOpen])
 
@@ -98,7 +95,7 @@ export function CatalogToolbar({
     <div data-ui="laby-catalog-toolbar-div-1" data-component="catalog-toolbar" className={`flex shrink-0 flex-col gap-2 ${CONTENT_ENTER_DELAYED}`}>
       <div data-ui="laby-catalog-toolbar-div-2" className="flex flex-wrap items-center gap-2">
         <div data-ui="laby-catalog-toolbar-div-3" className="relative min-w-[200px] flex-1">
-          <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
+          <IconSearch aria-hidden="true" className="pointer-events-none absolute z-10 left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input data-ui="laby-catalog-toolbar-input-1"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
@@ -119,11 +116,17 @@ export function CatalogToolbar({
         </div>
 
         {/* Режимы выдачи: тренды с периодом, популярные, новые. */}
-        <div data-ui="laby-catalog-toolbar-div-4" className="flex shrink-0 gap-0.5 rounded-xl border border-border/50 bg-muted/30 p-1" ref={menuRef}>
+        <div data-ui="laby-catalog-toolbar-div-4" className="flex shrink-0 gap-0.5 rounded-xl border border-border/50 bg-muted/30 p-1">
           <div data-ui="laby-catalog-toolbar-div-5" className="relative">
             <button data-ui="laby-catalog-toolbar-button-2"
               type="button"
-              onClick={() => setMenuOpen((value) => !value)}
+              onMouseDown={event => event.stopPropagation()}
+              onClick={event => {
+                const rect = event.currentTarget.getBoundingClientRect()
+                setMenuPosition({ x: rect.left, y: rect.bottom + 6 })
+                setMenuOpen(value => !value)
+              }}
+              aria-pressed={isTrend}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
               className={segClass(isTrend)}
@@ -137,9 +140,10 @@ export function CatalogToolbar({
             </button>
 
             {menuOpen && (
+              <FloatingContextMenu position={menuPosition} onClose={() => setMenuOpen(false)} minWidth={170}>
               <div data-ui="laby-catalog-toolbar-div-6"
                 role="menu"
-                className="absolute left-0 top-full z-50 mt-1.5 min-w-[170px] overflow-hidden rounded-xl border border-border bg-popover p-1 shadow-lg"
+                className="min-w-0"
               >
                 {LABY_TREND_ORDERS.map((value) => {
                   const selected = order === value
@@ -167,15 +171,16 @@ export function CatalogToolbar({
                   )
                 })}
               </div>
+              </FloatingContextMenu>
             )}
           </div>
 
-          <button data-ui="laby-catalog-toolbar-button-4" type="button" onClick={() => onOrderChange("most_used")} className={segClass(order === "most_used")}>
+          <button data-ui="laby-catalog-toolbar-button-4" type="button" aria-pressed={order === "most_used"} onClick={() => onOrderChange("most_used")} className={segClass(order === "most_used")}>
             <IconCrown className="h-4 w-4 shrink-0" strokeWidth={1.75} />
             <span data-ui="laby-catalog-toolbar-span-3">{t("laby.order.popular", "Популярные")}</span>
           </button>
 
-          <button data-ui="laby-catalog-toolbar-button-5" type="button" onClick={() => onOrderChange("latest")} className={segClass(order === "latest")}>
+          <button data-ui="laby-catalog-toolbar-button-5" type="button" aria-pressed={order === "latest"} onClick={() => onOrderChange("latest")} className={segClass(order === "latest")}>
             <IconClock className="h-4 w-4 shrink-0" strokeWidth={1.75} />
             <span data-ui="laby-catalog-toolbar-span-4">{t("laby.order.latest", "Новые")}</span>
           </button>

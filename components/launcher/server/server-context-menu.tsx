@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from "react"
+import { useState } from "react"
+import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import {
   IconTerminal, IconPlayerPlay, IconPlayerStop, IconFolder, IconCopy,
   IconDownload, IconTrash, IconX, IconMap, IconPuzzle,
   IconPlug, IconSettings, IconBug, IconCategoryPlus,
 } from "@tabler/icons-react"
+import { FloatingContextMenu } from "@/components/ui/floating-context-menu"
 import { Checkbox } from "@/components/ui/checkbox"
 import type { McServerInfo } from "@xnlc/types"
 
@@ -34,28 +36,6 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
   const [duplicating, setDuplicating] = useState(false)
   const [exportDialogFor, setExportDialogFor] = useState(false)
   const [exportCategories, setExportCategories] = useState<Set<ServerExportCategory>>(() => new Set(["world", "mods", "plugins", "configs"]))
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  // Close when clicking / right-clicking anywhere outside the menu or on
-  // Escape — otherwise a second right-click on another server opens a second
-  // menu while the first one stays on screen.
-  useEffect(() => {
-    const outside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose()
-    }
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
-    }
-    document.addEventListener("mousedown", outside)
-    document.addEventListener("contextmenu", outside)
-    document.addEventListener("keydown", key)
-    return () => {
-      document.removeEventListener("mousedown", outside)
-      document.removeEventListener("contextmenu", outside)
-      document.removeEventListener("keydown", key)
-    }
-  }, [onClose])
-
   const EXPORT_CATEGORIES: Array<{ id: ServerExportCategory; label: string; description: string; icon: React.ReactNode }> = [
     { id: "world", label: t("servers.export.world"), description: t("servers.export.worldDesc"), icon: <IconMap className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
     { id: "mods", label: t("servers.export.mods"), description: t("servers.export.modsDesc"), icon: <IconPuzzle className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} /> },
@@ -86,15 +66,9 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
     }
   }
 
-  return (
+  return createPortal(
     <>
-      <div data-ui="server-server-context-menu-div-1" data-component="server-context-menu"
-        ref={menuRef}
-        className="fixed z-50 min-w-[180px] rounded-xl border border-border bg-card shadow-2xl p-1 animate-in fade-in-0 zoom-in-95 duration-150"
-        style={{ top: position.y, left: position.x }}
-        onClick={e => e.stopPropagation()}
-        onContextMenu={e => e.preventDefault()}
-      >
+      <FloatingContextMenu position={position} onClose={onClose}>
         <button data-ui="server-server-context-menu-button-1" type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
           onClick={() => { onConnect(); onClose() }}>
           <IconTerminal className="w-4 h-4 text-muted-foreground" />
@@ -137,11 +111,11 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
           <IconTrash className="w-4 h-4" strokeWidth={1.75} />
           {t("servers.contextDelete")}
         </button>
-      </div>
+      </FloatingContextMenu>
 
       {/* Export dialog — same layout as the instance export dialog */}
       {exportDialogFor && (
-        <div data-ui="server-server-context-menu-div-3" className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in-0"
+        <div data-ui="server-server-context-menu-div-3" className="launcher-modal-overlay fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in-0"
           onClick={() => setExportDialogFor(false)}>
           <div data-ui="server-server-context-menu-div-4" className="w-[420px] rounded-2xl border border-border bg-card p-5 shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
             <div data-ui="server-server-context-menu-div-5" className="flex items-start justify-between gap-3">
@@ -201,6 +175,6 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
           </div>
         </div>
       )}
-    </>
+    </>, document.body
   )
 }

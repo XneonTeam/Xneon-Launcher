@@ -1,0 +1,50 @@
+/* Цвета обозначают тип файлов и одинаковы в полосах, легенде и деталях. */
+[data-component="settings-storage"] {
+  --storage-mods: var(--primary);
+  --storage-resources: #ac8cf5;
+  --storage-shaders: #57bce8;
+  --storage-worlds: #56ce9b;
+  --storage-config: #eebd63;
+  --storage-plugins: #688ff2;
+  --storage-cache: #ed8196;
+  --storage-other: color-mix(in oklab, var(--muted-foreground) 32%, var(--card));
+}
+.storage-part-mods { background: var(--storage-mods); }
+.storage-part-resources { background: var(--storage-resources); }
+.storage-part-shaders { background: var(--storage-shaders); }
+.storage-part-worlds { background: var(--storage-worlds); }
+.storage-part-config { background: var(--storage-config); }
+.storage-part-plugins { background: var(--storage-plugins); }
+.storage-part-cache { background: var(--storage-cache); }
+.storage-part-other { background: var(--storage-other); }
+
+.storage-summary-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.storage-summary {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+}
+.storage-summary-heading { display: flex; align-items: center; gap: 8px; color: var(--muted-foreground); font-size: 11px; line-height: 1.4; }
+.storage-summary-symbol { display: grid; flex-shrink: 0; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: color-mix(in oklab, var(--primary) 10%, var(--card)); color: var(--primary); }
+.storage-summary-value { margin-top: 10px; color: var(--foreground); font-size: 23px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.storage-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 2px 0 6px; color: var(--muted-foreground); font-size: 11px; }
+.storage-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.storage-legend i { width: 7px; height: 7px; flex-shrink: 0; border-radius: 2px; }
+
+[data-component="settings-storage"] .storage-row {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+  transition: border-color 150ms;
+}
+[data-component="settings-storage"] .storage-row:hover { border-color: color-mix(in oklab, var(--primary) 35%, var(--border)); }
+[data-component="settings-storage"] [data-component="size-bar"] { height: 6px; background: var(--background); }
+[data-component="settings-storage"] [data-ui="settings-settings-storage-span-6"] { color: var(--storage-worlds); }
+[data-component="settings-storage"] [data-ui="settings-settings-storage-div-47"] { background: var(--card); }
+
+@media (max-width: 1050px) { .storage-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .storage-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (prefers-reduced-motion: reduce) { [data-component="settings-storage"] .storage-row { transition: none; } }

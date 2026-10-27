@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain, Menu, shell } from "electron"
+import { app, BrowserWindow, ipcMain, Menu } from "electron"
+import { openExternalLink } from "./external-links"
 import path from "path"
 import { readStartupTheme } from "./startup-theme"
 import { isDev, setMainWindow, getMainWindow, logRuntime, logRuntimeDebug, initRuntimePaths, sendToRenderer } from "./runtime"
@@ -32,7 +33,7 @@ export function createWindow() {
       preload: path.join(__dirname, "../preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
       devTools: isDev,
       // Нужен читалке новостей: статья открывается модалом внутри окна лаунчера
       // (`<webview>`), а не отдельным окном или системным браузером.
@@ -42,10 +43,27 @@ export function createWindow() {
 
   setMainWindow(win)
 
+  // Читалка загружает внешние страницы. Renderer не может назначить гостю
+  // preload или Node.js, даже если DOM главного окна оказался скомпрометирован.
+  win.webContents.on("will-attach-webview", (event, preferences, params) => {
+    delete preferences.preload
+    preferences.nodeIntegration = false
+    preferences.nodeIntegrationInSubFrames = false
+    preferences.contextIsolation = true
+    preferences.sandbox = true
+    preferences.webSecurity = true
+    preferences.allowRunningInsecureContent = false
+    try {
+      if (!["https:", "http:"].includes(new URL(params.src).protocol)) event.preventDefault()
+    } catch {
+      event.preventDefault()
+    }
+  })
+
   void loadLauncher(win)
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
+    void openExternalLink(url).catch(() => {})
     return { action: "deny" }
   })
 
@@ -60,7 +78,7 @@ export function createWindow() {
       // Fall through and treat malformed URLs as external.
     }
     event.preventDefault()
-    if (/^https?:\/\//i.test(url)) void shell.openExternal(url)
+    void openExternalLink(url).catch(() => {})
   })
 
   win.once("ready-to-show", () => {

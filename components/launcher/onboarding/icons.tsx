@@ -7,8 +7,8 @@ const LAUNCHER_SOURCE_ICON_SRC: Record<LauncherSource, string> = {
   multimc: "./launcher-icons/multimc.png",
   polymc: "./launcher-icons/polymc.png",
   xlauncher: "./launcher-icons/xlauncher.svg",
-  astralrinth: "./launcher-icons/astralrinth.webp",
   modrinthapp: "./launcher-icons/modrinthapp.png",
+  millida: "./launcher-icons/millida.svg",
 }
 
 export function LauncherSourceIcon({ source, className }: { source: LauncherSource; className?: string }) {

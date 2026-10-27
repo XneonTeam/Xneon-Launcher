@@ -1,4 +1,5 @@
 import i18n from "@/src/i18n"
+import { IconColorSwatch } from "@tabler/icons-react"
 import { cn, inheritSvgColor } from "@/lib/utils"
 import { LOADER_SVG_ICONS } from "./loader-icons"
 
@@ -54,6 +55,13 @@ export function loaderLabel(loaderId?: string | null): string {
 export function LoaderIcon({ loaderId, className = "w-4 h-4" }: LoaderIconProps) {
   const id = String(loaderId ?? "").toLowerCase().trim()
   const key = LOADER_ICON_ALIASES[id] ?? id
+  if (key === "instance") {
+    return <IconColorSwatch strokeWidth={1.75} className={cn(
+      "shrink-0",
+      !/(^|\s)text-/.test(className) && "text-primary group-focus/item:text-accent-foreground",
+      className,
+    )} />
+  }
   const svg = LOADER_SVG_ICONS[key]
   if (!svg) return null
 

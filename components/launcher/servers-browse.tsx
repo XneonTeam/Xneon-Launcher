@@ -1,4 +1,4 @@
-import { CONTENT_ENTER } from "./content-motion"
+import { useContentEnter } from "./content-motion"
 import { useTranslation } from "react-i18next"
 import { EmptyState } from "@/components/ui/empty-state"
 import { IconDownload, IconLoader2, IconInfoCircle } from "@tabler/icons-react"
@@ -63,6 +63,7 @@ export function ServersBrowse({
   setModCategories,
 }: ServersBrowseProps) {
   const { t } = useTranslation()
+  const contentEnter = useContentEnter(!loading)
 
   const projectKey = (project: ModSearchResult) =>
     source === "modrinth" ? project.slug : String(project.modId ?? project.id)
@@ -87,7 +88,7 @@ export function ServersBrowse({
         setModCategories={setModCategories}
       />
 
-      <div data-ui="servers-browse-div-2" className={`flex-1 overflow-y-auto overflow-x-hidden ${!loading ? CONTENT_ENTER : ""}`}>
+      <div data-ui="servers-browse-div-2" className={`flex-1 overflow-y-auto overflow-x-hidden ${contentEnter ?? ""}`}>
         {loading ? (
           <Spinner />
         ) : results.length === 0 ? (

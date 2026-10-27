@@ -15,6 +15,7 @@ export type Build = {
   version: string
   modLoader: string
   loaderVersion?: string
+  customVersionPath?: string
   icon: string
   coverImage?: string
   mods: BuildMod[]

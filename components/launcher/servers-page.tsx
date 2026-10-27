@@ -1,4 +1,4 @@
-import { CONTENT_ENTER } from "./content-motion"
+import { CONTENT_ENTER_DELAYED, useContentEnter } from "./content-motion"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { IconPlus, IconServer, IconTrash, IconLayoutGrid, IconLayoutList, IconPlayerPlay, IconPlayerStop, IconTerminal, IconPencil, IconChevronDown, IconChevronRight, IconPhoto } from "@tabler/icons-react"
@@ -36,6 +36,7 @@ interface ServersPageProps {
 }
 
 const PAGE_SIZE = 20
+const SERVER_DND_MIME = "application/x-xneon-server"
 
 export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps) {
   const { t } = useTranslation()
@@ -45,11 +46,15 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
   const { visibleVersions, versionsLoaded } = useMinecraftVersionOptions()
   const [showCreate, setShowCreate] = useState(false)
   const [view, setView] = useState<"servers" | "trash" | "modrinth" | "curseforge">("servers")
+  const contentEnter = useContentEnter(!loading)
   const [layoutMode, changeLayout] = usePersistentLayout("xneon-launcher:serversLayout")
   // Категории/группы серверов: меню действий над группой + назначение сервера в группу.
   const [groupMenu, setGroupMenu] = useState<{ name: string; x: number; y: number } | null>(null)
   const [renameGroupFor, setRenameGroupFor] = useState<string | null>(null)
   const [renameGroupDraft, setRenameGroupDraft] = useState("")
+  const [draggingServerId, setDraggingServerId] = useState<string | null>(null)
+  const draggingServerIdRef = useRef<string | null>(null)
+  const [dragOverGroup, setDragOverGroup] = useState<string | null>(null)
   const [assignMenu, setAssignMenu] = useState<{ serverId: string } | null>(null)
   // Категория, для которой сейчас выбирают иконку (null — пикер закрыт).
   const [iconPickerFor, setIconPickerFor] = useState<string | null>(null)
@@ -314,6 +319,41 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
     return named
   }, [groupedServers, groups])
 
+  // «Без категории» остаётся доступной целью, даже если все серверы распределены.
+  const dropTargetKeys = draggingServerId && !sortedGroupKeys.includes("")
+    ? [...sortedGroupKeys, ""] : sortedGroupKeys
+
+  const handleServerDragStart = (event: React.DragEvent, server: McServerInfo) => {
+    draggingServerIdRef.current = server.id
+    setDraggingServerId(server.id)
+    event.dataTransfer.effectAllowed = "move"
+    event.dataTransfer.setData(SERVER_DND_MIME, server.id)
+    event.dataTransfer.setData("text/plain", server.name)
+  }
+
+  const handleServerDragEnd = () => {
+    draggingServerIdRef.current = null
+    setDraggingServerId(null)
+    setDragOverGroup(null)
+  }
+
+  const handleGroupDragOver = (event: React.DragEvent, group: string) => {
+    if (!draggingServerIdRef.current) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = "move"
+    setDragOverGroup(group)
+  }
+
+  const handleGroupDrop = (event: React.DragEvent, group: string) => {
+    const id = draggingServerIdRef.current
+    if (!id) return
+    event.preventDefault()
+    event.stopPropagation()
+    handleServerDragEnd()
+    const server = servers.find(server => server.id === id)
+    if (server && (server.group ?? "") !== group) void setServerGroup(id, group)
+  }
+
   const handleGroupContextMenu = useCallback((e: React.MouseEvent, group: string) => {
     e.preventDefault()
     e.stopPropagation()
@@ -352,7 +392,7 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
   return (
     <div data-ui="servers-page-div-1" data-component="servers-page" id="servers-page" data-view={view} className="flex flex-col h-full gap-4">
       {/* Header */}
-      <div data-ui="servers-page-div-2" className="flex items-center justify-between gap-4 mb-6">
+      <div data-ui="servers-page-div-2" className={`launcher-page-header flex items-center justify-between gap-4 mb-6 ${CONTENT_ENTER_DELAYED}`}>
         <div data-ui="servers-page-div-3" className="flex items-center gap-3">
           <div data-ui="servers-page-div-4" className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
             <IconServer className="w-5 h-5 text-primary" />
@@ -364,7 +404,7 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
         </div>
         <div data-ui="servers-page-div-6" className="flex items-center gap-2">
           {/* Табы страницы — в общем контейнере, как в настройках и в шапке сборок. */}
-          <div data-ui="servers-page-div-7" className="flex gap-0.5 p-1 rounded-xl bg-muted/30 border border-border/50">
+          <div data-ui="servers-page-div-7" className="flex gap-0.5 p-1 rounded-xl bg-card border border-border/50">
           <button data-ui="servers-page-button-1" key="servers" type="button" onClick={() => setView("servers")}
             className={cn("flex items-center justify-center gap-1.5 px-3 py-1 rounded-lg text-[13px] font-medium transition-all duration-200",
               view === "servers" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80")}>
@@ -373,8 +413,8 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
           </button>
           <button data-ui="servers-page-button-2" key="trash" type="button" onClick={() => setView("trash")}
             className={cn("flex items-center justify-center gap-1.5 px-3 py-1 rounded-lg text-[13px] font-medium transition-all duration-200",
-              view === "trash" ? "bg-destructive text-destructive-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80")}>
-            <IconTrash className="w-3.5 h-3.5" strokeWidth={1.75} />
+              view === "trash" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80")}>
+            <IconTrash className="w-3.5 h-3.5 text-current" strokeWidth={1.75} />
             {t("servers.trash")}
           </button>
           <div data-ui="servers-page-div-8" className="w-px h-5 bg-border mx-0.5 self-center" />
@@ -494,16 +534,16 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
           setModCategories={setModCategories}
         />
       ) : (
-        <>
+        <div data-ui="servers-page-content" className={cn("flex flex-1 min-h-0 flex-col", contentEnter)}>
           {/* Server grid */}
           {loading && servers.length === 0 ? (
             <div data-ui="servers-page-div-12" className="flex items-center justify-center py-20">
               <div data-ui="servers-page-div-13" className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
             </div>
           ) : servers.length === 0 ? (
-            <div data-ui="servers-page-div-14" className={`flex flex-col items-center justify-center py-20 gap-4 text-center ${CONTENT_ENTER}`}>
-              <div data-ui="servers-page-div-15" className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center">
-                <IconServer className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />
+            <div data-ui="servers-page-div-14" className="flex flex-1 flex-col items-center justify-center py-6 gap-4 text-center">
+              <div data-ui="servers-page-div-15" className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl border border-primary/20 bg-primary/10 text-primary">
+                <IconServer className="w-10 h-10" strokeWidth={1.75} aria-hidden="true" />
               </div>
               <div data-ui="servers-page-div-16">
                 <p data-ui="servers-page-p-2" className="font-medium text-foreground">{t("servers.noServers")}</p>
@@ -518,18 +558,25 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
               </button>
             </div>
           ) : (
-            <div data-ui="servers-page-div-17" className={`flex flex-col gap-3 px-3 pb-4 overflow-y-auto flex-1 min-h-0 ${CONTENT_ENTER}`}>
-              {sortedGroupKeys.map(groupKey => {
+            <div data-ui="servers-page-div-17" className="flex flex-col gap-3 px-3 pb-4 overflow-y-auto flex-1 min-h-0">
+              {dropTargetKeys.map(groupKey => {
                 const groupServers = groupedServers.get(groupKey) ?? []
                 const isCollapsed = groupKey !== "" && collapsedGroups.has(groupKey)
                 const displayName = groupKey || t("servers.ungrouped", "Без категории")
                 return (
-                  <div data-ui="servers-page-div-18" key={groupKey || "__ungrouped__"} className="flex flex-col gap-2">
+                  <div data-ui="servers-page-div-18" data-component="server-group" data-group={groupKey} key={groupKey || "__ungrouped__"} className="flex flex-col gap-2"
+                    onDragOver={event => handleGroupDragOver(event, groupKey)}
+                    onDragLeave={event => {
+                      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragOverGroup(previous => previous === groupKey ? null : previous)
+                    }}
+                    onDrop={event => handleGroupDrop(event, groupKey)}
+                  >
                     {/* Заголовок категории */}
                     <div data-ui="servers-page-div-19"
                       className={cn(
-                        "group/head flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors",
+                          "group/head flex items-center gap-2 px-2 py-1.5 rounded-lg bg-card text-card-foreground transition-colors",
                         groupKey !== "" ? "cursor-pointer hover:bg-muted/50 select-none" : "cursor-default",
+                        dragOverGroup === groupKey && "bg-primary/10 ring-1 ring-inset ring-primary/40",
                       )}
                       onClick={() => { if (groupKey) toggleGroupCollapse(groupKey) }}
                       onContextMenu={(e) => { if (groupKey) handleGroupContextMenu(e, groupKey) }}
@@ -579,27 +626,37 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
                       layoutMode === "grid" ? (
                         <div data-ui="servers-page-div-23" className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3 items-start">
                           {groupServers.map(server => (
+                            <div key={server.id} data-server-id={server.id} draggable
+                              className={cn("min-w-0", draggingServerId === server.id && "opacity-40")}
+                              onDragStart={event => handleServerDragStart(event, server)}
+                              onDragEnd={handleServerDragEnd}
+                            >
                             <ServerTileWrapper
-                              key={server.id}
                               server={server}
                               onClick={() => onSelectServer?.(server)}
                               onDelete={() => deleteServer(server.id)}
                               onDuplicate={() => void duplicateServer(server.id)}
                               onAssignGroup={() => setAssignMenu({ serverId: server.id })}
                             />
+                            </div>
                           ))}
                         </div>
                       ) : (
                         <div data-ui="servers-page-div-24" className="flex flex-col gap-1">
                           {groupServers.map(server => (
+                            <div key={server.id} data-server-id={server.id} draggable
+                              className={cn("min-w-0", draggingServerId === server.id && "opacity-40")}
+                              onDragStart={event => handleServerDragStart(event, server)}
+                              onDragEnd={handleServerDragEnd}
+                            >
                             <ServerListRow
-                              key={server.id}
                               server={server}
                               onClick={() => onSelectServer?.(server)}
                               onDelete={() => deleteServer(server.id)}
                               onDuplicate={() => void duplicateServer(server.id)}
                               onAssignGroup={() => setAssignMenu({ serverId: server.id })}
                             />
+                            </div>
                           ))}
                         </div>
                       )
@@ -609,7 +666,7 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
               })}
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* Group context menu (rename/delete category) */}
@@ -798,7 +855,7 @@ function ServerListRow({ server, onClick, onDelete, onDuplicate, onAssignGroup }
         <div data-ui="servers-page-div-31" className="min-w-0 flex-1">
           <p data-ui="servers-page-p-4" className="text-sm font-medium text-foreground truncate">{server.name}</p>
           <div data-ui="servers-page-div-32" className="flex items-center gap-1.5 mt-0.5">
-            <LoaderIcon loaderId={server.modloader} className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <LoaderIcon loaderId={server.modloader} className="w-3.5 h-3.5 text-primary flex-shrink-0" />
             <span data-ui="servers-page-span-3" className="text-[11px] text-muted-foreground truncate">{loaderName} · {server.gameVersion}</span>
             {server.source && (
               <PlatformBadge source={server.source} showLabel className="shrink-0 text-[10px] py-0 px-1.5" iconSize={11} />

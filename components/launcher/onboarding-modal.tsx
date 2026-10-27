@@ -226,7 +226,7 @@ export function OnboardingModal({ selectedTheme, themes, onSelectTheme, onFinish
   if (!mounted) return null
 
   return createPortal(
-    <div data-ui="onboarding-modal-div-1" data-component="onboarding-modal" className="fixed inset-0 z-[100] flex items-center justify-center bg-background/72 px-4 py-5 backdrop-blur-sm">
+    <div data-ui="onboarding-modal-div-1" data-component="onboarding-modal" className="launcher-modal-overlay fixed inset-0 z-[100] flex items-center justify-center bg-background/72 px-4 py-5 backdrop-blur-sm">
       <div data-ui="onboarding-modal-div-2" className="mx-auto flex h-[min(680px,calc(100vh-6rem))] w-full max-w-[980px] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
         <div data-ui="onboarding-modal-div-3" className="border-b border-border px-5 py-4">
           <div data-ui="onboarding-modal-div-4" className="flex items-start justify-between gap-4">

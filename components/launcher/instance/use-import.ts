@@ -1,23 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useActivityCenter } from "@/src/ActivityCenterContext"
-import { MOD_LOADERS } from "./constants"
 import type { ModpackConflictInfo } from "./modpack-conflict-dialog"
+import type { ImportProgress } from "@xnlc/types"
+import { completeImportProgress, mergeImportProgress } from "./import-progress-model"
 import type { Build, ModSearchResult } from "./types"
 
-export interface ImportProgressState {
-  current: number
-  total: number
-  message: string
+export interface ImportProgressState extends Omit<ImportProgress, "source"> {
   source: "modrinth" | "curseforge" | "ftb" | "local"
 }
 
 /** Запрос на установку модпака, отложенный из-за конфликта с уже существующей сборкой */
+export type LocalZipImportFormat = "modpack" | "curseforge" | "xneon"
+
 type PendingInstall =
   | { source: "modrinth"; project: ModSearchResult; versionId?: string }
   | { source: "curseforge"; pack: ModSearchResult; fileId?: number }
   | { source: "ftb"; pack: ModSearchResult; versionId?: number }
-  | { source: "local" }
+  | { source: "local"; format: LocalZipImportFormat }
 
 async function persistImportedBuild(build: Build) {
   // Лёгкий список достаточен: тяжёлый контент уже существующих сборок
@@ -46,6 +46,8 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
   const [installConflict, setInstallConflict] = useState<ModpackConflictInfo | null>(null)
   const pendingInstallRef = useRef<PendingInstall | null>(null)
   const isMountedRef = useRef(true)
+  const importSessionVersionRef = useRef(0)
+  const importErrorRef = useRef<string | null>(null)
   const activeImportSourceRef = useRef<ImportProgressState["source"] | null>(null)
 
   useEffect(() => {
@@ -62,13 +64,17 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
 
   const safeSetImportError = useCallback((value: React.SetStateAction<string | null>) => {
     if (!isMountedRef.current) return
-    setImportError(value)
+    const next = typeof value === "function" ? value(importErrorRef.current) : value
+    importErrorRef.current = next
+    setImportError(next)
   }, [])
 
   const clearProgressLater = useCallback((delay: number, clearError = false) => {
+    const version = importSessionVersionRef.current
     window.setTimeout(() => {
-      if (!isMountedRef.current) return
-      setImportProgress(null)
+      if (!isMountedRef.current || version !== importSessionVersionRef.current) return
+      if (importErrorRef.current) return
+      setImportProgress(previous => previous?.phase === "complete" ? previous : null)
       if (clearError) setImportError(null)
     }, delay)
   }, [])
@@ -77,17 +83,13 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
     const off = window.electronAPI?.onImportProgress((progress) => {
       const source = activeImportSourceRef.current
       if (!source) return
-      safeSetImportProgress({
-        current: progress.current,
-        total: progress.total,
-        message: progress.message,
-        source,
-      })
+      safeSetImportProgress(previous => ({ ...mergeImportProgress(previous, progress), source: progress.source ?? source }))
     })
     return () => off?.()
   }, [safeSetImportProgress])
 
   const beginImportSession = useCallback((source: ImportProgressState["source"]) => {
+    importSessionVersionRef.current++
     activeImportSourceRef.current = source
     startImportSession(source)
     safeSetImportError(null)
@@ -118,13 +120,15 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
       title: t("import.importedTitle"),
       message: build.name,
     })
+    safeSetImportProgress(previous => previous ? { ...completeImportProgress(previous), source: previous.source } : null)
     if (isMountedRef.current) {
       setBuilds(prev => [build, ...prev.filter(item => item.id !== build.id && item.name !== build.name)])
       setView("my")
     }
-  }, [finishImportSession, pushNotification, setBuilds, setView])
+  }, [finishImportSession, pushNotification, safeSetImportProgress, setBuilds, setView])
 
   const cancelImport = useCallback(async () => {
+    if (importErrorRef.current || importProgress?.phase === "complete") { finishImportSession(); safeSetImportError(null); safeSetImportProgress(null); return }
     if (!importProgress) return
 
     const source = activeImportSourceRef.current ?? importProgress.source
@@ -155,16 +159,9 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
   const importModrinthProject = useCallback(async (project: ModSearchResult, versionId?: string, overrideName?: string) => {
     beginImportSession("modrinth")
     setDownloadingSlug(project.slug)
-    safeSetImportProgress({ current: 0, total: 1, message: t("import.preparing"), source: "modrinth" })
+    safeSetImportProgress({ current: 0, total: 1, message: t("import.preparing"), source: "modrinth", title: project.name, iconUrl: project.iconUrl, operation: "modpack" })
     const buildName = overrideName?.trim() || project.name
     try {
-      const response = await fetch(`https://api.modrinth.com/v2/project/${project.slug}/version?limit=20`)
-      const versionsData = await response.json()
-      const versions = Array.isArray(versionsData) ? versionsData : []
-      const latestVersion = versions.find((item: { game_versions?: unknown[]; loaders?: unknown[] }) => item.game_versions?.length || item.loaders?.length)
-      const selectedVersion = latestVersion?.game_versions?.[0] ?? ""
-      const selectedLoader = latestVersion?.loaders?.find((loader: string) => MOD_LOADERS.some(item => item.id === loader)) ?? "vanilla"
-
       const id = crypto.randomUUID()
       let intentPath = ""
       try {
@@ -191,14 +188,14 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
         safeSetImportProgress(null)
         return
       }
-      if (importResult && !importResult.success) throw new Error(importResult.error ?? t("import.error"))
+      if (!importResult?.success) throw new Error(importResult?.error ?? t("import.error"))
 
       await applyImportedBuild({
         id,
         name: buildName,
         description: project.summary,
-        version: importResult?.version ?? selectedVersion,
-        modLoader: importResult?.modLoader ?? selectedLoader,
+        version: importResult.version ?? "",
+        modLoader: importResult.modLoader ?? "vanilla",
         loaderVersion: importResult?.loaderVersion,
         icon: project.iconUrl ?? "",
         coverImage: project.iconUrl ?? undefined,
@@ -217,12 +214,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
       })
     } catch (error) {
       safeSetImportError(error instanceof Error ? error.message : t("import.error"))
-      safeSetImportProgress({
-        current: 0,
-        total: 1,
-        message: error instanceof Error ? error.message : t("import.error"),
-        source: "modrinth",
-      })
+      safeSetImportProgress(previous => ({ ...previous, current: previous?.current ?? 0, total: previous?.total ?? 1, message: error instanceof Error ? error.message : t("import.error"), source: "modrinth" }))
     } finally {
       if (isMountedRef.current) {
         setDownloadingSlug(null)
@@ -234,7 +226,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
   const importCurseforgeProject = useCallback(async (pack: ModSearchResult, fileIdOverride?: number, overrideName?: string) => {
     beginImportSession("curseforge")
     setCfDownloadingId(pack.modId ?? null)
-    safeSetImportProgress({ current: 0, total: 1, message: t("import.preparing"), source: "curseforge" })
+    safeSetImportProgress({ current: 0, total: 1, message: t("import.preparing"), source: "curseforge", title: pack.name, iconUrl: pack.iconUrl, operation: "modpack" })
     const buildName = overrideName?.trim() || pack.name
     try {
       const fileId = fileIdOverride ?? pack.primaryFileId
@@ -292,12 +284,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
       })
     } catch (error) {
       safeSetImportError(error instanceof Error ? error.message : t("import.error"))
-      safeSetImportProgress({
-        current: 0,
-        total: 1,
-        message: error instanceof Error ? error.message : t("import.error"),
-        source: "curseforge",
-      })
+      safeSetImportProgress(previous => ({ ...previous, current: previous?.current ?? 0, total: previous?.total ?? 1, message: error instanceof Error ? error.message : t("import.error"), source: "curseforge" }))
     } finally {
       if (isMountedRef.current) {
         setCfDownloadingId(null)
@@ -314,7 +301,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
       return
     }
     setFtbDownloadingId(modpackId)
-    safeSetImportProgress({ current: 0, total: 1, message: t("import.preparing"), source: "ftb" })
+    safeSetImportProgress({ current: 0, total: 1, message: t("import.preparing"), source: "ftb", title: pack.name, iconUrl: pack.iconUrl, operation: "modpack" })
     const buildName = overrideName?.trim() || pack.name
     try {
       let targetVersionId = versionId
@@ -376,12 +363,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
       })
     } catch (error) {
       safeSetImportError(error instanceof Error ? error.message : t("import.error"))
-      safeSetImportProgress({
-        current: 0,
-        total: 1,
-        message: error instanceof Error ? error.message : t("import.error"),
-        source: "ftb",
-      })
+      safeSetImportProgress(previous => ({ ...previous, current: previous?.current ?? 0, total: previous?.total ?? 1, message: error instanceof Error ? error.message : t("import.error"), source: "ftb" }))
     } finally {
       if (isMountedRef.current) {
         setFtbDownloadingId(null)
@@ -414,13 +396,19 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
     await importFtbProject(pack, versionId)
   }, [importFtbProject])
 
-  const handleImportFile = useCallback(async (overrideName?: string) => {
+  const handleImportFile = useCallback(async (formatOrName?: LocalZipImportFormat | string, overrideName?: string) => {
+    const format: LocalZipImportFormat = typeof formatOrName === "string" && ["modpack", "curseforge", "xneon"].includes(formatOrName)
+      ? formatOrName as LocalZipImportFormat
+      : "modpack"
+    const buildNameOverride = typeof formatOrName === "string" && !["modpack", "curseforge", "xneon"].includes(formatOrName)
+      ? formatOrName
+      : overrideName
     // Оверлей прогресса показываем не здесь, а с первым событием из main (уже
     // после системного окна выбора файла): иначе лаунчер затемнялся, пока
     // пользователь ещё только выбирает архив.
     beginImportSession("local")
     try {
-      const result = await window.electronAPI?.openAndImportModpack(overrideName)
+      const result = await window.electronAPI?.openAndImportModpack(format, buildNameOverride)
       if (!result) {
         finishImportSession()
         safeSetImportProgress(null)
@@ -433,7 +421,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
         return
       }
       if (result.conflict) {
-        pendingInstallRef.current = { source: "local" }
+        pendingInstallRef.current = { source: "local", format }
         if (isMountedRef.current) {
           setInstallConflict({ ...result.conflict, packName: result.name ?? t("import.modpack") })
         }
@@ -452,12 +440,14 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
 
       await applyImportedBuild({
         id: crypto.randomUUID(),
-        name: overrideName?.trim() || result.name || t("import.importedBuild"),
+        name: buildNameOverride?.trim() || result.name || t("import.importedBuild"),
         description: result.description ?? "",
         version: result.version ?? "",
         modLoader: result.modLoader ?? "vanilla",
         loaderVersion: result.loaderVersion,
+        customVersionPath: result.customVersionPath,
         icon: result.icon ?? "",
+        coverImage: result.icon || undefined,
         mods: result.mods ?? [],
         resourcepacks: result.resourcepacks ?? [],
         shaders: result.shaders ?? [],
@@ -496,7 +486,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
     } else if (pending.source === "ftb") {
       await importFtbProject(pending.pack, pending.versionId, name)
     } else {
-      await handleImportFile(name)
+      await handleImportFile(pending.format, name)
     }
   }, [handleImportFile, importCurseforgeProject, importFtbProject, importModrinthProject])
 

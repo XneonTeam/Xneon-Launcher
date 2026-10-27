@@ -1,4 +1,4 @@
-import { CONTENT_ENTER, CONTENT_ENTER_DELAYED } from "../content-motion"
+import { useContentEnter, CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { useAccounts } from "@/src/AccountsContext"
@@ -9,6 +9,7 @@ import { EmptySkinsState, SkinPreviewPanel, SkinGrid, type SkinCardData } from "
 import { resolveSkinCapeUrl, findActiveCape } from "./cape-url"
 import type { McProfile, LibrarySkin } from "@xnlc/types"
 import { IconLoader2 } from "@tabler/icons-react"
+import { ActionConfirmDialog } from "@/components/launcher/instance/action-confirm-dialog"
 
 /**
  * Кэш профиля скинов на уровне модуля.
@@ -39,11 +40,13 @@ export function FavoritesTab() {
   const account = (activeAccount && activeAccount.type !== "elyby" && activeAccount.type !== "offline" ? activeAccount : skinAccounts[0]) ?? null
 
   const [librarySkins, setLibrarySkins] = useState<LibrarySkin[]>([])
+  const [pendingDeleteSkin, setPendingDeleteSkin] = useState<SkinCardData | null>(null)
   const [skinBlobUrls, setSkinBlobUrls] = useState<Map<string, string>>(new Map())
   const [profile, setProfile] = useState<McProfile | null>(null)
   const [activeSkinUrl, setActiveSkinUrl] = useState<string>("")
   const [activeSkinVariant, setActiveSkinVariant] = useState<"classic" | "slim">("classic")
   const [loading, setLoading] = useState(true)
+  const contentEnter = useContentEnter(!loading)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [equippedId, setEquippedId] = useState<string | null>(null)
   const [isApplying, setIsApplying] = useState(false)
@@ -423,7 +426,7 @@ export function FavoritesTab() {
             onCancelSelection={() => setSelectedId(equippedId)}
           />
 
-          <div data-ui="skins-favorites-tab-div-5" className={`flex min-h-0 flex-col gap-3 @[820px]:overflow-hidden ${!loading ? CONTENT_ENTER : ""}`}>
+          <div data-ui="skins-favorites-tab-div-5" className={`flex min-h-0 flex-col gap-3 @[820px]:overflow-hidden ${contentEnter ?? ""}`}>
             {/* Счётчик без спиннера: загрузка показывается по центру сетки. */}
             {!loading && (
               <span data-ui="skins-favorites-tab-span-1" className="text-[12px] font-medium tabular-nums text-muted-foreground">
@@ -442,7 +445,10 @@ export function FavoritesTab() {
                 previewVersion={skinVersion}
                 onSelect={setSelectedId}
                 onEdit={(skin) => handleEditClick(skin)}
-                onDelete={handleDeleteSkin}
+                onDelete={(skinId) => {
+                  const skin = allSkins.find((item) => item.id === skinId)
+                  if (skin && skin.id !== "__api__") setPendingDeleteSkin(skin)
+                }}
                 onAddNew={handleAddNew}
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
                 onDragLeave={() => setDragOver(false)}
@@ -452,6 +458,19 @@ export function FavoritesTab() {
           </div>
         </div>
       </div>
+      <ActionConfirmDialog
+        open={pendingDeleteSkin !== null}
+        onClose={() => setPendingDeleteSkin(null)}
+        onConfirm={() => {
+          if (pendingDeleteSkin) void handleDeleteSkin(pendingDeleteSkin.id)
+        }}
+        title={t("skins.deleteConfirmTitle")}
+        description={t("skins.deleteConfirm", { name: pendingDeleteSkin?.name ?? "" })}
+        confirmText={t("common.delete")}
+        cancelText={t("common.cancel")}
+        variant="danger"
+        icon="warning"
+      />
     </div>
   )
 }

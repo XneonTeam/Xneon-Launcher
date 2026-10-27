@@ -1,4 +1,4 @@
-import { CONTENT_ENTER } from "../content-motion"
+import { useContentEnter } from "../content-motion"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useAccounts } from "@/src/AccountsContext"
@@ -13,13 +13,14 @@ import { EMPTY_FILTERS, countActiveFilters, type CatalogFilters } from "./catalo
 import { LABY_DEFAULT_ORDER, labyHashFromSourceId, labyPlayerSkinToSkin } from "@xnlc/skins"
 import type { LabyOrder, LabyPlayer, LabySkin, LabyTag } from "@xnlc/types"
 import { IconAlertTriangle, IconChevronLeft, IconChevronRight, IconLayoutGrid, IconRefresh, IconUsers } from "@tabler/icons-react"
+import { ActionConfirmDialog } from "@/components/launcher/instance/action-confirm-dialog"
 
 const GRID_CLASS = SKIN_GRID_CLASS
 
 /** Пауза перед локальным поиском: пользователь ещё печатает. */
 const SEARCH_DEBOUNCE_MS = 400
 
-const PAGE_SIZE = 25
+const PAGE_SIZE = 24
 
 function SectionHeader({
   icon,
@@ -109,6 +110,7 @@ export function LabyLibraryTab() {
   // Игрок по введённому тексту: находится автоматически вместе с фильтром каталога.
   const [player, setPlayer] = useState<LabyPlayer | null>(null)
   const [playerLoading, setPlayerLoading] = useState(false)
+  const contentEnter = useContentEnter(!loading && !playerLoading)
 
   /**
    * Что из каталога уже лежит в «Избранном»: хэш → id записи в библиотеке.
@@ -116,6 +118,7 @@ export function LabyLibraryTab() {
    */
   const [favorites, setFavorites] = useState<Map<string, string>>(new Map())
   const [busy, setBusy] = useState<{ hash: string; mode: "save" | "apply" | "remove" } | null>(null)
+  const [pendingRemove, setPendingRemove] = useState<LabySkin | null>(null)
 
   const gridRef = useRef<HTMLDivElement>(null)
   /** Защита от гонки: ответ устаревшего запроса не должен перезаписать свежий. */
@@ -446,7 +449,7 @@ export function LabyLibraryTab() {
         busy={busy && busy.hash === skin.hash ? busy.mode : null}
         onSelect={() => setSelected(skin)}
         onSave={() => void runAction(skin, "save")}
-        onRemove={() => void runAction(skin, "remove")}
+        onRemove={() => setPendingRemove(skin)}
         onApply={() => void runAction(skin, "apply")}
       />
     ))
@@ -462,7 +465,7 @@ export function LabyLibraryTab() {
           similar={similar}
           similarLoading={similarLoading}
           onSave={() => selected && void runAction(selected, "save")}
-          onRemove={() => selected && void runAction(selected, "remove")}
+          onRemove={() => selected && setPendingRemove(selected)}
           onApply={() => selected && void runAction(selected, "apply")}
           onSelectSimilar={setSelected}
         />
@@ -481,7 +484,7 @@ export function LabyLibraryTab() {
             localFiltering={filteredLocally}
           />
 
-          <div data-ui="laby-library-tab-div-8" ref={gridRef} className={`@container min-h-0 @[820px]:flex-1 @[820px]:overflow-y-auto @[820px]:pr-1 ${!loading && !playerLoading ? CONTENT_ENTER : ""}`}>
+          <div data-ui="laby-library-tab-div-8" ref={gridRef} className={`@container min-h-0 @[820px]:flex-1 @[820px]:overflow-y-auto @[820px]:pr-1 ${contentEnter ?? ""}`}>
             <div data-ui="laby-library-tab-div-9" className="flex flex-col gap-4 pb-2">
               {/* Laby недоступен: показываем сохранённые данные, а не пустой экран. */}
               {error && (
@@ -529,7 +532,6 @@ export function LabyLibraryTab() {
                   icon={<IconLayoutGrid className="h-3.5 w-3.5 text-primary/70" />}
                   title={t("laby.catalog", "Каталог")}
                   hint={catalogHint}
-                  count={showLoader ? undefined : items.length}
                 />
 
                 {/*
@@ -592,6 +594,19 @@ export function LabyLibraryTab() {
           </div>
         </div>
       </div>
+      <ActionConfirmDialog
+        open={pendingRemove !== null}
+        onClose={() => setPendingRemove(null)}
+        onConfirm={() => {
+          if (pendingRemove) void runAction(pendingRemove, "remove")
+        }}
+        title={t("skins.deleteConfirmTitle")}
+        description={t("skins.deleteConfirm", { name: pendingRemove?.name ?? "" })}
+        confirmText={t("common.delete")}
+        cancelText={t("common.cancel")}
+        variant="danger"
+        icon="warning"
+      />
     </div>
   )
 }

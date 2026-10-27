@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { InstanceModal } from "./instance-modal"
 import { CategoryBadge } from "./category-badge"
 import { ModalLayer } from "@/components/ui/modal-layer"
+import { ActionConfirmDialog } from "./action-confirm-dialog"
 import { useAlertDialog } from "@/lib/use-alert-dialog"
 import type { Build, DatapackInfo, ModalTab, ModDetails, ModSearchResult, ModVersion, Source, WorldInfo, ModSort } from "./types"
 
@@ -497,6 +498,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         <div data-ui="instance-instance-worlds-tab-div-3" className="flex items-center gap-1.5 bg-muted/50 p-1 rounded-xl border border-border">
           <button data-ui="instance-instance-worlds-tab-button-1"
             type="button"
+            aria-pressed={viewMode === "installed"}
             onClick={() => setViewMode("installed")}
             className={cn(
               "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
@@ -515,6 +517,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
           </button>
           <button data-ui="instance-instance-worlds-tab-button-2"
             type="button"
+            aria-pressed={viewMode === "catalog"}
             onClick={() => setViewMode("catalog")}
             className={cn(
               "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
@@ -709,7 +712,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
               </div>
             ) : mapResults.length === 0 ? (
               <div data-ui="instance-instance-worlds-tab-div-15" className="flex h-64 flex-col items-center justify-center gap-2 text-center">
-                <IconMap className="h-8 w-8 text-muted-foreground/40" />
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary mb-2"><IconMap className="h-8 w-8" strokeWidth={1.75} aria-hidden="true" /></div>
                 <p data-ui="instance-instance-worlds-tab-p-1" className="text-sm text-muted-foreground">{t("worlds.no_maps_found")}</p>
                 {filterBuildVersion && (
                   <button data-ui="instance-instance-worlds-tab-button-9"
@@ -1154,12 +1157,13 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                         <button data-ui="instance-instance-worlds-tab-button-25"
                           key={src}
                           type="button"
+                          aria-pressed={source === src}
                           onClick={() => setSource(src)}
                            className={cn(
                             "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
                             source === src
                               ? src === "modrinth" ? "bg-success/20 text-success" : "bg-primary/20 text-primary"
-                              : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted"
                           )}
                         >
                           {src === "modrinth" ? (
@@ -1298,47 +1302,17 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         </ModalLayer>
       )}
 
-      {/* Delete confirm modal */}
-      {deleteOpen && selectedWorld && (
-        <ModalLayer windowId="instance-instance-worlds-tab-window-3"
-          onClose={() => { if (!deleting) setDeleteOpen(false) }}
-          className="animate-in fade-in-0"
-        >
-          <div data-ui="instance-instance-worlds-tab-div-91" className="w-full max-w-md rounded-2xl bg-card p-6 shadow-2xl border border-border animate-in zoom-in-95">
-            <div data-ui="instance-instance-worlds-tab-div-92" className="flex items-center justify-between">
-              <h3 data-ui="instance-instance-worlds-tab-h3-2" className="text-lg font-semibold text-foreground">{t("worlds.ui.deleteTitle")}</h3>
-              <button data-ui="instance-instance-worlds-tab-button-31"
-                type="button"
-                onClick={() => setDeleteOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <IconX className="h-5 w-5" strokeWidth={1.5} />
-              </button>
-            </div>
-            <p data-ui="instance-instance-worlds-tab-p-5" className="mt-2 text-sm text-muted-foreground">
-              {t("worlds.ui.deleteDescription", { name: selectedWorld.name })}
-            </p>
-            <div data-ui="instance-instance-worlds-tab-div-93" className="mt-5 flex gap-3">
-              <button data-ui="instance-instance-worlds-tab-button-32"
-                type="button"
-                onClick={() => setDeleteOpen(false)}
-                className="flex-1 rounded-2xl border border-border bg-muted/30 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-              >
-                {t("common.cancel")}
-              </button>
-              <button data-ui="instance-instance-worlds-tab-button-33"
-                type="button"
-                disabled={deleting}
-                onClick={() => void handleDelete()}
-                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-destructive py-2.5 text-sm font-semibold text-destructive-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                {deleting && <IconLoader2 className="h-4 w-4 animate-spin" />}
-                {t("common.delete")}
-              </button>
-            </div>
-          </div>
-        </ModalLayer>
-      )}
+      <ActionConfirmDialog
+        open={deleteOpen && !!selectedWorld}
+        onClose={() => { if (!deleting) setDeleteOpen(false) }}
+        onConfirm={() => void handleDelete()}
+        title={t("worlds.ui.deleteTitle")}
+        description={selectedWorld ? t("worlds.ui.deleteDescription", { name: selectedWorld.name }) : ""}
+        confirmText={t("common.delete")}
+        cancelText={t("common.cancel")}
+        variant="danger"
+        icon="warning"
+      />
 
       {/* Datapack or Map details modal */}
       <InstanceModal

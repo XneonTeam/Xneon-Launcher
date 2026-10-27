@@ -4,11 +4,12 @@ import {
   IconColorSwatch, IconPlus, IconCopy, IconTrash, IconDownload, IconUpload, IconCategoryPlus,
   IconX, IconChevronDown, IconChevronRight,
   IconPencil, IconPuzzle, IconSparkles, IconMap,
-  IconSettings, IconBug, IconFolder, IconLayoutGrid, IconLayoutList, IconArrowUpCircle, IconPhoto,
+  IconSettings, IconBug, IconFolder, IconLayoutGrid, IconLayoutList, IconRefreshDot, IconPhoto,
   IconLoader2, IconPlayerPlay,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
+import { FloatingContextMenu } from "@/components/ui/floating-context-menu"
 import { ModalLayer } from "@/components/ui/modal-layer"
 import { InstanceExportModal } from "./instance-export-modal"
 import { LoaderIcon, loaderLabel } from "./loader-icon"
@@ -262,8 +263,8 @@ export const InstanceList = memo(function InstanceList({
     <div data-ui="instance-instance-list-div-1" data-component="instance-list" data-layout={layoutMode} className="flex-1 overflow-y-auto relative" onClick={() => { setGroupContextMenu(null); setBuildContextMenu(null); setModlistMenuFor(null) }}>
       {totalBuilds === 0 ? (
         <div data-ui="instance-instance-list-div-2" className="h-full flex flex-col items-center justify-center text-center">
-          <div data-ui="instance-instance-list-div-3" className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mb-5">
-            <IconColorSwatch className="w-10 h-10 text-muted-foreground/40" />
+          <div data-ui="instance-instance-list-div-3" className="w-20 h-20 rounded-3xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center mb-5">
+            <IconColorSwatch className="w-10 h-10" strokeWidth={1.75} />
           </div>
           <p data-ui="instance-instance-list-p-1" className="text-base font-medium text-foreground">{t("builds.noBuilds")}</p>
           <p data-ui="instance-instance-list-p-2" className="text-sm text-muted-foreground mt-1 mb-5">{t("builds.noBuildsDesc")}</p>
@@ -312,7 +313,7 @@ export const InstanceList = memo(function InstanceList({
               <div data-ui="instance-instance-list-div-7" data-component="build-group" key={groupKey || "__ungrouped__"}>
                 <div data-ui="instance-instance-list-div-8"
                   className={cn(
-                    "group flex items-center gap-2 px-3 py-2 rounded-lg transition-colors",
+                    "group flex items-center gap-2 px-3 py-2 rounded-lg bg-card text-card-foreground transition-colors",
                     groupKey !== "" ? "cursor-pointer hover:bg-muted/50 select-none" : "cursor-default",
                     // Подсветка категории, в которую сейчас упадёт сборка.
                     isDropTarget && "bg-primary/10 ring-1 ring-inset ring-primary/40",
@@ -365,7 +366,7 @@ export const InstanceList = memo(function InstanceList({
                 </div>
 
                 {!isCollapsed && layoutMode === "grid" && (
-                  <div data-ui="instance-instance-list-div-12" data-slot="build-grid" className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3 px-3 pb-4">
+                  <div data-ui="instance-instance-list-div-12" data-slot="build-grid" className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-4 px-3 pt-3 pb-4">
                     {groupBuilds.map(build => {
                       const hasImage = !!build.icon
                       const isLinkedModpack = (build.source === "modrinth" || build.source === "curseforge") && build.locked !== false
@@ -404,7 +405,7 @@ export const InstanceList = memo(function InstanceList({
                                 className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground shadow-lg"
                                 title={t("updates.badgeTitle", { count: updatesCount })}
                               >
-                                <IconArrowUpCircle className="w-3 h-3" strokeWidth={2} />
+                                <IconRefreshDot className="w-3 h-3 text-primary-foreground" strokeWidth={2} />
                                 {updatesCount}
                               </div>
                             )}
@@ -463,7 +464,7 @@ export const InstanceList = memo(function InstanceList({
                 )}
 
                 {!isCollapsed && layoutMode === "list" && (
-                  <div data-ui="instance-instance-list-div-24" className="flex flex-col gap-1 px-3 pb-4">
+                  <div data-ui="instance-instance-list-div-24" className="flex flex-col gap-2 px-3 pt-3 pb-4">
                     {groupBuilds.map(build => {
                       const hasImage = !!build.icon
                       const isLinkedModpack = (build.source === "modrinth" || build.source === "curseforge") && build.locked !== false
@@ -512,7 +513,7 @@ export const InstanceList = memo(function InstanceList({
                               className="shrink-0 flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground"
                               title={t("updates.badgeTitle", { count: updatesCount })}
                             >
-                              <IconArrowUpCircle className="w-3 h-3" strokeWidth={2} />
+                              <IconRefreshDot className="w-3 h-3 text-primary-foreground" strokeWidth={2} />
                               {updatesCount}
                             </span>
                           )}
@@ -631,9 +632,7 @@ export const InstanceList = memo(function InstanceList({
       )}
 
       {groupContextMenu && (
-        <div data-ui="instance-instance-list-div-37" className="fixed z-50 min-w-[160px] rounded-xl border border-border bg-card shadow-2xl p-1"
-          style={{ left: groupContextMenu.x, top: groupContextMenu.y }}
-          onClick={e => e.stopPropagation()}>
+        <FloatingContextMenu position={groupContextMenu} minWidth={160} onClose={() => setGroupContextMenu(null)}>
           <button data-ui="instance-instance-list-button-13" type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
             onClick={() => { setIconPickerFor(groupContextMenu.group); setGroupContextMenu(null) }}>
             <IconPhoto className="w-4 h-4 text-muted-foreground" />
@@ -649,13 +648,11 @@ export const InstanceList = memo(function InstanceList({
             <IconTrash className="w-4 h-4" strokeWidth={1.75} />
             {t("instanceList.deleteGroup")}
           </button>
-        </div>
+        </FloatingContextMenu>
       )}
 
       {buildContextMenu && (
-        <div data-ui="instance-instance-list-div-38" className="fixed z-50 min-w-[180px] rounded-xl border border-border bg-card shadow-2xl p-1"
-          style={{ left: buildContextMenu.x, top: buildContextMenu.y }}
-          onClick={e => e.stopPropagation()}>
+        <FloatingContextMenu position={buildContextMenu} minWidth={180} onClose={() => { setBuildContextMenu(null); setModlistMenuFor(null) }}>
           <button data-ui="instance-instance-list-button-16" type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
             onClick={() => {
               const build = builds.find(b => b.id === buildContextMenu.id)
@@ -702,7 +699,7 @@ export const InstanceList = memo(function InstanceList({
             <IconTrash className="w-4 h-4" />
             {t("instanceList.toTrash")}
           </button>
-        </div>
+        </FloatingContextMenu>
       )}
 
       {/* Category icon picker: те же встроенные логотипы, что у сборок и серверов */}
