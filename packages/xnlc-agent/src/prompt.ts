@@ -4,9 +4,9 @@ export { AGENT_SYSTEM_PROMPT, AGENT_CORE_PROMPT } from "./prompt-text.js"
 const promptSections = new Map(AGENT_SYSTEM_PROMPT.split(/\n\n(?=\d+\. )/).slice(1).map(section => [Number(section.match(/^\d+/)?.[0]), section]))
 
 /** Единый промпт для отправки и оценки контекста. */
-export function agentSystemPrompt(language = "ru", toolNames: readonly string[] = []) {
+export function agentSystemPrompt(language = "ru", toolNames: readonly string[] = [], questionOnly = false) {
   const code = String(language || "ru").slice(0, 20)
-  const names: Record<string, string> = { ru: "Russian", en: "English", uk: "Ukrainian", de: "German", es: "Spanish" }
+  const names: Record<string, string> = { ru: "Russian", en: "English", uk: "Ukrainian", de: "German", es: "Spanish", pl: "Polish" }
   const selected = new Set(toolNames)
   const has = (...tools: string[]) => tools.some(tool => selected.has(tool))
   const sections = new Set<number>()
@@ -22,7 +22,8 @@ export function agentSystemPrompt(language = "ru", toolNames: readonly string[] 
     : /^Servers:/.test(line) ? has("list_servers", "server_status", "create_server", "set_server_property", "get_server")
     : /^Diagnostics:/.test(line) ? has("server_logs", "read_build_file") : false)
   const guidance = [...sections].sort((a, b) => a - b).map(number => promptSections.get(number)).filter(Boolean)
-  return [AGENT_CORE_PROMPT, ...guidance, ...domain, `Launcher interface language: ${names[code] || names.ru} (${code}). Respond in this language unless the user explicitly requests another.`].join("\n\n")
+  const questions = questionOnly ? "Questions-only mode: Answer the user's question and use only the provided read-only tools when useful. Do not ask interactive questions or create plans. Never modify launcher settings, files, builds, worlds, servers, skins or accounts; never install, delete, launch, or send commands. If the user asks for an action, explain that they can switch to an action mode." : ""
+  return [AGENT_CORE_PROMPT, ...guidance, ...domain, questions, `Launcher interface language: ${names[code] || names.ru} (${code}). Respond in this language unless the user explicitly requests another.`].filter(Boolean).join("\n\n")
 }
 
 export function agentCompactionPrompt(language = "ru") {

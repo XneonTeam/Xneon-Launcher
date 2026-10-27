@@ -34,6 +34,7 @@ export interface AgentToolSpec {
 
 export interface AgentTurnRequest {
   purpose?: "compact"
+  mode?: "questions"
   requestId: string
   messages: AgentWireMessage[]
   tools: AgentToolSpec[]
@@ -78,7 +79,7 @@ export interface AgentChat extends AgentChatSummary {
   timeline: AgentTimelineItem[]
   draft: string
   attachments: AgentAttachment[]
-  mode: "confirm" | "auto"
+  mode: "questions" | "confirm" | "auto"
 }
 
 export interface AgentBuildFileRequest {

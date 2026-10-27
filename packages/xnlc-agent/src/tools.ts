@@ -290,7 +290,7 @@ add("set_setting", "Изменить настройку лаунчера из р
     if (size < 256 || size * 1024**2 > await api.getTotalMemory() || other && (key === "memoryMin" ? size > toMiB(other) : size < toMiB(other))) throw new Error("Invalid memory range")
   }
   if (["useBmclapi", "showSnapshot", "showBeta", "showAlpha", "autoJoinServer", "useCustomResolution", "autoGameLanguage"].includes(key) && !["true", "false"].includes(value)) throw new Error("Expected true or false")
-  if (key === "language" && !["ru", "en", "uk", "de", "es"].includes(value)) throw new Error("Unsupported language")
+  if (key === "language" && !["ru", "en", "uk", "de", "es", "pl"].includes(value)) throw new Error("Unsupported language")
   if (key === "afterLaunch" && !["nothing", "minimize", "close"].includes(value)) throw new Error("Invalid afterLaunch action")
   if (["customWidth", "customHeight", "serverPort"].includes(key) && (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > (key === "serverPort" ? 65535 : 16384))) throw new Error("Invalid numeric setting")
   if (key === "theme") {

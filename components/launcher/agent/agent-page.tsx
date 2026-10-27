@@ -1,4 +1,4 @@
-import { useContentEnter } from "../content-motion"
+import { CONTENT_ENTER_DELAYED, useContentEnter } from "../content-motion"
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import ReactMarkdown from "react-markdown"
@@ -505,17 +505,17 @@ export function AgentPage() {
     } finally { setModelSaving(false) }
   }
   const guarded = (action: () => Promise<unknown>) => { void action().catch(error => setLocalError(String(error))) }
-  return <div className={cn("agent-page", contentEnter)} id="agent-page" data-component="xneon-agent" onDragOver={event => { if (event.dataTransfer.types.includes("Files")) event.preventDefault() }} onDrop={event => { event.preventDefault(); void readFiles(event.dataTransfer.files) }}>
-    <header className="agent-header">
+  return <div className="agent-page" id="agent-page" data-component="xneon-agent" onDragOver={event => { if (event.dataTransfer.types.includes("Files")) event.preventDefault() }} onDrop={event => { event.preventDefault(); void readFiles(event.dataTransfer.files) }}>
+    <header className={cn("agent-header launcher-page-header", CONTENT_ENTER_DELAYED)}>
       <div className="flex items-center gap-3"><div className="agent-brand"><IconRobot size={22} stroke={1.7} /></div><div><h1 className="text-xl font-bold tracking-tight">{t("agent.title")}</h1><p className="text-xs text-muted-foreground">{t("agent.subtitle")}</p></div></div>
       <div className="flex w-fit items-center gap-0.5 rounded-xl border border-border/50 bg-muted/30 p-1">
         <button type="button" className="flex items-center justify-center gap-1.5 rounded-lg px-4 py-1.5 text-[13px] font-medium text-muted-foreground transition-all duration-200 hover:bg-muted/80 hover:text-foreground" aria-label={t("agent.configure")} title={t("agent.configure")} onClick={settings}><IconSettings className="h-4 w-4" strokeWidth={1.75} /><span>{t("agent.configure")}</span></button>
         {chat && <button type="button" className="flex items-center justify-center gap-1.5 rounded-lg px-4 py-1.5 text-[13px] font-medium text-muted-foreground transition-all duration-200 hover:bg-muted/80 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45" disabled={running} title={t("agent.deleteChat")} aria-label={t("agent.deleteChat")} onClick={() => setDeleteId(chat.id)}><IconTrash className="h-4 w-4" strokeWidth={1.75} /><span>{t("agent.deleteChat")}</span></button>}
       </div>
     </header>
-    <div className="agent-workspace">
+    <div className={cn("agent-workspace", contentEnter)}>
       {showHistory && <aside className="agent-history">
-        <button type="button" className="agent-primary w-full justify-center" disabled={running || state.loading} onClick={() => { setShowArchive(false); guarded(() => newAgentChat()) }}><IconPlus size={16} />{t("agent.newChat")}</button>
+        <button type="button" className="agent-primary w-full justify-center" disabled={running || state.loading} onClick={() => { setShowArchive(false); guarded(() => newAgentChat()) }}><IconPlus size={16} className="shrink-0 text-current" aria-hidden="true" />{t("agent.newChat")}</button>
         <div className="mt-6 mb-2 flex justify-between px-2 text-[10px] uppercase tracking-widest text-muted-foreground"><span>{t(showArchive ? "agent.archive.title" : "agent.chats")}</span><span>{visibleChats.length}</span></div>
         <div className="min-h-0 flex-1 overflow-y-auto space-y-1">{visibleChats.map(item => <div className={cn("agent-chat-row group", item.id === chat?.id && "agent-chat-active")} key={item.id}><button className="min-w-0 flex-1 py-3 pl-3 text-left" disabled={running || state.loading} onClick={() => guarded(() => selectAgentChat(item.id))}><span className="block truncate text-xs font-medium">{item.title}</span><span className="block mt-1 text-[10px] text-muted-foreground">{new Date(item.updatedAt).toLocaleDateString(i18n.language, { day: "numeric", month: "short" })}</span></button><button type="button" className="agent-icon-button opacity-0 group-hover:opacity-100 focus-visible:opacity-100" disabled={running || state.loading} title={t(item.archived ? "agent.archive.restore" : "agent.archive.action")} aria-label={t(item.archived ? "agent.archive.restore" : "agent.archive.action")} onClick={() => guarded(() => archiveAgentChat(item.id, !item.archived))}>{item.archived ? <IconArchiveOff size={13} /> : <IconArchive size={13} />}</button><button type="button" className="agent-icon-button opacity-0 group-hover:opacity-100 focus-visible:opacity-100" disabled={running} title={t("agent.deleteChat")} aria-label={t("agent.deleteChat")} onClick={() => setDeleteId(item.id)}><IconTrash size={13} /></button></div>)}</div>
         {!visibleChats.length && <p className="px-2 py-3 text-xs text-muted-foreground">{t(showArchive ? "agent.archive.empty" : "agent.archive.noActive")}</p>}
@@ -540,7 +540,7 @@ export function AgentPage() {
             <textarea ref={composer} rows={1} value={chat?.draft || ""} onChange={event => setAgentDraft(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (config?.ready && !state.loading && !modelSaving) guarded(sendAgentMessage) } }} placeholder={t("agent.placeholder")} aria-label={t("agent.placeholder")} disabled={state.loading} maxLength={24000} />
             <div className="agent-composer-toolbar">
               <ComposerControls mode={chat?.mode || "confirm"} model={config?.model || ""} disabled={state.loading} running={running} onFile={() => fileInput.current?.click()} onModelChange={selectModel} onConfigure={settings} />
-              {running ? <button className="agent-send" type="button" disabled={state.stopping} title={t("agent.stop")} aria-label={t("agent.stop")} onClick={() => guarded(stopAgent)}>{state.stopping ? <IconLoader2 size={18} className="animate-spin" /> : <IconPlayerStop size={18} />}</button> : <button className="agent-send" type="button" title={t("agent.send")} aria-label={t("agent.send")} disabled={state.loading || modelSaving || !config?.ready || !chat || !chat.draft.trim() && !chat.attachments.length} onClick={() => { atBottom.current = true; guarded(sendAgentMessage) }}><IconArrowUp size={19} /></button>}
+              {running ? <button className="agent-send" type="button" disabled={state.stopping} title={t("agent.stop")} aria-label={t("agent.stop")} onClick={() => guarded(stopAgent)}>{state.stopping ? <IconLoader2 size={18} className="animate-spin text-primary-foreground" /> : <IconPlayerStop size={18} className="text-primary-foreground" />}</button> : <button className="agent-send" type="button" title={t("agent.send")} aria-label={t("agent.send")} disabled={state.loading || modelSaving || !config?.ready || !chat || !chat.draft.trim() && !chat.attachments.length} onClick={() => { atBottom.current = true; guarded(sendAgentMessage) }}><IconArrowUp size={19} className="text-primary-foreground" strokeWidth={2.5} /></button>}
             </div>
           </div>
           <div className="mt-2 text-center text-[10px] text-muted-foreground">{t("agent.disclaimer")}</div>
@@ -559,7 +559,7 @@ export function AgentPage() {
       confirmText={t("agent.delete")}
       cancelText={t("agent.cancel")}
       variant="danger"
-      icon="trash"
+      icon="warning"
     />
   </div>
 }

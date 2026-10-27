@@ -10,6 +10,7 @@ import { readAgentStream, redactAgentText } from "./agent-protocol"
 
 import { providerHeaders, providerRequest, providerResult, validateProviderKey, type ProviderConfig } from "./ai-providers"
 import { agentSystemPrompt, agentCompactionPrompt } from "@xnlc/agent/prompt"
+import { AGENT_TOOLS } from "@xnlc/agent/tools"
 import type { AiModelConfig } from "@xnlc/types"
 type ApiConfig = ProviderConfig & { models?: AiModelConfig[] }
 const active = new Map<string, { controller: AbortController; owner: number }>()
@@ -134,7 +135,7 @@ export function registerAgentWorkspace(getConfig: () => Promise<ApiConfig | null
   ipcMain.handle("agent:save-chat", (_event, chat: AgentChat) => {
     chatId(chat?.id)
     if (chat.archived !== undefined && typeof chat.archived !== "boolean") throw new Error("Invalid archived state")
-    if (typeof chat.title !== "string" || !Number.isFinite(chat.updatedAt) || !Array.isArray(chat.messages) || !Array.isArray(chat.timeline) || !Array.isArray(chat.attachments) || typeof chat.draft !== "string" || !["confirm", "auto"].includes(chat.mode)) throw new Error("Invalid chat")
+    if (typeof chat.title !== "string" || !Number.isFinite(chat.updatedAt) || !Array.isArray(chat.messages) || !Array.isArray(chat.timeline) || !Array.isArray(chat.attachments) || typeof chat.draft !== "string" || !["questions", "confirm", "auto"].includes(chat.mode)) throw new Error("Invalid chat")
     const data = JSON.stringify(chat)
     if (Buffer.byteLength(data) > 64_000_000) throw new Error("Chat is too large. Start a new chat.")
     if (!isDbAvailable()) { fallbackChats.set(chat.id, structuredClone(chat)); return }
@@ -169,8 +170,13 @@ export function registerAgentWorkspace(getConfig: () => Promise<ApiConfig | null
   ipcMain.handle("agent:cancel", (event, id: string) => { const request = active.get(id); if (request?.owner === event.sender.id) request.controller.abort() })
   ipcMain.handle("agent:complete", async (event, request: AgentTurnRequest): Promise<AgentTurnResult> => {
     chatId(request?.requestId)
-    if (request.purpose !== undefined && request.purpose !== "compact" || request.purpose === "compact" && request.tools?.length !== 0) throw new Error("Invalid agent request purpose")
+    if (request.purpose !== undefined && request.purpose !== "compact" || request.purpose === "compact" && (request.tools?.length !== 0 || request.mode !== undefined)) throw new Error("Invalid agent request purpose")
+    if (request.mode !== undefined && request.mode !== "questions") throw new Error("Invalid agent mode")
     if (!Array.isArray(request.messages) || request.messages.length > 500 || !Array.isArray(request.tools) || request.tools.length > 128 || JSON.stringify(request).length > 32_000_000) throw new Error("Agent context is too large. Start a new chat.")
+    if (request.mode === "questions") {
+      const allowed = new Set(AGENT_TOOLS.filter(tool => tool.risk === "read" && !["ask_user", "update_plan"].includes(tool.name)).map(tool => tool.name))
+      if (request.tools.some(tool => typeof tool?.function?.name !== "string" || !allowed.has(tool.function.name))) throw new Error("Questions mode only allows read-only tools")
+    }
     if (active.has(request.requestId) || [...active.values()].some(value => value.owner === event.sender.id)) throw new Error("An agent request is already running")
     const config = await getConfig()
     if (!config) throw new Error("AI API key not configured. Go to Settings → AI.")
@@ -194,7 +200,7 @@ export function registerAgentWorkspace(getConfig: () => Promise<ApiConfig | null
       if (config.models?.length && !selected) throw new Error("Select an enabled model in AI settings")
       if (messages.some(message => message.images?.length) && !selected?.supportsImages) throw new Error("This model does not support images. Select a model with image support.")
       const language = String(request.language || "ru").slice(0, 20)
-      const system = request.purpose === "compact" ? agentCompactionPrompt(language) : agentSystemPrompt(language, request.tools.map(tool => tool.function.name))
+      const system = request.purpose === "compact" ? agentCompactionPrompt(language) : agentSystemPrompt(language, request.tools.map(tool => tool.function.name), request.mode === "questions")
       const maxOutputTokens = Math.min(4096, Math.floor((selected?.contextWindow || 256_000) / 4))
       const prepared = providerRequest(config, system, messages, request.tools, { cache: request.purpose !== "compact", maxOutputTokens })
       const response = await fetchAgentResponse(prepared.url, {
