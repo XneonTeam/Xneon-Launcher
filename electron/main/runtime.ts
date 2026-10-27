@@ -1,4 +1,5 @@
 import { app, BrowserWindow } from "electron"
+import { initializeMinecraftStorageSync } from "./shared-game-cache"
 import fs from "fs/promises"
 import path from "path"
 import { configureRuntimePaths, ensureRuntimeDir, ensureRuntimeTempDir, cleanupRuntimeCaches } from "./runtime-paths"
@@ -28,9 +29,10 @@ try {
       ? path.join(app.getPath("home"), "Library", "Application Support", "xneonlauncher")
       : path.join(app.getPath("home"), ".xneonlauncher")
   process.env.XNLC_META_CACHE_DIR ??= path.join(baseDataRoot, "cache", "meta")
-  process.env.XNEON_SHARED_MC_DIR ??= path.join(baseDataRoot, "shared-minecraft")
-} catch {
-  // ignore if app paths are not ready yet
+  initializeMinecraftStorageSync(baseDataRoot)
+} catch (error) {
+  console.error("[Storage] Failed to initialize Minecraft storage:", error)
+  throw error
 }
 
 let mainWindow: BrowserWindow | null = null

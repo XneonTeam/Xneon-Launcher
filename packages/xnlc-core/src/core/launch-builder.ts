@@ -20,7 +20,8 @@ export class LaunchBuilder {
     private gameDir: string,
     private osInfo: OSInfo,
     private launcherName: string = "xneonlauncher",
-    private launcherVersion: string = "1.0.0"
+    private launcherVersion: string = "1.0.0",
+    private resourceDir: string = gameDir
   ) {}
 
   build(
@@ -84,13 +85,13 @@ export class LaunchBuilder {
     const usesForgeWrapper = versionJson.mainClass === "io.github.zekerzhayard.forgewrapper.installer.Main";
     if (!versionJson.traits?.includes("no_vjar") && !usesForgeWrapper) {
       const jarName = versionJson.jar || versionJson.inheritsFrom || versionJson.id;
-      const versionJarPath = clientJarPath ?? path.join(this.gameDir, "versions", jarName, `${jarName}.jar`);
+      const versionJarPath = clientJarPath ?? path.join(this.resourceDir, "versions", jarName, `${jarName}.jar`);
       if (fs.existsSync(versionJarPath)) {
         paths.push(versionJarPath);
       }
       if (versionJson.xnlcJarIsOverlay && versionJson.inheritsFrom) {
         const base = versionJson.inheritsFrom;
-        const parentJar = path.join(this.gameDir, "versions", base, `${base}.jar`);
+        const parentJar = path.join(this.resourceDir, "versions", base, `${base}.jar`);
         if (!fs.existsSync(parentJar)) throw new Error(`Base client jar missing for overlay: ${parentJar}`);
         paths.push(parentJar);
       }
@@ -106,6 +107,7 @@ export class LaunchBuilder {
     if (context.memoryMax) args.push(`-Xmx${context.memoryMax}`);
 
     args.push("-Djava.library.path=" + context.nativesDir);
+    args.push("-DlogLocation=" + path.join(this.gameDir, "logs"));
     args.push("-cp", context.classpath);
 
     if (versionJson.arguments?.jvm) {
@@ -127,7 +129,7 @@ export class LaunchBuilder {
         {
           classpath: typeof context.classpath === 'string' ? context.classpath.replace(/\\/g, '/') : context.classpath,
           natives_directory: context.nativesDir,
-          library_directory: getLibraryDir(this.gameDir),
+          library_directory: getLibraryDir(this.resourceDir),
           classpath_separator: this.osInfo.os === "windows" ? ";" : ":",
           launcher_name: this.launcherName,
           launcher_version: this.launcherVersion,
@@ -144,12 +146,24 @@ export class LaunchBuilder {
     if (versionJson.agents) {
       for (const agent of versionJson.agents) {
         const libPath = agent.downloads?.artifact?.path || libraryNameToPath(agent.name);
-        const fullPath = path.join(getLibraryDir(this.gameDir), libPath);
+        const fullPath = path.join(getLibraryDir(this.resourceDir), libPath);
         if (fs.existsSync(fullPath)) args.push(`-javaagent:${fullPath}`);
       }
     }
 
     args.push(...context.extraJvmArgs);
+    // В сохранённых профилях ForgeWrapper могли остаться абсолютные пути до миграции.
+    if (versionJson.mainClass === "io.github.zekerzhayard.forgewrapper.installer.Main") {
+      for (let i = args.length - 1; i >= 0; i--) {
+        if (/^-Dforgewrapper\.(minecraft|librariesDir)=/.test(args[i])) args.splice(i, 1);
+      }
+      const base = versionJson.jar ?? versionJson.xnlcBaseVersion ?? versionJson.inheritsFrom ?? versionJson.id;
+      args.push(`-Dforgewrapper.minecraft=${path.join(this.resourceDir, "versions", base, `${base}.jar`)}`,
+        `-Dforgewrapper.librariesDir=${getLibraryDir(this.resourceDir)}`);
+    }
+    // Единая кодировка stdout/stderr для Java 8 и современных JVM.
+    args.push("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8", "-Dsun.stderr.encoding=UTF-8");
     return args;
   }
 
@@ -169,6 +183,21 @@ export class LaunchBuilder {
     args = args.map(arg => this.replacePlaceholders(arg, placeholders));
     args.push(...context.extraGameArgs);
 
+    // Разрешение задаётся настройками лаунчера, а не дублирующими флагами
+    // профиля или дополнительных аргументов игры.
+    const dimensions = new Map<string, number>();
+    if (Number.isFinite(context.width) && context.width > 0) dimensions.set("width", Math.round(context.width));
+    if (Number.isFinite(context.height) && context.height > 0) dimensions.set("height", Math.round(context.height));
+    args = args.filter((arg, index, original) => {
+      const match = arg.match(/^--?(width|height)(?:=.*)?$/);
+      if (match && dimensions.has(match[1])) return false;
+      const previous = original[index - 1]?.match(/^--?(width|height)$/);
+      return !(previous && dimensions.has(previous[1]) && !arg.startsWith("-"));
+    });
+    if (!versionJson.traits?.includes("legacyLaunch")) {
+      for (const [key, value] of dimensions) args.push(`--${key}`, String(value));
+    }
+
     return args;
   }
 
@@ -184,10 +213,10 @@ export class LaunchBuilder {
       user_type: isOffline ? "legacy" : "msa",
       version_name: versionJson.id,
       game_directory: this.gameDir,
-      assets_root: path.join(this.gameDir, "assets"),
+      assets_root: path.join(this.resourceDir, "assets"),
       assets_index_name: versionJson.assetIndex?.id || versionJson.assets || "legacy",
       game_assets: versionJson.assetIndex?.id === "pre-1.6" ? path.join(this.gameDir, "resources")
-        : path.join(this.gameDir, "assets", "virtual", versionJson.assetIndex?.id || versionJson.assets || "legacy"),
+        : path.join(this.resourceDir, "assets", "virtual", versionJson.assetIndex?.id || versionJson.assets || "legacy"),
       version_type: String(versionJson.type),
       resolution_width: String(context.width || 854),
       resolution_height: String(context.height || 480),

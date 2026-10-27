@@ -657,10 +657,17 @@ async function installSponge(
       || assets.find(a => a.extension === "jar" && !a.classifier?.includes("source"))
     if (!snAsset) throw new Error(`JAR-файл не найден для SpongeNeo ${targetVersion}`)
 
+    // Тег Sponge может терять суффикс NeoForge: 26.3.0.35 вместо 26.3.0.35-beta.
+    // В имени артефакта сохраняется полная версия между Minecraft и Sponge API.
+    const mcPrefix = (tags.minecraft || gameVersion) + "-"
+    const versionTail = targetVersion.startsWith(mcPrefix) ? targetVersion.slice(mcPrefix.length) : ""
+    const apiBoundary = tags.api ? versionTail.indexOf("-" + tags.api) : -1
+    const versionFromName = apiBoundary > 0
+      ? versionTail.slice(0, apiBoundary)
+      : versionTail.match(/^(\d+(?:\.\d+)+(?:-(?:beta|alpha|rc)[0-9A-Za-z.]*)?)-(?=\d+\.\d+)/i)?.[1]
     let neoVer = tags.neoforge
-    if (!neoVer) {
-      const parts = targetVersion.split("-")
-      if (parts.length >= 2) neoVer = parts[1]
+    if (versionFromName && (!neoVer || versionFromName === neoVer || versionFromName.startsWith(neoVer + "-"))) {
+      neoVer = versionFromName
     }
     if (!neoVer) {
       throw new Error(`Не удалось определить требуемую версию NeoForge для SpongeNeo ${targetVersion}`)

@@ -8,6 +8,7 @@ export type BuildJson = {
   version: string
   modLoader: string
   loaderVersion?: string
+  customVersionPath?: string
   icon: string
   coverImage?: string
   mods: unknown[]
@@ -59,6 +60,7 @@ type BuildRow = {
   version: string
   modLoader: string
   loaderVersion: string | null
+  customVersionPath: string | null
   icon: string
   coverImage: string | null
   mods: string
@@ -104,6 +106,7 @@ function rowToBuild(row: BuildRow): BuildJson {
     version: row.version,
     modLoader: row.modLoader,
     loaderVersion: row.loaderVersion ?? undefined,
+    customVersionPath: row.customVersionPath ?? undefined,
     icon: row.icon,
     coverImage: row.coverImage ?? undefined,
     mods: JSON.parse(row.mods),
@@ -170,7 +173,7 @@ export type BuildLightJson = Omit<BuildJson, "mods" | "resourcepacks" | "shaders
 /** Колонки без тяжёлых JSON-полей. */
 const LIGHT_COLUMNS = `id, name, description, version, modLoader, loaderVersion, icon, coverImage,
   createdAt, source, projectSlug, modpackVersion, modpackVersionId, locked, modId, fileId,
-  intentPath, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax,
+  intentPath, customVersionPath, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax,
   serverOverride, server, serverPort, [group], preLaunchCommand, postLaunchCommand,
   wrapperCommand, customEnv, windowOverride, windowWidth, windowHeight,
   modsCount, resourcepacksCount, shadersCount`
@@ -364,8 +367,8 @@ export async function saveAllBuilds(builds: Array<BuildJson | BuildLightJson>): 
  * у массового сохранения и у точечной вставки новой сборки.
  */
 const INSERT_BUILD_SQL = `
-  INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, modpackVersion, modpackVersionId, locked, modId, fileId, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax, serverOverride, server, serverPort, [group], preLaunchCommand, postLaunchCommand, wrapperCommand, customEnv, windowOverride, windowWidth, windowHeight, modsCount, resourcepacksCount, shadersCount)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, customVersionPath, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, modpackVersion, modpackVersionId, locked, modId, fileId, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax, serverOverride, server, serverPort, [group], preLaunchCommand, postLaunchCommand, wrapperCommand, customEnv, windowOverride, windowWidth, windowHeight, modsCount, resourcepacksCount, shadersCount)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 /** Ленивое подготовленное выражение: `prepare` требует инициализированной БД. */
@@ -412,6 +415,7 @@ function buildInsertParams(
     build.version,
     build.modLoader,
     build.loaderVersion ?? null,
+    build.customVersionPath ?? null,
     build.icon,
     build.coverImage ?? null,
     modsJson,
@@ -572,6 +576,7 @@ export async function updateBuildFields(buildId: string, fields: Partial<BuildJs
     version: "version",
     modLoader: "modLoader",
     loaderVersion: "loaderVersion",
+    customVersionPath: "customVersionPath",
     icon: "icon",
     coverImage: "coverImage",
     mods: "mods",

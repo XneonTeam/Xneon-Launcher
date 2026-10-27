@@ -83,7 +83,7 @@ export class LibrariesManager {
 
       if (lib.downloads?.artifact) {
         mainArtifact = lib.downloads.artifact;
-      } else if (!lib.natives) {
+      } else if (!lib.natives || (lib.downloads && Object.keys(lib.downloads).length === 0)) {
         // Fallback for libraries without 'downloads' field
         // BUT only if it's not a native-only library.
         const libPath = libraryNameToPath(lib.name);

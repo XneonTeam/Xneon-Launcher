@@ -1,4 +1,4 @@
-import type { Theme } from "./theme-types.js"
+import type { Theme, LocalThemeFile, LocalThemeImport, LocalThemeSnapshot } from "./theme-types.js"
 // ============================================================
 // @xnlc/types — IPC Contracts
 // Single source of truth for all IPC channel signatures
@@ -192,6 +192,12 @@ export interface IpcInvokeMap {
   "common:pick-file": { args: [options?: { title?: string; kind?: "image" | "video" }]; return: string | null }
   "theme:read-media": { args: [source: string, maxBytes?: number]; return: string | null }
   "theme:pick-media": { args: [kind: "image" | "video" | "font"]; return: { source: string; name: string } | null }
+  "theme:local-list": { args: []; return: LocalThemeSnapshot }
+  "theme:local-import": { args: []; return: LocalThemeImport | null }
+  "theme:local-save": { args: [theme: Theme, css: string]; return: LocalThemeFile }
+  "theme:local-delete": { args: [fileName: string]; return: void }
+  "theme:local-export": { args: [theme: Theme, format: "xntheme"]; return: boolean }
+  "theme:open-directory": { args: []; return: string }
   "build:set-instances-root": { args: [newRoot: string]; return: { success: boolean; root?: string; error?: string } }
   "build:save-mod-to-intent": { args: [buildId: string, url: string, fileName: string]; return: string | null }
   "build:save-local-mod-to-intent": { args: [buildId: string, localFilePath: string]; return: string | null }
@@ -207,7 +213,7 @@ export interface IpcInvokeMap {
   "build:import-modrinth": { args: [buildName: string, projectSlug: string, versionId?: string, targetBuildId?: string]; return: ModpackImportResult }
   "build:import-curseforge": { args: [buildName: string, modId: number, fileId: number, targetBuildId?: string]; return: ModpackImportResult }
   "build:import-ftb": { args: [buildName: string, modpackId: number, versionId: number, targetBuildId?: string]; return: ModpackImportResult }
-  "build:open-and-import": { args: [nameOverride?: string]; return: ModpackImportResult & { name?: string; description?: string; icon?: string; source?: "modrinth" | "curseforge"; intentPath?: string } }
+  "build:open-and-import": { args: [format?: "modpack" | "curseforge" | "xneon", nameOverride?: string]; return: ModpackImportResult & { name?: string; description?: string; icon?: string; source?: "modrinth" | "curseforge"; intentPath?: string } }
   "build:cancel-import": { args: []; return: { success: boolean } }
   "build:copy": { args: [buildName: string, newName: string]; return: { success: boolean; intentPath?: string; error?: string } }
   "build:rename-intent": { args: [oldName: string, newName: string]; return: { success: boolean; intentPath?: string; error?: string } }
@@ -259,7 +265,7 @@ export interface IpcInvokeMap {
   // ── Mods (Modrinth) ──
   "mods:modrinth-search": { args: [query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, categories?: string[]]; return: ModSearchResponse }
   "mods:modrinth-details": { args: [slug: string]; return: ModDetails | null }
-  "mods:modrinth-versions": { args: [slug: string]; return: ModVersion[] }
+  "mods:modrinth-versions": { args: [slug: string, sha1?: string]; return: ModVersion[] }
 
   // ── Mods (CurseForge) ──
   "mods:curseforge-search": { args: [query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, categories?: string[]]; return: ModSearchResponse }
@@ -487,6 +493,7 @@ export interface IpcInvokeMap {
 // Maps channel name → payload type (for subscribe/on listeners)
 
 export interface IpcEventMap {
+  "theme:local-changed": LocalThemeSnapshot
   "minecraft:java-progress": JavaProgress
   "minecraft:debug": string
   "minecraft:data": string
@@ -524,6 +531,13 @@ export interface IpcEventMap {
 // The ElectronAPIExplicit below is derived from it and used by preload.ts and electron.d.ts.
 
 export interface ElectronAPIExplicit {
+  listLocalThemes: () => Promise<LocalThemeSnapshot>
+  importLocalTheme: () => Promise<LocalThemeImport | null>
+  saveLocalTheme: (theme: Theme, css: string) => Promise<LocalThemeFile>
+  deleteLocalTheme: (fileName: string) => Promise<void>
+  exportLocalTheme: (theme: Theme, format: "xntheme") => Promise<boolean>
+  openThemesDirectory: () => Promise<string>
+  onLocalThemesChanged: (callback: (snapshot: LocalThemeSnapshot) => void) => CleanupFn
   startupThemeSnapshot: string | null
   startupReady: () => Promise<void>
   minimize: () => void
@@ -571,7 +585,7 @@ export interface ElectronAPIExplicit {
   importLauncherInstances: (ids: string[]) => Promise<{ success: boolean; imported: number; error?: string }>
   modsModrinthSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, categories?: string[], environment?: ModEnvironment) => Promise<ModSearchResponse>
   modsModrinthDetails: (slug: string) => Promise<ModDetails | null>
-  modsModrinthVersions: (slug: string) => Promise<ModVersion[]>
+  modsModrinthVersions: (slug: string, sha1?: string) => Promise<ModVersion[]>
   modsCurseforgeSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, categories?: string[], environment?: ModEnvironment) => Promise<ModSearchResponse>
   modsCurseforgeDetails: (modId: number) => Promise<ModDetails | null>
   modsCurseforgeDownloadUrl: (fileId: number, modId: number) => Promise<string | null>
@@ -639,7 +653,7 @@ export interface ElectronAPIExplicit {
   importModrinthModpack: (buildName: string, projectSlug: string, versionId?: string, targetBuildId?: string) => Promise<ModpackImportResult>
   importCurseforgeModpack: (buildName: string, modId: number, fileId: number, targetBuildId?: string) => Promise<ModpackImportResult>
   importFtbModpack: (buildName: string, modpackId: number, versionId: number, targetBuildId?: string) => Promise<ModpackImportResult>
-  openAndImportModpack: (nameOverride?: string) => Promise<ModpackImportResult & { name?: string; description?: string; icon?: string; source?: "modrinth" | "curseforge"; intentPath?: string }>
+  openAndImportModpack: (format?: "modpack" | "curseforge" | "xneon", nameOverride?: string) => Promise<ModpackImportResult & { name?: string; description?: string; icon?: string; source?: "modrinth" | "curseforge"; intentPath?: string }>
   cancelImportModpack: () => Promise<{ success: boolean }>
   onImportProgress: (callback: (progress: ImportProgress) => void) => CleanupFn
   onBuildExportProgress: (callback: (progress: { current: number; total: number }) => void) => CleanupFn

@@ -38,7 +38,7 @@ export function legacyFmlLibraries(mcVersion: string): string[][] {
 }
 
 export class LegacyPreparation {
-  constructor(private gameDir: string, private downloader = new Downloader()) {}
+  constructor(private gameDir: string, private downloader = new Downloader(), private resourceDir = gameDir) {}
 
   async prepare(version: VersionJson, onProgress?: DownloadProgressCallback): Promise<string | undefined> {
     const base = version.jar ?? version.xnlcBaseVersion ?? version.inheritsFrom ?? version.id;
@@ -55,7 +55,7 @@ export class LegacyPreparation {
     }
 
     for (const mod of version.mods ?? []) {
-      const source = path.join(getLibraryDir(this.gameDir), mod.downloads?.artifact?.path ?? libraryNameToPath(mod.name));
+      const source = path.join(getLibraryDir(this.resourceDir), mod.downloads?.artifact?.path ?? libraryNameToPath(mod.name));
       const destination = path.join(this.gameDir, "mods", path.basename(source));
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.copyFileSync(source, destination);
@@ -63,9 +63,9 @@ export class LegacyPreparation {
 
     if (!version.jarMods?.length) return undefined;
     if (version.traits?.includes("no_vjar")) throw new Error("Jar mods require a Minecraft client jar");
-    const source = path.join(this.gameDir, "versions", base, `${base}.jar`);
+    const source = path.join(this.resourceDir, "versions", base, `${base}.jar`);
     const inputs = [source, ...version.jarMods.map(mod =>
-      path.join(getLibraryDir(this.gameDir), mod.downloads?.artifact?.path ?? libraryNameToPath(mod.name)))];
+      path.join(getLibraryDir(this.resourceDir), mod.downloads?.artifact?.path ?? libraryNameToPath(mod.name)))];
     // Хэш включает содержимое и порядок патчей; ванильный JAR остаётся неизменным.
     const contents = inputs.map(file => fs.readFileSync(file));
     const fingerprint = this.hash(Buffer.from(contents.map(data => this.hash(data)).join(":")));

@@ -3,6 +3,8 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as fsSync from "fs";
+import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { sha1Hash, ensureDirSync } from "../utils/index.js";
 import { DownloadProgressCallback } from "../types/index.js";
 
@@ -47,6 +49,16 @@ export class DownloadTask {
   }
 
   async execute(): Promise<void> {
+    try {
+      await this.executeAttempt();
+    } catch (error) {
+      this.status.status = "failed";
+      this.status.error = error instanceof Error ? error.message : String(error);
+      throw error;
+    }
+  }
+
+  private async executeAttempt(): Promise<void> {
     const { url, fallbackUrls = [], dest, sha1: expectedSha1, size: expectedSize, onProgress, retries = 3, skipIfExists = true } = this.options;
     
     if (!url) {
@@ -61,19 +73,15 @@ export class DownloadTask {
       const stats = fsSync.statSync(dest);
       
       if (stats.isDirectory()) {
-        // dest is a directory; remove it so we can download the file
-        fsSync.rmSync(dest, { recursive: true, force: true });
+        throw new Error(`Download destination is a directory: ${dest}`);
       } else {
         let isValid = stats.size > 0;
 
-        // Fast path: compare only the size. Hashing every installed file on
-        // every launch (libraries + ~1600 assets) made launches feel like a
-        // full re-download even when nothing was missing.
         if (typeof expectedSize === "number" && expectedSize > 0 && stats.size !== expectedSize) {
           isValid = false;
         }
-        // Без размера нельзя признать неизвестный кэш исправным по одному exists.
-        if (isValid && expectedSha1 && !expectedSize) {
+        // Совпадение размера не доказывает целостность JAR или ресурса.
+        if (isValid && expectedSha1) {
           isValid = sha1Hash(fsSync.readFileSync(dest)) === expectedSha1;
         }
 
@@ -120,11 +128,55 @@ export class DownloadTask {
     expectedSha1: string | undefined,
     onProgress: DownloadProgressCallback | undefined,
   ): Promise<void> {
+    // Каждая попытка владеет своим файлом, в том числе в разных процессах.
+    const tempPath = `${dest}.${randomUUID()}.tmp`;
+    const publish = () => {
+      const actualSize = fsSync.statSync(tempPath).size;
+      // В метаданных старых загрузчиков 0 означает неизвестный размер.
+      if (typeof this.options.size === "number" && this.options.size > 0 && actualSize !== this.options.size) {
+        throw new Error(`Size mismatch: expected ${this.options.size}, got ${actualSize}`);
+      }
+      if (expectedSha1) {
+        const actualSha1 = sha1Hash(fsSync.readFileSync(tempPath));
+        if (actualSha1 !== expectedSha1) {
+          throw new Error(`SHA1 mismatch: expected ${expectedSha1}, got ${actualSha1}`);
+        }
+      }
+      // Не удаляем старый файл до замены: при ошибке он остаётся доступным.
+      try {
+        fsSync.renameSync(tempPath, dest);
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        // На Windows параллельная попытка может опубликовать этот же dest
+        // между renameSync вызовами. Принимаем её результат только после
+        // повторной проверки размера и контрольной суммы.
+        if (code !== "EPERM" && code !== "EEXIST" && code !== "EACCES") throw error;
+        let existingIsValid = false;
+        try {
+          const existing = fsSync.statSync(dest);
+          existingIsValid = !existing.isDirectory()
+            && existing.size > 0
+            && (!(typeof this.options.size === "number" && this.options.size > 0) || existing.size === this.options.size)
+            && (!expectedSha1 || sha1Hash(fsSync.readFileSync(dest)) === expectedSha1);
+        } catch {
+          // Назначение исчезло, заблокировано или всё ещё повреждено — сохраняем ошибку rename.
+        }
+        if (!existingIsValid) throw error;
+        fsSync.rmSync(tempPath, { force: true });
+      }
+      this.status.downloaded = actualSize;
+      this.status.total = actualSize;
+    };
     if (url.startsWith("file://")) {
-      const sourcePath = url.slice(7);
+      const sourcePath = fileURLToPath(url);
       if (!fsSync.existsSync(sourcePath)) throw new Error(`File not found: ${sourcePath}`);
       ensureDirSync(path.dirname(dest));
-      fsSync.copyFileSync(sourcePath, dest);
+      try {
+        fsSync.copyFileSync(sourcePath, tempPath, fsSync.constants.COPYFILE_EXCL);
+        publish();
+      } finally {
+        fsSync.rmSync(tempPath, { force: true });
+      }
       return;
     }
 
@@ -134,20 +186,9 @@ export class DownloadTask {
     const totalSize = parseInt(res.headers.get("content-length") ?? "0", 10);
     this.status.total = totalSize > 0 ? totalSize : this.status.total;
     
-    const tempPath = `${dest}.tmp`;
-    // Remove any stale .tmp file/dir
-    if (fsSync.existsSync(tempPath)) {
-      const s = fsSync.statSync(tempPath);
-      if (s.isDirectory())
-        fsSync.rmSync(tempPath, { recursive: true, force: true });
-      else
-        fsSync.rmSync(tempPath);
-    }
-    ensureDirSync(path.dirname(tempPath));
-    
-    const writeStream = fsSync.createWriteStream(tempPath);
     const reader = res.body?.getReader();
     if (!reader) throw new Error("No reader for response body");
+    const writeStream = fsSync.createWriteStream(tempPath, { flags: "wx" });
 
     let downloaded = 0;
     let rejectStream: ((err: Error) => void) | undefined;
@@ -193,22 +234,10 @@ export class DownloadTask {
         writeStream.end();
       });
 
-      if (expectedSha1) {
-        const actualSha1 = sha1Hash(fsSync.readFileSync(tempPath));
-        if (actualSha1 !== expectedSha1) {
-          throw new Error(`SHA1 mismatch: expected ${expectedSha1}, got ${actualSha1}`);
-        }
-      }
-
-      if (fsSync.existsSync(dest)) {
-        const s = fsSync.statSync(dest);
-        if (s.isDirectory())
-          fsSync.rmSync(dest, { recursive: true, force: true });
-        else
-          fsSync.rmSync(dest);
-      }
-      fsSync.renameSync(tempPath, dest);
+      publish();
     } finally {
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
       if (!writeStream.closed) {
         await new Promise<void>((resolve) => {
           writeStream.once("close", resolve);
@@ -217,11 +246,7 @@ export class DownloadTask {
       }
       if (fsSync.existsSync(tempPath)) {
         try {
-          const s = fsSync.statSync(tempPath);
-          if (s.isDirectory())
-            fsSync.rmSync(tempPath, { recursive: true, force: true });
-          else
-            fsSync.rmSync(tempPath);
+          fsSync.rmSync(tempPath);
         } catch {}
       }
       writeStream.removeListener("error", rejectStream!);

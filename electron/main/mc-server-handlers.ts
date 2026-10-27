@@ -1,3 +1,4 @@
+import { getMinecraftResourceRoot } from "./shared-game-cache"
 import { opFailure } from "./errors"
 import { ipcMain, BrowserWindow, dialog, webContents } from "electron"
 import { randomUUID, createHash } from "crypto"
@@ -21,7 +22,7 @@ import {
 import type { ModrinthVersionDetail, ModrinthManifestFile, CurseForgeManifestFile } from "@xnlc/mods" with { "resolution-mode": "import" }
 import type { McServerInfo, McServerState, McServerMetrics, McPlayerEntry, XnConnectState } from "@xnlc/types" with { "resolution-mode": "import" }
 import { logRuntime, sendToRenderer } from "./runtime"
-import { getGameDir, loadXnlcModule } from "./minecraft-core"
+import { loadXnlcModule } from "./minecraft-core"
 import { findJavaBinarySync } from "./system"
 import { getMcServerDir } from "./paths"
 import { recordServerSession } from "./stats"
@@ -1107,8 +1108,7 @@ export function registerMcServerHandlers() {
       if (modType === "modrinth") {
         if (!params.projectSlug) throw new Error("Slug проекта не указан")
         const versions = await mods.modrinthGetRawVersions(params.projectSlug) as ModrinthVersionDetail[]
-        let version = params.versionId ? versions.find((v) => v.id === params.versionId) : undefined
-        if (!version) version = versions.find((v) => v.version_type === "release") ?? versions[0]
+        const version = params.versionId ? versions.find((v) => v.id === params.versionId) : versions[0]
         if (!version) throw new Error("Версии не найдены")
         const mrpackFile = version.files?.find((f) => f.filename?.endsWith(".mrpack"))
         if (!mrpackFile?.url) throw new Error(".mrpack файл не найден")
@@ -1358,7 +1358,7 @@ export async function ensureServerJava(
   onProgress: (percent: number) => void,
 ): Promise<{ path: string; version?: number }> {
   const core = await loadXnlcModule()
-  const manager = new core.JavaManager(new core.Downloader(), await getGameDir())
+  const manager = new core.JavaManager(new core.Downloader(), getMinecraftResourceRoot())
   const required = requiredJavaForMcVersion(mcVersion)
   logRuntime(`[Server] Java не найдена — скачиваю рантайм (Java ${required})`)
   const runtime = await manager.findOrDownloadJava(required, undefined, onProgress)

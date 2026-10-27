@@ -11,6 +11,7 @@ import type { LoaderType, ResolvedLaunchRequest } from "@xnlc/core" with { "reso
 import { getMainWindow, sendToRenderer, logRuntime, logRuntimeDebug } from "./runtime"
 import { dbHelpers, type DbAccount } from "../db"
 import { resetGameStartTimestamp, setDiscordActivity } from "./discord-rpc"
+import { minecraftPresence } from "./discord-presence"
 import { getBuildIntentPath } from "./builds"
 import { pruneStaleLoaderProfiles } from "./builds/loader-profiles"
 import { recordGameSession } from "./stats"
@@ -52,11 +53,21 @@ export class LaunchOrchestrator {
    */
   private launchInProgress = false
   private launchAbort: AbortController | null = null
+  private activeGameDir: string | null = null
 
   // ---------- State queries ----------
 
   isActive(): boolean {
     return this.launchInProgress || (!!this.launchWorker && !this.launchWorker.killed) || this.minecraftPid !== null
+  }
+
+  isGameDirActive(gameDir: string): boolean {
+    if (!this.activeGameDir) return false
+    const requested = path.resolve(gameDir)
+    const active = path.resolve(this.activeGameDir)
+    return process.platform === "win32"
+      ? requested.toLocaleLowerCase("en-US") === active.toLocaleLowerCase("en-US")
+      : requested === active
   }
 
   clearState(): void {
@@ -66,6 +77,7 @@ export class LaunchOrchestrator {
     this.vanillaLaunchTimestamp = null
     this.launchInProgress = false
     this.launchAbort = null
+    this.activeGameDir = null
   }
 
   stop(): void {
@@ -91,6 +103,9 @@ export class LaunchOrchestrator {
     if (this.launchWorker) this.stoppedWorkers.add(this.launchWorker)
 
     if (!this.launchWorker || this.launchWorker.killed) {
+      // Отмена не завершает асинхронную подготовку. Её владелец снимет флаг,
+      // когда вернётся из ожидаемой операции; до этого новый запуск запрещён.
+      if (this.launchInProgress) return
       this.clearState()
       return
     }
@@ -139,9 +154,9 @@ export class LaunchOrchestrator {
 
   async runLaunch(
     launchAccount: DbAccount,
-    request: ResolvedLaunchRequest & { buildName?: string; buildId?: string; gameDir?: string },
+    request: ResolvedLaunchRequest & { buildName?: string; buildId?: string; gameDir?: string; customVersionPath?: string },
   ): Promise<LaunchResultPayload> {
-    if (this.launchInProgress) {
+    if (this.isActive()) {
       return { success: false, error: "Minecraft is already launching or running" }
     }
 
@@ -157,12 +172,14 @@ export class LaunchOrchestrator {
       if (this.launchAbort === launchController) {
         this.launchAbort = null
         this.launchInProgress = false
+        this.activeGameDir = null
       }
       return { success: false, error: message }
     }
 
-    let gameDir = request.gameDir ?? await getDefaultGameDir()
-    if (request.buildName && !request.gameDir) {
+    try {
+    let gameDir = request.gameDir
+    if (request.buildName && !gameDir) {
       try {
         const buildIntentPath = getBuildIntentPath(request.buildName)
         if (buildIntentPath) {
@@ -173,12 +190,16 @@ export class LaunchOrchestrator {
         logRuntime(`[Minecraft] Failed to get build intent path: ${toErrorMessage(error)}`)
       }
     }
+    if (!gameDir) gameDir = await getDefaultGameDir()
+    this.activeGameDir = path.resolve(gameDir)
 
     // Профили старых загрузчиков в папке сборки удаляются прямо перед запуском:
     // если пользователь сменил загрузчик/версию, оставшийся профиль конфликтует
     // с новым. Для обычного Minecraft (без сборки) папка общая — не трогаем.
     if (request.buildName) {
-      const pruned = pruneStaleLoaderProfiles(gameDir, request.loaderType, request.loaderVersion)
+      const pruned = request.customVersionPath
+        ? { removed: [] }
+        : pruneStaleLoaderProfiles(gameDir, request.loaderType, request.loaderVersion)
       if (pruned.removed.length > 0) {
         logRuntime(`[Minecraft] Removed stale loader profiles: ${pruned.removed.join(", ")}`)
         // Удаление показываем отдельным шагом прогресса: при смене загрузчика
@@ -240,6 +261,17 @@ export class LaunchOrchestrator {
       if (signal.aborted) return failPending("Launch cancelled")
     }
 
+    let presenceBuild: { name: string; icon?: string } | undefined = request.buildName ? { name: request.buildName } : undefined
+    try {
+      const buildId = request.buildId || (request.buildName ? (await dbHelpers.findBuildByName(request.buildName))?.id : undefined)
+      const build = buildId ? await dbHelpers.findBuildById(buildId) : null
+      if (build) presenceBuild = { name: build.name, icon: build.icon }
+    } catch (error) {
+      logRuntimeDebug(`[DiscordRPC] Failed to read build icon: ${toErrorMessage(error)}`)
+    }
+    if (signal.aborted) return failPending("Launch cancelled")
+
+    const { GameReadinessTracker } = await import("@xnlc/core/game-readiness")
     const workerPath = path.join(__dirname, "minecraft-launch-worker.js")
     logRuntimeDebug(`[Minecraft] Starting launch worker path=${workerPath}`)
     logRuntime(`[Minecraft] Launch request mc=${request.mcVersion} loader=${request.loaderType} loaderVersion=${request.loaderVersion ?? ""} gameDir=${gameDir} account=${launchAccount.type}:${launchAccount.username} retroauth=${String(retroauthEnabled)}`)
@@ -265,6 +297,17 @@ export class LaunchOrchestrator {
 
     return new Promise<LaunchResultPayload>((resolve) => {
       let settled = false
+      let presencePublished = false
+      const readiness = new GameReadinessTracker(() => {
+        if (signal.aborted || this.launchWorker !== worker || worker.killed || !this.minecraftPid) return
+        presencePublished = true
+        this.setPresencePlaying(request.mcVersion, request.loaderType, presenceBuild)
+      })
+      const stopReadiness = () => {
+        readiness.stop()
+        signal.removeEventListener("abort", stopReadiness)
+      }
+      signal.addEventListener("abort", stopReadiness, { once: true })
       // Момент запуска: по нему отличаем crash-report этой сессии от старых.
       const launchStartedAt = Date.now()
 
@@ -272,6 +315,8 @@ export class LaunchOrchestrator {
         if (settled) return
         settled = true
         if (!result.success) {
+          stopReadiness()
+          if (presencePublished) { this.setPresenceMenu(); presencePublished = false }
           this.clearState()
         }
         resolve(result)
@@ -279,6 +324,7 @@ export class LaunchOrchestrator {
 
       type WorkerMessage = { type: string; message?: string; progress?: Record<string, unknown>; pid?: number; code?: number; error?: string; data?: string }
       worker.on("message", (raw: unknown) => {
+        if (this.launchWorker !== worker) return
         const payload = raw as WorkerMessage | null
         if (!payload) return
         logRuntimeDebug(`[Minecraft] Worker message type=${payload.type ?? "unknown"}`)
@@ -295,6 +341,7 @@ export class LaunchOrchestrator {
             return
           case "started":
             this.minecraftPid = typeof payload.pid === "number" ? payload.pid : null
+            readiness.start()
             logRuntime(`[Minecraft] Worker reported started pid=${this.minecraftPid ?? 0}`)
             if (request.buildName) {
               this.buildLaunchTimestamps.set(request.buildName, Date.now())
@@ -312,12 +359,15 @@ export class LaunchOrchestrator {
             settle({ success: true, pid: this.minecraftPid ?? undefined })
             return
           case "stdout":
+            readiness.push("stdout", payload.data ?? "")
             this.emitGameData(payload.data ?? "")
             return
           case "stderr":
+            readiness.push("stderr", payload.data ?? "")
             this.emitDebug(payload.data ?? "")
             return
           case "close": {
+            stopReadiness()
             const exitCode = typeof payload.code === "number" ? payload.code : 0
             // Краш — это ненулевой код выхода ИЛИ свежий crash-report. Обычный
             // выход из игры (крестик, «Выйти в меню») сюда не попадает, поэтому
@@ -380,6 +430,7 @@ export class LaunchOrchestrator {
             setActiveGameSession(null)
             this.clearState()
             this.setPresenceMenu()
+            presencePublished = false
             this.emitToRenderer("minecraft:close", {
               code: exitCode,
               crashed: crash.crashed,
@@ -389,12 +440,17 @@ export class LaunchOrchestrator {
             return
           }
           case "error":
+            stopReadiness()
+            if (presencePublished) { this.setPresenceMenu(); presencePublished = false }
             logRuntime(`[Minecraft] Worker reported error ${payload.error ?? "Launch failed"}`)
             settle({ success: false, error: payload.error ?? "Launch failed" })
         }
       })
 
       worker.once("error", (error: Error) => {
+        if (this.launchWorker !== worker) return
+        stopReadiness()
+        if (presencePublished) { this.setPresenceMenu(); presencePublished = false }
         const errorMessage = toErrorMessage(error)
         logRuntime(`[Minecraft] Worker process error ${errorMessage}`)
         console.error("Launch worker failed:", errorMessage)
@@ -402,6 +458,9 @@ export class LaunchOrchestrator {
       })
 
       worker.once("exit", (code: number | null, signal: NodeJS.Signals | null) => {
+        stopReadiness()
+        if (this.launchWorker !== worker) return
+        if (presencePublished) { this.setPresenceMenu(); presencePublished = false }
         logRuntimeDebug(`[Minecraft] Worker process exit code=${code ?? 0} signal=${signal ?? ""} settled=${String(settled)}`)
         if (!settled) {
           const reason = signal ? `signal ${signal}` : `code ${code ?? 0}`
@@ -439,7 +498,6 @@ export class LaunchOrchestrator {
           },
         })
         logRuntimeDebug("[Minecraft] Launch payload sent to worker")
-        this.setPresencePlaying(request.mcVersion, request.loaderType, request.buildName)
       } catch (error) {
         const errorMessage = toErrorMessage(error)
         logRuntime(`[Minecraft] Failed to initialize launch worker ${errorMessage}`)
@@ -447,6 +505,9 @@ export class LaunchOrchestrator {
         settle({ success: false, error: errorMessage })
       }
     })
+    } catch (error) {
+      return failPending(toErrorMessage(error))
+    }
   }
 
   // ---------- Private Helpers ----------
@@ -466,15 +527,8 @@ export class LaunchOrchestrator {
     this.emitToRenderer("minecraft:data", message)
   }
 
-  private setPresencePlaying(mcVersion: string, loaderType: LoaderType, buildName?: string): void {
-    const state = buildName
-      ? `Играет в ${buildName}`
-      : `Играет в Minecraft ${mcVersion}`;
-    setDiscordActivity({
-      state,
-      loader: loaderType !== "vanilla" ? loaderType : undefined,
-      startTimestamp: Math.floor(Date.now() / 1000),
-    })
+  private setPresencePlaying(mcVersion: string, loaderType: LoaderType, build?: { name: string; icon?: string }): void {
+    setDiscordActivity(minecraftPresence(mcVersion, loaderType, build))
   }
 
   private setPresenceMenu(): void {

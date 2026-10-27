@@ -6,6 +6,7 @@
 import type * as XnlcCoreNS from "@xnlc/core" with { "resolution-mode": "import" }
 import type { XnlcHandler, ResolvedLaunchRequest } from "@xnlc/core" with { "resolution-mode": "import" }
 import { logRuntime, logRuntimeDebug } from "./runtime"
+import { prepareInstanceStorageSync, getMinecraftResourceRoot } from "./shared-game-cache"
 import { LaunchOrchestrator, getLaunchOrchestrator } from "./launch-orchestrator"
 import { dbHelpers, type DbAccount } from "../db"
 
@@ -41,6 +42,8 @@ export async function getHandler(): Promise<XnlcHandler> {
     const { createDefaultHandler, getDefaultMinecraftRootFromEnv } = await loadXnlcModule()
     process.env.XNLC_GAME_DIR = getDefaultMinecraftRootFromEnv()
     handler = createDefaultHandler({
+      resourceDir: prepareInstanceStorageSync(process.env.XNLC_GAME_DIR),
+      javaRoot: getMinecraftResourceRoot(),
       memoryMax: "4G",
       memoryMin: "512M",
     })
@@ -93,13 +96,17 @@ export function isLaunchActive(): boolean {
   return getLaunchOrchestrator().isActive()
 }
 
+export function isGameDirActive(gameDir: string): boolean {
+  return getLaunchOrchestrator().isGameDirActive(gameDir)
+}
+
 export async function resolveLaunchAccount(requestAccount?: LaunchAccountPayload): Promise<DbAccount | undefined> {
   return getLaunchOrchestrator().resolveLaunchAccount(requestAccount)
 }
 
 export async function runLaunchWorker(
   launchAccount: DbAccount,
-  request: ResolvedLaunchRequest & { buildName?: string; buildId?: string; gameDir?: string },
+  request: ResolvedLaunchRequest & { buildName?: string; buildId?: string; gameDir?: string; customVersionPath?: string },
 ): Promise<LaunchResultPayload> {
   return getLaunchOrchestrator().runLaunch(launchAccount, request)
 }

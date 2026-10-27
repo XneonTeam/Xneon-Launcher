@@ -9,6 +9,7 @@ export type BuildLaunchParams = {
   version: string
   modLoader: string
   loaderVersion?: string
+  customVersionPath?: string
   intentPath?: string
   javaOverride?: boolean
   javaPath?: string
@@ -196,8 +197,9 @@ export function useBuildLaunch({ account }: { account?: Account }) {
 
     const result = await window.electronAPI.launchMinecraft({
       version: build.version,
-      modLoader: build.modLoader as "vanilla" | "forge" | "fabric" | "quilt" | "liteloader" | "optifine" | "neoforge",
+      modLoader: build.modLoader as "vanilla" | "forge" | "fabric" | "quilt" | "liteloader" | "optifine" | "neoforge" | "custom",
       ...(build.loaderVersion ? { loaderVersion: build.loaderVersion } : {}),
+      ...(build.customVersionPath ? { customVersionPath: build.customVersionPath } : {}),
       account: { type: account.type, username: account.username, uuid: account.uuid, accessToken: account.accessToken },
       memory: { min: memoryMin, max: memoryMax },
       width,

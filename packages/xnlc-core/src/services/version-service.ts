@@ -34,6 +34,7 @@ export class XnlcVersionService {
     private assetsManager: AssetsManager,
     private gameDir: string,
     private osInfo: OSInfo,
+    private instanceDir = gameDir,
   ) {}
 
   // ---------- Version Discovery ----------
@@ -83,7 +84,7 @@ export class XnlcVersionService {
     await this.librariesManager.downloadLibraries(versionJson, withStage("libraries", tracker.onProgress));
 
     // Download assets
-    await this.assetsManager.downloadAssets(versionJson, this.gameDir, withStage("assets", tracker.onProgress));
+    await this.assetsManager.downloadAssets(versionJson, this.gameDir, withStage("assets", tracker.onProgress), this.instanceDir);
 
     return versionJson;
   }

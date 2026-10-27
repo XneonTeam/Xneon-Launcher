@@ -104,6 +104,7 @@ export class AssetsManager {
     versionJson: VersionJson,
     gameDir: string,
     onProgress?: DownloadProgressCallback,
+    instanceDir = gameDir,
   ): Promise<void> {
     const { assetIndex } = versionJson;
     if (!assetIndex) return;
@@ -148,7 +149,7 @@ export class AssetsManager {
     // До 1.7 игра читает файлы по именам, а не объекты по хэшам.
     const roots: string[] = [];
     if (indexData.virtual) roots.push(path.join(gameDir, "assets", "virtual", assetIndex.id));
-    if (indexData.map_to_resources || assetIndex.id === "pre-1.6") roots.push(path.join(gameDir, "resources"));
+    if (indexData.map_to_resources || assetIndex.id === "pre-1.6") roots.push(path.join(instanceDir, "resources"));
     for (const root of roots) {
       for (const [name, entry] of Object.entries(indexData.objects)) {
         const destination = path.resolve(root, name);

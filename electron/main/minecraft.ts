@@ -1,4 +1,5 @@
 import { toErrorMessage } from "./errors"
+import { getMinecraftResourceRoot } from "./shared-game-cache"
 import type { AuthSession, VersionInfo } from "@xnlc/core" with { "resolution-mode": "import" }
 import type { MinecraftLaunchParams } from "@xnlc/types" with { "resolution-mode": "import" }
 import * as fs from "fs/promises"
@@ -38,8 +39,7 @@ type LaunchResultPayload = {
 
 async function listInstalledVersions(): Promise<Array<{ version: string; stable: boolean; type: string }>> {
   try {
-    const gameDir = await getGameDir()
-    const versionsDir = path.join(gameDir, "versions")
+    const versionsDir = path.join(getMinecraftResourceRoot(), "versions")
     const entries = await fs.readdir(versionsDir, { withFileTypes: true })
     const result: Array<{ version: string; stable: boolean; type: string }> = []
     for (const entry of entries) {
@@ -284,6 +284,7 @@ export async function launchMinecraft(options: MinecraftLaunchParams): Promise<L
       wrapperCommand: (options as { wrapperCommand?: string }).wrapperCommand,
       customEnv: (options as { customEnv?: Record<string, string> }).customEnv,
       offlineUsername: (options as { offlineUsername?: string }).offlineUsername,
+      customVersionPath: options.customVersionPath,
     }
 
     return await runLaunchWorker(launchAccount, extendedRequest)

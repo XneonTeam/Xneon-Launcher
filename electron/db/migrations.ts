@@ -43,6 +43,7 @@ function createTables() {
       version TEXT NOT NULL,
       modLoader TEXT NOT NULL,
       loaderVersion TEXT,
+      customVersionPath TEXT,
       icon TEXT NOT NULL DEFAULT '',
       coverImage TEXT,
       mods TEXT NOT NULL DEFAULT '[]',
@@ -233,6 +234,7 @@ function migrateBuilds() {
   addColumnIfMissing("builds", "intentPath", "intentPath TEXT NOT NULL DEFAULT ''")
   addColumnIfMissing("builds", "installedMods", "installedMods TEXT NOT NULL DEFAULT '{}'")
   addColumnIfMissing("builds", "loaderVersion", "loaderVersion TEXT")
+  addColumnIfMissing("builds", "customVersionPath", "customVersionPath TEXT")
   addColumnIfMissing("builds", "coverImage", "coverImage TEXT")
   addColumnIfMissing("builds", "projectSlug", "projectSlug TEXT")
   addColumnIfMissing("builds", "modpackVersion", "modpackVersion TEXT")
@@ -351,7 +353,7 @@ export { DEFAULT_SETTINGS }
  * better-sqlite3», нужен для разового бэкапа sql.js-БД), поэтому в
  * `user_version` пишем максимум из двух.
  */
-export const SCHEMA_VERSION = 8
+export const SCHEMA_VERSION = 9
 
 function readUserVersion(): number {
   const rows = queryAll<{ user_version?: number }>("PRAGMA user_version")

@@ -15,7 +15,7 @@ function emitToRenderer(channel: string, payload: unknown): void {
     .catch(() => { /* worker-поток или окна ещё нет */ })
 }
 import { dbHelpers } from "../../db"
-import { ensureSharedGameLinksSync } from "../shared-game-cache"
+import { prepareInstanceStorageSync } from "../shared-game-cache"
 import { fetchWithRetry } from "@xnlc/core/retry"
 import { getLauncherDataRoot } from "../paths"
 import { getCachedJarPath } from "../jar-cache"
@@ -84,7 +84,6 @@ export async function ensureBuildIntentDir(dirName: string): Promise<string> {
   await fs.mkdir(resourcepacksPath, { recursive: true }).catch(() => {})
   const shaderpacksPath = path.join(intentPath, "shaderpacks")
   await fs.mkdir(shaderpacksPath, { recursive: true }).catch(() => {})
-  ensureSharedGameLinksSync(intentPath)
   return intentPath
 }
 
@@ -320,12 +319,8 @@ export async function setContentEnabledInIntent(
   }
 }
 
-export type ImportProgressPayload = {
-  current: number
-  total: number
-  message: string
-  itemName?: string
-}
+export type ImportProgressPayload = import("@xnlc/types").ImportProgress
+let importProgressContext: Pick<ImportProgressPayload, "operation" | "source" | "title" | "iconUrl"> = {}
 
 /**
  * Сообщения прогресса собираются вызывающим кодом вместе со счётчиками,
@@ -348,10 +343,22 @@ function clampCountersInMessage(message: string): string {
     })
 }
 
-export function sendImportProgress(current: number, total: number, message: string, itemName?: string) {
+export function sendImportProgress(current: number, total: number, message: string, itemName?: string, details: Partial<ImportProgressPayload> = {}) {
   const safeTotal = Number.isFinite(total) && total > 0 ? Math.floor(total) : 1
   const safeCurrent = Number.isFinite(current) ? Math.max(0, Math.min(Math.floor(current), safeTotal)) : 0
+  for (const key of ["operation", "source", "title", "iconUrl"] as const) {
+    if (details[key] !== undefined) Object.assign(importProgressContext, { [key]: details[key] })
+  }
+  // Старые отправители сохраняют совместимость; новые могут задать этап явно.
+  const phase = details.phase ?? (/отмен/i.test(message) ? "cancelling"
+    : /готово/i.test(message) ? "complete" : /сканир|провер/i.test(message) ? "scanning"
+    : /распаков/i.test(message) ? "extracting" : /копирован/i.test(message) ? "copying"
+    : /пакета|архива/i.test(message) && /скачив/i.test(message) ? "package"
+    : /скачив.*(?:модов|файлов)|\d+\/\d+ (?:модов|файлов)/i.test(message) ? "files" : "preparing")
   const payload: ImportProgressPayload = {
+    ...importProgressContext,
+    ...details,
+    phase,
     current: safeCurrent,
     total: safeTotal,
     message: clampCountersInMessage(message),
@@ -369,11 +376,50 @@ export async function runConcurrent<T>(tasks: (() => Promise<T>)[], concurrency:
   return results
 }
 
+/** Resolves an untrusted archive or manifest path under an intent without following existing links. */
+export async function resolveSafeIntentFilePath(intentPath: string, relativePath: string): Promise<string> {
+  const normalized = relativePath.replace(/\\/g, "/")
+  const segments = normalized.split("/").filter(Boolean)
+  if (
+    normalized.startsWith("/")
+    || segments.length === 0
+    || segments.some((segment) => segment === "." || segment === ".." || segment.includes(":") || segment.includes("\0"))
+  ) {
+    throw new Error(`Недопустимый путь в архиве: ${relativePath}`)
+  }
+
+  const realIntentPath = await fs.realpath(path.resolve(intentPath))
+  const destination = path.resolve(realIntentPath, ...segments)
+  if (!isPathInside(realIntentPath, destination)) {
+    throw new Error(`Путь выходит за пределы сборки: ${relativePath}`)
+  }
+
+  let currentPath = realIntentPath
+  for (let index = 0; index < segments.length; index++) {
+    currentPath = path.join(currentPath, segments[index])
+    try {
+      const currentStat = await fs.lstat(currentPath)
+      if (currentStat.isSymbolicLink()) {
+        throw new Error(`Путь сборки содержит ссылку: ${currentPath}`)
+      }
+      if (index < segments.length - 1 && !currentStat.isDirectory()) {
+        throw new Error(`Путь сборки не является каталогом: ${currentPath}`)
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") break
+      throw error
+    }
+  }
+
+  return destination
+}
+
 export async function copyOverrideEntries(zip: AdmZipType, intentPath: string) {
   for (const entry of zip.getEntries()) {
-    if (entry.entryName.startsWith("overrides/") && !entry.isDirectory) {
-      const relPath = entry.entryName.replace(/^overrides\//, "")
-      const destPath = path.join(intentPath, relPath)
+    const archivePath = entry.entryName.replace(/\\/g, "/")
+    if (archivePath.startsWith("overrides/") && !entry.isDirectory) {
+      const relPath = archivePath.slice("overrides/".length)
+      const destPath = await resolveSafeIntentFilePath(intentPath, relPath)
       const destDir = path.dirname(destPath)
       await fs.mkdir(destDir, { recursive: true }).catch(() => {})
       await fs.writeFile(destPath, entry.getData())
@@ -486,6 +532,10 @@ export function isImportCancelledError(error: unknown): boolean {
 
 let activeImportController: AbortController | null = null
 
+export function isImportInProgress(): boolean {
+  return activeImportController !== null
+}
+
 export function throwIfImportCancelled(signal?: AbortSignal) {
   if (signal?.aborted) {
     throw new ImportCancelledError()
@@ -493,10 +543,13 @@ export function throwIfImportCancelled(signal?: AbortSignal) {
 }
 
 export function startImportSession(): AbortSignal {
-  if (activeImportController && !activeImportController.signal.aborted) {
+  // Отмена лишь сигнализирует отмену текущей async-операции. До её finally
+  // она всё ещё владеет progress-контекстом и записывает файлы в intent.
+  if (activeImportController) {
     throw new Error("Импорт уже выполняется")
   }
 
+  importProgressContext = {}
   activeImportController = new AbortController()
   return activeImportController.signal
 }
@@ -714,8 +767,8 @@ async function collectReplacedLoaderLibraryDirs(
  * (или версии Minecraft) в сборке: профиль в `versions/` и библиотеки самой
  * версии загрузчика.
  *
- * Важно: у интентов `versions` и `libraries` — это символические ссылки на
- * общий кеш, поэтому профиль/библиотеки снимаются только тогда, когда их не
+ * Профили и библиотеки обычно находятся в общем хранилище лаунчера,
+ * поэтому снимаются только тогда, когда их не
  * использует ни одна другая сборка (сравнение по маске профиля и по паре
  * загрузчик+версия загрузчика). Пользовательские данные (mods, saves, config,
  * resourcepacks и т.п.) не трогаются.
@@ -748,7 +801,8 @@ export async function cleanupReplacedLoaderArtifacts(params: {
     }) === previousProfile)
     if (profileStillUsed) return
 
-    const gameDir = (params.intentPath ?? "").trim() || getBuildIntentPath(buildName)
+    const instanceDir = (params.intentPath ?? "").trim() || getBuildIntentPath(buildName)
+    const gameDir = process.env.XNLC_RESOURCE_DIR ? prepareInstanceStorageSync(instanceDir) : instanceDir
     const versionsDir = path.join(gameDir, "versions")
     const profileDir = path.join(versionsDir, previousProfile)
     if (!isPathInside(versionsDir, profileDir)) return

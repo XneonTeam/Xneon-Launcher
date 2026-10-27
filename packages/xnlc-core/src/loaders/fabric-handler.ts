@@ -17,6 +17,7 @@ import { getLoaderMetaClient } from "../core/loader-meta-client-singleton.js";
 import { MetaClient } from "../core/meta-client.js";
 import type { ILoaderHandler } from "./types.js";
 import { PROFILE_REVISION } from "../core/profile-builder.js";
+import { ensureDirSync } from "../utils/sync.js";
 
 export class FabricHandler implements ILoaderHandler {
   private loaderMetaClient: LoaderMetaClient;
@@ -60,7 +61,7 @@ export class FabricHandler implements ILoaderHandler {
     // 3. Prepare profile
     const profileName = `fabric-loader-${fabricVersion}-${mcVersion}`;
     const versionDir = path.join(this.gameDir, "versions", profileName);
-    if (!fs.existsSync(versionDir)) fs.mkdirSync(versionDir, { recursive: true });
+    ensureDirSync(versionDir);
 
     // 4. Build VersionJson (loader-style merging)
     const versionJson: VersionJson = {
