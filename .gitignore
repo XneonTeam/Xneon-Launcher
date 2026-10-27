@@ -43,6 +43,10 @@ tsconfig.tsbuildinfo
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+logs/
+
+# Выгрузки аудита зависимостей (генерируются локально)
+security-audit-dependencies.json
 
 # v0 sandbox artifacts
 __v0_runtime_loader.js
@@ -81,8 +85,11 @@ plans/
 # Локальные артефакты проверок: скриншоты и временные файлы тестов
 .shots/
 .tmp-*
-# Скриншоты проверок UI (снимаются через CDP при правках интерфейса)
-screenshots/
+# Скриншоты проверок UI в корне репозитория (снимаются через CDP при правках интерфейса).
+# Папка docs/screenshots отслеживается: это иллюстрации для README и релизов.
+/screenshots/
+# Локальный кэш зашифрованных копий снимков от инструмента съёмки
+*.png.encrypted
 
 # Cloud server data
 data/
@@ -106,17 +113,6 @@ restart-*.js
 ssh-check.js
 test-*.js
 test-*.mjs
-# Исключение: это не временный скрипт, а тесты домена скинов (см. `pnpm run test`).
-# Правило `test-*.mjs` выше съедало его, и 67 тестов не попадали в репозиторий.
-!scripts/test-skins.mjs
-# Тесты authlib: причина та же, что и у скинов выше, иначе
-# `pnpm run test:authlib` не работает в чистом клоне.
-!scripts/test-authlib.mjs
-!scripts/test-agent.mjs
-!scripts/test-theme-rendering.mjs
-!scripts/test-content-motion.mjs
-!scripts/test-dialog-focus.mjs
-!scripts/test-cloud-themes.mjs
 # Скачанные артефакты (authlib-injector.jar и прочие) в репозиторий не кладём.
 *.jar
 update-*.js
@@ -137,5 +133,5 @@ launcher-screenshot.png
 __pycache__/
 *.pyc
 
-
-!scripts/test-startup.mjs
+# Локальные отчёты и журналы QA-аудита
+/qa-reports/
