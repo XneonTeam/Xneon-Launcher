@@ -2,10 +2,9 @@ import { SETTINGS_CONTENT_ENTER_DELAYED } from "./settings-motion"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
-  IconAlertTriangle,
   IconCheck,
-  IconCircleX,
   IconCopy,
+  IconDownload,
   IconPalette,
   IconPencil,
   IconPlus,
@@ -13,12 +12,14 @@ import {
   IconTrash,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
-import { ModalLayer } from "@/components/ui/modal-layer"
+import { ActionConfirmDialog } from "@/components/launcher/instance/action-confirm-dialog"
 import type { Theme } from "./types"
 import { applyTheme } from "./theme-model"
 import type { ThemeRegistry } from "./theme-store"
 import { ThemeEditor } from "./theme-editor"
 import { ThemeCompactPreview } from "./theme-preview"
+import { sanitizeTheme, duplicateTheme } from "./theme-model"
+import { useAlertDialog } from "@/lib/use-alert-dialog"
 
 interface SettingsThemesProps {
   registry: ThemeRegistry
@@ -66,6 +67,7 @@ function ThemeCard({
   onEdit,
   onDuplicate,
   onDelete,
+  onExport,
 }: {
   theme: Theme
   selected: boolean
@@ -73,6 +75,7 @@ function ThemeCard({
   onEdit?: () => void
   onDuplicate?: () => void
   onDelete?: () => void
+  onExport?: () => void
 }) {
   const { t } = useTranslation()
   const isCustom = !!theme.custom
@@ -139,6 +142,7 @@ function ThemeCard({
                 danger
               />
             )}
+            {onExport && <CardAction icon={<IconDownload className="h-4 w-4" strokeWidth={1.75} />} label={t("themeLocal.exportBundle")} onClick={onExport} />}
           </div>
         </div>
       )}
@@ -157,6 +161,15 @@ export function SettingsThemes({ registry }: SettingsThemesProps) {
   const { t } = useTranslation()
   const [editing, setEditing] = useState<{ theme: Theme; isNew: boolean } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Theme | null>(null)
+  const [busy, setBusy] = useState(false)
+  const { showAlert, alertDialog } = useAlertDialog()
+  const run = async (action: () => Promise<unknown>) => {
+    if (busy) return
+    setBusy(true)
+    try { await action() }
+    catch (error) { showAlert(t("themeLocal.error", { message: error instanceof Error ? error.message : String(error) })) }
+    finally { setBusy(false) }
+  }
 
   const presets = registry.themes.filter((theme) => !theme.custom)
   const customThemes = registry.customThemes
@@ -181,27 +194,38 @@ export function SettingsThemes({ registry }: SettingsThemesProps) {
     applyTheme(registry.selectedTheme)
   }
 
-  const handleSave = (theme: Theme) => {
-    registry.saveTheme(theme)
+  const handleSave = (theme: Theme) => { void run(async () => {
+    await registry.saveTheme(theme)
     registry.selectTheme(theme.id)
     setEditing(null)
-  }
+  }) }
 
-  const handleDeleteFromEditor = (theme: Theme) => {
+  const handleDeleteFromEditor = (theme: Theme) => { void run(async () => {
     // Стор сам применит тему по умолчанию, если удалили выбранную.
-    registry.deleteTheme(theme.id)
+    await registry.deleteTheme(theme.id)
     setEditing(null)
-  }
+  }) }
 
-  const handleDuplicate = (theme: Theme) => {
-    const copy = registry.copyTheme(theme.id, t("settings.themes.duplicatedName", { name: theme.name }))
+  const handleDuplicate = (theme: Theme) => { void run(async () => {
+    const copy = await registry.copyTheme(theme.id, t("settings.themes.duplicatedName", { name: theme.name }))
     if (copy) registry.selectTheme(copy.id)
-  }
+  }) }
 
-  const confirmDelete = () => {
-    if (pendingDelete) registry.deleteTheme(pendingDelete.id)
+  const confirmDelete = () => { void run(async () => {
+    if (pendingDelete) await registry.deleteTheme(pendingDelete.id)
     setPendingDelete(null)
-  }
+  }) }
+
+  const importTheme = () => { void run(async () => {
+    const imported = await window.electronAPI?.importLocalTheme()
+    if (!imported) return
+    if (imported.kind !== "bundle") throw new Error(t("themeEditor.css.invalid"))
+    const source = sanitizeTheme(imported.theme)
+    const theme = source ? duplicateTheme(source, source.name, registry.themes.map(item => item.id)) : null
+    if (!theme) throw new Error(t("themeEditor.css.invalid"))
+    await registry.saveTheme(theme)
+    registry.selectTheme(theme.id)
+  }) }
 
   return (
     <div data-ui="settings-settings-themes-div-5" data-component="settings-themes" className={`space-y-8 ${SETTINGS_CONTENT_ENTER_DELAYED}`}>
@@ -228,8 +252,12 @@ export function SettingsThemes({ registry }: SettingsThemesProps) {
             <IconSparkles className="h-5 w-5 text-primary" strokeWidth={1.75} />
             {t("settings.themes.custom")}
           </h3>
-          {createButton()}
+          <div data-component="theme-file-toolbar" className="flex flex-wrap items-center gap-2" aria-busy={busy}>
+            <button data-ui="theme-import-local" disabled={busy} type="button" onClick={importTheme} className="rounded-xl border border-border bg-card px-3 py-2 text-xs text-card-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:opacity-50">{t("themeLocal.import")}</button>
+            {createButton()}
+          </div>
         </div>
+        {registry.localErrors.length > 0 && <p data-ui="theme-file-errors" role="alert" className="text-xs text-destructive">{t("themeLocal.error", { message: registry.localErrors.join("; ") })}</p>}
 
         {customThemes.length > 0 ? (
           <div data-ui="settings-settings-themes-div-8" className="grid grid-cols-2 gap-3">
@@ -242,6 +270,7 @@ export function SettingsThemes({ registry }: SettingsThemesProps) {
                 onEdit={() => setEditing({ theme, isNew: false })}
                 onDuplicate={() => handleDuplicate(theme)}
                 onDelete={() => setPendingDelete(theme)}
+                onExport={() => { void run(async () => { await window.electronAPI?.exportLocalTheme(theme, "xntheme") }) }}
               />
             ))}
           </div>
@@ -270,44 +299,18 @@ export function SettingsThemes({ registry }: SettingsThemesProps) {
         />
       )}
 
-      {pendingDelete && (
-        <ModalLayer windowId="settings-settings-themes-window-1" onClose={() => setPendingDelete(null)} className="animate-in fade-in-0">
-          <div data-ui="settings-settings-themes-div-13" className="w-full max-w-md rounded-2xl border border-destructive/50 bg-card p-6 shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
-            <div data-ui="settings-settings-themes-div-14" className="mb-6 flex items-center gap-4">
-              <div data-ui="settings-settings-themes-div-15" className="flex h-12 w-12 items-center justify-center rounded-xl bg-destructive/20">
-                <IconAlertTriangle className="h-6 w-6 text-destructive" strokeWidth={1.5} />
-              </div>
-              <div data-ui="settings-settings-themes-div-16" className="min-w-0">
-                <h3 data-ui="settings-settings-themes-h3-3" className="text-lg font-semibold text-foreground">
-                  {t("settings.themes.deleteConfirmTitle")}
-                </h3>
-                <p data-ui="settings-settings-themes-p-2" className="text-sm text-muted-foreground">{t("settings.areYouSure")}</p>
-              </div>
-            </div>
-            <div data-ui="settings-settings-themes-div-17" className="mb-6 rounded-xl border border-destructive/20 bg-destructive/10 p-4">
-              <p data-ui="settings-settings-themes-p-3" className="text-foreground">{t("settings.themes.deleteConfirm", { name: pendingDelete.name })}</p>
-            </div>
-            <div data-ui="settings-settings-themes-div-18" className="flex gap-3">
-              <button data-ui="settings-settings-themes-button-4"
-                type="button"
-                onClick={() => setPendingDelete(null)}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-muted/30 px-4 py-3 text-foreground transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
-              >
-                <IconCircleX className="h-4 w-4" strokeWidth={1.75} />
-                {t("themeEditor.cancel")}
-              </button>
-              <button data-ui="settings-settings-themes-button-5"
-                type="button"
-                onClick={confirmDelete}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-destructive px-4 py-3 font-medium text-destructive-foreground transition-colors hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/60"
-              >
-                <IconTrash className="h-4 w-4" strokeWidth={1.75} />
-                {t("settings.themes.delete")}
-              </button>
-            </div>
-          </div>
-        </ModalLayer>
-      )}
+      <ActionConfirmDialog
+        open={pendingDelete !== null}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        title={t("settings.themes.deleteConfirmTitle")}
+        description={pendingDelete ? t("settings.themes.deleteConfirm", { name: pendingDelete.name }) : ""}
+        confirmText={t("settings.themes.delete")}
+        cancelText={t("themeEditor.cancel")}
+        variant="danger"
+        icon="warning"
+      />
+      {alertDialog}
     </div>
   )
 }

@@ -8,10 +8,10 @@ import type { Theme } from "@xnlc/types"
 const MAX_TOTAL = 512 * 1024 * 1024
 const MAX_MEDIA = 128 * 1024 * 1024
 const MAX_ENTRIES = 1024
-const extensions = "png|jpg|jpeg|webp|gif|avif|bmp|svg|mp4|webm|ogv|ttf|otf|woff2|woff"
+const extensions = "css|png|jpg|jpeg|webp|gif|avif|bmp|svg|mp4|webm|ogv|ttf|otf|woff2|woff"
 const assetName = new RegExp(`^[a-f0-9]{64}\\.(${extensions})$`)
 const assetReferences = () => new RegExp(`xnl-theme://asset/([a-f0-9]{64}\\.(?:${extensions}))`, "g")
-const themeKeys = ["id", "name", "primary", "accent", "primaryOklch", "accentOklch", "palette", "glow", "font", "background", "css", "cssEnabled", "appearance", "custom", "createdAt", "updatedAt"]
+const themeKeys = ["id", "name", "description", "baseThemeId", "primary", "accent", "primaryOklch", "accentOklch", "palette", "glow", "font", "background", "css", "readerCss", "cssEnabled", "appearance", "custom", "createdAt", "updatedAt"]
 
 /** Манифест берётся из выбранной темы; произвольные пути архива не извлекаются. */
 function themeData(value: unknown): Theme {
@@ -21,6 +21,7 @@ function themeData(value: unknown): Theme {
   if (![data.primary, data.accent].every(color => typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color))) throw new Error("Invalid theme colors")
   for (const key of ["palette", "glow", "font", "background", "appearance"]) if (data[key] !== undefined && (!data[key] || typeof data[key] !== "object" || Array.isArray(data[key]))) throw new Error("Invalid theme property: " + key)
   if (data.css !== undefined && typeof data.css !== "string") throw new Error("Invalid theme CSS")
+  if (data.readerCss !== undefined && typeof data.readerCss !== "string") throw new Error("Invalid reader CSS")
   const theme = Object.fromEntries(themeKeys.filter(key => Object.hasOwn(data, key)).map(key => [key, data[key]])) as unknown as Theme
   return { ...theme, name: theme.name.trim().slice(0, 60), custom: true }
 }
@@ -54,23 +55,31 @@ export async function createThemeBundle(input: unknown, mediaDirectory: string):
   }
   if (typeof theme.font?.source === "string") theme.font.source = await localSource(theme.font.source)
   if (typeof theme.background?.source === "string") theme.background.source = await localSource(theme.background.source)
-  if (theme.css) {
-    for (const match of theme.css.matchAll(/url\(\s*(?:"([^"]+)"|'([^']+)'|([^\s)]+))\s*\)/gi)) {
+  for (const key of ["css", "readerCss"] as const) {
+    const css = theme[key]
+    if (!css) continue
+    for (const match of css.matchAll(/url\(\s*(?:"([^"]+)"|'([^']+)'|([^\s)]+))\s*\)/gi)) {
       const source = match[1] || match[2] || match[3]
       if (source.startsWith("file:")) await localSource(source)
     }
-    for (const [source, portable] of replacements) theme.css = theme.css.replaceAll(source, portable)
+    let portableCss = css
+    for (const [source, portable] of replacements) portableCss = portableCss.replaceAll(source, portable)
+    theme[key] = portableCss
   }
   const json = JSON.stringify(theme)
   if (Buffer.byteLength(json) > 1024 * 1024) throw new Error("Theme manifest exceeds size limit")
-  for (const [, name] of json.matchAll(assetReferences())) {
-    if (assets.has(name)) continue
-    const file = path.join(mediaDirectory, name)
-    if ((await fs.stat(file)).size > MAX_MEDIA) throw new Error("Theme media exceeds archive size limit")
-    const data = await fs.readFile(file)
-    if (createHash("sha256").update(data).digest("hex") !== name.split(".")[0]) throw new Error("Theme media checksum mismatch")
-    addAsset(name, data)
+  const collect = async (text: string) => {
+    for (const [, name] of text.matchAll(assetReferences())) {
+      if (assets.has(name)) continue
+      const file = path.join(mediaDirectory, name)
+      if ((await fs.stat(file)).size > MAX_MEDIA) throw new Error("Theme media exceeds archive size limit")
+      const data = await fs.readFile(file)
+      if (createHash("sha256").update(data).digest("hex") !== name.split(".")[0]) throw new Error("Theme media checksum mismatch")
+      addAsset(name, data)
+      if (name.endsWith(".css")) await collect(data.toString("utf8"))
+    }
   }
+  await collect(json)
   const manifest = Buffer.from(JSON.stringify({ format: "xneon-theme", version: 1, theme }))
   if (manifest.length > 1024 * 1024) throw new Error("Theme manifest exceeds size limit")
   zip.addFile("theme.json", manifest)
@@ -113,6 +122,9 @@ export async function restoreThemeBundle(buffer: Buffer, mediaDirectory: string)
     assets.set(name, data)
   }
   for (const [, name] of JSON.stringify(theme).matchAll(assetReferences())) if (!assets.has(name)) throw new Error("Theme archive is missing referenced media")
+  for (const [fileName, data] of assets) if (fileName.endsWith(".css")) {
+    for (const [, name] of data.toString("utf8").matchAll(assetReferences())) if (!assets.has(name)) throw new Error("Theme archive is missing CSS media")
+  }
   await fs.mkdir(mediaDirectory, { recursive: true })
   for (const [name, data] of assets) await fs.writeFile(path.join(mediaDirectory, name), data, { flag: "wx" }).catch(async error => {
     if (error.code !== "EEXIST") throw error

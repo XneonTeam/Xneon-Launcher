@@ -84,6 +84,8 @@ export interface Theme {
   name: string
   /** Необязательное описание пользовательской темы. */
   description?: string
+  /** Тема, из которой пользователь собрал эту палитру. Нужна кнопке сброса. */
+  baseThemeId?: string
   /** Акценты в hex — нужны миниатюрам и редактору. */
   primary: string
   accent: string
@@ -107,10 +109,29 @@ export interface Theme {
   /** Дополнительный CSS темы из режима «CSS» редактора. */
   css?: string
   cssEnabled?: boolean
+  /** Имя CSS в управляемой папке themes; не переносится в облачные архивы. */
+  localFile?: string
+  /** Отдельная таблица стилей документа статьи в читалке новостей. */
+  readerCss?: string
   appearance?: ThemeAppearance
   /** Тема собрана пользователем (или агентом) и хранится вне списка пресетов. */
   custom?: boolean
   createdAt?: number
   updatedAt?: number
 }
+
+export interface LocalThemeFile {
+  fileName: string
+  name: string
+  css: string
+  theme?: Theme
+}
+
+export interface LocalThemeSnapshot {
+  revision: number
+  files: LocalThemeFile[]
+  errors: string[]
+}
+
+export type LocalThemeImport = { kind: "bundle"; theme: Theme }
 

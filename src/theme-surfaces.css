@@ -1,0 +1,50 @@
+/* Семантическая поверхность задаёт цвет всему содержимому, включая text-foreground.
+   Смысловые акценты, ошибки и выбранные состояния продолжают читать свои токены. */
+:where([data-component$="-card"], [class~="bg-card"], [class*="bg-card/"]) {
+  --foreground: var(--card-foreground);
+  color: var(--card-foreground);
+}
+
+:where([data-slot="select-content"], [class~="bg-popover"], [class*="bg-popover/"]) {
+  --foreground: var(--popover-foreground);
+  color: var(--popover-foreground);
+}
+
+/* Нейтральные элементы управления должны оставаться читаемыми поверх обоев.
+   Сопоставляем отдельные классы, чтобы не задевать hover:bg-muted и акценты.
+   Правила вне слоёв Tailwind; пользовательский CSS темы может их переопределить. */
+:where(button, input:not([type="checkbox"]):not([type="radio"]), textarea, select):where([class~="bg-muted"], [class^="bg-muted/"], [class*=" bg-muted/"]):not([data-slot="checkbox"]):not(:hover) {
+  background-color: var(--muted);
+}
+
+:where(button):where([class~="bg-muted"], [class^="bg-muted/"], [class*=" bg-muted/"]):where([class~="text-muted-foreground"]):not([data-slot="checkbox"]):not(:hover) {
+  color: var(--muted-foreground);
+}
+
+/* Общая поверхность компактных переключателей: сборки, настройки, скины,
+   фильтры и режимы просмотра. Выбранные кнопки сохраняют свои цвета. */
+:where([class~="p-1"], [class~="p-0.5"]):where([class~="bg-muted"], [class^="bg-muted/"], [class*=" bg-muted/"]):has(> button):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) {
+  background-color: var(--card);
+}
+
+/* Наведение должно отличаться от подложки во всех компактных переключателях.
+   Активные и отключённые пункты сохраняют собственное оформление. */
+:where([class~="p-1"], [class~="p-0.5"]):where([class~="bg-muted"], [class^="bg-muted/"], [class*=" bg-muted/"]) > button:not(.bg-primary):not(.text-primary):not(.bg-background):not(.bg-card):not([aria-checked="true"]):not([data-active="true"]):not([aria-selected="true"]):not([aria-pressed="true"]):not([data-state="active"]):not(:disabled):is(:hover, :focus-visible),
+:where([class~="p-1"], [class~="p-0.5"]):where([class~="bg-muted"], [class^="bg-muted/"], [class*=" bg-muted/"]) > .relative > button:not(.bg-primary):not(.text-primary):not(.bg-background):not(.bg-card):not([aria-checked="true"]):not([data-active="true"]):not([aria-selected="true"]):not([aria-pressed="true"]):not([data-state="active"]):not(:disabled):is(:hover, :focus-visible) {
+  background-color: var(--muted);
+  color: var(--foreground);
+}
+
+:where([class~="p-1"], [class~="p-0.5"]):where([class~="bg-muted"], [class^="bg-muted/"], [class*=" bg-muted/"]) > :where(button[class~="text-muted-foreground"]):not(:hover) {
+  color: var(--muted-foreground);
+}
+
+:where(.rounded-full) { border-radius: var(--radius-round); }
+:where(.rounded-r-full) {
+  border-top-right-radius: var(--radius-round);
+  border-bottom-right-radius: var(--radius-round);
+}
+:where(.rounded-t-full) {
+  border-top-left-radius: var(--radius-round);
+  border-top-right-radius: var(--radius-round);
+}

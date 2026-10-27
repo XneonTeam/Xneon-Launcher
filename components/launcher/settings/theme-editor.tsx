@@ -23,13 +23,13 @@ import {
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { ModalLayer } from "@/components/ui/modal-layer"
+import { ActionConfirmDialog } from "@/components/launcher/instance/action-confirm-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { Theme, ThemeBackground, ThemeColorKey, ThemeFont, ThemeGlow } from "./types"
 import {
   applyTheme,
   BLUR_MAX,
   clampAlpha,
-  DARK_PALETTE,
   DEFAULT_GLOW_ALPHA,
   FONT_SIZE_DEFAULT,
   FONT_SIZE_MAX,
@@ -122,6 +122,36 @@ function sameGlow(a: ThemeGlow, b: ThemeGlow): boolean {
   return normalizeHex(a.color) === normalizeHex(b.color) && Math.abs(a.alpha - b.alpha) < 0.005
 }
 
+/** Визуальная часть темы, которую заменяет выбор основы и сброс к ней. */
+function visualStateFrom(base: Theme): Pick<
+  Theme,
+  "baseThemeId" | "primary" | "accent" | "primaryOklch" | "accentOklch" | "palette" | "glow" |
+  "font" | "background" | "css" | "readerCss" | "cssEnabled" | "appearance"
+> {
+  const colors = paletteOf(base)
+  return {
+    baseThemeId: base.id,
+    primary: colors.primary,
+    accent: colors.accent,
+    primaryOklch: base.primaryOklch,
+    accentOklch: base.accentOklch,
+    palette: { ...colors },
+    glow: { primary: themeGlow(base, "primary"), accent: themeGlow(base, "accent") },
+    font: base.font ? { ...base.font } : undefined,
+    background: base.background ? { ...base.background } : undefined,
+    css: base.css,
+    readerCss: base.readerCss,
+    cssEnabled: base.cssEnabled,
+    appearance: base.appearance
+      ? {
+          ...base.appearance,
+          lightPalette: base.appearance.lightPalette ? { ...base.appearance.lightPalette } : undefined,
+          darkPalette: base.appearance.darkPalette ? { ...base.appearance.darkPalette } : undefined,
+        }
+      : undefined,
+  }
+}
+
 const swatchClass =
   "h-8 w-8 shrink-0 cursor-pointer rounded-lg border border-border bg-muted/30 transition-colors hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 [&::-webkit-color-swatch-wrapper]:p-0.5 [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch]:border-0"
 
@@ -149,6 +179,8 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
   const [hexInputs, setHexInputs] = useState<Record<ThemeColorKey, string>>(() => hexMap(paletteOf(initialTheme)))
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [fontBusy, setFontBusy] = useState(false)
+  const [customFontEditing, setCustomFontEditing] = useState(false)
+  const [customFontInput, setCustomFontInput] = useState("")
   const [fontError, setFontError] = useState<string | null>(null)
 
   // Переключение режима: визуальный или прямой CSS
@@ -161,25 +193,38 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
   const [extractingPalette, setExtractingPalette] = useState(false)
   const [extractError, setExtractError] = useState<string | null>(null)
 
+  useEffect(() => {
+    setHexInputs(hexMap(paletteOf(draft)))
+  }, [draft.appearance?.colorMode])
+
   const palette = paletteOf(draft)
+
+  // Без явного background кнопка «Изображение» уже считается выбранной,
+  // поэтому её поля должны быть видны сразу, а не появляться по повторному клику.
+  const bgIsVideo = draft.background?.kind === "video"
+  const bgIsMedia = !draft.background || draft.background.kind === "image" || bgIsVideo
 
   // Живой предпросмотр: каждое изменение черновика сразу попадает в документ
   useEffect(() => {
     applyTheme(draft)
   }, [draft])
 
-  // «Взять за основу» показывает тему, чья палитра совпадает с черновиком
+  // Сохранённая основа не теряется после правки цветов. Для старых тем без
+  // этого поля узнаём основу по палитре, а при отсутствии совпадения берём
+  // первый пресет (стандартную тёмную тему).
   const baseId = useMemo(() => {
+    if (draft.baseThemeId && themes.some((theme) => theme.id === draft.baseThemeId)) return draft.baseThemeId
     const colors = paletteOf(draft)
     const primaryGlow = themeGlow(draft, "primary")
     const accentGlow = themeGlow(draft, "accent")
     const match = themes.find((theme) => {
+      if (theme.id === draft.id) return false
       const candidate = paletteOf(theme)
       if (THEME_COLOR_KEYS.some((key) => candidate[key] !== colors[key])) return false
       return sameGlow(themeGlow(theme, "primary"), primaryGlow) && sameGlow(themeGlow(theme, "accent"), accentGlow)
     })
-    return match?.id ?? ""
-  }, [draft, themes])
+    return match?.id ?? themes.find(theme => !theme.custom)?.id ?? themes.find(theme => theme.id !== draft.id)?.id ?? initialTheme.id
+  }, [draft, themes, initialTheme.id])
 
   const canDelete = !isNew && isCustomThemeId(initialTheme.id) && !onDelete
   const nameEmpty = draft.name.trim().length === 0
@@ -270,7 +315,11 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
     setFontError(null)
     try {
       const media = await window.electronAPI?.pickThemeMedia("font")
-      if (media) setFont({ family: "XneonThemeFont", source: media.source })
+      if (media) {
+        setCustomFontEditing(false)
+        setCustomFontInput("")
+        setFont({ family: "XneonThemeFont", source: media.source })
+      }
     } catch {
       setFontError(t("themeAdvanced.fileError"))
     } finally {
@@ -384,44 +433,21 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
     const base = themes.find((theme) => theme.id === id)
     if (!base) return
     const colors = paletteOf(base)
-    setDraft((current) => ({
+    // Основа уже содержит согласованные light/dark палитры, поэтому не
+    // прогоняем её через синхронизацию правки одного активного режима.
+    setDraftState((current) => ({
       ...current,
-      primary: colors.primary,
-      accent: colors.accent,
-      palette: { ...colors },
-      glow: { primary: themeGlow(base, "primary"), accent: themeGlow(base, "accent") },
-      font: base.font ? { ...base.font } : undefined,
-      background: base.background ? { ...base.background } : undefined,
-      css: base.css,
-      cssEnabled: base.cssEnabled,
-      appearance: base.appearance,
+      ...visualStateFrom(base),
     }))
+    setCustomFontEditing(false)
+    setCustomFontInput("")
     setHexInputs(hexMap(colors))
     setCssText(serializeThemeCss(base))
-  }
-
-  const resetToDark = () => {
-    const resetDraft: Theme = {
-      ...draft,
-      primary: DARK_PALETTE.primary,
-      accent: DARK_PALETTE.accent,
-      palette: { ...DARK_PALETTE },
-      glow: {
-        primary: { color: DARK_PALETTE.primary, alpha: DEFAULT_GLOW_ALPHA },
-        accent: { color: DARK_PALETTE.accent, alpha: DEFAULT_GLOW_ALPHA },
-      },
-      font: undefined,
-      background: undefined,
-      css: undefined,
-      cssEnabled: true,
-      appearance: undefined,
-    }
-    setDraft(resetDraft)
-    setHexInputs(hexMap(DARK_PALETTE))
-    setCssText(serializeThemeCss(resetDraft))
     setExtractError(null)
     setCssError(null)
   }
+
+  const resetToBase = () => applyBase(baseId)
 
   const buildTheme = (base: Theme = draft): Theme => {
     const colors = paletteOf(base)
@@ -622,9 +648,14 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
                     <div data-ui="settings-theme-editor-div-11" className="space-y-1.5">
                       <span data-ui="settings-theme-editor-span-10" className="text-xs font-medium text-foreground">{t("themeEditor.font.family")}</span>
                       <Select
-                        value={isCustomFontFamily ? "__custom__" : currentFontFamily || "__system__"}
+                        value={isCustomFontFamily || customFontEditing ? "__custom__" : currentFontFamily || "__system__"}
                         onValueChange={(val) => {
-                          if (val === "__custom__") return
+                          if (val === "__custom__") {
+                            setCustomFontInput(isCustomFontFamily ? currentFontFamily : "")
+                            setCustomFontEditing(true)
+                            return
+                          }
+                          setCustomFontEditing(false)
                           // Radix не принимает пустое значение, поэтому системный
                           // шрифт помечен служебным маркером.
                           setFont({ family: val === "__system__" ? undefined : val })
@@ -658,10 +689,10 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
                           </SelectItem>
                         </SelectContent>
                       </Select>
-                      {isCustomFontFamily && (
+                      {(isCustomFontFamily || customFontEditing) && (
                         <input data-ui="settings-theme-editor-input-2"
-                          value={currentFontFamily}
-                          onChange={(e) => setFont({ family: e.target.value })}
+                          value={customFontEditing ? customFontInput : currentFontFamily}
+                          onChange={(e) => { setCustomFontEditing(true); setCustomFontInput(e.target.value); setFont({ family: e.target.value }) }}
                           placeholder={t("themeEditor.font.customPlaceholder")}
                           className="mt-1 w-full rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/40"
                         />
@@ -756,32 +787,32 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
                       </button>
                     </div>
 
-                    {(draft.background?.kind === "image" || draft.background?.kind === "video") && (
+                    {bgIsMedia && (
                       <div className="grid gap-3 sm:grid-cols-2">
                         <label className="space-y-1 text-xs text-muted-foreground">
                           <span>{t("themeAdvanced.fit")}</span>
-                          <Select value={draft.background.fit ?? "cover"} onValueChange={(value) => setBackground({ fit: value as "cover" | "contain" })}>
+                          <Select value={draft.background?.fit ?? "cover"} onValueChange={(value) => setBackground({ fit: value as "cover" | "contain" })}>
                             <SelectTrigger className="h-10 w-full rounded-xl border-border bg-muted/40 text-xs text-foreground"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {(["cover", "contain"] as const).map((value) => <SelectItem key={value} value={value}>{t(`themeAdvanced.fit.${value}`)}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </label>
-                        {draft.background.kind === "video" && (
+                        {bgIsVideo && (
                           <label className="space-y-2 text-xs text-muted-foreground">
-                            <span className="flex justify-between"><span>{t("themeAdvanced.videoVolume")}</span><span>{Math.round((draft.background.volume ?? 0) * 100)}%</span></span>
-                            <input type="range" min={0} max={1} step={0.01} value={draft.background.volume ?? 0} onChange={(event) => setBackground({ volume: Number(event.target.value) })} className="mt-2 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-muted accent-primary" />
+                            <span className="flex justify-between"><span>{t("themeAdvanced.videoVolume")}</span><span>{Math.round((draft.background?.volume ?? 0) * 100)}%</span></span>
+                            <input type="range" min={0} max={1} step={0.01} value={draft.background?.volume ?? 0} onChange={(event) => setBackground({ volume: Number(event.target.value) })} className="mt-2 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-muted accent-primary" />
                           </label>
                         )}
                       </div>
                     )}
 
                     {/* Выбор файла или ввод URL */}
-                    {(draft.background?.kind === "image" || draft.background?.kind === "video") && <div data-ui="settings-theme-editor-div-18" className="flex items-center gap-2">
+                    {bgIsMedia && <div data-ui="settings-theme-editor-div-18" className="flex items-center gap-2">
                       <input data-ui="settings-theme-editor-input-4"
                         value={draft.background?.source ?? ""}
                         onChange={(e) => setBackground({ source: e.target.value })}
-                        placeholder={t("themeEditor.background.urlPlaceholder")}
+                        placeholder={t(bgIsVideo ? "themeEditor.background.urlPlaceholder" : "themeEditor.background.urlPlaceholderImage")}
                         className="min-w-0 flex-1 rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-primary focus:ring-1 focus:ring-primary/40"
                       />
                       <button data-ui="settings-theme-editor-button-8"
@@ -867,7 +898,7 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
                             </div>
                             <input data-ui="settings-theme-editor-input-7"
                               type="range"
-                              min={0.05}
+                              min={0}
                               max={1}
                               step={0.05}
                               value={draft.background?.opacity ?? 1}
@@ -982,6 +1013,7 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
                   highlight={(code) => Prism.highlight(code, Prism.languages.css, "css")}
                   padding={12}
                   textareaId="theme-css-editor"
+                  textareaClassName="outline-none focus:outline-none"
                   aria-label={t("themeEditor.mode.css")}
                   style={{ fontFamily: "'JetBrains Mono', Consolas, monospace", fontSize: 12, lineHeight: 1.6, minHeight: 240 }}
                   onKeyDown={(e) => {
@@ -1002,29 +1034,9 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
 
         {/* Футер */}
         <div data-ui="settings-theme-editor-div-41" className="shrink-0 border-t border-border px-4 py-3">
-          {confirmDelete ? (
-            <div data-ui="settings-theme-editor-div-42" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-3">
-              <span data-ui="settings-theme-editor-span-26" className="flex min-w-0 items-center gap-2 text-sm text-foreground">
-                <IconAlertTriangle className="h-4 w-4 shrink-0 text-destructive" strokeWidth={1.75} />
-                <span data-ui="settings-theme-editor-span-27" className="min-w-0">{t("settings.themes.deleteConfirm", { name: draft.name })}</span>
-              </span>
-              <div data-ui="settings-theme-editor-div-43" className="flex shrink-0 items-center gap-2">
-                <button data-ui="settings-theme-editor-button-11" type="button" onClick={() => setConfirmDelete(false)} className={ghostButtonClass}>
-                  {t("themeEditor.cancel")}
-                </button>
-                <button data-ui="settings-theme-editor-button-12"
-                  type="button"
-                  onClick={() => onDelete?.(buildTheme())}
-                  className="flex items-center gap-1.5 rounded-xl bg-destructive px-3 py-2 text-xs font-semibold text-destructive-foreground transition-colors hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/60"
-                >
-                  <IconTrash className="h-4 w-4" strokeWidth={1.75} />
-                  {t("themeEditor.delete")}
-                </button>
-              </div>
-            </div>
-          ) : (
+          {!confirmDelete ? (
             <div data-ui="settings-theme-editor-div-44" className="flex flex-wrap items-center justify-between gap-3">
-              <button data-ui="settings-theme-editor-button-13" type="button" onClick={resetToDark} className={ghostButtonClass}>
+              <button data-ui="settings-theme-editor-button-13" type="button" onClick={resetToBase} className={ghostButtonClass}>
                 <IconRefresh className="h-4 w-4" strokeWidth={1.75} />
                 {t("themeEditor.reset")}
               </button>
@@ -1053,9 +1065,20 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
                 </button>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
+      <ActionConfirmDialog
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={() => onDelete?.(buildTheme())}
+        title={t("settings.themes.deleteConfirmTitle")}
+        description={t("settings.themes.deleteConfirm", { name: draft.name })}
+        confirmText={t("themeEditor.delete")}
+        cancelText={t("themeEditor.cancel")}
+        variant="danger"
+        icon="warning"
+      />
     </ModalLayer>
   )
 }

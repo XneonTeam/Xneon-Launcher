@@ -1,0 +1,43 @@
+/* Настройки следуют поверхностям и единственному акценту выбранной темы. */
+#settings-page [data-settings-section] .settings-color-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+}
+
+#settings-page [data-component="settings-resolution"] > button,
+#settings-page [data-ui="settings-settings-language-about-div-2"] > button {
+  background: var(--background);
+  color: var(--muted-foreground);
+}
+#settings-page [data-component="settings-resolution"] > button:hover,
+#settings-page [data-ui="settings-settings-language-about-div-2"] > button:hover {
+  border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
+  color: var(--foreground);
+}
+#settings-page [data-component="settings-resolution"] > button[aria-pressed="true"],
+#settings-page [data-ui="settings-settings-language-about-div-2"] > button[aria-pressed="true"] {
+  border-color: var(--primary);
+  background: color-mix(in oklab, var(--primary) 7%, var(--background));
+  color: var(--foreground);
+}
+
+#settings-page .settings-java-list > button { background: transparent; }
+#settings-page .settings-java-list > button:hover { background: var(--background); }
+#settings-page [data-component="settings-java"] > [data-ui="settings-settings-java-button-2"] { background: var(--card); }
+
+#settings-page [data-component="theme-card"] {
+  border-color: var(--border);
+  background: var(--card);
+}
+#settings-page [data-component="theme-card"]:hover { border-color: color-mix(in oklab, var(--primary) 45%, var(--border)); }
+#settings-page [data-component="theme-card"][data-selected="true"] {
+  border-color: var(--primary);
+  background: var(--card);
+}
+
+#settings-page [data-component="settings-ai"] article { background: var(--background); }
+#settings-page [data-component="settings-ai"] article[data-selected="true"] { border-color: var(--primary); }
+#settings-page [data-component="settings-about"] .settings-color-panel > div:first-child:has(> svg) { background: color-mix(in oklab, var(--primary) 10%, var(--card)); }
+#settings-page [data-component="settings-about"] .settings-color-panel > div:first-child > svg { color: var(--primary); }
+#settings-page [data-component="settings-about"] a.settings-color-panel:hover { border-color: var(--primary); }

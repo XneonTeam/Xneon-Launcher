@@ -18,6 +18,11 @@
   animation-delay: var(--theme-enter-delay, 70ms);
 }
 
+/* Первый вход начинается после заставки, а не в скрытой под ней странице. */
+:root[data-launcher-reveal="pending"] .settings-content-enter {
+  animation-play-state: paused;
+}
+
 @keyframes xneon-content-fade {
   from { opacity: 0; }
   to { opacity: 1; }

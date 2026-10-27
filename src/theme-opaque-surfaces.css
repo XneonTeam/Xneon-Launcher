@@ -1,0 +1,86 @@
+/* Непрозрачные поверхности интерфейса. Акцентные оттенки смешиваются с
+   карточкой, а не с прозрачностью: обои не меняют контраст элементов.
+   Состояния наведения идут после базовых; CSS пользовательской темы остаётся
+   доступен для явных переопределений. Декоративные свечения и затемнения
+   модальных окон используют собственные цвета и здесь не меняются. */
+:where([class~="bg-accent/10"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--accent) 10%, var(--card)); }
+:where([class~="bg-background/60"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--background); }
+:where([class~="bg-background/65"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--background); }
+:where([class~="bg-background/70"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--background); }
+:where([class~="bg-background/72"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--background); }
+:where([class~="bg-background/75"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--background); }
+:where([class~="bg-background/78"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--background); }
+:where([class~="bg-background/80"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--background); }
+:where([class~="bg-background/85"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--background); }
+:where([class~="bg-background/95"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--background); }
+:where([class~="bg-card/40"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--card); }
+:where([class~="bg-card/50"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--card); }
+:where([class~="bg-card/60"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--card); }
+:where([class~="bg-card/80"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--card); }
+:where([class~="bg-card/85"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--card); }
+:where([class~="bg-card/90"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--card); }
+:where([class~="bg-card/95"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--card); }
+:where([class~="bg-destructive/10"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--destructive) 10%, var(--card)); }
+:where([class~="bg-destructive/12"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--destructive) 12%, var(--card)); }
+:where([class~="bg-destructive/15"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--destructive) 15%, var(--card)); }
+:where([class~="bg-destructive/20"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--destructive) 20%, var(--card)); }
+:where([class~="bg-destructive/5"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--destructive) 5%, var(--card)); }
+:where([class~="bg-destructive/80"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--destructive) 80%, var(--card)); }
+:where([class~="bg-input/60"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--input); }
+:where([class~="bg-muted/10"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="bg-muted/15"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="bg-muted/20"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="bg-muted/30"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="bg-muted/40"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="bg-muted/5"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="bg-muted/50"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="bg-muted/60"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="bg-muted/70"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="bg-popover/95"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--popover); }
+:where([class~="bg-primary/10"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 10%, var(--card)); }
+:where([class~="bg-primary/12"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 12%, var(--card)); }
+:where([class~="bg-primary/15"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 15%, var(--card)); }
+:where([class~="bg-primary/20"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 20%, var(--card)); }
+:where([class~="bg-primary/25"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 25%, var(--card)); }
+:where([class~="bg-primary/45"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 45%, var(--card)); }
+:where([class~="bg-primary/5"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 5%, var(--card)); }
+:where([class~="bg-primary/6"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 6%, var(--card)); }
+:where([class~="bg-primary/60"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 60%, var(--card)); }
+:where([class~="bg-primary/80"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 80%, var(--card)); }
+:where([class~="bg-primary/85"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 85%, var(--card)); }
+:where([class~="bg-primary/90"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 90%, var(--card)); }
+:where([class~="bg-sidebar/95"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--sidebar); }
+:where([class~="bg-success/10"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--success) 10%, var(--card)); }
+:where([class~="bg-success/12"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--success) 12%, var(--card)); }
+:where([class~="bg-success/15"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--success) 15%, var(--card)); }
+:where([class~="bg-success/20"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--success) 20%, var(--card)); }
+:where([class~="bg-success/5"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--success) 5%, var(--card)); }
+:where([class~="bg-warning/10"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--warning) 10%, var(--card)); }
+:where([class~="bg-warning/15"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--warning) 15%, var(--card)); }
+:where([class~="bg-warning/5"]):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--warning) 5%, var(--card)); }
+:where([class~="hover:bg-accent/5"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--accent) 5%, var(--card)); }
+:where([class~="hover:bg-card/85"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--card); }
+:where([class~="hover:bg-destructive/10"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--destructive) 10%, var(--card)); }
+:where([class~="hover:bg-destructive/15"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--destructive) 15%, var(--card)); }
+:where([class~="hover:bg-destructive/20"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--destructive) 20%, var(--card)); }
+:where([class~="hover:bg-destructive/25"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--destructive) 25%, var(--card)); }
+:where([class~="hover:bg-destructive/90"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--destructive) 90%, var(--card)); }
+:where([class~="hover:bg-muted/20"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="hover:bg-muted/30"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="hover:bg-muted/40"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="hover:bg-muted/50"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="hover:bg-muted/60"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="hover:bg-muted/70"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="hover:bg-muted/80"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="hover:bg-muted/90"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="hover:bg-muted/95"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: var(--muted); }
+:where([class~="hover:bg-primary/10"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 10%, var(--card)); }
+:where([class~="hover:bg-primary/15"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 15%, var(--card)); }
+:where([class~="hover:bg-primary/20"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 20%, var(--card)); }
+:where([class~="hover:bg-primary/25"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 25%, var(--card)); }
+:where([class~="hover:bg-primary/30"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 30%, var(--card)); }
+:where([class~="hover:bg-primary/5"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 5%, var(--card)); }
+:where([class~="hover:bg-primary/90"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--primary) 90%, var(--card)); }
+:where([class~="hover:bg-success/15"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--success) 15%, var(--card)); }
+:where([class~="hover:bg-warning/15"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--warning) 15%, var(--card)); }
+:where([class~="hover:bg-warning/25"]:hover):not([data-slot="checkbox"]):not(.launcher-modal-overlay):not([data-slot="dialog-overlay"]) { background-color: color-mix(in srgb, var(--warning) 25%, var(--card)); }
