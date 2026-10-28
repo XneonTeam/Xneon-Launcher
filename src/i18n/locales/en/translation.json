@@ -1702,7 +1702,7 @@
   "themeAdvanced.buildHint": "Applies while this instance page is open. The global theme returns when you leave.",
   "sidebar.agent": "Xneon Agent",
   "agent.title": "Xneon Agent",
-  "agent.subtitle": "Builds, mods and your launcher in one conversation",
+  "agent.subtitle": "Discuss modpacks, mods, and launcher settings with AI",
   "agent.newChat": "New chat",
   "agent.chats": "Chats",
   "agent.historyLocal": "History stays on this device. Messages and attachments are sent to your AI provider when you send a request.",
