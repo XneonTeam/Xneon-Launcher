@@ -551,9 +551,8 @@ export const InstanceList = memo(function InstanceList({
       )}
 
       {exportDialogFor && !exportingId && (
-        <div data-ui="instance-instance-list-div-30" className="absolute inset-0 z-30 flex items-center justify-center"
-          onClick={() => setExportDialogFor(null)}>
-          <div data-ui="instance-instance-list-div-31" className="w-[420px] rounded-2xl border border-border bg-card p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <ModalLayer windowId="instance-instance-list-window-2" className="p-4" onClose={() => setExportDialogFor(null)}>
+          <div data-ui="instance-instance-list-div-31" className="w-full max-w-[420px] rounded-2xl border border-border bg-card p-5 shadow-2xl">
             <div data-ui="instance-instance-list-div-32" className="flex items-start justify-between gap-3">
               <div data-ui="instance-instance-list-div-33">
                 <p data-ui="instance-instance-list-p-5" className="text-base font-semibold text-foreground">{t("instanceList.exportZip")}</p>
@@ -609,7 +608,7 @@ export const InstanceList = memo(function InstanceList({
               </div>
             </div>
           </div>
-        </div>
+        </ModalLayer>
       )}
 
       {/* Перемещение сборки в категорию — модальное окно категорий */}
