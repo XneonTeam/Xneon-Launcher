@@ -81,6 +81,30 @@
 |---|---|
 | ![Облако](docs/screenshots/1.0.7/cloud.png) | ![Хранилище](docs/screenshots/1.0.7/settings-storage.png) |
 
+| Аккаунты | Настройки игры |
+|---|---|
+| ![Аккаунты](docs/screenshots/1.0.7/accounts.png) | ![Настройки игры](docs/screenshots/1.0.7/settings-game.png) |
+
+| Темы | Логи |
+|---|---|
+| ![Готовые темы](docs/screenshots/1.0.7/settings-themes.png) | ![Логи запуска](docs/screenshots/1.0.7/logs.png) |
+
+| Общие сведения о сборке | Настройки сборки |
+|---|---|
+| ![Общие сведения о сборке Fabulously Optimized](docs/screenshots/1.0.7/build-general.png) | ![Настройки сборки Fabulously Optimized](docs/screenshots/1.0.7/build-settings.png) |
+
+| Экспорт сборки | Плагины сервера |
+|---|---|
+| ![Экспорт сборки Fabulously Optimized](docs/screenshots/1.0.7/build-export.png) | ![Каталог плагинов сервера](docs/screenshots/1.0.7/server-addons.png) |
+
+| Свойства сервера | Игроки сервера |
+|---|---|
+| ![Свойства сервера](docs/screenshots/1.0.7/server-properties.png) | ![Игроки сервера](docs/screenshots/1.0.7/server-players.png) |
+
+| Настройки сервера | |
+|---|---|
+| ![Настройки сервера](docs/screenshots/1.0.7/server-settings.png) | |
+
 ## Быстрый старт
 
 Нужны **Node.js 22+** и **pnpm 11+** (проект — pnpm-воркспейс, локальные пакеты подключаются через `workspace:*`).
@@ -102,7 +126,7 @@ pnpm run package
 
 ## Импорт из других лаунчеров
 
-Кнопка **«Импорт .zip»** принимает не только модпаки (`.mrpack`, CurseForge и экспорт Xneon), но и готовые клиентские версии вроде Lunar Crack: архивы с `<версия>/<версия>.json`, `<версия>.jar` и `natives`. Такая версия распаковывается в `versions/<id>` новой сборки, её natives доступны при запуске, а сборка автоматически использует её через `customVersionPath`.
+Локальный импорт поддерживает архивы Modrinth (`.mrpack`), CurseForge (ZIP с `manifest.json`) и сборок, экспортированных из Xneon (ZIP с `xnlauncher.json`). Произвольные архивы готовых клиентских версий, включая Lunar Crack, этим способом не импортируются.
 
 Xneon автоматически обнаружит установленные сборки из:
 
