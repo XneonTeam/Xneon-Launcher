@@ -198,7 +198,7 @@ export function CloudPage({ rootResetToken, pendingThemeId, onPendingThemeHandle
             <IconLoader2 className="w-8 h-8 text-primary animate-spin" />
           </div>
         ) : (
-          <div data-ui="cloud-index-div-13" className={`min-h-0 flex-1 overflow-y-auto pr-1 ${CONTENT_ENTER}`}>
+          <div data-ui="cloud-index-div-13" className={`min-h-0 flex-1 overflow-y-auto px-1 pt-1 ${CONTENT_ENTER}`}>
             <div data-ui="cloud-index-div-14" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {providers.map(p => (
                 <CloudProviderCard

@@ -13,6 +13,7 @@ import type { CloudUploadCategory } from "@xnlc/types"
 import { useAlertDialog } from "@/lib/use-alert-dialog"
 import { ActionConfirmDialog } from "@/components/launcher/instance/action-confirm-dialog"
 import { ModalLayer } from "@/components/ui/modal-layer"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { ThemeCompactPreview } from "../settings/theme-preview"
 import { parseThemes } from "../settings/theme-model"
 import type { Theme } from "../settings/types"
@@ -878,7 +879,7 @@ function SelectiveImportModal({
     <ModalLayer windowId="cloud-cloud-file-browser-window-2" onClose={onClose} className="animate-in fade-in-0">
       <div data-ui="cloud-cloud-file-browser-div-51" data-component="selective-import-modal" className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
         <div data-ui="cloud-cloud-file-browser-div-52" className="p-4 border-b border-border">
-          <h3 data-ui="cloud-cloud-file-browser-h3-1" className="font-semibold text-foreground text-base">{t("cloud.importTitle", { name })}</h3>
+          <h3 data-ui="cloud-cloud-file-browser-h3-1" className="flex items-center gap-2 font-semibold text-foreground text-base"><ModalTitleIcon>{isServer ? <IconServer className="h-4 w-4" strokeWidth={1.75} /> : <IconColorSwatch className="h-4 w-4" strokeWidth={1.75} />}</ModalTitleIcon>{t("cloud.importTitle", { name })}</h3>
           <p data-ui="cloud-cloud-file-browser-p-11" className="text-xs text-muted-foreground mt-1">
             {t("cloud.importChooseComponents", { what: isServer ? t("cloud.type.server") : t("cloud.type.build") })}
           </p>
@@ -1013,7 +1014,7 @@ function SelectiveUploadModal({
     <ModalLayer windowId="cloud-cloud-file-browser-window-3" onClose={() => { if (!uploading) onClose() }} className="animate-in fade-in-0">
       <div data-ui="cloud-cloud-file-browser-div-58" data-component="selective-upload-modal" className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
         <div data-ui="cloud-cloud-file-browser-div-59" className="p-4 border-b border-border">
-          <h3 data-ui="cloud-cloud-file-browser-h3-2" className="font-semibold text-foreground text-base">{t("upload.title", { name })}</h3>
+          <h3 data-ui="cloud-cloud-file-browser-h3-2" className="flex items-center gap-2 font-semibold text-foreground text-base"><ModalTitleIcon>{isServer ? <IconServer className="h-4 w-4" strokeWidth={1.75} /> : <IconColorSwatch className="h-4 w-4" strokeWidth={1.75} />}</ModalTitleIcon>{t("upload.title", { name })}</h3>
           <p data-ui="cloud-cloud-file-browser-p-14" className="text-xs text-muted-foreground mt-1">
             {t(isServer ? "upload.subtitleServer" : "upload.subtitleBuild")}
           </p>

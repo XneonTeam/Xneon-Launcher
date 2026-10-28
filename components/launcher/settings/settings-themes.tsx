@@ -96,7 +96,7 @@ function ThemeCard({
         type="button"
         aria-pressed={selected}
         onClick={onSelect}
-        className="w-full rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+        className="w-full rounded-xl text-left focus-visible:outline-none"
       >
         <ThemeCompactPreview theme={theme} className="mb-3" />
         <div data-ui="settings-settings-themes-div-2" className="flex items-center justify-between gap-2">

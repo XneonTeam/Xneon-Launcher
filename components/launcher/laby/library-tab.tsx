@@ -455,8 +455,8 @@ export function LabyLibraryTab() {
     ))
 
   return (
-    <div data-ui="laby-library-tab-div-5" data-component="laby-library-tab" className="@container flex min-h-0 flex-1 flex-col">
-      <div data-ui="laby-library-tab-div-6" className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto pr-1 @[820px]:grid-cols-[280px_minmax(0,1fr)] @[820px]:overflow-hidden">
+    <div data-ui="laby-library-tab-div-5" data-component="laby-library-tab" className="@container flex min-h-0 min-w-0 flex-1 flex-col">
+      <div data-ui="laby-library-tab-div-6" className="grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-4 overflow-y-auto pr-1 @[820px]:grid-cols-[280px_minmax(0,1fr)] @[820px]:gap-x-2 @[820px]:overflow-hidden">
         <LabyPanel
           skin={selected}
           inFavorites={selected ? favorites.has(selected.hash) : false}
@@ -470,7 +470,7 @@ export function LabyLibraryTab() {
           onSelectSimilar={setSelected}
         />
 
-        <div data-ui="laby-library-tab-div-7" className="flex min-h-0 flex-col gap-3 @[820px]:overflow-hidden">
+        <div data-ui="laby-library-tab-div-7" className="flex min-h-0 min-w-0 flex-col gap-3 @[820px]:overflow-hidden">
           <CatalogToolbar
             query={queryInput}
             onQueryChange={setQueryInput}
@@ -484,7 +484,7 @@ export function LabyLibraryTab() {
             localFiltering={filteredLocally}
           />
 
-          <div data-ui="laby-library-tab-div-8" ref={gridRef} className={`@container min-h-0 @[820px]:flex-1 @[820px]:overflow-y-auto @[820px]:pr-1 ${contentEnter ?? ""}`}>
+          <div data-ui="laby-library-tab-div-8" ref={gridRef} className={`@container min-h-0 min-w-0 @[820px]:flex-1 @[820px]:overflow-y-auto @[820px]:px-1 ${contentEnter ?? ""}`}>
             <div data-ui="laby-library-tab-div-9" className="flex flex-col gap-4 pb-2">
               {/* Laby недоступен: показываем сохранённые данные, а не пустой экран. */}
               {error && (

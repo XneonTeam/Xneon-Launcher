@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { IconChevronDown, IconChevronRight, IconList, IconSearch } from "@tabler/icons-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ProviderIcon } from "@/components/launcher/provider-icon"
 import { cn } from "@/lib/utils"
@@ -79,7 +80,7 @@ export function CategoriesDialog({ categories, selected, onApply, triggerClassNa
       </DialogTrigger>
       <DialogContent data-window="instance-categories-dialog-window-1" className="max-w-md max-h-[70vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>{t("servers.addons.categoriesTitle")}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><ModalTitleIcon><IconList className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t("servers.addons.categoriesTitle")}</DialogTitle>
           <DialogDescription>{t("servers.addons.categoriesDesc")}</DialogDescription>
         </DialogHeader>
         <div data-ui="instance-categories-dialog-div-1" data-component="categories-dialog" className="flex flex-col gap-1 overflow-y-auto flex-1 min-h-0 pr-1">

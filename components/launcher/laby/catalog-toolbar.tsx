@@ -85,7 +85,7 @@ export function CatalogToolbar({
 
   const segClass = (isActive: boolean) =>
     cn(
-      "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-all duration-200",
+      "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-all duration-200 outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
       isActive
         ? "bg-primary text-primary-foreground shadow-sm"
         : "text-muted-foreground hover:bg-muted/80 hover:text-foreground",

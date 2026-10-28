@@ -144,7 +144,8 @@
 
 #settings-page .settings-java-list { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--card); }
 #settings-page .settings-java-list > button { padding: 12px 16px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; }
-#settings-page .settings-java-list > button:last-child { border-bottom: 0; }
+#settings-page .settings-java-list > button:first-child { border-top-left-radius: var(--radius-xl); border-top-right-radius: var(--radius-xl); }
+#settings-page .settings-java-list > button:last-child { border-bottom: 0; border-bottom-left-radius: var(--radius-xl); border-bottom-right-radius: var(--radius-xl); }
 #settings-page .settings-java-list > button:hover { background: var(--muted); }
 
 .settings-switch {

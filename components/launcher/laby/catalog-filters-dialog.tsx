@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import labyLogo from "@/assets/laby/logo.svg"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { Checkbox } from "@/components/ui/checkbox"
 import { formatUseCount } from "@xnlc/skins"
 import type { LabyTag } from "@xnlc/types"
@@ -106,7 +107,7 @@ export function CatalogFiltersDialog({ filters, tags, tagsLoading, onApply }: Ca
         <button data-ui="laby-catalog-filters-dialog-button-2" data-component="catalog-filters-dialog"
           type="button"
           className={cn(
-            "flex h-10 shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-sm font-medium transition-colors",
+            "flex h-10 shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-sm font-medium outline-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
             active > 0
               ? "bg-primary text-primary-foreground hover:bg-primary/90"
               : "bg-muted/50 text-foreground hover:bg-muted/80",
@@ -121,7 +122,7 @@ export function CatalogFiltersDialog({ filters, tags, tagsLoading, onApply }: Ca
 
       <DialogContent data-window="laby-catalog-filters-dialog-window-1" className="flex max-h-[72vh] max-w-md flex-col">
         <DialogHeader>
-          <DialogTitle>{t("laby.categoriesTitle", "Категории каталога")}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><ModalTitleIcon><IconList className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t("laby.categoriesTitle", "Категории каталога")}</DialogTitle>
           <DialogDescription>{t("laby.categoriesDesc", "Теги Laby")}</DialogDescription>
         </DialogHeader>
 

@@ -1,12 +1,13 @@
 import { CONTENT_ENTER_DELAYED } from "./content-motion"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import {   IconUser, IconUserCircle, IconPuzzle, IconUserMinus, IconLoader2, IconCirclePlus, IconTrash, IconX, IconCheck, IconLogin, IconArrowLeft, IconPlus, IconBrandWindows, IconChevronUp, IconChevronDown, IconExternalLink, IconRefresh, IconCopy, IconHelpCircle, IconCoffee } from "@tabler/icons-react"
+import {   IconUser, IconUserCircle, IconPuzzle, IconUserMinus, IconLoader2, IconTrash, IconX, IconCheck, IconLogin, IconArrowLeft, IconPlus, IconBrandWindows, IconChevronUp, IconChevronDown, IconExternalLink, IconRefresh, IconCopy, IconHelpCircle, IconCoffee } from "@tabler/icons-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CachedAvatar } from "@/components/ui/cached-avatar"
 import { useAccounts } from "@/src/AccountsContext"
 import { cn } from "@/lib/utils"
 import { ModalLayer } from "@/components/ui/modal-layer"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { AuthlibInjectorModal } from "@/components/launcher/accounts/authlib-injector-modal"
 
 type AccountWithAvatar = { uuid?: string; type?: string; skinUrl?: string }
@@ -410,7 +411,7 @@ export function AccountsPage() {
               onClick={() => { setShowAddModal(true); setAuthError("") }}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-all duration-200 shadow-[0_0_15px_var(--glow-primary)]"
             >
-              <IconCirclePlus className="w-5 h-5" />
+              <IconPlus className="w-4 h-4" strokeWidth={1.75} />
               {t("accounts.addAccount")}
             </button>
           </div>
@@ -463,7 +464,7 @@ export function AccountsPage() {
                   </div>
 
                   <div data-ui="accounts-page-div-14" className="flex items-center gap-2 flex-shrink-0">
-                    <div data-ui="accounts-page-div-15" className="flex flex-col gap-0.5">
+                    <div data-ui="accounts-page-div-15" className="flex flex-col gap-1.5">
                       <button data-ui="accounts-page-button-2"
                         onClick={() => moveAccount(account.id, -1)}
                         disabled={accounts.findIndex(a => a.id === account.id) === 0}
@@ -508,7 +509,10 @@ export function AccountsPage() {
         <ModalLayer windowId="accounts-page-window-1" onClose={() => setShowAddModal(false)} className="animate-in fade-in-0">
           <div data-ui="accounts-page-div-16" className="w-full max-w-lg mx-4 p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div data-ui="accounts-page-div-17" className="flex items-center justify-between mb-6">
-              <h3 data-ui="accounts-page-h3-1" className="text-lg font-semibold text-foreground">{t("accounts.addAccount")}</h3>
+              <h3 data-ui="accounts-page-h3-1" className="flex items-center gap-2 text-lg font-semibold text-foreground">
+                <ModalTitleIcon><IconUserCircle className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>
+                {t("accounts.addAccount")}
+              </h3>
               <button data-ui="accounts-page-button-6"
                 onClick={() => setShowAddModal(false)}
                 className="w-8 h-8 rounded-lg border border-border bg-muted/60 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
@@ -591,7 +595,10 @@ export function AccountsPage() {
         <ModalLayer windowId="accounts-page-window-2" onClose={() => { setSelectedAccountType(null); setShowAddModal(false) }} className="animate-in fade-in-0">
           <div data-ui="accounts-page-div-28" className="w-full max-w-md mx-4 p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div data-ui="accounts-page-div-29" className="flex items-center justify-between mb-6">
-              <h3 data-ui="accounts-page-h3-2" className="text-lg font-semibold text-foreground">{t("accounts.offline")} {t("accounts.title").toLowerCase()}</h3>
+              <h3 data-ui="accounts-page-h3-2" className="flex items-center gap-2 text-lg font-semibold text-foreground">
+                <ModalTitleIcon><IconUserCircle className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>
+                {t("accounts.offline")} {t("accounts.title").toLowerCase()}
+              </h3>
               <button data-ui="accounts-page-button-8"
                 onClick={() => { setSelectedAccountType(null); setShowAddModal(false) }}
                 className="w-8 h-8 rounded-lg border border-border bg-muted/60 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
@@ -682,7 +689,7 @@ export function AccountsPage() {
         >
           <div data-ui="accounts-page-div-33" className="w-full max-w-md mx-4 p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div data-ui="accounts-page-div-34" className="flex items-center justify-between mb-6">
-              <h3 data-ui="accounts-page-h3-3" className="text-lg font-semibold text-foreground">{t("accounts.loginTitle.elyby")}</h3>
+              <h3 data-ui="accounts-page-h3-3" className="flex items-center gap-2 text-lg font-semibold text-foreground"><ModalTitleIcon><IconUserCircle className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t("accounts.loginTitle.elyby")}</h3>
               <button data-ui="accounts-page-button-11"
                 onClick={() => {
                   setElybyAuthLoading(false)
@@ -950,7 +957,7 @@ export function AccountsPage() {
         >
           <div data-ui="accounts-page-div-68" className="w-full max-w-md mx-4 p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div data-ui="accounts-page-div-69" className="flex items-center justify-between mb-6">
-              <h3 data-ui="accounts-page-h3-4" className="text-lg font-semibold text-foreground">{t("accounts.loginTitle.xnskins")}</h3>
+              <h3 data-ui="accounts-page-h3-4" className="flex items-center gap-2 text-lg font-semibold text-foreground"><ModalTitleIcon><IconUserCircle className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t("accounts.loginTitle.xnskins")}</h3>
               <button data-ui="accounts-page-button-24"
                 onClick={() => {
                   setXnSkinsAuthLoading(false)
@@ -1218,7 +1225,7 @@ export function AccountsPage() {
         >
           <div data-ui="accounts-page-div-103" className="w-full max-w-md mx-4 p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div data-ui="accounts-page-div-104" className="flex items-center justify-between mb-6">
-              <h3 data-ui="accounts-page-h3-5" className="text-lg font-semibold text-foreground">{t("accounts.loginTitle.microsoft")}</h3>
+              <h3 data-ui="accounts-page-h3-5" className="flex items-center gap-2 text-lg font-semibold text-foreground"><ModalTitleIcon><IconUserCircle className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t("accounts.loginTitle.microsoft")}</h3>
               <button data-ui="accounts-page-button-37"
                 onClick={() => {
                   setMicrosoftAuthLoading(false)

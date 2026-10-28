@@ -88,7 +88,7 @@ export function TitleBar() {
             type="button"
             onClick={toggleOpen}
             className={cn(
-              "relative flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground",
+              "relative flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
               isOpen && "bg-muted/70 text-foreground",
             )}
             aria-label={t("notifications.open")}
@@ -198,7 +198,7 @@ export function TitleBar() {
         <button data-ui="title-bar-button-2"
           type="button"
           onClick={() => window.electronAPI?.minimize()}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
         >
           <svg data-ui="title-bar-svg-2" data-icon="title-bar-svg-2" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path data-ui="title-bar-path-2" strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
@@ -207,7 +207,7 @@ export function TitleBar() {
         <button data-ui="title-bar-button-3"
           type="button"
           onClick={() => window.electronAPI?.maximize()}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
         >
           <svg data-ui="title-bar-svg-3" data-icon="title-bar-svg-3" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <rect data-ui="title-bar-rect-1" x="5" y="5" width="14" height="14" rx="1" />
@@ -216,7 +216,7 @@ export function TitleBar() {
         <button data-ui="title-bar-button-4"
           type="button"
           onClick={() => window.electronAPI?.close()}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground"
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-destructive hover:text-destructive-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
         >
           <svg data-ui="title-bar-svg-4" data-icon="title-bar-svg-4" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path data-ui="title-bar-path-3" strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />

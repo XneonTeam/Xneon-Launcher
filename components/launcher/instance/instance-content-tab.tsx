@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Spinner } from "./spinner"
 import { ModalLayer } from "@/components/ui/modal-layer"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { Pagination } from "./pagination"
 import { MODS_PER_PAGE } from "./constants"
 import { contentProjectKey, formatDownloads, isInstalledVersion, matchesBuildVersion } from "./utils"
@@ -756,7 +757,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
             <div data-ui="instance-instance-content-tab-div-30" className="p-5 border-b border-border flex-shrink-0">
               <div data-ui="instance-instance-content-tab-div-31" className="flex items-center justify-between">
                 <div data-ui="instance-instance-content-tab-div-32">
-                  <h3 data-ui="instance-instance-content-tab-h3-4" className="text-lg font-bold text-foreground">{t("addon.updateTitle", { name: versionPickerItem?.name })}</h3>
+                  <h3 data-ui="instance-instance-content-tab-h3-4" className="flex items-center gap-2 text-lg font-bold text-foreground"><ModalTitleIcon><IconPuzzle className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t("addon.updateTitle", { name: versionPickerItem?.name })}</h3>
                   <p data-ui="instance-instance-content-tab-p-4" className="text-sm text-muted-foreground mt-1">{t("addon.currentVersion", { version: versionPickerItem?.version })}</p>
                 </div>
                 <button data-ui="instance-instance-content-tab-button-8"
@@ -944,7 +945,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
       <Dialog open={rejectedEntries.length > 0} onOpenChange={open => { if (!open) setRejectedEntries([]) }}>
         <DialogContent data-window="instance-instance-content-tab-window-2" className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{t("builds.dropRejectedTitle")}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><ModalTitleIcon><IconAlertTriangle className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t("builds.dropRejectedTitle")}</DialogTitle>
             <DialogDescription>
               {type === "mods" ? t("builds.dropHintMods") : t("builds.dropHintContent")}
             </DialogDescription>

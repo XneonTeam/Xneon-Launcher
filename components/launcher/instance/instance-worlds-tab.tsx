@@ -6,6 +6,7 @@ import { formatBytes, formatDateTime, formatPlaytime } from "@/lib/format"
 import { IconArchive, IconCopy, IconDownload, IconFolderOpen, IconInfoCircle, IconLoader2, IconMap, IconPhoto, IconRefresh, IconSearch, IconTrash, IconUpload, IconX, IconCheck, IconList } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { Checkbox } from "@/components/ui/checkbox"
 import { formatDownloads } from "./utils"
 import { Pagination } from "./pagination"
@@ -597,7 +598,8 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                 </DialogTrigger>
                 <DialogContent data-window="instance-instance-worlds-tab-window-1" className="max-w-sm p-6 bg-card border border-border shadow-2xl rounded-3xl flex flex-col max-h-[75vh]">
                   <DialogHeader className="text-left">
-                    <DialogTitle className="text-lg font-bold text-foreground">
+                    <DialogTitle className="flex items-center gap-2 text-lg font-bold text-foreground">
+                      <ModalTitleIcon><IconMap className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>
                       {t("worlds.ui.categoriesTitle")}
                     </DialogTitle>
                     <DialogDescription className="text-xs text-muted-foreground mt-0.5">
@@ -1254,7 +1256,8 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         >
           <div data-ui="instance-instance-worlds-tab-div-88" className="w-full max-w-md rounded-2xl bg-card p-6 shadow-2xl border border-border animate-in zoom-in-95">
             <div data-ui="instance-instance-worlds-tab-div-89" className="flex items-center justify-between">
-              <h3 data-ui="instance-instance-worlds-tab-h3-1" className="text-lg font-semibold text-foreground">
+              <h3 data-ui="instance-instance-worlds-tab-h3-1" className="flex items-center gap-2 text-lg font-semibold text-foreground">
+                <ModalTitleIcon><IconMap className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>
                 {namePrompt.mode === "copy" ? t("worlds.ui.copyWorld") : t("worlds.ui.importWorldZip")}
               </h3>
               <button data-ui="instance-instance-worlds-tab-button-28"
