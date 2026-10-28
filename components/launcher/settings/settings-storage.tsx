@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next"
 import {
   IconRefresh, IconTrash, IconFolder, IconCoffee, IconChevronDown, IconChevronRight,
   IconPuzzle, IconPhoto, IconSparkles, IconMap, IconSettings, IconBug,
-  IconDatabase, IconAlertTriangle, IconFolderOpen, IconServer, IconLoader2,
+  IconDatabase, IconAlertTriangle, IconFolderOpen, IconServer, IconLoader2, IconColorSwatch,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { formatBytes } from "@/lib/format"
@@ -394,7 +394,7 @@ export function SettingsStorage() {
         ) : scan && totals ? (
           <>
             <div data-ui="settings-settings-storage-div-28" className="storage-summary-grid">
-              <StorageSummary tone="builds" label={t("storage.summary.builds")} value={totals.buildsTotal} icon={IconPuzzle} />
+              <StorageSummary tone="builds" label={t("storage.summary.builds")} value={totals.buildsTotal} icon={IconColorSwatch} />
               <StorageSummary tone="servers" label={t("storage.summary.servers")} value={totals.serversTotal} icon={IconServer} />
               <StorageSummary tone="java" label={t("storage.summary.java")} value={scan.javaRuntimes.size} icon={IconCoffee} />
               <StorageSummary tone="trash" label={t("storage.summary.trash")} value={scan.trash.size} icon={IconTrash} />
