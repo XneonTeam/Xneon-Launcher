@@ -2,8 +2,9 @@ import { ImportProgressPanel } from "./import-progress-panel"
 import { mergeImportProgress } from "./import-progress-model"
 import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import { IconArrowLeft, IconCamera, IconCheck, IconDownload, IconFolder, IconLoader2, IconPlus, IconRefresh, IconSettings, IconTrash } from "@tabler/icons-react"
+import { IconArrowLeft, IconCamera, IconCheck, IconColorSwatch, IconDownload, IconFolder, IconLoader2, IconPlus, IconRefresh, IconSettings, IconTrash } from "@tabler/icons-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { BUILD_MOD_LOADERS } from "./constants"
@@ -195,7 +196,10 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
       </DialogTrigger>
       <DialogContent data-window="instance-instance-create-dialog-window-1" className="!w-[580px] !max-w-[90vw] sm:!max-w-[580px] max-h-[82vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{t("builds.creatingBuild")}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <ModalTitleIcon><IconColorSwatch className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>
+            {t("builds.creatingBuild")}
+          </DialogTitle>
         </DialogHeader>
         <div data-ui="instance-instance-create-dialog-div-1" data-component="instance-create-dialog" className="grid gap-4 py-3">
           <div data-ui="instance-instance-create-dialog-div-2" className="flex gap-0.5 p-1 rounded-xl bg-muted/30 border border-border/50">

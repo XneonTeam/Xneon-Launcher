@@ -17,6 +17,7 @@ import {
   IconCoffee,
 } from "@tabler/icons-react"
 import { ModalLayer } from "@/components/ui/modal-layer"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { ActionConfirmDialog } from "@/components/launcher/instance/action-confirm-dialog"
 import type { Account } from "@/src/AccountsContext"
 import type {
@@ -308,7 +309,8 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
       <div data-ui="accounts-authlib-injector-modal-div-1" data-component="authlib-injector-modal" className="w-full max-w-md mx-4 p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
         {/* Header — identical layout to Ely.by / Microsoft modals */}
         <div data-ui="accounts-authlib-injector-modal-div-2" className="flex items-center justify-between mb-6">
-          <h3 data-ui="accounts-authlib-injector-modal-h3-1" className="text-lg font-semibold text-foreground">
+          <h3 data-ui="accounts-authlib-injector-modal-h3-1" className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <ModalTitleIcon><IconUser className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>
             {view === "add-server"
               ? t("accounts.addAuthServer", "Добавить сервер авторизации")
               : view === "select-profile"

@@ -1,11 +1,12 @@
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { CachedAvatar } from "@/components/ui/cached-avatar"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { useAccounts } from "@/src/AccountsContext"
 import { ACCOUNT_TYPE_LABELS, getAvatarUrl } from "@/lib/home-page-shared"
-import { IconCheck, IconChevronDown } from "@tabler/icons-react"
+import { IconCheck, IconChevronDown, IconUsers } from "@tabler/icons-react"
 
 /**
  * Блок аккаунта для левой панели скинов: текущий аккаунт и список тех, на кого
@@ -22,6 +23,7 @@ export function SkinAccountPicker({ avatarVersion = 0 }: { avatarVersion?: numbe
   const { t } = useTranslation()
   const { accounts, activeAccount, setActiveAccount } = useAccounts()
   const [open, setOpen] = useState(false)
+  const titleRef = useRef<HTMLHeadingElement>(null)
 
   const skinAccounts = useMemo(() => accounts.filter((a) => a.type !== "elyby" && a.type !== "offline"), [accounts])
   const account = (activeAccount && activeAccount.type !== "elyby" && activeAccount.type !== "offline" ? activeAccount : skinAccounts[0]) ?? null
@@ -64,11 +66,11 @@ export function SkinAccountPicker({ avatarVersion = 0 }: { avatarVersion?: numbe
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent data-window="skins-account-picker-window-1" className="max-w-md gap-0 p-0">
+        <DialogContent data-window="skins-account-picker-window-1" className="max-w-md gap-0 p-0" onOpenAutoFocus={event => { event.preventDefault(); titleRef.current?.focus() }}>
           <DialogHeader className="px-5 pb-3 pt-5">
-            <DialogTitle>{t("home.account", "Аккаунт")}</DialogTitle>
+            <DialogTitle ref={titleRef} tabIndex={-1} className="flex items-center gap-2 outline-none"><ModalTitleIcon><IconUsers className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t("home.account", "Аккаунт")}</DialogTitle>
           </DialogHeader>
-          <div data-ui="skins-account-picker-div-7" className="flex max-h-[400px] flex-col gap-1 overflow-y-auto px-3 pb-3">
+          <div data-ui="skins-account-picker-div-7" className="flex max-h-[400px] flex-col gap-1 overflow-y-auto px-3 pb-3 pt-2">
             {skinAccounts.map((acc) => {
               const isActive = acc.id === account?.id
               return (
@@ -80,7 +82,7 @@ export function SkinAccountPicker({ avatarVersion = 0 }: { avatarVersion?: numbe
                     setOpen(false)
                   }}
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all duration-200",
+                    "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left outline-none transition-all duration-200 focus-visible:ring-0 focus-visible:border-primary",
                     isActive ? "border-primary/25 bg-primary/15" : "border-transparent hover:bg-muted/60",
                   )}
                 >

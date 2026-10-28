@@ -7,6 +7,7 @@ import type { JavaInstallation } from "@/components/launcher/settings/types"
 import { cn } from "@/lib/utils"
 import { MemorySlider } from "@/components/ui/memory-slider"
 import { ModalLayer } from "@/components/ui/modal-layer"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { useMemoryOptions } from "@/src/hooks/use-memory-options"
 import { useMcServerState } from "@/src/hooks/use-mc-servers"
 import { XnConnectLogo } from "./xn-connect-logo"
@@ -476,7 +477,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
         <ModalLayer windowId="server-settings-tab-window-2" onClose={() => setShowJavaModal(false)} className="animate-in fade-in-0">
           <div data-ui="server-settings-tab-div-20" className="w-full max-w-lg p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div data-ui="server-settings-tab-div-21" className="flex items-center justify-between mb-5">
-              <h3 data-ui="server-settings-tab-h3-2" className="text-lg font-semibold text-foreground">Java</h3>
+              <h3 data-ui="server-settings-tab-h3-2" className="flex items-center gap-2 text-lg font-semibold text-foreground"><ModalTitleIcon><IconCoffee className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>Java</h3>
               <button data-ui="server-settings-tab-button-10"
                 onClick={() => setShowJavaModal(false)}
                 className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"

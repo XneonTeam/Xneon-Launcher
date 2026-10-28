@@ -5,6 +5,7 @@ import { memoryToMb, mbToMemory } from "@/lib/memory"
 import { IconFolderPlus, IconLoader2, IconRefresh, IconSettings, IconX } from "@tabler/icons-react"
 import { MemorySlider } from "@/components/ui/memory-slider"
 import { ModalLayer } from "@/components/ui/modal-layer"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { useMemoryOptions } from "@/src/hooks/use-memory-options"
 import type { JavaInstallation } from "@/components/launcher/settings/types"
 import type { Build } from "./types"
@@ -149,7 +150,7 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
         <ModalLayer windowId="instance-instance-build-java-window-1" onClose={() => setShowJavaModal(false)} className="animate-in fade-in-0">
           <div data-ui="instance-instance-build-java-div-11" className="w-full max-w-lg p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div data-ui="instance-instance-build-java-div-12" className="flex items-center justify-between mb-5">
-              <h3 data-ui="instance-instance-build-java-h3-1" className="text-lg font-semibold text-foreground">{t("build.java.path")}</h3>
+              <h3 data-ui="instance-instance-build-java-h3-1" className="flex items-center gap-2 text-lg font-semibold text-foreground"><ModalTitleIcon><IconSettings className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t("build.java.path")}</h3>
               <div data-ui="instance-instance-build-java-div-13" className="flex items-center gap-2">
                 <button data-ui="instance-instance-build-java-button-4"
                   type="button"

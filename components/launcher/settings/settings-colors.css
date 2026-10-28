@@ -31,6 +31,7 @@
   background: var(--card);
 }
 #settings-page [data-component="theme-card"]:hover { border-color: color-mix(in oklab, var(--primary) 45%, var(--border)); }
+#settings-page [data-component="theme-card"]:focus-within { border-color: var(--primary); }
 #settings-page [data-component="theme-card"][data-selected="true"] {
   border-color: var(--primary);
   background: var(--card);

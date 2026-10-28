@@ -21,6 +21,12 @@
   color: inherit;
 }
 
+/* Элементы без собственного оформления фокуса используют цвет активной темы. */
+:is(button, a, [role="button"], [role="menuitem"]):focus-visible:not(.outline-none):not([class*="focus-visible:outline-none"]) {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* Общая подложка шапок разделов поверх фоновых изображений темы. */
 .launcher-page-header {
   padding: 0.75rem;

@@ -195,7 +195,7 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
         <h3 data-ui="settings-settings-language-about-h3-4" className="flex items-center gap-2 text-lg font-medium text-foreground"><IconMessages className="h-5 w-5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("settings.about.social")}</h3>
         <div data-ui="settings-settings-language-about-div-14" className="grid grid-cols-2 gap-4">
           <a data-ui="settings-settings-language-about-a-1" data-settings-tone="primary" href="https://github.com/XneonTeam/Xneon-Launcher" target="_blank" rel="noopener noreferrer"
-            className="settings-color-panel flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary hover:bg-primary/5 transition-all duration-200 group"
+            className="settings-color-panel flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary hover:bg-primary/5 transition-all duration-200 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60"
           >
             <div data-ui="settings-settings-language-about-div-15" className="w-12 h-12 rounded-xl bg-foreground/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
               <IconBrandGithub className="w-6 h-6 text-foreground" strokeWidth={1.5} />
@@ -206,7 +206,7 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
             </div>
           </a>
           <a data-ui="settings-settings-language-about-a-2" data-settings-tone="violet" href="https://discord.gg/a9mDjtqcbQ" target="_blank" rel="noopener noreferrer"
-            className="settings-color-panel flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-accent hover:bg-accent/5 transition-all duration-200 group"
+            className="settings-color-panel flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-accent hover:bg-accent/5 transition-all duration-200 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60"
           >
             <div data-ui="settings-settings-language-about-div-19" className="w-12 h-12 rounded-xl bg-foreground/10 flex items-center justify-center group-hover:bg-accent/20 transition-colors">
               <IconBrandDiscord className="w-6 h-6 text-foreground" strokeWidth={1.5} />

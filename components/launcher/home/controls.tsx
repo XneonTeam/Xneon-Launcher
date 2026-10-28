@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import { parseMotd } from "@/lib/minecraft-motd"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { ACCOUNT_TYPE_LABELS, MOD_LOADERS, type LaunchUiState } from "@/lib/home-page-shared"
 import { IconBolt, IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconFolder, IconLoader2, IconMap, IconPlayerPlay, IconPlayerStop, IconRefresh, IconServer, IconUsers } from "@tabler/icons-react"
 import { LoaderIcon } from "@/components/launcher/instance/loader-icon"
@@ -523,13 +524,13 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
           <Dialog open={accountComboOpen} onOpenChange={setAccountComboOpen}>
             <DialogContent data-window="home-controls-window-1" className="max-w-md p-0 gap-0">
               <DialogHeader className="px-5 pt-5 pb-3">
-                <DialogTitle>{t("home.account")}</DialogTitle>
+                <DialogTitle className="flex items-center gap-2"><ModalTitleIcon><IconUsers className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t("home.account")}</DialogTitle>
               </DialogHeader>
               <div data-ui="home-controls-div-26" className="flex flex-col gap-1 px-3 pb-3 max-h-[400px] overflow-y-auto">
                 {accounts.map(acc => {
                   const isActive = acc.id === account?.id
                   return (
-                    <button data-ui="home-controls-button-7" key={acc.id} type="button" onClick={() => { setActiveAccount(acc.id); setAccountComboOpen(false) }} className={cn("flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-colors duration-150 text-left", isActive ? "bg-primary/15 border border-primary/25" : "hover:bg-muted/60 border border-transparent")}>
+                    <button data-ui="home-controls-button-7" key={acc.id} type="button" onClick={() => { setActiveAccount(acc.id); setAccountComboOpen(false) }} className={cn("flex items-center gap-3 w-full px-3 py-2.5 rounded-xl outline-none transition-colors duration-150 text-left focus-visible:ring-0 focus-visible:border-primary", isActive ? "bg-primary/15 border border-primary/25" : "hover:bg-muted/60 border border-transparent")}>
                       <div data-ui="home-controls-div-27" className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0"><CachedAvatar src={accountAvatarUrls[acc.id]} alt="" className="w-full h-full object-cover" /></div>
                       <div data-ui="home-controls-div-28" className="flex-1 min-w-0">
                         <p data-ui="home-controls-p-5" className="font-medium text-sm text-foreground truncate">{acc.username}</p>

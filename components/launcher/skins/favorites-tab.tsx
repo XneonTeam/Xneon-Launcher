@@ -434,7 +434,7 @@ export function FavoritesTab() {
               </span>
             )}
 
-            <div data-ui="skins-favorites-tab-div-6" className="@container min-h-0 @[820px]:flex-1 @[820px]:overflow-y-auto @[820px]:pr-1">
+            <div data-ui="skins-favorites-tab-div-6" className="@container min-h-0 @[820px]:flex-1 @[820px]:overflow-y-auto @[820px]:px-1">
               <SkinGrid
                 skins={allSkins}
                 selectedId={selectedId}

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { parseMotd } from "@/lib/minecraft-motd"
 import { ModalLayer } from "@/components/ui/modal-layer"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { IconChevronDown, IconChevronUp, IconCircleX, IconPlugConnected, IconPlus, IconPencil, IconRefresh, IconSearch, IconServer, IconStar, IconTrash, IconX, IconLoader2 } from "@tabler/icons-react"
 import { useAccounts } from "@/src/AccountsContext"
@@ -493,7 +494,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
             className="w-full max-w-md max-h-[85vh] overflow-y-auto mx-4 p-6 rounded-2xl bg-card border border-border shadow-2xl"
           >
             <div data-ui="instance-instance-servers-tab-div-29" className="flex items-center justify-between">
-              <h3 data-ui="instance-instance-servers-tab-h3-4" className="text-lg font-semibold text-foreground">{t(editingIp ? "servers.edit" : "servers.addServer")}</h3>
+              <h3 data-ui="instance-instance-servers-tab-h3-4" className="flex items-center gap-2 text-lg font-semibold text-foreground"><ModalTitleIcon><IconServer className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t(editingIp ? "servers.edit" : "servers.addServer")}</h3>
               <button data-ui="instance-instance-servers-tab-button-9"
                 onClick={() => setShowAddModal(false)}
                 className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"

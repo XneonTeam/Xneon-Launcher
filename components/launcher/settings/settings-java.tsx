@@ -3,6 +3,7 @@ import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { ModalLayer } from "@/components/ui/modal-layer"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { IconCheck, IconCoffee, IconFolderPlus, IconLoader2, IconRefresh, IconX } from "@tabler/icons-react"
 import type { JavaInstallation } from "./types"
 
@@ -58,7 +59,7 @@ export function SettingsJava({
               setShowJavaModal(true)
             }}
             className={cn(
-              "w-full p-4 rounded-xl border transition-all duration-200 flex items-center justify-between text-left",
+              "w-full p-4 rounded-xl border transition-all duration-200 flex items-center justify-between text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60",
               selectedJavaPath === java.version ? "border-primary bg-primary/10" : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50"
             )}
           >
@@ -105,7 +106,7 @@ export function SettingsJava({
         >
           <div data-ui="settings-settings-java-div-8" className="w-full max-w-lg p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div data-ui="settings-settings-java-div-9" className="flex items-center justify-between mb-5">
-              <h3 data-ui="settings-settings-java-h3-1" className="text-lg font-semibold text-foreground">{editingJavaVersion ? `Java ${editingJavaVersion}` : t("settings.java.selectJavaPath")}</h3>
+              <h3 data-ui="settings-settings-java-h3-1" className="flex items-center gap-2 text-lg font-semibold text-foreground"><ModalTitleIcon><IconCoffee className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{editingJavaVersion ? `Java ${editingJavaVersion}` : t("settings.java.selectJavaPath")}</h3>
               <button data-ui="settings-settings-java-button-3"
                 onClick={() => { setShowJavaModal(false); setEditingJavaVersion("") }}
                 className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"

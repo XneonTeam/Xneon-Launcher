@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { IconSearch, IconList, IconChevronDown, IconChevronRight } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { Checkbox } from "@/components/ui/checkbox"
 import { LoaderIcon } from "./instance/loader-icon"
 import type { ModSort } from "./instance/types"
@@ -121,7 +122,7 @@ export function ServersBrowseToolbar({
         </DialogTrigger>
         <DialogContent data-window="servers-browse-toolbar-window-1" className="max-w-md max-h-[70vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>{t("servers.categories")}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><ModalTitleIcon><IconList className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t("servers.categories")}</DialogTitle>
             <DialogDescription>{t("servers.browse.selectAndFind")}</DialogDescription>
           </DialogHeader>
           <div data-ui="servers-browse-toolbar-div-3" className="flex flex-col gap-1 overflow-y-auto flex-1 min-h-0 pr-1">

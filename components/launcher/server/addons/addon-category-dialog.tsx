@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { IconSearch, IconList, IconChevronDown, IconChevronRight } from "@tabler/icons-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ProviderIcon } from "@/components/launcher/provider-icon"
 import type { ModCategory, ModContentType } from "@xnlc/types"
@@ -63,7 +64,7 @@ export function AddonCategoryDialog({ categories, contentType, selectedCategorie
       </DialogTrigger>
       <DialogContent data-window="server-addons-addon-category-dialog-window-1" className="max-w-md max-h-[70vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>{t("servers.addons.categoriesTitle")}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><ModalTitleIcon><IconList className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t("servers.addons.categoriesTitle")}</DialogTitle>
           <DialogDescription>{t("servers.addons.categoriesDesc")}</DialogDescription>
         </DialogHeader>
         <div data-ui="server-addons-addon-category-dialog-div-1" data-component="addon-category-dialog" className="flex flex-col gap-1 overflow-y-auto flex-1 min-h-0 pr-1">

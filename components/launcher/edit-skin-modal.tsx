@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { ModalLayer } from "@/components/ui/modal-layer"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { SkinViewer3D } from "@/components/ui/skin-viewer-3d"
 import { batchRenderCapes } from "@/lib/batch-cape-renderer"
 import { localFileToBlobUrl } from "@/lib/local-file-url"
@@ -108,7 +109,8 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
 
         {/* Header */}
         <div data-ui="edit-skin-modal-div-3" className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h2 data-ui="edit-skin-modal-h2-1" className="text-lg font-bold text-foreground">
+          <h2 data-ui="edit-skin-modal-h2-1" className="flex items-center gap-2 text-lg font-bold text-foreground">
+            <ModalTitleIcon><IconShirt className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>
             {skin ? t("skins.editSkin") : t("skins.addSkin")}
           </h2>
           <button data-ui="edit-skin-modal-button-1" onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
