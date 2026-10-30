@@ -10,6 +10,8 @@ release/
 packages/*/lib/
 packages/*/lib-cjs/
 packages/*/*.tsbuildinfo
+security_best_practices_report.md
+CHANGELOG-1.0.7-ADDENDUM.md
 
 # IDE
 .vscode/
