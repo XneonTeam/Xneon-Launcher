@@ -1,6 +1,7 @@
 import { useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import type { Account } from "@/src/AccountsContext"
+import { useAccounts } from "@/src/AccountsContext"
 import { useLaunchControls } from "@/src/LaunchLogsContext"
 
 export type BuildLaunchParams = {
@@ -131,12 +132,21 @@ function resolveLaunchDimensions(settings: LaunchSettings): { width: number; hei
 
 export { resolveLaunchDimensions }
 
-export function useBuildLaunch({ account }: { account?: Account }) {
+export function useBuildLaunch({ account: activeAccount }: { account?: Account }) {
   const { t } = useTranslation()
+  const { accounts } = useAccounts()
   const { isRunning, setIsRunning, clearLogs, addLog, launchUi, patchLaunchUi } = useLaunchControls()
 
   const launchInstance = useCallback(async (build: BuildLaunchParams, options?: { quickPlay?: QuickPlayLaunchRequest }) => {
+    const account = accounts.find(account => account.id === build.defaultAccountId) ?? activeAccount
     if (!account || !window.electronAPI) return
+    if (build.id) {
+      const shared = await window.electronAPI.shareExecute({ action: "checkLaunch", buildId: build.id })
+      if (!shared.success || shared.data.wrongAccount || shared.data.link && shared.data.link.status !== "up_to_date") {
+        window.dispatchEvent(new CustomEvent("launcher:share-review", { detail: { buildId: build.id } }))
+        return
+      }
+    }
 
     const settings = await loadLaunchSettings()
     const buildWindow = build.windowOverride === true && build.windowWidth && build.windowHeight
@@ -229,7 +239,7 @@ export function useBuildLaunch({ account }: { account?: Account }) {
       if (afterLaunch === "minimize") window.electronAPI?.minimize()
       else if (afterLaunch === "close") window.electronAPI?.close()
     }
-  }, [account, addLog, clearLogs, patchLaunchUi, setIsRunning, t])
+  }, [activeAccount, accounts, addLog, clearLogs, patchLaunchUi, setIsRunning, t])
 
   return { isRunning, launchUi, launchInstance }
 }

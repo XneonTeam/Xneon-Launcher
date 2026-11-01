@@ -1,4 +1,5 @@
 import type { ElectronAPI } from '@xnlc/types'
+// XNLC/Share: shareExecute и типы запросов объявлены в общем контракте @xnlc/types.
 
 export {}
 

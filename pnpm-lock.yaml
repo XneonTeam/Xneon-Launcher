@@ -33,6 +33,9 @@ importers:
       '@xnlc/servers':
         specifier: workspace:*
         version: link:packages/xnlc-servers
+      '@xnlc/share':
+        specifier: workspace:*
+        version: link:packages/xnlc-share
       '@xnlc/skins':
         specifier: workspace:*
         version: link:packages/xnlc-skins
@@ -226,6 +229,8 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
 
+  packages/xnlc-share: {}
+
   packages/xnlc-skins:
     dependencies:
       '@xnlc/core':
@@ -235,7 +240,11 @@ importers:
         specifier: workspace:*
         version: link:../xnlc-types
 
-  packages/xnlc-types: {}
+  packages/xnlc-types:
+    dependencies:
+      '@xnlc/share':
+        specifier: workspace:*
+        version: link:../xnlc-share
 
 packages:
 

@@ -126,6 +126,7 @@ export interface BuildLoaderRequirementReport {
 // Maps channel name → { args: tuple of arguments, return: return type }
 
 export interface IpcInvokeMap {
+  "share:execute": { args: [request: import("./share-types.js").ShareRequest]; return: import("./share-types.js").ShareResult }
   "startup:ready": { args: []; return: void }
   // Синхронное чтение маленького кеша в preload, до первого кадра HTML.
   "startup:theme-cache": { args: []; return: string | null }
@@ -495,6 +496,9 @@ export interface IpcInvokeMap {
 // Maps channel name → payload type (for subscribe/on listeners)
 
 export interface IpcEventMap {
+  "share:progress": { stage: string; done: number; total: number; bytes: number; requestId?: string; buildId?: string }
+  "share:installed": { buildId: string }
+  "share:invitation": { invitation: string }
   "theme:local-changed": LocalThemeSnapshot
   "minecraft:java-progress": JavaProgress
   "minecraft:debug": string
@@ -533,6 +537,10 @@ export interface IpcEventMap {
 // The ElectronAPIExplicit below is derived from it and used by preload.ts and electron.d.ts.
 
 export interface ElectronAPIExplicit {
+  shareExecute: (request: import("./share-types.js").ShareRequest) => Promise<import("./share-types.js").ShareResult>
+  onShareProgress: (callback: (progress: { stage: string; done: number; total: number; bytes: number; requestId?: string; buildId?: string }) => void) => CleanupFn
+  onShareInstalled: (callback: (event: { buildId: string }) => void) => CleanupFn
+  onShareInvitation: (callback: (event: { invitation: string }) => void) => CleanupFn
   listLocalThemes: () => Promise<LocalThemeSnapshot>
   importLocalTheme: () => Promise<LocalThemeImport | null>
   saveLocalTheme: (theme: Theme, css: string) => Promise<LocalThemeFile>

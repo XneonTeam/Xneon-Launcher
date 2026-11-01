@@ -2,7 +2,7 @@ import { ImportProgressPanel } from "./import-progress-panel"
 import { mergeImportProgress } from "./import-progress-model"
 import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import { IconArrowLeft, IconCamera, IconCheck, IconColorSwatch, IconDownload, IconFolder, IconLoader2, IconPlus, IconRefresh, IconSettings, IconTrash } from "@tabler/icons-react"
+import { IconArrowLeft, IconCamera, IconCheck, IconColorSwatch, IconDownload, IconFolder, IconKey, IconLoader2, IconPlus, IconRefresh, IconSettings, IconTrash } from "@tabler/icons-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog"
 import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -15,6 +15,9 @@ import { useHomeVersions } from "@/src/hooks/use-home-versions"
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
 import type { ImportProgress } from "@xnlc/types"
 import type { LocalZipImportFormat } from "./use-import"
+import { useShare } from "./shared/use-share"
+import { ShareInstallDialog } from "./shared/share-install-dialog"
+import { ShareAccessNotice } from "./shared/share-access-notice"
 
 interface InstanceCreateDialogProps {
   open: boolean
@@ -38,7 +41,7 @@ const SOURCE_ICON_SRC: Record<ImportSource, string> = {
 
 export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onImportFile }: InstanceCreateDialogProps) {
   const { t } = useTranslation()
-  const [mode, setMode] = useState<"create" | "import">("create")
+  const [mode, setMode] = useState<"create" | "import" | "invitation">("create")
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [modLoader, setModLoader] = useState(BUILD_MOD_LOADERS[0].id)
@@ -225,9 +228,27 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
               <IconDownload className="w-4 h-4" strokeWidth={1.75} />
               {t("builds.import")}
             </button>
+            <button
+              type="button"
+              data-action="install-shared-instance"
+              onClick={() => setMode("invitation")}
+              className={cn(
+                "flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all duration-200",
+                mode === "invitation" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
+              )}
+            >
+              <IconKey className="w-4 h-4" strokeWidth={1.75} />
+              {t("builds.installInvitation")}
+            </button>
           </div>
 
-          {mode === "create" ? (
+          {mode === "invitation" ? (
+            <InvitationInstall onClose={() => setOpen(false)} onInstalled={() => {
+              setOpen(false)
+              reset()
+              void onImported()
+            }} />
+          ) : mode === "create" ? (
             <div data-ui="instance-instance-create-dialog-div-3" className="grid gap-4 rounded-2xl border border-border bg-card p-4">
               <div data-ui="instance-instance-create-dialog-div-4" className="flex items-center justify-center gap-4">
                 <div data-ui="instance-instance-create-dialog-div-5"
@@ -477,7 +498,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
             </div>
           )}
         </div>
-        <div data-ui="instance-instance-create-dialog-div-48" data-component="instance-create-dialog" className="flex justify-end gap-2">
+        {mode !== "invitation" && <div data-ui="instance-instance-create-dialog-div-48" data-component="instance-create-dialog" className="flex justify-end gap-2">
           <DialogClose className="px-4 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
             {t("settings.cancel")}
           </DialogClose>
@@ -487,10 +508,18 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
               {t("builds.createBuild")}
             </button>
           )}
-        </div>
+        </div>}
       </DialogContent>
 
       <IconPickerModal open={showIconPicker} onOpenChange={setShowIconPicker} value={icon} onChange={setIcon} />
     </Dialog>
   )
+}
+
+function InvitationInstall({ onClose, onInstalled }: { onClose(): void; onInstalled(): void }) {
+  const controller = useShare("")
+  const available = controller.data.eligible && controller.data.signedIn && !controller.data.wrongAccount
+  return available
+    ? <ShareInstallDialog controller={controller} onInstalled={onInstalled} onCancel={onClose} />
+    : <ShareAccessNotice controller={controller} onClose={onClose} />
 }

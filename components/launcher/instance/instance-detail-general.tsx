@@ -7,7 +7,7 @@ import {
   IconCamera,
   IconTrash,
   IconExternalLink,
-  IconFolderOpen,
+  IconFolder,
   IconLock,
   IconLockOpen,
   IconArrowsExchange,
@@ -30,6 +30,7 @@ import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
 import { useActivityCenter } from "@/src/ActivityCenterContext"
 import { formatPlaytime } from "@/lib/format"
 import type { Build } from "./types"
+import { ShareInstanceCard } from "./shared/share-instance-card"
 
 interface InstanceDetailGeneralProps {
   activeBuild: Build
@@ -226,7 +227,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
               <button data-ui="instance-instance-detail-general-button-1"
                 type="button"
                 onClick={() => updateBuild(activeBuild.id, { icon: "", coverImage: undefined })}
-                className="mt-4 flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                className="mt-4 inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2 text-xs font-medium text-destructive transition-colors hover:border-destructive/50 hover:bg-destructive/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <IconTrash className="h-3.5 w-3.5" strokeWidth={1.75} />
                 {t("builds.remove")}
@@ -429,6 +430,8 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
               </div>
             )}
 
+            <ShareInstanceCard key={activeBuild.id} buildId={activeBuild.id} onUpdated={() => window.dispatchEvent(new Event("launcher:share-updated"))} />
+
             <div data-ui="instance-instance-detail-general-div-37" className="flex items-center justify-between gap-3 pt-2 border-t border-border/50 flex-wrap">
               <div data-ui="instance-instance-detail-general-div-38" className="flex items-center gap-4">
                 {activeBuild.intentPath && (
@@ -437,7 +440,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
                     onClick={() => window.electronAPI?.openPath(activeBuild.intentPath!)}
                     className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-3.5 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted"
                   >
-                    <IconFolderOpen className="h-4 w-4" strokeWidth={1.75} />
+                    <IconFolder className="h-4 w-4 text-muted-foreground" />
                     {t("buildDetail.openGameFolder")}
                   </button>
                 )}

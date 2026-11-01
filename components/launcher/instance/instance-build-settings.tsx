@@ -3,6 +3,7 @@ import { InstanceBuildJava } from "./instance-build-java"
 import { InstanceBuildWindow } from "./instance-build-window"
 import { InstanceBuildServer } from "./instance-build-server"
 import { InstanceBuildLaunch } from "./instance-build-launch"
+import { InstanceBuildAccount } from "./instance-build-account"
 import type { Build } from "./types"
 
 interface InstanceBuildSettingsProps {
@@ -16,6 +17,7 @@ export function InstanceBuildSettings({ build, updateBuild }: InstanceBuildSetti
       <div data-ui="instance-instance-build-settings-div-2" className="grid gap-6">
         <InstanceBuildJava build={build} updateBuild={updateBuild} />
         <InstanceBuildWindow build={build} updateBuild={updateBuild} />
+        <InstanceBuildAccount build={build} updateBuild={updateBuild} />
         <InstanceBuildServer build={build} updateBuild={updateBuild} />
         <InstanceBuildLaunch build={build} updateBuild={updateBuild} />
       </div>

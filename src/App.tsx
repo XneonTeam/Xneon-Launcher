@@ -5,6 +5,8 @@ import { LaunchLogsProvider } from "./LaunchLogsContext"
 import { AccountsProvider } from './AccountsContext'
 import { TitleBar } from './TitleBar'
 import { initI18n } from './i18n'
+import { ShareEntryHandler } from '@/components/launcher/instance/shared/share-entry-handler'
+import { ShareInstallProgress } from '@/components/launcher/instance/shared/share-install-progress'
 
 export function App() {
   const notifyReady = useCallback(() => window.dispatchEvent(new Event('app:hydrated')), [])
@@ -34,6 +36,8 @@ export function App() {
             <TitleBar />
             <div data-ui="app-div-2" className="flex-1 overflow-hidden">
               {modulesReady && <Launcher onReady={notifyReady} />}
+              {modulesReady && <ShareEntryHandler />}
+              {modulesReady && <ShareInstallProgress />}
             </div>
           </div>
         </LaunchLogsProvider>

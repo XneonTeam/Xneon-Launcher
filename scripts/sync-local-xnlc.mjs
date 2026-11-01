@@ -13,6 +13,7 @@ const npmCommand = pnpmScript
     : { command: "pnpm", args: ["run", "build"] })
 
 const localPackages = [
+  "xnlc-share",
   "xnlc-core",
   "xnlc-mods",
   "xnlc-nbt",

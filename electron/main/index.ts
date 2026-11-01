@@ -16,6 +16,7 @@ import { registerQuickPlayHandlers } from "./quick-play"
 import { registerUpdater } from "./updater"
 import { registerAiAgent } from "./ai-agent"
 import { registerSkinsHandlers } from "./skins"
+import { registerShareHandlers } from "./share"
 import { registerMcServerHandlers } from "./mc-server-handlers"
 import { registerStatsHandlers } from "./stats"
 import { registerStorageHandlers } from "./storage"
@@ -38,6 +39,7 @@ registerQuickPlayHandlers()
 registerUpdater()
 registerAiAgent()
 registerSkinsHandlers()
+registerShareHandlers()
 registerAvatarHandlers()
 registerMcServerHandlers()
 registerStatsHandlers()

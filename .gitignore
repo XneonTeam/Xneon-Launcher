@@ -135,3 +135,7 @@ __pycache__/
 
 # Локальные отчёты и журналы QA-аудита
 /qa-reports/
+/.share-data/
+/services/share/.env
+/.wrangler/
+/services/share/.wrangler/

@@ -22,6 +22,14 @@ export async function getResources(sha1s: string[]): Promise<ResourceRow[]> {
   return queryAll<ResourceRow>(`SELECT * FROM resources WHERE sha1 IN (${placeholders})`, sha1s)
 }
 
+/** Точное совпадение версии для просмотра исторического содержимого сборки. */
+export function getResourceForSource(source: { provider: string; projectId: string; versionId: string; fileId: string }): ResourceRow | undefined {
+  if (!isDbAvailable()) return undefined
+  if (source.provider === "modrinth") return queryAll<ResourceRow>("SELECT * FROM resources WHERE projectId=? AND versionId=? LIMIT 1", [source.projectId, source.versionId])[0]
+  if (source.provider === "curseforge") return queryAll<ResourceRow>("SELECT * FROM resources WHERE modId=? AND fileId=? LIMIT 1", [source.projectId, source.fileId])[0]
+  return undefined
+}
+
 export async function upsertResource(resource: Omit<ResourceRow, "updatedAt">): Promise<void> {
   if (!isDbAvailable()) return
   run(`
