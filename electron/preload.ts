@@ -471,6 +471,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateCheck: invoke<{ available: boolean; version?: string; error?: string }>('update:check'),
   updateDownload: invoke<{ success: boolean; error?: string }>('update:download'),
   updateInstall: invoke<void>('update:install'),
+  updateGetChannel: invoke<"stable" | "beta">('update:get-channel'),
+  updateSetChannel: invoke<void>('update:set-channel'),
   onUpdateStatus: (callback: (status: { status: string; version?: string; releaseDate?: string; releaseNotes?: string; error?: string }) => void) => subscribe('update:status', callback),
   onUpdateProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => subscribe('update:progress', callback),
 })

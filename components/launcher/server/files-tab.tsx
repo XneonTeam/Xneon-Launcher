@@ -1,4 +1,4 @@
-import { useContentEnter } from "../content-motion"
+import { CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import {
@@ -132,7 +132,6 @@ export function FilesTab({ serverId }: FilesTabProps) {
   const [entries, setEntries] = useState<McFsEntry[]>([])
   const [currentPath, setCurrentPath] = useState("")
   const [loading, setLoading] = useState(true)
-  const contentEnter = useContentEnter(!loading)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
 
@@ -364,7 +363,7 @@ export function FilesTab({ serverId }: FilesTabProps) {
   const hasTabs = tabs.length > 0
 
   return (
-    <div data-ui="server-files-tab-div-1" data-component="files-tab" ref={containerRef} className={`flex h-full ${contentEnter ?? ""}`}>
+    <div data-ui="server-files-tab-div-1" data-component="files-tab" ref={containerRef} className={`flex h-full ${CONTENT_ENTER_DELAYED}`}>
       {/* File browser panel */}
       <div data-ui="server-files-tab-div-2" className={cn("flex flex-col h-full overflow-hidden", hasTabs ? "border-r border-border" : "w-full")} style={hasTabs ? { width: `${splitPos}%` } : undefined}>
         {/* Toolbar */}

@@ -501,7 +501,7 @@ export function CloudFileBrowser({ providerId, pendingThemeId, onPendingThemeHan
             <button data-ui="cloud-cloud-file-browser-button-6" onClick={fetchFiles} className="mt-2 text-xs text-primary hover:underline">{t("cloud.retry")}</button>
           </div>
         ) : filtered.length === 0 ? (
-          <div data-ui="cloud-cloud-file-browser-div-13" className="text-center py-12">
+          <div data-ui="cloud-cloud-file-browser-div-13" className="flex min-h-full flex-col items-center justify-center py-8 text-center">
             <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl border border-primary/20 bg-primary/10 text-primary mx-auto mb-4"><IconCloud className="h-10 w-10" strokeWidth={1.75} aria-hidden="true" /></div>
             <p data-ui="cloud-cloud-file-browser-p-2" className="text-sm text-muted-foreground/50">{t("cloud.folderEmpty")}</p>
           </div>

@@ -5,6 +5,7 @@ import { APP_VERSION } from "@/lib/app-meta"
 import { useTranslation } from "react-i18next"
 
 type UpdateStatus = "idle" | "checking" | "available" | "downloaded" | "error" | "not-available"
+type UpdateChannel = "stable" | "beta"
 
 export function SettingsUpdate() {
   const { t } = useTranslation()
@@ -12,10 +13,15 @@ export function SettingsUpdate() {
   const [remoteVersion, setRemoteVersion] = useState<string | null>(null)
   const [progress, setProgress] = useState(0)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [channel, setChannel] = useState<UpdateChannel>("stable")
 
   useEffect(() => {
     const api = window.electronAPI
     if (!api) return
+    // Загружаем текущий канал обновлений.
+    void api.updateGetChannel?.().then((ch) => {
+      if (ch) setChannel(ch)
+    })
     const unsubStatus = api.onUpdateStatus((s) => {
       if (s.status === "available") {
         setStatus("available")
@@ -73,6 +79,11 @@ export function SettingsUpdate() {
     void window.electronAPI?.updateInstall()
   }, [])
 
+  const handleChannelChange = useCallback((next: UpdateChannel) => {
+    setChannel(next)
+    void window.electronAPI?.updateSetChannel?.(next)
+  }, [])
+
   const statusLabel = (() => {
     switch (status) {
       case "checking": return t("launcherUpdate.checking")
@@ -86,6 +97,45 @@ export function SettingsUpdate() {
 
   return (
     <div data-ui="settings-settings-update-div-1" data-component="settings-update" data-settings-tone="green" className="settings-color-panel p-4 rounded-xl border border-border bg-muted/30 space-y-4">
+      {/* Переключатель ветки обновлений */}
+      <div data-ui="settings-settings-update-div-8" className="flex items-center justify-between">
+        <div data-ui="settings-settings-update-div-9">
+          <div data-ui="settings-settings-update-div-10" className="font-medium text-foreground">{t("launcherUpdate.channel")}</div>
+          <p data-ui="settings-settings-update-p-4" className="text-sm text-muted-foreground mt-0.5">{t("launcherUpdate.channelDescStable")}</p>
+          <p data-ui="settings-settings-update-p-5" className="text-sm text-muted-foreground mt-0.5">{t("launcherUpdate.channelDescBeta")}</p>
+        </div>
+        <div data-ui="settings-settings-update-div-11" className="flex items-center gap-1 p-1 rounded-lg bg-muted/60 border border-border">
+          <button
+            data-ui="settings-settings-update-button-6"
+            type="button"
+            onClick={() => handleChannelChange("stable")}
+            className={cn(
+              "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+              channel === "stable"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            )}
+          >
+            {t("launcherUpdate.channelStable")}
+          </button>
+          <button
+            data-ui="settings-settings-update-button-7"
+            type="button"
+            onClick={() => handleChannelChange("beta")}
+            className={cn(
+              "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+              channel === "beta"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            )}
+          >
+            {t("launcherUpdate.channelBeta")}
+          </button>
+        </div>
+      </div>
+
+      <div data-ui="settings-settings-update-div-12" className="border-t border-border" />
+
       <div data-ui="settings-settings-update-div-2" className="flex items-center justify-between">
         <div data-ui="settings-settings-update-div-3">
           <div data-ui="settings-settings-update-div-4" className="flex items-center gap-2 font-medium text-foreground"><IconDownload className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.7} aria-hidden="true" />{t("launcherUpdate.title")}</div>
