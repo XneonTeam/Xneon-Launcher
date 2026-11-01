@@ -15,6 +15,8 @@ import { PropertiesTab } from "./server/properties-tab"
 import { FilesTab } from "./server/files-tab"
 import { AddonsTab } from "./server/addons-tab"
 import { ServerEulaModal } from "./server-eula-modal"
+import { RemoteAccessDialog, remoteServerError } from "./server/remote-access-dialog"
+import { RemoteSettingsTab } from "./server/remote-settings-tab"
 
 type ServerTab = "console" | "addons" | "properties" | "players" | "settings" | "files"
 
@@ -59,6 +61,19 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
   const [copiedAddr, setCopiedAddr] = useState<string | null>(null)
   const [eulaAccepted, setEulaAccepted] = useState(true)
   const [showEula, setShowEula] = useState(false)
+  const [showAccess, setShowAccess] = useState(false)
+  const [remoteOnline, setRemoteOnline] = useState(server.remote?.online ?? false)
+  const [remotePermissions, setRemotePermissions] = useState(server.remote?.permissions)
+  const [remoteError, setRemoteError] = useState("")
+  useEffect(() => {
+    if (!server.remote) return
+    return window.electronAPI?.onMcServerRemoteConnection(event => {
+      if (event.id !== server.id) return
+      setRemoteOnline(event.online); setRemotePermissions(event.info.remote?.permissions)
+      onServerUpdated?.(event.info)
+    })
+  }, [server.id, onServerUpdated])
+  const allowed = (permission: keyof NonNullable<McServerInfo["remote"]>["permissions"]) => !server.remote || remotePermissions?.[permission] === true
   const [icon, setIcon] = useState(server.icon ?? "")
   const [showIconPicker, setShowIconPicker] = useState(false)
   const [limitState, setLimitState] = useState<{ used: number; max: number } | null>(null)
@@ -69,10 +84,10 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
   useEffect(() => {
     window.electronAPI?.mcServerGetAddresses(server.id).then(addrs => {
       if (addrs) setAddresses(addrs)
-    })
+    }).catch(() => {})
     window.electronAPI?.mcServerCheckEula(server.id).then(accepted => {
       setEulaAccepted(accepted)
-    })
+    }).catch(() => {})
 
     // XN Connect не запускается отсюда: туннель поднимается вместе с самим
     // сервером (mc-server:start) и гасится вместе с ним (mc-server:stop/kill).
@@ -144,7 +159,10 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
     pendingRef.current = kind
     setPending(kind)
     try {
+      setRemoteError("")
       await fn()
+    } catch (error) {
+      setRemoteError(server.remote ? remoteServerError(error, t) : (error as Error).message)
     } finally {
       // Если запросили противоположное действие, маркер уже перезаписан.
       if (pendingRef.current === kind) {
@@ -159,8 +177,8 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
     try {
       await window.electronAPI?.mcServerSendCommand(server.id, command.trim())
       setCommand("")
-    } catch {
-      // Причина отказа уже выведена в консоль сервера.
+    } catch (error) {
+      if (server.remote) setRemoteError(remoteServerError(error, t))
     }
   }
 
@@ -192,12 +210,14 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
   const loaderName = loaderLabel(server.modloader)
 
   const tabs = ALL_TABS
+    .filter(tab => tab.id === "files" ? allowed("readFiles") : tab.id === "addons" ? allowed("readFiles") && allowed("writeFiles") : tab.id === "players" ? allowed("players") : tab.id === "settings" ? allowed("settings") : true)
     .filter(tab => tab.id !== "addons" || hasAddons(server.modloader))
     .map(tab =>
       tab.id === "addons"
         ? { ...tab, labelKey: getAddonsLabelKey(server.modloader) }
         : tab
     )
+  useEffect(() => { if (!tabs.some(tab => tab.id === activeTab)) setActiveTab("console") }, [activeTab, remotePermissions])
 
   return (
     <div data-ui="server-detail-page-div-1" data-component="server-detail-page" id="server-detail-page" data-tab={activeTab} data-status={state.status} className="flex flex-col h-full">
@@ -206,6 +226,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
         onAccept={handleEulaAccept}
         onDecline={handleEulaDecline}
       />
+      <RemoteAccessDialog open={showAccess} onClose={() => setShowAccess(false)} server={server} />
       {/* Header */}
       <div data-ui="server-detail-page-div-2" className={`launcher-page-header mb-5 flex flex-wrap items-start gap-4 ${CONTENT_ENTER_DELAYED}`}>
         {/* Back button */}
@@ -218,6 +239,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
 
         {/* Server icon */}
         <button data-ui="server-detail-page-button-2"
+          disabled={!allowed("settings")}
           onClick={() => setShowIconPicker(true)}
           className="relative w-16 h-16 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 border border-border bg-muted/70 hover:border-primary/50 transition-colors cursor-pointer group"
         >
@@ -237,6 +259,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
         {/* Info */}
         <div data-ui="server-detail-page-div-4" className="min-w-0 flex-1 basis-40">
           <h1 data-ui="server-detail-page-h1-1" className="m-0 text-lg font-bold text-foreground truncate">{server.name}</h1>
+          {server.remote && <p className="mt-1 text-xs text-muted-foreground">{t("remoteServer.remoteOwner", { name: server.remote.ownerName })} · <span className={remoteOnline ? "text-success" : "text-muted-foreground"}>{t(remoteOnline ? "remoteServer.online" : "remoteServer.offline")}</span></p>}
           <div data-ui="server-detail-page-div-5" className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <span data-ui="server-detail-page-span-1" className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-muted/60 text-xs text-muted-foreground">
               <LoaderIcon loaderId={server.modloader} className="w-3 h-3 flex-shrink-0" />
@@ -263,7 +286,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
               {isStartingLike && t("servers.statusStarting")}
               {isInstallLike && t("servers.statusInstalling")}
               {isStoppingLike && t("servers.statusStopping")}
-              {!isRunning && !isBusy && t("servers.statusStopped")}
+              {!isRunning && !isBusy && t(server.remote && !remoteOnline ? "remoteServer.offline" : "servers.statusStopped")}
             </div>
             {isRunning && (
               <>
@@ -301,8 +324,10 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
 
         {/* Actions */}
         <div data-ui="server-detail-page-div-8" className="flex items-center gap-2 flex-shrink-0">
+          <button type="button" onClick={() => setShowAccess(true)} className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted"><IconUsers className="h-4 w-4 text-primary" />{t("share.launcher.share")}</button>
           <button data-ui="server-detail-page-button-3"
-            onClick={() => window.electronAPI?.mcServerOpenFolder(server.id)}
+            disabled={!!server.remote && !allowed("readFiles")}
+            onClick={() => server.remote ? setActiveTab("files") : window.electronAPI?.mcServerOpenFolder(server.id)}
             className="p-2 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
             title={t("servers.openFolder")}
           >
@@ -310,7 +335,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
           </button>
           <button data-ui="server-detail-page-button-4"
             onClick={handleRestart}
-            disabled={!isRunning || isBusy}
+            disabled={!isRunning || isBusy || !allowed("start") || !allowed("stop") || !!server.remote && !remoteOnline}
             className={cn(
               "p-2 rounded-xl transition-all active:scale-[0.98]",
               isRunning && !isBusy
@@ -323,7 +348,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
           </button>
           <button data-ui="server-detail-page-button-5"
             onClick={handleStartStop}
-            disabled={isStoppingLike}
+            disabled={isStoppingLike || !allowed(isRunning || isStartingLike || isInstallLike ? "stop" : "start") || !!server.remote && !remoteOnline}
             className={cn(
               "p-2 rounded-xl transition-all active:scale-[0.98]",
               isRunning || isStartingLike || isInstallLike
@@ -368,6 +393,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
       )}
 
       {/* Download progress */}
+      {remoteError && <p role="alert" className="mx-3 mt-3 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-xs text-destructive">{remoteError}</p>}
       {downloadProgress && downloadProgress.phase !== "done" && (
         <div data-ui="server-detail-page-div-12" className="mx-3 my-3 rounded-2xl border border-border bg-primary/5 px-4 py-3">
           <div data-ui="server-detail-page-div-13" className="flex items-center gap-3">
@@ -421,6 +447,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
             serverName={server.name}
             logs={logs}
             isRunning={isRunning}
+            canCommand={allowed("console") && (!server.remote || remoteOnline)}
             command={command}
             onCommandChange={setCommand}
             onSendCommand={handleSendCommand}
@@ -428,16 +455,16 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
           />
         )}
         {activeTab === "settings" && (
-          <SettingsTab server={server} onServerUpdated={onServerUpdated} />
+          server.remote ? <RemoteSettingsTab server={server} onServerUpdated={onServerUpdated} /> : <SettingsTab server={server} onServerUpdated={onServerUpdated} />
         )}
         {activeTab === "players" && (
           <PlayersTab serverId={server.id} />
         )}
         {activeTab === "properties" && (
-          <PropertiesTab server={server} flushRef={propertiesFlushRef} onServerUpdated={onServerUpdated} />
+          <fieldset disabled={!allowed("properties")} className="contents"><PropertiesTab server={server} flushRef={propertiesFlushRef} onServerUpdated={onServerUpdated} /></fieldset>
         )}
         {activeTab === "files" && (
-          <FilesTab serverId={server.id} />
+          <FilesTab serverId={server.id} canWrite={allowed("writeFiles")} canWriteProperties={allowed("properties")} />
         )}
         {activeTab === "addons" && (
           <AddonsTab server={server} />

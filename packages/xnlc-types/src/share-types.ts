@@ -31,7 +31,7 @@ export type ShareRequest = (
   | { action: "acceptInvite"; token: string }
   | { action: "stash"; buildId: string; previewId: string; name: string }
   | { action: "restore"; buildId: string; commit: string; message: string }
-  | { action: "mergePreview"; buildId: string; source: string; target?: string; resolutions?: Record<string, "current" | "incoming"> }
+  | { action: "mergePreview"; buildId: string; source: string; target?: string; resolutions?: Record<string, "current" | "incoming">; pullRequest?: string }
   | { action: "merge"; buildId: string; source: string; target?: string; sourceHead?: string; expected: string; message: string; resolutions?: Record<string, "current" | "incoming">; pullRequest?: string }
 ) & { requestId?: string }
 export interface ShareResponse {

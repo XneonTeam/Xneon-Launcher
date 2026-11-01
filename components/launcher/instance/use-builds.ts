@@ -831,6 +831,8 @@ export function useBuilds() {
     try {
       const result = await window.electronAPI?.renameBuildIntent?.(build.name, target)
       if (result?.success) {
+        // Название должно попасть в следующий скан Share сразу после переименования.
+        await window.electronAPI?.updateBuildFields?.(id, { name: target, intentPath: result.intentPath ?? build.intentPath })
         setBuilds(prev => prev.map(b => b.id === id
           ? { ...b, name: target, intentPath: result.intentPath ?? b.intentPath }
           : b))

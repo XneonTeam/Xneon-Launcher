@@ -172,7 +172,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
     : detectedJava.find(j => j.path === javaPath)?.label || javaPath.split(/[\\/]/).pop() || javaPath
 
   return (
-    <div data-ui="server-settings-tab-div-1" data-component="settings-tab" className={`space-y-5 overflow-y-auto h-full p-4 pr-1 ${CONTENT_ENTER_DELAYED}`}>
+    <div data-ui="server-settings-tab-div-1" data-component="settings-tab" className={`space-y-5 overflow-y-auto h-full p-4 pr-5 [scrollbar-gutter:stable] ${CONTENT_ENTER_DELAYED}`}>
       {/* Status indicator */}
       <div data-ui="server-settings-tab-div-2" className="flex items-center gap-2 text-xs text-muted-foreground h-5">
         {saving ? (
@@ -234,7 +234,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
       </SettingGroup>
 
       {/* Memory */}
-      <SettingGroup label={(
+      <SettingGroup card externalLabel label={(
         <span data-ui="server-settings-tab-span-6" className="flex items-center gap-2">
           <IconCpu className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("settings.ram")} (MB)
@@ -288,6 +288,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
 
       {/* XN Connect Relay */}
       <SettingGroup
+        card
         label={(
           <span data-ui="server-settings-tab-span-8" className="flex items-center gap-2">
             <XnConnectLogo className="w-5 h-5 text-primary" />
@@ -311,15 +312,13 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
           </div>
         )}
       >
-        <div data-ui="server-settings-tab-div-8" className="flex items-center justify-between mb-2">
-          <p data-ui="server-settings-tab-p-1" className="text-sm text-muted-foreground">
-            {t("servers.settings.xnconnect.desc")}
-          </p>
+        <div data-ui="server-settings-tab-div-8" className="flex items-center justify-between gap-4 mb-2">
+          <p data-ui="server-settings-tab-p-1" className="text-sm text-muted-foreground">{t("servers.settings.xnconnect.desc")}</p>
           <button data-ui="server-settings-tab-button-3"
             onClick={handleToggleRelay}
             disabled={relayToggling}
             className={cn(
-              "relative w-11 h-6 rounded-full transition-colors",
+              "relative ml-auto shrink-0 w-11 h-6 rounded-full transition-colors",
               relayEnabled ? "bg-primary" : "bg-muted",
               relayToggling && "opacity-70 cursor-wait"
             )}
@@ -367,6 +366,8 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
             {relayState.status === "running" && (
               <span data-ui="server-settings-tab-span-17" className="text-success">{t("servers.settings.xnconnect.active")}</span>
             )}
+
+
           </div>
         )}
         {relayState.status === "limit_reached" && (
@@ -570,14 +571,14 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
   )
 }
 
-function SettingGroup({ label, action, children }: { label: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) {
+function SettingGroup({ label, action, children, card = false, externalLabel = false }: { label: React.ReactNode; action?: React.ReactNode; children: React.ReactNode; card?: boolean; externalLabel?: boolean }) {
   return (
-    <div data-ui="server-settings-tab-div-34" data-component="setting-group" className="space-y-2">
+    <div data-ui="server-settings-tab-div-34" data-component="setting-group" className={card && !externalLabel ? "space-y-4 rounded-2xl border border-border/70 bg-card/40 p-5" : "space-y-2"}>
       <div data-ui="server-settings-tab-div-35" className="flex items-center gap-2">
         <label data-ui="server-settings-tab-label-3" className="text-sm font-medium text-foreground">{label}</label>
         {action}
       </div>
-      {children}
+      {card && externalLabel ? <div className="rounded-2xl border border-border/70 bg-card/40 p-5">{children}</div> : children}
     </div>
   )
 }

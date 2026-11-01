@@ -18,6 +18,7 @@ import { takeShareInvitation } from "./links"
 import { describeShareContent, describeShareHistory } from "./content-presentation"
 import { serializeLaunchSettings, resolveLaunchSettings } from "./launch-settings"
 import { detectJavaInstallations } from "../system"
+import { prepareSharedRename } from "./instance-name"
 
 type PreviewState = { scan?: ScanResult; update?: UpdatePreview; observed?: Manifest; branch?: string; origin?: { branch: string; applied: string }; restore?: { expected: string; target: string } }
 const previews = new Map<string, PreviewState & { buildId: string; at: number }>()
@@ -233,7 +234,14 @@ export async function executeShare(input: ShareRequest, progress: (event: { stag
       progress({ stage: "index", done: 0, total: 1, bytes: 0 })
       const scanned = await scanIntentDir(directory)
       const next: ShareLink = { ...link, branch: saved.branch ?? link.branch, applied: saved.update.head, latest: saved.update.head, status: "up_to_date" }
-      finishShareInstall(build.id, next, { description: metadata.description, version: metadata.gameVersion, modLoader: metadata.loader, loaderVersion: metadata.loaderVersion, icon: metadata.icon, coverImage: metadata.coverImage, launch, ...scanned })
+      // При первой установке сохраняем имя, выбранное в диалоге импорта.
+      const rename = link.applied && metadata.name !== build.name
+        ? await prepareSharedRename(directory, build.name, metadata.name, (await dbHelpers.loadBuilds()).filter(item => item.id !== build.id).map(item => item.name), getBuildIntentDirName) : undefined
+      try {
+        await rename?.move()
+        finishShareInstall(build.id, next, { ...(rename ? { name: rename.name, intentPath: rename.directory } : {}), description: metadata.description, version: metadata.gameVersion, modLoader: metadata.loader, loaderVersion: metadata.loaderVersion, icon: metadata.icon, coverImage: metadata.coverImage, launch, ...scanned })
+      } catch (error) { await rename?.rollback(); throw error }
+      if (rename) systems.delete(build.id)
       sendToRenderer("share:installed", { buildId: build.id }); previews.delete(input.previewId)
       return { link: next }
       } catch (error) { await setLink(build.id, { ...link, status: "error" }); throw error }
@@ -247,7 +255,7 @@ export async function executeShare(input: ShareRequest, progress: (event: { stag
     }
     if (input.action === "restore") return { repository: await system.restore(link.repositoryId, link.branch, link.applied, input.commit, me.id, input.message) }
     if (input.action === "mergePreview") {
-      const merge = await system.mergePreview(link.repositoryId, input.target ?? link.branch, input.source, input.resolutions)
+      const merge = await system.mergePreview(link.repositoryId, input.target ?? link.branch, input.source, input.resolutions, input.pullRequest)
       const entries = merge.diff.flatMap(change => [change.before, change.after].filter((entry): entry is NonNullable<typeof entry> => !!entry))
       const byHash = await describeShareHistory(directory, entries)
       const contentPresentation: Record<string, ShareContentPresentation> = {}

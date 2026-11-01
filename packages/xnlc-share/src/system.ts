@@ -2,6 +2,7 @@ import type { Manifest, InstanceMetadata, ContentEntry, SharePorts, Repository, 
 import { fail, excluded, validateManifest, validateExternal, manifestHash, stable, MAX_FILE_BYTES } from "./manifest.js"
 import { createCommit, diff, merge, mergeBase, isAncestor, branchHistory } from "./versioning.js"
 import { ShareError } from "./types.js"
+import { resolvePullRequestMerge } from "./pull-request-history.js"
 
 export interface ScanResult { manifest: Manifest; localOnly: string[]; blocked?: string[]; blockedDetails?: { path: string; size: number; reason: "size" | "format" }[]; statistics: { totalBytes: number; managedBytes: number; externalBytes: number }; root: string; changes?: ReturnType<typeof diff> }
 export interface UpdatePreview { head: string; manifest: Manifest; diff: ReturnType<typeof diff>; conflicts: ReturnType<typeof merge>["conflicts"]; downloads: Record<string, number>; localBytes: number; expected: Record<string, string | null> }
@@ -224,8 +225,18 @@ export class ShareSystem {
     }
     await this.ports.files.apply(changes)
   }
-  async mergePreview(id: string, current: string, incoming: string, resolutions: Record<string, "current" | "incoming"> = {}) {
+  async mergePreview(id: string, current: string, incoming: string, resolutions: Record<string, "current" | "incoming"> = {}, pullRequest?: string) {
     const repo = await this.get(id), a = repo.branches[current]?.head, b = repo.branches[incoming]?.head
+    if (pullRequest) {
+      const pr = repo.pullRequests[pullRequest]
+      if (!pr || pr.source !== incoming || pr.target !== current) fail("PR", "Pull request not found")
+      if (pr.state === "merged") {
+        const saved = resolvePullRequestMerge(repo.commits, pr, a)
+        if (!saved) fail("PR_HISTORY", "Merged pull request history is unavailable")
+        const manifest = repo.commits[saved.commit].snapshot.manifest
+        return { current: saved.targetHead, incoming: saved.sourceHead, base: saved.targetHead, manifest, conflicts: [], diff: diff(repo.commits[saved.targetHead].snapshot.manifest, manifest) }
+      }
+    }
     if (!a || !b) fail("BRANCH", "Branch missing")
     const base = mergeBase(repo, a, b)
     const result = merge(repo.commits[base].snapshot.manifest, repo.commits[a].snapshot.manifest, repo.commits[b].snapshot.manifest, resolutions)

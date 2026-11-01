@@ -1,13 +1,17 @@
 import { ShareError, type SharedLaunchSettings } from './types.js'
 
-export const LAUNCH_SETTING_KEYS = ['javaOverride', 'memoryMin', 'memoryMax', 'javaArgs', 'java', 'windowOverride', 'windowWidth', 'windowHeight', 'account'] as const
+const REQUIRED_KEYS = ['javaOverride', 'memoryMin', 'memoryMax', 'javaArgs', 'java', 'windowOverride', 'windowWidth', 'windowHeight', 'account'] as const
+export const EXTRA_LAUNCH_SETTING_KEYS = ['serverOverride', 'server', 'serverPort', 'group', 'preLaunchCommand', 'postLaunchCommand', 'wrapperCommand', 'customEnv'] as const
+export const LAUNCH_SETTING_KEYS = [...REQUIRED_KEYS, ...EXTRA_LAUNCH_SETTING_KEYS] as const
 
-/** Только настройки и описание выбранного аккаунта: токены и команды запуска сюда не входят. */
+/** Настройки сборки и описание аккаунта без локальных ID и токенов авторизации. */
 export function validateLaunchSettings(input: unknown): SharedLaunchSettings {
   const fail = (): never => { throw new ShareError('SCHEMA', 'Invalid shared launch settings') }
   if (!input || typeof input !== 'object' || Array.isArray(input)) return fail()
   const value = input as SharedLaunchSettings
-  if (Object.keys(value).sort().join(',') !== [...LAUNCH_SETTING_KEYS].sort().join(',')) return fail()
+  if (REQUIRED_KEYS.some(key => !Object.hasOwn(value, key)) || Object.keys(value).some(key => !LAUNCH_SETTING_KEYS.includes(key as typeof LAUNCH_SETTING_KEYS[number]))) return fail()
+  if (value.serverOverride !== undefined && typeof value.serverOverride !== 'boolean') return fail()
+  for (const key of EXTRA_LAUNCH_SETTING_KEYS) if (key !== 'serverOverride' && value[key] !== undefined && (typeof value[key] !== 'string' || value[key].length > 16384 || value[key].includes('\0'))) return fail()
   if (typeof value.javaOverride !== 'boolean' || typeof value.windowOverride !== 'boolean') return fail()
   for (const memory of [value.memoryMin, value.memoryMax]) if (typeof memory !== 'string' || memory !== '' && !/^[1-9]\d{0,6}[MG]$/i.test(memory)) return fail()
   if (typeof value.javaArgs !== 'string' || value.javaArgs.length > 16384 || value.javaArgs.includes('\0')) return fail()

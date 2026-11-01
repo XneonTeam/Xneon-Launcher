@@ -9,6 +9,7 @@ import { dataCache, MOD_SEARCH_CACHE_TTL } from "@/lib/swr"
 import { ServerTile } from "./server-tile"
 import { ServerContextMenu } from "./server/server-context-menu"
 import { ServerCreateDialog } from "./server-create-dialog"
+import { RemoteServerJoinDialog } from "./server/remote-access-dialog"
 import { ServerPackInstallDialog, type PackInstallTarget } from "./server-pack-install-dialog"
 import { ServerTrashView } from "./server-trash-view"
 import { CategoryAssignModal } from "./category-assign-modal"
@@ -45,6 +46,7 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
     categoryIcons, setCategoryIcon } = useMcServers()
   const { visibleVersions, versionsLoaded } = useMinecraftVersionOptions()
   const [showCreate, setShowCreate] = useState(false)
+  const [showRemoteJoin, setShowRemoteJoin] = useState(false)
   const [view, setView] = useState<"servers" | "trash" | "modrinth" | "curseforge">("servers")
   const contentEnter = useContentEnter(!loading)
   const [layoutMode, changeLayout] = usePersistentLayout("xneon-launcher:serversLayout")
@@ -462,6 +464,7 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
                 </button>
               </div>
               <div data-ui="servers-page-div-11" className="w-px h-6 bg-border mx-1" />
+              <button type="button" onClick={() => setShowRemoteJoin(true)} className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted"><IconServer className="h-4 w-4 text-primary" />{t("remoteServer.joinTitle")}</button>
               <button data-ui="servers-page-button-7"
                 onClick={() => setShowCreate(true)}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium shadow-[0_0_15px_var(--glow-primary)] active:scale-[0.98]"
@@ -757,6 +760,7 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
       )}
 
       {/* Create dialog */}
+      <RemoteServerJoinDialog open={showRemoteJoin} onClose={() => setShowRemoteJoin(false)} onJoined={() => { void reload() }} />
       <ServerCreateDialog
         open={showCreate}
         onOpenChange={setShowCreate}
@@ -870,7 +874,7 @@ function ServerListRow({ server, onClick, onDelete, onDuplicate, onAssignGroup }
           )}
           <button data-ui="servers-page-button-17"
             onClick={handlePlayStop}
-            disabled={isStopping}
+            disabled={isStopping || !!server.remote && !(canStop ? server.remote.permissions.stop : server.remote.permissions.start)}
             className={cn(
               "p-2 rounded-xl transition-all",
               canStop

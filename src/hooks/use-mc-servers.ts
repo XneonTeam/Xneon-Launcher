@@ -28,7 +28,7 @@ export function useMcServers() {
         setServers(prev => {
           if (prev.length === 0) return prev
           console.warn("[Servers] Пустой ответ БД — сохраняю уже загруженный список")
-          return prev
+          return prev.filter(server => !server.remote)
         })
       } else {
         setServers(incoming)
@@ -41,6 +41,7 @@ export function useMcServers() {
 
   useEffect(() => {
     reload()
+    return window.electronAPI?.onMcServerRemoteConnection(event => { setServers(previous => previous.map(server => server.id === event.id ? event.info : server)) })
   }, [reload])
 
   const createServer = useCallback(async (data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }) => {
@@ -147,7 +148,7 @@ export function useMcServerState(id: string | null) {
     if (!id) return
     window.electronAPI?.mcServerStatus(id).then(s => {
       if (s) setState(s)
-    })
+    }).catch(() => {})
 
     const unsub = window.electronAPI?.onMcServerStateChange((data) => {
       if (data.id === id) setState(data.state)
@@ -184,7 +185,8 @@ export function useMcServerLogs(id: string | null) {
 
     window.electronAPI?.mcServerLogs(id).then(initial => {
       if (generation === generationRef.current && initial) setLogs(initial)
-    })
+    }).catch(() => {})
+    const unsubRemote = id.startsWith("remote:") ? window.electronAPI?.onMcServerRemoteSnapshot(event => { if (event.id === id && !mutedRef.current) setLogs(event.logs) }) : undefined
 
     const unsubLog = window.electronAPI?.onMcServerLog((data) => {
       if (data.id !== id || mutedRef.current) return
@@ -208,6 +210,7 @@ export function useMcServerLogs(id: string | null) {
     return () => {
       unsubLog?.()
       unsubState?.()
+      unsubRemote?.()
       mutedRef.current = false
     }
   }, [id])

@@ -15,9 +15,10 @@ interface ConsoleTabProps {
   onCommandChange: (cmd: string) => void
   onSendCommand: () => void
   onClearLogs: () => void
+  canCommand?: boolean
 }
 
-export function ConsoleTab({ serverId, serverName, logs, isRunning, command, onCommandChange, onSendCommand, onClearLogs }: ConsoleTabProps) {
+export function ConsoleTab({ serverId, serverName, logs, isRunning, command, onCommandChange, onSendCommand, onClearLogs, canCommand = true }: ConsoleTabProps) {
   const { t } = useTranslation()
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -214,7 +215,7 @@ export function ConsoleTab({ serverId, serverName, logs, isRunning, command, onC
       </div>
 
       {/* Command input */}
-      {isRunning && (
+      {isRunning && canCommand && (
         <div data-ui="server-console-tab-div-9" className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <div data-ui="server-console-tab-div-10" className="relative flex-1">
             <IconTerminal2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

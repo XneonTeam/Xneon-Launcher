@@ -43,7 +43,10 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
     let active = true
     setScan(undefined); setPresentation({}); setSelected([]); setSuccess(undefined); setMessage(""); setTab("changes")
     void controller.run({ action: "scan", buildId }).then(result => {
-      if (active && result?.scan) { setScan(result.scan); setPresentation(result.contentPresentation ?? {}); setPreviewId(result.previewId!) }
+      if (active && result?.scan) {
+        setScan(result.scan); setPresentation(result.contentPresentation ?? {}); setPreviewId(result.previewId!)
+        setSelected([...new Set([...result.scan.manifest.entries.filter(entry => !contentPath(entry.path)).map(entry => entry.path), ...(result.scan.changes?.filter(change => !change.path.startsWith("@") && !contentPath(change.path)).map(change => change.path) ?? [])])])
+      }
     })
     return () => { active = false }
   }, [open, buildId])
@@ -51,7 +54,7 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
   const content = scan?.manifest.entries.filter(entry => contentPath(entry.path)) ?? []
   const additional = scan?.manifest.entries.filter(entry => !contentPath(entry.path)) ?? []
   const changes: DiffEntry[] = scan?.changes?.filter(change => contentPath(change.path) || change.path.startsWith("@instance/") || selected.includes(change.path))
-    ?? content.map(entry => ({ path: entry.path, type: "added", changes: [] }))
+    ?? (scan?.manifest.entries.filter(entry => contentPath(entry.path) || selected.includes(entry.path)) ?? []).map(entry => ({ path: entry.path, type: "added", changes: [] }))
 
   async function publish() {
     if (publishing) return

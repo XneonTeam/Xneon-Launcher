@@ -3,7 +3,7 @@ import { validateLaunchSettings } from "./launch-settings.js"
 
 export const MAX_FILE_BYTES = 32 * 1024 * 1024
 export const MAX_TOTAL_BYTES = 8 * 1024 * 1024 * 1024
-export const DEFAULT_EXCLUSIONS = ["logs", "crash-reports", "cache", "local", "natives", "saves", "screenshots", "assets", "libraries", "versions", "runtime", ".xnlc-share", "options.txt", "servers.dat", "launcher_accounts.json"]
+export const DEFAULT_EXCLUSIONS = ["logs", "crash-reports", "cache", "local", "natives", "screenshots", "assets", "libraries", "versions", "runtime", ".xnlc-share", "launcher_accounts.json"]
 const hashPattern = /^[a-f0-9]{64}$/
 export function fail(code: string, message: string): never { throw new ShareError(code, message) }
 export function normalizePath(value: string): string {
@@ -14,6 +14,7 @@ export function normalizePath(value: string): string {
 }
 export function excluded(path: string, rules: string[] = []): boolean {
   const lower = normalizePath(path).toLowerCase()
+  if (lower.endsWith("/session.lock") || lower === "session.lock") return true
   if (lower.split("/").some(p => p.startsWith(".") || /(?:token|password|credential|secret)/i.test(p))) return true
   if (/\.(exe|dll|msi|bat|cmd|ps1|sh|com|scr|lnk|vbs|js|mjs|node|so|dylib)$/i.test(lower)) return true
   return [...DEFAULT_EXCLUSIONS, ...rules].some(rule => lower === rule.toLowerCase() || lower.startsWith(rule.toLowerCase() + "/"))
@@ -29,6 +30,9 @@ export function validateExternal(path: string, bytes: Uint8Array): void {
     if (bytes.includes(0)) fail("FILE_POLICY", "Binary content in text file")
   } else if (extension === "png" && head === "89504e47") return
   else if (["jar", "zip"].includes(extension ?? "") && head === "504b0304") return
+  // NBT списка серверов и данные миров: NBT бывает сырым и сжатым GZIP/ZLIB,
+  // а регион содержит таблицу смещений, поэтому проверка по текстовому расширению здесь неприменима.
+  else if (/^servers\.dat(?:_old)?$/i.test(path) || /^saves\/.+\.(?:dat|dat_old|nbt|mca|mcc)$/i.test(path)) return
   else fail("FILE_POLICY", "Unsupported external content format")
 }
 export function stable(value: unknown): string {

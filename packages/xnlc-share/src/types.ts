@@ -8,6 +8,14 @@ export interface SharedLaunchSettings {
   windowWidth: number | null
   windowHeight: number | null
   account: { type: string; username: string; uuid?: string; serverUrl?: string } | null
+  serverOverride?: boolean
+  server?: string
+  serverPort?: string
+  group?: string
+  preLaunchCommand?: string
+  postLaunchCommand?: string
+  wrapperCommand?: string
+  customEnv?: string
 }
 export interface InstanceMetadata {
   name: string
@@ -37,7 +45,8 @@ export interface Commit {
 }
 export type Role = "owner" | "editor" | "viewer"
 export interface Branch { head: string; owner: string; protected: boolean; base?: string }
-export interface PullRequest { id: string; title: string; description: string; source: string; target: string; author: string; state: "open" | "closed" | "merged"; comments: { author: string; text: string; at: string }[] }
+export interface PullRequestMerge { targetHead: string; sourceHead: string; commit: string; at: string }
+export interface PullRequest { id: string; title: string; description: string; source: string; target: string; author: string; state: "open" | "closed" | "merged"; comments: { author: string; text: string; at: string }[]; merge?: PullRequestMerge }
 export interface Repository {
   id: string; owner: string; members: Record<string, Role>; branches: Record<string, Branch>
   commits: Record<string, Commit>; defaultBranch: string

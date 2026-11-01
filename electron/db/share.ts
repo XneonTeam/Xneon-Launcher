@@ -17,17 +17,21 @@ export function removeSharePublicationBindings(repositoryId: string): string[] {
     return builds.map(build => build.build_id)
   })
 }
-export function finishShareInstall(buildId: string, link: ShareLink, fields: { description: string; version: string; modLoader: string; loaderVersion: string; icon?: string; coverImage?: string; launch?: LocalLaunchSettings; mods: unknown[]; resourcepacks: unknown[]; shaders: unknown[]; installedMods: Record<string, string> }): void {
+export function finishShareInstall(buildId: string, link: ShareLink, fields: { name?: string; intentPath?: string; description: string; version: string; modLoader: string; loaderVersion: string; icon?: string; coverImage?: string; launch?: LocalLaunchSettings; mods: unknown[]; resourcepacks: unknown[]; shaders: unknown[]; installedMods: Record<string, string> }): void {
   transactionImmediate(() => {
     run("UPDATE builds SET version=?,modLoader=?,loaderVersion=?,mods=?,resourcepacks=?,shaders=?,installedMods=?,modsCount=?,resourcepacksCount=?,shadersCount=? WHERE id=?", [fields.version, fields.modLoader, fields.loaderVersion, JSON.stringify(fields.mods), JSON.stringify(fields.resourcepacks), JSON.stringify(fields.shaders), JSON.stringify(fields.installedMods), fields.mods.length, fields.resourcepacks.length, fields.shaders.length, buildId])
     saveShareBinding(buildId, link)
     run("UPDATE builds SET description=? WHERE id=?", [fields.description, buildId])
+    if (fields.name !== undefined) run("UPDATE builds SET name=?,intentPath=? WHERE id=?", [fields.name, fields.intentPath, buildId])
     // Старые публикации без иконки не стирают локальную картинку.
     if (fields.icon !== undefined) run("UPDATE builds SET icon=? WHERE id=?", [fields.icon, buildId])
     if (fields.coverImage !== undefined) run("UPDATE builds SET coverImage=? WHERE id=?", [fields.coverImage, buildId])
     if (fields.launch) {
       const settings = fields.launch
       run("UPDATE builds SET javaOverride=?,javaPath=?,javaArgs=?,memoryMin=?,memoryMax=?,windowOverride=?,windowWidth=?,windowHeight=?,defaultAccountId=? WHERE id=?", [settings.javaOverride ? 1 : 0, settings.javaPath ?? "", settings.javaArgs ?? "", settings.memoryMin ?? "", settings.memoryMax ?? "", settings.windowOverride ? 1 : 0, settings.windowWidth ?? null, settings.windowHeight ?? null, settings.defaultAccountId ?? "", buildId])
+      for (const key of ["serverOverride", "server", "serverPort", "group", "preLaunchCommand", "postLaunchCommand", "wrapperCommand", "customEnv"] as const) {
+        if (settings[key] !== undefined) run(`UPDATE builds SET [${key}]=? WHERE id=?`, [key === "serverOverride" ? Number(settings[key]) : settings[key], buildId])
+      }
     }
   })
 }
