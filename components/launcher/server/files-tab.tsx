@@ -503,6 +503,7 @@ export function FilesTab({ serverId }: FilesTabProps) {
           ) : sortedEntries.length === 0 ? (
             <EmptyState
               variant={search ? "search" : "empty"}
+              icon={search ? undefined : IconFolder}
               title={search ? t("files.noResults") : t("files.empty")}
               className="h-full"
             />
