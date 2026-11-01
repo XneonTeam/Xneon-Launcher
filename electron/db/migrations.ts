@@ -18,6 +18,12 @@ const DEFAULT_SETTINGS: Record<string, string> = {
 }
 
 function createTables() {
+  run(`CREATE TABLE IF NOT EXISTS shared_instances (
+    build_id TEXT PRIMARY KEY REFERENCES builds(id) ON DELETE CASCADE,
+    repository_id TEXT NOT NULL, branch TEXT NOT NULL, applied_commit TEXT NOT NULL DEFAULT '',
+    latest_commit TEXT NOT NULL DEFAULT '', user_id TEXT NOT NULL, role TEXT NOT NULL,
+    status TEXT NOT NULL, updated_at INTEGER NOT NULL
+  )`)
   run(`CREATE TABLE IF NOT EXISTS agent_chats (
     id TEXT PRIMARY KEY, title TEXT NOT NULL, updatedAt INTEGER NOT NULL, data TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0
   )`)
@@ -261,6 +267,7 @@ function migrateBuilds() {
   addColumnIfMissing("builds", "windowOverride", "windowOverride INTEGER NOT NULL DEFAULT 0")
   addColumnIfMissing("builds", "windowWidth", "windowWidth INTEGER")
   addColumnIfMissing("builds", "windowHeight", "windowHeight INTEGER")
+  addColumnIfMissing("builds", "defaultAccountId", "defaultAccountId TEXT NOT NULL DEFAULT ''")
   addColumnIfMissing("builds", "modsCount", "modsCount INTEGER NOT NULL DEFAULT 0")
   addColumnIfMissing("builds", "resourcepacksCount", "resourcepacksCount INTEGER NOT NULL DEFAULT 0")
   addColumnIfMissing("builds", "shadersCount", "shadersCount INTEGER NOT NULL DEFAULT 0")
@@ -353,7 +360,7 @@ export { DEFAULT_SETTINGS }
  * better-sqlite3», нужен для разового бэкапа sql.js-БД), поэтому в
  * `user_version` пишем максимум из двух.
  */
-export const SCHEMA_VERSION = 9
+export const SCHEMA_VERSION = 11
 
 function readUserVersion(): number {
   const rows = queryAll<{ user_version?: number }>("PRAGMA user_version")

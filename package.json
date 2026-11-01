@@ -22,6 +22,7 @@
     "@xnlc/nbt": "workspace:*",
     "@xnlc/servers": "workspace:*",
     "@xnlc/skins": "workspace:*",
+    "@xnlc/share": "workspace:*",
     "@xnlc/types": "workspace:*",
     "adm-zip": "^0.6.0",
     "axios": "^1.18.1",
@@ -42,16 +43,19 @@
   },
   "scripts": {
     "sync:xnlc": "node scripts/sync-local-xnlc.mjs",
-    "predev": "node scripts/gen-credentials.mjs && node scripts/gen-agent-ipc-catalog.mjs && pnpm --filter @xnlc/agent run build",
-    "prebuild": "node scripts/gen-credentials.mjs && node scripts/gen-agent-ipc-catalog.mjs && pnpm --filter @xnlc/agent run build",
-    "prepackage": "node scripts/gen-credentials.mjs && node scripts/gen-agent-ipc-catalog.mjs && pnpm --filter @xnlc/agent run build",
+    "predev": "pnpm run build:share && node scripts/gen-credentials.mjs && node scripts/gen-agent-ipc-catalog.mjs && pnpm --filter @xnlc/agent run build",
+    "prebuild": "pnpm run build:share && node scripts/gen-credentials.mjs && node scripts/gen-agent-ipc-catalog.mjs && pnpm --filter @xnlc/agent run build",
+    "prepackage": "pnpm run build:share && node scripts/gen-credentials.mjs && node scripts/gen-agent-ipc-catalog.mjs && pnpm --filter @xnlc/agent run build",
     "dev": "concurrently -k -s first \"vite --host 127.0.0.1\" \"tsc -p tsconfig.node.json && wait-on tcp:127.0.0.1:5173 --timeout 60000 && cross-env NODE_ENV=development node scripts/launch-electron-dev.mjs\"",
     "dev:fast": "concurrently -k -s first \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development node scripts/launch-electron-dev.mjs\"",
     "build:renderer": "vite build",
+    "build:share": "pnpm --filter @xnlc/share run build && pnpm --filter @xnlc/types run build",
     "build:electron": "tsc -p tsconfig.node.json",
     "build": "pnpm run typecheck && vite build && pnpm run build:electron",
     "package": "pnpm run build && electron-builder",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "share:test": "pnpm --filter @xnlc/share test",
+    "share:test:electron": "pnpm run build:share && pnpm run build:electron && node --test tests/electron/share.test.mjs tests/electron/share-launch-settings.test.mjs tests/electron/copy-instance.test.mjs"
   },
   "devDependencies": {
     "@radix-ui/react-checkbox": "1.3.8",
@@ -90,6 +94,14 @@
   "build": {
     "appId": "com.xneonlauncher.app",
     "productName": "Xneon Launcher",
+    "protocols": [
+      {
+        "name": "XNLC Share",
+        "schemes": [
+          "xneon"
+        ]
+      }
+    ],
     "npmRebuild": false,
     "forceCodeSigning": false,
     "asarUnpack": [

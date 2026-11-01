@@ -87,6 +87,10 @@ function invoke<T>(channel: string) {
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  shareExecute: (request: import('@xnlc/types').ShareRequest) => ipcRenderer.invoke('share:execute', request) as Promise<import('@xnlc/types').ShareResult>,
+  onShareProgress: (callback: (progress: { stage: string; done: number; total: number; bytes: number; requestId?: string; buildId?: string }) => void) => subscribe('share:progress', callback),
+  onShareInstalled: (callback: (event: { buildId: string }) => void) => subscribe('share:installed', callback),
+  onShareInvitation: (callback: (event: { invitation: string }) => void) => subscribe('share:invitation', callback),
   startupThemeSnapshot: ipcRenderer.sendSync('startup:theme-cache') as string | null,
   startupReady: () => ipcRenderer.invoke('startup:ready') as Promise<void>,
   // ── Window ─────────────────────────────────────────────

@@ -75,7 +75,7 @@ const LIGHT_BUILD_FIELDS = [
   "modId", "fileId", "intentPath", "playtime", "javaOverride", "javaPath", "javaArgs",
   "memoryMin", "memoryMax", "serverOverride", "server", "serverPort", "group",
   "preLaunchCommand", "postLaunchCommand", "wrapperCommand", "customEnv",
-  "windowOverride", "windowWidth", "windowHeight",
+  "windowOverride", "windowWidth", "windowHeight", "defaultAccountId",
 ] as const
 
 const CONTENT_KIND_BY_KEY: Record<BuildContentListKey, BuildContentKind> = {
@@ -86,7 +86,7 @@ const CONTENT_KIND_BY_KEY: Record<BuildContentListKey, BuildContentKind> = {
 
 export function useBuilds() {
   const { t } = useTranslation()
-  const { pushNotification, beginContentInstall, endContentInstall } = useActivityCenter()
+  const { pushNotification, beginContentInstall, endContentInstall, upsertLiveNotification, removeLiveNotification } = useActivityCenter()
   // Иконки категорий — их можно задать в контекстном меню категории.
   const { categoryIcons, setCategoryIcon, renameCategoryIcon, dropCategoryIcon } = useCategoryIcons("builds")
   // Созданные вручную категории: без этого пустая категория исчезала бы сразу.
@@ -509,9 +509,14 @@ export function useBuilds() {
     window.addEventListener("cloud:imported", handler)
     const agentHandler = () => { void reloadBuilds() }
     window.addEventListener("launcher:agent-updated", agentHandler)
+    const shareHandler = () => { buildsLightCache = null; buildContentCache.clear(); void reloadBuilds() }
+    window.addEventListener("launcher:share-updated", shareHandler)
+    const offShare = window.electronAPI?.onShareInstalled(shareHandler)
     return () => {
       window.removeEventListener("cloud:imported", handler)
       window.removeEventListener("launcher:agent-updated", agentHandler)
+      window.removeEventListener("launcher:share-updated", shareHandler)
+      offShare?.()
     }
   }, [reloadBuilds])
 
@@ -751,70 +756,56 @@ export function useBuilds() {
     }
   }, [reloadBuilds])
 
+  const duplicatingRef = useRef(new Set<string>())
   const duplicateBuild = useCallback(async (id: string): Promise<Build | null> => {
-    const source = builds.find(b => b.id === id)
-    if (!source) return null
-    const baseName = t("builds.copy", { name: source.name })
-    let newName = baseName
-    let counter = 2
-    while (builds.some(b => b.name === newName)) {
-      newName = t("builds.copyN", { name: source.name, counter })
-      counter++
-    }
-    const newBuild: Build = {
-      ...source,
-      id: crypto.randomUUID(),
-      name: newName,
-      createdAt: new Date().toISOString(),
-      mods: source.mods.map(m => ({ ...m, id: crypto.randomUUID() })),
-      resourcepacks: source.resourcepacks.map(m => ({ ...m, id: crypto.randomUUID() })),
-      shaders: source.shaders.map(m => ({ ...m, id: crypto.randomUUID() })),
-    }
-    // Путь новой сборки нужен сразу, а не после копирования папки: у модпака
-// `build:copy` копирует десятки тысяч файлов, и ожидание этой операции
-// задерживало появление карточки в списке. `getBuildIntentPath` возвращает тот
-// же каталог, который наполнит `build:copy`, поэтому путь сразу верный.
-    let intentPath = newBuild.intentPath
+    const source = buildsRef.current.find(build => build.id === id)
+    const api = window.electronAPI
+    if (!source || !api || duplicatingRef.current.has(id)) return null
+    duplicatingRef.current.add(id)
+    const liveKey = `duplicate-build:${id}`
+    upsertLiveNotification(liveKey, { kind: "progress", source: "install", title: t("builds.copyingTitle"), message: source.name, busy: true, progress: null })
     try {
-      intentPath = await window.electronAPI?.getBuildIntentPath(newName) ?? intentPath
-    } catch {}
-    newBuild.intentPath = intentPath
-
-    // Сборка попадает в интерфейс (и в кэш списка) немедленно...
-    setBuilds(prev => [newBuild, ...prev])
-
-    // ...а запись в БД — сразу за этим: debounce-патчи работают через
-    // `UPDATE ... WHERE id = ?` и новую строку не создадут.
-    try {
-      await window.electronAPI?.insertBuild?.(newBuild as unknown as Parameters<NonNullable<Window["electronAPI"]>["insertBuild"]>[0])
+      let newName = t("builds.copy", { name: source.name })
+      let counter = 2
+      while (buildsRef.current.some(build => build.name.toLowerCase() === newName.toLowerCase())) {
+        newName = t("builds.copyN", { name: source.name, counter: counter++ })
+      }
+      // В лёгком списке массивы пусты: сначала загружаем полные метаданные.
+      const content = buildContentCache.get(id) ?? await api.loadBuildContent(id)
+      const result = await api.copyBuild(source.name, newName)
+      if (!result.success || !result.intentPath) throw new Error(result.error || "Instance copy failed")
+      const copy: Build = {
+        ...source,
+        id: crypto.randomUUID(), name: newName, intentPath: result.intentPath,
+        createdAt: new Date().toISOString(), playtime: 0,
+        mods: (content?.mods as BuildMod[] ?? source.mods).map(item => ({ ...item, id: crypto.randomUUID() })),
+        resourcepacks: (content?.resourcepacks as BuildMod[] ?? source.resourcepacks).map(item => ({ ...item, id: crypto.randomUUID() })),
+        shaders: (content?.shaders as BuildMod[] ?? source.shaders).map(item => ({ ...item, id: crypto.randomUUID() })),
+        installedMods: {},
+      }
+      // Скан новой папки восстанавливает фактические списки и пути installedMods.
+      const newBuild = await syncBuildContent(copy)
+      await api.insertBuild(newBuild as unknown as Parameters<typeof api.insertBuild>[0])
       savedLightFieldsRef.current.set(newBuild.id, Object.fromEntries(
         LIGHT_BUILD_FIELDS.map(key => [key, (newBuild as unknown as Record<string, unknown>)[key]]),
       ))
       savedContentRef.current.set(newBuild.id, {
         mods: newBuild.mods, resourcepacks: newBuild.resourcepacks, shaders: newBuild.shaders, installedMods: newBuild.installedMods ?? {},
       })
+      updateCachedBuildContent(newBuild.id, {
+        mods: newBuild.mods, resourcepacks: newBuild.resourcepacks, shaders: newBuild.shaders, installedMods: newBuild.installedMods ?? {},
+      })
+      setBuilds(previous => [newBuild, ...previous])
+      return newBuild
     } catch (error) {
-      console.error("[Builds] Не удалось записать копию сборки в БД", newBuild.id, error)
+      console.error("[Builds] Не удалось скопировать сборку", source.name, error)
+      pushNotification({ kind: "error", source: "install", title: t("builds.copyFailedTitle"), message: fsErrorMessage(t, error instanceof Error ? error.message : String(error)) })
+      return null
+    } finally {
+      duplicatingRef.current.delete(id)
+      removeLiveNotification(liveKey)
     }
-
-    // Копирование файлов идёт в фоне — интерфейс его не ждёт.
-    void (async () => {
-      try {
-        const result = await window.electronAPI?.copyBuild?.(source.name, newName)
-        if (result?.success && result.intentPath && result.intentPath !== newBuild.intentPath) {
-          const resolved = result.intentPath
-          setBuilds(prev => prev.map(build => build.id === newBuild.id ? { ...build, intentPath: resolved } : build))
-          try {
-            await window.electronAPI?.updateBuildFields?.(newBuild.id, { intentPath: resolved } as never)
-          } catch {}
-        }
-      } catch (error) {
-        console.error("[Builds] Не удалось скопировать папку сборки", newName, error)
-      }
-    })()
-
-    return newBuild
-  }, [builds, setBuilds])
+  }, [setBuilds, syncBuildContent, t, pushNotification, upsertLiveNotification, removeLiveNotification])
 
   const exportBuildZip = useCallback(async (id: string, categories?: BuildExportCategory[]): Promise<{ success: boolean; path?: string; error?: string }> => {
     const build = builds.find(b => b.id === id)

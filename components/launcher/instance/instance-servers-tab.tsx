@@ -50,7 +50,7 @@ async function fetchServerStatus(ip: string): Promise<ServerStatus> {
 
 export function InstanceServersTab({ build, updateBuild }: InstanceServersTabProps) {
   const { t } = useTranslation()
-  const { activeAccount } = useAccounts()
+  const { activeAccount, accounts } = useAccounts()
   const [servers, setServers] = useState<ServerEntry[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [showAddModal, setShowAddModal] = useState(false)
@@ -204,14 +204,15 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
   const formatPlayers = (n: number) => n.toLocaleString("ru-RU")
 
   const connectToServer = async (server: ServerEntry) => {
+    const launchAccount = accounts.find(account => account.id === build.defaultAccountId) ?? activeAccount
     const status = server.status
-    if (!status?.online || !status.ip || !activeAccount) return
+    if (!status?.online || !status.ip || !launchAccount) return
     const api = window.electronAPI
     if (!api) return
     setConnectingIp(server.ip)
     try {
       const settings = await loadLaunchSettings()
-      const { width, height } = resolveLaunchDimensions(settings)
+      const { width, height } = build.windowOverride && build.windowWidth && build.windowHeight ? { width: build.windowWidth, height: build.windowHeight } : resolveLaunchDimensions(settings)
 
       const intentPath = build.name ? await api.getBuildIntentPath(build.name) : undefined
 
@@ -220,7 +221,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
         modLoader: (build.customVersionPath ? "custom" : build.modLoader) as "vanilla" | "forge" | "fabric" | "quilt" | "liteloader" | "optifine" | "neoforge" | "custom",
         ...(build.loaderVersion ? { loaderVersion: build.loaderVersion } : {}),
         ...(build.customVersionPath ? { customVersionPath: build.customVersionPath } : {}),
-        account: { type: activeAccount.type, username: activeAccount.username, uuid: activeAccount.uuid, accessToken: activeAccount.accessToken },
+        account: { type: launchAccount.type, username: launchAccount.username, uuid: launchAccount.uuid, accessToken: launchAccount.accessToken },
         memory: { min: build.javaOverride && build.memoryMin ? build.memoryMin : (settings.savedMemoryMin || "512M"), max: build.javaOverride && build.memoryMax ? build.memoryMax : (settings.savedMemoryMax || "4G") },
         javaPath: build.javaOverride ? build.javaPath : undefined,
         javaArgs: build.javaOverride ? build.javaArgs : undefined,

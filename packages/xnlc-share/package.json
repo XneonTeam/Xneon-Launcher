@@ -1,0 +1,11 @@
+{
+  "name": "@xnlc/share",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": { ".": { "types": "./lib/index.d.ts", "default": "./lib/index.js" } },
+  "files": ["lib"],
+  "scripts": { "build": "tsc -p tsconfig.json", "test": "pnpm run build && node --test tests/*.test.mjs" },
+  "publishConfig": { "registry": "https://git.xneon.org/api/packages/MAINER4IK/npm/" }
+}

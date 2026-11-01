@@ -16,6 +16,7 @@
   "files": [
     "lib"
   ],
+  "dependencies": { "@xnlc/share": "workspace:*" },
   "scripts": {
     "build": "node -e \"fs.rmSync('lib',{recursive:true,force:true})\" && tsc -p tsconfig.json",
     "clean": "node -e \"fs.rmSync('lib',{recursive:true,force:true})\""

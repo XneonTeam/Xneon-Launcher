@@ -167,6 +167,14 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
   const removeLiveNotification = useCallback((liveKey: string) => {
     setNotifications((prev) => prev.filter((item) => item.liveKey !== liveKey))
   }, [])
+  useEffect(() => window.electronAPI?.onShareProgress(event => {
+    if (!event.requestId || event.stage === "scan") return
+    const key = `share:${event.requestId}`
+    if (event.stage === "done" || event.stage === "error") {
+      removeLiveNotification(key)
+      pushNotification({ kind: event.stage === "done" ? "success" : "error", source: "install", title: i18n.t("share.title"), message: i18n.t(`share.flow.activity.${event.stage}`) })
+    } else upsertLiveNotification(key, { kind: "progress", source: "install", title: i18n.t("share.title"), message: i18n.t(`share.flow.stage.${event.stage}`, { defaultValue: i18n.t("share.flow.working") }), busy: true, progress: event.total ? event.done / event.total * 100 : null })
+  }), [removeLiveNotification, pushNotification, upsertLiveNotification])
 
   const beginContentInstall = useCallback((start: ContentInstallStart) => {
     contentInstallRef.current = {

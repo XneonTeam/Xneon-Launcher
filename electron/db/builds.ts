@@ -93,6 +93,7 @@ type BuildRow = {
   windowOverride: number | null
   windowWidth: number | null
   windowHeight: number | null
+  defaultAccountId: string | null
   modsCount?: number | null
   resourcepacksCount?: number | null
   shadersCount?: number | null
@@ -140,6 +141,7 @@ function rowToBuild(row: BuildRow): BuildJson {
     windowOverride: row.windowOverride === 1,
     windowWidth: row.windowWidth ?? undefined,
     windowHeight: row.windowHeight ?? undefined,
+    defaultAccountId: row.defaultAccountId || undefined,
     modsCount: typeof row.modsCount === "number" ? row.modsCount : undefined,
     resourcepacksCount: typeof row.resourcepacksCount === "number" ? row.resourcepacksCount : undefined,
     shadersCount: typeof row.shadersCount === "number" ? row.shadersCount : undefined,
@@ -175,7 +177,7 @@ const LIGHT_COLUMNS = `id, name, description, version, modLoader, loaderVersion,
   createdAt, source, projectSlug, modpackVersion, modpackVersionId, locked, modId, fileId,
   intentPath, customVersionPath, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax,
   serverOverride, server, serverPort, [group], preLaunchCommand, postLaunchCommand,
-  wrapperCommand, customEnv, windowOverride, windowWidth, windowHeight,
+  wrapperCommand, customEnv, windowOverride, windowWidth, windowHeight, defaultAccountId,
   modsCount, resourcepacksCount, shadersCount`
 
 export async function loadBuildsLight(): Promise<BuildLightJson[]> {
@@ -367,8 +369,8 @@ export async function saveAllBuilds(builds: Array<BuildJson | BuildLightJson>): 
  * у массового сохранения и у точечной вставки новой сборки.
  */
 const INSERT_BUILD_SQL = `
-  INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, customVersionPath, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, modpackVersion, modpackVersionId, locked, modId, fileId, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax, serverOverride, server, serverPort, [group], preLaunchCommand, postLaunchCommand, wrapperCommand, customEnv, windowOverride, windowWidth, windowHeight, modsCount, resourcepacksCount, shadersCount)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT OR REPLACE INTO builds (id, name, description, version, modLoader, loaderVersion, customVersionPath, icon, coverImage, mods, resourcepacks, shaders, intentPath, installedMods, createdAt, source, projectSlug, modpackVersion, modpackVersionId, locked, modId, fileId, playtime, javaOverride, javaPath, javaArgs, memoryMin, memoryMax, serverOverride, server, serverPort, [group], preLaunchCommand, postLaunchCommand, wrapperCommand, customEnv, windowOverride, windowWidth, windowHeight, modsCount, resourcepacksCount, shadersCount, defaultAccountId)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 /** Ленивое подготовленное выражение: `prepare` требует инициализированной БД. */
@@ -451,6 +453,7 @@ function buildInsertParams(
     modsCount,
     resourcepacksCount,
     shadersCount,
+    build.defaultAccountId ?? "",
   ]
   for (let i = 0; i < params.length; i++) {
     const v = params[i]
@@ -555,6 +558,7 @@ const NOT_NULL_TEXT_COLUMNS = new Set([
   "postLaunchCommand",
   "wrapperCommand",
   "customEnv",
+  "defaultAccountId",
 ])
 
 /**
@@ -608,6 +612,7 @@ export async function updateBuildFields(buildId: string, fields: Partial<BuildJs
     windowOverride: "windowOverride",
     windowWidth: "windowWidth",
     windowHeight: "windowHeight",
+    defaultAccountId: "defaultAccountId",
     modsCount: "modsCount",
     resourcepacksCount: "resourcepacksCount",
     shadersCount: "shadersCount",

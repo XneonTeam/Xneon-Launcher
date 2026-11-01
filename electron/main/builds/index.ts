@@ -52,6 +52,7 @@ import {
   type ImportModEntry,
 } from "./helpers"
 import { scanIntentDir } from "./scanner"
+import { copyInstanceDirectory } from "./copy-instance"
 import { readTrashSnapshot } from "./trash-meta"
 import { collectMissingFiles, downloadMissingModFiles, readMissingModsConfig } from "./missing-mods"
 import { checkContentUpdates, dismissContentUpdate, readUpdatesCache, readUpdatesCounts } from "./update-checker"
@@ -563,18 +564,11 @@ export function registerBuildHandlers() {
 
   ipcMain.handle("build:copy", async (_event, dirName: string, newName: string): Promise<{ success: boolean; intentPath?: string; error?: string }> => {
     try {
-      const srcIntentPath = getBuildIntentPath(dirName)
+      const source = await dbHelpers.findBuildByName(dirName)
+      const sourceBuild = source ? await dbHelpers.findBuildById(source.id) : null
+      const srcIntentPath = sourceBuild?.intentPath || getBuildIntentPath(dirName)
       const newIntentPath = getBuildIntentPath(newName)
-      if (!(await fs.stat(srcIntentPath)).isDirectory()) throw new Error("Source instance is not a directory")
-      // mkdir без recursive атомарно резервирует новое имя. Существующие
-      // сборки, в том числе сам источник и алиасы регистра Windows, не удаляем.
-      await fs.mkdir(path.dirname(newIntentPath), { recursive: true })
-      await fs.mkdir(newIntentPath)
-      for (const entry of await fs.readdir(srcIntentPath)) {
-        await fs.cp(path.join(srcIntentPath, entry), path.join(newIntentPath, entry), {
-          recursive: true, verbatimSymlinks: true, force: false, errorOnExist: true,
-        })
-      }
+      await copyInstanceDirectory(srcIntentPath, newIntentPath)
       return { success: true, intentPath: newIntentPath }
     } catch (error) {
       return opFailure(error)
