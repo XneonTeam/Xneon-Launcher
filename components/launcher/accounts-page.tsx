@@ -418,7 +418,7 @@ export function AccountsPage() {
 
         <div data-ui="accounts-page-div-2" className={`min-h-0 flex-1 overflow-y-auto pr-1 ${CONTENT_ENTER_DELAYED}`}>
           {accounts.length === 0 ? (
-            <div data-ui="accounts-page-div-7" className="text-center py-16">
+            <div data-ui="accounts-page-div-7" className="flex min-h-full flex-col items-center justify-center py-8 text-center">
               <div data-ui="accounts-page-div-8" className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl border border-primary/20 bg-primary/10 text-primary mx-auto mb-4">
                 <IconUser className="w-10 h-10" strokeWidth={1.75} aria-hidden="true" />
               </div>

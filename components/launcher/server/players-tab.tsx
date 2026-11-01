@@ -135,7 +135,7 @@ export function PlayersTab({ serverId }: PlayersTabProps) {
             <div data-ui="server-players-tab-div-7" className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
           </div>
         ) : players.length === 0 ? (
-          <div data-ui="server-players-tab-div-8" className="flex flex-col items-center justify-center py-12 text-center">
+          <div data-ui="server-players-tab-div-8" className="flex min-h-full flex-col items-center justify-center py-8 text-center">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary mb-3"><IconUsers className="h-8 w-8" strokeWidth={1.75} aria-hidden="true" /></div>
             <p data-ui="server-players-tab-p-1" className="text-sm text-muted-foreground">{t("servers.noEntries")}</p>
           </div>

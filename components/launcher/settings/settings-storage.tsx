@@ -1,4 +1,4 @@
-import { useContentEnter } from "../content-motion"
+import { useContentEnterAfterLoad } from "../content-motion"
 import "./settings-storage.css"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -272,7 +272,7 @@ function ServerStorageRow({ entry }: { entry: ServerStorageEntry }) {
 export function SettingsStorage() {
   const { t } = useTranslation()
   const [scan, setScan] = useState<StorageScanResult | null>(getCachedStorageScan)
-  const contentEnter = useContentEnter(scan !== null)
+  const contentEnter = useContentEnterAfterLoad(scan !== null)
   const [loading, setLoading] = useState(() => !getCachedStorageScan())
   const scanRequest = useRef(0)
   const [cleaning, setCleaning] = useState(false)

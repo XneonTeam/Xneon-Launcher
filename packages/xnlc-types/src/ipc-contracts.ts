@@ -369,6 +369,8 @@ export interface IpcInvokeMap {
   "update:check": { args: []; return: { available: boolean; version?: string; error?: string } }
   "update:download": { args: []; return: { success: boolean; error?: string } }
   "update:install": { args: []; return: void }
+  "update:get-channel": { args: []; return: "stable" | "beta" }
+  "update:set-channel": { args: [channel: string]; return: void }
 
   // ── Misc (без доменного префикса — историческое имя канала) ──
   "read-local-file": { args: [filePath: string]; return: string | null }
@@ -786,6 +788,8 @@ export interface ElectronAPIExtra {
   updateCheck: () => Promise<{ available: boolean; version?: string; error?: string }>
   updateDownload: () => Promise<{ success: boolean; error?: string }>
   updateInstall: () => Promise<void>
+  updateGetChannel: () => Promise<"stable" | "beta">
+  updateSetChannel: (channel: string) => Promise<void>
   onUpdateStatus: (callback: (status: { status: string; version?: string; releaseDate?: string; releaseNotes?: string; error?: string }) => void) => () => void
   onUpdateProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void
   skinsGetProfile: (accountId?: string) => Promise<McProfile | null>

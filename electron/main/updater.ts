@@ -3,6 +3,7 @@ import { app, ipcMain } from "electron"
 import { isDev, logRuntime, logRuntimeDebug, sendToRenderer } from "./runtime"
 import { isLaunchActive } from "./minecraft-core"
 import { isVersionNewer } from "./utils/version"
+import { getSetting, setSetting } from "../db/settings"
 
 let pendingUpdate: UpdateInfo | null = null
 let isDownloading = false
@@ -10,10 +11,31 @@ let updateDownloaded = false
 
 const CURRENT_VERSION = app.getVersion()
 
+export type UpdateChannel = "stable" | "beta"
+
+const UPDATE_CHANNEL_KEY = "updateChannel"
+
+function applyChannel(channel: UpdateChannel): void {
+  if (channel === "beta") {
+    autoUpdater.channel = "beta"
+    autoUpdater.allowPrerelease = true
+  } else {
+    autoUpdater.channel = "latest"
+    autoUpdater.allowPrerelease = false
+  }
+}
+
 export function registerUpdater() {
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.forceDevUpdateConfig = false
+
+  // Восстанавливаем выбранный канал обновлений из настроек.
+  void getSetting(UPDATE_CHANNEL_KEY).then((stored) => {
+    const channel: UpdateChannel = stored === "beta" ? "beta" : "stable"
+    applyChannel(channel)
+    logRuntime(`[Updater] Update channel: ${channel}`)
+  })
 
   if (isDev) {
     autoUpdater.logger = {
@@ -119,6 +141,19 @@ export function registerUpdater() {
     }
     logRuntime("[Updater] Installing update and restarting...")
     autoUpdater.quitAndInstall(false, true)
+  })
+
+  ipcMain.handle("update:get-channel", async (): Promise<UpdateChannel> => {
+    const stored = await getSetting(UPDATE_CHANNEL_KEY)
+    return stored === "beta" ? "beta" : "stable"
+  })
+
+  ipcMain.handle("update:set-channel", async (_event, channel: string) => {
+    const next: UpdateChannel = channel === "beta" ? "beta" : "stable"
+    await setSetting(UPDATE_CHANNEL_KEY, next)
+    applyChannel(next)
+    logRuntime(`[Updater] Update channel changed to: ${next}`)
+    sendToRenderer("update:channel-changed", { channel: next })
   })
 
 

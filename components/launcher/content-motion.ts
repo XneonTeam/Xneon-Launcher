@@ -5,8 +5,13 @@ import { SETTINGS_CONTENT_ENTER, SETTINGS_CONTENT_ENTER_DELAYED } from "./settin
 export const CONTENT_ENTER = SETTINGS_CONTENT_ENTER
 export const CONTENT_ENTER_DELAYED = SETTINGS_CONTENT_ENTER_DELAYED
 
-/** Ожидаем первые данные; фоновые запросы больше не перезапускают анимацию. */
-export function useContentEnter(ready: boolean) {
+/** Анимация начинается при появлении контейнера и не зависит от загрузки данных. */
+export function useContentEnter(_ready: boolean) {
+  return CONTENT_ENTER
+}
+
+/** Для разделов, где анимация должна начинаться после первой загрузки данных. */
+export function useContentEnterAfterLoad(ready: boolean) {
   const [entered, setEntered] = useState(ready)
   useEffect(() => {
     if (ready) setEntered(true)
