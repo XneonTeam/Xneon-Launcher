@@ -1,6 +1,6 @@
 {
   "name": "xneon-launcher",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Modern, fast, and feature-rich Minecraft launcher built with Electron and React",
   "author": {
     "name": "Xneon Launcher",
