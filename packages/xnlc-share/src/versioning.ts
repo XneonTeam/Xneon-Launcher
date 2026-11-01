@@ -1,6 +1,6 @@
 import type { Manifest, ContentEntry, DiffEntry, MergeResult, Repository, RepositoryCommand, Role, Commit, HashPort } from "./types.js"
 import { fail, stable, validateManifest, manifestHash } from "./manifest.js"
-import { LAUNCH_SETTING_KEYS } from "./launch-settings.js"
+import { LAUNCH_SETTING_KEYS, EXTRA_LAUNCH_SETTING_KEYS } from "./launch-settings.js"
 import type { SharedLaunchSettings } from "./types.js"
 
 export function diff(before: Manifest, after: Manifest): DiffEntry[] {
@@ -68,7 +68,12 @@ export function merge(base: Manifest, current: Manifest, incoming: Manifest, res
   const oldLaunch = base.instance.launchSettings ?? current.instance.launchSettings
   const localLaunch = current.instance.launchSettings ?? oldLaunch ?? incoming.instance.launchSettings
   const nextLaunch = incoming.instance.launchSettings ?? oldLaunch ?? localLaunch
-  if (localLaunch && nextLaunch) instance.launchSettings = Object.fromEntries(LAUNCH_SETTING_KEYS.map(key => [key, choose(`@instance/launchSettings/${key}`, oldLaunch?.[key], localLaunch[key], nextLaunch[key])])) as unknown as SharedLaunchSettings
+  if (localLaunch && nextLaunch) instance.launchSettings = Object.fromEntries(LAUNCH_SETTING_KEYS.map(key => {
+    const extra = EXTRA_LAUNCH_SETTING_KEYS.some(extra => extra === key)
+    if (extra && [oldLaunch, localLaunch, nextLaunch].every(settings => settings?.[key] === undefined)) return [key, undefined]
+    const baseline = oldLaunch?.[key] !== undefined ? oldLaunch[key] : extra ? key === "serverOverride" ? false : "" : undefined
+    return [key, choose(`@instance/launchSettings/${key}`, baseline, localLaunch[key] !== undefined ? localLaunch[key] : baseline, nextLaunch[key] !== undefined ? nextLaunch[key] : baseline)]
+  }).filter(([, value]) => value !== undefined)) as unknown as SharedLaunchSettings
   const exclusions = choose("@exclusions", base.exclusions, current.exclusions, incoming.exclusions)
   return { manifest: { schemaVersion: 1, instance, entries, exclusions }, conflicts }
 }
@@ -148,6 +153,7 @@ export function mutateRepository(input: Repository, user: string, command: Repos
       const pr = r.pullRequests[c.pullRequest]
       if (!manager || !pr || pr.state !== "open" || pr.target !== c.branch || commit.parents[1] !== r.branches[pr.source]?.head) fail("PR", "Pull request changed before merge")
       pr.state = "merged"
+      pr.merge = { targetHead: commit.parents[0], sourceHead: commit.parents[1], commit: commit.id, at: now }
     }
   } else if (c.action === "fastForward") {
     const branch = r.branches[c.branch]
@@ -158,6 +164,7 @@ export function mutateRepository(input: Repository, user: string, command: Repos
       const pr = r.pullRequests[c.pullRequest]
       if (!manager || !pr || pr.state !== "open" || pr.target !== c.branch || !r.branches[pr.source] || !isAncestor(r, r.branches[pr.source].head, c.head)) fail("PR", "Pull request changed before merge")
       pr.state = "merged"
+      pr.merge = { targetHead: c.expected, sourceHead: r.branches[pr.source].head, commit: c.head, at: now }
     }
     branch.head = c.head
   } else if (c.action === "branch") {

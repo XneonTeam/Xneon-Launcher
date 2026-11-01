@@ -1,5 +1,7 @@
 import type { ElectronAPI } from '@xnlc/types'
 // XNLC/Share: shareExecute и типы запросов объявлены в общем контракте @xnlc/types.
+// Удалённые mc-servers: mcServerRemote и события соединения объявлены в том же IPC-контракте.
+// История mc-servers: mcServerHistory объявлен в общем контракте.
 
 export {}
 

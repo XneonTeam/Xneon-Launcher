@@ -18,6 +18,8 @@ import { registerAiAgent } from "./ai-agent"
 import { registerSkinsHandlers } from "./skins"
 import { registerShareHandlers } from "./share"
 import { registerMcServerHandlers } from "./mc-server-handlers"
+import { registerRemoteServerHandlers } from "./remote-servers"
+import { registerServerHistoryHandlers } from "./remote-servers/history-handlers"
 import { registerStatsHandlers } from "./stats"
 import { registerStorageHandlers } from "./storage"
 import { xnConnectManager } from "./xn-connect-manager"
@@ -42,6 +44,8 @@ registerSkinsHandlers()
 registerShareHandlers()
 registerAvatarHandlers()
 registerMcServerHandlers()
+registerRemoteServerHandlers()
+registerServerHistoryHandlers()
 registerStatsHandlers()
 registerStorageHandlers()
 // XN-Connect: каналы в своём модуле (раньше жили внутри mc-server-handlers).

@@ -11,7 +11,7 @@ test('установка обновления сохраняет описани�
   db.exec(`CREATE TABLE builds (id TEXT PRIMARY KEY, name TEXT, description TEXT, version TEXT, modLoader TEXT, loaderVersion TEXT, icon TEXT, coverImage TEXT, mods TEXT, resourcepacks TEXT, shaders TEXT, installedMods TEXT, modsCount INTEGER, resourcepacksCount INTEGER, shadersCount INTEGER);
     CREATE TABLE shared_instances (build_id TEXT PRIMARY KEY, repository_id TEXT, branch TEXT, applied_commit TEXT, latest_commit TEXT, user_id TEXT, role TEXT, status TEXT, updated_at INTEGER);
     INSERT INTO builds (id,name,description,icon,coverImage) VALUES ('test','Моя локальная копия','Старое описание','old-icon','old-cover');`)
-  for (const column of ['javaOverride INTEGER', 'javaPath TEXT', 'javaArgs TEXT', 'memoryMin TEXT', 'memoryMax TEXT', 'windowOverride INTEGER', 'windowWidth INTEGER', 'windowHeight INTEGER', 'defaultAccountId TEXT']) db.exec('ALTER TABLE builds ADD COLUMN ' + column)
+  for (const column of ['intentPath TEXT', 'javaOverride INTEGER', 'javaPath TEXT', 'javaArgs TEXT', 'memoryMin TEXT', 'memoryMax TEXT', 'windowOverride INTEGER', 'windowWidth INTEGER', 'windowHeight INTEGER', 'defaultAccountId TEXT', 'serverOverride INTEGER', 'server TEXT', 'serverPort TEXT', '[group] TEXT', 'preLaunchCommand TEXT', 'postLaunchCommand TEXT', 'wrapperCommand TEXT', 'customEnv TEXT']) db.exec('ALTER TABLE builds ADD COLUMN ' + column)
   const exports = {}
   const core = {
     run: (sql, args) => db.prepare(sql).run(...args),
@@ -27,6 +27,10 @@ test('установка обновления сохраняет описани�
   for (const key of ['description', 'version', 'modLoader', 'loaderVersion', 'icon', 'coverImage']) assert.equal(row[key], fields[key])
   for (const key of ['mods', 'resourcepacks', 'shaders', 'installedMods']) assert.deepEqual(JSON.parse(row[key]), fields[key])
   assert.equal(row.name, 'Моя локальная копия')
+  exports.finishShareInstall('test', link, { ...fields, name: 'Обновлённая сборка', intentPath: 'C:/instances/Обновлённая сборка' })
+  row = db.prepare('SELECT * FROM builds').get()
+  assert.equal(row.name, 'Обновлённая сборка')
+  assert.equal(row.intentPath, 'C:/instances/Обновлённая сборка')
   assert.equal(row.modsCount, 1); assert.equal(row.resourcepacksCount, 1); assert.equal(row.shadersCount, 1)
   assert.equal(db.prepare('SELECT applied_commit FROM shared_instances').get().applied_commit, 'commit')
   const { icon, coverImage, ...legacy } = fields
@@ -36,7 +40,7 @@ test('установка обновления сохраняет описани�
   exports.finishShareInstall('test', link, { ...fields, icon: '', coverImage: '' })
   row = db.prepare('SELECT * FROM builds').get()
   assert.equal(row.icon, ''); assert.equal(row.coverImage, '')
-  const launch = { javaOverride: true, javaPath: '/usr/lib/jvm/java-21/bin/java', javaArgs: '-XX:+UseG1GC', memoryMin: '1G', memoryMax: '6G', windowOverride: true, windowWidth: 1600, windowHeight: 900, defaultAccountId: 'local-account' }
+  const launch = { javaOverride: true, javaPath: '/usr/lib/jvm/java-21/bin/java', javaArgs: '-XX:+UseG1GC', memoryMin: '1G', memoryMax: '6G', windowOverride: true, windowWidth: 1600, windowHeight: 900, defaultAccountId: 'local-account', serverOverride: true, server: 'play.example.org', serverPort: '25565', group: 'Friends', preLaunchCommand: 'echo before', postLaunchCommand: 'echo after', wrapperCommand: '', customEnv: 'PACK_MODE=fast' }
   exports.finishShareInstall('test', link, { ...fields, launch })
   row = db.prepare('SELECT * FROM builds').get()
   for (const [key, value] of Object.entries(launch)) assert.equal(row[key], typeof value === 'boolean' ? Number(value) : value)

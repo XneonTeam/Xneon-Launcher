@@ -88,6 +88,10 @@ function invoke<T>(channel: string) {
 
 contextBridge.exposeInMainWorld('electronAPI', {
   shareExecute: (request: import('@xnlc/types').ShareRequest) => ipcRenderer.invoke('share:execute', request) as Promise<import('@xnlc/types').ShareResult>,
+  mcServerRemote: (request: import('@xnlc/types').RemoteServerRequest) => ipcRenderer.invoke('mc-server:remote', request) as Promise<import('@xnlc/types').RemoteServerResponse>,
+  mcServerHistory: (id: string, command: import('@xnlc/share').ServerHistoryCommand) => ipcRenderer.invoke('mc-server:history', id, command) as Promise<import('@xnlc/share').ServerHistoryResponse>,
+  onMcServerRemoteSnapshot: (callback: (event: { id: string; logs: string[] }) => void) => { const listener = (_event: unknown, data: { id: string; logs: string[] }) => callback(data); ipcRenderer.on('mc-server:remote-snapshot', listener); return () => ipcRenderer.removeListener('mc-server:remote-snapshot', listener) },
+  onMcServerRemoteConnection: (callback: (event: { id: string; online: boolean; info: import('@xnlc/types').McServerInfo }) => void) => { const listener = (_event: unknown, data: { id: string; online: boolean; info: import('@xnlc/types').McServerInfo }) => callback(data); ipcRenderer.on('mc-server:remote-connection', listener); return () => ipcRenderer.removeListener('mc-server:remote-connection', listener) },
   onShareProgress: (callback: (progress: { stage: string; done: number; total: number; bytes: number; requestId?: string; buildId?: string }) => void) => subscribe('share:progress', callback),
   onShareInstalled: (callback: (event: { buildId: string }) => void) => subscribe('share:installed', callback),
   onShareInvitation: (callback: (event: { invitation: string }) => void) => subscribe('share:invitation', callback),

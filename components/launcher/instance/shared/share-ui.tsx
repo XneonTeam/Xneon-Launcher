@@ -28,7 +28,7 @@ export function ShareButton({ secondary = false, busy = false, className, childr
   )
 }
 
-export function ShareModal({ open, onClose, title, description, children, footer, titleIcon, wide = false, fixedHeight = false }: {
+export function ShareModal({ open, onClose, title, description, children, footer, titleIcon, wide = false, fixedHeight = false, expanded = false }: {
   open: boolean
   onClose(): void
   title: string
@@ -38,6 +38,7 @@ export function ShareModal({ open, onClose, title, description, children, footer
   titleIcon?: ReactNode
   wide?: boolean
   fixedHeight?: boolean
+  expanded?: boolean
 }) {
   const [area, setArea] = useState<{ x: number; y: number; width: number; height: number }>()
   useLayoutEffect(() => {
@@ -57,12 +58,13 @@ export function ShareModal({ open, onClose, title, description, children, footer
   return (
     <Dialog open={open} onOpenChange={value => { if (!value) onClose() }}>
       <DialogContent
-        className={cn("flex max-w-lg flex-col gap-0 overflow-hidden rounded-3xl border-border bg-background p-0 shadow-2xl", wide && "max-w-4xl", fixedHeight && "h-[min(660px,calc(100dvh-4rem))]")}
+        className={cn("flex max-w-lg flex-col gap-0 overflow-hidden rounded-3xl border-border bg-background p-0 shadow-2xl", wide && "max-w-4xl", expanded && "max-w-6xl", fixedHeight && "h-[min(660px,calc(100dvh-4rem))]")}
         style={area ? {
           left: area.x + area.width / 2,
           top: area.y + area.height / 2,
           width: Math.max(0, area.width - 32),
           maxHeight: Math.max(0, area.height - 32),
+          ...(expanded ? { height: Math.max(0, area.height - 32) } : {}),
         } : undefined}
       >
         <DialogHeader className="shrink-0 gap-2 border-b border-border/50 px-6 py-5 text-left">
@@ -72,7 +74,7 @@ export function ShareModal({ open, onClose, title, description, children, footer
           </DialogTitle>
           <DialogDescription className="text-xs leading-relaxed">{description}</DialogDescription>
         </DialogHeader>
-        <div className={cn("min-h-0 overflow-y-auto p-6", fixedHeight && "flex-1 overflow-hidden")}>{children}</div>
+        <div className={cn("min-h-0 overflow-y-auto p-6", expanded && "p-4", fixedHeight && "flex-1 overflow-hidden")}>{children}</div>
         {footer && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border/50 bg-muted/20 px-6 py-4">{footer}</div>}
       </DialogContent>
     </Dialog>

@@ -13,7 +13,7 @@ test('настройки запуска валидируются и входят
   withSettings.instance.launchSettings.memoryMax = '8G'
   assert.equal(validated.instance.launchSettings.memoryMax, '6G')
   assert.equal(Object.hasOwn(validateManifest(old).instance, 'launchSettings'), false)
-  for (const changes of [{ windowWidth: -1 }, { memoryMax: 'unlimited' }, { javaArgs: 'a\0b' }, { account: { ...launchSettings.account, accessToken: 'must-not-transfer' } }, { preLaunchCommand: 'must-not-transfer' }]) {
+  for (const changes of [{ windowWidth: -1 }, { memoryMax: 'unlimited' }, { javaArgs: 'a\0b' }, { account: { ...launchSettings.account, accessToken: 'must-not-transfer' } }, { preLaunchCommand: 'a\0b' }, { unknown: 'invalid' }]) {
     assert.throws(() => validateManifest(manifest([], { ...metadata, launchSettings: { ...launchSettings, ...changes } })), { code: 'SCHEMA' })
   }
 })
@@ -31,4 +31,9 @@ test('настройки сравниваются по полям и слива�
   assert.equal(merge(base, current, conflicting).conflicts[0].path, '@instance/launchSettings/memoryMax')
   assert.equal(merge(base, current, conflicting, { '@instance/launchSettings/memoryMax': 'incoming' }).manifest.instance.launchSettings.memoryMax, '10G')
   assert.deepEqual(merge(manifest(), manifest(), base).manifest.instance.launchSettings, launchSettings)
+  const extended = manifest([], { ...metadata, launchSettings: { ...launchSettings, serverOverride: true, server: 'play.example.org' } })
+  const updatedClient = manifest([], { ...metadata, launchSettings: { ...launchSettings, serverOverride: false, server: '' } })
+  const upgrade = merge(base, updatedClient, extended)
+  assert.equal(upgrade.conflicts.length, 0)
+  assert.equal(upgrade.manifest.instance.launchSettings.server, 'play.example.org')
 })

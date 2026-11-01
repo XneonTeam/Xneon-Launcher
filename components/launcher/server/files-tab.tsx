@@ -1,5 +1,6 @@
 import { CONTENT_ENTER_DELAYED } from "../content-motion"
-import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react"
+import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import {
   IconFolder, IconFile, IconFileCode, IconFileText,
@@ -56,6 +57,8 @@ function JavaIcon({ className }: { className?: string }) {
 
 interface FilesTabProps {
   serverId: string
+  canWrite?: boolean
+  canWriteProperties?: boolean
 }
 
 interface EditorTab {
@@ -127,7 +130,8 @@ function highlightCode(code: string, lang: string): string {
   }
 }
 
-export function FilesTab({ serverId }: FilesTabProps) {
+export function FilesTab({ serverId, canWrite = true, canWriteProperties = true }: FilesTabProps) {
+  const canChange = useCallback((file: string) => canWrite && (file.toLowerCase() !== "server.properties" || canWriteProperties), [canWrite, canWriteProperties])
   const { t } = useTranslation()
   const [entries, setEntries] = useState<McFsEntry[]>([])
   const [currentPath, setCurrentPath] = useState("")
@@ -144,6 +148,21 @@ export function FilesTab({ serverId }: FilesTabProps) {
 
   // Context menu
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entry: McFsEntry } | null>(null)
+  const contextMenuRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (!contextMenu || !contextMenuRef.current) return
+    const menu = contextMenuRef.current, rect = menu.getBoundingClientRect()
+    menu.style.left = `${Math.max(8, Math.min(contextMenu.x, window.innerWidth - rect.width - 8))}px`
+    menu.style.top = `${Math.max(8, Math.min(contextMenu.y, window.innerHeight - rect.height - 8))}px`
+  }, [contextMenu])
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    const keydown = (event: KeyboardEvent) => { if (event.key === "Escape") close() }
+    window.addEventListener("resize", close)
+    window.addEventListener("keydown", keydown)
+    return () => { window.removeEventListener("resize", close); window.removeEventListener("keydown", keydown) }
+  }, [contextMenu])
 
   // Rename
   const [renamingEntry, setRenamingEntry] = useState<string | null>(null)
@@ -250,26 +269,28 @@ export function FilesTab({ serverId }: FilesTabProps) {
   }, [])
 
   const handleContentChange = useCallback((value: string) => {
-    if (!activeTab) return
+    if (!activeTab || !canChange(activeTab)) return
     setTabs(prev => prev.map(t => t.path === activeTab ? { ...t, content: value, saved: false } : t))
     setEditorError(null)
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
       handleSave(activeTab, value)
     }, 1200)
-  }, [activeTab])
+  }, [activeTab, canChange])
 
   const handleSave = useCallback(async (filePath: string, content: string) => {
+    if (!canChange(filePath)) return
     try {
       await window.electronAPI?.mcServerFsWrite(serverId, filePath, content)
       setTabs(prev => prev.map(t => t.path === filePath ? { ...t, saved: true } : t))
     } catch (err: any) {
       setEditorError(err.message ?? "Failed to save file")
     }
-  }, [serverId])
+  }, [serverId, canChange])
 
   const handleDelete = useCallback(async (entry: McFsEntry) => {
     const filePath = currentPath ? `${currentPath}/${entry.name}` : entry.name
+    if (!canChange(filePath)) return
     try {
       await window.electronAPI?.mcServerFsDelete(serverId, filePath)
       closeTab(filePath)
@@ -278,12 +299,13 @@ export function FilesTab({ serverId }: FilesTabProps) {
       setError(err.message ?? "Failed to delete")
     }
     setContextMenu(null)
-  }, [serverId, currentPath, loadDirectory, closeTab])
+  }, [serverId, currentPath, loadDirectory, closeTab, canChange])
 
   const handleRename = useCallback(async () => {
     if (!renamingEntry || !renameValue.trim()) return
     const oldPath = currentPath ? `${currentPath}/${renamingEntry}` : renamingEntry
     const newPath = currentPath ? `${currentPath}/${renameValue.trim()}` : renameValue.trim()
+    if (!canChange(oldPath) || !canChange(newPath)) return
     try {
       await window.electronAPI?.mcServerFsRename(serverId, oldPath, newPath)
       setTabs(prev => prev.map(t => t.path === oldPath ? { ...t, path: newPath } : t))
@@ -293,11 +315,12 @@ export function FilesTab({ serverId }: FilesTabProps) {
       setError(err.message ?? "Failed to rename")
     }
     setRenamingEntry(null)
-  }, [serverId, currentPath, renamingEntry, renameValue, activeTab, loadDirectory])
+  }, [serverId, currentPath, renamingEntry, renameValue, activeTab, loadDirectory, canChange])
 
   const handleCreate = useCallback(async () => {
     if (!creatingType || !creatingName.trim()) return
     const fullPath = currentPath ? `${currentPath}/${creatingName.trim()}` : creatingName.trim()
+    if (!canChange(fullPath)) return
     try {
       if (creatingType === "folder") {
         await window.electronAPI?.mcServerFsMkdir(serverId, fullPath)
@@ -309,7 +332,7 @@ export function FilesTab({ serverId }: FilesTabProps) {
       setError(err.message ?? "Failed to create")
     }
     setCreatingType(null)
-  }, [serverId, currentPath, creatingType, creatingName, loadDirectory])
+  }, [serverId, currentPath, creatingType, creatingName, loadDirectory, canChange])
 
   const handleEntryClick = useCallback((entry: McFsEntry) => {
     if (entry.isDir) {
@@ -441,6 +464,7 @@ export function FilesTab({ serverId }: FilesTabProps) {
 
           <div data-ui="server-files-tab-div-6" className="flex items-center gap-1 flex-shrink-0">
             <button data-ui="server-files-tab-button-6"
+              disabled={!canWrite}
               onClick={() => { setCreatingType("folder"); setCreatingName("") }}
               className="p-1.5 rounded-lg bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
               title={t("files.newFolder")}
@@ -448,6 +472,7 @@ export function FilesTab({ serverId }: FilesTabProps) {
               <IconFolder className="w-4 h-4" />
             </button>
             <button data-ui="server-files-tab-button-7"
+              disabled={!canWrite}
               onClick={() => { setCreatingType("file"); setCreatingName("") }}
               className="p-1.5 rounded-lg bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
               title={t("files.newFile")}
@@ -495,7 +520,7 @@ export function FilesTab({ serverId }: FilesTabProps) {
         )}
 
         {/* File list */}
-        <div data-ui="server-files-tab-div-10" className="flex-1 overflow-y-auto">
+        <div data-ui="server-files-tab-div-10" className="my-3 min-h-0 flex-1 overflow-y-auto border border-border/70 bg-muted/20 [scrollbar-gutter:stable]">
           {loading ? (
             <div data-ui="server-files-tab-div-11" className="flex items-center justify-center h-full">
               <IconLoader2 className="w-6 h-6 text-primary animate-spin" />
@@ -521,14 +546,14 @@ export function FilesTab({ serverId }: FilesTabProps) {
                   <div data-ui="server-files-tab-div-13"
                     key={entry.name}
                     className={cn(
-                      "flex items-center gap-3 px-4 py-2 hover:bg-muted/30 transition-colors group cursor-pointer",
+                      "flex items-center gap-3 px-4 py-2 hover:bg-muted/30 hover:shadow-[inset_0_0_0_1px_var(--primary)] transition-[background-color,box-shadow] duration-150 group cursor-pointer",
                       isActive && "bg-primary/5",
                       isTabOpen && !isActive && "bg-muted/20"
                     )}
                     onClick={() => !isRenaming && handleEntryClick(entry)}
                     onContextMenu={e => {
                       e.preventDefault()
-                      if (!isRenaming) setContextMenu({ x: e.clientX, y: e.clientY, entry })
+                      if (!isRenaming && canChange(currentPath ? `${currentPath}/${entry.name}` : entry.name)) setContextMenu({ x: e.clientX, y: e.clientY, entry })
                     }}
                   >
                     <Icon
@@ -568,6 +593,7 @@ export function FilesTab({ serverId }: FilesTabProps) {
                     {!isRenaming && (
                       <div data-ui="server-files-tab-div-16" className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                         <button data-ui="server-files-tab-button-12"
+                          disabled={!canChange(currentPath ? `${currentPath}/${entry.name}` : entry.name)}
                           onClick={e => {
                             e.stopPropagation()
                             setRenamingEntry(entry.name)
@@ -579,6 +605,7 @@ export function FilesTab({ serverId }: FilesTabProps) {
                           <IconPencil className="w-3.5 h-3.5" />
                         </button>
                         <button data-ui="server-files-tab-button-13"
+                          disabled={!canChange(currentPath ? `${currentPath}/${entry.name}` : entry.name)}
                           onClick={e => { e.stopPropagation(); handleDelete(entry) }}
                           className="p-1 rounded hover:bg-destructive/10 text-destructive"
                           title={t("files.delete")}
@@ -658,6 +685,7 @@ export function FilesTab({ serverId }: FilesTabProps) {
                 </div>
               ) : activeTabData ? (
                 <Editor
+                  readOnly={!canChange(activeTabData.path)}
                   value={activeTabData.content}
                   onValueChange={handleContentChange}
                   highlight={code => highlightCode(code, getLanguage(activeTabData.path))}
@@ -682,13 +710,15 @@ export function FilesTab({ serverId }: FilesTabProps) {
       )}
 
       {/* Context menu overlay */}
-      {contextMenu && (
+      {contextMenu && createPortal(
         <>
           <div data-ui="server-files-tab-div-27"
             className="fixed inset-0 z-50"
             onClick={() => setContextMenu(null)}
+            onContextMenu={event => { event.preventDefault(); setContextMenu(null) }}
           />
           <div data-ui="server-files-tab-div-28"
+            ref={contextMenuRef}
             className="fixed z-50 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[160px]"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
@@ -720,7 +750,7 @@ export function FilesTab({ serverId }: FilesTabProps) {
               {t("files.delete")}
             </button>
           </div>
-        </>
+        </>, document.body
       )}
     </div>
   )

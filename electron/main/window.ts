@@ -159,6 +159,11 @@ export function registerWindowLifecycle() {
       initRuntimePaths(),
       initDatabase().then(() => {
         logRuntime("[App] database initialized")
+        void import("./remote-servers/index.js").then(({ startRemoteServerHosts }) => {
+          void startRemoteServerHosts()
+          const timer = setInterval(() => { void startRemoteServerHosts() }, 15000)
+          timer.unref()
+        })
         refreshAuthServersInBackground()
       }).catch((error) => {
         logRuntime(`[App] database init failed: ${error instanceof Error ? error.stack ?? error.message : String(error)}`)

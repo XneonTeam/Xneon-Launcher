@@ -1,3 +1,4 @@
+import { registerMcServerHandler } from "./remote-servers/handlers"
 import { getMinecraftResourceRoot } from "./shared-game-cache"
 import { opFailure } from "./errors"
 import { ipcMain, BrowserWindow, dialog, webContents } from "electron"
@@ -43,6 +44,7 @@ const pendingServerStarts = new Map<string, { cancelled: boolean }>()
 
 /** Идущие остановки: serverId → промис, чтобы N stop подряд выполнились как одна. */
 const pendingServerStops = new Map<string, Promise<void>>()
+export const hasPendingMcServerOperation = (id: string) => pendingServerStarts.has(id) || pendingServerStops.has(id)
 
 /**
  * Последнее состояние подготовки к запуску (Java, скачивание/сборка ядра).
@@ -278,17 +280,17 @@ function withServerFileLock<T>(id: string, task: () => Promise<T>): Promise<T> {
 }
 
 export function registerMcServerHandlers() {
-  ipcMain.handle("mc-server:list", async () => {
+  registerMcServerHandler("mc-server:list", async () => {
     const rows = await dbHelpers.listMcServers()
     return rows.map(rowToInfo)
   })
 
-  ipcMain.handle("mc-server:get", async (_event, id: string) => {
+  registerMcServerHandler("mc-server:get", async (_event, id: string) => {
     const row = await dbHelpers.getMcServer(id)
     return row ? rowToInfo(row) : null
   })
 
-  ipcMain.handle("mc-server:create", async (_event, data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string; extraJavaArgs?: string }) => {
+  registerMcServerHandler("mc-server:create", async (_event, data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string; extraJavaArgs?: string }) => {
     const id = randomUUID()
     const now = new Date().toISOString()
     const server: McServerRow = {
@@ -327,7 +329,7 @@ export function registerMcServerHandlers() {
     return rowToInfo(server)
   })
 
-  ipcMain.handle("mc-server:analyze-jar", async (_event, jarPath: string) => {
+  registerMcServerHandler("mc-server:analyze-jar", async (_event, jarPath: string) => {
     if (!jarPath) return { minecraftVersion: null, loaderId: null, loaderLabel: null, modId: null, mainClass: null, error: "Путь не указан" }
     try {
       return analyzeServerJar(jarPath)
@@ -336,7 +338,7 @@ export function registerMcServerHandlers() {
     }
   })
 
-  ipcMain.handle("mc-server:update", async (_event, id: string, update: Record<string, unknown>) => {
+  registerMcServerHandler("mc-server:update", async (_event, id: string, update: Record<string, unknown>) => {
     // ВАЖНО: список — единственный шлюз между renderer и БД. Поле категории
     // ([group]) обязано быть здесь, иначе назначение/переименование/удаление
     // категории молча теряется: UI обновляется оптимистично, а в БД ничего
@@ -372,18 +374,18 @@ export function registerMcServerHandlers() {
     }
   })
 
-  ipcMain.handle("mc-server:delete", async (_event, id: string) => {
+  registerMcServerHandler("mc-server:delete", async (_event, id: string) => {
     xnConnectManager.stop(id).catch(() => {})
     serverManager.kill(id).catch(() => {})
     await dbHelpers.softDeleteMcServer(id)
   })
 
-  ipcMain.handle("mc-server:restore", async (_event, id: string) => {
+  registerMcServerHandler("mc-server:restore", async (_event, id: string) => {
     await dbHelpers.restoreMcServer(id)
   })
 
   // ── Export server to zip (like instance export, with category filter) ───
-  ipcMain.handle("mc-server:export-zip", async (_event, id: string, serverName: string, categories?: string[]): Promise<{ success: boolean; path?: string; error?: string }> => {
+  registerMcServerHandler("mc-server:export-zip", async (_event, id: string, serverName: string, categories?: string[]): Promise<{ success: boolean; path?: string; error?: string }> => {
     try {
       const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed())
       if (!win) return { success: false, error: "Окно недоступно" }
@@ -431,7 +433,7 @@ export function registerMcServerHandlers() {
   })
 
   // ── Duplicate server: copy DB row and files under a new name ────────────
-  ipcMain.handle("mc-server:duplicate", async (_event, id: string): Promise<McServerInfo | null> => {
+  registerMcServerHandler("mc-server:duplicate", async (_event, id: string): Promise<McServerInfo | null> => {
     const row = await dbHelpers.getMcServer(id)
     if (!row) return null
 
@@ -473,12 +475,12 @@ export function registerMcServerHandlers() {
     return rowToInfo({ ...row, id: newId, name, createdAt: now, trashedAt: null })
   })
 
-  ipcMain.handle("mc-server:list-trash", async () => {
+  registerMcServerHandler("mc-server:list-trash", async () => {
     const rows = await dbHelpers.listTrashedMcServers()
     return rows.map(rowToInfo)
   })
 
-  ipcMain.handle("mc-server:purge-trash", async (_event, deleteTunnel = true) => {
+  registerMcServerHandler("mc-server:purge-trash", async (_event, deleteTunnel = true) => {
     // Delete XN Connect tunnels for every server being purged (best-effort)
     if (deleteTunnel) {
       try {
@@ -492,7 +494,7 @@ export function registerMcServerHandlers() {
     await dbHelpers.purgeTrashedMcServers()
   })
 
-  ipcMain.handle("mc-server:permanent-delete", async (_event, id: string, deleteTunnel = true) => {    xnConnectManager.stop(id).catch(() => {})
+  registerMcServerHandler("mc-server:permanent-delete", async (_event, id: string, deleteTunnel = true) => {    xnConnectManager.stop(id).catch(() => {})
     serverManager.kill(id).catch(() => {})
     // Best-effort: remove the XN Connect tunnel belonging to this server so it
     // stops consuming the account's tunnel quota. Failures are non-fatal.
@@ -505,7 +507,7 @@ export function registerMcServerHandlers() {
     await dbHelpers.deleteMcServer(id)
   })
 
-  ipcMain.handle("mc-server:start", async (_event, id: string) => {
+  registerMcServerHandler("mc-server:start", async (_event, id: string) => {
     // Повторный клик по «Запустить» не поднимает второй процесс.
     if (pendingServerStarts.has(id) || serverManager.isRunning(id)) return
 
@@ -659,7 +661,7 @@ export function registerMcServerHandlers() {
     )
   }
 
-  ipcMain.handle("mc-server:stop", async (_event, id: string) => {
+  registerMcServerHandler("mc-server:stop", async (_event, id: string) => {
     // Старт ещё готовится — отменяем его. Прогресс подготовки убираем сразу, а не
     // когда установка доиграет до проверки отмены: иначе UI остался бы заблокирован
     // на «идёт установка» ещё на минуты.
@@ -693,22 +695,22 @@ export function registerMcServerHandlers() {
     }
   })
 
-  ipcMain.handle("mc-server:kill", async (_event, id: string) => {
+  registerMcServerHandler("mc-server:kill", async (_event, id: string) => {
     xnConnectManager.stop(id).catch(() => {})
     await serverManager.kill(id)
     sendToRenderer("mc-server:state-change", { id, state: { status: "stopped" } satisfies McServerState })
   })
 
-  ipcMain.handle("mc-server:send-command", async (_event, id: string, command: string) => {
+  registerMcServerHandler("mc-server:send-command", async (_event, id: string, command: string) => {
     await serverManager.sendCommand(id, command)
   })
 
-  ipcMain.handle("mc-server:status", async (_event, id: string) => {
+  registerMcServerHandler("mc-server:status", async (_event, id: string) => {
     return serverManager.getState(id)
   })
 
 
-  ipcMain.handle("mc-server:metrics-subscribe", async (event, id: string) => {
+  registerMcServerHandler("mc-server:metrics-subscribe", async (event, id: string) => {
     const senderId = event.sender.id
     let subscribers = metricsSubscribers.get(id)
     if (!subscribers) {
@@ -721,7 +723,7 @@ export function registerMcServerHandlers() {
     pushServerMetrics()
   })
 
-  ipcMain.handle("mc-server:metrics-unsubscribe", async (event, id: string) => {
+  registerMcServerHandler("mc-server:metrics-unsubscribe", async (event, id: string) => {
     const senderId = event.sender.id
     const subscribers = metricsSubscribers.get(id)
     if (subscribers) {
@@ -731,7 +733,7 @@ export function registerMcServerHandlers() {
     stopMetricsTimerIfIdle()
   })
 
-  ipcMain.handle("mc-server:logs", async (_event, id: string) => {
+  registerMcServerHandler("mc-server:logs", async (_event, id: string) => {
     return serverManager.getLogBuffer(id)
   })
 
@@ -739,12 +741,12 @@ export function registerMcServerHandlers() {
    * Идёт ли подготовка к запуску прямо сейчас. Нужно при возврате на страницу:
    * события прогресса одноразовые, а состояние сервера в это время ещё `stopped`.
    */
-  ipcMain.handle("mc-server:install-state", async (_event, id: string) => {
+  registerMcServerHandler("mc-server:install-state", async (_event, id: string) => {
     const progress = installProgress.get(id) ?? null
     return { installing: progress !== null, progress }
   })
 
-  ipcMain.handle("mc-server:open-folder", async (_event, id: string) => {
+  registerMcServerHandler("mc-server:open-folder", async (_event, id: string) => {
     const serverDir = getServerDir(id)
     if (fs.existsSync(serverDir)) {
       const { shell } = await import("electron")
@@ -752,25 +754,25 @@ export function registerMcServerHandlers() {
     }
   })
 
-  ipcMain.handle("mc-server:read-properties", async (_event, id: string) => {
+  registerMcServerHandler("mc-server:read-properties", async (_event, id: string) => {
     const serverDir = getServerDir(id)
     const propsPath = path.join(serverDir, "server.properties")
     if (!fs.existsSync(propsPath)) return null
     return loadServerProperties(propsPath)
   })
 
-  ipcMain.handle("mc-server:check-eula", async (_event, id: string): Promise<boolean> => {
+  registerMcServerHandler("mc-server:check-eula", async (_event, id: string): Promise<boolean> => {
     const eulaPath = path.join(getServerDir(id), "eula.txt")
     if (!fs.existsSync(eulaPath)) return false
     return fs.readFileSync(eulaPath, "utf-8").includes("eula=true")
   })
 
-  ipcMain.handle("mc-server:accept-eula", async (_event, id: string) => {
+  registerMcServerHandler("mc-server:accept-eula", async (_event, id: string) => {
     const eulaPath = path.join(getServerDir(id), "eula.txt")
     fs.writeFileSync(eulaPath, "eula=true\n")
   })
 
-  ipcMain.handle("mc-server:write-properties", async (_event, id: string, properties: Record<string, string>) => {
+  registerMcServerHandler("mc-server:write-properties", async (_event, id: string, properties: Record<string, string>) => {
     await withServerFileLock(id, async () => {
       const serverDir = getServerDir(id)
       fs.mkdirSync(serverDir, { recursive: true })
@@ -872,7 +874,7 @@ export function registerMcServerHandlers() {
   }
 
   for (const spec of PLAYER_LISTS) {
-    ipcMain.handle(spec.channels.get, async (_event, id: string): Promise<McPlayerEntry[]> => {
+    registerMcServerHandler(spec.channels.get, async (_event, id: string): Promise<McPlayerEntry[]> => {
       const list = readJsonList(getServerJsonPath(id, spec.file))
       return list.map((entry: any) => ({
         name: entry[spec.nameField] ?? "",
@@ -880,7 +882,7 @@ export function registerMcServerHandlers() {
       }))
     })
 
-    ipcMain.handle(spec.channels.add, async (_event, id: string, value: string) => {
+    registerMcServerHandler(spec.channels.add, async (_event, id: string, value: string) => {
       const filePath = getServerJsonPath(id, spec.file)
       const list = readJsonList(filePath)
       // Дубликат по имени/адресу не добавляем (как и ванильный сервер).
@@ -894,7 +896,7 @@ export function registerMcServerHandlers() {
       await runPlayerListCommand(id, spec.commands.add(value))
     })
 
-    ipcMain.handle(spec.channels.remove, async (_event, id: string, value: string) => {
+    registerMcServerHandler(spec.channels.remove, async (_event, id: string, value: string) => {
       const filePath = getServerJsonPath(id, spec.file)
       const list = readJsonList(filePath)
       // У игроков приходит uuid, у адресов — сам ip; в обоих случаях это
@@ -906,7 +908,7 @@ export function registerMcServerHandlers() {
   }
 
 
-  ipcMain.handle("mc-server:get-addresses", async (_event, id: string) => {
+  registerMcServerHandler("mc-server:get-addresses", async (_event, id: string) => {
     const row = await dbHelpers.getMcServer(id)
     if (!row) return null
     const port = row.port
@@ -964,7 +966,7 @@ export function registerMcServerHandlers() {
 
   // ── Server Files ─────────────────────────────────────────
 
-  ipcMain.handle("mc-server:fs-list", async (_event, id: string, relativePath: string) => {
+  registerMcServerHandler("mc-server:fs-list", async (_event, id: string, relativePath: string) => {
     const targetDir = resolveInsideServer(getServerDir(id), relativePath)
     if (!fs.existsSync(targetDir)) return []
     const entries = fs.readdirSync(targetDir, { withFileTypes: true })
@@ -980,7 +982,7 @@ export function registerMcServerHandlers() {
     })
   })
 
-  ipcMain.handle("mc-server:fs-read", async (_event, id: string, relativePath: string) => {
+  registerMcServerHandler("mc-server:fs-read", async (_event, id: string, relativePath: string) => {
     const filePath = resolveInsideServer(getServerDir(id), relativePath)
     if (!fs.existsSync(filePath)) return null
     const stat = fs.statSync(filePath)
@@ -988,13 +990,13 @@ export function registerMcServerHandlers() {
     return fs.readFileSync(filePath, "utf-8")
   })
 
-  ipcMain.handle("mc-server:fs-write", async (_event, id: string, relativePath: string, content: string) => {
+  registerMcServerHandler("mc-server:fs-write", async (_event, id: string, relativePath: string, content: string) => {
     const filePath = resolveInsideServer(getServerDir(id), relativePath)
     fs.mkdirSync(path.dirname(filePath), { recursive: true })
     fs.writeFileSync(filePath, content, "utf-8")
   })
 
-  ipcMain.handle("mc-server:fs-delete", async (_event, id: string, relativePath: string) => {
+  registerMcServerHandler("mc-server:fs-delete", async (_event, id: string, relativePath: string) => {
     const targetPath = resolveInsideServer(getServerDir(id), relativePath)
     if (!fs.existsSync(targetPath)) return
     const stat = fs.statSync(targetPath)
@@ -1005,7 +1007,7 @@ export function registerMcServerHandlers() {
     }
   })
 
-  ipcMain.handle("mc-server:fs-rename", async (_event, id: string, oldPath: string, newPath: string) => {
+  registerMcServerHandler("mc-server:fs-rename", async (_event, id: string, oldPath: string, newPath: string) => {
     const serverDir = getServerDir(id)
     const fullOld = resolveInsideServer(serverDir, oldPath)
     const fullNew = resolveInsideServer(serverDir, newPath)
@@ -1013,12 +1015,12 @@ export function registerMcServerHandlers() {
     fs.renameSync(fullOld, fullNew)
   })
 
-  ipcMain.handle("mc-server:fs-mkdir", async (_event, id: string, relativePath: string) => {
+  registerMcServerHandler("mc-server:fs-mkdir", async (_event, id: string, relativePath: string) => {
     fs.mkdirSync(resolveInsideServer(getServerDir(id), relativePath), { recursive: true })
   })
 
 
-  ipcMain.handle("mc-server:fs-download", async (_event, id: string, relativePath: string, url: string, fileName: string) => {
+  registerMcServerHandler("mc-server:fs-download", async (_event, id: string, relativePath: string, url: string, fileName: string) => {
     const targetDir = resolveInsideServer(getServerDir(id), relativePath)
     try {
       await fs.promises.mkdir(targetDir, { recursive: true })
@@ -1032,7 +1034,7 @@ export function registerMcServerHandlers() {
     }
   })
 
-  ipcMain.handle("mc-server:resolve-installed", async (_event, id: string, relativePath: string) => {
+  registerMcServerHandler("mc-server:resolve-installed", async (_event, id: string, relativePath: string) => {
     const targetDir = resolveInsideServer(getServerDir(id), relativePath)
     if (!fs.existsSync(targetDir)) return []
     const entries = fs.readdirSync(targetDir, { withFileTypes: true })
@@ -1079,7 +1081,7 @@ export function registerMcServerHandlers() {
 
   // ── Install server modpack from Modrinth / CurseForge ───
 
-  ipcMain.handle("mc-server:install-pack", async (_event, params: {
+  registerMcServerHandler("mc-server:install-pack", async (_event, params: {
     source: "modrinth" | "curseforge"
     projectSlug?: string
     versionId?: string

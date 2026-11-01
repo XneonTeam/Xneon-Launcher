@@ -127,6 +127,8 @@ export interface BuildLoaderRequirementReport {
 
 export interface IpcInvokeMap {
   "share:execute": { args: [request: import("./share-types.js").ShareRequest]; return: import("./share-types.js").ShareResult }
+  "mc-server:remote": { args: [request: import("./remote-server-types.js").RemoteServerRequest]; return: import("./remote-server-types.js").RemoteServerResponse }
+  "mc-server:history": { args: [id: string, command: import("@xnlc/share").ServerHistoryCommand]; return: import("@xnlc/share").ServerHistoryResponse }
   "startup:ready": { args: []; return: void }
   // Синхронное чтение маленького кеша в preload, до первого кадра HTML.
   "startup:theme-cache": { args: []; return: string | null }
@@ -513,6 +515,8 @@ export interface IpcEventMap {
   "mc-server:log": { id: string; line: string }
   "mc-server:state-change": { id: string; state: McServerState }
   "mc-server:metrics": { id: string; metrics: McServerMetrics }
+  "mc-server:remote-snapshot": { id: string; logs: string[] }
+  "mc-server:remote-connection": { id: string; online: boolean; info: McServerInfo }
   "xn-connect:usage-updated": XnConnectUsage
   "xn-connect:state": { serverId: string; state: XnConnectState }
   "xn-connect:log": { serverId: string; line: string }
@@ -538,6 +542,10 @@ export interface IpcEventMap {
 
 export interface ElectronAPIExplicit {
   shareExecute: (request: import("./share-types.js").ShareRequest) => Promise<import("./share-types.js").ShareResult>
+  mcServerRemote: (request: import("./remote-server-types.js").RemoteServerRequest) => Promise<import("./remote-server-types.js").RemoteServerResponse>
+  mcServerHistory: (id: string, command: import("@xnlc/share").ServerHistoryCommand) => Promise<import("@xnlc/share").ServerHistoryResponse>
+  onMcServerRemoteSnapshot: (callback: (event: { id: string; logs: string[] }) => void) => CleanupFn
+  onMcServerRemoteConnection: (callback: (event: { id: string; online: boolean; info: McServerInfo }) => void) => CleanupFn
   onShareProgress: (callback: (progress: { stage: string; done: number; total: number; bytes: number; requestId?: string; buildId?: string }) => void) => CleanupFn
   onShareInstalled: (callback: (event: { buildId: string }) => void) => CleanupFn
   onShareInvitation: (callback: (event: { invitation: string }) => void) => CleanupFn

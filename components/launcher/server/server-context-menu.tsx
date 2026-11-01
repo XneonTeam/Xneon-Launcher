@@ -74,13 +74,13 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
           <IconTerminal className="w-4 h-4 text-muted-foreground" />
           {t("servers.contextConnect")}
         </button>
-        <button data-ui="server-server-context-menu-button-2" type="button" disabled={isBusy}
+        <button data-ui="server-server-context-menu-button-2" type="button" disabled={isBusy || !!server.remote && !(isRunning ? server.remote.permissions.stop : server.remote.permissions.start)}
           className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground disabled:opacity-40"
           onClick={() => { onToggleRun(); onClose() }}>
           {isRunning ? <IconPlayerStop className="w-4 h-4 text-muted-foreground" /> : <IconPlayerPlay className="w-4 h-4 text-muted-foreground" />}
           {isRunning ? t("servers.contextStop") : t("servers.contextStart")}
         </button>
-        <button data-ui="server-server-context-menu-button-3" type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
+        {!server.remote && <><button data-ui="server-server-context-menu-button-3" type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
           onClick={() => { window.electronAPI?.mcServerOpenFolder(server.id); onClose() }}>
           <IconFolder className="w-4 h-4 text-muted-foreground" />
           {t("servers.contextOpenFolder")}
@@ -97,7 +97,8 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
           <IconDownload className="w-4 h-4 text-muted-foreground" />
           {t("servers.contextExportZip")}
         </button>
-        {onOpenAssignGroup && (
+        </>}
+        {!server.remote && onOpenAssignGroup && (
           <button data-ui="server-server-context-menu-button-6" type="button"
             className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
             onClick={() => { onOpenAssignGroup(position.x + 8, position.y + 8); onClose() }}>
@@ -109,7 +110,7 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
         <button data-ui="server-server-context-menu-button-7" type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-destructive/15 text-destructive"
           onClick={() => { onDelete(); onClose() }}>
           <IconTrash className="w-4 h-4" strokeWidth={1.75} />
-          {t("servers.contextDelete")}
+          {t(server.remote ? "remoteServer.leave" : "servers.contextDelete")}
         </button>
       </FloatingContextMenu>
 

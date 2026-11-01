@@ -5,6 +5,8 @@ export interface JavaInstallation { path: string; version: string; vendor?: stri
 export interface LocalLaunchSettings {
   javaOverride?: boolean; javaPath?: string; javaArgs?: string; memoryMin?: string; memoryMax?: string
   windowOverride?: boolean; windowWidth?: number; windowHeight?: number; defaultAccountId?: string
+  serverOverride?: boolean; server?: string; serverPort?: string; group?: string
+  preLaunchCommand?: string; postLaunchCommand?: string; wrapperCommand?: string; customEnv?: string
 }
 const normalizedPath = (value: string) => {
   const path = value.replace(/\\/g, "/").replace(/javaw\.exe$/i, "java.exe")
@@ -33,6 +35,9 @@ export function serializeLaunchSettings(build: LocalLaunchSettings, accounts: Ac
   const java = baseline?.java && normalizedPath(build.javaPath ?? "") === normalizedPath(mappedJava ?? "") ? baseline.java
     : build.javaPath ? { path: build.javaPath, ...(selectedJava && major(selectedJava.version) ? { major: major(selectedJava.version) } : {}), ...(selectedJava?.vendor ? { vendor: selectedJava.vendor } : {}) } : null
   return {
+    serverOverride: build.serverOverride === true, server: build.server ?? "", serverPort: build.serverPort ?? "",
+    group: build.group ?? "", preLaunchCommand: build.preLaunchCommand ?? "", postLaunchCommand: build.postLaunchCommand ?? "",
+    wrapperCommand: build.wrapperCommand ?? "", customEnv: build.customEnv ?? "",
     javaOverride: build.javaOverride === true, memoryMin: build.memoryMin ?? "", memoryMax: build.memoryMax ?? "", javaArgs: build.javaArgs ?? "", java,
     windowOverride: build.windowOverride === true, windowWidth: build.windowWidth ?? null, windowHeight: build.windowHeight ?? null,
     account: account && baseline?.account && matchingAccount(baseline.account, accounts)?.id === account.id ? baseline.account
@@ -43,6 +48,7 @@ export function serializeLaunchSettings(build: LocalLaunchSettings, accounts: Ac
 /** Чужие ID аккаунтов и пути Java сопоставляются с уже имеющимися локальными записями. */
 export function resolveLaunchSettings(preferences: SharedLaunchSettings, accounts: Account[], installations: JavaInstallation[]): LocalLaunchSettings {
   return {
+    ...Object.fromEntries((["serverOverride", "server", "serverPort", "group", "preLaunchCommand", "postLaunchCommand", "wrapperCommand", "customEnv"] as const).filter(key => preferences[key] !== undefined).map(key => [key, preferences[key]])),
     javaOverride: preferences.javaOverride, javaArgs: preferences.javaArgs, memoryMin: preferences.memoryMin, memoryMax: preferences.memoryMax,
     javaPath: matchingJava(preferences.java, installations)?.path ?? "",
     windowOverride: preferences.windowOverride, windowWidth: preferences.windowWidth ?? undefined, windowHeight: preferences.windowHeight ?? undefined,
