@@ -1,4 +1,13 @@
 import type { Theme, LocalThemeFile, LocalThemeImport, LocalThemeSnapshot } from "./theme-types.js"
+
+export interface ModpackContents {
+  projectId: string
+  versionId: string
+  name: string
+  dependencies: Record<string, string>
+  files: Array<{ path: string; projectId?: string; versionId?: string; sha1?: string; environment?: { client?: string; server?: string } }>
+  totalFiles: number
+}
 // ============================================================
 // @xnlc/types — IPC Contracts
 // Single source of truth for all IPC channel signatures
@@ -126,6 +135,7 @@ export interface BuildLoaderRequirementReport {
 // Maps channel name → { args: tuple of arguments, return: return type }
 
 export interface IpcInvokeMap {
+  "share:cancel-install": { args: [requestId: string]; return: boolean }
   "share:execute": { args: [request: import("./share-types.js").ShareRequest]; return: import("./share-types.js").ShareResult }
   "mc-server:remote": { args: [request: import("./remote-server-types.js").RemoteServerRequest]; return: import("./remote-server-types.js").RemoteServerResponse }
   "mc-server:history": { args: [id: string, command: import("@xnlc/share").ServerHistoryCommand]; return: import("@xnlc/share").ServerHistoryResponse }
@@ -255,8 +265,8 @@ export interface IpcInvokeMap {
   // ── AI ──
   "ai:get-config": { args: []; return: import("./agent-types.js").AiConfig }
   "ai:save-config": { args: [config: import("./agent-types.js").AiConfig]; return: void }
-  "ai:list-models": { args: [override?: import("./agent-types.js").AiModelDiscovery]; return: { success: boolean; models?: string[]; error?: string } }
-  "ai:analyze-crash": { args: [logContent: string]; return: { success: boolean; analysis?: string; error?: string } }
+  "ai:list-models": { args: [override?: import("./agent-types.js").AiModelDiscovery]; return: { success: boolean; models?: string[]; contextWindows?: Record<string, number>; error?: string } }
+  "ai:analyze-crash": { args: [logContent: string, model?: string]; return: { success: boolean; analysis?: string; error?: string } }
   "ai:analyze-crash-stream": { args: [requestId: string, logContent: string]; return: { success: boolean; analysis?: string; error?: string } }
 
   // ── Launcher Import ──
@@ -269,6 +279,7 @@ export interface IpcInvokeMap {
   "mods:modrinth-search": { args: [query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, categories?: string[]]; return: ModSearchResponse }
   "mods:modrinth-details": { args: [slug: string]; return: ModDetails | null }
   "mods:modrinth-versions": { args: [slug: string, sha1?: string]; return: ModVersion[] }
+  "mods:modrinth-pack-contents": { args: [slug: string, versionId: string]; return: ModpackContents }
 
   // ── Mods (CurseForge) ──
   "mods:curseforge-search": { args: [query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, categories?: string[]]; return: ModSearchResponse }
@@ -441,6 +452,7 @@ export interface IpcInvokeMap {
   // ── MC Server (управление) ──
   "mc-server:list": { args: []; return: McServerInfo[] }
   "mc-server:get": { args: [id: string]; return: McServerInfo | null }
+  "mc-server:host-settings": { args: [id: string, command: import("./remote-server-types.js").ServerHostSettingsCommand]; return: import("./remote-server-types.js").ServerHostSettings }
   "mc-server:create": { args: [data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }]; return: McServerInfo }
   "mc-server:analyze-jar": { args: [jarPath: string]; return: { minecraftVersion: string | null; loaderId: string | null; loaderLabel: string | null; modId: string | null; mainClass: string | null; error?: string } }
   "mc-server:update": { args: [id: string, update: Record<string, unknown>]; return: void }
@@ -498,7 +510,7 @@ export interface IpcInvokeMap {
 // Maps channel name → payload type (for subscribe/on listeners)
 
 export interface IpcEventMap {
-  "share:progress": { stage: string; done: number; total: number; bytes: number; requestId?: string; buildId?: string }
+  "share:progress": { stage: string; done: number; total: number; bytes: number; files?: { path: string; size: number; name?: string; iconUrl?: string; status: "queued" | "downloading" | "complete" | "error" }[]; requestId?: string; buildId?: string }
   "share:installed": { buildId: string }
   "share:invitation": { invitation: string }
   "theme:local-changed": LocalThemeSnapshot
@@ -546,7 +558,8 @@ export interface ElectronAPIExplicit {
   mcServerHistory: (id: string, command: import("@xnlc/share").ServerHistoryCommand) => Promise<import("@xnlc/share").ServerHistoryResponse>
   onMcServerRemoteSnapshot: (callback: (event: { id: string; logs: string[] }) => void) => CleanupFn
   onMcServerRemoteConnection: (callback: (event: { id: string; online: boolean; info: McServerInfo }) => void) => CleanupFn
-  onShareProgress: (callback: (progress: { stage: string; done: number; total: number; bytes: number; requestId?: string; buildId?: string }) => void) => CleanupFn
+  cancelShareInstall: (requestId: string) => Promise<boolean>
+  onShareProgress: (callback: (progress: { stage: string; done: number; total: number; bytes: number; files?: { path: string; size: number; name?: string; iconUrl?: string; status: "queued" | "downloading" | "complete" | "error" }[]; requestId?: string; buildId?: string }) => void) => CleanupFn
   onShareInstalled: (callback: (event: { buildId: string }) => void) => CleanupFn
   onShareInvitation: (callback: (event: { invitation: string }) => void) => CleanupFn
   listLocalThemes: () => Promise<LocalThemeSnapshot>
@@ -604,6 +617,7 @@ export interface ElectronAPIExplicit {
   modsModrinthSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, categories?: string[], environment?: ModEnvironment) => Promise<ModSearchResponse>
   modsModrinthDetails: (slug: string) => Promise<ModDetails | null>
   modsModrinthVersions: (slug: string, sha1?: string) => Promise<ModVersion[]>
+  modsModrinthPackContents: (slug: string, versionId: string) => Promise<ModpackContents>
   modsCurseforgeSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, categories?: string[], environment?: ModEnvironment) => Promise<ModSearchResponse>
   modsCurseforgeDetails: (modId: number) => Promise<ModDetails | null>
   modsCurseforgeDownloadUrl: (fileId: number, modId: number) => Promise<string | null>
@@ -737,8 +751,8 @@ export interface ElectronAPIExtra {
   onAgentDelta: (callback: (data: { requestId: string; text: string }) => void) => CleanupFn
   getAiConfig: () => Promise<import("./agent-types.js").AiConfig>
   saveAiConfig: (config: import("./agent-types.js").AiConfig) => Promise<void>
-  listAiModels: (override?: import("./agent-types.js").AiModelDiscovery) => Promise<{ success: boolean; models?: string[]; error?: string }>
-  analyzeCrash: (logContent: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
+  listAiModels: (override?: import("./agent-types.js").AiModelDiscovery) => Promise<{ success: boolean; models?: string[]; contextWindows?: Record<string, number>; error?: string }>
+  analyzeCrash: (logContent: string, model?: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
   analyzeCrashStream: (requestId: string, logContent: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
   onAiStreamChunk: (callback: (data: { requestId: string; content: string }) => void) => () => void
   onAiStreamDone: (callback: (data: { requestId: string; fullText: string }) => void) => () => void
@@ -830,6 +844,7 @@ export interface ElectronAPIExtra {
   readLocalFile: (filePath: string) => Promise<string | null>
   mcServerList: () => Promise<McServerInfo[]>
   mcServerGet: (id: string) => Promise<McServerInfo | null>
+  mcServerHostSettings: (id: string, command: import("./remote-server-types.js").ServerHostSettingsCommand) => Promise<import("./remote-server-types.js").ServerHostSettings>
   mcServerCreate: (data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }) => Promise<McServerInfo>
   mcServerInstallPack: (params: { source: "modrinth" | "curseforge"; projectSlug?: string; versionId?: string; modId?: number; fileId?: number; name?: string; icon?: string; port?: number; xmx?: number; xms?: number; extraJavaArgs?: string; javaPath?: string; relayEnabled?: boolean; onlineMode?: boolean; maxPlayers?: number }) => Promise<McServerInfo>
   mcServerAnalyzeJar: (jarPath: string) => Promise<{ minecraftVersion: string | null; loaderId: string | null; loaderLabel: string | null; modId: string | null; mainClass: string | null; error?: string }>

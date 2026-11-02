@@ -4,7 +4,8 @@
 // Author: MAINER4IK
 // ============================================================
 
-import { spawn } from "child_process";
+import { spawn, spawnSync } from "child_process";
+import iconv from "iconv-lite";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -81,6 +82,7 @@ export function writeJavaArgFileIfTooLong(
   totalLength: number,
   limit: number,
   javaMajorVersion = 9,
+  javaPath?: string,
 ): { args: string[]; cleanupPath: string | null } {
   if (javaArgs.length === 0 || totalLength <= limit) {
     return { args: javaArgs, cleanupPath: null };
@@ -89,7 +91,7 @@ export function writeJavaArgFileIfTooLong(
   // сохраняет длинные пути, порядок библиотек и поддержку пробелов/кириллицы.
   if (javaMajorVersion < 9) {
     const cpIndex = javaArgs.findIndex(arg => arg === "-cp" || arg === "-classpath");
-    if (cpIndex < 0 || !javaArgs[cpIndex + 1]) throw new Error("Java 8 command line is too long and has no classpath to compact");
+    if (cpIndex < 0 || !javaArgs[cpIndex + 1]) throw new Error("Command line is too long and has no classpath to compact");
     const classpath = javaArgs[cpIndex + 1];
     const urls = classpath.split(path.delimiter).map(file => {
       const url = pathToFileURL(path.resolve(file)).href;
@@ -106,7 +108,7 @@ export function writeJavaArgFileIfTooLong(
     const file = path.join(os.tmpdir(), `xnlc-classpath-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jar`);
     const compacted = [...javaArgs];
     compacted[cpIndex + 1] = file;
-    if (totalLength - classpath.length + file.length > limit) throw new Error("Java 8 command line is too long even with a compact classpath");
+    if (totalLength - classpath.length + file.length > limit) throw new Error("Command line is too long even with a compact classpath");
     const zip = new AdmZip();
     zip.addFile("META-INF/MANIFEST.MF", Buffer.from(`Manifest-Version: 1.0\r\n${lines.join("\r\n")}\r\n\r\n`, "utf8"));
     zip.writeZip(file);
@@ -114,12 +116,24 @@ export function writeJavaArgFileIfTooLong(
   }
   try {
     const argFile = path.join(os.tmpdir(), `xnlc-java-args-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.txt`);
-    fs.writeFileSync(argFile, javaArgs.map(quoteArgForArgFile).join("\n"), "utf-8");
+    const content = javaArgs.map(quoteArgForArgFile).join("\n");
+    let encoding = "utf8";
+    if (process.platform === "win32" && /[^\x00-\x7f]/.test(content)) {
+      if (!javaPath) throw new Error("Java path is required to determine argument file encoding");
+      const result = spawnSync(javaPath, ["-XshowSettings:properties", "-version"], { encoding: "utf8", timeout: 10000, windowsHide: true });
+      const nativeEncoding = (result.stderr ?? "").match(/^\s*native\.encoding\s*=\s*(\S+)/m)?.[1];
+      if (result.error || result.status !== 0 || !nativeEncoding || !iconv.encodingExists(nativeEncoding)) {
+        throw new Error("Cannot determine Java native encoding for argument file");
+      }
+      encoding = nativeEncoding;
+    }
+    const bytes = iconv.encode(content, encoding);
+    if (iconv.decode(bytes, encoding) !== content) throw new Error(`Java argument file encoding ${encoding} cannot represent the launch paths`);
+    fs.writeFileSync(argFile, bytes);
     return { args: [`@${argFile}`], cleanupPath: argFile };
   } catch (error) {
     // Не смогли записать файл — пробуем запустить как есть.
-    console.warn(`[LaunchBuilder] Не удалось создать @argfile: ${error}`);
-    return { args: javaArgs, cleanupPath: null };
+    throw new Error(`Failed to prepare Java argument file: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -137,7 +151,7 @@ function resolveSpawnTarget(program: string, args: string[], javaMajorVersion = 
   if (inner.length > 6000) {
     const [javaPath, ...javaArgs] = args;
     if (javaPath) {
-      const prepared = writeJavaArgFileIfTooLong(javaArgs, inner.length, 6000, javaMajorVersion);
+      const prepared = writeJavaArgFileIfTooLong(javaArgs, inner.length, 6000, javaMajorVersion, program);
       return { cmd: program, args: [javaPath, ...prepared.args], shell: true, cleanupPath: prepared.cleanupPath ?? undefined };
     }
   }
@@ -239,7 +253,7 @@ export class JavaRunner {
     let argFileCleanup: string | null = null;
     let spawnArgs = programArgs;
     if (!wrapperCommand) {
-      const prepared = writeJavaArgFileIfTooLong(programArgs, commandParts.join(" ").length, commandLimit, options?.javaMajorVersion);
+      const prepared = writeJavaArgFileIfTooLong(programArgs, commandParts.join(" ").length, commandLimit, options?.javaMajorVersion, javaPath);
       spawnArgs = prepared.args;
       argFileCleanup = prepared.cleanupPath;
       if (argFileCleanup) {

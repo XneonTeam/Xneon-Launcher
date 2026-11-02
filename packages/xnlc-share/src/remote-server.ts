@@ -26,6 +26,16 @@ export function assertRemoteServerOperation(permissions: ServerPermissions, chan
   const require = (key: ServerPermission) => { if (!permissions[key]) throw new ShareError("FORBIDDEN", `Server permission required: ${key}`) }
   if (!Array.isArray(args) || args.length > 4 || !channel.startsWith("mc-server:")) throw new ShareError("INPUT", "Invalid command arguments")
   const operation = channel.slice("mc-server:".length)
+  if (operation === "host-settings") {
+    require("settings")
+    const command = args[0] as { action?: string; path?: unknown; enabled?: unknown }
+    if (args.length !== 1 || !command || typeof command !== "object" || Array.isArray(command)) throw new ShareError("INPUT", "Invalid host settings command")
+    const keys = command.action === "get" ? ["action"] : command.action === "java" ? ["action", "path"] : command.action === "relay" ? ["action", "enabled"] : []
+    if (!keys.length || Object.keys(command).some(key => !keys.includes(key))) throw new ShareError("INPUT", "Invalid host settings command")
+    if (command.action === "java" && command.path !== null && (typeof command.path !== "string" || !command.path || command.path.length > 16384 || /[\x00-\x1f]/.test(command.path))) throw new ShareError("INPUT", "Invalid Java selection")
+    if (command.action === "relay" && typeof command.enabled !== "boolean") throw new ShareError("INPUT", "Invalid relay setting")
+    return
+  }
   if (operation === "history") {
     const command = args[0] as { action?: string }
     if (args.length !== 1 || !command || typeof command !== "object" || !["get", "details", "file", "scan", "commit", "branch", "deleteBranch", "preview", "apply", "pullRequest", "closePullRequest", "commentPullRequest", "review"].includes(command.action ?? "")) throw new ShareError("INPUT", "Invalid server history command")

@@ -13,13 +13,13 @@ import { registerMinecraftHandlers } from "./minecraft"
 import { registerWorldsHandlers } from "./worlds"
 import { registerServerHandlers } from "./servers"
 import { registerQuickPlayHandlers } from "./quick-play"
-import { registerUpdater } from "./updater"
 import { registerAiAgent } from "./ai-agent"
 import { registerSkinsHandlers } from "./skins"
 import { registerShareHandlers } from "./share"
 import { registerMcServerHandlers } from "./mc-server-handlers"
 import { registerRemoteServerHandlers } from "./remote-servers"
 import { registerServerHistoryHandlers } from "./remote-servers/history-handlers"
+import { registerServerHostSettingsHandlers } from "./remote-servers/host-settings"
 import { registerStatsHandlers } from "./stats"
 import { registerStorageHandlers } from "./storage"
 import { xnConnectManager } from "./xn-connect-manager"
@@ -38,7 +38,6 @@ registerWorldsHandlers()
 registerServerHandlers()
 
 registerQuickPlayHandlers()
-registerUpdater()
 registerAiAgent()
 registerSkinsHandlers()
 registerShareHandlers()
@@ -46,6 +45,7 @@ registerAvatarHandlers()
 registerMcServerHandlers()
 registerRemoteServerHandlers()
 registerServerHistoryHandlers()
+registerServerHostSettingsHandlers()
 registerStatsHandlers()
 registerStorageHandlers()
 // XN-Connect: каналы в своём модуле (раньше жили внутри mc-server-handlers).

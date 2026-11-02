@@ -5,6 +5,7 @@
 
 import { ipcMain } from "electron"
 import path from "path"
+import { readModrinthPackContents } from "./mods-pack-contents"
 import { getBuildIntentPath } from "./builds/helpers"
 import { getLauncherDataRoot } from "./paths"
 import { checkLoaderRequirements, type LoaderRequirementReport } from "./mods-loader-requirements"
@@ -66,6 +67,10 @@ async function fetchCfProjectInfo(modId: string): Promise<{ name: string; iconUr
 }
 
 export function registerModsHandlers(): void {
+  ipcMain.handle("mods:modrinth-pack-contents", async (_event, slug: string, versionId: string) => {
+    const mods = await loadModsModule()
+    return readModrinthPackContents(mods, slug, versionId)
+  })
   // ── Modrinth ──────────────────────────────────────────────
   ipcMain.handle(
     "mods:modrinth-search",

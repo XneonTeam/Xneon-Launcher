@@ -414,7 +414,8 @@ export async function sendAgentMessage() {
     const declinedUnlocks = new Set<string>()
     const projectReadCache = new Map<string, string>()
     let overflowRecovered = false
-    for (let step = 0; step < 120 && !state.stopping; step++) {
+    // Полноценной сборке нужны поиск, проверка версий и установка каждого мода с зависимостями.
+    for (let step = 0; step < 400 && !state.stopping; step++) {
       await compactAgentContext(model?.contextWindow || AGENT_CONTEXT_TOKENS)
       if (state.stopping) break
       const requestId = id(), itemId = id()

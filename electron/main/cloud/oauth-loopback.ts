@@ -16,7 +16,7 @@
 import http from "http"
 import { URL } from "url"
 import { shell } from "electron"
-import { callbackSuccessPage, callbackErrorPage } from "./callback-page"
+import { callbackSuccessPage, callbackErrorPage, callbackTheme } from "./callback-page"
 import { generatePkcePair } from "./pkce"
 import { toErrorMessage } from "../errors"
 import type { CloudAuthResult, CloudProviderId } from "./provider"
@@ -69,15 +69,16 @@ export function runOAuthLoopback(config: OAuthLoopbackConfig): Promise<CloudAuth
         return
       }
 
+      const theme = await callbackTheme()
       try {
         await config.exchange(code, verifier)
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-        res.end(callbackSuccessPage(config.providerLabel))
+        res.end(callbackSuccessPage(config.providerLabel, theme))
         finish({ success: true, provider: config.providerId })
       } catch (error) {
         const message = toErrorMessage(error)
         res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" })
-        res.end(callbackErrorPage(config.providerLabel, message))
+        res.end(callbackErrorPage(config.providerLabel, message, theme))
         finish({ success: false, error: message })
       }
     })

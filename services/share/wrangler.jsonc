@@ -1,0 +1,14 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "xnlc-share",
+  "main": "worker/index.mjs",
+  "account_id": "860d3fbfd1ea02a3a63b2975616d3155",
+  "compatibility_date": "2026-03-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "durable_objects": { "bindings": [{ "name": "SHARE_SERVICE", "class_name": "ShareService" }, { "name": "REMOTE_SERVERS", "class_name": "RemoteServerRelay" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ShareService"] }, { "tag": "v2-remote-servers", "new_sqlite_classes": ["RemoteServerRelay"] }],
+  "r2_buckets": [{ "binding": "SHARE_OBJECTS", "bucket_name": "xnlc-share-objects" }],
+  "rules": [{ "type": "Text", "globs": ["**/*.sql"], "fallthrough": true }]
+}

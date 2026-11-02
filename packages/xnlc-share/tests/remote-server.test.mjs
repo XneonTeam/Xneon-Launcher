@@ -16,6 +16,11 @@ test('права сервера независимы; свойства и ост
   assert.throws(() => check(full, 'mc-server:update', [{ javaPath: 'C:/Windows/cmd.exe' }]), { code: 'INPUT' })
   assert.throws(() => check(editor, 'mc-server:send-command', ['execute as @a run minecraft:stop']), { code: 'FORBIDDEN' })
   check(full, 'mc-server:start', [])
+  for (const command of [{ action: 'get' }, { action: 'java', path: null }, { action: 'java', path: 'C:/Java/bin/java.exe' }, { action: 'relay', enabled: false }]) {
+    check(full, 'mc-server:host-settings', [command])
+    assert.throws(() => check(view, 'mc-server:host-settings', [command]), { code: 'FORBIDDEN' })
+  }
+  for (const command of [{ action: 'relay', enabled: 'yes' }, { action: 'java' }, { action: 'get', path: 'private' }, { action: 'delete' }]) assert.throws(() => check(full, 'mc-server:host-settings', [command]), { code: 'INPUT' })
   check(full, 'mc-server:write-properties', [{ motd: 'Friends' }])
   check(full, 'mc-server:add-op', ['Alice'])
   check({ ...view, readFiles: true }, 'mc-server:history', [{ action: 'get' }])

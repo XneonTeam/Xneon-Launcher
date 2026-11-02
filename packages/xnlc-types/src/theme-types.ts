@@ -63,6 +63,8 @@ export interface ThemeAppearance {
   lightPalette?: Partial<Record<ThemeColorKey, string>>
   darkPalette?: Partial<Record<ThemeColorKey, string>>
   titlebar?: string
+  lightTitlebar?: string
+  darkTitlebar?: string
   error?: string
   warning?: string
   info?: string

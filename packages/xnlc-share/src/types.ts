@@ -76,7 +76,7 @@ export interface SharePorts {
   remote: ShareTransport; now(): string
   localSource?(file: FileInfo, hashes: Hashes): Promise<SourceReference | undefined>
   inspectExternal?(bytes: Uint8Array): void
-  progress?(event: { stage: string; done: number; total: number; bytes: number }): void
+  progress?(event: { stage: string; done: number; total: number; bytes: number; files?: { path: string; size: number; name?: string; iconUrl?: string; status: "queued" | "downloading" | "complete" | "error" }[] }): void
 }
 export interface ShareTransport {
   create(): Promise<string>

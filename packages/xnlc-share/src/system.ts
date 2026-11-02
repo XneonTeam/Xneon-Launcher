@@ -75,10 +75,13 @@ export class ShareSystem {
     const objects = new Set<string>()
     const previousByPath = new Map(base?.entries.map(entry => [entry.path, entry]) ?? [])
     const inheritedObjects = new Set(base?.entries.filter(entry => entry.object).map(entry => entry.sha256) ?? [])
-    const report = (stage = "verify", fraction = 0, bytes = uploadedBytes) => this.ports.progress?.({ stage, done: done + fraction, total: manifest.entries.length, bytes })
-    const finish = () => { done++; report() }
+    const total = manifest.entries.reduce((sum, entry) => sum + Math.max(1, entry.size), 0)
+    let currentSize = 0
+    const report = (stage = "verify", fraction = 0, bytes = uploadedBytes) => this.ports.progress?.({ stage, done: done + fraction * currentSize, total, bytes })
+    const finish = () => { done += currentSize; report() }
     report()
     for (const e of manifest.entries) {
+      currentSize = Math.max(1, e.size)
       const previous = previousByPath.get(e.path)
       if (previous && stable(previous) === stable(e)) {
         // Неизменённая запись уже проверена и закреплена предыдущим коммитом.
@@ -204,13 +207,21 @@ export class ShareSystem {
     }
     const changes: { path: string; bytes: Uint8Array | null; expected: string | null }[] = []
     let downloadedBytes = 0, processed = 0
+    const transferFiles = manifest.entries.filter(entry => preview.expected[entry.path] !== entry.sha256).map(entry => ({ path: entry.path, size: entry.size, status: "queued" as "queued" | "downloading" | "complete" | "error" }))
+    const reportDownload = () => this.ports.progress?.({ stage: "download", done: processed, total: transferFiles.length, bytes: downloadedBytes, files: transferFiles.map(file => ({ ...file })) })
+    reportDownload()
+
     for (const change of preview.diff) if (change.before && !manifest.entries.some(e => e.path === change.before!.path)) {
       changes.push({ path: change.before.path, bytes: null, expected: change.before.sha256 })
     }
     for (const entry of manifest.entries) {
       const current = files.get(entry.path), existing = current ? (await this.ports.files.hash(entry.path)).sha256 : null
       if (existing === entry.sha256) continue
+      const transferFile = transferFiles.find(file => file.path === entry.path)
+      if (transferFile) transferFile.status = "downloading"
+      reportDownload()
       let bytes: Uint8Array
+      try {
       if (entry.source) {
         const adapter = this.ports.sources.find(s => s.id === entry.source!.provider)
         if (!adapter) fail("SOURCE", `Provider unavailable: ${entry.source.provider}`)
@@ -221,7 +232,14 @@ export class ShareSystem {
       if (bytes.length !== entry.size || await this.ports.hash.digest(bytes) !== entry.sha256) fail("INTEGRITY", `Downloaded content is corrupt: ${entry.path}`)
       changes.push({ path: entry.path, bytes, expected: preview.expected[entry.path] ?? null })
       downloadedBytes += bytes.length
-      this.ports.progress?.({ stage: "download", done: ++processed, total: manifest.entries.filter(e => preview.expected[e.path] !== e.sha256).length, bytes: downloadedBytes })
+      if (transferFile) transferFile.status = "complete"
+      processed++
+      reportDownload()
+      } catch (error) {
+        if (transferFile) transferFile.status = "error"
+        reportDownload()
+        throw error
+      }
     }
     await this.ports.files.apply(changes)
   }

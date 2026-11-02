@@ -123,6 +123,7 @@ export type {
 
 // IPC contracts
 export type {
+  ModpackContents,
   IpcInvokeMap,
   IpcEventMap,
   ElectronAPIExplicit,
@@ -167,7 +168,7 @@ export type {
 export type { AiProtocol, AiModelConfig, AiConfig, AiModelDiscovery } from "./agent-types.js"
 export type { AgentHardware } from "./agent-types.js"
 export type { ShareRequest, ShareResponse, ShareResult, ShareLink, ShareContentPresentation } from "./share-types.js"
-export type { ServerPermissions, ServerPermission, RemoteServerMember, RemoteServerAccess, RemoteServerRequest, RemoteServerResponse } from "./remote-server-types.js"
+export type { ServerHostSettingsCommand, ServerHostSettings, ServerPermissions, ServerPermission, RemoteServerMember, RemoteServerAccess, RemoteServerRequest, RemoteServerResponse } from "./remote-server-types.js"
 
 export type { Theme, ThemeColorKey, ThemeGlow, ThemeFont, ThemeBackground, ThemeAppearance } from "./theme-types.js"
 export type { LocalThemeFile, LocalThemeSnapshot, LocalThemeImport } from "./theme-types.js"

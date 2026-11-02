@@ -4,6 +4,7 @@ import path from "path"
 import { readStartupTheme } from "./startup-theme"
 import { isDev, setMainWindow, getMainWindow, logRuntime, logRuntimeDebug, initRuntimePaths, sendToRenderer } from "./runtime"
 import { initDatabase } from "../db"
+import { registerUpdater } from "./updater"
 import { refreshAuthServersInBackground } from "./authlib"
 import { cleanupOrphanGameSessions } from "./stats"
 import { loadInstancesRoot } from "./builds/helpers"
@@ -159,6 +160,7 @@ export function registerWindowLifecycle() {
       initRuntimePaths(),
       initDatabase().then(() => {
         logRuntime("[App] database initialized")
+        registerUpdater()
         void import("./remote-servers/index.js").then(({ startRemoteServerHosts }) => {
           void startRemoteServerHosts()
           const timer = setInterval(() => { void startRemoteServerHosts() }, 15000)

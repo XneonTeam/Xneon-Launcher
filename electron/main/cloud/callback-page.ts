@@ -1,164 +1,39 @@
-const LAUNCHER_STYLES = `
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: oklch(0.08 0.01 260);
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    color: oklch(1 0 0);
-    overflow: hidden;
-  }
-  .bg-glow {
-    position: fixed;
-    width: 600px;
-    height: 600px;
-    border-radius: 50%;
-    filter: blur(150px);
-    opacity: 0.12;
-    pointer-events: none;
-  }
-  .bg-glow.primary { background: oklch(0.65 0.22 40); top: -200px; left: -200px; }
-  .bg-glow.accent { background: oklch(0.6 0.25 80); bottom: -200px; right: -200px; }
-  .card {
-    position: relative;
-    z-index: 1;
-    background: oklch(0.09 0.01 260);
-    border: 1px solid oklch(0.17 0.01 260);
-    border-radius: 0.75rem;
-    padding: 3rem 2.5rem;
-    text-align: center;
-    max-width: 420px;
-    width: 90%;
-    box-shadow: 0 0 80px oklch(0.65 0.22 40 / 0.06);
-  }
-  .icon-wrap {
-    width: 72px;
-    height: 72px;
-    margin: 0 auto 1.5rem;
-    background: oklch(0.14 0.01 260);
-    border-radius: 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid oklch(0.17 0.01 260);
-  }
-  .icon-wrap svg { width: 36px; height: 36px; }
-  h1 {
-    font-size: 1.5rem;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
-    background: linear-gradient(135deg, #f97316 0%, #fbbf24 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  p {
-    color: oklch(0.45 0 0);
-    font-size: 0.95rem;
-    line-height: 1.5;
-    margin-bottom: 2rem;
-  }
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1.75rem;
-    border-radius: 0.75rem;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    border: none;
-    transition: all 0.2s ease;
-    background: linear-gradient(135deg, #f97316 0%, #fbbf24 100%);
-    color: oklch(0.1 0 0);
-    box-shadow: 0 4px 20px oklch(0.65 0.22 40 / 0.3);
-  }
-  .btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 30px oklch(0.65 0.22 40 / 0.4);
-  }
-  .error .icon-wrap {
-    background: oklch(0.55 0.22 40 / 0.1);
-    border-color: oklch(0.55 0.22 40 / 0.2);
-  }
-  .error .bg-glow.primary { background: oklch(0.55 0.22 40); }
-  .error .card { box-shadow: 0 0 80px oklch(0.55 0.22 40 / 0.06); }
-  .error-detail {
-    background: oklch(0.55 0.22 40 / 0.08);
-    border: 1px solid oklch(0.55 0.22 40 / 0.15);
-    border-radius: 0.75rem;
-    padding: 0.75rem 1rem;
-    margin-bottom: 2rem;
-    font-size: 0.85rem;
-    color: oklch(0.45 0 0);
-    word-break: break-word;
-  }
-  .btn-secondary {
-    background: oklch(0.14 0.01 260);
-    color: oklch(0.45 0 0);
-    box-shadow: none;
-  }
-  .btn-secondary:hover {
-    background: oklch(0.17 0.01 260);
-    color: oklch(1 0 0);
-    transform: none;
-  }
-`
+import { BrowserWindow } from "electron"
 
-export function callbackSuccessPage(provider: string): string {
-  return `<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${provider} подключён</title>
-  <style>${LAUNCHER_STYLES}</style>
-</head>
-<body>
-  <div class="bg-glow primary"></div>
-  <div class="bg-glow accent"></div>
-  <div class="card">
-    <div class="icon-wrap">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-        <polyline points="22 4 12 14.01 9 11.01"/>
-      </svg>
-    </div>
-    <h1>${provider} подключён</h1>
-    <p>Хранилище успешно подключено.<br>Можете закрыть это окно.</p>
-    <button class="btn" onclick="window.close()">Закрыть окно</button>
-  </div>
-</body>
-</html>`
+const escape = (value: string) => value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!)
+const defaults: Record<string, string> = { background: "#090909", foreground: "#eeeeee", card: "#141414", "muted-foreground": "#a1a1aa", border: "#303030", primary: "#f64b00", "primary-foreground": "#ffffff", muted: "#202020" }
+
+/** Читаем только оформление; токены авторизации на страницу не попадают. */
+export async function callbackTheme(): Promise<Record<string, string>> {
+  const window = BrowserWindow.getAllWindows().find(window => !window.isDestroyed() && !window.webContents.isDestroyed())
+  if (!window) return defaults
+  try {
+    const values = await window.webContents.executeJavaScript(`(() => {
+      const style = getComputedStyle(document.documentElement);
+      return Object.fromEntries(${JSON.stringify(Object.keys(defaults))}.map(key => [key, style.getPropertyValue('--' + key).trim()]));
+    })()`) as Record<string, unknown>
+    return Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => {
+      const value = values[key]
+      return [key, typeof value === "string" && value.length < 180 && value.trim() && !/[;{}<>]/.test(value) ? value : fallback]
+    }))
+  } catch { return defaults }
 }
 
-export function callbackErrorPage(provider: string, error?: string): string {
-  return `<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ошибка подключения</title>
-  <style>${LAUNCHER_STYLES}</style>
-</head>
-<body class="error">
-  <div class="bg-glow primary"></div>
-  <div class="bg-glow accent"></div>
-  <div class="card">
-    <div class="icon-wrap">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="15" y1="9" x2="9" y2="15"/>
-        <line x1="9" y1="9" x2="15" y2="15"/>
-      </svg>
-    </div>
-    <h1>Ошибка подключения</h1>
-    <p>Не удалось подключить ${provider}</p>
-    ${error ? `<div class="error-detail">${error}</div>` : ""}
-    <button class="btn btn-secondary" onclick="window.close()">Закрыть окно</button>
-  </div>
-</body>
-</html>`
+const svg = (paths: string, size = 24) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`
+function providerIcon(provider: string) {
+  if (/google/i.test(provider)) return svg('<path d="m8 3 8 0 7 12-4 7H5l-4-7Z"/><path d="m8 3 7 12H1m15-12L5 22m10-7h8"/>', 36)
+  if (/dropbox/i.test(provider)) return svg('<path d="m6 3 6 4-6 4-6-4 6-4Zm12 0 6 4-6 4-6-4 6-4ZM6 11l6 4-6 4-6-4 6-4Zm12 0 6 4-6 4-6-4 6-4ZM6 20l6 4 6-4"/>', 36)
+  return svg('<path d="M7 18h11a4 4 0 0 0 0-8h-.4A6 6 0 0 0 6 8a5 5 0 0 0 1 10Z"/>', 36)
 }
+function page(provider: string, error: string | undefined, theme: Record<string, string>) {
+  const failed = error !== undefined
+  const title = failed ? "Не удалось подключить хранилище" : "Хранилище подключено"
+  const vars = Object.entries({ ...defaults, ...theme }).map(([key, value]) => `--${key}:${value}`).join(";")
+  const check = svg(failed ? '<path d="m9 9 6 6m0-6-6 6"/><circle cx="12" cy="12" r="9"/>' : '<path d="m5 12 4 4L19 6"/>', 18)
+  const close = svg('<path d="m6 6 12 12M6 18 18 6"/>', 16)
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>${escape(title)} · Xneon Launcher</title><style>
+:root{${vars};color-scheme:dark light}*{box-sizing:border-box}body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:24px;background:var(--background);color:var(--foreground);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}.shell{width:min(100%,520px)}.brand{display:flex;align-items:center;gap:10px;margin:0 0 18px;color:var(--muted-foreground);font-size:13px;font-weight:600}.brand svg{color:var(--primary)}.card{border:1px solid var(--border);border-radius:24px;background:var(--card);overflow:hidden}.content{padding:32px}.provider{display:flex;align-items:center;gap:14px;margin-bottom:28px;font-size:18px;font-weight:650}.logo{display:grid;place-items:center;width:64px;height:64px;flex-shrink:0;border:1px solid var(--border);border-radius:18px;background:color-mix(in srgb,var(--primary) 10%,var(--card));color:var(--primary)}.status{display:inline-flex;align-items:center;gap:7px;color:var(--primary);font-size:12px;font-weight:600;margin-bottom:12px}h1{display:flex;align-items:center;gap:12px;margin:0 0 12px;font-size:clamp(23px,5vw,29px);line-height:1.25;letter-spacing:-.6px}.heading-icon{display:grid;place-items:center;flex-shrink:0;width:36px;height:36px;border-radius:12px;background:color-mix(in srgb,var(--primary) 12%,var(--card));color:var(--primary)}p{margin:0;color:var(--muted-foreground)}.detail{margin-top:18px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--muted);overflow-wrap:anywhere;font-size:13px}.footer{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 32px;border-top:1px solid var(--border)}.hint{font-size:12px;max-width:240px}button{display:inline-flex;align-items:center;justify-content:center;gap:8px;flex-shrink:0;padding:11px 16px;border:1px solid transparent;border-radius:12px;background:var(--primary);color:var(--primary-foreground);font:600 13px system-ui;cursor:pointer}button:hover{filter:brightness(1.1)}button:focus-visible{outline:2px solid var(--primary);outline-offset:4px}@media(max-width:480px){.content{padding:24px}.footer{padding:20px 24px;align-items:stretch;flex-direction:column}.hint{max-width:none}.provider{margin-bottom:22px}}
+</style></head><body><main class="shell"><section class="card"><div class="content"><div class="provider"><div class="logo">${providerIcon(provider)}</div>${escape(provider)}</div><h1><span class="heading-icon">${check}</span>${title}</h1><p>${failed ? "Вернитесь в лаунчер и попробуйте подключить хранилище ещё раз." : "Ваши файлы уже доступны в разделе «Облако» лаунчера."}</p>${failed && error ? `<div class="detail">${escape(error)}</div>` : ""}</div><footer class="footer"><p class="hint" id="hint">Можно вернуться в лаунчер и закрыть эту вкладку.</p><button type="button" id="close">${close}Закрыть окно</button></footer></section></main><script>history.replaceState(null,'',location.pathname);document.getElementById('close').addEventListener('click',()=>{window.close();document.getElementById('hint').textContent='Если окно осталось открытым, закройте вкладку браузера вручную.'});</script></body></html>`
+}
+export function callbackSuccessPage(provider: string, theme = defaults): string { return page(provider, undefined, theme) }
+export function callbackErrorPage(provider: string, error?: string, theme = defaults): string { return page(provider, error || "Подключение прервано.", theme) }

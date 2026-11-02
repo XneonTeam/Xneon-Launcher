@@ -1,7 +1,9 @@
 import type { ElectronAPI } from '@xnlc/types'
+// Чтение состава Modrinth-сборок без установки: modsModrinthPackContents — из общего контракта.
 // XNLC/Share: shareExecute и типы запросов объявлены в общем контракте @xnlc/types.
 // Удалённые mc-servers: mcServerRemote и события соединения объявлены в том же IPC-контракте.
 // История mc-servers: mcServerHistory объявлен в общем контракте.
+// Настройки хоста: mcServerHostSettings использует тот же контракт.
 
 export {}
 

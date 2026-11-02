@@ -1,4 +1,8 @@
 import type { McServerInfo } from "./server-types.js"
+import type { XnConnectState, XnConnectUsage } from "./server-types.js"
+import type { JavaDetectResult } from "./domain-types.js"
+export type ServerHostSettingsCommand = { action: "get" } | { action: "java"; path: string | null } | { action: "relay"; enabled: boolean }
+export interface ServerHostSettings { javaPath: string | null; resolvedJavaPath: string | null; javaInstallations: JavaDetectResult[]; memoryTotalMb: number; relayEnabled: boolean; relayState: XnConnectState; usage: XnConnectUsage | null }
 export type { ServerPermissions, ServerPermission } from "@xnlc/share"
 import type { ServerPermissions } from "@xnlc/share"
 export interface RemoteServerMember { id: string; name: string; owner: boolean; permissions: ServerPermissions }

@@ -1,0 +1,111 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { createShareServer } from '../server.mjs'
+import { ShareApiClient, ShareSystem, branchHistory } from '../../../packages/xnlc-share/lib/index.js'
+import { hash, metadata, MemoryFiles, manifest, text } from '../../../packages/xnlc-share/tests/helpers.mjs'
+
+test('ветки от выбранного источника, независимая история и полный цикл pull request с защитой от устаревшего сравнения', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'xnlc-share-branches-pr-'))
+  const service = await createShareServer({ directory, bootstrap: [{ user: 'alice', token: 'a'.repeat(43) }] })
+  await new Promise(resolve => service.server.listen(0, '127.0.0.1', resolve))
+  t.after(async () => { await service.close(); await fs.rm(directory, { recursive: true, force: true }) })
+  const url = 'http://127.0.0.1:' + service.server.address().port
+  const remote = new ShareApiClient(url, async () => 'a'.repeat(43), fetch)
+  const files = new MemoryFiles({ 'config/a.json': '{"v":1}' })
+  const system = new ShareSystem({ files, remote, sources: [], hash, now: () => new Date().toISOString() })
+  const initial = await system.publish((await system.scan(metadata)).manifest, 'alice'), id = initial.repository.id
+  await system.createBranch(id, 'feature', 'main', 'alice')
+  files.data.set('config/a.json', text('{"v":2}'))
+  const feature = await system.push(id, 'feature', initial.commit.id, (await system.scan(metadata)).manifest, 'alice', 'Feature change')
+  let repo = await system.createBranch(id, 'from-feature', 'feature', 'alice')
+  assert.equal(repo.branches['from-feature'].head, feature.commit.id)
+  assert.deepEqual(branchHistory(repo, 'from-feature').map(commit => commit.id), [feature.commit.id, initial.commit.id])
+  assert.equal(repo.commits[repo.branches['from-feature'].head].snapshot.manifest.entries.length, 1)
+  assert.equal(repo.commits[repo.branches['from-feature'].head].message, 'Feature change')
+  repo = await system.createBranch(id, 'independent', 'feature', 'alice', true)
+  const root = repo.commits[repo.branches.independent.head]
+  assert.deepEqual(root.parents, [])
+  assert.equal(root.snapshot.parent, null)
+  assert.equal(root.type, 'INITIAL')
+  assert.equal(root.manifestHash, feature.commit.manifestHash)
+  assert.deepEqual(branchHistory(repo, 'independent').map(commit => commit.id), [root.id])
+  assert.equal(repo.branches.main.head, initial.commit.id)
+  assert.ok(await remote.download(id, root.snapshot.manifest.entries[0].sha256))
+  await assert.rejects(system.command(id, { action: 'pr', id: 'unrelated', title: 'Independent', description: '', source: 'independent', target: 'main' }), { code: 'UNRELATED_BRANCHES' })
+  await assert.rejects(system.command(id, { action: 'branch', name: 'forged', from: feature.commit.id, initial: { ...root, id: 'f'.repeat(64) } }), { code: 'INTEGRITY' })
+  await system.command(id, { action: 'pr', id: 'review', title: 'Review feature', description: 'Details', source: 'feature', target: 'main' })
+  await system.command(id, { action: 'comment', id: 'review', text: 'Ready for review' })
+  await system.command(id, { action: 'prState', id: 'review', state: 'closed' })
+  await system.command(id, { action: 'prState', id: 'review', state: 'open' })
+  const preview = await system.mergePreview(id, 'main', 'feature')
+  assert.equal(preview.diff[0].path, 'config/a.json')
+  files.data.set('config/a.json', text('{"v":3}'))
+  const latest = await system.push(id, 'feature', feature.commit.id, (await system.scan(metadata)).manifest, 'alice', 'Later change')
+  await assert.rejects(system.mergeBranches(id, 'main', 'feature', preview.current, 'alice', 'Merge', {}, 'review', preview.incoming), { code: 'NON_FAST_FORWARD' })
+  assert.equal((await remote.get(id)).pullRequests.review.state, 'open')
+  const refreshed = await system.mergePreview(id, 'main', 'feature')
+  repo = await system.mergeBranches(id, 'main', 'feature', refreshed.current, 'alice', 'Merge', {}, 'review', refreshed.incoming)
+  assert.equal(repo.branches.main.head, latest.commit.id)
+  assert.equal(repo.pullRequests.review.state, 'merged')
+  assert.equal(repo.pullRequests.review.comments[0].text, 'Ready for review')
+  assert.equal(repo.pullRequests.review.merge.targetHead, initial.commit.id)
+  assert.equal(repo.pullRequests.review.merge.commit, latest.commit.id)
+  const completedReview = await system.mergePreview(id, 'main', 'feature', {}, 'review')
+  assert.deepEqual(completedReview.diff, refreshed.diff)
+  await system.command(id, { action: 'pr', id: 'already-applied', title: 'Already applied', description: '', source: 'feature', target: 'main' })
+  repo = await system.mergeBranches(id, 'main', 'feature', latest.commit.id, 'alice', 'Complete', {}, 'already-applied', latest.commit.id)
+  assert.equal(repo.pullRequests['already-applied'].state, 'merged')
+  files.data.set('config/a.json', text('{"v":4}'))
+  await system.push(id, 'feature', latest.commit.id, (await system.scan(metadata)).manifest, 'alice', 'Feature after merge')
+  files.data.set('config/a.json', text('{"v":5}'))
+  await system.push(id, 'main', latest.commit.id, (await system.scan(metadata)).manifest, 'alice', 'Main after merge')
+  assert.deepEqual((await system.mergePreview(id, 'main', 'feature', {}, 'review')).diff, completedReview.diff)
+  await system.command(id, { action: 'deleteBranch', name: 'feature' })
+  assert.deepEqual((await system.mergePreview(id, 'main', 'feature', {}, 'review')).diff, completedReview.diff)
+})
+
+test('versioning: editor branch, stash, merge and restore; new releases are disabled', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'xnlc-share-vcs-'))
+  const tokens = { alice: 'a'.repeat(43), bob: 'b'.repeat(43) }
+  const service = await createShareServer({ directory, bootstrap: Object.entries(tokens).map(([user, token]) => ({ user, token })) })
+  await new Promise(resolve => service.server.listen(0, '127.0.0.1', resolve))
+  t.after(async () => { await service.close(); await fs.rm(directory, { recursive: true, force: true }) })
+  const base = 'http://127.0.0.1:' + service.server.address().port
+  const remote = user => new ShareApiClient(base, async () => tokens[user], fetch)
+  const make = (files, user) => new ShareSystem({ files, remote: remote(user), sources: [], hash, now: () => new Date().toISOString() })
+  const files = new MemoryFiles({ 'config/a.json': '{"v":1}' }), alice = make(files, 'alice')
+  const initial = await alice.publish((await alice.scan(metadata)).manifest, 'alice'), id = initial.repository.id
+  await alice.command(id, { action: 'member', user: 'bob', role: 'editor' })
+  const bFiles = new MemoryFiles(), bob = make(bFiles, 'bob')
+  await bob.apply(id, await bob.preview(id, 'main', null, manifest()))
+  await bob.command(id, { action: 'branch', name: 'feature', from: initial.commit.id })
+  bFiles.data.set('config/b.json', text('{"new":true}'))
+  const work = (await bob.scan(metadata)).manifest
+  await bob.stash(id, 'work', initial.commit.id, work)
+  const stashPreview = await bob.previewStash(id, 'feature', initial.commit.id, 'work', initial.commit.snapshot.manifest)
+  assert.equal(stashPreview.manifest.entries.length, 2)
+  const feature = await bob.push(id, 'feature', initial.commit.id, work, 'bob', 'New config')
+  await bob.command(id, { action: 'pr', id: 'pr1', title: 'New config', description: 'Review config', source: 'feature', target: 'main' })
+  await bob.command(id, { action: 'comment', id: 'pr1', text: 'Ready' })
+  await assert.rejects(bob.command(id, { action: 'member', user: 'alice', role: 'viewer' }), { code: 'FORBIDDEN' })
+  files.data.set('config/c.json', text('{"other":true}'))
+  const own = await alice.push(id, 'main', initial.commit.id, (await alice.scan(metadata)).manifest, 'alice', 'Independent config')
+  const preview = await alice.mergePreview(id, 'main', 'feature')
+  assert.equal(preview.conflicts.length, 0); assert.equal(preview.manifest.entries.length, 3)
+  const merged = await alice.mergeBranches(id, 'main', 'feature', own.commit.id, 'alice', 'Merge feature', {}, 'pr1')
+  const mergedCommit = merged.commits[merged.branches.main.head]
+  assert.equal(mergedCommit.type, 'MERGE'); assert.equal(mergedCommit.parents.length, 2)
+  assert.equal(merged.pullRequests.pr1.state, 'merged'); assert.equal(merged.pullRequests.pr1.comments.length, 1)
+  await assert.rejects(alice.command(id, { action: 'release', tag: 'v1.0', commit: mergedCommit.id, description: '' }), { code: 'COMMAND' })
+  const restored = await alice.restore(id, 'main', mergedCommit.id, initial.commit.id, 'alice', 'Restore initial state')
+  const restoredCommit = restored.commits[restored.branches.main.head]
+  assert.equal(restoredCommit.type, 'REVERT'); assert.equal(restoredCommit.snapshot.manifest.entries.length, 1)
+  assert.deepEqual((await alice.mergePreview(id, 'main', 'feature', {}, 'pr1')).diff, preview.diff)
+  assert.ok(restored.commits[mergedCommit.id]); assert.ok(restored.stashes.work)
+  await bob.command(id, { action: 'dropStash', id: 'work' })
+  assert.equal(Object.keys((await alice.get(id)).stashes).length, 0)
+  assert.equal(await service.gc(), 0)
+})

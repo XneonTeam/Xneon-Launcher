@@ -35,6 +35,9 @@ export function registerUpdater() {
     const channel: UpdateChannel = stored === "beta" ? "beta" : "stable"
     applyChannel(channel)
     logRuntime(`[Updater] Update channel: ${channel}`)
+  }).catch((error) => {
+    applyChannel("stable")
+    logRuntime(`[Updater] Failed to restore update channel: ${error instanceof Error ? error.message : String(error)}`)
   })
 
   if (isDev) {

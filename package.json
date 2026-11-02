@@ -48,14 +48,20 @@
     "prepackage": "pnpm run build:share && node scripts/gen-credentials.mjs && node scripts/gen-agent-ipc-catalog.mjs && pnpm --filter @xnlc/agent run build",
     "dev": "concurrently -k -s first \"vite --host 127.0.0.1\" \"tsc -p tsconfig.node.json && wait-on tcp:127.0.0.1:5173 --timeout 60000 && cross-env NODE_ENV=development node scripts/launch-electron-dev.mjs\"",
     "dev:fast": "concurrently -k -s first \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 --timeout 15000 && cross-env NODE_ENV=development node scripts/launch-electron-dev.mjs\"",
+    "dev:share": "concurrently -k -s first \"pnpm run share:server\" \"cross-env XNLC_SHARE_URL=http://127.0.0.1:8787 pnpm run dev\"",
     "build:renderer": "vite build",
     "build:share": "pnpm --filter @xnlc/share run build && pnpm --filter @xnlc/types run build",
     "build:electron": "tsc -p tsconfig.node.json",
     "build": "pnpm run typecheck && vite build && pnpm run build:electron",
     "package": "pnpm run build && electron-builder",
     "typecheck": "tsc --noEmit",
-    "share:test": "pnpm --filter @xnlc/share test",
-    "share:test:electron": "pnpm run build:share && pnpm run build:electron && node --test tests/electron/share.test.mjs tests/electron/share-launch-settings.test.mjs tests/electron/copy-instance.test.mjs"
+    "share:server": "pnpm --filter @xnlc/share run build && node --env-file-if-exists=services/share/.env services/share/server.mjs",
+    "share:worker:dev": "pnpm run build:share && wrangler dev --config services/share/wrangler.jsonc",
+    "share:worker:deploy": "pnpm run build:share && wrangler deploy --config services/share/wrangler.jsonc",
+    "share:worker:smoke": "node services/share/tests/worker-smoke.mjs",
+    "share:test": "pnpm --filter @xnlc/share test && node --test services/share/tests/*.test.mjs",
+    "share:test:electron": "pnpm run build:share && pnpm run build:electron && node --test tests/electron/share.test.mjs tests/electron/share-metadata.test.mjs",
+    "share:test:live": "pnpm --filter @xnlc/share run build && node services/share/tests/live-modrinth.mjs"
   },
   "devDependencies": {
     "@radix-ui/react-checkbox": "1.3.8",
@@ -94,14 +100,7 @@
   "build": {
     "appId": "com.xneonlauncher.app",
     "productName": "Xneon Launcher",
-    "protocols": [
-      {
-        "name": "XNLC Share",
-        "schemes": [
-          "xneon"
-        ]
-      }
-    ],
+    "protocols": [{ "name": "XNLC Share", "schemes": ["xneon"] }],
     "npmRebuild": false,
     "forceCodeSigning": false,
     "asarUnpack": [
