@@ -212,6 +212,7 @@ add("get_project", "Карточка проекта и его версии. proj
   const result = await getAgentProject(api, text(input, "source"), text(input, "projectId"))
   return { ...result, contentType: input.source === "ftb" ? "modpack" : undefined, description: result.description.slice(0, 8000), body: undefined, gallery: [], versions: result.versions.slice(0, 10).map(({ changelog, ...version }) => version) }
 })
+add("get_modpack_contents", "Полный состав конкретной версии сборки Modrinth без установки: файлы, ID проектов/версий по хешам, Minecraft и загрузчик. Сначала получи versionId через get_project или modsModrinthVersions в каталоге IPC. Используй для исследования и сравнения реальных сборок; неизвестные хеши остаются файлами без projectId.", "read", { projectId: str, versionId: str }, (api, input) => api.modsModrinthPackContents(text(input, "projectId"), text(input, "versionId")))
 add("get_project_versions", "Совместимые версии проекта. Для существующей сборки передай buildId. ДО создания сборки передай version (Minecraft) и loader: так проверяй ключевые моды при выборе версии. ID проекта сначала получи из каталога.", "read", { ...projectFields, buildId: optional(str), version: optional(str), loader: optional(loader), type: contentType }, async (api, input) => {
   if (!input.buildId && (!input.version || !input.loader)) throw new Error("Provide buildId or both version and loader")
   if (!input.buildId && !(await api.getMinecraftVersions()).some(item => item.version === input.version)) throw new Error("Unknown Minecraft version")
@@ -398,7 +399,7 @@ const coreGroups: Record<string, string[]> = {
   builds: ["list_builds", "get_build", "create_build", "copy_build", "rename_build", "set_build_version", "trash_build", "set_build_memory", "set_build_options", "launch_build", "stop_game", "game_status", "unlock_build", "lock_build"],
   launcher_ipc: ["list_launcher_capabilities", "get_launcher_capability"],
   versions: ["list_minecraft_versions", "recommend_minecraft_versions", "list_loader_versions"],
-  content: ["search_projects", "get_project", "get_project_versions", "install_content", "remove_content", "toggle_content", "check_updates", "check_loader_requirements", "install_modpack"],
+  content: ["search_projects", "get_project", "get_project_versions", "get_modpack_contents", "install_content", "remove_content", "toggle_content", "check_updates", "check_loader_requirements", "install_modpack"],
   build_files: ["read_build_file", "list_build_files", "write_build_config"],
   worlds: ["list_worlds", "copy_world", "rename_world", "delete_world"],
   settings: ["read_settings", "set_setting", "list_languages", "set_language", "recommend_launcher_settings"],

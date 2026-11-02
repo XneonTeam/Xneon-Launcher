@@ -54,3 +54,25 @@ export async function describeShareHistory(directory: string, entries: ContentEn
   }
   return result
 }
+
+/** Данные площадок доступны ещё до скачивания архивов сборки. */
+export async function describeIncomingShareContent(entries: ContentEntry[]): Promise<Record<string, ShareContentPresentation>> {
+  const mods = await import("@xnlc/mods")
+  const mrIds = [...new Set(entries.filter(entry => entry.source?.provider === "modrinth").map(entry => entry.source!.projectId))]
+  const cfIds = [...new Set(entries.filter(entry => entry.source?.provider === "curseforge").map(entry => Number(entry.source!.projectId)).filter(Number.isFinite))]
+  const [mr, cf] = await Promise.allSettled([
+    mrIds.length ? mods.modrinthGetProjectsByIds(mrIds) : Promise.resolve({}),
+    cfIds.length ? mods.curseforgeGetProjectsByIds(cfIds) : Promise.resolve({}),
+  ])
+  const result: Record<string, ShareContentPresentation> = {}
+  for (const entry of entries) {
+    if (!entry.source) continue
+    const source = entry.source.provider
+    const projects = source === "modrinth" ? mr : cf
+    if (projects.status !== "fulfilled") continue
+    const project = (projects.value as Record<string, { name?: string; title?: string; iconUrl?: string; author?: string }>)[entry.source.projectId]
+    if (!project) continue
+    result[entry.path] = { name: project.name || project.title || entry.path.split("/").pop()!, iconUrl: project.iconUrl, author: project.author, source: source === "modrinth" ? "modrinth" : "curseforge" }
+  }
+  return result
+}

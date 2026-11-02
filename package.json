@@ -55,7 +55,7 @@
     "package": "pnpm run build && electron-builder",
     "typecheck": "tsc --noEmit",
     "share:test": "pnpm --filter @xnlc/share test",
-    "share:test:electron": "pnpm run build:share && pnpm run build:electron && node --test tests/electron/share.test.mjs tests/electron/share-launch-settings.test.mjs tests/electron/copy-instance.test.mjs"
+    "share:test:electron": "pnpm run build:share && pnpm run build:electron && node --test tests/electron/share.test.mjs tests/electron/share-metadata.test.mjs",
   },
   "devDependencies": {
     "@radix-ui/react-checkbox": "1.3.8",
@@ -94,14 +94,7 @@
   "build": {
     "appId": "com.xneonlauncher.app",
     "productName": "Xneon Launcher",
-    "protocols": [
-      {
-        "name": "XNLC Share",
-        "schemes": [
-          "xneon"
-        ]
-      }
-    ],
+    "protocols": [{ "name": "XNLC Share", "schemes": ["xneon"] }],
     "npmRebuild": false,
     "forceCodeSigning": false,
     "asarUnpack": [

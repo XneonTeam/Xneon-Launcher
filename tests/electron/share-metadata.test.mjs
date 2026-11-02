@@ -1,0 +1,13 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import fs from 'node:fs/promises'
+import vm from 'node:vm'
+import Database from 'better-sqlite3'
+import os from 'node:os'
+import path from 'node:path'
+import { createRequire } from 'node:module'
+import * as domain from '../../packages/xnlc-share/lib/index.js'
+import { MemoryFiles, hash, metadata } from '../../packages/xnlc-share/tests/helpers.mjs'
+import launchModule from '../../dist-electron/main/share/launch-settings.js'
+
+import './share-launch-settings.test.mjs'

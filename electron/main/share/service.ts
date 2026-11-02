@@ -15,7 +15,7 @@ import { ensureBuildIntentDir, getBuildIntentDirName } from "../builds/helpers"
 import { scanIntentDir } from "../builds/scanner"
 import { sendToRenderer } from "../runtime"
 import { takeShareInvitation } from "./links"
-import { describeShareContent, describeShareHistory } from "./content-presentation"
+import { describeIncomingShareContent, describeShareContent, describeShareHistory } from "./content-presentation"
 import { serializeLaunchSettings, resolveLaunchSettings } from "./launch-settings"
 import { detectJavaInstallations } from "../system"
 import { prepareSharedRename } from "./instance-name"
@@ -38,7 +38,7 @@ function remember(buildId: string, data: PreviewState) {
   if (previews.size > 30) previews.delete(previews.keys().next().value!)
   const id = randomUUID(); previews.set(id, { buildId, at: Date.now(), ...data }); return id
 }
-export async function executeShare(input: ShareRequest, progress: (event: { stage: string; done: number; total: number; bytes: number }) => void): Promise<ShareResponse> {
+export async function executeShare(input: ShareRequest, progress: (event: { stage: string; done: number; total: number; bytes: number; files?: { path: string; size: number; name?: string; iconUrl?: string; status: "queued" | "downloading" | "complete" | "error" }[] }) => void): Promise<ShareResponse> {
   if (input.action === "session") return shareSession()
   if (input.action === "pendingInvitation") return { pendingInvitation: takeShareInvitation() }
   if (input.action === "invitationPreview") {
@@ -228,6 +228,8 @@ export async function executeShare(input: ShareRequest, progress: (event: { stag
       }
       await setLink(build.id, { ...link, status: "applying" })
       try {
+      const incomingPresentation = await describeIncomingShareContent(saved.update.manifest.entries).catch(() => ({} as Record<string, ShareContentPresentation>))
+      system.setProgress(event => progress({ ...event, files: event.files?.map(file => ({ ...file, name: incomingPresentation[file.path]?.name, iconUrl: incomingPresentation[file.path]?.iconUrl })) }))
       await system.apply(link.repositoryId, saved.update)
       const metadata = saved.update.manifest.instance
       const launch = metadata.launchSettings ? resolveLaunchSettings(metadata.launchSettings, await dbHelpers.loadAccounts(), metadata.launchSettings.java ? await detectJavaInstallations() : []) : undefined

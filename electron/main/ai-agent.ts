@@ -124,7 +124,7 @@ function buildSystemPrompt(language?: string) {
   return langHint ? `${SYSTEM_PROMPT}\n\nIMPORTANT: Respond in ${langHint} language.` : SYSTEM_PROMPT
 }
 
-export type AiModelsResult = { success: boolean; models?: string[]; error?: string }
+export type AiModelsResult = { success: boolean; models?: string[]; contextWindows?: Record<string, number>; error?: string }
 
 /**
  * Список моделей провайдера через OpenAI-совместимый `GET /models`.
@@ -141,6 +141,7 @@ export async function fetchAiModels(apiKey: string, endpoint: string, protocol: 
     const base = new URL(baseUrl)
     if (!["http:", "https:"].includes(base.protocol) || (base.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(base.hostname))) throw new Error("Use HTTPS for remote AI providers")
     const found = new Set<string>()
+    const contextWindows: Record<string, number> = {}
     let cursor = ""
     for (let page = 0; page < 30; page++) {
       const url = new URL(baseUrl + "/" + (protocol === "ollama" ? "api/tags" : "models"))
@@ -150,12 +151,21 @@ export async function fetchAiModels(apiKey: string, endpoint: string, protocol: 
       if (!response.ok) return { success: false, error: "API error " + response.status + ": " + (await response.text()).replaceAll(apiKey || "__NO_API_KEY__", "[REDACTED]").slice(0, 300) }
       const payload = await response.json() as Record<string, unknown>
       collectModelIds(payload).forEach(id => found.add(id))
+      const entries = Array.isArray(payload) ? payload : [payload.data, payload.models, payload.result, payload.items].find(Array.isArray) || []
+      for (const entry of entries) {
+        if (!entry || typeof entry !== "object") continue
+        const record = entry as Record<string, unknown>
+        const id = record.id ?? record.name ?? record.model ?? record.slug
+        const limits = record.limits && typeof record.limits === "object" ? record.limits as Record<string, unknown> : {}
+        const context = Number(record.context_length ?? record.context_window ?? record.contextWindow ?? record.inputTokenLimit ?? record.max_input_tokens ?? record.max_context_length ?? limits.context)
+        if (typeof id === "string" && Number.isInteger(context) && context >= 8192 && context <= 4_000_000) contextWindows[id.trim()] = context
+      }
       const next = protocol === "gemini" ? payload.nextPageToken : protocol === "anthropic" && payload.has_more ? payload.last_id : undefined
       if (typeof next !== "string" || !next || cursor === next) break
       cursor = next
     }
     if (!found.size) return { success: false, error: "No models returned by the endpoint" }
-    return { success: true, models: [...found].sort((a, b) => a.localeCompare(b)) }
+    return { success: true, models: [...found].sort((a, b) => a.localeCompare(b)), contextWindows }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)
     return { success: false, error: `Failed to fetch models: ${message}` }
@@ -199,12 +209,13 @@ function collectModelIds(payload: unknown): string[] {
 // Non-streaming API call
 async function callAiApi(
   messages: Array<{ role: string; content: string }>,
-  opts: { maxTokens?: number; temperature?: number; language?: string } = {},
+  opts: { maxTokens?: number; temperature?: number; language?: string; model?: string } = {},
 ): Promise<{ success: boolean; analysis?: string; error?: string }> {
   const config = await getApiConfig()
   if (!config) return { success: false, error: "AI API key not configured. Go to Settings → AI." }
 
   try {
+    if (opts.model) config.modelId = opts.model
     const request = providerRequest(config, buildSystemPrompt(opts.language), messages as import("@xnlc/types").AgentWireMessage[], [])
     const body = request.body as Record<string, unknown>
     if (!config.protocol || config.protocol === "openai") { body.stream = false; delete body.stream_options }
@@ -362,8 +373,9 @@ export function registerAiAgent(): void {
   })
 
   // ── Crash Analysis ───────────────────────────────────────
-  ipcMain.handle("ai:analyze-crash", async (_event, logContent: string): Promise<AiAnalysisResult> => {
-    return callAiApi([{ role: "user", content: CRASH_ANALYSIS_PROMPT + truncateLog(logContent) }], { language: await dbHelpers.getSetting("language") || "ru" })
+  ipcMain.handle("ai:analyze-crash", async (_event, logContent: string, model?: string): Promise<AiAnalysisResult> => {
+    if (model !== undefined && (typeof model !== "string" || !model.trim())) return { success: false, error: "Invalid AI model" }
+    return callAiApi([{ role: "user", content: model ? "Connection test. Reply OK." : CRASH_ANALYSIS_PROMPT + truncateLog(logContent) }], { language: await dbHelpers.getSetting("language") || "ru", model })
   })
 
   // ── Crash Analysis (streaming) ──────────────────────────

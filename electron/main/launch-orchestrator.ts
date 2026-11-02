@@ -470,18 +470,10 @@ export class LaunchOrchestrator {
         this.clearState()
       })
 
-      const decodeChunk = async (chunk: Buffer | string): Promise<string> => {
-        if (typeof chunk === "string") return chunk
-        const iconv = await import("iconv-lite")
-        return iconv.default.decode(chunk, "cp866")
-      }
-
-      worker.stdout?.on("data", (chunk: Buffer | string) => {
-        decodeChunk(chunk).then(text => this.emitDebug(`[XNLC] ${text}`))
-      })
-      worker.stderr?.on("data", (chunk: Buffer | string) => {
-        decodeChunk(chunk).then(text => this.emitDebug(`[XNLC] ${text}`))
-      })
+      worker.stdout?.setEncoding("utf8")
+      worker.stderr?.setEncoding("utf8")
+      worker.stdout?.on("data", (chunk: string) => this.emitDebug(`[XNLC] ${chunk}`))
+      worker.stderr?.on("data", (chunk: string) => this.emitDebug(`[XNLC] ${chunk}`))
 
       try {
         worker.send({

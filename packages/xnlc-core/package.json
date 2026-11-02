@@ -50,7 +50,8 @@
   },
   "dependencies": {
     "@xnlc/types": "workspace:*",
-    "adm-zip": "^0.6.0"
+    "adm-zip": "^0.6.0",
+    "iconv-lite": "^0.7.3"
   },
   "scripts": {
     "generate:legacy": "node scripts/generate-legacy-bootstrap.mjs",

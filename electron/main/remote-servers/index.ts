@@ -110,7 +110,10 @@ async function connect(access: RemoteServerAccess, localId?: string): Promise<Co
             const previous = connection.snapshot
             connection.online = true; connection.snapshot = packet
             connection.access.info = { ...connection.access.info, ...packet.info }
-            if (previous?.state?.status !== packet.state?.status) sendToRenderer("mc-server:state-change", { id: `remote:${access.id}`, state: packet.state })
+            // Forward the complete host state on every snapshot. State includes
+            // live fields (start time, pid, errors) that can change while the
+            // status remains the same.
+            if (!previous || JSON.stringify(previous.state) !== JSON.stringify(packet.state)) sendToRenderer("mc-server:state-change", { id: `remote:${access.id}`, state: packet.state })
             sendToRenderer("mc-server:remote-snapshot", { id: `remote:${access.id}`, logs: packet.logs })
             sendToRenderer("mc-server:metrics", { id: `remote:${access.id}`, metrics: packet.metrics })
             if (packet.install?.progress) sendToRenderer("mc-server:download-progress", { id: `remote:${access.id}`, progress: packet.install.progress })
