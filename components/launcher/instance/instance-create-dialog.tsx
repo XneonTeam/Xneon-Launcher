@@ -330,7 +330,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
                         <IconArrowLeft className="h-4 w-4" strokeWidth={1.75} />
                       </button>
                       <div data-ui="instance-instance-create-dialog-div-14">
-                        <div data-ui="instance-instance-create-dialog-div-15" className="text-sm font-medium text-foreground">{sourceNames[selectedImportSource]}</div>
+                        <div data-ui="instance-instance-create-dialog-div-15" className="flex items-center gap-2 text-sm font-medium text-foreground"><img src={SOURCE_ICON_SRC[selectedImportSource]} alt="" className="size-5 shrink-0 object-contain" />{sourceNames[selectedImportSource]}</div>
                         <div data-ui="instance-instance-create-dialog-div-16" className="text-xs text-muted-foreground">{t("builds.chooseBuildsToImport")}</div>
                       </div>
                     </div>

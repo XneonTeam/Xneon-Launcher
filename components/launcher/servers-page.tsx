@@ -1,3 +1,6 @@
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
+import { IconCheck } from "@tabler/icons-react"
 import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { CONTENT_ENTER_DELAYED, useContentEnter } from "./content-motion"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -731,34 +734,16 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
         removeLabel={t("categoryMenu.iconRemove")}
       />
 
-      {/* Rename category dialog */}
-      {renameGroupFor && (
-        <ModalLayer windowId="servers-page-window-1" onClose={() => setRenameGroupFor(null)}>
-          <div data-ui="servers-page-div-26" className="w-[320px] rounded-2xl border border-border bg-card p-4 shadow-2xl">
-            <h3 data-ui="servers-page-h3-1" className="text-sm font-semibold text-foreground">{t("servers.renameGroup", "Переименовать категорию")}</h3>
-            <input data-ui="servers-page-input-1"
-              autoFocus
-              value={renameGroupDraft}
-              onChange={(e) => setRenameGroupDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleRenameGroupConfirm()
-                if (e.key === "Escape") setRenameGroupFor(null)
-              }}
-              className="mt-3 w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
-            />
-            <div data-ui="servers-page-div-27" className="mt-3 flex justify-end gap-2">
-              <button data-ui="servers-page-button-15" type="button" onClick={() => setRenameGroupFor(null)}
-                className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
-                {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel", "Отмена")}</span>}
-              </button>
-              <button data-ui="servers-page-button-16" type="button" onClick={handleRenameGroupConfirm}
-                className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90">
-                {t("common.save", "Сохранить")}
-              </button>
-            </div>
-          </div>
-        </ModalLayer>
-      )}
+      <Dialog open={renameGroupFor !== null} onOpenChange={open => { if (!open) setRenameGroupFor(null) }}>
+        <DialogContent data-window="servers-rename-category" className="max-w-sm gap-5 rounded-2xl border-border bg-card p-5">
+          <DialogHeader><DialogTitle className="flex items-center gap-2 text-base"><ModalTitleIcon><IconPencil className="size-4" strokeWidth={1.75} /></ModalTitleIcon>{t("servers.renameGroup")}</DialogTitle></DialogHeader>
+          <input data-ui="servers-page-input-1" autoFocus value={renameGroupDraft} onChange={event => setRenameGroupDraft(event.target.value)} aria-label={t("servers.renameGroup")} onKeyDown={event => { if (event.key === "Enter" && renameGroupDraft.trim()) handleRenameGroupConfirm() }} className="w-full rounded-xl border border-border bg-muted/40 px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary" />
+          <DialogFooter className="gap-2 border-t border-border/60 pt-4">
+            <button type="button" onClick={() => setRenameGroupFor(null)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/40 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"><LauncherCancelIcon className="size-4" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel")}</button>
+            <button type="button" onClick={handleRenameGroupConfirm} disabled={!renameGroupDraft.trim()} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"><IconCheck className="size-4" strokeWidth={1.75} aria-hidden="true" />{t("common.save")}</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create dialog */}
       <RemoteServerJoinDialog open={showRemoteJoin} onClose={() => setShowRemoteJoin(false)} onJoined={() => { void reload() }} />
