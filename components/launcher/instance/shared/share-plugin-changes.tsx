@@ -21,11 +21,11 @@ export function SharePluginChanges({ changes, presentation, showChangeType = tru
         {identity}
         {showChangeType && <span className={`shrink-0 ${shareChangeColor(type)}`}>{t(`share.diff.${type}`)}</span>}
         <span className="shrink-0 text-muted-foreground">{t("serverHistory.pluginFiles", { count: children.length })}</span>
-        <IconChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+        <IconChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-primary transition-transform group-open:rotate-180" />
       </summary>
       <div className="mb-3 ml-4 divide-y divide-border/50 border-l border-border/60 pl-4">
         {children.map(change => <div key={change.path} className="flex items-start gap-2 py-2.5 text-xs">
-          {showChangeType ? <ShareChangeMark type={change.type} /> : <IconFileText aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
+          {showChangeType ? <ShareChangeMark type={change.type} /> : <IconFileText aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-primary" />}
           <span className="min-w-0 flex-1 break-all text-foreground" title={change.path}>{change.path.startsWith(group.path + "/") ? change.path.slice(group.path.length + 1) : change.path.slice("plugins/".length)}</span>
           {showChangeType && <span className={`shrink-0 pl-2 ${shareChangeColor(change.type)}`}>{t(`share.diff.${change.type}`)}</span>}
         </div>)}

@@ -625,7 +625,7 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
       </button>
 
       {(launchUi.status || launchUi.progress !== null) && (
-        <div data-ui="home-controls-div-37" className="relative z-50 px-1 flex flex-col gap-2">
+        <div data-ui="home-controls-div-37" className="relative z-50 flex flex-col gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
           {launchUi.progress !== null && (
             <div data-ui="home-controls-div-38" className="h-1.5 rounded-full bg-muted overflow-hidden">
               {gameReady ? (

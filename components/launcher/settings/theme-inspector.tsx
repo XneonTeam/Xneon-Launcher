@@ -1,3 +1,4 @@
+import { IconX as LauncherCloseIcon } from "@tabler/icons-react"
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
@@ -111,7 +112,7 @@ export function ThemeInspector() {
       <div className="pointer-events-auto absolute bottom-4 left-1/2 flex w-[min(760px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 rounded-xl border border-border bg-card p-3 text-xs text-foreground shadow-2xl">
         <div className="flex items-center justify-between gap-3">
           <strong>{t("themeInspector.title")}</strong>
-          <button type="button" onClick={() => setActive(false)} className="rounded-md px-2 py-1 hover:bg-muted">{t("themeInspector.close")}</button>
+          <button type="button" onClick={() => setActive(false)} className="rounded-md px-2 py-1 hover:bg-muted">{<span className="inline-flex items-center justify-center gap-2"><LauncherCloseIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("themeInspector.close")}</span>}</button>
         </div>
         <p className="text-muted-foreground">{t("themeInspector.hint")}</p>
         {selector && (

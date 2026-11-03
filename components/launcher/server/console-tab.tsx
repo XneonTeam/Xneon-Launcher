@@ -182,7 +182,7 @@ export function ConsoleTab({ serverId, serverName, logs, isRunning, command, onC
       <div data-ui="server-console-tab-div-5"
         data-slot="console-output" ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-y-auto rounded-2xl border border-border bg-background p-4 font-mono text-[12px] leading-5"
+        className="flex-1 min-h-0 overflow-y-auto rounded-2xl border border-border bg-card p-4 font-mono text-[12px] leading-5"
       >
         {logs.length === 0 ? (
           <div data-ui="server-console-tab-div-6" className="flex flex-col items-center justify-center h-full text-center">

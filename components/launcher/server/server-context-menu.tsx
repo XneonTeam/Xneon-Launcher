@@ -1,3 +1,4 @@
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useState } from "react"
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
@@ -163,7 +164,7 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
               <div data-ui="server-server-context-menu-div-9" className="flex gap-2">
                 <button data-ui="server-server-context-menu-button-10" type="button" onClick={() => setExportDialogFor(false)}
                   className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-muted text-muted-foreground">
-                  {t("servers.cancel")}
+                  {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("servers.cancel")}</span>}
                 </button>
                 <button data-ui="server-server-context-menu-button-11" type="button" disabled={exportCategories.size === 0 || exporting}
                   onClick={() => { void handleExportZip() }}

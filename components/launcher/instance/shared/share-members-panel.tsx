@@ -27,7 +27,7 @@ export function ShareMembersPanel({ controller, buildId }: { controller: ShareCo
                     />
                     <ShareButton secondary disabled={busy} aria-label={t("share.members.remove", { name: data.memberNames?.[user] ?? user })} title={t("share.members.remove", { name: data.memberNames?.[user] ?? user })} onClick={async () => {
                       if (await controller.run({ action: "command", buildId, command: { action: "member", user, role: null } })) await controller.refresh()
-                    }}><IconUserMinus className="h-4 w-4" /></ShareButton>
+                    }}><IconUserMinus className="h-4 w-4 text-primary" /></ShareButton>
                   </> : <span className="text-xs text-muted-foreground">{t(`share.roles.${role}`)}</span>}
                 </div>)}
               </div>

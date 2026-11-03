@@ -294,7 +294,7 @@ export function NewsReaderModal({ entry, onClose }: NewsReaderModalProps) {
     <Dialog open={!!entry} onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent data-window="news-reader-modal-window-1"
         showCloseButton={false}
-        className="flex h-[min(88vh,880px)] w-[min(1180px,calc(100vw-3rem))] max-w-none flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0 shadow-2xl"
+        className="flex h-[calc(100dvh-var(--launcher-titlebar-height,0px)-2rem)] !w-[calc(100vw-2rem)] !max-w-none sm:!max-w-none flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0 shadow-2xl"
       >
         {/* Мачта читалки: та же связка «чип + рубрика», что и в шапке раздела новостей,
             чтобы модал читался как часть лаунчера, а не как чужое окно. */}

@@ -1,3 +1,4 @@
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
@@ -262,7 +263,7 @@ export const InstanceList = memo(function InstanceList({
   return (
     <div data-ui="instance-instance-list-div-1" data-component="instance-list" data-layout={layoutMode} className="flex-1 overflow-y-auto relative" onClick={() => { setGroupContextMenu(null); setBuildContextMenu(null); setModlistMenuFor(null) }}>
       {totalBuilds === 0 ? (
-        <div data-ui="instance-instance-list-div-2" className="h-full flex flex-col items-center justify-center text-center">
+        <div data-ui="instance-instance-list-div-2" className="flex h-full flex-col items-center justify-center rounded-xl border border-border bg-card px-4 text-center">
           <div data-ui="instance-instance-list-div-3" className="w-20 h-20 rounded-3xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center mb-5">
             <IconColorSwatch className="w-10 h-10" strokeWidth={1.75} />
           </div>
@@ -597,7 +598,7 @@ export const InstanceList = memo(function InstanceList({
               <div data-ui="instance-instance-list-div-36" className="flex gap-2">
                 <button data-ui="instance-instance-list-button-11" type="button" onClick={() => setExportDialogFor(null)}
                   className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-muted text-muted-foreground">
-                  {t("common.cancel")}
+                  {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel")}</span>}
                 </button>
                 <button data-ui="instance-instance-list-button-12" type="button" disabled={exportCategories.size === 0}
                   onClick={() => { void handleExportZip(exportDialogFor); setExportDialogFor(null) }}
@@ -723,7 +724,7 @@ export const InstanceList = memo(function InstanceList({
               }}
               className="w-full rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm outline-none focus:border-primary mb-3" />
             <div data-ui="instance-instance-list-div-42" className="flex justify-end gap-2">
-              <button data-ui="instance-instance-list-button-23" type="button" onClick={() => setRenameGroupFor(null)} className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-muted text-muted-foreground">{t("common.cancel")}</button>
+              <button data-ui="instance-instance-list-button-23" type="button" onClick={() => setRenameGroupFor(null)} className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-muted text-muted-foreground">{<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel")}</span>}</button>
               <button data-ui="instance-instance-list-button-24" type="button" onClick={handleRenameGroup}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground">{t("common.save")}</button>
             </div>

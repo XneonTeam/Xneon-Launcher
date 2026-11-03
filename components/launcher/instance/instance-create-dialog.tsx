@@ -1,4 +1,5 @@
 import { ImportProgressPanel } from "./import-progress-panel"
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { mergeImportProgress } from "./import-progress-model"
 import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
@@ -423,8 +424,8 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
               ) : (
                 <>
                   <div data-ui="instance-instance-create-dialog-div-31" className="rounded-2xl border border-border bg-muted/10 p-4">
-                    <div data-ui="instance-instance-create-dialog-div-32" className="text-sm font-medium text-foreground">{t("builds.localImport")}</div>
-                    <div data-ui="instance-instance-create-dialog-div-33" className="mt-1 text-xs text-muted-foreground">{t("builds.localImportDesc")}</div>
+                    <div data-ui="instance-instance-create-dialog-div-32" className="flex items-center gap-2 text-sm font-medium text-foreground"><IconDownload className="size-4 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("builds.localImport")}</div>
+                    <div data-ui="instance-instance-create-dialog-div-33" className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{t("builds.localImportDesc")}</div>
 
                     <div data-ui="instance-instance-create-dialog-div-34" className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
                       <button data-ui="instance-instance-create-dialog-button-9"
@@ -499,7 +500,8 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
           )}
         </div>
         {mode !== "invitation" && <div data-ui="instance-instance-create-dialog-div-48" data-component="instance-create-dialog" className="flex justify-end gap-2">
-          <DialogClose className="px-4 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+          <DialogClose className="inline-flex items-center justify-center gap-2 border border-border bg-muted/40 px-4 py-2.5 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-colors">
+            <LauncherCancelIcon className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
             {t("settings.cancel")}
           </DialogClose>
           {mode === "create" && (

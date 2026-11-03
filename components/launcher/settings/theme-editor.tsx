@@ -1,3 +1,5 @@
+import { ColorInput } from "@/components/ui/color-input"
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import Editor from "react-simple-code-editor"
 import Prism from "prismjs"
 import { useEffect, useMemo, useState, type SetStateAction } from "react"
@@ -204,9 +206,10 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
   const bgIsVideo = draft.background?.kind === "video"
   const bgIsMedia = !draft.background || draft.background.kind === "image" || bgIsVideo
 
-  // Живой предпросмотр: каждое изменение черновика сразу попадает в документ
+  // Объединяем поток событий цветового поля, не перестраивая тему на каждый пиксель.
   useEffect(() => {
-    applyTheme(draft)
+    const timer = window.setTimeout(() => applyTheme(draft, { preview: true }), 120)
+    return () => window.clearTimeout(timer)
   }, [draft])
 
   // Сохранённая основа не теряется после правки цветов. Для старых тем без
@@ -279,7 +282,7 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
           const label = t(`themeEditor.vars.${key}`)
           const invalid = isHexInvalid(key)
           return <div data-ui="settings-theme-editor-div-29" key={key} className="flex items-center gap-2 rounded-xl border border-border/70 bg-card/40 p-2">
-            <input data-ui="settings-theme-editor-input-8" type="color" value={palette[key]} onChange={(event) => setColor(key, event.target.value)} aria-label={label} title={label} className={swatchClass} />
+            <ColorInput data-ui="settings-theme-editor-input-8" value={palette[key]} onValueChange={(value) => setColor(key, value)} aria-label={label} title={label} className={swatchClass} />
             <div data-ui="settings-theme-editor-div-30" className="min-w-0 flex-1">
               <div data-ui="settings-theme-editor-div-31" className="truncate text-[11px] font-medium text-foreground">{label}</div>
               <input data-ui="settings-theme-editor-input-9" value={hexInputs[key] ?? ""} onChange={(event) => onHexInput(key, event.target.value)} onBlur={() => onHexBlur(key)} spellCheck={false} aria-label={`${label} — ${t("themeEditor.hex")}`} aria-invalid={invalid} placeholder="#000000" className={cn(hexInputClass, "mt-1", invalid && "border-destructive/60 text-destructive focus:border-destructive focus:ring-destructive/40")} />
@@ -426,7 +429,7 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
     setCssError(null)
     setDraft(parsed)
     setHexInputs(hexMap(paletteOf(parsed)))
-    applyTheme(parsed)
+    applyTheme(parsed, { preview: true })
   }
 
   const applyBase = (id: string) => {
@@ -932,11 +935,10 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
                       return (
                         <div data-ui="settings-theme-editor-div-33" key={key} className="rounded-xl border border-border/70 bg-card/40 p-3">
                           <div data-ui="settings-theme-editor-div-34" className="flex items-center gap-2">
-                            <input data-ui="settings-theme-editor-input-10"
-                              type="color"
+                            <ColorInput data-ui="settings-theme-editor-input-10"
                               value={glow.color}
-                              onChange={(event) =>
-                                setGlow(key, { color: normalizeHex(event.target.value) ?? glow.color })
+                              onValueChange={(value) =>
+                                setGlow(key, { color: normalizeHex(value) ?? glow.color })
                               }
                               aria-label={label}
                               title={label}
@@ -1052,7 +1054,7 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
                   </button>
                 )}
                 <button data-ui="settings-theme-editor-button-15" type="button" onClick={onClose} className={ghostButtonClass}>
-                  {t("themeEditor.cancel")}
+                  {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("themeEditor.cancel")}</span>}
                 </button>
                 <button data-ui="settings-theme-editor-button-16"
                   type="button"

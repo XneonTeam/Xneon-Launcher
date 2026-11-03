@@ -8,7 +8,7 @@ export function ShareBranchSelect({ value, onChange, branches, label, disabled, 
     <span className={compact ? "sr-only" : undefined}>{label}</span>
     <Select value={value} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger className="w-full rounded-xl border-border bg-muted/40" aria-label={label}><SelectValue /></SelectTrigger>
-      <SelectContent>{branches.map(branch => <SelectItem key={branch} value={branch}><span className="flex items-center gap-2"><IconGitBranch className="h-4 w-4 shrink-0" />{branch}</span></SelectItem>)}</SelectContent>
+      <SelectContent>{branches.map(branch => <SelectItem key={branch} value={branch}><span className="flex items-center gap-2"><IconGitBranch className="h-4 w-4 shrink-0 text-primary" />{branch}</span></SelectItem>)}</SelectContent>
     </Select>
   </label>
 }

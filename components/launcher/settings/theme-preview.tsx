@@ -27,9 +27,10 @@ export function ThemeCompactPreview({
   className?: string
   size?: "card" | "mini"
 }) {
-  const bg = theme.palette?.background ?? "#18181b"
-  const primary = theme.palette?.primary ?? theme.primary
-  const accent = theme.palette?.accent ?? theme.accent
+  const colors = themePreviewColors(theme)
+  const bg = colors.background
+  const primary = colors.primary
+  const accent = colors.accent
 
   return (
     <div data-ui="settings-theme-preview-div-1" data-component="theme-compact-preview"

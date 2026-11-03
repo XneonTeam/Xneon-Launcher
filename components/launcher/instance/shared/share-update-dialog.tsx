@@ -1,3 +1,4 @@
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { UpdatePreview } from "@xnlc/share"
@@ -24,7 +25,7 @@ export function ShareUpdateDialog({ open, onClose, controller, buildId, branch, 
   }, [open, buildId, branch, commit])
   return (
     <ShareModal open={open} onClose={onClose} title={t(commit ? "share.history.restoreTitle" : branch ? "share.flow.switchPreview" : "share.flow.updateTitle")} description={t(commit ? "share.history.restoreDescription" : "share.launcher.updateDescription")} footer={<>
-      <ShareButton secondary onClick={onClose}>{t("share.flow.cancel")}</ShareButton>
+      <ShareButton secondary onClick={onClose}>{<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("share.flow.cancel")}</span>}</ShareButton>
       <ShareButton busy={controller.busy} disabled={controller.busy || !preview || !!preview.conflicts.length} onClick={async () => {
         const result = await controller.run(commit ? { action: "restoreApply", buildId, previewId: id, message: restoreMessage || t("share.history.restoreTitle") } : { action: "apply", buildId, previewId: id })
         if (result) { await controller.refresh(); onApplied(); onClose() }

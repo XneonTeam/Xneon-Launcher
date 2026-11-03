@@ -8,7 +8,7 @@ import { localFileToBlobUrl } from "@/lib/local-file-url"
 import { EmptySkinsState, SkinPreviewPanel, SkinGrid, type SkinCardData } from "./index"
 import { resolveSkinCapeUrl, findActiveCape } from "./cape-url"
 import type { McProfile, LibrarySkin } from "@xnlc/types"
-import { IconLoader2 } from "@tabler/icons-react"
+import { IconBookmark, IconLoader2 } from "@tabler/icons-react"
 import { ActionConfirmDialog } from "@/components/launcher/instance/action-confirm-dialog"
 
 /**
@@ -427,12 +427,15 @@ export function FavoritesTab() {
           />
 
           <div data-ui="skins-favorites-tab-div-5" className={`flex min-h-0 flex-col gap-3 @[820px]:overflow-hidden ${contentEnter ?? ""}`}>
-            {/* Счётчик без спиннера: загрузка показывается по центру сетки. */}
-            {!loading && (
-              <span data-ui="skins-favorites-tab-span-1" className="text-[12px] font-medium tabular-nums text-muted-foreground">
-                {allSkins.length} {t("skins.skinsCount", "скинов")}
-              </span>
-            )}
+            <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+              <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10">
+                <IconBookmark className="h-3.5 w-3.5 text-primary/70" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-[13px] font-semibold text-foreground">{t("skins.tab.favorites")}</h3>
+                {!loading && <p data-ui="skins-favorites-tab-span-1" className="text-xs tabular-nums text-muted-foreground">{allSkins.length} {t("skins.skinsCount", "скинов")}</p>}
+              </div>
+            </div>
 
             <div data-ui="skins-favorites-tab-div-6" className="@container min-h-0 @[820px]:flex-1 @[820px]:overflow-y-auto @[820px]:px-1">
               <SkinGrid

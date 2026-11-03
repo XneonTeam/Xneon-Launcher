@@ -1,3 +1,4 @@
+import { Checkbox } from "@/components/ui/checkbox"
 import { CONTENT_ENTER_DELAYED } from "../content-motion"
 import { memo, useEffect, useMemo, useRef, useState, useDeferredValue, useCallback } from "react"
 import { useTranslation } from "react-i18next"
@@ -146,7 +147,87 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   const notFoundText = type === "mods" ? t("builds.noModsFound") : type === "resourcepacks" ? t("builds.noResourcePacksFound") : t("builds.noShadersFound")
   const deferredResults = useDeferredValue(displayResults)
 
+  const [selectedProjects, setSelectedProjects] = useState<Record<string, ModSearchResult>>({})
+  const [batchInstalling, setBatchInstalling] = useState(false)
+  const batchRunning = useRef(false)
+  const batchGeneration = useRef(0)
+  const latestInstall = useRef({ installModToBuild, installContentToBuild, isInstalledFn })
+  latestInstall.current = { installModToBuild, installContentToBuild, isInstalledFn }
+  useEffect(() => {
+    setSelectedProjects({})
+    return () => { batchGeneration.current++ }
+  }, [activeBuild.id, type])
+  useEffect(() => {
+    setSelectedProjects(current => {
+      const remaining = Object.entries(current).filter(([, project]) => !isInstalledFn?.(project))
+      return remaining.length === Object.keys(current).length ? current : Object.fromEntries(remaining)
+    })
+  }, [installedItems, isInstalledFn])
+  const installSelected = async () => {
+    if (batchRunning.current || installingModSlug !== null) return
+    const projects = Object.values(selectedProjects)
+    if (isLocked && !confirm(t("buildDetail.lockedInstallConfirm", { name: projects.map(project => project.name).join(", ") }))) return
+    batchRunning.current = true
+    setBatchInstalling(true)
+    const generation = batchGeneration.current
+    try {
+      for (const project of projects) {
+        if (generation !== batchGeneration.current) break
+        if (latestInstall.current.isInstalledFn?.(project)) continue
+        setInstallingModSlug(contentProjectKey(project))
+        setInstallPhase("resolving")
+        setDownloadProgress(null)
+        try {
+          if (type === "mods") await latestInstall.current.installModToBuild(project, setInstallPhase)
+          else await latestInstall.current.installContentToBuild(project, type, setInstallPhase)
+        } catch (error) {
+          pushNotification({ kind: "error", source: "install", title: project.name, message: error instanceof Error ? error.message : String(error) })
+        }
+      }
+    } finally {
+      batchRunning.current = false
+      setBatchInstalling(false)
+      setInstallPhase(null)
+      setInstallingModSlug(null)
+    }
+  }
+
   const [removingSlug, setRemovingSlug] = useState<string | null>(null)
+  const [selectedInstalled, setSelectedInstalled] = useState<Set<string>>(new Set())
+  const [batchRemoving, setBatchRemoving] = useState(false)
+  const removingBatch = useRef(false)
+  useEffect(() => { setSelectedInstalled(new Set()) }, [activeBuild.id, type])
+  useEffect(() => {
+    setSelectedInstalled(current => {
+      const ids = new Set(installedItems.map(item => item.id))
+      const next = new Set([...current].filter(id => ids.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [installedItems])
+  const removeSelected = async () => {
+    if (removingBatch.current || removingSlug !== null) return
+    const items = installedItems.filter(item => selectedInstalled.has(item.id))
+    if (!items.length || !confirm(t("addon.batch.confirmDelete", { count: items.length }))) return
+    removingBatch.current = true
+    setBatchRemoving(true)
+    try {
+      for (const item of items) {
+        setRemovingSlug(item.slug)
+        try {
+          const removed = await removeContentFromBuild(activeBuild.id, type, item)
+          if (!removed) throw new Error(t("addon.batch.deleteFailed", { name: item.name }))
+          setSelectedInstalled(current => { const next = new Set(current); next.delete(item.id); return next })
+        } catch (error) {
+          pushNotification({ kind: "error", source: "install", title: item.name, message: error instanceof Error ? error.message : String(error) })
+        }
+      }
+    } finally {
+      removingBatch.current = false
+      setBatchRemoving(false)
+      setRemovingSlug(null)
+    }
+  }
+
   const [installedSearch, setInstalledSearch] = useState("")
   /** Страница списка установленного контента (0-based, как в Pagination). */
   const [installedPage, setInstalledPage] = useState(0)
@@ -508,7 +589,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
               </div>
             )}
             <div data-ui="instance-instance-content-tab-div-14" className="mb-2 flex items-center justify-between gap-3 shrink-0">
-              <h3 data-ui="instance-instance-content-tab-h3-2" className="text-sm font-medium text-foreground">{t("builds.installed")}</h3>
+              <h3 data-ui="instance-instance-content-tab-h3-2" className="flex items-center gap-2 text-sm font-medium text-foreground"><IconCheck className="size-4 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("builds.installed")}</h3>
               <div data-ui="instance-instance-content-tab-div-15" className="flex items-center gap-1.5">
                 <button data-ui="instance-instance-content-tab-button-3"
                   type="button"
@@ -575,10 +656,12 @@ export const InstanceContentTab = memo(function InstanceContentTab({
               ) : pagedInstalled.map((item) => {
                 const isEnabled = item.enabled ?? true
                 return (
-                <div data-ui="instance-instance-content-tab-div-18" key={item.id} className={`rounded-xl border bg-background p-3 transition-opacity ${isEnabled ? 'border-border' : 'border-border/50 opacity-55'}`}>
+                <div data-ui="instance-instance-content-tab-div-18" key={item.id} className={`rounded-xl border bg-card p-3 transition-opacity ${selectedInstalled.has(item.id) ? 'border-primary ring-1 ring-primary/25' : isEnabled ? 'border-border' : 'border-border/50 opacity-55'}`}>
                   <div data-ui="instance-instance-content-tab-div-19" className="flex items-start gap-3">
+                    <Checkbox className="mt-3" checked={selectedInstalled.has(item.id)} disabled={batchRemoving || removingSlug !== null} aria-label={t("addon.batch.select", { name: item.name })} onCheckedChange={checked => setSelectedInstalled(current => { const next = new Set(current); if (checked === true) next.add(item.id); else next.delete(item.id); return next })} />
                     <button data-ui="instance-instance-content-tab-button-5"
                       type="button"
+                      disabled={batchRemoving}
                       onClick={() => toggleItemEnabled(activeBuild.id, type, item.id)}
                       className={`mt-0.5 rounded-lg border p-2 transition-colors hover:bg-muted/80 ${isEnabled ? 'border-primary/40 text-primary' : 'border-border text-muted-foreground'}`}
                       aria-label={isEnabled ? t("common.disable") : t("common.enable")}
@@ -648,7 +731,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                       </button>
                       <button data-ui="instance-instance-content-tab-button-7"
                         type="button"
-                        disabled={removingSlug === item.slug}
+                        disabled={batchRemoving || removingSlug !== null}
                         onClick={() => {
                           setRemovingSlug(item.slug)
                           void removeContentFromBuild(activeBuild.id, type, item).finally(() => setRemovingSlug(null))
@@ -665,6 +748,10 @@ export const InstanceContentTab = memo(function InstanceContentTab({
               )})}
             </div>
 
+            {installedItems.length > 0 && <div className="mt-3 flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card p-2.5">
+              <label className="flex items-center gap-2 text-xs text-muted-foreground"><Checkbox disabled={batchRemoving || removingSlug !== null || !filteredInstalled.length} checked={filteredInstalled.length > 0 && filteredInstalled.every(item => selectedInstalled.has(item.id)) ? true : filteredInstalled.some(item => selectedInstalled.has(item.id)) ? "indeterminate" : false} onCheckedChange={checked => setSelectedInstalled(current => { const next = new Set(current); for (const item of filteredInstalled) { if (checked === true) next.add(item.id); else next.delete(item.id) } return next })} />{t("addon.batch.selectAll")}</label>
+              {selectedInstalled.size > 0 && <><span className="text-xs text-muted-foreground">{t("addon.batch.selected", { count: selectedInstalled.size })}</span><button type="button" disabled={batchRemoving || removingSlug !== null} onClick={() => void removeSelected()} className="inline-flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/20 disabled:opacity-50">{batchRemoving ? <IconLoader2 className="size-4 animate-spin" /> : <IconTrash className="size-4" />}{t("addon.batch.delete")}</button></>}
+            </div>}
             <Pagination
               currentPage={installedPageSafe}
               totalPages={installedTotalPages}
@@ -681,6 +768,10 @@ export const InstanceContentTab = memo(function InstanceContentTab({
               )}
             </div>
 
+            {Object.keys(selectedProjects).length > 0 && <div className="mt-3 flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/25 bg-primary/5 p-2.5">
+              <span className="text-sm">{t("addon.batch.selected", { count: Object.keys(selectedProjects).length })}</span>
+              <div className="flex items-center gap-2"><button type="button" disabled={batchInstalling} onClick={() => setSelectedProjects({})} className="rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50">{t("addon.batch.clear")}</button><button type="button" disabled={batchInstalling || installingModSlug !== null} onClick={() => void installSelected()} className="flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50">{batchInstalling ? <IconLoader2 className="size-4 animate-spin" /> : <IconDownload className="size-4" />}{t("addon.batch.install")}</button></div>
+            </div>}
             <div data-ui="instance-instance-content-tab-div-27" className="flex-1 min-h-0 min-w-0 overflow-y-auto pr-1 mt-2">
               {displayResults.length > 0 ? (
                 <div data-ui="instance-instance-content-tab-div-28" className="grid min-w-0 gap-2 pb-2">
@@ -696,12 +787,20 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                       <AddonRow
                         key={project.id}
                         project={project}
+                        selected={!!selectedProjects[contentProjectKey(project)]}
+                        selectionDisabled={batchInstalling}
+                        onSelectionChange={checked => setSelectedProjects(current => {
+                          const next = { ...current }
+                          if (checked) next[contentProjectKey(project)] = project
+                          else delete next[contentProjectKey(project)]
+                          return next
+                        })}
                         installed={installed}
                         installing={isInstalling}
                         percent={percent}
                         phase={isInstalling ? installPhase : null}
                         showCategories={type === "mods"}
-                        installDisabled={installingModSlug !== null}
+                        installDisabled={batchInstalling || installingModSlug !== null}
                         installLabel={t("builds.add")}
                         projectKind={type === "mods" ? "mod" : type === "resourcepacks" ? "resourcepack" : "shader"}
                         confirmMessage={isLocked

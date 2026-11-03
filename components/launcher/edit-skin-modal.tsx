@@ -1,3 +1,4 @@
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
@@ -7,7 +8,7 @@ import { SkinViewer3D } from "@/components/ui/skin-viewer-3d"
 import { batchRenderCapes } from "@/lib/batch-cape-renderer"
 import { localFileToBlobUrl } from "@/lib/local-file-url"
 import {
-  IconUpload, IconLoader2, IconX, IconCheck, IconShirt,
+  IconPhoto, IconUser, IconUpload, IconLoader2, IconX, IconCheck, IconShirt,
 } from "@tabler/icons-react"
 import type { McProfile, LibrarySkin } from "@xnlc/types"
 
@@ -148,7 +149,7 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
           <div data-ui="edit-skin-modal-div-6" className="flex-1 flex flex-col gap-5 min-w-0">
             {/* Texture section — drop zone */}
             <section data-ui="edit-skin-modal-section-1">
-              <h3 data-ui="edit-skin-modal-h3-1" className="text-sm font-semibold text-foreground mb-2">{t("skins.texture")}</h3>
+              <h3 data-ui="edit-skin-modal-h3-1" className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground"><IconPhoto className="size-4 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("skins.texture")}</h3>
               <div data-ui="edit-skin-modal-div-7"
                 className={cn(
                   "flex flex-col items-center gap-2 px-4 py-5 rounded-xl border-2 border-dashed transition-all duration-200 cursor-pointer",
@@ -173,19 +174,20 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
 
             {/* Arm style */}
             <section data-ui="edit-skin-modal-section-2">
-              <h3 data-ui="edit-skin-modal-h3-2" className="text-sm font-semibold text-foreground mb-2">{t("skins.armStyle")}</h3>
+              <h3 data-ui="edit-skin-modal-h3-2" className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground"><IconUser className="size-4 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("skins.armStyle")}</h3>
               <div data-ui="edit-skin-modal-div-8" className="flex gap-2">
                 {(["classic", "slim"] as const).map(v => (
                   <button data-ui="edit-skin-modal-button-2"
                     key={v}
                     onClick={() => setVariant(v)}
                     className={cn(
-                      "flex-1 py-2.5 rounded-xl text-sm font-medium border-2 transition-all",
+                      "flex min-w-0 flex-1 items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium border-2 transition-all",
                       variant === v
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-border bg-muted/30 text-muted-foreground hover:text-foreground"
                     )}
                   >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true"><rect x="9" y="3" width="6" height="6" rx="1" /><rect x="8" y="11" width="8" height="10" rx="1" /><rect x={v === "classic" ? 2 : 3} y="11" width={v === "classic" ? 4 : 3} height="9" rx="1" /><rect x="18" y="11" width={v === "classic" ? 4 : 3} height="9" rx="1" /></svg>
                     {v === "classic" ? t("skins.wide") : t("skins.slim")}
                   </button>
                 ))}
@@ -194,8 +196,8 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
 
             {/* Cape section */}
             <section data-ui="edit-skin-modal-section-3">
-              <h3 data-ui="edit-skin-modal-h3-3" className="text-sm font-semibold text-foreground mb-2">{t("skins.capes")}</h3>
-              <div data-ui="edit-skin-modal-div-9" className="flex flex-wrap gap-2 max-h-60 overflow-y-auto">
+              <h3 data-ui="edit-skin-modal-h3-3" className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground"><IconShirt className="size-4 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("skins.capes")}</h3>
+              <div data-ui="edit-skin-modal-div-9" className="flex max-h-60 flex-wrap justify-center gap-2 overflow-y-auto p-1 pr-2 [scrollbar-gutter:stable]">
                 <button data-ui="edit-skin-modal-button-3"
                   onClick={() => setSelectedCapeId(null)}
                   className={cn(
@@ -255,7 +257,7 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
             onClick={onClose}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-muted/50 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
-            {t("common.cancel")}
+            {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel")}</span>}
           </button>
           <button data-ui="edit-skin-modal-button-6"
             onClick={handleSave}

@@ -325,7 +325,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
 
   if (!contentType) {
     return (
-      <div data-ui="server-addons-tab-div-1" data-component="addons-tab" className={`flex flex-col items-center justify-center h-full gap-4 text-center ${CONTENT_ENTER_DELAYED}`}>
+      <div data-ui="server-addons-tab-div-1" data-component="addons-tab" className={`flex h-full flex-col items-center justify-center gap-4 rounded-xl border border-border bg-card px-4 text-center ${CONTENT_ENTER_DELAYED}`}>
         <div data-ui="server-addons-tab-div-2" className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl border border-primary/20 bg-primary/10 text-primary">
           <IconPlug className="w-10 h-10" strokeWidth={1.75} aria-hidden="true" />
         </div>

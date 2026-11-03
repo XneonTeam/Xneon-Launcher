@@ -1,7 +1,7 @@
 import { useContentEnter, CONTENT_ENTER_DELAYED } from "./content-motion"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IconRefresh, IconClock, IconDeviceGamepad2, IconHistory, IconChartBar, IconPackage, IconColorSwatch, IconServer, IconLoader2 } from "@tabler/icons-react"
+import { IconRefresh, IconClock, IconDeviceGamepad2, IconHistory, IconChartBar, IconColorSwatch, IconServer, IconLoader2 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { formatPlaytime, formatDateTime } from "@/lib/format"
 import type { StatsOverview } from "@xnlc/types"
@@ -125,7 +125,7 @@ function RankingList({ entries, emptyKey, maxSeconds }: { entries: RankingEntry[
       {entries.map((entry, index) => (
         <div data-ui="stats-page-div-13" key={entry.id} className="flex items-center gap-3">
           <span data-ui="stats-page-span-4" className="w-5 shrink-0 text-center text-sm font-bold text-muted-foreground">{index + 1}</span>
-          <EntryIcon icon={entry.icon} fallback={<IconPackage className="h-4 w-4" strokeWidth={1.75} />} />
+          <EntryIcon icon={entry.icon} fallback={<IconColorSwatch className="h-4 w-4" strokeWidth={1.75} />} />
           <div data-ui="stats-page-div-14" className="min-w-0 flex-1">
             <div data-ui="stats-page-div-15" className="flex items-baseline justify-between gap-2">
               <span data-ui="stats-page-span-5" className="truncate text-sm font-medium text-foreground">{entry.name}</span>

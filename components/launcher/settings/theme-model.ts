@@ -149,6 +149,19 @@ export function resolveTheme(theme: Theme): Theme {
   return { ...theme, palette, primary: palette.primary, accent: palette.accent }
 }
 
+/** Старый общий цвет панели не должен оставлять тёмную полосу в светлом режиме. */
+export function themeTitlebarColor(theme: Theme): string | undefined {
+  const mode = themeMode(theme)
+  const appearance = theme.appearance
+  const saved = appearanceColor(mode === "light" ? appearance?.lightTitlebar : appearance?.darkTitlebar)
+  if (saved) return saved
+  const legacy = appearanceColor(appearance?.titlebar)
+  if (!legacy) return undefined
+  if (!appearance?.colorMode) return legacy
+  const legacyMode = hexLuminance(legacy) > 0.35 ? "light" : "dark"
+  return legacyMode === mode ? legacy : undefined
+}
+
 /**
  * Тёмная база лаунчера (`.dark` из `src/index.css`) в hex — с неё начинается
  * любая новая кастомная тема, поэтому «Создать тему» не меняет вид окна.
@@ -442,7 +455,7 @@ function persistStartupTheme(root: HTMLElement) {
  * (встроенный пресет) по-прежнему меняет только акценты, а фон остаётся общим.
  * Шрифт, фон и пользовательский CSS применяются в обеих ветках.
  */
-export function applyTheme(input: Theme) {
+export function applyTheme(input: Theme, options: { preview?: boolean } = {}) {
   const theme = resolveTheme(input)
   const root = document.documentElement
   // Общий редактор оформляет окно и статью; старые архивы сохраняют свои дополнительные правила.
@@ -467,7 +480,7 @@ export function applyTheme(input: Theme) {
     root.classList.toggle(`theme-blur-${part}`, (appearance?.[key] ?? 0) > 0)
   }
   const applied = () => {
-    persistStartupTheme(root)
+    if (!options.preview) persistStartupTheme(root)
     // Подписчики получают исходные независимые палитры и уже применённые стили.
     if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("theme:applied", { detail: input }))
   }
@@ -477,7 +490,7 @@ export function applyTheme(input: Theme) {
     for (const color of SEMANTIC_COLOR_TOKENS[key]) for (const shade of [300, 400, 500, 600, 700]) root.style.setProperty(`--color-${color}-${shade}`, value)
   }
   for (const [key, name] of Object.entries({ titlebar: "--theme-titlebar", error: "--destructive", warning: "--warning", info: "--info", success: "--success" })) {
-    const value = appearanceColor(appearance?.[key as "titlebar" | "error" | "warning" | "info" | "success"])
+    const value = key === "titlebar" ? themeTitlebarColor(theme) : appearanceColor(appearance?.[key as "error" | "warning" | "info" | "success"])
     if (value) root.style.setProperty(name, value)
     else if (key !== "titlebar") root.style.setProperty(name, SEMANTIC_DEFAULTS[key as keyof typeof SEMANTIC_DEFAULTS])
   }
@@ -716,7 +729,7 @@ export function sanitizeTheme(input: unknown): Theme | null {
       }
       appearance[mode] = palette
     }
-    for (const key of ["titlebar", "error", "warning", "info", "success"] as const) {
+    for (const key of ["titlebar", "lightTitlebar", "darkTitlebar", "error", "warning", "info", "success"] as const) {
       const color = appearanceColor(input[key])
       if (color) appearance[key] = color
     }

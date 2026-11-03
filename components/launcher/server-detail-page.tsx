@@ -1,7 +1,7 @@
 import { CONTENT_ENTER_DELAYED } from "./content-motion"
 import { useState, useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
-import { IconArrowLeft, IconTerminal, IconSettings, IconPlayerPlay, IconPlayerStop, IconFolder, IconPuzzle, IconAdjustments, IconUsers, IconRefresh, IconDownload, IconCpu, IconDatabase, IconClock, IconNetwork, IconWorld, IconLink, IconCheck, IconCamera, IconTrash, IconLoader2 } from "@tabler/icons-react"
+import { IconArrowLeft, IconTerminal, IconSettings, IconPlayerPlay, IconPlayerStop, IconFolder, IconPuzzle, IconAdjustments, IconUsers, IconRefresh, IconDownload, IconCpu, IconDatabase, IconClock, IconNetwork, IconWorld, IconLink, IconCheck, IconCamera, IconTrash, IconLoader2, IconShare, IconWifiOff } from "@tabler/icons-react"
 import { useMcServerState, useMcServerLogs, useMcServerMetrics, useMcServerDownloadProgress } from "@/src/hooks/use-mc-servers"
 import { cn } from "@/lib/utils"
 import { IconPickerModal } from "@/components/launcher/instance/icon-picker-modal"
@@ -16,7 +16,6 @@ import { FilesTab } from "./server/files-tab"
 import { AddonsTab } from "./server/addons-tab"
 import { ServerEulaModal } from "./server-eula-modal"
 import { RemoteAccessDialog, remoteServerError } from "./server/remote-access-dialog"
-import { RemoteSettingsTab } from "./server/remote-settings-tab"
 
 type ServerTab = "console" | "addons" | "properties" | "players" | "settings" | "files"
 
@@ -62,6 +61,16 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
   const [eulaAccepted, setEulaAccepted] = useState(true)
   const [showEula, setShowEula] = useState(false)
   const [showAccess, setShowAccess] = useState(false)
+  const [accessEnabled, setAccessEnabled] = useState(!!server.remote)
+  useEffect(() => {
+    let active = true
+    setAccessEnabled(!!server.remote)
+    window.electronAPI?.mcServerRemote({ action: "access", serverId: server.id }).then(result => {
+      if (active) setAccessEnabled(!!result.access)
+    }).catch(() => {})
+    return () => { active = false }
+  }, [server.id, server.remote])
+
   const [remoteOnline, setRemoteOnline] = useState(server.remote?.online ?? false)
   const [remotePermissions, setRemotePermissions] = useState(server.remote?.permissions)
   const [remoteError, setRemoteError] = useState("")
@@ -219,6 +228,8 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
     )
   useEffect(() => { if (!tabs.some(tab => tab.id === activeTab)) setActiveTab("console") }, [activeTab, remotePermissions])
 
+  const remoteOffline = !!server.remote && !remoteOnline
+
   return (
     <div data-ui="server-detail-page-div-1" data-component="server-detail-page" id="server-detail-page" data-tab={activeTab} data-status={state.status} className="flex flex-col h-full">
       <ServerEulaModal
@@ -226,7 +237,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
         onAccept={handleEulaAccept}
         onDecline={handleEulaDecline}
       />
-      <RemoteAccessDialog open={showAccess} onClose={() => setShowAccess(false)} server={server} />
+      <RemoteAccessDialog open={showAccess} onClose={() => setShowAccess(false)} onAccessChange={setAccessEnabled} server={server} />
       {/* Header */}
       <div data-ui="server-detail-page-div-2" className={`launcher-page-header mb-5 flex flex-wrap items-start gap-4 ${CONTENT_ENTER_DELAYED}`}>
         {/* Back button */}
@@ -239,7 +250,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
 
         {/* Server icon */}
         <button data-ui="server-detail-page-button-2"
-          disabled={!allowed("settings")}
+          disabled={remoteOffline || !allowed("settings")}
           onClick={() => setShowIconPicker(true)}
           className="relative w-16 h-16 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 border border-border bg-muted/70 hover:border-primary/50 transition-colors cursor-pointer group"
         >
@@ -282,13 +293,13 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
                 isStoppingLike && "bg-primary",
                 !isRunning && !isBusy && "bg-muted-foreground/50",
               )} />
-              {isRunning && t("servers.statusRunning")}
-              {isStartingLike && t("servers.statusStarting")}
-              {isInstallLike && t("servers.statusInstalling")}
-              {isStoppingLike && t("servers.statusStopping")}
-              {!isRunning && !isBusy && t(server.remote && !remoteOnline ? "remoteServer.offline" : "servers.statusStopped")}
+              {!remoteOffline && isRunning && t("servers.statusRunning")}
+              {!remoteOffline && isStartingLike && t("servers.statusStarting")}
+              {!remoteOffline && isInstallLike && t("servers.statusInstalling")}
+              {!remoteOffline && isStoppingLike && t("servers.statusStopping")}
+              {remoteOffline ? t("remoteServer.offline") : !isRunning && !isBusy && t("servers.statusStopped")}
             </div>
-            {isRunning && (
+            {isRunning && !remoteOffline && (
               <>
                 <span data-ui="server-detail-page-span-2" className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                   <IconCpu className="w-3 h-3 text-success" />
@@ -306,7 +317,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
             )}
           </div>
       {/* Адреса подключения внутри шапки сервера. */}
-      {addresses && (
+      {addresses && !remoteOffline && (
         <div data-ui="server-detail-page-div-11" className="mt-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
           <AddressChip icon={IconNetwork} label={t("servers.address.local")} value={addresses.local} copied={copiedAddr === addresses.local} onCopy={handleCopyAddr} />
           {addresses.public && (
@@ -323,10 +334,10 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
         </div>
 
         {/* Actions */}
-        <div data-ui="server-detail-page-div-8" className="flex items-center gap-2 flex-shrink-0">
-          <button type="button" onClick={() => setShowAccess(true)} className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted"><IconUsers className="h-4 w-4 text-primary" />{t("share.launcher.share")}</button>
+        <div data-ui="server-detail-page-div-8" className="flex items-center gap-2 flex-shrink-0 [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-40">
+          <button type="button" disabled={remoteOffline} onClick={() => setShowAccess(true)} className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"><IconShare className="h-4 w-4 text-primary" />{t(accessEnabled ? "share.manage" : "share.launcher.share")}</button>
           <button data-ui="server-detail-page-button-3"
-            disabled={!!server.remote && !allowed("readFiles")}
+            disabled={remoteOffline || (!!server.remote && !allowed("readFiles"))}
             onClick={() => server.remote ? setActiveTab("files") : window.electronAPI?.mcServerOpenFolder(server.id)}
             className="p-2 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
             title={t("servers.openFolder")}
@@ -369,6 +380,15 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
         </div>
       </div>
 
+      {remoteOffline ? (
+        <div role="status" className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-border bg-card px-6 py-10 text-center">
+          <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-3xl border border-primary/20 bg-primary/10 text-primary">
+            <IconWifiOff className="h-10 w-10" strokeWidth={1.75} aria-hidden="true" />
+          </div>
+          <h2 className="text-lg font-semibold text-foreground">{t("remoteServer.offline")}</h2>
+          <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">{t("remoteServer.error.offline")}</p>
+        </div>
+      ) : <>
       {/* XN Connect tunnel limit warning */}
       {limitState && (
         <div data-ui="server-detail-page-div-9" className="flex items-center justify-between gap-3 px-4 py-2 border-b border-border bg-destructive/10">
@@ -455,7 +475,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
           />
         )}
         {activeTab === "settings" && (
-          server.remote ? <RemoteSettingsTab server={server} onServerUpdated={onServerUpdated} /> : <SettingsTab server={server} onServerUpdated={onServerUpdated} />
+          <SettingsTab key={server.id} server={server} onServerUpdated={onServerUpdated} />
         )}
         {activeTab === "players" && (
           <PlayersTab serverId={server.id} />
@@ -470,6 +490,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
           <AddonsTab server={server} />
         )}
       </div>
+      </>}
     </div>
   )
 }

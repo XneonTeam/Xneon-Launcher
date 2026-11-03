@@ -1,3 +1,6 @@
+import { IconFileCode } from "@tabler/icons-react"
+import { IconPencil, IconPuzzle, IconVersions, IconSettings, IconCoffee, IconCpu, IconUsers, IconTerminal2, IconArrowRight, IconCreditCard } from "@tabler/icons-react"
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useState, useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { IconPlayerPlay, IconServer, IconArrowLeft, IconCheck, IconFolderPlus, IconLoader2, IconShield, IconRouter, IconUpload, IconClipboard, IconExternalLink, IconGauge, IconCamera, IconTrash } from "@tabler/icons-react"
@@ -37,6 +40,8 @@ const MODLOADERS = [
   { id: "velocity", label: "Velocity" },
   { id: "waterfall", label: "Waterfall" },
 ]
+
+const STEP_ICONS = { name: IconPencil, modloader: IconPuzzle, version: IconVersions, port: IconRouter, settings: IconSettings, java: IconCoffee, connect: IconRouter }
 
 const STEPS_FULL = ["name", "modloader", "version", "port", "settings", "java", "connect"] as const
 const STEPS_CUSTOM = ["name", "modloader", "port", "settings", "java", "connect"] as const
@@ -316,7 +321,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
       <DialogContent data-window="server-create-dialog-window-1" className="!w-[520px] !max-w-[90vw] sm:!max-w-[520px] p-0 gap-0 overflow-hidden">
         {/* Step indicator */}
         <div data-ui="server-create-dialog-div-1" data-component="server-create-dialog" className="px-6 pt-5 pb-4">
-          <DialogHeader className="mb-4">
+          <DialogHeader className="mb-3 rounded-xl border border-border bg-card p-3">
             <DialogTitle className="flex items-center gap-2">
               <div data-ui="server-create-dialog-div-2" className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
                 <IconServer className="w-4 h-4 text-primary" />
@@ -334,7 +339,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                   i === stepIndex && "bg-primary/20 text-primary ring-2 ring-primary/30",
                   i > stepIndex && "bg-muted text-muted-foreground",
                 )}>
-                  {i < stepIndex ? <IconCheck className="w-3.5 h-3.5" /> : i + 1}
+                  {i < stepIndex ? <IconCheck className="w-3.5 h-3.5" /> : (() => { const StepIcon = STEP_ICONS[s]; return <StepIcon className="size-3.5" strokeWidth={1.75} aria-hidden="true" /> })()}
                 </div>
                 {i < steps.length - 1 && (
                   <div data-ui="server-create-dialog-div-6" className={cn(
@@ -363,8 +368,8 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
         <div data-ui="server-create-dialog-div-9" data-component="server-create-dialog" className="px-6 py-5 min-h-[280px]">
           {step === "name" && (
             <div data-ui="server-create-dialog-div-10" className="flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200">
-              <div data-ui="server-create-dialog-div-11">
-                <h3 data-ui="server-create-dialog-h3-1" className="text-sm font-semibold text-foreground mb-1">{t("servers.create.nameTitle")}</h3>
+              <div data-ui="server-create-dialog-div-11" className="rounded-xl border border-border bg-card p-3">
+                <h3 data-ui="server-create-dialog-h3-1" className="flex items-center gap-2 text-sm font-semibold text-foreground mb-1"><IconPencil className="size-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("servers.create.nameTitle")}</h3>
                 <p data-ui="server-create-dialog-p-1" className="text-xs text-muted-foreground">{t("servers.create.nameDesc")}</p>
               </div>
 
@@ -422,8 +427,8 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
 
           {step === "modloader" && (
             <div data-ui="server-create-dialog-div-17" className="flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200">
-              <div data-ui="server-create-dialog-div-18">
-                <h3 data-ui="server-create-dialog-h3-2" className="text-sm font-semibold text-foreground mb-1">{t("servers.create.modloaderTitle")}</h3>
+              <div data-ui="server-create-dialog-div-18" className="rounded-xl border border-border bg-card p-3">
+                <h3 data-ui="server-create-dialog-h3-2" className="flex items-center gap-2 text-sm font-semibold text-foreground mb-1"><IconPuzzle className="size-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("servers.create.modloaderTitle")}</h3>
                 <p data-ui="server-create-dialog-p-3" className="text-xs text-muted-foreground">{t("servers.create.modloaderDesc")}</p>
               </div>
               <div data-ui="server-create-dialog-div-19" className="grid grid-cols-2 gap-2.5 max-h-[190px] overflow-y-auto pr-1">
@@ -464,7 +469,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
               {/* Custom JAR */}
               <div data-ui="server-create-dialog-div-23" className="space-y-2">
                 <div data-ui="server-create-dialog-div-24" className="h-px bg-border" />
-                <label data-ui="server-create-dialog-label-1" className="text-xs font-medium text-muted-foreground">{t("servers.create.customJar")}</label>
+                <label data-ui="server-create-dialog-label-1" className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><IconFileCode className="size-3.5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("servers.create.customJar")}</label>
                 <input data-ui="server-create-dialog-input-2"
                   ref={customJarInputRef}
                   type="file"
@@ -530,8 +535,8 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
 
           {step === "version" && (
             <div data-ui="server-create-dialog-div-28" className="flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200">
-              <div data-ui="server-create-dialog-div-29">
-                <h3 data-ui="server-create-dialog-h3-3" className="text-sm font-semibold text-foreground mb-1">{t("servers.create.versionTitle")}</h3>
+              <div data-ui="server-create-dialog-div-29" className="rounded-xl border border-border bg-card p-3">
+                <h3 data-ui="server-create-dialog-h3-3" className="flex items-center gap-2 text-sm font-semibold text-foreground mb-1"><IconVersions className="size-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("servers.create.versionTitle")}</h3>
                 <p data-ui="server-create-dialog-p-10" className="text-xs text-muted-foreground">
                   {modloader === "velocity" ? t("servers.create.versionProxy") : t("servers.create.versionDesc")}
                 </p>
@@ -539,7 +544,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
 
               <div data-ui="server-create-dialog-div-30" className="space-y-3">
                 <div data-ui="server-create-dialog-div-31" className="space-y-2">
-                  <label data-ui="server-create-dialog-label-2" className="text-xs font-medium text-muted-foreground">
+                  <label data-ui="server-create-dialog-label-2" className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><IconVersions className="size-3.5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
                     {modloader === "velocity" ? "Velocity version" : "Minecraft"}
                   </label>
                   <Select value={selectedVersion} onValueChange={setSelectedVersion}>
@@ -562,7 +567,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
 
                 {modloader === "sponge" && (
                   <div data-ui="server-create-dialog-div-34" className="space-y-2">
-                    <label data-ui="server-create-dialog-label-3" className="text-xs font-medium text-muted-foreground">{t("servers.create.spongeType")}</label>
+                    <label data-ui="server-create-dialog-label-3" className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><IconPuzzle className="size-3.5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("servers.create.spongeType")}</label>
                     <div data-ui="server-create-dialog-div-35" className="grid grid-cols-3 gap-2">
                       {[
                         { id: "spongevanilla" as const, loaderIconId: "vanilla", label: "SpongeVanilla", desc: t("servers.create.spongevanillaDesc") },
@@ -612,7 +617,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
 
                 {requiresLoaderVersion && (
                   <div data-ui="server-create-dialog-div-38" className="space-y-2">
-                    <label data-ui="server-create-dialog-label-4" className="text-xs font-medium text-muted-foreground">{loaderName} version</label>
+                    <label data-ui="server-create-dialog-label-4" className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><IconVersions className="size-3.5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{loaderName} version</label>
                     <Select
                       value={modloaderVersion}
                       onValueChange={setModloaderVersion}
@@ -662,13 +667,13 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                 </div>
               )}
 
-              <div data-ui="server-create-dialog-div-46">
-                <h3 data-ui="server-create-dialog-h3-4" className="text-sm font-semibold text-foreground mb-1">{t("servers.create.portTitle")}</h3>
+              <div data-ui="server-create-dialog-div-46" className="rounded-xl border border-border bg-card p-3">
+                <h3 data-ui="server-create-dialog-h3-4" className="flex items-center gap-2 text-sm font-semibold text-foreground mb-1"><IconRouter className="size-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("servers.create.portTitle")}</h3>
                 <p data-ui="server-create-dialog-p-12" className="text-xs text-muted-foreground">{t("servers.create.portDesc")}</p>
               </div>
 
               <div data-ui="server-create-dialog-div-47" className="space-y-2">
-                <label data-ui="server-create-dialog-label-5" className="text-xs font-medium text-muted-foreground">{t("servers.create.portLabel")}</label>
+                <label data-ui="server-create-dialog-label-5" className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><IconRouter className="size-3.5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("servers.create.portLabel")}</label>
                 <input data-ui="server-create-dialog-input-3"
                   type="number"
                   value={port}
@@ -683,13 +688,13 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
 
           {step === "settings" && (
             <div data-ui="server-create-dialog-div-48" className="flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200">
-              <div data-ui="server-create-dialog-div-49">
-                <h3 data-ui="server-create-dialog-h3-5" className="text-sm font-semibold text-foreground mb-1">{t("servers.create.settingsTitle")}</h3>
+              <div data-ui="server-create-dialog-div-49" className="rounded-xl border border-border bg-card p-3">
+                <h3 data-ui="server-create-dialog-h3-5" className="flex items-center gap-2 text-sm font-semibold text-foreground mb-1"><IconSettings className="size-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("servers.create.settingsTitle")}</h3>
                 <p data-ui="server-create-dialog-p-13" className="text-xs text-muted-foreground">{t("servers.create.settingsDesc")}</p>
               </div>
 
               <div data-ui="server-create-dialog-div-50" className="rounded-xl border border-border bg-muted/30 p-4 space-y-2">
-                <label data-ui="server-create-dialog-label-6" className="block text-xs font-medium text-foreground">{t("servers.create.memoryAllocated")}</label>
+                <label data-ui="server-create-dialog-label-6" className="flex items-center gap-2 text-xs font-medium text-foreground"><IconCpu className="size-3.5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("servers.create.memoryAllocated")}</label>
                 <MemorySlider
                   value={xmx}
                   min={512}
@@ -705,7 +710,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                 />
               </div>
               <div data-ui="server-create-dialog-div-51" className="rounded-xl border border-border bg-muted/30 p-4 space-y-2">
-                <label data-ui="server-create-dialog-label-7" className="block text-xs font-medium text-foreground">{t("servers.create.memoryInitial")}</label>
+                <label data-ui="server-create-dialog-label-7" className="flex items-center gap-2 text-xs font-medium text-foreground"><IconCpu className="size-3.5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("servers.create.memoryInitial")}</label>
                 <MemorySlider
                   value={xms}
                   min={256}
@@ -718,7 +723,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
 
               <div data-ui="server-create-dialog-div-52" className="grid grid-cols-2 gap-3">
                 <div data-ui="server-create-dialog-div-53" className="space-y-2">
-                  <label data-ui="server-create-dialog-label-8" className="text-xs font-medium text-muted-foreground">{t("servers.create.maxPlayers")}</label>
+                  <label data-ui="server-create-dialog-label-8" className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><IconUsers className="size-3.5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("servers.create.maxPlayers")}</label>
                   <input data-ui="server-create-dialog-input-4"
                     type="number"
                     value={maxPlayers}
@@ -729,7 +734,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                   />
                 </div>
                 <div data-ui="server-create-dialog-div-54" className="space-y-2">
-                  <label data-ui="server-create-dialog-label-9" className="text-xs font-medium text-muted-foreground">{t("servers.create.pirateMode")}</label>
+                  <label data-ui="server-create-dialog-label-9" className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><IconShield className="size-3.5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("servers.create.pirateMode")}</label>
                   <button data-ui="server-create-dialog-button-7"
                     type="button"
                     onClick={() => setOnlineMode(!onlineMode)}
@@ -755,7 +760,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
               </div>
 
               <div data-ui="server-create-dialog-div-57" className="space-y-2">
-                <label data-ui="server-create-dialog-label-10" className="text-xs font-medium text-muted-foreground">{t("settings.java.args")}</label>
+                <label data-ui="server-create-dialog-label-10" className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><IconTerminal2 className="size-3.5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("settings.java.args")}</label>
                 <input data-ui="server-create-dialog-input-5"
                   type="text"
                   value={extraJavaArgs}
@@ -769,13 +774,13 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
 
           {step === "java" && (
             <div data-ui="server-create-dialog-div-58" className="flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200">
-              <div data-ui="server-create-dialog-div-59">
-                <h3 data-ui="server-create-dialog-h3-6" className="text-sm font-semibold text-foreground mb-1">{t("servers.create.javaTitle")}</h3>
+              <div data-ui="server-create-dialog-div-59" className="rounded-xl border border-border bg-card p-3">
+                <h3 data-ui="server-create-dialog-h3-6" className="flex items-center gap-2 text-sm font-semibold text-foreground mb-1"><IconCoffee className="size-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("servers.create.javaTitle")}</h3>
                 <p data-ui="server-create-dialog-p-14" className="text-xs text-muted-foreground">{t("servers.create.javaDesc")}</p>
               </div>
 
               <div data-ui="server-create-dialog-div-60" className="space-y-2">
-                <label data-ui="server-create-dialog-label-11" className="text-xs font-medium text-muted-foreground">{t("servers.create.javaExecutable")}</label>
+                <label data-ui="server-create-dialog-label-11" className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><IconCoffee className="size-3.5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("servers.create.javaExecutable")}</label>
                 <button data-ui="server-create-dialog-button-8"
                   type="button"
                   onClick={() => setJavaPath("auto")}
@@ -885,12 +890,12 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
 
           {step === "connect" && (
             <div data-ui="server-create-dialog-div-76" className="flex flex-col gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200">
-              <div data-ui="server-create-dialog-div-77">
-                <h3 data-ui="server-create-dialog-h3-7" className="text-sm font-semibold text-foreground mb-1">{t("servers.create.connectTitle")}</h3>
+              <div data-ui="server-create-dialog-div-77" className="rounded-xl border border-border bg-card p-3">
+                <h3 data-ui="server-create-dialog-h3-7" className="flex items-center gap-2 text-sm font-semibold text-foreground mb-1"><IconRouter className="size-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("servers.create.connectTitle")}</h3>
                 <p data-ui="server-create-dialog-p-15" className="text-xs text-muted-foreground">{t("servers.create.connectDesc")}</p>
               </div>
 
-              <div data-ui="server-create-dialog-div-78" className="p-4 rounded-xl border border-border bg-gradient-to-br from-primary/5 via-primary/[0.02] to-accent/5">
+              <div data-ui="server-create-dialog-div-78" className="p-4 rounded-xl border border-border bg-card/40">
                 <div data-ui="server-create-dialog-div-79" className="flex items-start gap-3 mb-3">
                   <div data-ui="server-create-dialog-div-80" className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
                     <XnConnectLogo className="w-5 h-5 text-primary" />
@@ -936,7 +941,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                 </div>
               </div>
 
-              <div data-ui="server-create-dialog-div-89" className="p-4 rounded-xl border border-border bg-muted/20">
+              <div data-ui="server-create-dialog-div-89" className="p-4 rounded-xl border border-border bg-card/40">
                 <div data-ui="server-create-dialog-div-90" className="flex items-center justify-between">
                   <div data-ui="server-create-dialog-div-91">
                     <p data-ui="server-create-dialog-p-17" className="text-sm font-medium text-foreground">{t("servers.create.enableXnConnect")}</p>
@@ -1034,13 +1039,13 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                         onClick={() => window.electronAPI?.openExternal("https://connect.xneon.org/dashboard")}
                         className="px-3 h-8 rounded-lg border border-border bg-muted/30 text-xs text-foreground hover:bg-muted/60 transition-colors"
                       >
-                        {t("servers.settings.xnconnect.openDashboard")}
+                        <IconExternalLink className="mr-1.5 inline-block size-4" aria-hidden="true" />{t("servers.settings.xnconnect.openDashboard")}
                       </button>
                       <button data-ui="server-create-dialog-button-16"
                         onClick={() => window.electronAPI?.openExternal("https://connect.xneon.org/subscribe")}
                         className="px-3 h-8 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
                       >
-                        {t("servers.settings.xnconnect.subscribe")}
+                        <IconCreditCard className="mr-1.5 inline-block size-4" aria-hidden="true" />{t("servers.settings.xnconnect.subscribe")}
                       </button>
                     </div>
                   </div>
@@ -1063,7 +1068,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                 : "text-muted-foreground hover:text-foreground hover:bg-muted",
             )}
           >
-            {stepIndex === 0 ? t("servers.cancel") : (
+            {stepIndex === 0 ? <span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("servers.cancel")}</span> : (
               <>
                 <IconArrowLeft className="w-4 h-4" />
                 {t("servers.create.back")}
@@ -1088,7 +1093,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                   {t("servers.create.analyzing")}
                 </>
               ) : (
-                t("servers.create.next")
+                <><IconArrowRight className="size-4" aria-hidden="true" />{t("servers.create.next")}</>
               )}
             </button>
           ) : (

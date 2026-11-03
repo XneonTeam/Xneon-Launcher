@@ -1508,7 +1508,7 @@
   "builds.browse": "Examinar",
   "builds.nothingFoundForLauncher": "No se encontró nada para este launcher",
   "builds.localImport": "Importación local",
-  "builds.localImportDesc": "Elige un `.mrpack`, `.zip` (incluida la exportación de Xneon) o importa un build desde otro launcher",
+  "builds.localImportDesc": "Elige un archivo .mrpack o .zip, o importa una instancia de otro launcher.",
   "builds.importMrpack": "Importar .mrpack",
   "builds.importZip": "Importar .zip",
   "builds.importXneon": "Build de Xneon (.zip)",
@@ -2241,5 +2241,15 @@
   "themeLocal.watchHint": "El CSS de la carpeta de temas se recarga automáticamente. Puedes editar los temas guardados con un editor externo.",
   "themeLocal.error": "Error al gestionar el tema: {{message}}",
   "themeLocal.readerCss": "CSS de artículos de noticias",
-  "themeLocal.readerHint": "Estos estilos se aplican dentro del artículo, por separado de la interfaz del launcher."
+  "themeLocal.readerHint": "Estos estilos se aplican dentro del artículo, por separado de la interfaz del launcher.",
+  "settings.about.contributors": "Desarrolladores",
+  "settings.about.telegramChannel": "Canal",
+  "addon.batch.select": "Seleccionar {{name}}",
+  "addon.batch.selected": "Seleccionados: {{count}}",
+  "addon.batch.clear": "Borrar selección",
+  "addon.batch.install": "Instalar seleccionados",
+  "addon.batch.selectAll": "Seleccionar todo",
+  "addon.batch.delete": "Eliminar seleccionados",
+  "addon.batch.confirmDelete": "¿Eliminar los elementos seleccionados ({{count}})?",
+  "addon.batch.deleteFailed": "No se pudo eliminar {{name}}."
 }

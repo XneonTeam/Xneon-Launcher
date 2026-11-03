@@ -357,7 +357,7 @@ export function SettingsStorage() {
 
   return (
     <div data-ui="settings-settings-storage-div-23" data-component="settings-storage" className={cn("space-y-6", contentEnter)}>
-      <section data-ui="settings-settings-storage-section-1" className="space-y-4">
+      <section data-ui="settings-settings-storage-section-1" className="space-y-4 rounded-2xl border border-border bg-card p-4 text-card-foreground sm:p-5">
         <div data-ui="settings-settings-storage-div-24" className="flex items-center justify-between">
           <h3 data-ui="settings-settings-storage-h3-1" className="text-lg font-medium text-foreground flex items-center gap-2">
             <IconDatabase className="w-5 h-5 text-primary" strokeWidth={1.75} />

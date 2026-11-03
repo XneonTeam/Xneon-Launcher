@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IconArchive, IconArrowsExchange, IconCheck, IconChevronDown, IconChevronUp, IconFolder, IconLoader2, IconPackage, IconPuzzle, IconAlertTriangle, IconPhoto, IconSparkles } from "@tabler/icons-react"
+import { IconColorSwatch, IconArchive, IconArrowsExchange, IconCheck, IconChevronDown, IconChevronUp, IconFolder, IconLoader2, IconPackage, IconPuzzle, IconAlertTriangle, IconPhoto, IconSparkles } from "@tabler/icons-react"
 import type { ImportProgress, ImportProgressFile } from "@xnlc/types"
 import { cn } from "@/lib/utils"
 import { getImportOperation } from "./import-progress-model"
@@ -28,7 +28,7 @@ export function ImportProgressPanel({ progress, compact = false, error, cancelli
   const rank = { error: 0, downloading: 1, queued: 2, cancelled: 3, complete: 4 }
   const ordered = [...files].sort((a, b) => rank[a.status] - rank[b.status])
   const visibleFiles = expanded ? ordered : ordered.slice(0, 4)
-  const OperationIcon = finished ? IconCheck : operation === "archive" ? IconArchive : operation === "launcher" ? IconFolder : operation === "update" ? IconArrowsExchange : IconPackage
+  const OperationIcon = finished ? IconCheck : operation === "archive" ? IconArchive : operation === "launcher" ? IconFolder : operation === "update" ? IconArrowsExchange : IconColorSwatch
   const indeterminate = !error && !finished && (phase === "preparing" || phase === "package" && percent === 0 || progress.total <= 0)
   const label = error || (cancelling ? t("import.cancelling") : finished ? t(`import.result.${operation}`) : progress.message || t(`import.phase.${phase}`))
 

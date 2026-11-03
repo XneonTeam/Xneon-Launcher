@@ -18,7 +18,6 @@ import { SettingsVersions } from "./settings-versions"
 import { SettingsThemes } from "./settings-themes"
 import { SettingsLanguage } from "./settings-language-about"
 import { SettingsAbout } from "./settings-language-about"
-import { SettingsUpdate } from "./settings-update"
 import { SettingsAi } from "./settings-ai"
 import { SettingsStorage } from "./settings-storage"
 import { RamAllocation } from "@/components/launcher/ram-allocation"
@@ -505,7 +504,7 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
         {activeSettingsTab === "about" && (
           <div data-ui="settings-index-div-26" data-settings-section="about" className={`min-h-0 flex-1 overflow-y-auto pr-6 space-y-8 ${SETTINGS_CONTENT_ENTER_DELAYED}`}>
             <SettingsAbout t={t} />
-            <SettingsUpdate />
+
           </div>
         )}
         </div>

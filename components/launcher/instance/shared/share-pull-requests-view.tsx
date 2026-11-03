@@ -1,3 +1,4 @@
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { IconArrowLeft, IconArrowRight, IconGitMerge, IconGitPullRequest, IconGitPullRequestClosed, IconPlus } from "@tabler/icons-react"
@@ -59,7 +60,7 @@ export function SharePullRequestsView({ requests: allRequests, branches, current
       {requests.length ? <div className="divide-y divide-border/50 rounded-xl border border-border/70 px-4">
         {requests.map(request => <button type="button" key={request.id} disabled={busy} onClick={() => { resetReview(); setSelected(request.id) }} className="flex w-full items-start gap-3 py-4 text-left hover:text-primary">
           <IconGitPullRequest className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-          <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{request.title}</span><span className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">{request.source}<IconArrowRight className="h-3 w-3" />{request.target}</span><span className="mt-2 block text-xs text-muted-foreground"><ShareAuthor author={request.author} name={authorName(request.author)} currentUser={currentUser} /></span></span>
+          <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{request.title}</span><span className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">{request.source}<IconArrowRight className="h-3 w-3 text-primary" />{request.target}</span><span className="mt-2 block text-xs text-muted-foreground"><ShareAuthor author={request.author} name={authorName(request.author)} currentUser={currentUser} /></span></span>
         </button>)}
       </div> : <EmptyState icon={emptyIcon} title={t("share.pr.empty")} className="min-h-48 flex-1 py-8" />}
     </>}
@@ -68,13 +69,13 @@ export function SharePullRequestsView({ requests: allRequests, branches, current
       <label className="block space-y-1.5 text-xs text-muted-foreground"><span>{t("share.prTitle")}</span><input className={shareInput} value={title} onChange={event => setTitle(event.target.value)} maxLength={300} /></label>
       <label className="block space-y-1.5 text-xs text-muted-foreground"><span>{t("share.pr.description")}</span><textarea className={`${shareTextarea} min-h-24 resize-y`} value={description} onChange={event => setDescription(event.target.value)} maxLength={8000} /></label>
       <p className="text-xs text-muted-foreground">{t("share.pr.direction", { source: sourceBranch, target: targetBranch })}</p>
-      <div className="flex justify-end gap-2"><ShareButton secondary disabled={busy} onClick={() => setCreating(false)}>{t("share.flow.cancel")}</ShareButton><ShareButton disabled={busy || !title.trim() || sourceBranch === targetBranch} busy={busy} onClick={async () => {
+      <div className="flex justify-end gap-2"><ShareButton secondary disabled={busy} onClick={() => setCreating(false)}>{<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("share.flow.cancel")}</span>}</ShareButton><ShareButton disabled={busy || !title.trim() || sourceBranch === targetBranch} busy={busy} onClick={async () => {
         const id = await onCreate({ title: title.trim(), description, source: sourceBranch, target: targetBranch })
         if (id) { setCreating(false); setSelected(id); setTitle(""); setDescription("") }
       }}><IconGitPullRequest className="h-4 w-4" />{t("share.createPr")}</ShareButton></div>
     </div>}
     {pr && <div className="space-y-4">
-      <ShareButton secondary disabled={busy} onClick={() => { setSelected(undefined); resetReview() }}><IconArrowLeft className="h-4 w-4" />{t("share.flow.back")}</ShareButton>
+      <ShareButton secondary disabled={busy} onClick={() => { setSelected(undefined); resetReview() }}><IconArrowLeft className="h-4 w-4 text-primary" />{t("share.flow.back")}</ShareButton>
       <div className="space-y-3 border-b border-border/50 pb-4">
         <div className="flex items-center gap-3"><IconGitPullRequest className="h-5 w-5 shrink-0 text-primary" /><h3 className="min-w-0 flex-1 break-words text-lg font-semibold">{pr.title}</h3><span className="rounded-lg bg-muted px-2.5 py-1 text-xs">{t(`share.prStates.${pr.state}`)}</span></div>
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground"><ShareAuthor author={pr.author} name={authorName(pr.author)} currentUser={currentUser} /><span>{pr.source} → {pr.target}</span></div>

@@ -1,10 +1,11 @@
 import { SETTINGS_CONTENT_ENTER_DELAYED } from "./settings-motion"
-import { useState } from "react"
+import { useState, type CSSProperties } from "react"
 import { useTranslation } from "react-i18next"
 import {
   IconCheck,
   IconCopy,
   IconDownload,
+  IconUpload,
   IconPalette,
   IconPencil,
   IconPlus,
@@ -14,7 +15,7 @@ import {
 import { cn } from "@/lib/utils"
 import { ActionConfirmDialog } from "@/components/launcher/instance/action-confirm-dialog"
 import type { Theme } from "./types"
-import { applyTheme } from "./theme-model"
+import { applyTheme, themePreviewColors, THEME_CSS_VARS } from "./theme-model"
 import type { ThemeRegistry } from "./theme-store"
 import { ThemeEditor } from "./theme-editor"
 import { ThemeCompactPreview } from "./theme-preview"
@@ -79,12 +80,17 @@ function ThemeCard({
 }) {
   const { t } = useTranslation()
   const isCustom = !!theme.custom
+  const colors = themePreviewColors(theme)
+  const cardStyle = Object.fromEntries(
+    Object.entries(THEME_CSS_VARS).map(([key, variable]) => [variable, colors[key as keyof typeof colors]])
+  ) as CSSProperties
   const description = theme.description?.trim() || (isCustom
     ? t("settings.themes.description.custom")
     : t(`settings.themes.description.${theme.id}`, { defaultValue: t("settings.themes.description.custom") }))
 
   return (
     <div data-ui="settings-settings-themes-div-1" data-component="theme-card" data-selected={selected} data-custom={isCustom}
+      style={cardStyle}
       className={cn(
         "flex flex-col rounded-2xl border p-3.5 transition-colors",
         selected
@@ -229,7 +235,7 @@ export function SettingsThemes({ registry }: SettingsThemesProps) {
 
   return (
     <div data-ui="settings-settings-themes-div-5" data-component="settings-themes" className={`space-y-8 ${SETTINGS_CONTENT_ENTER_DELAYED}`}>
-      <section data-ui="settings-settings-themes-section-1" className="space-y-4">
+      <section data-ui="settings-settings-themes-section-1" className="space-y-4 rounded-2xl border border-border bg-card p-5">
         <h3 data-ui="settings-settings-themes-h3-1" className="flex items-center gap-2 text-lg font-medium text-foreground">
           <IconPalette className="h-5 w-5 text-primary" strokeWidth={1.75} />
           {t("settings.themes.presets")}
@@ -246,14 +252,14 @@ export function SettingsThemes({ registry }: SettingsThemesProps) {
         </div>
       </section>
 
-      <section data-ui="settings-settings-themes-section-2" className="space-y-4">
+      <section data-ui="settings-settings-themes-section-2" className="space-y-4 rounded-2xl border border-border bg-card p-5">
         <div data-ui="settings-settings-themes-div-7" className="flex flex-wrap items-center justify-between gap-3">
           <h3 data-ui="settings-settings-themes-h3-2" className="flex items-center gap-2 text-lg font-medium text-foreground">
             <IconSparkles className="h-5 w-5 text-primary" strokeWidth={1.75} />
             {t("settings.themes.custom")}
           </h3>
           <div data-component="theme-file-toolbar" className="flex flex-wrap items-center gap-2" aria-busy={busy}>
-            <button data-ui="theme-import-local" disabled={busy} type="button" onClick={importTheme} className="rounded-xl border border-border bg-card px-3 py-2 text-xs text-card-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:opacity-50">{t("themeLocal.import")}</button>
+            <button data-ui="theme-import-local" disabled={busy} type="button" onClick={importTheme} className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs text-card-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:opacity-50"><IconUpload className="size-4" strokeWidth={1.75} aria-hidden="true" />{t("themeLocal.import")}</button>
             {createButton()}
           </div>
         </div>

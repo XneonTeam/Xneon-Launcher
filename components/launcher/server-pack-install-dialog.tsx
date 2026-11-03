@@ -1,3 +1,4 @@
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useState, useEffect, useCallback } from "react"
 import { IconServer, IconArrowLeft, IconCheck, IconFolderPlus, IconLoader2, IconShield, IconRouter, IconClipboard, IconExternalLink } from "@tabler/icons-react"
 import { XnConnectLogo } from "./server/xn-connect-logo"
@@ -573,7 +574,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                   "text-muted-foreground hover:text-foreground hover:bg-muted",
                 )}
               >
-                {stepIndex === 0 ? t("servers.packInstall.cancel") : (
+                {stepIndex === 0 ? <span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("servers.packInstall.cancel")}</span> : (
                   <>
                     <IconArrowLeft className="w-4 h-4" />
                     {t("servers.packInstall.back")}

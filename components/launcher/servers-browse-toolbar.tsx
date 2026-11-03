@@ -1,3 +1,4 @@
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { CONTENT_ENTER_DELAYED } from "./content-motion"
 import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -224,7 +225,7 @@ export function ServersBrowseToolbar({
               onClick={() => setCatDialogOpen(false)}
               className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
-              {t("common.cancel")}
+              {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel")}</span>}
             </button>
             <button data-ui="servers-browse-toolbar-button-5"
               type="button"

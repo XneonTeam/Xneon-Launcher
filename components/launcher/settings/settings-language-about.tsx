@@ -1,8 +1,11 @@
+import { useEffect, useState } from "react"
+import packageInfo from "@/package.json"
+import { SettingsUpdate } from "./settings-update"
 import { SettingsSwitch } from "./settings-switch"
 import { SETTINGS_CONTENT_ENTER_DELAYED } from "./settings-motion"
 import { cn } from "@/lib/utils"
 import { APP_NAME, APP_VERSION } from "@/lib/app-meta"
-import { IconCheck, IconBrandGithub, IconBrandDiscord, IconDeviceGamepad2, IconInfoCircle, IconLanguage, IconRotate, IconAdjustments, IconMessages } from "@tabler/icons-react"
+import { IconCheck, IconBrandGithub, IconBrandDiscord, IconDeviceGamepad2, IconLanguage, IconWorld, IconBrandTelegram, IconArrowUpRight } from "@tabler/icons-react"
 import type { Language } from "./types"
 
 const FLAG_RU = (
@@ -126,6 +129,7 @@ export function SettingsLanguage({ selectedLanguage, setSelectedLanguage, autoGa
         <div data-ui="settings-settings-language-about-div-2" className="grid grid-cols-1 gap-3">
           {languages.map((lang) => (
             <button data-ui="settings-settings-language-about-button-1"
+              data-component="language-option"
               key={lang.id}
               aria-pressed={selectedLanguage === lang.id}
               onClick={() => setSelectedLanguage(lang.id)}
@@ -179,85 +183,116 @@ interface SettingsAboutProps {
   t: (key: string, options?: Record<string, unknown>) => string
 }
 
+interface LauncherContributor {
+  login: string
+  avatar_url: string
+  html_url: string
+}
+
+// Подтверждённый участник репозитория доступен и без сети.
+const FALLBACK_CONTRIBUTORS: LauncherContributor[] = [{
+  login: "MAINER4IK",
+  avatar_url: "https://avatars.githubusercontent.com/u/119670548?v=4",
+  html_url: "https://github.com/MAINER4IK",
+}]
+
 export function SettingsAbout({ t }: SettingsAboutProps) {
+  const [contributors, setContributors] = useState(FALLBACK_CONTRIBUTORS)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 8000)
+    async function loadContributors() {
+      try {
+        const response = await fetch("https://api.github.com/repos/XneonTeam/Xneon-Launcher/contributors?per_page=100", {
+          signal: controller.signal,
+          headers: { Accept: "application/vnd.github+json" },
+        })
+        if (!response.ok) return
+        const data: unknown = await response.json()
+        if (!Array.isArray(data)) return
+        const people = data.filter((person): person is LauncherContributor & { type: string } =>
+          person !== null && typeof person === "object" && person.type === "User"
+          && typeof person.login === "string" && /^[a-zA-Z0-9-]+$/.test(person.login)
+          && typeof person.avatar_url === "string" && person.avatar_url.startsWith("https://avatars.githubusercontent.com/")
+          && person.html_url === `https://github.com/${person.login}`)
+        if (people.length && !controller.signal.aborted) setContributors(people)
+      } catch {
+        // При отсутствии сети или ограничении GitHub сохраняем резервный список.
+      } finally {
+        window.clearTimeout(timeout)
+      }
+    }
+    void loadContributors()
+    return () => {
+      controller.abort()
+      window.clearTimeout(timeout)
+    }
+  }, [])
+
+  const links = [
+    { name: t("settings.about.website"), detail: t("settings.about.websiteHint"), href: packageInfo.homepage, Icon: IconWorld },
+    { name: "GitHub", detail: t("settings.about.source"), href: "https://github.com/XneonTeam/Xneon-Launcher", Icon: IconBrandGithub },
+    { name: "Discord", detail: t("settings.about.community"), href: "https://discord.gg/a9mDjtqcbQ", Icon: IconBrandDiscord },
+    { name: "Telegram", detail: t("settings.about.telegramChannel"), href: "https://t.me/XneonTeam", Icon: IconBrandTelegram },
+  ]
+
   return (
-    <div data-ui="settings-settings-language-about-div-12" data-component="settings-about" className="space-y-8">
-      <section data-ui="settings-settings-language-about-section-3" className="text-center py-8">
-        <div data-ui="settings-settings-language-about-div-13" className="w-20 h-20 rounded-2xl bg-primary/20 flex items-center justify-center mx-auto mb-4 shadow-[0_0_30px_var(--glow-primary)]">
-          <svg data-ui="settings-settings-language-about-svg-6" data-icon="settings-settings-language-about-svg-6" xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 192 192" className="text-primary">
-            <path data-ui="settings-settings-language-about-path-46" d="M 121.270 53.270 L 93 81.539 93 86.387 C 93 90.685, 93.440 91.676, 96.882 95.118 C 100.594 98.829, 102.357 99.451, 108 99.039 C 109.813 98.907, 117.168 92.210, 134.750 74.686 L 159 50.515 159 88.493 L 159 126.471 146.236 113.736 L 133.472 101 126.244 101 L 119.016 101 111.008 108.754 L 103 116.508 103 126.876 C 103 138.904, 103.732 138.905, 92.871 126.857 L 85.778 118.988 89.363 115.019 C 93.760 110.153, 94.655 106.955, 92.869 102.487 C 92.037 100.404, 80.782 88.072, 64.162 71.030 L 36.823 43 19.709 43 L 2.595 43 16.024 56.750 C 35.123 76.307, 55.993 97.939, 59.465 101.779 L 62.430 105.058 33.215 134.285 C 17.147 150.360, 4 163.847, 4 164.256 C 4 164.665, 11.982 165, 21.739 165 L 39.477 165 55.296 149.250 L 71.114 133.500 86.307 149.285 L 101.500 165.071 109.827 165.035 C 117.581 165.002, 118.346 164.808, 120.939 162.215 C 123.315 159.838, 123.831 158.300, 124.445 151.746 C 124.841 147.520, 124.845 139.549, 124.454 134.031 C 124.062 128.514, 123.997 124, 124.308 124 C 124.619 124, 133.974 133.225, 145.097 144.500 L 165.320 165 171.144 165 C 176.166 165, 177.418 164.598, 180.234 162.083 L 183.500 159.165 183.774 103.301 L 184.048 47.437 172.678 36.218 L 161.307 25 155.423 25 L 149.539 25 121.270 53.270" stroke="none" fill="currentColor" fill-rule="evenodd"/>
+    <div data-component="settings-about" className="w-full space-y-3 pb-4">
+      <section className="relative isolate flex flex-col overflow-hidden rounded-2xl border border-border bg-card lg:flex-row lg:items-center">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,color-mix(in_srgb,var(--primary)_8%,transparent),transparent_60%)]" />
+        <header className="relative flex min-w-0 flex-1 items-center gap-4 px-5 py-5 text-left">
+          <div aria-hidden="true" className="flex h-14 w-14 shrink-0 items-center justify-center">
+            <svg data-ui="settings-settings-language-about-svg-6" data-icon="settings-settings-language-about-svg-6" xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 192 192" className="text-primary">
+            <path data-ui="settings-settings-language-about-path-46" d="M 121.270 53.270 L 93 81.539 93 86.387 C 93 90.685, 93.440 91.676, 96.882 95.118 C 100.594 98.829, 102.357 99.451, 108 99.039 C 109.813 98.907, 117.168 92.210, 134.750 74.686 L 159 50.515 159 88.493 L 159 126.471 146.236 113.736 L 133.472 101 126.244 101 L 119.016 101 111.008 108.754 L 103 116.508 103 126.876 C 103 138.904, 103.732 138.905, 92.871 126.857 L 85.778 118.988 89.363 115.019 C 93.760 110.153, 94.655 106.955, 92.869 102.487 C 92.037 100.404, 80.782 88.072, 64.162 71.030 L 36.823 43 19.709 43 L 2.595 43 16.024 56.750 C 35.123 76.307, 55.993 97.939, 59.465 101.779 L 62.430 105.058 33.215 134.285 C 17.147 150.360, 4 163.847, 4 164.256 C 4 164.665, 11.982 165, 21.739 165 L 39.477 165 55.296 149.250 L 71.114 133.500 86.307 149.285 L 101.500 165.071 109.827 165.035 C 117.581 165.002, 118.346 164.808, 120.939 162.215 C 123.315 159.838, 123.831 158.300, 124.445 151.746 C 124.841 147.520, 124.845 139.549, 124.454 134.031 C 124.062 128.514, 123.997 124, 124.308 124 C 124.619 124, 133.974 133.225, 145.097 144.500 L 165.320 165 171.144 165 C 176.166 165, 177.418 164.598, 180.234 162.083 L 183.500 159.165 183.774 103.301 L 184.048 47.437 172.678 36.218 L 161.307 25 155.423 25 L 149.539 25 121.270 53.270" stroke="none" fill="currentColor" fillRule="evenodd"/>
           </svg>
-        </div>
-        <h3 data-ui="settings-settings-language-about-h3-3" className="text-2xl font-bold text-foreground mb-2">{APP_NAME}</h3>
-        <p data-ui="settings-settings-language-about-p-3" className="text-muted-foreground">{t("settings.about.version", { version: APP_VERSION })}</p>
-      </section>
-      <section data-ui="settings-settings-language-about-section-4" className="space-y-4">
-        <h3 data-ui="settings-settings-language-about-h3-4" className="flex items-center gap-2 text-lg font-medium text-foreground"><IconMessages className="h-5 w-5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("settings.about.social")}</h3>
-        <div data-ui="settings-settings-language-about-div-14" className="grid grid-cols-2 gap-4">
-          <a data-ui="settings-settings-language-about-a-1" data-settings-tone="primary" href="https://github.com/XneonTeam/Xneon-Launcher" target="_blank" rel="noopener noreferrer"
-            className="settings-color-panel flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary hover:bg-primary/5 transition-all duration-200 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60"
-          >
-            <div data-ui="settings-settings-language-about-div-15" className="w-12 h-12 rounded-xl bg-foreground/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-              <IconBrandGithub className="w-6 h-6 text-foreground" strokeWidth={1.5} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h3 className="break-words text-xl font-semibold tracking-tight text-foreground">{APP_NAME}</h3>
+              <span className="text-xs text-muted-foreground">
+                {t("settings.about.version", { version: APP_VERSION })}
+              </span>
             </div>
-            <div data-ui="settings-settings-language-about-div-16">
-              <div data-ui="settings-settings-language-about-div-17" className="font-medium text-foreground">GitHub</div>
-              <div data-ui="settings-settings-language-about-div-18" className="text-sm text-muted-foreground">{t("settings.about.source")}</div>
-            </div>
-          </a>
-          <a data-ui="settings-settings-language-about-a-2" data-settings-tone="violet" href="https://discord.gg/a9mDjtqcbQ" target="_blank" rel="noopener noreferrer"
-            className="settings-color-panel flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-accent hover:bg-accent/5 transition-all duration-200 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60"
-          >
-            <div data-ui="settings-settings-language-about-div-19" className="w-12 h-12 rounded-xl bg-foreground/10 flex items-center justify-center group-hover:bg-accent/20 transition-colors">
-              <IconBrandDiscord className="w-6 h-6 text-foreground" strokeWidth={1.5} />
-            </div>
-            <div data-ui="settings-settings-language-about-div-20">
-              <div data-ui="settings-settings-language-about-div-21" className="font-medium text-foreground">Discord</div>
-              <div data-ui="settings-settings-language-about-div-22" className="text-sm text-muted-foreground">{t("settings.about.community")}</div>
-            </div>
-          </a>
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{t("settings.about.purpose")}</p>
+          </div>
+        </header>
+        <div className="relative mx-5 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/60 py-3 lg:my-4 lg:ml-0 lg:max-w-64 lg:flex-col lg:items-start lg:border-t-0 lg:border-l lg:py-0 lg:pl-5">
+          <h4 className="text-xs font-medium text-muted-foreground">{t("settings.about.contributors")}</h4>
+          <div className="flex flex-wrap justify-center gap-2">
+            {contributors.map((person) => (
+              <a key={person.login} href={person.html_url} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-full border border-border bg-background/50 py-1 pl-1 pr-3 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                <span className="relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs" aria-hidden="true">
+                  {person.login.slice(0, 1)}
+                  <img src={person.avatar_url} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.style.display = "none" }} />
+                </span>
+                {person.login}
+                <IconBrandGithub className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+              </a>
+            ))}
+          </div>
         </div>
       </section>
-      <section data-ui="settings-settings-language-about-section-5" className="space-y-4">
-        <h3 data-ui="settings-settings-language-about-h3-5" className="text-lg font-medium text-foreground flex items-center gap-2">
-          <IconInfoCircle className="w-5 h-5 text-primary" strokeWidth={1.75} />
-          {t("settings.about.info")}
-        </h3>
-        <div data-ui="settings-settings-language-about-div-23" data-settings-tone="blue" className="settings-color-panel p-4 rounded-xl border border-border bg-muted/30 space-y-2">
-          <div data-ui="settings-settings-language-about-div-24" className="flex justify-between items-center">
-            <span data-ui="settings-settings-language-about-span-2" className="text-muted-foreground">{t("settings.about.developer")}</span>
-            <span data-ui="settings-settings-language-about-span-3" className="text-foreground flex items-center gap-2">
-              <img data-ui="settings-settings-language-about-img-1" src="https://github.com/MAINER4IK.png" alt="" className="w-6 h-6 rounded-full" />
-              MAINER4IK
+
+      <nav aria-label={t("settings.about.social")} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {links.map(({ name, detail, href, Icon }) => (
+          <a key={href} href={href} target="_blank" rel="noopener noreferrer"
+            className="group flex min-w-0 items-center gap-3 rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
+              <Icon className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
             </span>
-          </div>
-          <div data-ui="settings-settings-language-about-div-25" className="flex justify-between">
-            <span data-ui="settings-settings-language-about-span-4" className="text-muted-foreground">{t("settings.about.license")}</span>
-            <span data-ui="settings-settings-language-about-span-5" className="text-foreground">GPL-3.0</span>
-          </div>
-        </div>
-      </section>
-      <section data-ui="settings-settings-language-about-section-6" className="space-y-4">
-        <h3 data-ui="settings-settings-language-about-h3-6" className="flex items-center gap-2 text-lg font-medium text-foreground"><IconAdjustments className="h-5 w-5 shrink-0 text-primary" strokeWidth={1.7} aria-hidden="true" />{t("settings.about.onboarding.title")}</h3>
-        <div data-ui="settings-settings-language-about-div-26" data-settings-tone="amber" className="settings-color-panel p-4 rounded-xl border border-border bg-muted/30 flex items-center justify-between gap-4">
-          <div data-ui="settings-settings-language-about-div-27">
-            <div data-ui="settings-settings-language-about-div-28" className="flex items-center gap-2 font-medium text-foreground"><IconRotate className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.7} aria-hidden="true" />{t("settings.about.onboarding.reset")}</div>
-            <p data-ui="settings-settings-language-about-p-4" className="text-sm text-muted-foreground mt-1">
-              {t("settings.about.onboarding.description")}
-            </p>
-          </div>
-          <button data-ui="settings-settings-language-about-button-3"
-            type="button"
-            onClick={() => {
-              void window.electronAPI?.setSetting("onboardingCompleted", "false")
-              window.dispatchEvent(new CustomEvent("launcher:onboarding-reset"))
-            }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
-          >
-            <IconRotate className="h-4 w-4" strokeWidth={2} />
-            {t("settings.about.onboarding.button")}
-          </button>
-        </div>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium text-foreground">{name}</span>
+              <span className="mt-0.5 block break-words text-xs text-muted-foreground">{detail}</span>
+            </span>
+            <IconArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-primary" aria-hidden="true" />
+          </a>
+        ))}
+      </nav>
+
+      <section aria-label={t("launcherUpdate.title")} className="rounded-2xl border border-border bg-card px-5 pb-5">
+        <SettingsUpdate />
       </section>
     </div>
   )

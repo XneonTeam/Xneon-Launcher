@@ -1,10 +1,11 @@
+import { ColorInput } from "@/components/ui/color-input"
 import { type Dispatch, type SetStateAction, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { IconAdjustmentsHorizontal } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import type { Theme, ThemeAppearance } from "./types"
-import { THEME_ENTER_ANIMATIONS, normalizeEnterKeyframes, normalizeHex, themeEnterAnimation, themeEnterMotion, themeMode, themePaletteForMode, themePreviewColors } from "./theme-model"
+import { THEME_ENTER_ANIMATIONS, normalizeEnterKeyframes, normalizeHex, themeEnterAnimation, themeEnterMotion, themeMode, themePaletteForMode, themePreviewColors, themeTitlebarColor } from "./theme-model"
 
 const swatchClass = "h-8 w-8 shrink-0 cursor-pointer rounded-lg border border-border bg-muted/30 transition-colors hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 [&::-webkit-color-swatch-wrapper]:p-0.5 [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch]:border-0"
 const hexInputClass = "min-w-0 flex-1 rounded-lg border border-border bg-muted/30 px-2 py-1.5 font-mono text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary focus:ring-1 focus:ring-primary/40"
@@ -33,14 +34,13 @@ function AppearanceColorField({
   const pickerValue = normalizeHex(value) ?? (value && /^#[\da-f]{8}$/i.test(value) ? value.slice(0, 7) : null) ?? fallback
 
   return <div className="flex items-center gap-2 rounded-xl border border-border/70 bg-card/40 p-2">
-    <input
+    <ColorInput
       data-ui="theme-extra-color-picker"
       data-color={colorKey}
-      type="color"
       value={pickerValue}
-      onChange={(event) => {
-        setRaw(event.target.value)
-        onChange(event.target.value)
+      onValueChange={(value) => {
+        setRaw(value)
+        onChange(value)
       }}
       aria-label={label}
       title={label}
@@ -91,7 +91,10 @@ export function ThemeAppearanceControls({ theme, onChange, active }: { theme: Th
           const value = selected as "palette" | "light" | "dark" | "system"
           onChange((current) => {
             const before = themeMode(current)
-            const next = { ...current.appearance, [before === "light" ? "lightPalette" : "darkPalette"]: themePreviewColors(current), colorMode: value === "palette" ? undefined : value }
+            const next = { ...current.appearance,
+              [before === "light" ? "lightPalette" : "darkPalette"]: themePreviewColors(current),
+              [before === "light" ? "lightTitlebar" : "darkTitlebar"]: themeTitlebarColor(current),
+              colorMode: value === "palette" ? undefined : value }
             const mode = value === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : value
             const palette = mode === "light" || mode === "dark" ? themePaletteForMode({ ...current, appearance: next }, mode) : current.palette
             return { ...current, appearance: next, palette }
@@ -107,9 +110,16 @@ export function ThemeAppearanceControls({ theme, onChange, active }: { theme: Th
             key={key}
             colorKey={key}
             label={t(`themeAdvanced.${key}`)}
-            value={appearance[key]}
+            value={key === "titlebar" ? themeTitlebarColor(theme) : appearance[key]}
             fallback={fallback}
-            onChange={(value) => patch({ [key]: value })}
+            onChange={(value) => {
+              if (key !== "titlebar") { patch({ [key]: value }); return }
+              if (!appearance.colorMode) { patch({ titlebar: value }); return }
+              // Общий старый цвет убираем, чтобы сброс возвращал фон палитры.
+              const currentMode = themeMode(theme)
+              patch({ titlebar: undefined, [currentMode === "light" ? "lightTitlebar" : "darkTitlebar"]: value,
+                ...(appearance.titlebar && !themeTitlebarColor(theme) ? { [currentMode === "light" ? "darkTitlebar" : "lightTitlebar"]: appearance.titlebar } : {}) })
+            }}
           />
         })}
       </div>
