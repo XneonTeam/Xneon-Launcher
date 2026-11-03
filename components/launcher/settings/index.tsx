@@ -453,7 +453,7 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
         )}
 
         {activeSettingsTab === "java" && (
-          <div data-ui="settings-index-div-21" data-settings-section="java" className="min-h-0 flex-1 overflow-y-auto pr-6 pb-2">
+          <div data-ui="settings-index-div-21" data-settings-section="java" className="scrollbar-none min-h-0 flex-1 overflow-y-auto pb-2">
             <SettingsJava
               selectedJavaPath={selectedJavaPath}
               setSelectedJavaPath={setSelectedJavaPath}

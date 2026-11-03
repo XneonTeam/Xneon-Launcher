@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { parseMotd } from "@/lib/minecraft-motd"
 import { ModalLayer } from "@/components/ui/modal-layer"
 import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { IconChevronDown, IconChevronUp, IconCircleX, IconPlugConnected, IconPlus, IconPencil, IconRefresh, IconSearch, IconServer, IconStar, IconTrash, IconX, IconLoader2 } from "@tabler/icons-react"
 import { useAccounts } from "@/src/AccountsContext"
@@ -389,9 +390,6 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
         <div data-ui="instance-instance-servers-tab-div-12">
           <h2 data-ui="instance-instance-servers-tab-h2-1" className="text-xl font-semibold text-foreground">{t("servers.title")}</h2>
           <p data-ui="instance-instance-servers-tab-p-5" className="text-sm text-muted-foreground mt-1">{t("servers.tabSubtitle")}</p>
-          <p data-ui="instance-instance-servers-tab-p-6" className="text-xs text-muted-foreground/70 mt-0.5">
-            {servers.filter((s) => s.status?.online).length} / {servers.length} {t("servers.online")}
-          </p>
         </div>
         <div data-ui="instance-instance-servers-tab-div-13" className="flex items-center gap-1.5">
           <button data-ui="instance-instance-servers-tab-button-6"
@@ -454,7 +452,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
               <>
                 {favoriteServers.length > 0 && (
                   <div data-ui="instance-instance-servers-tab-div-22">
-                    <h3 data-ui="instance-instance-servers-tab-h3-1" className="text-sm font-medium text-warning flex items-center gap-2">
+                    <h3 data-ui="instance-instance-servers-tab-h3-1" className="text-sm font-medium text-warning flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
                       <IconStar className="w-4 h-4 fill-warning" />
                       {t("servers.favorites")} ({favoriteServers.length})
                     </h3>
@@ -463,7 +461,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
                 )}
                 {onlineServers.filter((s) => s.loading || s.error || s.status?.online).length > 0 && (
                   <div data-ui="instance-instance-servers-tab-div-24">
-                    <h3 data-ui="instance-instance-servers-tab-h3-2" className="text-sm font-medium text-success flex items-center gap-2">
+                    <h3 data-ui="instance-instance-servers-tab-h3-2" className="text-sm font-medium text-success flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
                       <span data-ui="instance-instance-servers-tab-span-7" className="w-2 h-2 rounded-full bg-success" />
                       {t("servers.online")} ({onlineServers.length})
                     </h3>
@@ -472,7 +470,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
                 )}
                 {offlineServers.length > 0 && (
                   <div data-ui="instance-instance-servers-tab-div-26">
-                    <h3 data-ui="instance-instance-servers-tab-h3-3" className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <h3 data-ui="instance-instance-servers-tab-h3-3" className="text-sm font-medium text-muted-foreground flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
                       <span data-ui="instance-instance-servers-tab-span-8" className="w-2 h-2 rounded-full bg-destructive" />
                       {t("servers.offline")} ({offlineServers.length})
                     </h3>
@@ -531,7 +529,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
                 <p className="text-xs text-muted-foreground">{t("servers.resourcePack.hint")}</p>
               </div>
               <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border p-3 text-sm text-foreground">
-                <input type="checkbox" checked={favorite} onChange={event => setFavorite(event.target.checked)} className="h-4 w-4 accent-primary" />
+                <Checkbox checked={favorite} onCheckedChange={checked => setFavorite(checked === true)} />
                 <IconStar className="h-4 w-4 text-primary" />{t("servers.favorite")}
               </label>
               <div data-ui="instance-instance-servers-tab-div-33" className="flex gap-3">

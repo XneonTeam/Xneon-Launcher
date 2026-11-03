@@ -412,22 +412,22 @@ html.theme-with-background #launcher-root {
 }
 
 [data-settings-section]::-webkit-scrollbar {
-  width: 16px;
+  width: 6px;
 }
 
 [data-settings-section]::-webkit-scrollbar-track {
-  background: var(--card);
+  background: transparent;
   border-radius: 999px;
 }
 
 [data-settings-section]::-webkit-scrollbar-thumb {
-  border: 5px solid var(--card);
+  border: 0;
   border-radius: 999px;
   background: var(--border);
 }
 
 [data-settings-section]::-webkit-scrollbar-thumb:hover {
-  background: var(--primary);
+  background: var(--border);
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;
