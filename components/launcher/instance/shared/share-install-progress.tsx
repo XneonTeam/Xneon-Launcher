@@ -22,6 +22,8 @@ export function ShareInstallProgress() {
   const [error, setError] = useState<string | null>(null)
   const installation = useRef<Installation | null>(null)
   const running = useRef(false)
+  const activeRequest = useRef("")
+  const [cancelling, setCancelling] = useState(false)
   const retry = useRef<() => void>(() => {})
   const translate = useRef(t)
   translate.current = t
@@ -35,24 +37,32 @@ export function ShareInstallProgress() {
       running.current = true
       installation.current = job
       setError(null)
+      setCancelling(false)
       setProgress({ operation: "modpack", title: job.name, iconUrl: job.iconUrl, phase: "preparing", current: 0, total: 100, message: t("share.flow.stage.start") })
       const requestId = crypto.randomUUID()
+      activeRequest.current = requestId
       unsubscribe = window.electronAPI.onShareProgress(event => {
         if (!active || event.requestId !== requestId || event.stage === "error" || event.stage === "done") return
         const fraction = event.total > 0 ? Math.max(0, Math.min(1, event.done / event.total)) : 0
         const current = event.stage === "index" ? 95 : event.stage === "download" ? 10 + 80 * fraction : 5
-        setProgress(previous => previous && ({ ...previous, phase: event.stage === "index" ? "scanning" : event.stage === "download" ? "files" : "preparing", current: Math.max(previous.current, current), message: t(`share.flow.stage.${event.stage}`, { defaultValue: t("share.flow.working") }) }))
+        setProgress(previous => previous && ({ ...previous, phase: event.stage === "index" ? "scanning" : event.stage === "download" ? "files" : "preparing", current: Math.max(previous.current, current),
+          ...(event.files ? {
+            files: event.files.map(file => ({ id: file.path, fileName: file.path, name: file.name || file.path.split("/").pop() || file.path, iconUrl: file.iconUrl, status: file.status, kind: file.path.startsWith("mods/") ? "mod" as const : file.path.startsWith("resourcepacks/") ? "resourcepack" as const : file.path.startsWith("shaderpacks/") ? "shader" as const : "file" as const })),
+            fileCount: event.files.length,
+            completedFiles: event.files.filter(file => file.status === "complete").length,
+          } : {}), message: t(`share.flow.stage.${event.stage}`, { defaultValue: t("share.flow.working") }) }))
       })
       job.onStarted?.()
       try {
         const result = await window.electronAPI.shareExecute({ action: "installInvite", previewId: job.previewId, name: job.name, requestId })
         if (!active) return
         if (!result.success) {
+          if (result.error.code === "CANCELLED") { setProgress(null); setCancelling(false); return }
           const message = t(`share.errors.${result.error.code}`, { defaultValue: t("share.failed") })
           setError(result.error.filePath ? t("share.flow.fileError", { message, path: result.error.filePath }) : message)
           return
         }
-        setProgress(previous => previous && ({ ...previous, phase: "complete", current: 100, total: 100 }))
+        setProgress(previous => previous && ({ ...previous, phase: "complete", current: 100, total: 100, files: previous.files?.map(file => ({ ...file, status: "complete" })), completedFiles: previous.fileCount }))
         job.onInstalled()
       } catch {
         if (active) setError(t("share.flow.connectionError"))
@@ -68,5 +78,12 @@ export function ShareInstallProgress() {
     return () => { active = false; unsubscribe?.(); window.removeEventListener("launcher:share-install-start", start) }
   }, [])
 
-  return <InstanceImportOverlay importProgress={progress} importError={error} isCancelling={false} canCancel={false} onRetry={() => retry.current()} onCancel={() => { setProgress(null); setError(null); installation.current = null }} />
+  return <InstanceImportOverlay importProgress={progress} importError={error} isCancelling={cancelling} canCancel={progress?.phase !== "scanning"} onRetry={() => retry.current()} onCancel={() => {
+    if (running.current) {
+      setCancelling(true)
+      void window.electronAPI?.cancelShareInstall(activeRequest.current).then(accepted => { if (!accepted) setCancelling(false) }).catch(() => setCancelling(false))
+      return
+    }
+    setProgress(null); setError(null); installation.current = null
+  }} />
 }

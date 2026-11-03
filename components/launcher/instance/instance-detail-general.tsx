@@ -440,7 +440,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
                     onClick={() => window.electronAPI?.openPath(activeBuild.intentPath!)}
                     className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-3.5 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted"
                   >
-                    <IconFolder className="h-4 w-4 text-muted-foreground" />
+                    <IconFolder className="h-4 w-4 text-primary" />
                     {t("buildDetail.openGameFolder")}
                   </button>
                 )}

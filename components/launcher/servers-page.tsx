@@ -1,3 +1,4 @@
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { CONTENT_ENTER_DELAYED, useContentEnter } from "./content-motion"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -544,7 +545,7 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
               <div data-ui="servers-page-div-13" className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
             </div>
           ) : servers.length === 0 ? (
-            <div data-ui="servers-page-div-14" className="flex flex-1 flex-col items-center justify-center py-6 gap-4 text-center">
+            <div data-ui="servers-page-div-14" className="flex flex-1 flex-col items-center justify-center gap-4 rounded-xl border border-border bg-card px-4 py-6 text-center">
               <div data-ui="servers-page-div-15" className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl border border-primary/20 bg-primary/10 text-primary">
                 <IconServer className="w-10 h-10" strokeWidth={1.75} aria-hidden="true" />
               </div>
@@ -748,7 +749,7 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
             <div data-ui="servers-page-div-27" className="mt-3 flex justify-end gap-2">
               <button data-ui="servers-page-button-15" type="button" onClick={() => setRenameGroupFor(null)}
                 className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
-                {t("common.cancel", "Отмена")}
+                {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel", "Отмена")}</span>}
               </button>
               <button data-ui="servers-page-button-16" type="button" onClick={handleRenameGroupConfirm}
                 className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90">

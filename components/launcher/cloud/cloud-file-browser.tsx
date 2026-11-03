@@ -1,3 +1,5 @@
+import { IconX as LauncherCloseIcon } from "@tabler/icons-react"
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useContentEnter, CONTENT_ENTER_DELAYED } from "../content-motion"
 import { IconPalette } from "@tabler/icons-react"
 import { useState, useEffect, useCallback, useRef } from "react"
@@ -462,7 +464,7 @@ export function CloudFileBrowser({ providerId, pendingThemeId, onPendingThemeHan
         ))}
       </div>
 
-      <div data-ui="cloud-cloud-file-browser-div-8" className={`flex items-center gap-2 mb-3 ${CONTENT_ENTER_DELAYED}`}>
+      <div data-ui="cloud-cloud-file-browser-div-8" className={`flex items-center gap-2 mb-3 rounded-xl border border-border bg-card px-4 py-3 ${CONTENT_ENTER_DELAYED}`}>
         {currentPath && (
           <button data-ui="cloud-cloud-file-browser-button-2" onClick={handleGoUp}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
@@ -501,17 +503,17 @@ export function CloudFileBrowser({ providerId, pendingThemeId, onPendingThemeHan
             <button data-ui="cloud-cloud-file-browser-button-6" onClick={fetchFiles} className="mt-2 text-xs text-primary hover:underline">{t("cloud.retry")}</button>
           </div>
         ) : filtered.length === 0 ? (
-          <div data-ui="cloud-cloud-file-browser-div-13" className="flex min-h-full flex-col items-center justify-center py-8 text-center">
+          <div data-ui="cloud-cloud-file-browser-div-13" className="flex min-h-full flex-col items-center justify-center rounded-xl border border-border bg-card px-4 py-8 text-center">
             <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl border border-primary/20 bg-primary/10 text-primary mx-auto mb-4"><IconCloud className="h-10 w-10" strokeWidth={1.75} aria-hidden="true" /></div>
-            <p data-ui="cloud-cloud-file-browser-p-2" className="text-sm text-muted-foreground/50">{t("cloud.folderEmpty")}</p>
+            <p data-ui="cloud-cloud-file-browser-p-2" className="text-sm text-muted-foreground">{t("cloud.folderEmpty")}</p>
           </div>
         ) : (
-          <div data-ui="cloud-cloud-file-browser-div-14" className="space-y-1">
+          <div data-ui="cloud-cloud-file-browser-div-14" className="space-y-2">
             {filtered.map(file => (
               <div data-ui="cloud-cloud-file-browser-div-15" data-component="cloud-file-row" data-directory={file.isDir} key={file.id}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group",
-                  file.isDir ? "hover:bg-muted/40 cursor-pointer" : "hover:bg-muted/30"
+                  "flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors group",
+                  file.isDir ? "hover:bg-muted/60 cursor-pointer" : "hover:bg-muted/40"
                 )}
                 onClick={() => file.isDir ? handleFolderClick(file.path) : undefined}>
                 <div data-ui="cloud-cloud-file-browser-div-16" className={cn("flex items-center justify-center shrink-0 overflow-hidden", file.themePreview ? "w-40" : "w-9 h-9 rounded-lg bg-muted/50")}>
@@ -522,7 +524,7 @@ export function CloudFileBrowser({ providerId, pendingThemeId, onPendingThemeHan
                     <p data-ui="cloud-cloud-file-browser-p-3" className="text-sm font-medium text-foreground truncate">{getDisplayName(file)}</p>
                     {getFileTypeBadge(file)}
                   </div>
-                  <p data-ui="cloud-cloud-file-browser-p-4" className="text-xs text-muted-foreground/60">
+                  <p data-ui="cloud-cloud-file-browser-p-4" className="text-xs text-muted-foreground">
                     {file.isDir ? t("cloud.folder") : formatBytes(file.size)}
                     {file.modifiedAt && ` · ${timeAgo(file.modifiedAt)}`}
                   </p>
@@ -549,7 +551,7 @@ title={t("cloud.download")}>
       </div>
 
       {quota && (
-        <div data-ui="cloud-cloud-file-browser-div-20" className="mt-3 pt-3 border-t border-border">
+        <div data-ui="cloud-cloud-file-browser-div-20" className="mt-3 rounded-xl border border-border bg-card px-4 py-3">
           <div data-ui="cloud-cloud-file-browser-div-21" className="flex items-center justify-between text-xs text-muted-foreground">
             <span data-ui="cloud-cloud-file-browser-span-11">{t("cloud.storageStatus")}</span>
             <span data-ui="cloud-cloud-file-browser-span-12">{formatBytes(quota.used)}{quota.total != null ? ` / ${formatBytes(quota.total)}` : ""}</span>
@@ -791,7 +793,7 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
         <div data-ui="cloud-cloud-file-browser-div-50" className="p-3 border-t border-border flex justify-end">
           <button data-ui="cloud-cloud-file-browser-button-15" onClick={onClose}
             className="px-4 py-2 rounded-xl text-sm font-medium bg-muted/50 hover:bg-muted text-foreground transition-colors">
-            {t("cloud.close")}
+            {<span className="inline-flex items-center justify-center gap-2"><LauncherCloseIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("cloud.close")}</span>}
           </button>
         </div>
       </div>
@@ -925,7 +927,7 @@ function SelectiveImportModal({
             disabled={importing}
             className="px-4 py-2 rounded-xl text-sm font-medium bg-muted/50 hover:bg-muted text-foreground transition-colors disabled:opacity-50"
           >
-            {t("common.cancel")}
+            {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel")}</span>}
           </button>
           <button data-ui="cloud-cloud-file-browser-button-18"
             onClick={handleImport}
@@ -1088,7 +1090,7 @@ function SelectiveUploadModal({
             disabled={uploading}
             className="px-4 py-2 rounded-xl text-sm font-medium bg-muted/50 hover:bg-muted text-foreground transition-colors disabled:opacity-50"
           >
-            {t("common.cancel")}
+            {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel")}</span>}
           </button>
           <button data-ui="cloud-cloud-file-browser-button-22"
             onClick={handleConfirm}

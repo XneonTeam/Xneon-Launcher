@@ -20,7 +20,6 @@ const GRID_CLASS = SKIN_GRID_CLASS
 /** Пауза перед локальным поиском: пользователь ещё печатает. */
 const SEARCH_DEBOUNCE_MS = 400
 
-const PAGE_SIZE = 24
 
 function SectionHeader({
   icon,
@@ -36,8 +35,8 @@ function SectionHeader({
   trailing?: React.ReactNode
 }) {
   return (
-    <div data-ui="laby-library-tab-div-1" data-component="section-header" className="flex items-center gap-2.5">
-      <div data-ui="laby-library-tab-div-2" className="grid size-7 shrink-0 place-items-center rounded-lg border border-primary/10 bg-primary/10">
+    <div data-ui="laby-library-tab-div-1" data-component="section-header" className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+      <div data-ui="laby-library-tab-div-2" className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10">
         {icon}
       </div>
       <div data-ui="laby-library-tab-div-3" className="min-w-0 flex-1">
@@ -47,7 +46,7 @@ function SectionHeader({
             <span data-ui="laby-library-tab-span-1" className="text-[11px] font-medium tabular-nums text-muted-foreground/50">{count}</span>
           )}
         </div>
-        {hint && <p data-ui="laby-library-tab-p-1" className="truncate text-[11px] text-muted-foreground/50">{hint}</p>}
+        {hint && <p data-ui="laby-library-tab-p-1" className="text-xs leading-relaxed text-muted-foreground">{hint}</p>}
       </div>
       {trailing}
     </div>
@@ -121,6 +120,32 @@ export function LabyLibraryTab() {
   const [pendingRemove, setPendingRemove] = useState<LabySkin | null>(null)
 
   const gridRef = useRef<HTMLDivElement>(null)
+  const [pageSize, setPageSize] = useState(24)
+  useEffect(() => {
+    const container = gridRef.current
+    if (!container) return
+    let timer: ReturnType<typeof setTimeout>
+    const measure = () => {
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        const bounds = container.getBoundingClientRect()
+        const gap = parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.625
+        const width = Math.max(1, container.clientWidth - 8)
+        const columns = Math.max(1, Math.floor((width + gap) / (180 + gap)))
+        const cardHeight = (width - (columns - 1) * gap) / columns * 40 / 31
+        const height = Math.max(cardHeight, window.innerHeight - bounds.top - 140)
+        const rows = Math.max(1, Math.floor((height + gap) / (cardHeight + gap)))
+        const count = columns * Math.min(Math.max(rows, Math.ceil(6 / columns)), Math.max(1, Math.floor(100 / columns)))
+        setPageSize(count)
+      }, 150)
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(container)
+    window.addEventListener("resize", measure)
+    measure()
+    return () => { clearTimeout(timer); observer.disconnect(); window.removeEventListener("resize", measure) }
+  }, [])
+
   /** Защита от гонки: ответ устаревшего запроса не должен перезаписать свежий. */
   const requestIdRef = useRef(0)
 
@@ -165,6 +190,8 @@ export function LabyLibraryTab() {
     }
   }, [query])
 
+  useEffect(() => { setPage(0) }, [pageSize])
+
   const loadPage = useCallback(
     async (targetPage: number, targetOrder: LabyOrder, targetFilters: CatalogFilters, targetQuery: string) => {
       if (!window.electronAPI) return
@@ -174,7 +201,7 @@ export function LabyLibraryTab() {
       try {
         const result = await window.electronAPI.labyCatalog(
           targetPage,
-          PAGE_SIZE,
+          pageSize,
           targetOrder,
           targetFilters.tags,
           targetQuery || null,
@@ -197,7 +224,7 @@ export function LabyLibraryTab() {
         if (requestIdRef.current === requestId) setLoading(false)
       }
     },
-    [],
+    [pageSize],
   )
 
   useEffect(() => {

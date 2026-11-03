@@ -1,3 +1,4 @@
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { IconSearch, IconList, IconChevronDown, IconChevronRight } from "@tabler/icons-react"
@@ -154,7 +155,7 @@ export function AddonCategoryDialog({ categories, contentType, selectedCategorie
             onClick={() => setOpen(false)}
             className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
-            {t("servers.cancel")}
+            {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("servers.cancel")}</span>}
           </button>
           <button data-ui="server-addons-addon-category-dialog-button-5"
             type="button"

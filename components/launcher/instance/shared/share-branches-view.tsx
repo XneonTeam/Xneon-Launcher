@@ -18,7 +18,7 @@ export function ShareBranchesView({ branches, currentBranch, editable, busy, can
   return <div className="space-y-4">
     <div className="space-y-3">
       {branches.map(branch => <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border/70 bg-card/40 p-4 text-sm" key={branch}>
-        <IconGitBranch className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <IconGitBranch className="h-4 w-4 shrink-0 text-primary" />
         <span className={`min-w-0 flex-1 truncate ${branch === currentBranch ? "font-semibold text-primary" : "font-medium"}`}>{branch}</span>
         <ShareButton secondary disabled={busy || !canSwitch || branch === currentBranch} onClick={() => onSwitch(branch)}>{t("share.switchBranch")}</ShareButton>
         {editable && canDelete(branch) && <ShareButton secondary disabled={busy} onClick={() => onDelete(branch)}>{t("share.delete")}</ShareButton>}

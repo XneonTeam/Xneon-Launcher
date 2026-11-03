@@ -1,3 +1,4 @@
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useContentEnter } from "../content-motion"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -495,7 +496,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
   return (
     <div data-ui="instance-instance-worlds-tab-div-1" data-component="instance-worlds-tab" className={`flex-1 min-h-0 flex flex-col gap-3 overflow-hidden ${contentEnter ?? ""}`}>
       {/* Переключатель режимов */}
-      <div data-ui="instance-instance-worlds-tab-div-2" className="flex items-center justify-between border-b border-border pb-2.5 shrink-0 pr-1">
+      <div data-ui="instance-instance-worlds-tab-div-2" className="flex items-center justify-between rounded-xl border border-border bg-card p-4 shrink-0">
         <div data-ui="instance-instance-worlds-tab-div-3" className="flex items-center gap-1.5 bg-muted/50 p-1 rounded-xl border border-border">
           <button data-ui="instance-instance-worlds-tab-button-1"
             type="button"
@@ -510,11 +511,6 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
           >
             <IconMap className="h-3.5 w-3.5" />
             <span data-ui="instance-instance-worlds-tab-span-1">{t("worlds.tabs.installed")}</span>
-            {worlds && (
-              <span data-ui="instance-instance-worlds-tab-span-2" className="rounded-full bg-muted px-1.5 py-0.2 text-[10px] text-muted-foreground">
-                {worlds.length}
-              </span>
-            )}
           </button>
           <button data-ui="instance-instance-worlds-tab-button-2"
             type="button"
@@ -545,7 +541,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
             <button data-ui="instance-instance-worlds-tab-button-4"
               type="button"
               onClick={() => void refreshWorlds()}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/60 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               {loading ? <IconLoader2 className="h-3.5 w-3.5 text-primary animate-spin" strokeWidth={1.75} /> : <IconRefresh className="h-3.5 w-3.5" strokeWidth={1.75} />}
               {t("worlds.refresh")}
@@ -557,7 +553,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
       {viewMode === "catalog" ? (
         <div data-ui="instance-instance-worlds-tab-div-5" className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
           {/* Тулбар поиска и фильтров */}
-          <div data-ui="instance-instance-worlds-tab-div-6" className="shrink-0 flex flex-wrap items-center justify-between gap-2.5 pr-2">
+          <div data-ui="instance-instance-worlds-tab-div-6" className="shrink-0 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-border bg-card p-4">
             <div data-ui="instance-instance-worlds-tab-div-7" className="relative flex-1 min-w-[240px]">
               <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input data-ui="instance-instance-worlds-tab-input-1"
@@ -674,7 +670,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                       onClick={() => setMapCatDialogOpen(false)}
                       className="flex-1 px-4 py-2 rounded-xl text-xs font-medium bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
                     >
-                      {t("common.cancel")}
+                      {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel")}</span>}
                     </button>
                     <button data-ui="instance-instance-worlds-tab-button-8"
                       type="button"
@@ -859,7 +855,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
           <IconLoader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
       ) : worlds.length === 0 ? (
-        <div data-ui="instance-instance-worlds-tab-div-31" className="flex h-full flex-col items-center justify-center gap-4 text-center max-w-md mx-auto py-12">
+        <div data-ui="instance-instance-worlds-tab-div-31" className="flex h-full flex-col items-center justify-center gap-4 rounded-xl border border-border bg-card px-4 py-12 text-center">
           <div data-ui="instance-instance-worlds-tab-div-32" className="flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10 text-primary border border-primary/20">
             <IconMap className="h-10 w-10" strokeWidth={1.75} />
           </div>
@@ -893,8 +889,8 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
           <div data-ui="instance-instance-worlds-tab-div-37" className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
           {/* World list */}
           <div data-ui="instance-instance-worlds-tab-div-38">
-            <div data-ui="instance-instance-worlds-tab-div-39" className="mb-3 flex items-center justify-between gap-2">
-              <div data-ui="instance-instance-worlds-tab-div-40" className="text-sm font-semibold text-foreground">{t("worlds.ui.title", { count: worlds.length })}</div>
+            <div data-ui="instance-instance-worlds-tab-div-39" className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-border bg-card p-4">
+              <div data-ui="instance-instance-worlds-tab-div-40" className="text-sm font-semibold text-foreground">{t("worlds.tabs.installed")}</div>
               <div data-ui="instance-instance-worlds-tab-div-41" className="flex items-center gap-1.5">
                 <button data-ui="instance-instance-worlds-tab-button-14"
                   type="button"
@@ -907,7 +903,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                 <button data-ui="instance-instance-worlds-tab-button-15"
                   type="button"
                   onClick={() => void refreshWorlds()}
-                  className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/60 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                   {loading ? <IconLoader2 className="h-3.5 w-3.5 text-primary animate-spin" strokeWidth={1.75} /> : <IconRefresh className="h-3.5 w-3.5" strokeWidth={1.75} />}
                   {t("common.refresh")}
@@ -1289,7 +1285,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                 onClick={() => setNamePrompt(null)}
                 className="flex-1 rounded-2xl border border-border bg-muted/30 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
               >
-                {t("common.cancel")}
+                {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel")}</span>}
               </button>
               <button data-ui="instance-instance-worlds-tab-button-30"
                 type="button"

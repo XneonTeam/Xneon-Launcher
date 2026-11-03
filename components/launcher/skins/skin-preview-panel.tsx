@@ -9,7 +9,7 @@ import { useViewerSize } from "./use-viewer-size"
 import type { SkinCardData } from "./skin-card"
 import type { McProfile } from "@xnlc/types"
 import {
-  IconLoader2, IconUser, IconCheck,
+  IconLoader2, IconUser, IconCheck, IconShirt,
   IconPencil, IconRefresh,
 } from "@tabler/icons-react"
 
@@ -156,7 +156,7 @@ export function SkinPreviewPanel({
             <IconLoader2 className="w-4 h-4 animate-spin" />
           ) : !hasPendingChange ? (
             <IconCheck className="w-4 h-4" />
-          ) : null}
+          ) : <IconShirt className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />}
           {hasPendingChange ? t("skins.equip", "Экипировать") : t("skins.equippedState", "Надет")}
         </button>
 

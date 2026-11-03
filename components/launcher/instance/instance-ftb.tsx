@@ -1,7 +1,7 @@
 import { useContentEnter, CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useTranslation } from "react-i18next"
 import { EmptyState } from "@/components/ui/empty-state"
-import { IconDownload, IconInfoCircle, IconLoader2, IconPackage, IconSearch, IconExternalLink } from "@tabler/icons-react"
+import { IconDownload, IconInfoCircle, IconLoader2, IconColorSwatch, IconSearch, IconExternalLink } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { openProjectPage, projectPageUrl } from "@/lib/project-links"
 import { Spinner } from "./spinner"
@@ -149,7 +149,7 @@ export function InstanceFtb({
                     <div data-ui="instance-instance-ftb-div-9" className="w-14 h-14 rounded-2xl bg-muted/70 flex items-center justify-center overflow-hidden flex-shrink-0">
                       {pack.iconUrl
                         ? <img data-ui="instance-instance-ftb-img-1" src={pack.iconUrl} alt="" className="w-full h-full object-cover" />
-                        : <IconPackage className="w-6 h-6 text-muted-foreground/40" strokeWidth={1.75} />}
+                        : <IconColorSwatch className="w-6 h-6 text-muted-foreground/40" strokeWidth={1.75} />}
                     </div>
                     <div data-ui="instance-instance-ftb-div-10" className="flex-1 min-w-0">
                       <p data-ui="instance-instance-ftb-p-1" className="text-base font-semibold text-foreground truncate">{pack.name}</p>

@@ -356,10 +356,6 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
     })
   }, [filteredEntries])
 
-  const totalSize = useMemo(() => {
-    return entries.reduce((sum, e) => sum + (e.isDir ? 0 : e.size), 0)
-  }, [entries])
-
   const handleDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     isDragging.current = true
@@ -388,9 +384,9 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
   return (
     <div data-ui="server-files-tab-div-1" data-component="files-tab" ref={containerRef} className={`flex h-full ${CONTENT_ENTER_DELAYED}`}>
       {/* File browser panel */}
-      <div data-ui="server-files-tab-div-2" className={cn("flex flex-col h-full overflow-hidden", hasTabs ? "border-r border-border" : "w-full")} style={hasTabs ? { width: `${splitPos}%` } : undefined}>
+      <div data-ui="server-files-tab-div-2" className={cn("flex min-w-0 flex-col h-full gap-3", !hasTabs && "w-full")} style={hasTabs ? { width: `${splitPos}%` } : undefined}>
         {/* Toolbar */}
-        <div data-ui="server-files-tab-div-3" className="flex items-center gap-2 px-4 py-2 border-b border-border">
+        <div data-ui="server-files-tab-div-3" className="flex shrink-0 items-center gap-2 rounded-2xl border border-border/70 bg-card px-4 py-2">
           <button data-ui="server-files-tab-button-1"
             onClick={() => navigateTo(-1)}
             disabled={!currentPath}
@@ -398,7 +394,7 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
               "p-1.5 rounded-lg transition-colors",
               currentPath
                 ? "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
-                : "text-muted-foreground/30 cursor-not-allowed"
+                : "bg-muted/50 text-muted-foreground/30 cursor-not-allowed"
             )}
             title={t("files.root")}
           >
@@ -417,7 +413,7 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
               "p-1.5 rounded-lg transition-colors",
               currentPath
                 ? "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
-                : "text-muted-foreground/30 cursor-not-allowed"
+                : "bg-muted/50 text-muted-foreground/30 cursor-not-allowed"
             )}
             title={t("files.back")}
           >
@@ -432,7 +428,7 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
           </button>
 
           {/* Breadcrumb */}
-          <div data-ui="server-files-tab-div-4" className="flex items-center gap-0.5 flex-1 min-w-0 overflow-x-auto">
+          <div data-ui="server-files-tab-div-4" className="flex min-h-8 items-center gap-0.5 flex-1 min-w-0 overflow-x-auto rounded-lg border border-border/60 bg-muted/30 px-2">
             <button data-ui="server-files-tab-button-4"
               onClick={() => navigateTo(-1)}
               className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-1 py-0.5 rounded hover:bg-muted/50 flex-shrink-0"
@@ -482,12 +478,7 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
           </div>
         </div>
 
-        {/* Info bar */}
-        <div data-ui="server-files-tab-div-7" className="flex items-center gap-3 px-4 py-1.5 border-b border-border bg-muted/10 text-[11px] text-muted-foreground">
-          <span data-ui="server-files-tab-span-2">{entries.length} {t("files.items")}</span>
-          <span data-ui="server-files-tab-span-3">{formatSize(totalSize)}</span>
-        </div>
-
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card">
         {/* Create input */}
         {creatingType && (
           <div data-ui="server-files-tab-div-8" className="flex items-center gap-2 px-4 py-2 border-b border-border bg-primary/5">
@@ -520,7 +511,7 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
         )}
 
         {/* File list */}
-        <div data-ui="server-files-tab-div-10" className="my-3 min-h-0 flex-1 overflow-y-auto border border-border/70 bg-muted/20 [scrollbar-gutter:stable]">
+        <div data-ui="server-files-tab-div-10" className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
           {loading ? (
             <div data-ui="server-files-tab-div-11" className="flex items-center justify-center h-full">
               <IconLoader2 className="w-6 h-6 text-primary animate-spin" />
@@ -622,6 +613,8 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
         </div>
       </div>
 
+      </div>
+
       {/* Editor panel */}
       {hasTabs && (
         <>
@@ -632,7 +625,7 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
           >
             <div data-ui="server-files-tab-div-18" className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-border group-hover:bg-primary transition-colors" />
           </div>
-          <div data-ui="server-files-tab-div-19" className="flex flex-col h-full overflow-hidden" style={{ width: `${100 - splitPos}%` }}>
+          <div data-ui="server-files-tab-div-19" className="flex flex-col h-full overflow-hidden rounded-2xl border border-border/70 bg-card" style={{ width: `${100 - splitPos}%` }}>
             {/* Tabs bar */}
             <div data-ui="server-files-tab-div-20" className="flex items-center overflow-x-auto bg-muted/20 border-b border-border min-h-[36px]">
               {tabs.map(tab => {

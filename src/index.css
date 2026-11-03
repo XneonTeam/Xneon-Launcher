@@ -106,6 +106,35 @@ svg[data-icon] > :not(title) {
   backdrop-filter: blur(var(--theme-blur-card, 0px));
   border-radius: var(--theme-radius, revert-layer);
 }
+
+/* Оба вида модальных окон используют ту же прозрачность, что и карточки. */
+:is(.theme-blur-card, .theme-with-background) :is(
+  [data-slot="dialog-content"],
+  [data-slot="modal-content"] > :is(div, section, form),
+  .launcher-modal-overlay > :is(div, section, form):not([data-slot="modal-content"])
+) {
+  background-color: color-mix(in srgb, var(--card) 80%, transparent);
+  backdrop-filter: blur(var(--theme-blur-card, 0px));
+}
+
+/* Внутренние панели не должны закрывать прозрачный фон сплошной заливкой. */
+:is(.theme-blur-card, .theme-with-background) :is([data-slot="dialog-content"], [data-slot="modal-content"], .launcher-modal-overlay)
+  :where(div, section, form):where([class~="bg-background"], [class*="bg-background/"], [class~="bg-muted"], [class*="bg-muted/"]) {
+  background-color: color-mix(in srgb, var(--muted) 55%, transparent);
+}
+
+.theme-blur-card [data-component="language-option"] {
+  background-color: color-mix(in srgb, var(--muted) 55%, transparent);
+  backdrop-filter: blur(var(--theme-blur-card, 0px));
+}
+
+.theme-blur-card [data-component="language-option"][aria-pressed="true"] {
+  background-color: color-mix(in srgb, var(--primary) 12%, color-mix(in srgb, var(--card) 55%, transparent));
+}
+
+.theme-blur-card [data-component="language-option"]:hover {
+  background-color: color-mix(in srgb, var(--muted) 70%, transparent);
+}
 @keyframes theme-halo-drift {
   from { transform: scale(1.1) rotate(-6deg); }
   to { transform: scale(1.3) rotate(6deg); }
@@ -380,6 +409,25 @@ html.theme-with-background #launcher-root {
 .scrollbar-none {
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+[data-settings-section]::-webkit-scrollbar {
+  width: 16px;
+}
+
+[data-settings-section]::-webkit-scrollbar-track {
+  background: var(--card);
+  border-radius: 999px;
+}
+
+[data-settings-section]::-webkit-scrollbar-thumb {
+  border: 5px solid var(--card);
+  border-radius: 999px;
+  background: var(--border);
+}
+
+[data-settings-section]::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;

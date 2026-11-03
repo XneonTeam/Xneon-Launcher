@@ -1508,7 +1508,7 @@
   "builds.browse": "Przeglądaj",
   "builds.nothingFoundForLauncher": "Nie znaleziono nic dla tego launchera",
   "builds.localImport": "Import lokalny",
-  "builds.localImportDesc": "Wybierz plik `.mrpack`, `.zip` (w tym eksport Xneon) lub zaimportuj instancję z innego launchera",
+  "builds.localImportDesc": "Wybierz plik .mrpack lub .zip albo zaimportuj instancję z innego launchera.",
   "builds.importMrpack": "Importuj .mrpack",
   "builds.importZip": "Importuj .zip",
   "builds.importXneon": "Instancja Xneon (.zip)",
@@ -2253,5 +2253,15 @@
   "cloud.timeAgo.hoursAgo_few": "{{count}} godziny temu",
   "cloud.timeAgo.hoursAgo_many": "{{count}} godzin temu",
   "cloud.timeAgo.daysAgo_few": "{{count}} dni temu",
-  "cloud.timeAgo.daysAgo_many": "{{count}} dni temu"
+  "cloud.timeAgo.daysAgo_many": "{{count}} dni temu",
+  "settings.about.contributors": "Twórcy",
+  "settings.about.telegramChannel": "Kanał",
+  "addon.batch.select": "Wybierz {{name}}",
+  "addon.batch.selected": "Wybrano: {{count}}",
+  "addon.batch.clear": "Wyczyść wybór",
+  "addon.batch.install": "Zainstaluj wybrane",
+  "addon.batch.selectAll": "Wybierz wszystko",
+  "addon.batch.delete": "Usuń wybrane",
+  "addon.batch.confirmDelete": "Usunąć wybrane elementy ({{count}})?",
+  "addon.batch.deleteFailed": "Nie udało się usunąć {{name}}."
 }

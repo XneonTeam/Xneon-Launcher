@@ -511,7 +511,7 @@ export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | n
 
       {/* Log area */}
       <div data-ui="logs-page-div-12" data-slot="logs-output" ref={containerRef} onScroll={handleScroll}
-        className={`flex-1 min-h-0 overflow-y-auto bg-background font-mono text-[12px] leading-5 rounded-2xl border border-border ${CONTENT_ENTER_DELAYED}`}>
+        className={`flex-1 min-h-0 overflow-y-auto bg-card font-mono text-[12px] leading-5 rounded-2xl border border-border ${CONTENT_ENTER_DELAYED}`}>
         {filtered.length === 0 ? (
           <div data-ui="logs-page-div-13" className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
             <IconFileText className="w-10 h-10 mb-3 opacity-30" /><p data-ui="logs-page-p-2" className="text-sm">{t("logs.empty")}</p>

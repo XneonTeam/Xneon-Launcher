@@ -1,3 +1,4 @@
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import {
   Dialog,
   DialogContent,
@@ -109,7 +110,7 @@ export function ActionConfirmDialog({
                 onClick={onClose}
                 className={cn("flex-1 px-4 py-2.5 rounded-xl text-sm font-medium bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors", actionFocusClass)}
               >
-                {resolvedCancelText}
+                {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{resolvedCancelText}</span>}
               </button>
               <button data-ui="instance-action-confirm-dialog-button-2"
                 type="button"

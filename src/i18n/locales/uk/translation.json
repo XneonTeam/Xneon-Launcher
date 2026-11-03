@@ -1518,7 +1518,7 @@
   "builds.browse": "Огляд",
   "builds.nothingFoundForLauncher": "Для цього лаунчера нічого не знайдено",
   "builds.localImport": "Локальний імпорт",
-  "builds.localImportDesc": "Вибери `.mrpack`, `.zip` (включно з експортом Xneon) або імпортуй збірку з іншого лаунчера",
+  "builds.localImportDesc": "Виберіть файл .mrpack або .zip чи перенесіть збірку з іншого лаунчера.",
   "builds.importMrpack": "Імпорт .mrpack",
   "builds.importZip": "Імпорт .zip",
   "builds.importXneon": "Збірка Xneon (.zip)",
@@ -2253,5 +2253,15 @@
   "themeLocal.watchHint": "CSS у папці тем оновлюється автоматично. Збережені теми можна редагувати в зовнішньому редакторі.",
   "themeLocal.error": "Не вдалося виконати дію з темою: {{message}}",
   "themeLocal.readerCss": "CSS статей у читачі новин",
-  "themeLocal.readerHint": "Ці стилі застосовуються всередині відкритої статті, окремо від інтерфейсу лаунчера."
+  "themeLocal.readerHint": "Ці стилі застосовуються всередині відкритої статті, окремо від інтерфейсу лаунчера.",
+  "settings.about.contributors": "Розробники",
+  "settings.about.telegramChannel": "Канал",
+  "addon.batch.select": "Вибрати {{name}}",
+  "addon.batch.selected": "Вибрано: {{count}}",
+  "addon.batch.clear": "Зняти вибір",
+  "addon.batch.install": "Встановити вибране",
+  "addon.batch.selectAll": "Вибрати все",
+  "addon.batch.delete": "Видалити вибране",
+  "addon.batch.confirmDelete": "Видалити вибрані елементи ({{count}})?",
+  "addon.batch.deleteFailed": "Не вдалося видалити «{{name}}»."
 }

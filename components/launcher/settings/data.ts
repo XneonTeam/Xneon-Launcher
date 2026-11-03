@@ -12,6 +12,7 @@ function withDeepPalette(theme: Theme): Theme {
   return {
     ...theme,
     ...CORE_THEME,
+    font: { size: 15 },
     palette: {
       ...CORE_THEME.palette,
       primary: theme.primary,

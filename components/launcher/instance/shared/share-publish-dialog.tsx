@@ -1,6 +1,8 @@
+import { IconX as LauncherCloseIcon } from "@tabler/icons-react"
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IconCheck, IconLoader2, IconGitCompare, IconFiles } from "@tabler/icons-react"
+import { IconCheck, IconLoader2, IconCloudUpload, IconShieldCheck, IconGitCommit, IconGitCompare, IconFiles } from "@tabler/icons-react"
 import type { ScanResult, DiffEntry } from "@xnlc/share"
 import { MAX_FILE_BYTES } from "@xnlc/share"
 import type { ShareContentPresentation } from "@xnlc/types"
@@ -8,6 +10,7 @@ import { ShareModal, ShareButton, shareInput, bytesLabel } from "./share-ui"
 import { ShareFileTree } from "./share-file-tree"
 import type { ShareController } from "./use-share"
 import { ShareContentChanges } from "./share-content-changes"
+import { ShareContentIdentity } from "./share-content-identity"
 
 const contentPath = (path: string) => /^(mods|resourcepacks|shaderpacks)\//.test(path)
 
@@ -29,7 +32,9 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
   const [transfer, setTransfer] = useState({ stage: "start", done: 0, total: 1, bytes: 0 })
   const requestId = useRef("")
   const shared = !!controller.data.link
-  const percent = transfer.stage === "commit" ? 95 : transfer.stage === "start" ? 0 : Math.min(90, Math.round(5 + 85 * transfer.done / Math.max(transfer.total, 1)))
+  const indeterminate = transfer.stage === "start" || transfer.stage === "commit" || transfer.total <= 0
+  const percent = Math.min(100, Math.max(0, Math.round(100 * transfer.done / Math.max(transfer.total, 1))))
+  const TransferIcon = transfer.stage === "upload" ? IconCloudUpload : transfer.stage === "commit" ? IconGitCommit : IconShieldCheck
 
   useEffect(() => {
     if (!open) return
@@ -87,8 +92,8 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
       onClose={() => { if (!publishing) onClose() }}
       title={t(success ? "share.launcher.published" : shared ? "share.launcher.publishUpdate" : "share.launcher.publishTitle")}
       description={t(success ? "share.flow.publishedDescription" : "share.launcher.publishDescription")}
-      footer={success ? <ShareButton onClick={onClose}>{t("share.launcher.close")}</ShareButton> : <>
-        <ShareButton secondary disabled={publishing} onClick={onClose}>{t("share.flow.cancel")}</ShareButton>
+      footer={success ? <ShareButton onClick={onClose}>{<span className="inline-flex items-center justify-center gap-2"><LauncherCloseIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("share.launcher.close")}</span>}</ShareButton> : <>
+        <ShareButton secondary disabled={publishing} onClick={onClose}>{<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("share.flow.cancel")}</span>}</ShareButton>
         <ShareButton disabled={controller.busy || !scan} busy={controller.busy} onClick={() => void publish()}>
           {t(shared ? "share.launcher.publishUpdate" : "share.publish")}
         </ShareButton>
@@ -96,7 +101,7 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
     >
       {success ? (
         <div className="flex flex-col items-center gap-3 py-6 text-center" role="status">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><IconCheck className="h-6 w-6" /></div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><IconCheck className="h-6 w-6 text-primary" /></div>
           <p className="text-sm font-medium">{t("share.flow.published")}</p>
           <p className="text-xs leading-relaxed text-muted-foreground">{t("share.flow.transferResult", { uploaded: bytesLabel(success.uploaded), reused: bytesLabel(success.reused) })}</p>
         </div>
@@ -112,7 +117,7 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
                 onClick={() => setTab(value)}
                 className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${tab === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"}`}
               >
-                <Icon className="h-4 w-4 shrink-0" />
+                <Icon className="h-4 w-4 shrink-0 text-primary" />
                 {t(value === "changes" && !shared ? "share.launcher.content" : `share.flow.${value}`)}
                 <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">{value === "changes" ? changes.length : selected.length}</span>
               </button>
@@ -141,8 +146,14 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
             </>}
           </div>
           {publishing && <div className="shrink-0 space-y-2 rounded-xl border border-border/70 bg-muted/20 p-3" role="status" aria-live="polite">
-            <div className="flex items-center justify-between gap-3 text-xs"><span className="text-muted-foreground">{t(`share.flow.stage.${transfer.stage}`, { defaultValue: t("share.flow.working") })}</span><span className="font-medium tabular-nums">{percent}%</span></div>
-            <div role="progressbar" aria-label={t("share.publish")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-[width] duration-200 motion-reduce:transition-none" style={{ width: `${percent}%` }} /></div>
+            {content.length > 0 && <div className="max-h-36 space-y-2 overflow-y-auto border-b border-border/50 pb-2 pr-1" aria-live="off">
+              {content.map(entry => <div key={entry.path} className="flex items-center gap-3 rounded-lg bg-card/40 p-2">
+                <ShareContentIdentity path={entry.path} presentation={presentation[entry.path]} />
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{bytesLabel(entry.size)}</span>
+              </div>)}
+            </div>}
+            <div className="flex items-center justify-between gap-3 text-xs"><span className="flex items-center gap-2 text-muted-foreground"><TransferIcon className="size-4 shrink-0 text-primary" strokeWidth={1.75} /><IconLoader2 className="size-3.5 shrink-0 animate-spin text-primary" aria-hidden="true" />{t(`share.flow.stage.${transfer.stage}`, { defaultValue: t("share.flow.working") })}</span>{!indeterminate && <span className="font-medium tabular-nums">{percent}%</span>}</div>
+            <div role="progressbar" aria-label={t("share.publish")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={indeterminate ? undefined : percent} className="h-2 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full bg-primary transition-[width] duration-200 motion-reduce:transition-none ${indeterminate ? "animate-pulse" : ""}`} style={{ width: indeterminate ? "100%" : `${percent}%` }} /></div>
             {transfer.bytes > 0 && <p className="text-xs tabular-nums text-muted-foreground">{t("share.flow.uploadedBytes", { size: bytesLabel(transfer.bytes) })}</p>}
           </div>}
           <label className="block shrink-0 space-y-2">

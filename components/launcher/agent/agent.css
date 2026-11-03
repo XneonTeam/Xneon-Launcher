@@ -188,7 +188,6 @@
 .agent-question h3 { margin-top:7px; font-size:14px; font-weight:600; line-height:1.6; overflow-wrap:anywhere; }
 .agent-question-options { display:grid; gap:7px; margin-top:14px; }
 .agent-question-options button { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px; border:1px solid var(--border); border-radius: calc(var(--radius) * 9 / 12); background:var(--muted); text-align:left; font-size:12px; overflow-wrap:anywhere; }
-.agent-question-option-icon { flex-shrink:0; color:var(--primary); }
 .agent-question-option-text { flex:1; min-width:0; }
 .agent-question-options button:enabled:hover,.agent-question-options button[aria-pressed=true] { border-color:var(--primary); background:color-mix(in oklab,var(--primary) 10%,var(--card)); }
 .agent-question-form { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }

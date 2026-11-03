@@ -1,8 +1,9 @@
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useState, useCallback, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { IconCheck, IconClipboard, IconCoffee, IconCode, IconCpu, IconFolderPlus, IconLoader2, IconServer, IconSettings, IconX, IconGauge } from "@tabler/icons-react"
-import type { McServerInfo, XnConnectState, XnConnectUsage } from "@xnlc/types"
+import type { McServerInfo, XnConnectState, XnConnectUsage, ServerHostSettings } from "@xnlc/types"
 import type { JavaInstallation } from "@/components/launcher/settings/types"
 import { cn } from "@/lib/utils"
 import { MemorySlider } from "@/components/ui/memory-slider"
@@ -11,6 +12,9 @@ import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { useMemoryOptions } from "@/src/hooks/use-memory-options"
 import { useMcServerState } from "@/src/hooks/use-mc-servers"
 import { XnConnectLogo } from "./xn-connect-logo"
+import { remoteServerError } from "./remote-access-dialog"
+import { getSnapPoints } from "@/lib/memory"
+import { SettingsSwitch } from "../settings/settings-switch"
 
 interface SettingsTabProps {
   server: McServerInfo
@@ -28,6 +32,10 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
   const [javaPath, setJavaPath] = useState(server.javaPath ?? "")
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState("")
+  const [autoRestart, setAutoRestart] = useState(server.autoRestart)
+  const remote = !!server.remote
+  const canEdit = !remote || !!server.remote?.permissions.settings
   const [detectedJava, setDetectedJava] = useState<JavaInstallation[]>([])
   const [loadingJava, setLoadingJava] = useState(false)
   const [showJavaModal, setShowJavaModal] = useState(false)
@@ -36,15 +44,38 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
   const [relayState, setRelayState] = useState<XnConnectState>({ status: "stopped" })
   const [usage, setUsage] = useState<XnConnectUsage | null>(null)
   const [tunnelAddress, setTunnelAddress] = useState<string | null>(null)
+  const [hostSettings, setHostSettings] = useState<ServerHostSettings>()
   const { state: serverState } = useMcServerState(server.id)
   // XN Connect включается и выключается вместе с сервером: пока процесс сервера
   // не запущен, тумблер — это только настройка «использовать XN Connect».
   const serverIsLive = serverState.status === "running" || serverState.status === "starting"
-  const { maxMb, snapPoints } = useMemoryOptions()
+  const localMemory = useMemoryOptions()
+  const maxMb = hostSettings?.memoryTotalMb ?? localMemory.maxMb
+  const snapPoints = getSnapPoints(maxMb)
+  const applyHostSettings = (value: ServerHostSettings) => {
+    setHostSettings(value); setJavaPath(value.javaPath ?? ""); setDetectedJava(value.javaInstallations)
+    setRelayEnabled(value.relayEnabled); setRelayState(value.relayState); setUsage(value.usage)
+  }
+  useEffect(() => {
+    if (!remote || !canEdit) return
+    let active = true, pending = false
+    const refresh = async () => {
+      if (pending) return
+      pending = true
+      try { const value = await window.electronAPI!.mcServerHostSettings(server.id, { action: "get" }); if (active) applyHostSettings(value) }
+      catch (error) { if (active) setError(remoteServerError(error, t)) }
+      finally { pending = false }
+    }
+    void refresh()
+    const timer = setInterval(() => { void refresh() }, 5000)
+    return () => { active = false; clearInterval(timer) }
+  }, [server.id, remote, canEdit, t])
 
   const isAuto = !javaPath || javaPath === "auto"
 
   const save = useCallback(async (update: Record<string, unknown>) => {
+    if (!canEdit) return false
+    setError("")
     setSaving(true)
     try {
       await window.electronAPI?.mcServerUpdate(server.id, update)
@@ -54,10 +85,14 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
       // старыми значениями, и при перемонтировании вкладки мы читаем их заново.
       const fresh = await window.electronAPI?.mcServerGet(server.id)
       if (fresh) onServerUpdated?.(fresh)
+      return true
+    } catch (error) {
+      setError(remoteServerError(error, t))
+      return false
     } finally {
       setSaving(false)
     }
-  }, [server.id, onServerUpdated])
+  }, [server.id, onServerUpdated, canEdit, t])
 
   const handleSaveName = () => {
     if (name.trim() && name !== server.name) save({ name: name.trim() })
@@ -72,6 +107,12 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
     const next = !relayEnabled
     setRelayToggling(true)
     setRelayEnabled(next)
+    if (remote) {
+      try { applyHostSettings(await window.electronAPI!.mcServerHostSettings(server.id, { action: "relay", enabled: next })); setError("") }
+      catch (error) { setRelayEnabled(!next); setError(remoteServerError(error, t)) }
+      finally { setRelayToggling(false) }
+      return
+    }
 
     if (next) {
       setRelayState({ status: "starting" })
@@ -90,7 +131,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
     }
 
     try {
-      await save({ relayEnabled: next ? 1 : 0 })
+      if (!await save({ relayEnabled: next ? 1 : 0 })) throw new Error("Server settings were not saved")
       // Выключение действует сразу. Включение решает main-процесс: он поднимает
       // туннель только если сервер уже запущен, иначе туннель начнёт работу
       // вместе со стартом сервера (см. mc-server:start).
@@ -111,6 +152,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
   }
 
   useEffect(() => {
+    if (remote) return
     const unsubState = window.electronAPI?.onXnConnectState((data) => {
       if (data.serverId === server.id) setRelayState(data.state)
     })
@@ -122,11 +164,12 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
       unsubState?.()
       unsubUsage?.()
     }
-  }, [server.id])
+  }, [server.id, remote])
 
   // Адрес туннеля должен быть виден и при остановленном сервере: пока relay не
   // запущен, берём адрес уже созданного туннеля из API.
   useEffect(() => {
+    if (remote) return
     if (!relayEnabled) {
       setTunnelAddress(null)
       return
@@ -136,9 +179,14 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
       if (!cancelled) setTunnelAddress(addrs?.custom ?? null)
     }).catch(() => {})
     return () => { cancelled = true }
-  }, [server.id, relayEnabled, relayState.status])
+  }, [server.id, relayEnabled, relayState.status, remote])
 
-  const handlePickJava = (path: string) => {
+  const handlePickJava = async (path: string) => {
+    if (remote) {
+      try { applyHostSettings(await window.electronAPI!.mcServerHostSettings(server.id, { action: "java", path: path || null })); setShowJavaModal(false); setError("") }
+      catch (error) { setError(remoteServerError(error, t)) }
+      return
+    }
     setJavaPath(path)
     save({ javaPath: path || null })
     setShowJavaModal(false)
@@ -150,13 +198,14 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
   }
 
   useEffect(() => {
+    if (remote) return
     window.electronAPI?.detectJavaInstallations().then(list => {
       setDetectedJava(list ?? [])
     }).catch(() => {})
-  }, [])
+  }, [remote])
 
   useEffect(() => {
-    if (!showJavaModal || detectedJava.length > 0) return
+    if (remote || !showJavaModal || detectedJava.length > 0) return
     let cancelled = false
     setLoadingJava(true)
     window.electronAPI?.detectJavaInstallations().then(list => {
@@ -165,14 +214,16 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
       if (!cancelled) setLoadingJava(false)
     })
     return () => { cancelled = true }
-  }, [showJavaModal, detectedJava.length])
+  }, [showJavaModal, detectedJava.length, remote])
 
-  const selectedJavaLabel = isAuto
+  const hostJavaLabel = hostSettings?.resolvedJavaPath ? detectedJava.find(java => java.path === hostSettings.resolvedJavaPath)?.label || hostSettings.resolvedJavaPath : t("settings.java.automatic")
+  const selectedJavaLabel = remote ? !hostSettings ? t("remoteServer.loading") : isAuto ? `${t("settings.java.automatic")} · ${hostJavaLabel}` : detectedJava.find(java => java.path === javaPath)?.label || javaPath : isAuto
     ? t("settings.java.automatic")
     : detectedJava.find(j => j.path === javaPath)?.label || javaPath.split(/[\\/]/).pop() || javaPath
 
   return (
-    <div data-ui="server-settings-tab-div-1" data-component="settings-tab" className={`space-y-5 overflow-y-auto h-full p-4 pr-5 [scrollbar-gutter:stable] ${CONTENT_ENTER_DELAYED}`}>
+    <div className={`flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-border/70 bg-card p-2 ${CONTENT_ENTER_DELAYED}`}>
+    <div data-ui="server-settings-tab-div-1" data-component="settings-tab" className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-2 pr-4 [scrollbar-gutter:stable] [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-muted/50 [&::-webkit-scrollbar-track]:border [&::-webkit-scrollbar-track]:border-border/70 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-[3px] [&::-webkit-scrollbar-thumb]:border-solid [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 [&::-webkit-scrollbar-thumb]:bg-clip-padding [&::-webkit-scrollbar-thumb:hover]:bg-primary">
       {/* Status indicator */}
       <div data-ui="server-settings-tab-div-2" className="flex items-center gap-2 text-xs text-muted-foreground h-5">
         {saving ? (
@@ -188,8 +239,10 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
         ) : null}
       </div>
 
+      {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+      <fieldset disabled={!canEdit} className="min-w-0 space-y-4 border-0 p-0 disabled:opacity-60">
       {/* Name */}
-      <SettingGroup label={(
+      <SettingGroup card label={(
         <span data-ui="server-settings-tab-span-3" className="flex items-center gap-2">
           <IconServer className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("servers.name")}
@@ -200,12 +253,12 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
           onChange={e => setName(e.target.value)}
           onBlur={handleSaveName}
           onKeyDown={e => e.key === "Enter" && handleSaveName()}
-          className="w-full px-4 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
+          className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
         />
       </SettingGroup>
 
       {/* Java */}
-      <SettingGroup label={(
+      <SettingGroup card label={(
         <span data-ui="server-settings-tab-span-4" className="flex items-center gap-2">
           <IconCoffee className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("settings.javaPath")}
@@ -215,26 +268,27 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
           <button data-ui="server-settings-tab-button-1"
             type="button"
             onClick={() => setShowJavaModal(true)}
+            disabled={remote && !hostSettings}
             className={cn(
-              "flex-1 h-11 rounded-xl border px-4 text-left text-sm transition-all duration-200 flex items-center justify-between",
+              "flex-1 h-11 rounded-xl border px-4 text-left text-sm transition-all duration-200 flex items-center justify-between bg-input",
               isAuto ? "border-border bg-muted/40 text-muted-foreground hover:border-primary/50 hover:bg-muted/50" : "border-primary/50 bg-primary/5 text-foreground hover:bg-primary/10"
             )}
           >
             <span data-ui="server-settings-tab-span-5" className="truncate">{selectedJavaLabel}</span>
           </button>
-          <button data-ui="server-settings-tab-button-2"
+          {!remote && <button data-ui="server-settings-tab-button-2"
             type="button"
             onClick={handlePickJavaFile}
             className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/20 px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
           >
             <IconFolderPlus className="h-4 w-4" strokeWidth={1.75} />
             {t("servers.settings.file")}
-          </button>
+          </button>}
         </div>
       </SettingGroup>
 
       {/* Memory */}
-      <SettingGroup card externalLabel label={(
+      <SettingGroup card label={(
         <span data-ui="server-settings-tab-span-6" className="flex items-center gap-2">
           <IconCpu className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("settings.ram")} (MB)
@@ -247,7 +301,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
               value={parseInt(xmx, 10) || 8192}
               onChange={(v) => { setXmx(String(v)); save({ xmx: v }) }}
               min={512}
-              max={maxMb}
+              max={Math.max(maxMb, server.xmx, server.xms)}
               step={64}
               snapPoints={snapPoints}
               snapRange={512}
@@ -260,7 +314,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
               value={parseInt(xms, 10) || 1024}
               onChange={(v) => { setXms(String(v)); save({ xms: v }) }}
               min={256}
-              max={maxMb}
+              max={Math.max(maxMb, server.xmx, server.xms)}
               step={64}
               snapPoints={snapPoints}
               snapRange={512}
@@ -271,7 +325,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
       </SettingGroup>
 
       {/* Extra Java Args */}
-      <SettingGroup label={(
+      <SettingGroup card label={(
         <span data-ui="server-settings-tab-span-7" className="flex items-center gap-2">
           <IconCode className="w-5 h-5 text-primary" strokeWidth={1.75} />
           {t("settings.java.args")}
@@ -282,7 +336,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
           onChange={e => setExtraJavaArgs(e.target.value)}
           onBlur={handleSaveArgs}
           placeholder={t("settings.java.argsPlaceholder")}
-          className="w-full px-4 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
+          className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
         />
       </SettingGroup>
 
@@ -312,29 +366,14 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
           </div>
         )}
       >
-        <div data-ui="server-settings-tab-div-8" className="flex items-center justify-between gap-4 mb-2">
-          <p data-ui="server-settings-tab-p-1" className="text-sm text-muted-foreground">{t("servers.settings.xnconnect.desc")}</p>
-          <button data-ui="server-settings-tab-button-3"
-            onClick={handleToggleRelay}
-            disabled={relayToggling}
-            className={cn(
-              "relative ml-auto shrink-0 w-11 h-6 rounded-full transition-colors",
-              relayEnabled ? "bg-primary" : "bg-muted",
-              relayToggling && "opacity-70 cursor-wait"
-            )}
-          >
-            <div data-ui="server-settings-tab-div-9" className={cn(
-              "absolute top-0.5 w-5 h-5 rounded-full bg-foreground transition-transform shadow-sm flex items-center justify-center",
-              relayEnabled ? "translate-x-5.5" : "translate-x-0.5"
-            )}>
-              {relayToggling && (
-                <IconLoader2 className="w-3 h-3 text-primary animate-spin" strokeWidth={2.5} />
-              )}
-            </div>
-          </button>
+        <div data-ui="server-settings-tab-div-8" className="flex items-center justify-between gap-4 rounded-xl border border-border bg-muted/30 p-4">
+          <div className="flex-1">
+              <p data-ui="server-settings-tab-p-1" className="text-sm text-muted-foreground">{t("servers.settings.xnconnect.desc")}</p>
+          </div>
+          <SettingsSwitch label="XN Connect" checked={relayEnabled} disabled={relayToggling || !canEdit} onCheckedChange={() => void handleToggleRelay()} />
         </div>
         {relayEnabled && (
-          <div data-ui="server-settings-tab-div-10" className="text-xs text-muted-foreground space-y-1">
+          <div data-ui="server-settings-tab-div-10" className="mt-3 rounded-xl border border-border bg-muted/30 p-4 text-xs text-muted-foreground space-y-2">
             {(relayState.status === "running" ? relayState.publicAddress : tunnelAddress) && (
               <div data-ui="server-settings-tab-div-11" className="flex items-center gap-2">
                 <span data-ui="server-settings-tab-span-12" className="font-mono text-foreground/80">
@@ -395,9 +434,23 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
           </div>
         )}
       </SettingGroup>
+      <SettingGroup card label={(
+        <span className="flex items-center gap-2">
+          <IconSettings className="w-5 h-5 text-primary" strokeWidth={1.75} />
+          {t("remoteServer.autoRestart")}
+        </span>
+      )}>
+        <div className="rounded-xl border border-border bg-muted/30 p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1 font-medium text-foreground">{t("remoteServer.autoRestart")}</div>
+            <SettingsSwitch label={t("remoteServer.autoRestart")} checked={autoRestart} disabled={!canEdit} onCheckedChange={checked => { setAutoRestart(checked); void save({ autoRestart: checked }) }} />
+          </div>
+        </div>
+      </SettingGroup>
+      </fieldset>
 
       {/* XN-Connect Auth Modal */}
-      {relayState.status === "auth_required" && (
+      {!remote && relayState.status === "auth_required" && (
         <ModalLayer windowId="server-settings-tab-window-1"
           onClose={() => {
             window.electronAPI?.xnConnectStop(server.id)
@@ -458,7 +511,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
                 }}
                 className="flex-1 h-10 rounded-xl border border-border bg-muted/30 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
               >
-                {t("servers.cancel")}
+                {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("servers.cancel")}</span>}
               </button>
               <a data-ui="server-settings-tab-a-1"
                 href={relayState.authUrl}
@@ -545,7 +598,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
                 </div>
               ) : null}
 
-              <button data-ui="server-settings-tab-button-13"
+              {!remote && <button data-ui="server-settings-tab-button-13"
                 onClick={handlePickJavaFile}
                 className="w-full p-4 rounded-xl border border-dashed border-border bg-muted/20 hover:border-accent hover:bg-accent/5 transition-all flex items-center justify-between px-4 text-muted-foreground hover:text-accent"
               >
@@ -554,7 +607,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
                   <span data-ui="server-settings-tab-span-21" className="text-sm">{t("servers.settings.java.selectFile")}</span>
                 </div>
                 <span data-ui="server-settings-tab-span-22" className="text-xs px-2 py-1 rounded-md bg-muted/50 font-medium">{t("servers.settings.java.browse")}</span>
-              </button>
+              </button>}
             </div>
 
             <button data-ui="server-settings-tab-button-14"
@@ -567,6 +620,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
           </div>
         </ModalLayer>
       )}
+    </div>
     </div>
   )
 }

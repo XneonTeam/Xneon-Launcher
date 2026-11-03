@@ -34,7 +34,7 @@ export function EmptyState({
   const Icon = icon ?? EMPTY_STATE_ICONS[variant]
 
   return (
-    <div data-ui="ui-empty-state-div-1" className={cn("flex flex-col items-center justify-center text-center", compact ? "gap-1" : "gap-1.5", className)}>
+    <div data-ui="ui-empty-state-div-1" className={cn("flex flex-col items-center justify-center rounded-xl border border-border bg-card px-4 py-6 text-center", compact ? "gap-1" : "gap-1.5", className)}>
       <div className={cn("flex shrink-0 items-center justify-center border border-primary/20 bg-primary/10 text-primary", compact ? "mb-2 h-12 w-12 rounded-2xl" : "mb-2.5 h-20 w-20 rounded-3xl")}>
         <Icon aria-hidden="true" strokeWidth={1.75} className={compact ? "h-6 w-6" : "h-10 w-10"} />
       </div>

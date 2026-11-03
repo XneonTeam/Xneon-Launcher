@@ -40,7 +40,7 @@ export function ShareContentChanges({ changes, presentation, showChangeType = tr
         onClick={() => setSelected(category)}
         className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all duration-200 ${active === category ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"}`}
       >
-        <CategoryIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+        <CategoryIcon className={`h-4 w-4 shrink-0 ${active === category ? "text-primary-foreground" : "text-primary"}`} strokeWidth={1.75} />
         {t(category === "other" ? "share.flow.otherChanges" : category === "plugins" ? "servers.addons.plugins" : `builds.tab.${category}`)}
         <span className="text-[11px] tabular-nums opacity-70">{category === "plugins" ? groupPluginChanges(entries, presentation).length : entries.length}</span>
       </button>})}

@@ -18,13 +18,10 @@ import { ComposerControls } from "./composer-controls"
 import { answerAgentApproval, answerAgentQuestion, archiveAgentChat, attachToAgent, deleteAgentChat, initializeAgent, newAgentChat, removeAgentAttachment, selectAgentChat, sendAgentMessage, setAgentDraft, stopAgent, refreshAgentConfig, useAgentState } from "./store"
 import { AgentEntityIcon } from "./entity-icon"
 import { AgentPlan } from "./agent-plan"
-import { EntityIcon } from "../instance/entity-icon"
-import { LoaderIcon } from "../instance/loader-icon"
 import { LOADER_SVG_ICONS } from "../instance/loader-icons"
-import { CategoryBadge } from "../instance/category-badge"
 import { SourceMark } from "../source-mark"
 import { projectPageUrl, type ProjectKind } from "@/lib/project-links"
-import { IconDownload, IconExternalLink, IconColorSwatch, IconPuzzle, IconPhoto, IconSparkles, IconDatabase, IconServer, IconCircle, IconBolt, IconPlant2, IconCpu, IconCompass, IconWand, IconBrandMinecraft } from "@tabler/icons-react"
+import { IconDownload, IconExternalLink } from "@tabler/icons-react"
 import "./agent.css"
 const AgentProjectDetailsModal = lazy(() => import("./project-details-modal"))
 
@@ -50,72 +47,12 @@ function UserAvatar() {
   </div>
 }
 
-function QuestionOptionIcon({ option, question, builds }: { option: string; question: string; builds: DbBuildLight[] }) {
-  const [failedIcon, setFailedIcon] = useState<string | null>(null)
-  const direction = `${option} ${question}`.toLocaleLowerCase()
-  const versionQuestion = /minecraft/.test(question.toLocaleLowerCase()) && /верс|version/.test(question.toLocaleLowerCase())
-  const minecraftVersion = /^\s*(?:v)?\d+\.\d+(?:\.\d+)?(?:[- ]?(?:pre|rc)\s*\d+)?(?=$|[\s(])/i.test(option)
-  const otherVersion = /другая версия|other version|different version/i.test(option)
-  if (versionQuestion && (minecraftVersion || otherVersion)) return <IconBrandMinecraft size={18} strokeWidth={1.8} className="agent-question-option-icon text-primary" aria-hidden="true" />
-  if (minecraftVersion) return null
-  if (/modpack|модпак/.test(direction)) {
-    const label = option.toLocaleLowerCase()
-    const category = /optim|оптимизац|график|graphics/.test(label) ? { names: ["optimization", "visuals", "graphics"], Icon: IconBolt }
-      : /vanilla|ванилл|удобств|quality.?of.?life|\bqol\b/.test(label) ? { names: ["vanilla-like", "utility", "game-mechanics"], Icon: IconPlant2 }
-      : /adventure|приключ|исследован|exploration/.test(label) ? { names: ["adventure", "worldgen"], Icon: IconCompass }
-      : /\brpg\b|рпг/.test(label) ? { names: ["adventure", "rpg"], Icon: IconCompass }
-      : /techn|техник|механизм|automat|автоматизац/.test(label) ? { names: ["technology", "game-mechanics", "utility"], Icon: IconCpu }
-      : /magic|магия|fantasy|фэнтез|фентез/.test(label) ? { names: ["magic", "fantasy"], Icon: IconWand }
-      : /hardcore|хардкор/.test(label) ? { names: ["challenging", "survival"], Icon: IconBolt }
-      : /survival|выжив/.test(label) ? { names: ["survival", "challenging"], Icon: IconPlant2 }
-      : null
-    if (category) return <CategoryBadge name={category.names} iconOnly fallbackIcon={<category.Icon size={18} strokeWidth={1.8} aria-hidden="true" />} />
-  }
-  // Пояснения и составные подписи («Vanilla (ванильный)», «Paper / Spigot»)
-  // сохраняют иконку первого указанного загрузчика из общего реестра.
-  const loaderToken = option.trim().toLocaleLowerCase().match(/^([a-z]+)(?=$|[\s(/])/)?.[1]
-  const loaderAliases: Record<string, string> = {
-    neoforged: "neoforge",
-    spongevanilla: "sponge",
-    spongeforge: "sponge",
-    spongeneo: "sponge",
-  }
-  const loaderId = loaderToken && (loaderAliases[loaderToken] ?? loaderToken)
-  const loader = loaderId && Object.hasOwn(LOADER_SVG_ICONS, loaderId) ? loaderId : undefined
-  if (loader) return <span className="agent-question-option-icon flex h-6 w-6 shrink-0 items-center justify-center" aria-hidden="true"><LoaderIcon loaderId={loader} className="h-5 w-5 text-primary" /></span>
-  const normalize = (value: string) => value.trim().toLocaleLowerCase().replace(/\s+/g, " ")
-  const matches = builds.filter(build => [build.id, build.name, `${build.name} (${build.version})`].some(value => normalize(value) === normalize(option)))
-  const build = matches.length === 1 ? matches[0] : undefined
-  if (build) return <span className="agent-question-option-icon h-6 w-6 overflow-hidden rounded flex items-center justify-center" aria-hidden="true">
-    {build.icon && failedIcon !== build.icon
-      ? <EntityIcon src={build.icon} className="h-full w-full text-primary object-cover" imgClassName="h-full w-full object-cover" onImgError={() => setFailedIcon(build.icon)} />
-      : <LoaderIcon loaderId={build.modLoader || "vanilla"} className="h-5 w-5 text-primary" />}
-  </span>
-  const text = option.toLocaleLowerCase()
-  const Icon = /shader|шейдер|шэйдер/.test(text) ? IconSparkles
-    : /resource.?pack|texture|ресурс.?пак|текстур/.test(text) ? IconPhoto
-    : /data.?pack|дата.?пак/.test(text) ? IconDatabase
-    : /\bmods?\b|моды|моді|моди|геймплей|qol/.test(text) ? IconPuzzle
-    : /server|сервер/.test(text) ? IconServer
-    : /build|modpack|instance|сборк|збірк|сборок/.test(text + " " + question.toLocaleLowerCase()) ? IconColorSwatch
-    : IconCircle
-  return <Icon size={18} strokeWidth={1.75} className="agent-question-option-icon text-primary" aria-hidden="true" />
-}
-
 function AgentQuestion({ item }: { item: AgentTimelineItem }) {
   const { t } = useTranslation()
   const state = useAgentState()
   const [answer, setAnswer] = useState("")
   const [localSubmitted, setLocalSubmitted] = useState("")
   const [expanded, setExpanded] = useState(false)
-  const [builds, setBuilds] = useState<DbBuildLight[]>([])
-  useEffect(() => {
-    let cancelled = false
-    void window.electronAPI?.loadBuildsLight().then(value => {
-      if (!cancelled) setBuilds(value)
-    }).catch(() => {})
-    return () => { cancelled = true }
-  }, [item.id])
   let question = "", options: string[] = [], submitted = ""
   try { const input = JSON.parse(item.input || "{}"); question = String(input.question || ""); options = Array.isArray(input.options) ? input.options.filter((value: unknown) => typeof value === "string").slice(0, 6) : [] } catch { /* Старый чат может содержать некорректный вызов. */ }
   try { submitted = String(JSON.parse(item.output || "{}").answer || "") } catch { /* Ответ ещё не получен. */ }
@@ -140,7 +77,7 @@ function AgentQuestion({ item }: { item: AgentTimelineItem }) {
       {resolved && <button type="button" className="agent-question-collapse" aria-expanded={true} aria-label={t("agent.question.collapse")} onClick={() => setExpanded(false)}><IconChevronUp size={15} /></button>}
     </div>
     <h3>{question}</h3>
-    {!!options.length && <div className="agent-question-options">{options.map(option => <button key={option} type="button" disabled={!pending} aria-pressed={submitted === option} onClick={() => submitAnswer(option)}><QuestionOptionIcon option={option} question={question} builds={builds} /><span className="agent-question-option-text">{option}</span>{submitted === option && <IconCheck size={15} className="shrink-0" aria-hidden="true" />}</button>)}</div>}
+    {!!options.length && <div className="agent-question-options">{options.map(option => <button key={option} type="button" disabled={!pending} aria-pressed={submitted === option} onClick={() => submitAnswer(option)}><span className="agent-question-option-text">{option}</span>{submitted === option && <IconCheck size={15} className="shrink-0" aria-hidden="true" />}</button>)}</div>}
     {pending ? <form onSubmit={event => { event.preventDefault(); submitAnswer(answer) }} className="agent-question-form"><input value={answer} onChange={event => setAnswer(event.target.value)} maxLength={6000} aria-label={t("agent.question.answer")} placeholder={t("agent.question.answer")} /><button type="submit" className="agent-primary" disabled={!answer.trim()}>{t("agent.question.submit")}</button></form> : <p className="agent-question-result">{submitted || t("agent.question.cancelled")}</p>}
   </section>
 }

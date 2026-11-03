@@ -69,7 +69,7 @@ export function ShareModal({ open, onClose, title, description, children, footer
       >
         <DialogHeader className="shrink-0 gap-2 border-b border-border/50 px-6 py-5 text-left">
           <DialogTitle className="flex items-center gap-2.5 pr-5 text-base font-semibold">
-            <ModalTitleIcon>{titleIcon ?? <IconShare className="h-4 w-4" strokeWidth={1.75} />}</ModalTitleIcon>
+            <ModalTitleIcon>{titleIcon ?? <IconShare className="h-4 w-4 text-primary" strokeWidth={1.75} />}</ModalTitleIcon>
             {title}
           </DialogTitle>
           <DialogDescription className="text-xs leading-relaxed">{description}</DialogDescription>

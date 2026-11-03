@@ -1,3 +1,4 @@
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import { IconDownload, IconPackage, IconAlertTriangle } from "@tabler/icons-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -114,7 +115,7 @@ export function DepConfirmDialog({ open, modName, modIcon, source, items, onConf
           </p>
           <button data-ui="dep-confirm-dialog-button-1" type="button" onClick={onCancel}
             className="shrink-0 rounded-xl border border-border bg-muted/60 px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-            {t("common.cancel")}
+            {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel")}</span>}
           </button>
           <button data-ui="dep-confirm-dialog-button-2" type="button" onClick={onConfirm}
             className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground shadow-[0_0_15px_var(--glow-primary)] transition-all hover:bg-primary/90 active:scale-[0.98]">

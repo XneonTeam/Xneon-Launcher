@@ -1,3 +1,4 @@
+import { Checkbox } from "@/components/ui/checkbox"
 import { useTranslation } from "react-i18next"
 import { IconInfoCircle, IconCheck, IconPlus, IconLoader2, IconExternalLink } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
@@ -30,6 +31,9 @@ export interface AddonRowProps {
   projectKind?: ProjectKind
   /** Если задано и установка запрещена — спросить подтверждение перед установкой. */
   confirmMessage?: string
+  selected?: boolean
+  onSelectionChange?: (selected: boolean) => void
+  selectionDisabled?: boolean
   onDetails: () => void
   onInstall: () => void
 }
@@ -48,6 +52,9 @@ export function AddonRow({
   installLabel,
   projectKind = "mod",
   confirmMessage,
+  selected = false,
+  onSelectionChange,
+  selectionDisabled = false,
   onDetails,
   onInstall,
 }: AddonRowProps) {
@@ -67,10 +74,11 @@ export function AddonRow({
     <div data-ui="addon-row-div-1" data-component="addon-row"
       className={cn(
         "group min-w-0 rounded-xl border border-border bg-card px-3.5 py-2.5 transition-colors hover:border-primary/50",
-        installing && "border-primary/50 bg-primary/5",
+        (installing || selected) && "border-primary/50 bg-primary/5",
       )}
     >
       <div data-ui="addon-row-div-2" className="flex min-w-0 items-center gap-3.5">
+        {onSelectionChange && <Checkbox checked={selected} disabled={installed || selectionDisabled} onCheckedChange={value => onSelectionChange(value === true)} aria-label={t("addon.batch.select", { name: project.name })} />}
         <div data-ui="addon-row-div-3" className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-muted flex-shrink-0">
           {project.iconUrl ? (
             <img data-ui="addon-row-img-1" src={project.iconUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />

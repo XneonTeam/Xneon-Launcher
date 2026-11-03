@@ -1,3 +1,4 @@
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useContentEnter } from "../content-motion"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -102,7 +103,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
       ) : shots.length === 0 ? (
         // Пустое состояние в том же оформлении, что вкладки «Миры» и «Серверы»:
         // крупная иконка в цветной плашке, жирный заголовок и действие.
-        <div data-ui="instance-instance-screenshots-tab-div-3" className="flex h-full flex-col items-center justify-center gap-4 text-center max-w-md mx-auto py-12">
+        <div data-ui="instance-instance-screenshots-tab-div-3" className="flex h-full flex-col items-center justify-center gap-4 rounded-xl border border-border bg-card px-4 py-12 text-center">
           <div data-ui="instance-instance-screenshots-tab-div-4" className="flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10 text-primary border border-primary/20">
             <IconCamera className="h-10 w-10" strokeWidth={1.75} />
           </div>
@@ -279,7 +280,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
               className="w-full rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm outline-none focus:border-primary mb-3"
             />
             <div data-ui="instance-instance-screenshots-tab-div-27" className="flex justify-end gap-2">
-              <button data-ui="instance-instance-screenshots-tab-button-11" type="button" onClick={() => setRenameFor(null)} className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-muted text-muted-foreground">{t("common.cancel")}</button>
+              <button data-ui="instance-instance-screenshots-tab-button-11" type="button" onClick={() => setRenameFor(null)} className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-muted text-muted-foreground">{<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel")}</span>}</button>
               <button data-ui="instance-instance-screenshots-tab-button-12"
                 type="button"
                 onClick={() => void handleRename(renameFor)}

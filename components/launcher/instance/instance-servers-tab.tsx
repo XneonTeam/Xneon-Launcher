@@ -385,10 +385,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
 
   return (
     <div data-ui="instance-instance-servers-tab-div-10" data-component="instance-servers-tab" className={`flex-1 min-h-0 flex flex-col gap-3 overflow-hidden ${contentEnter ?? ""}`}>
-      {/* Заголовок вкладки — как в «Мирах» и остальном лаунчере: плоский
-          контейнер с линией-разделителем, без отдельной закруглённой карточки
-          вокруг всей вкладки и без размытых декоративных пятен. */}
-      <div data-ui="instance-instance-servers-tab-div-11" className="flex items-center justify-between border-b border-border pb-2.5 shrink-0 pr-1">
+      <div data-ui="instance-instance-servers-tab-div-11" className="flex items-center justify-between rounded-xl border border-border bg-card p-4 shrink-0">
         <div data-ui="instance-instance-servers-tab-div-12">
           <h2 data-ui="instance-instance-servers-tab-h2-1" className="text-xl font-semibold text-foreground">{t("servers.title")}</h2>
           <p data-ui="instance-instance-servers-tab-p-5" className="text-sm text-muted-foreground mt-1">{t("servers.tabSubtitle")}</p>
@@ -432,7 +429,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
             {filtered.length === 0 ? (
               // Пустое состояние в том же оформлении, что и вкладка «Миры»:
               // крупная иконка в цветной плашке, жирный заголовок и действие.
-              <div data-ui="instance-instance-servers-tab-div-17" className="flex h-full flex-col items-center justify-center gap-4 text-center max-w-md mx-auto py-12">
+              <div data-ui="instance-instance-servers-tab-div-17" className="flex h-full flex-col items-center justify-center gap-4 rounded-xl border border-border bg-card px-4 py-12 text-center">
                 <div data-ui="instance-instance-servers-tab-div-18" className="flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10 text-primary border border-primary/20">
                   <IconServer className="h-10 w-10" strokeWidth={1.75} />
                 </div>

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
-import { IconRefresh, IconDownload, IconCheck, IconPlayerPlay, IconLoader2 } from "@tabler/icons-react"
+import { IconRefresh, IconDownload, IconCheck, IconPlayerPlay, IconLoader2, IconGitBranch } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
-import { APP_VERSION } from "@/lib/app-meta"
 import { useTranslation } from "react-i18next"
 
 type UpdateStatus = "idle" | "checking" | "available" | "downloaded" | "error" | "not-available"
@@ -96,13 +95,12 @@ export function SettingsUpdate() {
   })()
 
   return (
-    <div data-ui="settings-settings-update-div-1" data-component="settings-update" data-settings-tone="green" className="settings-color-panel p-4 rounded-xl border border-border bg-muted/30 space-y-4">
+    <div data-ui="settings-settings-update-div-1" data-component="settings-update" data-settings-tone="green" className="space-y-4 pt-5">
       {/* Переключатель ветки обновлений */}
-      <div data-ui="settings-settings-update-div-8" className="flex items-center justify-between">
+      <div data-ui="settings-settings-update-div-8" className="flex flex-wrap items-center justify-between gap-4">
         <div data-ui="settings-settings-update-div-9">
-          <div data-ui="settings-settings-update-div-10" className="font-medium text-foreground">{t("launcherUpdate.channel")}</div>
-          <p data-ui="settings-settings-update-p-4" className="text-sm text-muted-foreground mt-0.5">{t("launcherUpdate.channelDescStable")}</p>
-          <p data-ui="settings-settings-update-p-5" className="text-sm text-muted-foreground mt-0.5">{t("launcherUpdate.channelDescBeta")}</p>
+          <div data-ui="settings-settings-update-div-10" className="flex items-center gap-2 font-medium text-foreground"><IconGitBranch className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("launcherUpdate.channel")}</div>
+          <p data-ui="settings-settings-update-p-4" className="mt-1 text-xs leading-relaxed text-muted-foreground">{t(channel === "stable" ? "launcherUpdate.channelDescStable" : "launcherUpdate.channelDescBeta")}</p>
         </div>
         <div data-ui="settings-settings-update-div-11" className="flex items-center gap-1 p-1 rounded-lg bg-muted/60 border border-border">
           <button
@@ -139,9 +137,6 @@ export function SettingsUpdate() {
       <div data-ui="settings-settings-update-div-2" className="flex items-center justify-between">
         <div data-ui="settings-settings-update-div-3">
           <div data-ui="settings-settings-update-div-4" className="flex items-center gap-2 font-medium text-foreground"><IconDownload className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.7} aria-hidden="true" />{t("launcherUpdate.title")}</div>
-          <p data-ui="settings-settings-update-p-1" className="text-sm text-muted-foreground mt-1">
-            {t("launcherUpdate.currentVersion")} <span data-ui="settings-settings-update-span-1" className="text-foreground font-medium">v{APP_VERSION}</span>
-          </p>
         </div>
         {status === "idle" && (
           <button data-ui="settings-settings-update-button-1"

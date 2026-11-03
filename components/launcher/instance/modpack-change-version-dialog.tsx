@@ -1,3 +1,4 @@
+import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { ImportProgressPanel } from "./import-progress-panel"
 import { mergeImportProgress } from "./import-progress-model"
 import { useEffect, useMemo, useState } from "react"
@@ -321,7 +322,7 @@ export function ModpackChangeVersionDialog({
             disabled={applying}
             className="px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
-            {t("common.cancel")}
+            {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel")}</span>}
           </button>
 
           <button data-ui="instance-modpack-change-version-dialog-button-3"

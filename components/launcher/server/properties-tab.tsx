@@ -268,9 +268,9 @@ export function PropertiesTab({ server, flushRef, onServerUpdated }: PropertiesT
   }
 
   return (
-    <div data-ui="server-properties-tab-div-2" data-component="properties-tab" className={`flex flex-col h-full ${CONTENT_ENTER_DELAYED}`}>
+    <div data-ui="server-properties-tab-div-2" data-component="properties-tab" className={`flex flex-col gap-3 h-full overflow-hidden ${CONTENT_ENTER_DELAYED}`}>
       {/* Toolbar */}
-      <div data-ui="server-properties-tab-div-3" className="flex items-center gap-2 px-4 py-2 border-b border-border">
+      <div data-ui="server-properties-tab-div-3" className="flex shrink-0 items-center gap-2 rounded-2xl border border-border/70 bg-card px-4 py-2">
         <div data-ui="server-properties-tab-div-4" className="relative flex-1">
           <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input data-ui="server-properties-tab-input-1"
@@ -304,7 +304,8 @@ export function PropertiesTab({ server, flushRef, onServerUpdated }: PropertiesT
       </div>
 
       {/* Properties list */}
-      <div data-ui="server-properties-tab-div-6" className="flex-1 overflow-y-auto p-4 space-y-1">
+      <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-border/70 bg-card p-2">
+      <div data-ui="server-properties-tab-div-6" className="min-h-0 flex-1 overflow-y-auto p-2 space-y-1 [&::-webkit-scrollbar-track]:bg-transparent">
         {Object.entries(GROUPS).map(([groupKey, groupInfo]) => {
           const defs = groupedDefs[groupKey]
           if (!defs || defs.length === 0) return null
@@ -345,6 +346,7 @@ export function PropertiesTab({ server, flushRef, onServerUpdated }: PropertiesT
         {filteredDefs.length === 0 && (
           <EmptyState compact title={t("properties.noResults")} className="py-10" />
         )}
+      </div>
       </div>
     </div>
   )

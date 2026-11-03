@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
   IconCategory, IconCategoryPlus, IconCheck, IconLayoutGrid, IconLayoutList,
-  IconPackage, IconPencil, IconPhoto, IconServer, IconTrash, IconX,
+  IconColorSwatch, IconPencil, IconPhoto, IconServer, IconTrash, IconX,
 } from "@tabler/icons-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
@@ -92,7 +92,7 @@ export function CategoryAssignModal({
 
   const scopeIcon = (size: string) => scope === "servers"
     ? <IconServer className={size} strokeWidth={2} />
-    : <IconPackage className={size} strokeWidth={2} />
+    : <IconColorSwatch className={size} strokeWidth={2} />
   const count = (group: string) => counts?.[group] ?? 0
 
   const actionClass = "shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
