@@ -13,7 +13,7 @@ export function ServerEulaModal({ open, onAccept, onDecline }: ServerEulaModalPr
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onDecline() }}>
-      <DialogContent data-window="server-eula-modal-window-1" className="max-w-md" showCloseButton={false}>
+      <DialogContent data-window="server-eula-modal-window-1" className="max-w-md">
         <DialogHeader>
           <div data-ui="server-eula-modal-div-1" data-component="server-eula-modal" className="mx-auto w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-2">
             <IconContract className="w-6 h-6 text-primary" />

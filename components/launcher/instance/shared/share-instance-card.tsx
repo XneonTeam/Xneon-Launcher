@@ -1,9 +1,10 @@
+import { EmptyState } from "@/components/ui/empty-state"
 import { IconCloudUpload as PublicationIcon } from "@tabler/icons-react"
 import { IconX as LauncherCloseIcon } from "@tabler/icons-react"
 import { IconArrowLeft as LauncherBackIcon, IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IconShare, IconSettings, IconUserPlus, IconDownload, IconPlugConnectedX } from "@tabler/icons-react"
+import { IconHistory, IconShare, IconSettings, IconUserPlus, IconDownload, IconPlugConnectedX } from "@tabler/icons-react"
 import { ShareManagementView } from "./share-management-view"
 import { useShare } from "./use-share"
 import { ShareButton, ShareModal } from "./share-ui"
@@ -102,7 +103,7 @@ export function ShareInstanceCard({ buildId, onUpdated }: { buildId: string; onU
         <ShareButton secondary onClick={() => navigate("share")}>{<span className="inline-flex items-center justify-center gap-2"><LauncherBackIcon className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("share.flow.back")}</span>}</ShareButton>
         {available && <ShareButton disabled={busy} onClick={() => navigate("publish")}><PublicationIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("share.launcher.preparePublication")}</ShareButton>}
       </> : undefined}>
-        {!shared ? <p className="py-8 text-sm text-muted-foreground">{t("share.history.empty")}</p> : <VersionControlPanel controller={controller} buildId={buildId} onPreview={next => { setTarget(next); navigate("update") }} onRestore={(commit, restoreMessage) => { setTarget({ commit, restoreMessage }); navigate("update") }} />}
+        {!shared ? <EmptyState icon={IconHistory} title={t("share.history.empty")} className="min-h-48 rounded-none border-0 bg-transparent py-8" /> : <VersionControlPanel controller={controller} buildId={buildId} onPreview={next => { setTarget(next); navigate("update") }} onRestore={(commit, restoreMessage) => { setTarget({ commit, restoreMessage }); navigate("update") }} />}
       </ShareModal>}
     </>
   )

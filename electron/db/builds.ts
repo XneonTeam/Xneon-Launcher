@@ -635,7 +635,9 @@ export async function updateBuildFields(buildId: string, fields: Partial<BuildJs
   // Защита от затирания контента: интерфейс грузит список сборок без тяжёлых
   // списков (mods/resourcepacks/shaders), поэтому пустой массив в запросе почти
   // всегда означает «не загружено», а не «пользователь всё удалил». Если в БД
-  // контент есть, а пришёл пустой — такой столбец не трогаем.
+  // контент есть, а пришёл пустой — такой столбец не трогаем. Явный счётчик
+  // вместе с контентом означает подтверждённый результат загрузки/сканирования;
+  // нулевой счётчик позволяет сохранить удаление последнего элемента.
   //
   // Тяжёлые колонки читаем только тогда, когда запрос действительно их меняет:
   // смена иконки или описания не должна тянуть из БД десятки мегабайт JSON.
@@ -669,7 +671,10 @@ export async function updateBuildFields(buildId: string, fields: Partial<BuildJs
   for (const [key, value] of Object.entries(effectiveFields)) {
     const column = columnMap[key]
     if (!column) continue
-    if (contentKeys.has(key) && isEmptyPayload(value) && hasStoredContent(key)) {
+    const explicitEmpty = key === "installedMods"
+      ? typeof effectiveFields.modsCount === "number" && Number.isInteger(effectiveFields.modsCount) && effectiveFields.modsCount >= 0
+      : effectiveFields[contentCounterColumns[key]] === 0
+    if (contentKeys.has(key) && isEmptyPayload(value) && !explicitEmpty && hasStoredContent(key)) {
       logRuntime(`[db] updateBuildFields: пустой ${key} для ${buildId} поверх непустого — пропущено`)
       continue
     }

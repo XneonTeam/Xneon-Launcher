@@ -140,13 +140,6 @@ export function useBuildLaunch({ account: activeAccount }: { account?: Account }
   const launchInstance = useCallback(async (build: BuildLaunchParams, options?: { quickPlay?: QuickPlayLaunchRequest }) => {
     const account = accounts.find(account => account.id === build.defaultAccountId) ?? activeAccount
     if (!account || !window.electronAPI) return
-    if (build.id) {
-      const shared = await window.electronAPI.shareExecute({ action: "checkLaunch", buildId: build.id })
-      if (!shared.success || shared.data.wrongAccount || shared.data.link && shared.data.link.status !== "up_to_date") {
-        window.dispatchEvent(new CustomEvent("launcher:share-review", { detail: { buildId: build.id } }))
-        return
-      }
-    }
 
     const settings = await loadLaunchSettings()
     const buildWindow = build.windowOverride === true && build.windowWidth && build.windowHeight
@@ -207,7 +200,7 @@ export function useBuildLaunch({ account: activeAccount }: { account?: Account }
 
     const result = await window.electronAPI.launchMinecraft({
       version: build.version,
-      modLoader: build.modLoader as "vanilla" | "forge" | "fabric" | "quilt" | "liteloader" | "optifine" | "neoforge" | "custom",
+      modLoader: build.modLoader as import("@xnlc/types").MinecraftLaunchParams["modLoader"],
       ...(build.loaderVersion ? { loaderVersion: build.loaderVersion } : {}),
       ...(build.customVersionPath ? { customVersionPath: build.customVersionPath } : {}),
       account: { type: account.type, username: account.username, uuid: account.uuid, accessToken: account.accessToken },

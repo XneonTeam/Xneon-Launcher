@@ -216,7 +216,7 @@ export function ModpackChangeVersionDialog({
 
         <div data-ui="instance-modpack-change-version-dialog-div-6" data-component="modpack-change-version-dialog" className="flex-1 overflow-y-auto p-4 space-y-2 min-h-[260px]">
           {loading && (
-            <div data-ui="instance-modpack-change-version-dialog-div-7" className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+            <div data-ui="instance-modpack-change-version-dialog-div-7" className="flex min-h-full flex-col items-center justify-center gap-3 text-muted-foreground">
               <IconLoader2 className="w-7 h-7 animate-spin text-primary" />
               <span data-ui="instance-modpack-change-version-dialog-span-1" className="text-sm">{t("modpackVersion.loadingVersions")}</span>
             </div>

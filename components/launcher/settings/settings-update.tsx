@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react"
-import { IconRefresh, IconDownload, IconCheck, IconPlayerPlay, IconLoader2, IconGitBranch } from "@tabler/icons-react"
+import { IconShieldCheck, IconFlask, IconRefresh, IconDownload, IconCheck, IconPlayerPlay, IconLoader2, IconGitBranch } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
 
@@ -108,12 +108,13 @@ export function SettingsUpdate() {
             type="button"
             onClick={() => handleChannelChange("stable")}
             className={cn(
-              "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
               channel === "stable"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted"
             )}
           >
+            <IconShieldCheck className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
             {t("launcherUpdate.channelStable")}
           </button>
           <button
@@ -121,12 +122,13 @@ export function SettingsUpdate() {
             type="button"
             onClick={() => handleChannelChange("beta")}
             className={cn(
-              "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
               channel === "beta"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted"
             )}
           >
+            <IconFlask className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
             {t("launcherUpdate.channelBeta")}
           </button>
         </div>

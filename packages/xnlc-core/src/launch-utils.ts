@@ -312,6 +312,9 @@ export function resolveLaunchRequest(options: LaunchRequestOptions): ResolvedLau
     custom: "custom",
   };
 
+  if (options.modLoader && !modLoaderToLoaderType[options.modLoader] && !options.loaderType) {
+    return { error: `Unknown mod loader: ${options.modLoader}` };
+  }
   return {
     mcVersion,
     loaderType: options.loaderType ?? (options.modLoader ? modLoaderToLoaderType[options.modLoader] : "vanilla"),

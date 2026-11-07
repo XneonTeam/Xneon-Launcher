@@ -35,6 +35,7 @@ export const MOD_LOADER_OPTIONS = [
   { id: "fabric", label: "Fabric" },
   { id: "neoforge", label: "NeoForge" },
   { id: "quilt", label: "Quilt" },
+  { id: "liteloader", label: "LiteLoader" },
 ] as const
 
 export function InstanceBrowseToolbar({

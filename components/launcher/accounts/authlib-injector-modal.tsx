@@ -1,3 +1,4 @@
+import { useConfirmDialog } from "@/lib/use-confirm-dialog"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import {
@@ -40,6 +41,7 @@ const AUTHLIB_COLOR = "var(--primary)"
 
 export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjectorModalProps) {
   const { t } = useTranslation()
+  const { ask, dialog: confirmationDialog } = useConfirmDialog()
 
   const [view, setView] = useState<ModalView>("login")
   const [servers, setServers] = useState<AuthlibInjectorServerSummary[]>([])
@@ -289,10 +291,10 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
         setSelectedServerId(remaining.length > 0 ? remaining[0].id : "")
       }
       if (removed > 0) {
-        window.alert(t("accounts.authlibServerRemovedAccounts", {
+        void ask(t("accounts.authlibServerRemovedAccounts", {
           count: removed,
           defaultValue: "Сервер удалён. Затронуто аккаунтов: {{count}}.",
-        }))
+        }), true)
       }
     } catch (err) {
       console.error("Failed to remove server:", err)
@@ -307,6 +309,7 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
       className="animate-in fade-in-0"
     >
       <div data-ui="accounts-authlib-injector-modal-div-1" data-component="authlib-injector-modal" className="w-full max-w-md mx-4 p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
+        {confirmationDialog}
         {/* Header — identical layout to Ely.by / Microsoft modals */}
         <div data-ui="accounts-authlib-injector-modal-div-2" className="flex items-center justify-between mb-6">
           <h3 data-ui="accounts-authlib-injector-modal-h3-1" className="flex items-center gap-2 text-lg font-semibold text-foreground">
@@ -317,7 +320,7 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
                 ? t("accounts.authlibSelectProfile", "Выбор персонажа")
                 : t("accounts.loginTitle.authlib", "Вход через Authlib-Injector")}
           </h3>
-          <button data-ui="accounts-authlib-injector-modal-button-1"
+          <button data-modal-close data-ui="accounts-authlib-injector-modal-button-1"
             onClick={closeModal}
             className="w-8 h-8 rounded-lg border border-border bg-muted/60 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
           >

@@ -298,6 +298,7 @@ function migrateSkinLibrary() {
 }
 
 function migrateMcServers() {
+  addColumnIfMissing("mc_servers", "description", "description TEXT NOT NULL DEFAULT ''")
   addColumnIfMissing("mc_servers", "javaPath", "javaPath TEXT DEFAULT NULL")
   addColumnIfMissing("mc_servers", "icon", "icon TEXT DEFAULT NULL")
   addColumnIfMissing("mc_servers", "relayEnabled", "relayEnabled INTEGER NOT NULL DEFAULT 0")
@@ -360,7 +361,7 @@ export { DEFAULT_SETTINGS }
  * better-sqlite3», нужен для разового бэкапа sql.js-БД), поэтому в
  * `user_version` пишем максимум из двух.
  */
-export const SCHEMA_VERSION = 11
+export const SCHEMA_VERSION = 12
 
 function readUserVersion(): number {
   const rows = queryAll<{ user_version?: number }>("PRAGMA user_version")

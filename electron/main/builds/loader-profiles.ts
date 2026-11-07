@@ -40,7 +40,7 @@ function familyOf(dirName: string): LoaderProfileFamily | null {
 
 function normalizeLoaderId(loaderId?: string): string {
   const value = (loaderId ?? "").trim().toLowerCase()
-  // Legacy Fabric ставит профиль `fabric-loader-*` — это та же семья.
+  // Старые версии обычного Fabric ставят профиль той же семьи.
   if (value === "fabric-legacy") return "fabric"
   return value
 }

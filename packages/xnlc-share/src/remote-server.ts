@@ -44,6 +44,23 @@ export function assertRemoteServerOperation(permissions: ServerPermissions, chan
     if (["preview", "apply"].includes(command.action!)) { require("writeFiles"); require("properties"); require("settings") }
     return
   }
+  if (operation.startsWith("datapacks-")) {
+    require("readFiles")
+    if (operation === "datapacks-list") { if (args.length) throw new ShareError("INPUT", "Unexpected arguments"); return }
+    require("writeFiles")
+    if (operation === "datapacks-cancel" && args.length === 1 && typeof args[0] === "string" && /^[a-z0-9-]{1,64}$/i.test(args[0])) return
+    const filename = remoteFilePath(args[0])
+    if (filename.includes("/")) throw new ShareError("PATH", "Datapack filename must be a basename")
+    if (operation === "datapacks-delete" && args.length === 1) return
+    if (operation === "datapacks-install" && args.length === 2) {
+      const source = args[1] as { url?: string; base64?: string; requestId?: string }
+      if (!source || typeof source !== "object" || Array.isArray(source) || Object.keys(source).some(key => !["url", "base64", "requestId"].includes(key)) || Boolean(source.url) === Boolean(source.base64)) throw new ShareError("INPUT", "Invalid datapack source")
+      if (source.url) assertRemoteServerOperation(permissions, "mc-server:fs-download", ["world/datapacks", source.url, filename])
+      else if (typeof source.base64 !== "string" || source.base64.length > 45 * 1024 * 1024 || !/^[A-Za-z0-9+/]*={0,2}$/.test(source.base64)) throw new ShareError("SIZE", "Invalid datapack data")
+      return
+    }
+    throw new ShareError("INPUT", "Invalid datapack operation")
+  }
   if (["get", "status", "logs", "install-state", "get-addresses", "check-eula", "read-properties"].includes(operation)) { if (args.length) throw new ShareError("INPUT", "Unexpected arguments"); return }
   if (["start", "accept-eula"].includes(operation)) { require("start"); if (args.length) throw new ShareError("INPUT", "Unexpected arguments"); return }
   if (["stop", "kill"].includes(operation)) { require("stop"); if (args.length) throw new ShareError("INPUT", "Unexpected arguments"); return }

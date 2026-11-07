@@ -255,7 +255,7 @@ export function StatsPage() {
 
       <div key={activeTab} data-ui="stats-page-div-25" className={cn("min-h-0 flex-1 overflow-y-auto pr-2", contentEnter)}>
         {!stats ? (
-          <div data-ui="stats-page-div-26" className="flex items-center justify-center py-24">
+          <div data-ui="stats-page-div-26" className="flex min-h-full items-center justify-center">
             <IconLoader2 className="h-6 w-6 text-primary animate-spin" strokeWidth={1.75} />
           </div>
         ) : activeTab === "builds" ? (

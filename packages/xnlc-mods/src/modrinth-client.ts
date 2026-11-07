@@ -54,7 +54,9 @@ async function mrFetch(endpoint: string): Promise<unknown> {
   throw lastError;
 }
 
-const KNOWN_MR_LOADERS = new Set(["forge", "fabric", "neoforge", "quilt", "liteloader", "rift", "modloader"]);
+const KNOWN_MR_LOADERS = new Set([
+  "forge", "fabric", "neoforge", "quilt", "liteloader",
+]);
 
 function normalizeMrProject(item: any): ModSearchResult {
   const versions: string[] = Array.isArray(item.versions) ? item.versions : [];

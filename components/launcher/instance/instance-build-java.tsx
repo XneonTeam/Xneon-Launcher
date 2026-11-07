@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
-import { memoryToMb, mbToMemory } from "@/lib/memory"
-import { IconFolderPlus, IconLoader2, IconRefresh, IconSettings, IconX } from "@tabler/icons-react"
-import { MemorySlider } from "@/components/ui/memory-slider"
+import { IconCoffee, IconTerminal2, IconFolderPlus, IconLoader2, IconRefresh, IconSettings, IconX } from "@tabler/icons-react"
 import { ModalLayer } from "@/components/ui/modal-layer"
 import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
-import { useMemoryOptions } from "@/src/hooks/use-memory-options"
 import type { JavaInstallation } from "@/components/launcher/settings/types"
 import type { Build } from "./types"
 import { useTranslation } from "react-i18next"
@@ -59,15 +56,14 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
     ? t("build.java.auto")
     : detected.find(j => j.path === build.javaPath)?.label || build.javaPath?.split(/[\\/]/).pop() || build.javaPath
 
-  const { maxMb, snapPoints } = useMemoryOptions()
 
   return (
-    <div data-ui="instance-instance-build-java-div-1" data-component="instance-build-java" className="rounded-3xl border border-border bg-card/40 p-6">
+    <div data-ui="instance-instance-build-java-div-1" data-component="instance-build-java" className="launcher-settings-panel">
       <div data-ui="instance-instance-build-java-div-2" className="flex items-start justify-between gap-4">
         <div data-ui="instance-instance-build-java-div-3">
-          <div data-ui="instance-instance-build-java-div-4" className="flex items-center gap-2 text-lg font-semibold text-foreground">
+          <div data-ui="instance-instance-build-java-div-4" className="launcher-settings-heading flex items-center gap-2 font-semibold text-foreground">
             <IconSettings className="h-5 w-5 text-primary" strokeWidth={1.75} />
-            {t("build.java.title")}
+            {t("settings.tab.java")}
           </div>
           <p data-ui="instance-instance-build-java-p-1" className="mt-1 text-sm text-muted-foreground">
             {t("build.java.desc")}
@@ -76,38 +72,20 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
         <button data-ui="instance-instance-build-java-button-1"
           type="button"
           onClick={() => updateBuild(build.id, { javaOverride: !override })}
-          className={cn(
-            "flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition-colors",
-            override ? "bg-primary text-primary-foreground" : "bg-muted/60 text-muted-foreground hover:bg-muted"
-          )}
+          role="switch"
+          aria-checked={override}
+          aria-label={t("build.java.overrideOn")}
+          title={override ? t("build.java.overrideOn") : t("build.java.useLauncher")}
+          className="settings-switch"
         >
-          <span data-ui="instance-instance-build-java-span-1" className={cn("w-2 h-2 rounded-full", override ? "bg-primary-foreground" : "bg-muted-foreground/50")} />
-          {override ? t("build.java.overrideOn") : t("build.java.useLauncher")}
+          <span className="settings-switch-thumb" />
         </button>
       </div>
 
       {override && (
-        <div data-ui="instance-instance-build-java-div-5" className="mt-6 grid gap-6">
-          <div data-ui="instance-instance-build-java-div-6">
-            <label data-ui="instance-instance-build-java-label-1" className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("build.java.memory")}</label>
-            <div data-ui="instance-instance-build-java-div-7" className="rounded-xl border border-border bg-muted/30 p-5 space-y-2.5">
-              <label data-ui="instance-instance-build-java-label-2" className="block text-sm font-medium text-foreground">{t("build.java.allocated")}</label>
-              <MemorySlider
-                value={memoryToMb(build.memoryMax)}
-                min={512}
-                max={maxMb}
-                step={64}
-                snapPoints={snapPoints}
-                snapRange={512}
-                unit="MB"
-                onChange={(v) => updateBuild(build.id, { memoryMax: mbToMemory(v) })}
-              />
-              <p data-ui="instance-instance-build-java-p-2" className="text-xs text-muted-foreground">{t("build.java.memoryDesc")}</p>
-            </div>
-          </div>
-
+        <div data-ui="instance-instance-build-java-div-5" className="mt-4 grid gap-4">
           <div data-ui="instance-instance-build-java-div-8">
-            <label data-ui="instance-instance-build-java-label-3" className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("build.java.path")}</label>
+            <label data-ui="instance-instance-build-java-label-3" className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground"><IconCoffee className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("build.java.path")}</label>
             <div data-ui="instance-instance-build-java-div-9" className="flex items-center gap-3">
               <button data-ui="instance-instance-build-java-button-2"
                 type="button"
@@ -131,7 +109,7 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
           </div>
 
           <div data-ui="instance-instance-build-java-div-10">
-            <label data-ui="instance-instance-build-java-label-4" className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t("build.java.jvmArgs")}</label>
+            <label data-ui="instance-instance-build-java-label-4" className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground"><IconTerminal2 className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("build.java.jvmArgs")}</label>
             <textarea data-ui="instance-instance-build-java-textarea-1"
               value={build.javaArgs ?? ""}
               onChange={e => updateBuild(build.id, { javaArgs: e.target.value })}
@@ -150,7 +128,7 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
         <ModalLayer windowId="instance-instance-build-java-window-1" onClose={() => setShowJavaModal(false)} className="animate-in fade-in-0">
           <div data-ui="instance-instance-build-java-div-11" className="w-full max-w-lg p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div data-ui="instance-instance-build-java-div-12" className="flex items-center justify-between mb-5">
-              <h3 data-ui="instance-instance-build-java-h3-1" className="flex items-center gap-2 text-lg font-semibold text-foreground"><ModalTitleIcon><IconSettings className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t("build.java.path")}</h3>
+              <h3 data-ui="instance-instance-build-java-h3-1" className="launcher-settings-heading flex items-center gap-2 font-semibold text-foreground"><ModalTitleIcon><IconSettings className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t("build.java.path")}</h3>
               <div data-ui="instance-instance-build-java-div-13" className="flex items-center gap-2">
                 <button data-ui="instance-instance-build-java-button-4"
                   type="button"
@@ -162,7 +140,7 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
                 >
                   {loadingDetect ? <IconLoader2 className="w-4 h-4 text-primary animate-spin" strokeWidth={1.5} /> : <IconRefresh className="w-4 h-4" strokeWidth={1.5} />}
                 </button>
-                <button data-ui="instance-instance-build-java-button-5"
+                <button data-modal-close data-ui="instance-instance-build-java-button-5"
                   onClick={() => setShowJavaModal(false)}
                   className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
                 >

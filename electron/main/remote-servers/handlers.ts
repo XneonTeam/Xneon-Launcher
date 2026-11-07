@@ -4,14 +4,14 @@ type Handler = (event: IpcMainInvokeEvent, ...args: any[]) => any
 const localHandlers = new Map<string, Handler>()
 export const serverHistoryLocks = new Set<string>()
 export const serverMutations = new Map<string, number>()
-const mutatesServer = (channel: string) => /^mc-server:(start|stop|kill|update|delete|permanent-delete|fs-write|fs-delete|fs-rename|fs-mkdir|fs-download|write-properties|install-pack|add-|remove-|ban-|unban-)/.test(channel)
+const mutatesServer = (channel: string) => /^mc-server:(start|stop|kill|update|delete|permanent-delete|fs-write|fs-delete|fs-rename|fs-mkdir|fs-download|datapacks-install|datapacks-delete|write-properties|install-pack|add-|remove-|ban-|unban-)/.test(channel)
 export async function runServerMutation<T>(id: string, run: () => Promise<T>): Promise<T> {
   if (serverHistoryLocks.has(id)) throw new Error("HISTORY_BUSY")
   serverMutations.set(id, (serverMutations.get(id) ?? 0) + 1)
   try { return await run() } finally { const count = (serverMutations.get(id) ?? 1) - 1; if (count) serverMutations.set(id, count); else serverMutations.delete(id) }
 }
 function checkHistoryLock(channel: string, id: unknown) {
-  if (typeof id === "string" && serverHistoryLocks.has(id) && /^mc-server:(start|stop|kill|update|delete|permanent-delete|fs-write|fs-delete|fs-rename|fs-mkdir|fs-download|write-properties|install-pack|add-|remove-|ban-|unban-)/.test(channel)) throw new Error("HISTORY_BUSY")
+  if (typeof id === "string" && serverHistoryLocks.has(id) && /^mc-server:(start|stop|kill|update|delete|permanent-delete|fs-write|fs-delete|fs-rename|fs-mkdir|fs-download|datapacks-install|datapacks-delete|write-properties|install-pack|add-|remove-|ban-|unban-)/.test(channel)) throw new Error("HISTORY_BUSY")
 }
 let proxy: ((channel: string, id: string, args: unknown[]) => Promise<unknown>) | undefined
 let listRemote: (() => Promise<unknown[]>) | undefined

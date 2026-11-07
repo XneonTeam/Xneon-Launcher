@@ -6,7 +6,13 @@
 export type ModContentType = "mod" | "modpack" | "resourcepack" | "shader" | "datapack" | "plugin" | "world"
 export type ModSort = "relevance" | "downloads" | "follows" | "newest" | "updated" | "featured" | "rating"
 export type ModSource = "modrinth" | "curseforge" | "ftb"
-export type ModLoaderFilter = "vanilla" | "forge" | "fabric" | "quilt" | "neoforge"
+export type ModLoaderFilter =
+  | "vanilla"
+  | "forge"
+  | "fabric"
+  | "quilt"
+  | "neoforge"
+  | "liteloader"
 export type ModEnvironment = "client" | "server"
 
 export interface ModSearchResult {

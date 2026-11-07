@@ -521,10 +521,10 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
               variant={search ? "search" : "empty"}
               icon={search ? undefined : IconFolder}
               title={search ? t("files.noResults") : t("files.empty")}
-              className="h-full"
+              className="h-full rounded-none border-0 bg-transparent"
             />
           ) : (
-            <div data-ui="server-files-tab-div-12" className="divide-y divide-border/50">
+            <div data-ui="server-files-tab-div-12" className="space-y-0.5 p-1">
               {sortedEntries.map(entry => {
                 const Icon = getFileIcon(entry)
                 const iconColor = getFileIconColor(entry)
@@ -537,7 +537,7 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
                   <div data-ui="server-files-tab-div-13"
                     key={entry.name}
                     className={cn(
-                      "flex items-center gap-3 px-4 py-2 hover:bg-muted/30 hover:shadow-[inset_0_0_0_1px_var(--primary)] transition-[background-color,box-shadow] duration-150 group cursor-pointer",
+                      "flex items-center gap-3 rounded-xl px-3 py-2 hover:bg-muted/30 hover:shadow-[inset_0_0_0_1px_var(--primary)] transition-[background-color,box-shadow] duration-150 group cursor-pointer",
                       isActive && "bg-primary/5",
                       isTabOpen && !isActive && "bg-muted/20"
                     )}

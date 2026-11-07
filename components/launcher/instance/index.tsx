@@ -166,7 +166,7 @@ export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
           searchQuery,
           "modpack",
           selectedVersion === "all" ? undefined : selectedVersion,
-          selectedModLoader === "all" ? undefined : selectedModLoader as "vanilla" | "fabric" | "quilt" | "neoforge",
+          selectedModLoader === "all" ? undefined : selectedModLoader as "vanilla" | "fabric" | "quilt" | "neoforge" | "liteloader",
           mrSortBy,
           currentPage,
           categories.length > 0 ? categories : undefined,

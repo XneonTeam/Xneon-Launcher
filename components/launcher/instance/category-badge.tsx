@@ -38,7 +38,7 @@ function loadCategoryIcons(): Promise<CategoryIconMaps> {
   return iconsPromise
 }
 
-const KNOWN_LOADERS = new Set(["fabric", "forge", "neoforge", "quilt", "liteloader", "rift", "vanilla"])
+const KNOWN_LOADERS = new Set(["fabric", "forge", "neoforge", "quilt", "liteloader", "vanilla"])
 
 export interface CategoryBadgeProps {
   name: string | string[]
@@ -46,6 +46,8 @@ export interface CategoryBadgeProps {
   source?: "modrinth" | "curseforge" | "ftb" | "local"
   className?: string
   iconOnly?: boolean
+  /** В карточках поиска скрывает подпись на узкой ширине контейнера через CSS. */
+  responsive?: boolean
   /** Запасная пиктограмма, если источник не отдал категорию или её значок. */
   fallbackIcon?: ReactNode
 }
@@ -55,7 +57,7 @@ export interface CategoryBadgeProps {
  * (или иконка загрузчика, если в категориях пришёл f.e. «fabric»).
  * Оформление — под цвет темы, одинаковое во всех вкладках.
  */
-export function CategoryBadge({ name, source, className, iconOnly = false, fallbackIcon }: CategoryBadgeProps) {
+export function CategoryBadge({ name, source, className, iconOnly = false, responsive = false, fallbackIcon }: CategoryBadgeProps) {
   const [icons, setIcons] = useState<CategoryIconMaps>(EMPTY_MAPS)
 
   useEffect(() => {
@@ -79,7 +81,9 @@ export function CategoryBadge({ name, source, className, iconOnly = false, fallb
 
   return (
     <span data-ui="instance-category-badge-span-1" data-component="category-badge"
-      title={iconOnly ? names.join(" / ") : undefined}
+      role={responsive ? "img" : undefined}
+      aria-label={responsive ? names.join(" / ") : undefined}
+      title={iconOnly || responsive ? names.join(" / ") : undefined}
       className={cn(
         iconOnly ? "inline-flex h-5 w-5 shrink-0 items-center justify-center" : "inline-flex min-w-0 items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs capitalize text-primary",
         className
@@ -98,7 +102,7 @@ export function CategoryBadge({ name, source, className, iconOnly = false, fallb
         : <img data-ui="instance-category-badge-img-1" src={icon} alt="" className="h-3.5 w-3.5 shrink-0 object-contain" />)}
       {isLoader && <LoaderIcon loaderId={key} className={cn("shrink-0", iconOnly ? "h-5 w-5" : "h-3.5 w-3.5")} />}
       {iconOnly && !icon && !isLoader && fallbackIcon && <span className="inline-flex h-5 w-5 items-center justify-center text-primary">{fallbackIcon}</span>}
-      {!iconOnly && <span data-ui="instance-category-badge-span-3" className="truncate">{name}</span>}
+      {!iconOnly && <span data-ui="instance-category-badge-span-3" data-category-badge-label className="truncate">{name}</span>}
     </span>
   )
 }

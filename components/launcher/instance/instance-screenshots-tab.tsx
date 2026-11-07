@@ -1,10 +1,11 @@
+import { ModalCloseButton } from "@/components/ui/modal-close-button"
 import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useContentEnter } from "../content-motion"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { formatBytes, formatDateTime } from "@/lib/format"
-import { IconCamera, IconChevronLeft, IconChevronRight, IconFolderOpen, IconLoader2, IconPhoto, IconRefresh, IconTrash, IconX, IconPencil } from "@tabler/icons-react"
+import { IconCamera, IconChevronLeft, IconChevronRight, IconFolder, IconLoader2, IconPhoto, IconRefresh, IconTrash, IconX, IconPencil } from "@tabler/icons-react"
 import type { Build, ScreenshotInfo } from "./types"
 import { useAlertDialog } from "@/lib/use-alert-dialog"
 import { ModalLayer } from "@/components/ui/modal-layer"
@@ -217,9 +218,9 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
                 className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 title={t("screenshots.openFolder")}
               >
-                <IconFolderOpen className="h-5 w-5" strokeWidth={1.75} />
+                <IconFolder className="h-5 w-5" strokeWidth={1.75} />
               </button>
-              <button data-ui="instance-instance-screenshots-tab-button-8"
+              <button data-modal-close data-ui="instance-instance-screenshots-tab-button-8"
                 type="button"
                 onClick={() => setViewIndex(null)}
                 className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -266,7 +267,8 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
           onClose={() => setRenameFor(null)}
           className="z-[60] animate-in fade-in-0"
         >
-          <div data-ui="instance-instance-screenshots-tab-div-26" className="w-80 rounded-2xl border border-border bg-card p-4 shadow-2xl animate-in zoom-in-95">
+          <div data-ui="instance-instance-screenshots-tab-div-26" className="relative w-80 rounded-2xl border border-border bg-card p-4 shadow-2xl animate-in zoom-in-95 pt-14">
+          <ModalCloseButton className="absolute right-3 top-3 z-10" onClick={() => setRenameFor(null)} />
             <p data-ui="instance-instance-screenshots-tab-p-2" className="text-sm font-semibold text-foreground mb-3">{t("screenshots.rename.title")}</p>
             <input data-ui="instance-instance-screenshots-tab-input-1"
               autoFocus

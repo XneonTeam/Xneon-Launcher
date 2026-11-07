@@ -53,6 +53,7 @@ export async function cacheJarFromUrl(
     await fs.writeFile(file, await download(url))
     return file
   } catch (error) {
+    if (error instanceof Error && (error.name === "AbortError" || error.message.includes("CONTENT_DOWNLOAD_CANCELLED"))) throw error
     console.warn("[jar-cache] не удалось скачать файл для анализа:", error)
     return null
   }

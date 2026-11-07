@@ -1,7 +1,7 @@
 import { CONTENT_ENTER_DELAYED } from "./content-motion"
 import { useState, useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
-import { IconArrowLeft, IconTerminal, IconSettings, IconPlayerPlay, IconPlayerStop, IconFolder, IconPuzzle, IconAdjustments, IconUsers, IconRefresh, IconDownload, IconCpu, IconDatabase, IconClock, IconNetwork, IconWorld, IconLink, IconCheck, IconCamera, IconTrash, IconLoader2, IconShare, IconWifiOff } from "@tabler/icons-react"
+import { IconArrowLeft, IconTerminal2, IconSettings, IconPlayerPlay, IconPlayerStop, IconFolder, IconPuzzle, IconAdjustments, IconUsers, IconRefresh, IconDownload, IconCpu, IconDatabase, IconClock, IconNetwork, IconWorld, IconLink, IconCheck, IconCamera, IconTrash, IconLoader2, IconShare, IconWifiOff } from "@tabler/icons-react"
 import { useMcServerState, useMcServerLogs, useMcServerMetrics, useMcServerDownloadProgress } from "@/src/hooks/use-mc-servers"
 import { cn } from "@/lib/utils"
 import { IconPickerModal } from "@/components/launcher/instance/icon-picker-modal"
@@ -17,11 +17,12 @@ import { AddonsTab } from "./server/addons-tab"
 import { ServerEulaModal } from "./server-eula-modal"
 import { RemoteAccessDialog, remoteServerError } from "./server/remote-access-dialog"
 
-type ServerTab = "console" | "addons" | "properties" | "players" | "settings" | "files"
+type ServerTab = "console" | "datapacks" | "addons" | "properties" | "players" | "settings" | "files"
 
 const ALL_TABS: Array<{ id: ServerTab; labelKey: string; icon: React.ElementType; label?: string }> = [
-  { id: "console", labelKey: "servers.tabConsole", icon: IconTerminal },
+  { id: "console", labelKey: "servers.tabConsole", icon: IconTerminal2 },
   { id: "files", labelKey: "servers.tabFiles", icon: IconFolder },
+  { id: "datapacks", labelKey: "servers.datapacks.title", icon: IconDatabase },
   { id: "addons", labelKey: "servers.tabAddons", icon: IconPuzzle },
   { id: "properties", labelKey: "servers.tabProperties", icon: IconAdjustments },
   { id: "players", labelKey: "servers.tabPlayers", icon: IconUsers },
@@ -219,8 +220,9 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
   const loaderName = loaderLabel(server.modloader)
 
   const tabs = ALL_TABS
-    .filter(tab => tab.id === "files" ? allowed("readFiles") : tab.id === "addons" ? allowed("readFiles") && allowed("writeFiles") : tab.id === "players" ? allowed("players") : tab.id === "settings" ? allowed("settings") : true)
+    .filter(tab => tab.id === "files" ? allowed("readFiles") : (tab.id === "addons" || tab.id === "datapacks") ? allowed("readFiles") && allowed("writeFiles") : tab.id === "players" ? allowed("players") : tab.id === "settings" ? allowed("settings") : true)
     .filter(tab => tab.id !== "addons" || hasAddons(server.modloader))
+    .filter(tab => tab.id !== "datapacks" || !["bungeecord", "velocity", "waterfall"].includes(server.modloader))
     .map(tab =>
       tab.id === "addons"
         ? { ...tab, labelKey: getAddonsLabelKey(server.modloader) }
@@ -270,7 +272,6 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
         {/* Info */}
         <div data-ui="server-detail-page-div-4" className="min-w-0 flex-1 basis-40">
           <h1 data-ui="server-detail-page-h1-1" className="m-0 text-lg font-bold text-foreground truncate">{server.name}</h1>
-          {server.remote && <p className="mt-1 text-xs text-muted-foreground">{t("remoteServer.remoteOwner", { name: server.remote.ownerName })} · <span className={remoteOnline ? "text-success" : "text-muted-foreground"}>{t(remoteOnline ? "remoteServer.online" : "remoteServer.offline")}</span></p>}
           <div data-ui="server-detail-page-div-5" className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <span data-ui="server-detail-page-span-1" className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-muted/60 text-xs text-muted-foreground">
               <LoaderIcon loaderId={server.modloader} className="w-3 h-3 flex-shrink-0" />
@@ -486,6 +487,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
         {activeTab === "files" && (
           <FilesTab serverId={server.id} canWrite={allowed("writeFiles")} canWriteProperties={allowed("properties")} />
         )}
+        {activeTab === "datapacks" && <AddonsTab key={`datapacks:${server.id}`} server={server} datapacks canReload={allowed("console") && state.status === "running"} />}
         {activeTab === "addons" && (
           <AddonsTab server={server} />
         )}

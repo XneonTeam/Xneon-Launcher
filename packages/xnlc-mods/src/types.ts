@@ -38,7 +38,13 @@ export interface ModSearchResult {
  * Modrinth просто не добавлялись), и в выборке оказывались моды любых
  * загрузчиков. Значения держим идентичными `ModLoaderFilter` из `@xnlc/types`.
  */
-export type ModLoaderFilter = "vanilla" | "forge" | "fabric" | "quilt" | "neoforge";
+export type ModLoaderFilter =
+  | "vanilla"
+  | "forge"
+  | "fabric"
+  | "quilt"
+  | "neoforge"
+  | "liteloader";
 
 export interface ModSearchResponse {
   results: ModSearchResult[];

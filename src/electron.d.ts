@@ -5,6 +5,9 @@ import type { ElectronAPI } from '@xnlc/types'
 // История mc-servers: mcServerHistory объявлен в общем контракте.
 // Настройки хоста: mcServerHostSettings использует тот же контракт.
 
+// Отмена контента: cancelContentDownload — из общего IPC-контракта.
+// Буфер файлов агента: agentClipboardFiles — из общего IPC-контракта.
+// Перенос сборок: getDataMoveStatus/restartForDataMove — из общего IPC-контракта.
 export {}
 
 // startupReady/startupThemeSnapshot объявлены в общем контракте @xnlc/types.
@@ -43,3 +46,5 @@ declare global {
   type BuildLoaderRequirementIssue = import('@xnlc/types').BuildLoaderRequirementIssue
   type BuildLoaderRequirementReport = import('@xnlc/types').BuildLoaderRequirementReport
 }
+
+// Серверные датапаки: mcServerDatapacksList/Install/Delete описаны в общем ElectronAPI.

@@ -1,3 +1,4 @@
+import { filesFromTransfer, attachmentImageType } from "@/lib/agent-transfer-files"
 import { CONTENT_ENTER_DELAYED, useContentEnter } from "../content-motion"
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -387,6 +388,8 @@ export function AgentPage() {
   const [config, setConfig] = useState<{ ready: boolean; model: string } | null>(null)
   const [modelSaving, setModelSaving] = useState(false)
   const [localError, setLocalError] = useState("")
+  const [fileDragActive, setFileDragActive] = useState(false)
+  const fileDragDepth = useRef(0)
   const fileInput = useRef<HTMLInputElement>(null)
   const messages = useRef<HTMLDivElement>(null)
   const atBottom = useRef(true)
@@ -405,12 +408,15 @@ export function AgentPage() {
   useEffect(() => { if (composer.current) { composer.current.style.height = "auto"; composer.current.style.height = `${Math.min(composer.current.scrollHeight, 160)}px` } }, [chat?.draft])
   const readFiles = async (files: FileList | File[]) => {
     setLocalError("")
+    if (!files.length) return
+    if (!chat) await newAgentChat()
     for (const file of Array.from(files)) {
-      if (/^image\/(png|jpeg|webp|gif)$/.test(file.type)) {
+      const imageType = attachmentImageType(file)
+      if (imageType) {
         if (!state.config?.models?.find(item => item.id === state.config?.model)?.supportsImages) { setLocalError(t("agent.imageUnsupported")); continue }
         if (file.size > 2_000_000) { setLocalError(t("agent.imageTooLarge")); continue }
         try {
-          const imageUrl = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(file) })
+          const imageUrl = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(file.type === imageType ? file : new Blob([file], { type: imageType })) })
           attachToAgent({ id: crypto.randomUUID(), kind: "file", name: file.name, content: t("agent.imageAttachment"), imageUrl, iconUrl: imageUrl })
         } catch (error) { setLocalError(String(error)) }
         continue
@@ -442,7 +448,22 @@ export function AgentPage() {
     } finally { setModelSaving(false) }
   }
   const guarded = (action: () => Promise<unknown>) => { void action().catch(error => setLocalError(String(error))) }
-  return <div className="agent-page" id="agent-page" data-component="xneon-agent" onDragOver={event => { if (event.dataTransfer.types.includes("Files")) event.preventDefault() }} onDrop={event => { event.preventDefault(); void readFiles(event.dataTransfer.files) }}>
+  return <div className="agent-page" id="agent-page" data-component="xneon-agent" data-file-drag={fileDragActive || undefined}
+    onPasteCapture={event => {
+      const files = filesFromTransfer(event.clipboardData)
+      if (files.length) { event.preventDefault(); event.stopPropagation(); guarded(() => readFiles(files)); return }
+      if (!event.clipboardData.getData("text/plain")) {
+        guarded(async () => {
+          const copied = await window.electronAPI?.agentClipboardFiles?.() ?? []
+          const files = await Promise.all(copied.map(async file => { const blob = await (await fetch(file.dataUrl)).blob(); return new File([blob], file.name, { type: blob.type }) }))
+          if (files.length) await readFiles(files)
+        })
+      }
+    }}
+    onDragEnterCapture={event => { if (Array.from(event.dataTransfer.types).includes("Files")) { event.preventDefault(); fileDragDepth.current++; setFileDragActive(true) } }}
+    onDragOverCapture={event => { if (Array.from(event.dataTransfer.types).includes("Files")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy" } }}
+    onDragLeaveCapture={() => { fileDragDepth.current = Math.max(0, fileDragDepth.current - 1); if (!fileDragDepth.current) setFileDragActive(false) }}
+    onDropCapture={event => { fileDragDepth.current = 0; setFileDragActive(false); const files = filesFromTransfer(event.dataTransfer); if (!files.length) return; event.preventDefault(); event.stopPropagation(); guarded(() => readFiles(files)) }}>
     <header className={cn("agent-header launcher-page-header", CONTENT_ENTER_DELAYED)}>
       <div className="flex items-center gap-3"><div className="agent-brand"><IconRobot size={22} stroke={1.7} /></div><div><h1 className="text-xl font-bold tracking-tight">{t("agent.title")}</h1><p className="text-xs text-muted-foreground">{t("agent.subtitle")}</p></div></div>
       <div className="flex w-fit items-center gap-0.5 rounded-xl border border-border/50 bg-muted/30 p-1">

@@ -1,3 +1,4 @@
+import { getLauncherDataRoot } from "./paths"
 import { app, BrowserWindow } from "electron"
 import { initializeMinecraftStorageSync } from "./shared-game-cache"
 import fs from "fs/promises"
@@ -23,12 +24,8 @@ export { ensureRuntimeDir, ensureRuntimeTempDir }
 // Shared disk-cache locations set before any XNLC handler / launch worker runs;
 // the worker inherits them via `env: process.env` in launch-orchestrator.ts.
 try {
-  const baseDataRoot = process.platform === "win32"
-    ? path.join(app.getPath("appData"), "xneonlauncher")
-    : process.platform === "darwin"
-      ? path.join(app.getPath("home"), "Library", "Application Support", "xneonlauncher")
-      : path.join(app.getPath("home"), ".xneonlauncher")
-  process.env.XNLC_META_CACHE_DIR ??= path.join(baseDataRoot, "cache", "meta")
+  const baseDataRoot = getLauncherDataRoot()
+  process.env.XNLC_META_CACHE_DIR = path.join(baseDataRoot, "cache", "meta")
   initializeMinecraftStorageSync(baseDataRoot)
 } catch (error) {
   console.error("[Storage] Failed to initialize Minecraft storage:", error)

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react"
 type SupportedLoader = "vanilla" | "forge" | "fabric" | "liteloader" | "quilt" | "neoforge" | "optifine" | "instance" | "paper" | "purpur" | "folia" | "velocity" | "waterfall" | "sponge" | "spongevanilla" | "spongeforge" | "spongeneo"
 
 /** Модлоадеры: по умолчанию ставим самую свежую версию, а не recommended. */
-const MOD_LOADER_IDS = new Set(["fabric", "quilt", "forge", "neoforge", "liteloader", "optifine"])
+const MOD_LOADER_IDS = new Set([ "fabric", "quilt", "forge", "neoforge", "liteloader", "optifine"])
 
 export type LoaderVersionOption = {
   value: string

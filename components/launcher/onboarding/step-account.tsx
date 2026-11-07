@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import { IconCheck, IconLoader2, IconUserMinus, IconArrowLeft } from "@tabler/icons-react"
+import { IconCheck, IconLoader2, IconWifiOff, IconArrowLeft } from "@tabler/icons-react"
 import { MicrosoftIcon, ElyByIcon, XnSkinsIcon } from "./icons"
 import { CachedAvatar } from "@/components/ui/cached-avatar"
 import type { OnboardingCopy } from "./translations"
@@ -195,8 +195,8 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
             )}
           >
             <div data-ui="onboarding-step-account-div-6" className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl"
-              style={{ backgroundColor: "color-mix(in srgb, var(--muted-foreground) 12.5%, transparent)", color: "var(--muted-foreground)" }}>
-              <IconUserMinus className="h-6 w-6" />
+              style={{ backgroundColor: "color-mix(in srgb, var(--primary) 12.5%, transparent)", color: "var(--primary)" }}>
+              <IconWifiOff className="h-6 w-6" />
             </div>
             <div data-ui="onboarding-step-account-div-7" className="font-medium text-foreground">{copy.accountOfflineTitle}</div>
             <div data-ui="onboarding-step-account-div-8" className="mt-1 text-sm text-muted-foreground">{copy.accountOfflinePlaceholder}</div>

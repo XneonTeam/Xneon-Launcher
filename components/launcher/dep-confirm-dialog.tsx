@@ -1,6 +1,6 @@
 import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
-import { IconDownload, IconPackage, IconAlertTriangle } from "@tabler/icons-react"
+import { IconDownload, IconPuzzle, IconAlertTriangle } from "@tabler/icons-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SourceMark } from "@/components/launcher/source-mark"
 import { cn } from "@/lib/utils"
@@ -50,7 +50,7 @@ export function DepConfirmDialog({ open, modName, modIcon, source, items, onConf
           {/* pr-8 — чтобы текст не заезжал под встроенную кнопку закрытия */}
           <div data-ui="dep-confirm-dialog-div-1" data-component="dep-confirm-dialog" className="flex items-center gap-2.5 pr-8">
             <div data-ui="dep-confirm-dialog-div-2" className="rounded-xl bg-primary/10 p-2 text-primary">
-              <IconPackage className="h-5 w-5" strokeWidth={2} />
+              <IconPuzzle className="h-5 w-5" strokeWidth={2} />
             </div>
             <div data-ui="dep-confirm-dialog-div-3" className="min-w-0">
               <DialogTitle className="text-lg font-bold text-foreground">
@@ -67,7 +67,7 @@ export function DepConfirmDialog({ open, modName, modIcon, source, items, onConf
           <div data-ui="dep-confirm-dialog-div-5" className="h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-muted">
             {modIcon
               ? <img data-ui="dep-confirm-dialog-img-1" src={modIcon} alt="" className="h-full w-full object-cover" />
-              : <div data-ui="dep-confirm-dialog-div-6" className="flex h-full w-full items-center justify-center"><IconPackage className="h-4 w-4 text-muted-foreground" /></div>}
+              : <div data-ui="dep-confirm-dialog-div-6" className="flex h-full w-full items-center justify-center"><IconPuzzle className="h-4 w-4 text-muted-foreground" /></div>}
           </div>
           <p data-ui="dep-confirm-dialog-p-1" className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{modName}</p>
           <span data-ui="dep-confirm-dialog-span-1" className="shrink-0 rounded-md border border-border/60 bg-background/60 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">

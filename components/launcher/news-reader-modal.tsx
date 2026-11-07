@@ -328,7 +328,7 @@ export function NewsReaderModal({ entry, onClose }: NewsReaderModalProps) {
             </button>
 
             <DialogClose asChild>
-              <button data-ui="news-reader-modal-button-2"
+              <button data-modal-close data-ui="news-reader-modal-button-2"
                 type="button"
                 aria-label={t("home.news.readerClose")}
                 className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted/40 text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"

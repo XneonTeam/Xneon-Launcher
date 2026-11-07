@@ -1,3 +1,4 @@
+import { ModalCloseButton } from "@/components/ui/modal-close-button"
 import { createPortal } from "react-dom"
 import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -239,10 +240,7 @@ export function OnboardingModal({ selectedTheme, themes, onSelectTheme, onFinish
                 <p data-ui="onboarding-modal-p-1" className="mt-1 text-sm text-muted-foreground">{currentStep.description}</p>
               </div>
             </div>
-            <button data-ui="onboarding-modal-button-1" type="button" onClick={onSkip}
-              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-              <IconX className="h-4 w-4" strokeWidth={1.8} /> {copy.skip}
-            </button>
+            <ModalCloseButton onClick={onSkip} title={copy.skip} />
           </div>
           <div data-ui="onboarding-modal-div-8" className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
             <div data-ui="onboarding-modal-div-9" className="h-full rounded-full bg-primary transition-all duration-300"

@@ -1,3 +1,5 @@
+import { isContentDownloadCancelled } from "@/lib/content-download"
+import { buildContentPatch } from "@/lib/build-content-patch"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { MOD_LOADERS } from "./constants"
 import { loadBuilds, pickCompatibleVersion } from "./utils"
@@ -229,17 +231,17 @@ export function useBuilds() {
    * когда сборку открыли. Список сборок держит только счётчики, поэтому вход во
    * вкладку не тянет десятки мегабайт.
    */
-  const ensureBuildContent = useCallback(async (buildId: string): Promise<void> => {
+  const ensureBuildContent = useCallback(async (buildId: string): Promise<boolean> => {
     const cached = buildContentCache.get(buildId)
     if (cached) {
       setBuilds(prev => prev.map(build => build.id === buildId
         ? { ...build, mods: cached.mods, resourcepacks: cached.resourcepacks, shaders: cached.shaders, installedMods: cached.installedMods }
         : build))
-      return
+      return true
     }
     try {
       const content = await window.electronAPI?.loadBuildContent?.(buildId)
-      if (!content) return
+      if (!content) return false
       const parsed = {
         mods: Array.isArray(content.mods) ? content.mods as BuildMod[] : [],
         resourcepacks: Array.isArray(content.resourcepacks) ? content.resourcepacks as BuildMod[] : [],
@@ -253,9 +255,12 @@ export function useBuilds() {
       ])
       const enriched = { ...parsed, mods, resourcepacks, shaders }
       updateCachedBuildContent(buildId, enriched)
+      savedContentRef.current.set(buildId, enriched)
       setBuilds(prev => prev.map(build => build.id === buildId ? { ...build, ...enriched } : build))
+      return true
     } catch {
       // Контент не критичен для отрисовки: при ошибке оставляем счётчики.
+      return false
     }
   }, [setBuilds])
 
@@ -263,18 +268,21 @@ export function useBuilds() {
   useEffect(() => {
     activeBuildIdRef.current = activeBuildId
     if (!activeBuildId) return
-    void ensureBuildContent(activeBuildId)
-    const target = buildsRef.current.find(build => build.id === activeBuildId)
-    if (!target) return
-    void syncBuildContent(target).then(synced => {
+    let cancelled = false
+    void (async () => {
+      if (!await ensureBuildContent(activeBuildId)) return
+      if (cancelled) return
+      const target = buildsRef.current.find(build => build.id === activeBuildId)
+      if (!target) return
+      const synced = await syncBuildContent(target)
+      if (cancelled) return
       updateCachedBuildContent(activeBuildId, {
-        mods: synced.mods,
-        resourcepacks: synced.resourcepacks,
-        shaders: synced.shaders,
+        mods: synced.mods, resourcepacks: synced.resourcepacks, shaders: synced.shaders,
         installedMods: synced.installedMods ?? {},
       })
-      setBuilds(prev => prev.map(build => build.id === activeBuildId ? { ...build, ...synced } : build))
-    })
+      setBuilds(prev => prev.map(build => build.id === activeBuildId ? { ...build, mods: synced.mods, resourcepacks: synced.resourcepacks, shaders: synced.shaders, installedMods: synced.installedMods } : build))
+    })()
+    return () => { cancelled = true }
   }, [activeBuildId, ensureBuildContent, syncBuildContent, setBuilds])
 
   const reloadBuilds = useCallback(async () => {
@@ -282,8 +290,12 @@ export function useBuilds() {
     if (saveTimeoutRef.current !== null) {
       window.clearTimeout(saveTimeoutRef.current)
       saveTimeoutRef.current = null
-      void window.electronAPI?.saveBuilds(buildsRef.current as unknown as Parameters<NonNullable<Window["electronAPI"]>["saveBuilds"]>[0])
-      lastSavedSnapshotRef.current = JSON.stringify(buildsRef.current)
+      const pending = pendingPatchesRef.current
+      pendingPatchesRef.current = []
+      for (const patch of pending) {
+        try { await window.electronAPI?.updateBuildFields?.(patch.id, patch.fields as never) }
+        catch (error) { console.error("[Builds] Failed to flush pending changes", patch.id, error) }
+      }
     }
 
     isReloadingRef.current = true
@@ -366,7 +378,11 @@ export function useBuilds() {
       const activeId = activeBuildIdRef.current
       const toSync = activeId ? processed.filter(build => build.id === activeId) : []
       void Promise.all(toSync.map(async (normalized) => {
-        const synced = await syncBuildContent(normalized)
+        if (!await ensureBuildContent(normalized.id)) return
+        if (seq !== reloadSeqRef.current) return
+        const current = buildsRef.current.find(build => build.id === normalized.id) ?? normalized
+        const synced = await syncBuildContent(current)
+        updateCachedBuildContent(synced.id, { mods: synced.mods, resourcepacks: synced.resourcepacks, shaders: synced.shaders, installedMods: synced.installedMods ?? {} })
         if (seq !== reloadSeqRef.current) return
         setBuilds(prev => prev.map(b => {
           if (b.id !== synced.id) return b
@@ -431,7 +447,7 @@ export function useBuilds() {
     } finally {
       isReloadingRef.current = false
     }
-  }, [syncBuildContent])
+  }, [syncBuildContent, ensureBuildContent])
 
   /**
    * Точечная пересинхронизация ОДНОЙ сборки после установки/удаления/обновления
@@ -447,6 +463,12 @@ export function useBuilds() {
     if (!current) return
     try {
       const synced = await syncBuildContent(current)
+      // Результат скана после удаления, включая пустую папку, сохраняем явно.
+      await window.electronAPI?.updateBuildFields?.(buildId, {
+        mods: synced.mods, resourcepacks: synced.resourcepacks, shaders: synced.shaders,
+        installedMods: synced.installedMods ?? {}, modsCount: synced.mods.length,
+        resourcepacksCount: synced.resourcepacks.length, shadersCount: synced.shaders.length,
+      } as never)
       updateCachedBuildContent(buildId, {
         mods: synced.mods,
         resourcepacks: synced.resourcepacks,
@@ -479,6 +501,37 @@ export function useBuilds() {
     }
   }, [syncBuildContent, setBuilds])
 
+  useEffect(() => {
+    const api = window.electronAPI
+    if (!activeBuildId || !api?.watchBuildContent) return
+    const token = crypto.randomUUID()
+    let disposed = false
+    let running = false
+    let dirty = false
+    const refresh = async () => {
+      dirty = true
+      if (running) return
+      running = true
+      try {
+        while (dirty && !disposed) {
+          dirty = false
+          await refreshBuildContent(activeBuildId)
+        }
+      } finally { running = false }
+    }
+    const off = api.onBuildContentChanged(event => {
+      if (event.token === token && event.buildId === activeBuildId) void refresh()
+    })
+    void api.watchBuildContent(activeBuildId, token).then(ready => {
+      if (ready && !disposed) void refresh()
+    }).catch(console.error)
+    return () => {
+      disposed = true
+      off()
+      void api.unwatchBuildContent(token).catch(console.error)
+    }
+  }, [activeBuildId, refreshBuildContent])
+
   const activeBuild = useMemo(() => builds.find(b => b.id === activeBuildId) ?? null, [builds, activeBuildId])
 
   useEffect(() => {
@@ -486,6 +539,8 @@ export function useBuilds() {
     // время обновления. Раньше при протухшем кэше (TTL был 3 с) сначала шёл
     // запрос в БД, и до его ответа на экране не было данных.
     if (buildsLightCache) {
+      savedLightFieldsRef.current = new Map(buildsLightCache.map(build => [build.id, Object.fromEntries(LIGHT_BUILD_FIELDS.map(key => [key, (build as unknown as Record<string, unknown>)[key]]))]))
+      savedContentRef.current = new Map(buildsLightCache.filter(build => buildContentCache.has(build.id)).map(build => [build.id, { mods: build.mods, resourcepacks: build.resourcepacks, shaders: build.shaders, installedMods: build.installedMods ?? {} }]))
       setBuilds(buildsLightCache)
       setBuildsHydrated(true)
       window.dispatchEvent(new Event("app:hydrated"))
@@ -539,10 +594,7 @@ export function useBuilds() {
         if (!savedLight || savedLight[key] !== value) fields[key] = value
       }
       const savedContent = savedContentRef.current.get(build.id)
-      if (!savedContent || savedContent.mods !== build.mods) fields.mods = build.mods
-      if (!savedContent || savedContent.resourcepacks !== build.resourcepacks) fields.resourcepacks = build.resourcepacks
-      if (!savedContent || savedContent.shaders !== build.shaders) fields.shaders = build.shaders
-      if (!savedContent || savedContent.installedMods !== build.installedMods) fields.installedMods = build.installedMods ?? {}
+      Object.assign(fields, buildContentPatch(build, savedContent, buildContentCache.has(build.id)))
       if (Object.keys(fields).length > 0) patches.push({ id: build.id, fields, build })
     }
     if (patches.length === 0) return
@@ -957,7 +1009,7 @@ export function useBuilds() {
           const fileName = selectedVersion.fileName || url.split("/").pop()?.split("?")[0] || `${dep.projectId}.jar`
           await saveRemoteFileToBuild(url, fileName)
         }
-      } catch {}
+      } catch (error) { if (isContentDownloadCancelled(error)) throw error }
     }
 
     void (async () => {
@@ -1069,8 +1121,9 @@ export function useBuilds() {
           message: mod.name,
         })
         void refreshBuildContent(buildId)
-      } catch {
+      } catch (error) {
         endContentInstall()
+        if (isContentDownloadCancelled(error)) { void refreshBuildContent(buildId); return }
         pushNotification({
           kind: "error",
           source: "install",
@@ -1099,14 +1152,20 @@ export function useBuilds() {
       // вместе с тяжёлым JSON контента).
       const current = buildsRef.current.find(build => build.id === buildId)
       if (!current) return null
-      const updated = apply(current)
+      const applied = apply(current)
+      const updated: BuildWithCounts = {
+        ...applied,
+        modsCount: applied.mods.length,
+        resourcepacksCount: applied.resourcepacks.length,
+        shadersCount: applied.shaders.length,
+      }
       const content = {
         mods: updated.mods,
         resourcepacks: updated.resourcepacks,
         shaders: updated.shaders,
         installedMods: updated.installedMods ?? {},
       }
-      await window.electronAPI?.updateBuildFields?.(buildId, content as never)
+      await window.electronAPI?.updateBuildFields?.(buildId, { ...content, modsCount: content.mods.length, resourcepacksCount: content.resourcepacks.length, shadersCount: content.shaders.length } as never)
       const next = buildsRef.current.map(build => (build.id === buildId ? updated : build))
       // Память держим в согласии с записанным: помечаем контент и снапшот
       // сохранёнными, иначе отложенный debounce отправит более старый снапшот
@@ -1133,10 +1192,11 @@ export function useBuilds() {
     // Читаем только метаданные архива, чтобы в списке были имя, версия и автор.
     const metadata = localPath ? await window.electronAPI?.readLocalContentMetadata(localPath) : null
 
-    const addMod = (b: Build): Build => {
+    const addMod = (b: Build): BuildWithCounts => {
       if (b.mods.some(m => m.slug === file.name)) return b
       return {
         ...b,
+        modsCount: b.mods.length + 1,
         installedMods: { ...(b.installedMods ?? {}), [file.name]: savedPath },
         mods: [...b.mods, {
           id: crypto.randomUUID(),
@@ -1229,6 +1289,7 @@ export function useBuilds() {
         return {
           ...b,
           [type]: [...b[type], fallbackEntry],
+        [`${type}Count`]: b[type].length + 1,
         }
       }) as Build[])
 
@@ -1240,8 +1301,9 @@ export function useBuilds() {
         message: mod.name,
       })
       void refreshBuildContent(buildId)
-    } catch {
+    } catch (error) {
       endContentInstall()
+      if (isContentDownloadCancelled(error)) { void refreshBuildContent(buildId); throw error }
       pushNotification({
         kind: "error",
         source: "install",
@@ -1273,7 +1335,7 @@ export function useBuilds() {
       author: metadata?.author,
     }
 
-    const addContent = (b: Build): Build => {
+    const addContent = (b: Build): BuildWithCounts => {
       if (b[type].some(item => item.slug === file.name)) return b
       return {
         ...b,

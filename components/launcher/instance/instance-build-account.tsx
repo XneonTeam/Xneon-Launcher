@@ -1,3 +1,4 @@
+import { getAccountIcon } from "../accounts/account-provider-icon"
 import { useRef, useState } from "react"
 import { IconUser, IconUsers, IconCheck, IconChevronDown } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
@@ -25,12 +26,19 @@ export function InstanceBuildAccount({ build, updateBuild }: { build: Build; upd
     ? `${ACCOUNT_TYPE_LABELS[account.type]} · ${account.serverName}`
     : ACCOUNT_TYPE_LABELS[account.type] ?? account.type
 
-  return <section className="rounded-3xl border border-border bg-card/40 p-6">
-    <h3 className="flex items-center gap-2 text-lg font-semibold"><IconUser className="h-5 w-5 text-primary" strokeWidth={1.75} />{t("build.account.title")}</h3>
+  const accountLabel = (account: typeof accounts[number], includeName = false) => (
+    <span className="inline-flex max-w-full items-center gap-1.5 align-middle">
+      <span aria-hidden="true" className="inline-flex shrink-0 text-primary">{getAccountIcon(account.type, "h-3.5 w-3.5")}</span>
+      <span className="truncate">{includeName ? `${account.username} · ${accountType(account)}` : accountType(account)}</span>
+    </span>
+  )
+
+  return <section className="launcher-settings-panel">
+    <h3 className="launcher-settings-heading flex items-center gap-2 font-semibold"><IconUser className="h-5 w-5 text-primary" strokeWidth={1.75} />{t("build.account.title")}</h3>
     <p className="mt-1 text-sm text-muted-foreground">{t("build.account.description")}</p>
     <button type="button" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} className="mt-4 flex min-h-14 w-full items-center gap-3 rounded-xl border border-border bg-muted/40 px-3 py-2.5 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
       {displayAccount ? <CachedAvatar src={getAvatarUrl(displayAccount, displayAccount.username, avatarVersion)} alt="" className="size-9 shrink-0 rounded-lg object-cover" /> : <IconUsers className="size-9 shrink-0 p-2 text-primary" />}
-      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{selectedAccount?.username ?? t("build.account.active")}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{selectedAccount ? accountType(selectedAccount) : displayAccount ? `${displayAccount.username} · ${accountType(displayAccount)}` : t("skins.noAccounts")}</span></span>
+      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{selectedAccount?.username ?? t("build.account.active")}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{selectedAccount ? accountLabel(selectedAccount) : displayAccount ? accountLabel(displayAccount, true) : t("skins.noAccounts")}</span></span>
       <IconChevronDown className="size-4 shrink-0 text-muted-foreground" />
     </button>
     <Dialog open={open} onOpenChange={setOpen}>
@@ -42,12 +50,12 @@ export function InstanceBuildAccount({ build, updateBuild }: { build: Build; upd
         <div className="flex max-h-[400px] flex-col gap-1 overflow-y-auto px-3 pb-3 pt-2">
           <button type="button" onClick={() => choose("active")} className={cn("flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:border-primary", selected === "active" ? "border-primary/25 bg-primary/15" : "border-transparent hover:bg-muted/60")}>
             <IconUsers className="size-10 shrink-0 rounded-lg bg-muted/50 p-2.5 text-primary" />
-            <span className="min-w-0 flex-1"><span className="block text-sm font-medium">{t("build.account.active")}</span>{activeAccount && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{activeAccount.username} · {accountType(activeAccount)}</span>}</span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-medium">{t("build.account.active")}</span>{activeAccount && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{accountLabel(activeAccount, true)}</span>}</span>
             {selected === "active" && <IconCheck className="size-4 shrink-0 text-primary" />}
           </button>
           {accounts.map(account => <button key={account.id} type="button" onClick={() => choose(account.id)} className={cn("flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:border-primary", selected === account.id ? "border-primary/25 bg-primary/15" : "border-transparent hover:bg-muted/60")}>
             <CachedAvatar src={getAvatarUrl(account, account.username, avatarVersion)} alt="" className="size-10 shrink-0 rounded-lg object-cover" />
-            <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{account.username}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{accountType(account)}</span></span>
+            <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{account.username}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{accountLabel(account)}</span></span>
             {selected === account.id && <IconCheck className="size-4 shrink-0 text-primary" />}
           </button>)}
         </div>

@@ -146,12 +146,14 @@ export function InstanceCurseForge({
             ))}
           </div>
         )}
-        <Pagination
-          currentPage={page}
-          totalPages={totalPages}
-          onPageChange={onPageChange}
-          className="mt-auto"
-        />
+        {!cfLoading && (
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={onPageChange}
+            className="mt-auto"
+          />
+        )}
       </div>
     </div>
   )

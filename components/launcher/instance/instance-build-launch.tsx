@@ -25,11 +25,11 @@ export function InstanceBuildLaunch({ build, updateBuild }: InstanceBuildLaunchP
   const customEnv = build.customEnv ?? ""
 
   return (
-    <div data-ui="instance-instance-build-launch-div-1" data-component="instance-build-launch" className="space-y-6">
-      <div data-ui="instance-instance-build-launch-div-2" className="rounded-3xl border border-border bg-card/40 p-6">
+    <div data-ui="instance-instance-build-launch-div-1" data-component="instance-build-launch" className="grid gap-4">
+      <div data-ui="instance-instance-build-launch-div-2" className="launcher-settings-panel">
         <div data-ui="instance-instance-build-launch-div-3" className="flex items-start justify-between gap-4">
           <div data-ui="instance-instance-build-launch-div-4">
-            <div data-ui="instance-instance-build-launch-div-5" className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <div data-ui="instance-instance-build-launch-div-5" className="launcher-settings-heading flex items-center gap-2 font-semibold text-foreground">
               <IconTerminal2 className="h-5 w-5 text-primary" strokeWidth={1.75} />
               {t("build.launch.title")}
             </div>
@@ -41,7 +41,7 @@ export function InstanceBuildLaunch({ build, updateBuild }: InstanceBuildLaunchP
           </div>
         </div>
 
-        <div data-ui="instance-instance-build-launch-div-6" className="mt-6 grid gap-5">
+        <div data-ui="instance-instance-build-launch-div-6" className="mt-4 grid gap-4">
           <div data-ui="instance-instance-build-launch-div-7" className="space-y-2">
             <label data-ui="instance-instance-build-launch-label-1" className="block text-xs font-medium text-muted-foreground">{t("build.launch.preLaunch")}</label>
             <textarea data-ui="instance-instance-build-launch-textarea-1"
@@ -66,8 +66,8 @@ export function InstanceBuildLaunch({ build, updateBuild }: InstanceBuildLaunchP
         </div>
       </div>
 
-      <div data-ui="instance-instance-build-launch-div-9" className="rounded-3xl border border-border bg-card/40 p-6">
-        <div data-ui="instance-instance-build-launch-div-10" className="flex items-center gap-2 text-lg font-semibold text-foreground">
+      <div data-ui="instance-instance-build-launch-div-9" className="launcher-settings-panel">
+        <div data-ui="instance-instance-build-launch-div-10" className="launcher-settings-heading flex items-center gap-2 font-semibold text-foreground">
           <IconCode className="h-5 w-5 text-primary" strokeWidth={1.75} />
           {t("build.launch.wrapper")}
         </div>
@@ -86,8 +86,8 @@ export function InstanceBuildLaunch({ build, updateBuild }: InstanceBuildLaunchP
         </div>
       </div>
 
-      <div data-ui="instance-instance-build-launch-div-12" className="rounded-3xl border border-border bg-card/40 p-6">
-        <div data-ui="instance-instance-build-launch-div-13" className="flex items-center gap-2 text-lg font-semibold text-foreground">
+      <div data-ui="instance-instance-build-launch-div-12" className="launcher-settings-panel">
+        <div data-ui="instance-instance-build-launch-div-13" className="launcher-settings-heading flex items-center gap-2 font-semibold text-foreground">
           <IconWorldDownload className="h-5 w-5 text-primary" strokeWidth={1.75} />
           {t("build.launch.env")}
         </div>

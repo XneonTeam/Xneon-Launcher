@@ -1,3 +1,4 @@
+import { SharePublishTabs } from "./share-publish-tabs"
 import { IconX as LauncherCloseIcon } from "@tabler/icons-react"
 import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useEffect, useRef, useState } from "react"
@@ -107,22 +108,7 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
         </div>
       ) : (
         <div className="flex h-full min-h-0 flex-col gap-4">
-          <div className="flex shrink-0 gap-1 rounded-xl border border-border/70 bg-muted/30 p-1" aria-label={t("share.launcher.publishTitle")}>
-            {(["changes", "files"] as const).map(value => {
-              const Icon = value === "changes" ? IconGitCompare : IconFiles
-              return <button
-                type="button"
-                key={value}
-                aria-pressed={tab === value}
-                onClick={() => setTab(value)}
-                className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${tab === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"}`}
-              >
-                <Icon className="h-4 w-4 shrink-0 text-primary" />
-                {t(value === "changes" && !shared ? "share.launcher.content" : `share.flow.${value}`)}
-                <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">{value === "changes" ? changes.length : selected.length}</span>
-              </button>
-            })}
-          </div>
+          <SharePublishTabs value={tab} onChange={setTab} shared={shared} changeCount={changes.length} fileCount={selected.length} />
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/40">
             {!scan && <div role="status" className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-xs text-muted-foreground">
               {controller.busy && <IconLoader2 className="h-6 w-6 animate-spin text-primary" />}

@@ -13,7 +13,7 @@ interface RamAllocationProps {
    * settings   — как блок в «Настройках»: приглушённый фон, скругление поменьше;
    * onboarding — как блоки в первоначальной настройке: карточка.
    */
-  variant?: "settings" | "onboarding"
+  variant?: "settings" | "onboarding" | "settings-panel"
   /** Заголовок «Оперативная память» со значком процессора. */
   withHeader?: boolean
   className?: string
@@ -36,8 +36,9 @@ export function RamAllocation({
   const block = (
     <div data-ui="ram-allocation-div-1"
       className={cn(
-        "border border-border p-5 space-y-2.5",
-        variant === "settings" ? "rounded-xl bg-muted/30" : "rounded-2xl bg-card",
+        "space-y-2.5",
+        variant === "settings-panel" ? "border-0 bg-transparent p-0" : "border border-border p-5",
+        variant === "settings" ? "rounded-xl bg-muted/30" : variant === "onboarding" ? "rounded-2xl bg-card" : "",
       )}
     >
       <label data-ui="ram-allocation-label-1" className="block text-sm font-medium text-foreground">{t("settings.ram.allocated")}</label>
@@ -58,9 +59,9 @@ export function RamAllocation({
   if (!withHeader) return <div data-ui="ram-allocation-div-2" data-component="ram-allocation" className={className}>{block}</div>
 
   return (
-    <section data-ui="ram-allocation-section-1" data-component="ram-allocation" className={cn("space-y-4", className)}>
-      <h3 data-ui="ram-allocation-h3-1" className="text-lg font-medium text-foreground flex items-center gap-2">
-        <IconCpu className="w-5 h-5 text-primary" strokeWidth={1.75} />
+    <section data-ui="ram-allocation-section-1" data-component="ram-allocation" className={cn("space-y-4", variant === "settings-panel" && "rounded-xl border border-border bg-card p-[18px]", className)}>
+      <h3 data-ui="ram-allocation-h3-1" className={cn("font-medium text-foreground flex items-center gap-2", variant === "settings-panel" ? "text-[13px] font-semibold leading-[1.5]" : "text-lg")}>
+        <IconCpu className={cn("text-primary", variant === "settings-panel" ? "w-4 h-4" : "w-5 h-5")} strokeWidth={1.75} />
         {t("settings.ram")}
       </h3>
       {block}

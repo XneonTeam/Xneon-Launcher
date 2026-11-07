@@ -5,7 +5,7 @@ import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { CONTENT_ENTER_DELAYED, useContentEnter } from "./content-motion"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IconPlus, IconServer, IconTrash, IconLayoutGrid, IconLayoutList, IconPlayerPlay, IconPlayerStop, IconTerminal, IconPencil, IconChevronDown, IconChevronRight, IconPhoto } from "@tabler/icons-react"
+import { IconPlus, IconServer, IconTrash, IconLayoutGrid, IconLayoutList, IconPlayerPlay, IconPlayerStop, IconTerminal2, IconPencil, IconChevronDown, IconChevronRight, IconPhoto } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { useMcServers, useMcServerState } from "@/src/hooks/use-mc-servers"
 import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
@@ -20,6 +20,7 @@ import { CategoryAssignModal } from "./category-assign-modal"
 import { IconPickerModal } from "./instance/icon-picker-modal"
 import { ModalLayer } from "@/components/ui/modal-layer"
 import { ServersBrowse } from "./servers-browse"
+import { Spinner } from "./instance/spinner"
 import { SORT_OPTIONS_BY_SOURCE } from "./instance/sort-options"
 import { InstanceModal } from "./instance/instance-modal"
 import { LoaderIcon, loaderLabel } from "./instance/loader-icon"
@@ -544,8 +545,8 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
         <div data-ui="servers-page-content" className={cn("flex flex-1 min-h-0 flex-col", contentEnter)}>
           {/* Server grid */}
           {loading && servers.length === 0 ? (
-            <div data-ui="servers-page-div-12" className="flex items-center justify-center py-20">
-              <div data-ui="servers-page-div-13" className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+            <div data-ui="servers-page-div-12" className="flex flex-1 min-h-0 items-center justify-center">
+              <Spinner />
             </div>
           ) : servers.length === 0 ? (
             <div data-ui="servers-page-div-14" className="flex flex-1 flex-col items-center justify-center gap-4 rounded-xl border border-border bg-card px-4 py-6 text-center">

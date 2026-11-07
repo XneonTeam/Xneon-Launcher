@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next"
 import {
   IconRefresh, IconTrash, IconFolder, IconCoffee, IconChevronDown, IconChevronRight,
   IconPuzzle, IconPhoto, IconSparkles, IconMap, IconSettings, IconBug,
-  IconDatabase, IconAlertTriangle, IconFolderOpen, IconServer, IconLoader2, IconColorSwatch,
+  IconDatabase, IconAlertTriangle, IconServer, IconLoader2, IconColorSwatch,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { formatBytes } from "@/lib/format"
@@ -146,7 +146,7 @@ function BuildStorageRow({ entry, onClean, cleaning }: {
           className="shrink-0 rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           title={t("storage.openFolder")}
         >
-          <IconFolderOpen className="h-4 w-4" strokeWidth={1.75} />
+          <IconFolder className="h-4 w-4" strokeWidth={1.75} />
         </button>
       </div>
 
@@ -248,7 +248,7 @@ function ServerStorageRow({ entry }: { entry: ServerStorageEntry }) {
           className="shrink-0 rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           title={t("storage.openFolder")}
         >
-          <IconFolderOpen className="h-4 w-4" strokeWidth={1.75} />
+          <IconFolder className="h-4 w-4" strokeWidth={1.75} />
         </button>
       </div>
 

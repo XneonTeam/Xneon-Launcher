@@ -150,17 +150,18 @@
 
 .settings-switch {
   position: relative;
-  width: 38px;
+  width: 44px;
   height: 24px;
   flex-shrink: 0;
-  border: 1px solid color-mix(in oklab, var(--muted-foreground) 50%, var(--border));
+  padding: 0;
+  border: 0;
   border-radius: 999px;
-  background: color-mix(in oklab, var(--muted-foreground) 24%, var(--background));
+  background: var(--muted);
   transition: background 150ms, border-color 150ms;
 }
 .settings-switch[aria-checked="true"] { background: var(--primary); border-color: var(--primary); }
-.settings-switch-thumb { position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--foreground); transition: transform 150ms; }
-.settings-switch[aria-checked="true"] .settings-switch-thumb { transform: translateX(14px); background: var(--primary-foreground); }
+.settings-switch-thumb { position: absolute; left: 2px; top: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--foreground); transition: transform 150ms; }
+.settings-switch[aria-checked="true"] .settings-switch-thumb { transform: translateX(20px); background: var(--foreground); }
 .settings-switch:hover { filter: brightness(1.12); }
 .settings-switch:focus-visible,
 .settings-nav-item:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }

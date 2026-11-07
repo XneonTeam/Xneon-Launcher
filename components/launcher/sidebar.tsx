@@ -44,6 +44,11 @@ const sidebarItems: SidebarItem[] = [
     icon: <IconServer className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
   },
   {
+    id: "logs",
+    labelKey: "sidebar.logs",
+    icon: <IconFileText className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
+  },
+  {
     id: "accounts",
     labelKey: "sidebar.accounts",
     icon: <IconUserCircle className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
@@ -59,19 +64,14 @@ const sidebarItems: SidebarItem[] = [
     icon: <IconRobot className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
   },
   {
-    id: "logs",
-    labelKey: "sidebar.logs",
-    icon: <IconFileText className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
+    id: "cloud",
+    labelKey: "sidebar.cloud",
+    icon: <IconCloud className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
   },
   {
     id: "stats",
     labelKey: "sidebar.stats",
     icon: <IconChartBar className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
-  },
-  {
-    id: "cloud",
-    labelKey: "sidebar.cloud",
-    icon: <IconCloud className="w-6 h-6 flex-shrink-0" strokeWidth={1.75} />,
   },
   {
     id: "settings",

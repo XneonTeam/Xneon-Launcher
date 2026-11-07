@@ -3,7 +3,7 @@ import { useState } from "react"
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import {
-  IconTerminal, IconPlayerPlay, IconPlayerStop, IconFolder, IconCopy,
+  IconTerminal2, IconPlayerPlay, IconPlayerStop, IconFolder, IconCopy,
   IconDownload, IconTrash, IconX, IconMap, IconPuzzle,
   IconPlug, IconSettings, IconBug, IconCategoryPlus,
 } from "@tabler/icons-react"
@@ -72,7 +72,7 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
       <FloatingContextMenu position={position} onClose={onClose}>
         <button data-ui="server-server-context-menu-button-1" type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
           onClick={() => { onConnect(); onClose() }}>
-          <IconTerminal className="w-4 h-4 text-muted-foreground" />
+          <IconTerminal2 className="w-4 h-4 text-muted-foreground" />
           {t("servers.contextConnect")}
         </button>
         <button data-ui="server-server-context-menu-button-2" type="button" disabled={isBusy || !!server.remote && !(isRunning ? server.remote.permissions.stop : server.remote.permissions.start)}
@@ -127,7 +127,7 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
                   {t("servers.export.desc", { name: server.name })}
                 </p>
               </div>
-              <button data-ui="server-server-context-menu-button-8" type="button" onClick={() => setExportDialogFor(false)} className="p-1 rounded-md hover:bg-muted text-muted-foreground">
+              <button data-modal-close data-ui="server-server-context-menu-button-8" type="button" onClick={() => setExportDialogFor(false)} className="p-1 rounded-md hover:bg-muted text-muted-foreground">
                 <IconX className="w-4 h-4" />
               </button>
             </div>

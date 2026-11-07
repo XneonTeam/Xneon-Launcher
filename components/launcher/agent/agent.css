@@ -200,3 +200,5 @@
 .agent-history-archive:hover,.agent-history-archive[aria-pressed=true] { background:var(--muted); color:var(--foreground); }
 .agent-history-archive:focus-visible { outline:2px solid var(--ring); outline-offset:2px; }
 
+
+.agent-page[data-file-drag] .agent-workspace { outline:2px solid var(--primary); outline-offset:-2px; }

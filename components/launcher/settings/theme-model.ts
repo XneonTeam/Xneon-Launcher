@@ -351,6 +351,7 @@ function resetThemeVars(root: HTMLElement) {
   root.style.removeProperty("--theme-bg-blur")
   for (const name of THEME_ENTER_CSS_VARS) root.style.removeProperty(name)
   root.style.fontSize = ""
+  root.style.removeProperty("--theme-font-size")
   root.style.removeProperty("color-scheme")
   root.classList.remove("theme-with-background")
   document.getElementById(THEME_CSS_STYLE_ID)?.remove()
@@ -374,7 +375,7 @@ function applyAmbientVars(root: HTMLElement, primary: string, accent: string) {
   if (accentHex) root.style.setProperty("--ambient-accent", accentHex)
 }
 
-/** Шрифт темы: гарнитура и базовый кегль (Tailwind считает в rem, поэтому масштабируется всё). */
+/** Размер текста отделён от rem, используемых для геометрии интерфейса. */
 function fontFamilyCss(font: Theme["font"]): string | undefined {
   if (!font) return undefined
   const family = typeof font.family === "string" && font.family.trim() ? font.family.trim() : font.source ? "XneonThemeFont" : ""
@@ -390,7 +391,7 @@ function applyFontVars(root: HTMLElement, font: Theme["font"]) {
   const family = fontFamilyCss(font)
   if (family) root.style.setProperty("--font-sans", family)
   if (typeof font.size === "number") {
-    root.style.fontSize = `${clampRange(font.size, FONT_SIZE_MIN, FONT_SIZE_MAX, FONT_SIZE_DEFAULT)}px`
+    root.style.setProperty("--theme-font-size", `${clampRange(font.size, FONT_SIZE_MIN, FONT_SIZE_MAX, FONT_SIZE_DEFAULT)}px`)
   }
 }
 
@@ -414,7 +415,7 @@ function applyCustomCss(css: string | undefined) {
   const root = document.documentElement
   const names = [
     ...Object.values(THEME_CSS_VARS), "--sidebar-ring", "--glow-primary", "--glow-accent",
-    "--ambient-primary", "--ambient-accent", "--font-sans", "--theme-bg-opacity",
+    "--ambient-primary", "--ambient-accent", "--font-sans", "--theme-font-size", "--theme-bg-opacity",
     "--theme-bg-dim", "--theme-bg-blur", "color-scheme", "--theme-titlebar", "--destructive", "--destructive-foreground", "--warning", "--info", "--success",
     "--theme-blur-titlebar", "--theme-blur-sidebar", "--theme-blur-card", "--theme-radius", "--radius", ...THEME_ENTER_CSS_VARS, ...semanticCssVars, ...Object.keys(SURFACE_ALIASES),
   ]
@@ -436,7 +437,10 @@ function applyCustomCss(css: string | undefined) {
     style.id = THEME_CSS_STYLE_ID
     document.head.appendChild(style)
   }
-  style.textContent = content
+  // Старые экспортированные темы задавали кегль корня и масштабировали rem.
+  style.textContent = content.replace(/(:root\s*\{)([^}]*)(\})/g, (_match, start, body: string, end) =>
+    start + body.replace(/(^|;)\s*font-size\s*:\s*([\d.]+)px/gi, "$1 --theme-font-size: $2px") + end,
+  )
 }
 
 /** Кеш только цветов splash, без CSS, медиа и обращения к БД при следующем старте. */

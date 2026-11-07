@@ -1,3 +1,4 @@
+import { runContentDownload } from "./content-downloads"
 // ============================================================
 // Mods IPC Handlers — Unified Modrinth + CurseForge via @xnlc/mods
 // Author: MAINER4IK
@@ -237,11 +238,12 @@ export function registerModsHandlers(): void {
   // оба API отдают пустой список. Тогда читаем метаданные самого jar.
   ipcMain.handle(
     "mods:inspect-jar-dependencies",
-    async (_event, url: string, source: "modrinth" | "curseforge"): Promise<JarDependencyInspection> => {
+    async (event, url: string, source: "modrinth" | "curseforge"): Promise<JarDependencyInspection> => {
       try {
-        return await inspectJarDependencies(url, source)
+        return await runContentDownload(event.sender.id, (signal, id) => inspectJarDependencies(url, source, signal, id))
       } catch (err) {
-        console.error("[mods] Jar dependency inspection failed:", err)
+        if (err instanceof Error && err.message.includes("CONTENT_DOWNLOAD_CANCELLED")) throw err
+          console.error("[mods] Jar dependency inspection failed:", err)
         return { modId: null, dependencies: [], declared: [] }
       }
     },
@@ -290,30 +292,24 @@ export function registerModsHandlers(): void {
     },
   )
 
-  // ── Categories & Tags ────────────────────────────────────
-  ipcMain.handle("mods:modrinth-categories", async (): Promise<any[]> => {
-    try {
-      const mods = await loadModsModule()
-      const cats = await mods.modrinthGetCategories()
-      console.log(`[mods] Loaded ${cats.length} Modrinth categories`)
-      return cats
-    } catch (err) {
-      console.error("[mods] Failed to load Modrinth categories:", err)
+  // Категории общие для всех сборок: повторные входы используют один запрос.
+  const categoryCache = new Map<string, { expires: number; request: Promise<any[]> }>()
+  const categories = (provider: "modrinth" | "curseforge") => {
+    const cached = categoryCache.get(provider)
+    if (cached && cached.expires > Date.now()) return cached.request
+    const request = loadModsModule().then(mods => provider === "modrinth" ? mods.modrinthGetCategories() : mods.curseforgeGetCategories()).then(items => {
+      console.log(`[mods] Loaded ${items.length} ${provider} categories`)
+      return items
+    }).catch(error => {
+      categoryCache.delete(provider)
+      console.error(`[mods] Failed to load ${provider} categories:`, error)
       return []
-    }
-  })
-
-  ipcMain.handle("mods:curseforge-categories", async (): Promise<any[]> => {
-    try {
-      const mods = await loadModsModule()
-      const cats = await mods.curseforgeGetCategories()
-      console.log(`[mods] Loaded ${cats.length} CurseForge categories`)
-      return cats
-    } catch (err) {
-      console.error("[mods] Failed to load CurseForge categories:", err)
-      return []
-    }
-  })
+    })
+    categoryCache.set(provider, { request, expires: Date.now() + 10 * 60_000 })
+    return request
+  }
+  ipcMain.handle("mods:modrinth-categories", () => categories("modrinth"))
+  ipcMain.handle("mods:curseforge-categories", () => categories("curseforge"))
 
 
 }

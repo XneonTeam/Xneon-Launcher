@@ -25,7 +25,7 @@ import { EntityIcon } from "./entity-icon"
 import { PlatformBadge } from "@/components/launcher/platform-icon"
 import { ModpackChangeVersionDialog } from "./modpack-change-version-dialog"
 import { ActionConfirmDialog } from "./action-confirm-dialog"
-import { useMinecraftVersionOptions } from "@/src/hooks/use-minecraft-version-options"
+import { useHomeVersions } from "@/src/hooks/use-home-versions"
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
 import { useActivityCenter } from "@/src/ActivityCenterContext"
 import { formatPlaytime } from "@/lib/format"
@@ -45,7 +45,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
   const { pushNotification } = useActivityCenter()
   const savedNameRef = useRef(activeBuild.name)
   const [showIconPicker, setShowIconPicker] = useState(false)
-  const { visibleVersions, versionsLoaded } = useMinecraftVersionOptions()
+  const { versions: visibleVersions, versionsLoaded } = useHomeVersions(activeBuild.modLoader === "instance" ? "vanilla" : activeBuild.modLoader, activeBuild.version)
   const { loaderVersions, loaderVersionsLoaded, defaultLoaderVersion } = useLoaderVersionOptions(activeBuild.modLoader, activeBuild.version)
   const buildHasImage = !!activeBuild.icon
   const availableVersions = visibleVersions.includes(activeBuild.version)

@@ -30,7 +30,7 @@ export function OfflineModal({
       <div data-ui="onboarding-offline-modal-div-2" className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
         <div data-ui="onboarding-offline-modal-div-3" className="mb-6 flex items-center justify-between">
           <h3 data-ui="onboarding-offline-modal-h3-1" className="text-lg font-semibold text-foreground">{copy.accountOfflineTitle}</h3>
-          <button data-ui="onboarding-offline-modal-button-1"
+          <button data-modal-close data-ui="onboarding-offline-modal-button-1"
             type="button"
             onClick={onClose}
             className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"

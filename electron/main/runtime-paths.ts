@@ -1,3 +1,4 @@
+import { getLauncherDataRoot, isLauncherDataRelocated } from "./paths"
 import { app } from "electron"
 import path from "path"
 import fs from "fs/promises"
@@ -5,8 +6,8 @@ import { constants } from "fs"
 import { ensureDir } from "./utils/fs"
 
 const homeDir = app.getPath("home")
-const configDir = path.join(homeDir, ".config", "xneon-launcher")
-const cacheDir = path.join(homeDir, ".cache", "xneon-launcher")
+const configDir = isLauncherDataRelocated() ? path.join(getLauncherDataRoot(), "system-config") : path.join(homeDir, ".config", "xneon-launcher")
+const cacheDir = isLauncherDataRelocated() ? path.join(getLauncherDataRoot(), "system-cache") : path.join(homeDir, ".cache", "xneon-launcher")
 const runtimeDir = path.join(cacheDir, "runtime")
 const runtimeTempDir = path.join(cacheDir, "temp")
 

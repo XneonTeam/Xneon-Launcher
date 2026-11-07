@@ -85,6 +85,8 @@ export async function executeShare(input: ShareRequest, progress: (event: { stag
     } finally { invite.installing = false }
   }
   if (input.action === "acceptInvite") return request(`/invites/${encodeURIComponent(input.token)}/accept`, "POST", {})
+  // Локальный запуск не зависит от доступности Share и его фоновых операций.
+  if (input.action === "checkLaunch" && !await linkFor(input.buildId)) return {}
   if (busy.has(input.buildId)) throw new ShareError("BUSY", "Share operation already running")
   busy.add(input.buildId)
   try {

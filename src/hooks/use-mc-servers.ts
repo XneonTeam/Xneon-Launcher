@@ -44,7 +44,7 @@ export function useMcServers() {
     return window.electronAPI?.onMcServerRemoteConnection(event => { setServers(previous => previous.map(server => server.id === event.id ? event.info : server)) })
   }, [reload])
 
-  const createServer = useCallback(async (data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }) => {
+  const createServer = useCallback(async (data: { name: string; description?: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }) => {
     const server = await window.electronAPI?.mcServerCreate(data)
     if (server) setServers(prev => [server, ...prev])
     return server

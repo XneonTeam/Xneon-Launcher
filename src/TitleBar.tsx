@@ -171,7 +171,10 @@ export function TitleBar() {
                                 </div>
                                 <div data-ui="title-bar-div-19" className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
                                   <span data-ui="title-bar-span-5">{formatSourceLabel(notification.source, t)}</span>
-                                  <span data-ui="title-bar-span-6">{notification.progress}%</span>
+                                  <div className="flex items-center gap-2">
+                                    <span data-ui="title-bar-span-6">{notification.progress}%</span>
+                                    {notification.downloadId && <button type="button" onClick={() => void window.electronAPI?.cancelContentDownload(notification.downloadId!)} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-xs text-foreground hover:bg-muted"><IconX className="h-3.5 w-3.5 text-primary" />{t("common.cancel")}</button>}
+                                  </div>
                                 </div>
                               </div>
                             ) : notification.busy ? (
@@ -179,8 +182,9 @@ export function TitleBar() {
                               // ещё нет, но полоса должна показывать, что процесс идёт.
                               <div data-ui="title-bar-div-20" className="mt-3">
                                 <div data-ui="title-bar-div-21" className="progress-indeterminate h-1.5 rounded-full bg-muted" />
-                                <div data-ui="title-bar-div-22" className="mt-1 text-[11px] text-muted-foreground">
-                                  {formatSourceLabel(notification.source, t)}
+                                <div data-ui="title-bar-div-22" className="mt-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                                  <span>{formatSourceLabel(notification.source, t)}</span>
+                                  {notification.downloadId && <button type="button" onClick={() => void window.electronAPI?.cancelContentDownload(notification.downloadId!)} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-xs text-foreground hover:bg-muted"><IconX className="h-3.5 w-3.5 text-primary" />{t("common.cancel")}</button>}
                                 </div>
                               </div>
                             ) : null}

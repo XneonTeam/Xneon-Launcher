@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { formatBytes, formatDateTime, formatPlaytime } from "@/lib/format"
-import { IconArchive, IconCopy, IconDownload, IconFolderOpen, IconInfoCircle, IconLoader2, IconMap, IconPhoto, IconRefresh, IconSearch, IconTrash, IconUpload, IconX, IconCheck, IconList } from "@tabler/icons-react"
+import { IconArchive, IconCopy, IconDownload, IconFolder, IconInfoCircle, IconLoader2, IconMap, IconPhoto, IconRefresh, IconSearch, IconTrash, IconUpload, IconX, IconCheck, IconList } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
@@ -528,26 +528,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
           </button>
         </div>
 
-        {viewMode === "installed" && worlds && worlds.length > 0 && (
-          <div data-ui="instance-instance-worlds-tab-div-4" className="flex items-center gap-1.5">
-            <button data-ui="instance-instance-worlds-tab-button-3"
-              type="button"
-              onClick={() => worldZipInputRef.current?.click()}
-              className="flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <IconUpload className="h-3.5 w-3.5" strokeWidth={1.75} />
-              {t("worlds.import_zip")}
-            </button>
-            <button data-ui="instance-instance-worlds-tab-button-4"
-              type="button"
-              onClick={() => void refreshWorlds()}
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/60 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              {loading ? <IconLoader2 className="h-3.5 w-3.5 text-primary animate-spin" strokeWidth={1.75} /> : <IconRefresh className="h-3.5 w-3.5" strokeWidth={1.75} />}
-              {t("worlds.refresh")}
-            </button>
-          </div>
-        )}
+
       </div>
 
       {viewMode === "catalog" ? (
@@ -705,7 +686,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
           {/* Область списка карт со своим скроллом */}
           <div data-ui="instance-instance-worlds-tab-div-13" className="flex-1 min-h-0 overflow-y-auto pr-2 pb-3">
             {mapLoading ? (
-              <div data-ui="instance-instance-worlds-tab-div-14" className="flex h-64 items-center justify-center text-muted-foreground">
+              <div data-ui="instance-instance-worlds-tab-div-14" className="flex min-h-full items-center justify-center text-muted-foreground">
                 <IconLoader2 className="h-6 w-6 animate-spin text-primary" />
               </div>
             ) : mapResults.length === 0 ? (
@@ -890,25 +871,25 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
           {/* World list */}
           <div data-ui="instance-instance-worlds-tab-div-38">
             <div data-ui="instance-instance-worlds-tab-div-39" className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-border bg-card p-4">
-              <div data-ui="instance-instance-worlds-tab-div-40" className="text-sm font-semibold text-foreground">{t("worlds.tabs.installed")}</div>
-              <div data-ui="instance-instance-worlds-tab-div-41" className="flex items-center gap-1.5">
-                <button data-ui="instance-instance-worlds-tab-button-14"
-                  type="button"
-                  onClick={() => worldZipInputRef.current?.click()}
-                  className="flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  <IconUpload className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  {t("worlds.import_zip")}
-                </button>
-                <button data-ui="instance-instance-worlds-tab-button-15"
-                  type="button"
-                  onClick={() => void refreshWorlds()}
-                  className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/60 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  {loading ? <IconLoader2 className="h-3.5 w-3.5 text-primary animate-spin" strokeWidth={1.75} /> : <IconRefresh className="h-3.5 w-3.5" strokeWidth={1.75} />}
-                  {t("common.refresh")}
-                </button>
-              </div>
+              <div data-ui="instance-instance-worlds-tab-div-40" className="flex items-center gap-2 text-sm font-semibold text-foreground"><IconMap className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("worlds.tabs.installed")}</div>
+          <div data-ui="instance-instance-worlds-tab-div-41" className="flex items-center gap-1.5">
+            <button data-ui="instance-instance-worlds-tab-button-14"
+              type="button"
+              onClick={() => worldZipInputRef.current?.click()}
+              className="flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <IconUpload className="h-3.5 w-3.5" strokeWidth={1.75} />
+              {t("worlds.import_zip")}
+            </button>
+            <button data-ui="instance-instance-worlds-tab-button-15"
+              type="button"
+              onClick={() => void refreshWorlds()}
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/60 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              {loading ? <IconLoader2 className="h-3.5 w-3.5 text-primary animate-spin" strokeWidth={1.75} /> : <IconRefresh className="h-3.5 w-3.5" strokeWidth={1.75} />}
+              {t("worlds.refresh")}
+            </button>
+          </div>
               <input data-ui="instance-instance-worlds-tab-input-2"
                 ref={worldZipInputRef}
                 type="file"
@@ -1031,7 +1012,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                       onClick={() => window.electronAPI?.openPath(selectedWorld.path)}
                       className="flex items-center gap-1.5 rounded-xl bg-muted/60 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
                     >
-                      <IconFolderOpen className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      <IconFolder className="h-3.5 w-3.5" strokeWidth={1.75} />
                       {t("worlds.ui.folder")}
                     </button>
                     <button data-ui="instance-instance-worlds-tab-button-20"
@@ -1191,7 +1172,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                   )}
 
                   {!searching && results && results.length === 0 && (
-                    <EmptyState compact title={t("worlds.ui.nothingFound")} className="mt-3 py-4" />
+                    <EmptyState compact title={t("worlds.ui.nothingFound")} className="mt-3 border-0 bg-transparent py-4" />
                   )}
 
                   {!searching && results && results.length > 0 && (
@@ -1256,7 +1237,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                 <ModalTitleIcon><IconMap className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>
                 {namePrompt.mode === "copy" ? t("worlds.ui.copyWorld") : t("worlds.ui.importWorldZip")}
               </h3>
-              <button data-ui="instance-instance-worlds-tab-button-28"
+              <button data-modal-close data-ui="instance-instance-worlds-tab-button-28"
                 type="button"
                 onClick={() => setNamePrompt(null)}
                 className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"

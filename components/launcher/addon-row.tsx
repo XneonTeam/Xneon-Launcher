@@ -1,7 +1,10 @@
+import { useConfirmDialog } from "@/lib/use-confirm-dialog"
+import { IconX as CancelDownloadIcon } from "@tabler/icons-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useTranslation } from "react-i18next"
 import { IconInfoCircle, IconCheck, IconPlus, IconLoader2, IconExternalLink } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
+import "./addon-row.css"
 import { CategoryBadge } from "./instance/category-badge"
 import { SourceMark } from "@/components/launcher/source-mark"
 import { formatDownloads } from "./instance/utils"
@@ -35,6 +38,7 @@ export interface AddonRowProps {
   onSelectionChange?: (selected: boolean) => void
   selectionDisabled?: boolean
   onDetails: () => void
+  onCancelDownload?: () => void
   onInstall: () => void
 }
 
@@ -57,8 +61,10 @@ export function AddonRow({
   selectionDisabled = false,
   onDetails,
   onInstall,
+  onCancelDownload,
 }: AddonRowProps) {
   const { t } = useTranslation()
+  const { ask, dialog: confirmationDialog } = useConfirmDialog()
   const siteUrl = projectPageUrl(project, projectKind)
 
   // Словами о текущем этапе: сетевые шаги не показывают байты, но время занимают.
@@ -73,10 +79,11 @@ export function AddonRow({
   return (
     <div data-ui="addon-row-div-1" data-component="addon-row"
       className={cn(
-        "group min-w-0 rounded-xl border border-border bg-card px-3.5 py-2.5 transition-colors hover:border-primary/50",
+        "addon-row-container group min-w-0 rounded-xl border border-border bg-card px-3.5 py-2.5 transition-colors hover:border-primary/50",
         (installing || selected) && "border-primary/50 bg-primary/5",
       )}
     >
+      {confirmationDialog}
       <div data-ui="addon-row-div-2" className="flex min-w-0 items-center gap-3.5">
         {onSelectionChange && <Checkbox checked={selected} disabled={installed || selectionDisabled} onCheckedChange={value => onSelectionChange(value === true)} aria-label={t("addon.batch.select", { name: project.name })} />}
         <div data-ui="addon-row-div-3" className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-muted flex-shrink-0">
@@ -94,7 +101,7 @@ export function AddonRow({
           <div data-ui="addon-row-div-6" className="flex min-w-0 items-center gap-1.5 overflow-hidden">
             <span data-ui="addon-row-span-2" className="shrink-0 text-xs text-muted-foreground">{formatDownloads(project.downloadCount)}</span>
             {showCategories && project.categories?.slice(0, 3).map(cat => (
-              <CategoryBadge key={cat} name={cat} source={project.source} className="min-w-0 px-1.5 text-[11px]" />
+              <CategoryBadge key={cat} name={cat} source={project.source} responsive className="addon-row-category-badge min-w-0 px-1.5 text-[11px]" />
             ))}
           </div>
         </div>
@@ -119,7 +126,7 @@ export function AddonRow({
             <IconInfoCircle className="h-3.5 w-3.5" strokeWidth={1.75} />
             {t("builds.details")}
           </button>
-          {installed ? (
+          {installed && !installing ? (
             <span data-ui="addon-row-span-3" className="flex items-center justify-center gap-1.5 rounded-lg bg-primary/10 px-3.5 py-1.5 text-xs font-medium text-primary">
               <IconCheck className="h-3.5 w-3.5" strokeWidth={1.75} />
               {t("builds.installed")}
@@ -127,17 +134,18 @@ export function AddonRow({
           ) : (
             <button data-ui="addon-row-button-3"
               type="button"
-              disabled={installDisabled || installing}
-              onClick={() => {
-                if (confirmMessage && !confirm(confirmMessage)) return
+              disabled={installing ? !onCancelDownload : installDisabled}
+              onClick={async () => {
+                if (installing) { onCancelDownload?.(); return }
+                if (confirmMessage && !await ask(confirmMessage)) return
                 onInstall()
               }}
               className="flex items-center justify-center gap-1.5 min-w-[90px] rounded-lg bg-primary px-3.5 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {installing ? (
                 <>
-                  <IconLoader2 className="h-3.5 w-3.5 animate-spin shrink-0" strokeWidth={2} />
-                  {percent !== null && <span data-ui="addon-row-span-4" className="font-mono tabular-nums">{percent}%</span>}
+                  <CancelDownloadIcon className="h-3.5 w-3.5 shrink-0 text-primary-foreground" strokeWidth={1.75} />
+                  <span>{t("common.cancel")}</span>
                 </>
               ) : (
                 <>
@@ -157,9 +165,9 @@ export function AddonRow({
               <IconLoader2 className="h-3 w-3 shrink-0 animate-spin text-primary" strokeWidth={2} />
               <span data-ui="addon-row-span-7" className="truncate">{phaseLabel}</span>
             </span>
-            <span data-ui="addon-row-span-8" className="shrink-0 font-mono tabular-nums">
-              {percent !== null ? `${percent}%` : ""}
-            </span>
+            <div className="flex shrink-0 items-center gap-3">
+              <span data-ui="addon-row-span-8" className="font-mono tabular-nums">{percent !== null ? `${percent}%` : ""}</span>
+            </div>
           </div>
           <div data-ui="addon-row-div-10" className={cn("h-1.5 w-full rounded-full bg-muted", percent === null && "progress-indeterminate")}>
             {/* Пока байтов нет (поиск версии, окно зависимостей) полоса бежит,

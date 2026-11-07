@@ -1,3 +1,5 @@
+import { useActivityCenter } from "@/src/ActivityCenterContext"
+import { isContentDownloadCancelled } from "@/lib/content-download"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeRaw from "rehype-raw"
@@ -123,6 +125,8 @@ export function AddonDetailModal({
   projectKind = "mod",
 }: AddonDetailModalProps) {
   const { t } = useTranslation()
+  const { notifications } = useActivityCenter()
+  const cancellableDownload = notifications.find(item => item.liveKey === "content-download")?.downloadId
   const siteUrl = selectedDetails ? projectPageUrl(selectedDetails, projectKind) : null
   const resolvedTargetLabel = targetLabel ?? t("addon.target.build")
   const [selectedUpdateVersion, setSelectedUpdateVersion] = useState<ModVersion | null>(null)
@@ -227,6 +231,7 @@ export function AddonDetailModal({
       const result = await action()
       completed = result !== false
     } catch (e) {
+      if (isContentDownloadCancelled(e)) { installVersionRef.current = null; setInstall(null); return }
       installVersionRef.current = null
       setInstall({
         versionId: version.id,
@@ -365,7 +370,7 @@ export function AddonDetailModal({
                     void openAgent([{ id: `${selectedDetails.source}:${projectId}`, kind: "project", name: title, source: selectedDetails.source as "modrinth" | "curseforge", projectId, iconUrl, content: JSON.stringify({ source: selectedDetails.source, projectId, name: title, summary: description, description: selectedDetails.description?.slice(0, 18000) }) }])
                     onClose()
                   }}><IconRobot className="w-5 h-5" /></button>}
-                  <button data-ui="addon-detail-modal-button-2" onClick={onClose} className="p-2 rounded-lg border border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                  <button data-modal-close data-ui="addon-detail-modal-button-2" onClick={onClose} className="p-2 rounded-lg border border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                     <IconX className="w-5 h-5" />
                   </button>
                 </div>
@@ -551,6 +556,7 @@ export function AddonDetailModal({
                     </div>
 
                     {installState && <VersionInstallProgress state={installState} />}
+                    {installState?.phase === "running" && cancellableDownload && <button type="button" onClick={() => void window.electronAPI?.cancelContentDownload(cancellableDownload)} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-xs text-foreground hover:bg-muted"><IconX className="h-3.5 w-3.5 text-primary" />{t("common.cancel")}</button>}
                   </div>
                   )
                 })

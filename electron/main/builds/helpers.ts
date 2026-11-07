@@ -87,7 +87,9 @@ export async function ensureBuildIntentDir(dirName: string): Promise<string> {
   return intentPath
 }
 
-export async function downloadBuffer(url: string, signal?: AbortSignal, progressFileName?: string): Promise<Buffer> {
+export async function downloadBuffer(url: string, signal?: AbortSignal, progressFileName?: string, downloadId?: string): Promise<Buffer> {
+  signal?.throwIfAborted()
+  if (downloadId && progressFileName) emitToRenderer("content:download-progress", { fileName: progressFileName, current: 0, total: 0, downloadId })
   const res = await fetchWithRetry(url, { signal })
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`)
 
@@ -103,8 +105,8 @@ export async function downloadBuffer(url: string, signal?: AbortSignal, progress
         if (value) {
           received += value.length
           chunks.push(Buffer.from(value))
-          if (totalHeader > 0) {
-            emitToRenderer("content:download-progress", { fileName: progressFileName, current: received, total: totalHeader })
+          if (totalHeader > 0 || downloadId) {
+            emitToRenderer("content:download-progress", { fileName: progressFileName, current: received, total: totalHeader, downloadId })
           }
         }
       }
@@ -112,8 +114,8 @@ export async function downloadBuffer(url: string, signal?: AbortSignal, progress
     } finally {
       // Поток закрыт — сообщаем об этом рендереру (в том числе при ошибке),
       // иначе живое уведомление об установке остаётся висеть на последнем проценте.
-      if (totalHeader > 0) {
-        emitToRenderer("content:download-progress", { fileName: progressFileName, current: received, total: totalHeader, done: true })
+      if (totalHeader > 0 || downloadId) {
+        emitToRenderer("content:download-progress", { fileName: progressFileName, current: received, total: totalHeader, done: true, downloadId })
       }
     }
   }
@@ -145,8 +147,9 @@ export function getContentDirectoryName(contentType: "mod" | "resourcepack" | "s
   return "mods"
 }
 
-export async function saveRemoteContentToIntent(dirName: string, contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string): Promise<string | null> {
+export async function saveRemoteContentToIntent(dirName: string, contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string, signal?: AbortSignal, downloadId?: string): Promise<string | null> {
   try {
+    signal?.throwIfAborted()
     const intentPath = await ensureBuildIntentDir(dirName)
     const targetDir = path.join(intentPath, getContentDirectoryName(contentType))
     await fs.mkdir(targetDir, { recursive: true }).catch(() => {})
@@ -156,12 +159,16 @@ export async function saveRemoteContentToIntent(dirName: string, contentType: "m
     // те же байты не тянем.
     const cached = await getCachedJarPath(url)
     if (cached) {
+      signal?.throwIfAborted()
       await fs.copyFile(cached, filePath)
       return filePath
     }
-    await fs.writeFile(filePath, await downloadBuffer(url, undefined, safeFileName))
+    const bytes = await downloadBuffer(url, signal, safeFileName, downloadId)
+    signal?.throwIfAborted()
+    await fs.writeFile(filePath, bytes)
     return filePath
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw new Error("CONTENT_DOWNLOAD_CANCELLED")
     return null
   }
 }
@@ -206,14 +213,22 @@ export async function deleteContentFromIntent(dirName: string, contentType: "mod
     const addTarget = (p: string) => {
       if (isInside(p)) candidates.add(path.resolve(p))
     }
-    addTarget(path.join(targetDir, relPath))
-    addTarget(path.join(targetDir, relBase))
+    const withoutDisabled = (name: string) => name.replace(/\.disabled$/i, "")
+    // Slug не содержит суффикс выключения. Удаляем обе формы, иначе сканер
+    // снова добавит оставшийся .disabled после удаления записи из интерфейса.
+    const addVariants = (relative: string) => {
+      const bare = withoutDisabled(relative)
+      addTarget(path.join(targetDir, bare))
+      addTarget(path.join(targetDir, `${bare}.disabled`))
+    }
+    addVariants(relPath)
+    addVariants(relBase)
 
     // Иногда slug в БД не совпадает с реальным путём файла (например, мод лежит
     // в подпапке или имя файла отличается). Поэтому дополнительно ищем файл по
     // относительному пути и по имени в поддереве папки контента.
-    const wantedRel = relPath.toLowerCase().replace(/\\/g, "/")
-    const wantedBase = relBase.toLowerCase()
+    const wantedRel = withoutDisabled(relPath.toLowerCase().replace(/\\/g, "/"))
+    const wantedBase = withoutDisabled(relBase.toLowerCase())
     const walk = async (dir: string): Promise<void> => {
       if (!isInside(dir)) return
       let entries
@@ -229,10 +244,9 @@ export async function deleteContentFromIntent(dirName: string, contentType: "mod
         // Тот же набор расширений, что и у сканера: `.litemod` — валидный мод,
         // иначе заменённый/удалённый лайтмод не находился и оставался в папке.
         if (!/\.(jar|zip|litemod)(\.disabled)?$/i.test(entry.name)) continue
-        const entryRel = path.relative(targetDir, full).toLowerCase().replace(/\\/g, "/")
+        const entryRel = withoutDisabled(path.relative(targetDir, full).toLowerCase().replace(/\\/g, "/"))
         if (entryRel === wantedRel || path.basename(entryRel).toLowerCase() === wantedBase) {
           candidates.add(full)
-          return
         }
       }
     }

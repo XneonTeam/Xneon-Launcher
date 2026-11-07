@@ -1,3 +1,4 @@
+import { getAccountIcon } from "../accounts/account-provider-icon"
 import { useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
@@ -70,7 +71,7 @@ export function SkinAccountPicker({ avatarVersion = 0 }: { avatarVersion?: numbe
           <DialogHeader className="px-5 pb-3 pt-5">
             <DialogTitle ref={titleRef} tabIndex={-1} className="flex items-center gap-2 outline-none"><ModalTitleIcon><IconUsers className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t("home.account", "Аккаунт")}</DialogTitle>
           </DialogHeader>
-          <div data-ui="skins-account-picker-div-7" className="flex max-h-[400px] flex-col gap-1 overflow-y-auto px-3 pb-3 pt-2">
+          <div data-ui="skins-account-picker-div-7" className="flex max-h-[400px] flex-col gap-2 overflow-y-auto px-3 pb-3 pt-2">
             {skinAccounts.map((acc) => {
               const isActive = acc.id === account?.id
               return (
@@ -83,7 +84,7 @@ export function SkinAccountPicker({ avatarVersion = 0 }: { avatarVersion?: numbe
                   }}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left outline-none transition-all duration-200 focus-visible:ring-0 focus-visible:border-primary",
-                    isActive ? "border-primary/25 bg-primary/15" : "border-transparent hover:bg-muted/60",
+                    isActive ? "border-primary/25 bg-primary/15" : "border-border bg-muted/40 hover:bg-muted/70 hover:border-primary/30",
                   )}
                 >
                   <div data-ui="skins-account-picker-div-8" className="size-10 shrink-0 overflow-hidden rounded-lg">
@@ -91,7 +92,7 @@ export function SkinAccountPicker({ avatarVersion = 0 }: { avatarVersion?: numbe
                   </div>
                   <div data-ui="skins-account-picker-div-9" className="min-w-0 flex-1">
                     <p data-ui="skins-account-picker-p-3" className="truncate text-sm font-medium text-foreground">{acc.username}</p>
-                    <p data-ui="skins-account-picker-p-4" className="text-[11px] text-muted-foreground">{ACCOUNT_TYPE_LABELS[acc.type] ?? acc.type}</p>
+                    <p data-ui="skins-account-picker-p-4" className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><span aria-hidden="true" className="inline-flex shrink-0 text-primary">{getAccountIcon(acc.type, "h-3.5 w-3.5")}</span>{ACCOUNT_TYPE_LABELS[acc.type] ?? acc.type}</p>
                   </div>
                   {isActive && <IconCheck className="h-4 w-4 shrink-0 text-primary" strokeWidth={2} />}
                 </button>

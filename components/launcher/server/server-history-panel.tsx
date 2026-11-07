@@ -1,3 +1,6 @@
+import { IconCheck, IconLoader2, IconCloudUpload } from "@tabler/icons-react"
+import { SharePublishTabs } from "../instance/shared/share-publish-tabs"
+import { ShareFileTree } from "../instance/shared/share-file-tree"
 import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -91,13 +94,37 @@ export function ServerPublishDialog({ server, controller, onClose }: { server: M
   const { t } = useTranslation()
   const { busy, error, run, view } = controller
   const [scan, setScan] = useState<ServerHistoryResponse>(), [message, setMessage] = useState("")
+  const [tab, setTab] = useState<"changes" | "files">("changes")
+  const [success, setSuccess] = useState(false)
+  const shared = Boolean(view?.head)
+  const changes = serverChanges(scan?.changes)
+  const files = (scan?.changes ?? []).filter(change => !change.path.startsWith("@") && change.after).map(change => ({ path: change.path, size: change.after!.size }))
   useEffect(() => { let active = true; void run({ action: "scan" }).then(result => { if (active) setScan(result) }); return () => { active = false } }, [])
-  return <ShareModal open onClose={() => { if (!busy) onClose() }} wide fixedHeight title={t(view?.head ? "share.launcher.publishUpdate" : "share.launcher.publishTitle")} description={t("serverHistory.publishDescription")} footer={<><ShareButton secondary disabled={busy} onClick={onClose}>{<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("share.flow.cancel")}</span>}</ShareButton><ShareButton busy={busy} disabled={busy || !scan?.fingerprint} onClick={async () => { if (await run({ action: "commit", message: message.trim() || t(view?.head ? "serverHistory.defaultMessage" : "serverHistory.initialMessage"), fingerprint: scan!.fingerprint! })) onClose() }}>{t(view?.head ? "share.launcher.publishUpdate" : "share.publish")}</ShareButton></>}>
-    <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/40">{scan ? <ShareContentChanges contentCategories={serverContentCategories(server.modloader)} expanded changes={serverChanges(scan.changes)} presentation={serverPresentation(scan)} showChangeType={!!view?.head} /> : <p className="flex flex-1 items-center justify-center py-8 text-xs text-muted-foreground">{t("share.flow.scanning")}</p>}</div>
+  return <ShareModal open onClose={() => { if (!busy) onClose() }} wide fixedHeight={!success}
+    title={t(success ? "share.launcher.published" : shared ? "share.launcher.publishUpdate" : "share.launcher.publishTitle")}
+    description={t(success ? "share.flow.publishedDescription" : "serverHistory.publishDescription")}
+    footer={success ? <ShareButton onClick={onClose}><LauncherCancelIcon className="h-4 w-4" />{t("share.launcher.close")}</ShareButton> : <>
+      <ShareButton secondary disabled={busy} onClick={onClose}><LauncherCancelIcon className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} />{t("share.flow.cancel")}</ShareButton>
+      <ShareButton busy={busy} disabled={busy || !scan?.fingerprint} onClick={async () => {
+        if (await run({ action: "commit", message: message.trim() || t(shared ? "serverHistory.defaultMessage" : "serverHistory.initialMessage"), fingerprint: scan!.fingerprint! })) setSuccess(true)
+      }}><IconCloudUpload className="h-4 w-4 shrink-0" />{t(shared ? "share.launcher.publishUpdate" : "share.publish")}</ShareButton>
+    </>}>
+    {success ? <div className="flex flex-col items-center gap-3 py-6 text-center" role="status">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><IconCheck className="h-6 w-6" /></div>
+      <p className="text-sm font-medium">{t("share.flow.published")}</p>
+    </div> : <div className="flex h-full min-h-0 flex-col gap-4">
+      <SharePublishTabs value={tab} onChange={setTab} shared={shared} changeCount={changes.length} fileCount={files.length} />
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/40">
+        {!scan ? <div role="status" className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-xs text-muted-foreground">
+          {busy && <IconLoader2 className="h-6 w-6 animate-spin text-primary" />}{t(busy ? "share.flow.scanning" : "share.failed")}
+        </div> : tab === "changes" ? <ShareContentChanges contentCategories={serverContentCategories(server.modloader)} expanded changes={changes} presentation={serverPresentation(scan)} showChangeType={shared} />
+          : <div className="min-h-0 flex-1 overflow-y-auto p-3 [scrollbar-gutter:stable]">
+            {files.length ? <ShareFileTree readOnly files={files} selected={files.map(file => file.path)} onChange={() => {}} /> : <p className="flex h-full items-center justify-center py-6 text-xs text-muted-foreground">{t("share.flow.noAdditionalFiles")}</p>}
+          </div>}
+      </div>
       {!!scan?.skipped?.length && <details className="shrink-0 rounded-xl border border-border/60 bg-muted/20 px-3 text-xs text-muted-foreground"><summary className="cursor-pointer py-3">{t("serverHistory.skipped", { count: scan.skipped.length })}</summary><p className="mb-3 max-h-20 overflow-auto whitespace-pre-line">{scan.skipped.join("\n")}</p></details>}
-      <label className="block shrink-0 space-y-2"><span className="text-xs font-medium text-muted-foreground">{t("share.launcher.comment")}</span><input className={shareInput} value={message} onChange={event => setMessage(event.target.value)} maxLength={500} placeholder={t("serverHistory.defaultMessage")} disabled={busy} /></label>
+      <label className="block shrink-0 space-y-2"><span className="text-xs font-medium text-muted-foreground">{t("share.launcher.comment")}</span><input className={shareInput} value={message} onChange={event => setMessage(event.target.value)} maxLength={500} placeholder={t("share.flow.updateNotePlaceholder")} disabled={busy} /></label>
       {error && <p role="alert" className="shrink-0 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">{error}</p>}
-    </div>
+    </div>}
   </ShareModal>
 }

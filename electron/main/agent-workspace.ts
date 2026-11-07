@@ -1,3 +1,4 @@
+import { readClipboardFiles } from "./clipboard-files"
 import { ipcMain, app, screen } from "electron"
 import os from "node:os"
 import fs from "node:fs/promises"
@@ -114,6 +115,7 @@ async function buildFile(request: AgentBuildFileRequest) {
 }
 
 export function registerAgentWorkspace(getConfig: () => Promise<ApiConfig | null>): void {
+  ipcMain.handle("agent:clipboard-files", () => readClipboardFiles())
   ipcMain.handle("agent:hardware", async (): Promise<import("@xnlc/types").AgentHardware> => {
     const cpus = os.cpus()
     const gpuInfo = await app.getGPUInfo("complete").catch(() => app.getGPUInfo("basic")).catch(() => ({})) as { auxiliaryAttributes?: { glRenderer?: string }; gpuDevice?: Array<{ deviceString?: string; vendorString?: string; vendorId?: number; deviceId?: number; active?: boolean }> }
