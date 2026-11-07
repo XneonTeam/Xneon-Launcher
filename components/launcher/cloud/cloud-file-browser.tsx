@@ -1,3 +1,4 @@
+import { ModalCloseButton } from "@/components/ui/modal-close-button"
 import { IconX as LauncherCloseIcon } from "@tabler/icons-react"
 import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useContentEnter, CONTENT_ENTER_DELAYED } from "../content-motion"
@@ -494,7 +495,7 @@ export function CloudFileBrowser({ providerId, pendingThemeId, onPendingThemeHan
 
       <div data-ui="cloud-cloud-file-browser-div-10" className={cn("flex-1 overflow-y-auto", contentEnter)}>
         {loading ? (
-          <div data-ui="cloud-cloud-file-browser-div-11" className="flex items-center justify-center py-12">
+          <div data-ui="cloud-cloud-file-browser-div-11" className="flex min-h-full items-center justify-center">
             <IconLoader2 className="w-6 h-6 text-primary animate-spin" />
           </div>
         ) : error ? (
@@ -618,8 +619,9 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
 
   return (
     <ModalLayer windowId="cloud-cloud-file-browser-window-1" onClose={onClose} className="animate-in fade-in-0">
-      <div data-ui="cloud-cloud-file-browser-div-24" data-component="upload-choice-modal" className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
-        <div data-ui="cloud-cloud-file-browser-div-25" className="flex border-b border-border">
+      <div data-ui="cloud-cloud-file-browser-div-24" data-component="upload-choice-modal" className="relative w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
+          <ModalCloseButton className="absolute right-3 top-3 z-10" onClick={onClose} />
+        <div data-ui="cloud-cloud-file-browser-div-25" className="pr-14 flex border-b border-border">
           <button type="button" onClick={() => setTab("themes")} className={cn("flex-1 px-3 py-3 text-sm font-medium transition-colors", tab === "themes" ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>{t("themeCloud.folder")}</button>
           <button data-ui="cloud-cloud-file-browser-button-9" onClick={() => setTab("builds")}
             className={cn("flex-1 px-4 py-3 text-sm font-medium transition-colors",
@@ -879,8 +881,9 @@ function SelectiveImportModal({
 
   return (
     <ModalLayer windowId="cloud-cloud-file-browser-window-2" onClose={onClose} className="animate-in fade-in-0">
-      <div data-ui="cloud-cloud-file-browser-div-51" data-component="selective-import-modal" className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
-        <div data-ui="cloud-cloud-file-browser-div-52" className="p-4 border-b border-border">
+      <div data-ui="cloud-cloud-file-browser-div-51" data-component="selective-import-modal" className="relative w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
+          <ModalCloseButton className="absolute right-3 top-3 z-10" onClick={onClose} />
+        <div data-ui="cloud-cloud-file-browser-div-52" className="pr-14 p-4 border-b border-border">
           <h3 data-ui="cloud-cloud-file-browser-h3-1" className="flex items-center gap-2 font-semibold text-foreground text-base"><ModalTitleIcon>{isServer ? <IconServer className="h-4 w-4" strokeWidth={1.75} /> : <IconColorSwatch className="h-4 w-4" strokeWidth={1.75} />}</ModalTitleIcon>{t("cloud.importTitle", { name })}</h3>
           <p data-ui="cloud-cloud-file-browser-p-11" className="text-xs text-muted-foreground mt-1">
             {t("cloud.importChooseComponents", { what: isServer ? t("cloud.type.server") : t("cloud.type.build") })}
@@ -1014,8 +1017,9 @@ function SelectiveUploadModal({
 
   return (
     <ModalLayer windowId="cloud-cloud-file-browser-window-3" onClose={() => { if (!uploading) onClose() }} className="animate-in fade-in-0">
-      <div data-ui="cloud-cloud-file-browser-div-58" data-component="selective-upload-modal" className="w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
-        <div data-ui="cloud-cloud-file-browser-div-59" className="p-4 border-b border-border">
+      <div data-ui="cloud-cloud-file-browser-div-58" data-component="selective-upload-modal" className="relative w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
+          <ModalCloseButton className="absolute right-3 top-3 z-10" onClick={onClose} disabled={uploading} />
+        <div data-ui="cloud-cloud-file-browser-div-59" className="pr-14 p-4 border-b border-border">
           <h3 data-ui="cloud-cloud-file-browser-h3-2" className="flex items-center gap-2 font-semibold text-foreground text-base"><ModalTitleIcon>{isServer ? <IconServer className="h-4 w-4" strokeWidth={1.75} /> : <IconColorSwatch className="h-4 w-4" strokeWidth={1.75} />}</ModalTitleIcon>{t("upload.title", { name })}</h3>
           <p data-ui="cloud-cloud-file-browser-p-14" className="text-xs text-muted-foreground mt-1">
             {t(isServer ? "upload.subtitleServer" : "upload.subtitleBuild")}

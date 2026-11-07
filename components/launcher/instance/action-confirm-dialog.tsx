@@ -83,7 +83,7 @@ export function ActionConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
-      <DialogContent data-window="instance-action-confirm-dialog-window-1" className="max-w-md p-6 bg-card border border-border shadow-2xl rounded-3xl" showCloseButton={false}>
+      <DialogContent data-window="instance-action-confirm-dialog-window-1" className="max-w-md p-6 bg-card border border-border shadow-2xl rounded-3xl">
         <DialogHeader>
           <div data-ui="instance-action-confirm-dialog-div-1" data-component="action-confirm-dialog" className={cn("mx-auto w-12 h-12 rounded-2xl flex items-center justify-center mb-2 border", getIconBg())}>
             {renderIcon()}

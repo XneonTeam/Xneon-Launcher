@@ -1,9 +1,9 @@
 import { useState } from "react"
-import { IconColorSwatch, IconPuzzle, IconPhoto, IconSparkles, IconArchive, IconFileText, IconLayoutGrid, IconServer } from "@tabler/icons-react"
+import { IconAlertTriangle, IconColorSwatch, IconPuzzle, IconPhoto, IconSparkles, IconArchive, IconFileText, IconLayoutGrid, IconServer } from "@tabler/icons-react"
 import { EntityIcon } from "../instance/entity-icon"
 import { LoaderIcon } from "../instance/loader-icon"
 
-const icons = { build: IconColorSwatch, mod: IconPuzzle, resourcepack: IconPhoto, shader: IconSparkles, datapack: IconArchive, file: IconFileText, log: IconFileText, crash: IconFileText, project: IconLayoutGrid, server: IconServer }
+const icons = { build: IconColorSwatch, mod: IconPuzzle, resourcepack: IconPhoto, shader: IconSparkles, datapack: IconArchive, file: IconFileText, log: IconFileText, crash: IconAlertTriangle, project: IconLayoutGrid, server: IconServer }
 
 export function AgentEntityIcon({ src, kind = "project", className = "", name, loader }: { src?: string | null; kind?: string; className?: string; name?: string; loader?: string }) {
   const [failed, setFailed] = useState<string | null>(null)

@@ -58,7 +58,7 @@ export function ShareModal({ open, onClose, title, description, children, footer
   return (
     <Dialog open={open} onOpenChange={value => { if (!value) onClose() }}>
       <DialogContent
-        className={cn("flex max-w-lg flex-col gap-0 overflow-hidden rounded-3xl border-border bg-background p-0 shadow-2xl", wide && "max-w-4xl", expanded && "max-w-6xl", fixedHeight && "h-[min(660px,calc(100dvh-4rem))]")}
+        className={cn("flex max-w-lg flex-col gap-0 overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-2xl", wide && "max-w-4xl", expanded && "max-w-6xl", fixedHeight && "h-[min(660px,calc(100dvh-4rem))]")}
         style={area ? {
           left: area.x + area.width / 2,
           top: area.y + area.height / 2,
@@ -67,15 +67,15 @@ export function ShareModal({ open, onClose, title, description, children, footer
           ...(expanded ? { height: Math.max(0, area.height - 32) } : {}),
         } : undefined}
       >
-        <DialogHeader className="shrink-0 gap-2 border-b border-border/50 px-6 py-5 text-left">
-          <DialogTitle className="flex items-center gap-2.5 pr-5 text-base font-semibold">
+        <DialogHeader className="shrink-0 gap-2 px-6 pb-4 pt-6 text-left">
+          <DialogTitle className="flex items-center gap-2.5 pr-10 text-base font-semibold">
             <ModalTitleIcon>{titleIcon ?? <IconShare className="h-4 w-4 text-primary" strokeWidth={1.75} />}</ModalTitleIcon>
             {title}
           </DialogTitle>
           <DialogDescription className="text-xs leading-relaxed">{description}</DialogDescription>
         </DialogHeader>
-        <div className={cn("min-h-0 overflow-y-auto p-6", expanded && "p-4", fixedHeight && "flex-1 overflow-hidden")}>{children}</div>
-        {footer && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border/50 bg-muted/20 px-6 py-4">{footer}</div>}
+        <div className={cn("min-h-0 overflow-y-auto px-6 pb-6", expanded && "px-4 pb-4", fixedHeight && "flex-1 overflow-hidden")}>{children}</div>
+        {footer && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 px-6 pb-6">{footer}</div>}
       </DialogContent>
     </Dialog>
   )

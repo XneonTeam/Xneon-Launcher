@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IconRefresh, IconDownload, IconX, IconCheck, IconChevronDown, IconChevronRight, IconPackage, IconAlertCircle, IconLoader2 } from "@tabler/icons-react"
+import { IconRefresh, IconDownload, IconX, IconCheck, IconChevronDown, IconChevronRight, IconPuzzle, IconPhoto, IconSparkles, IconAlertCircle, IconLoader2 } from "@tabler/icons-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeRaw from "rehype-raw"
@@ -17,6 +17,8 @@ const CHANNELS: Array<{ id: UpdateChannel; labelKey: string }> = [
   { id: "beta", labelKey: "updates.channel.beta" },
   { id: "alpha", labelKey: "updates.channel.alpha" },
 ]
+
+const CONTENT_TYPE_ICONS = { mods: IconPuzzle, resourcepacks: IconPhoto, shaders: IconSparkles } as const
 
 const CONTENT_TYPE_LABEL_KEYS: Record<ContentUpdateInfo["contentType"], string> = {
   mods: "builds.tab.mods",
@@ -257,7 +259,7 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
               >
                 {checking ? <IconLoader2 className="w-4 h-4 text-primary animate-spin" strokeWidth={1.75} /> : <IconRefresh className="w-4 h-4" strokeWidth={1.75} />}
               </button>
-              <button data-ui="instance-instance-updates-dialog-button-2"
+              <button data-modal-close data-ui="instance-instance-updates-dialog-button-2"
                 type="button"
                 onClick={() => onOpenChange(false)}
                 className="p-2 rounded-lg border border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -296,7 +298,7 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
 
         <div data-ui="instance-instance-updates-dialog-div-8" className="flex-1 min-h-0 overflow-y-auto p-5">
           {checking && !result ? (
-            <div data-ui="instance-instance-updates-dialog-div-9" className="flex items-center justify-center py-16">
+            <div data-ui="instance-instance-updates-dialog-div-9" className="flex min-h-full items-center justify-center">
               <IconLoader2 className="h-6 w-6 text-primary animate-spin" strokeWidth={1.75} />
             </div>
           ) : totalUpdates === 0 ? (
@@ -321,6 +323,7 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
                     {updates.map((update) => {
                       const isUpdating = updatingIds.has(update.itemId)
                       const isFailed = failedIds.has(update.itemId)
+                      const ContentIcon = CONTENT_TYPE_ICONS[update.contentType]
                       const isExpanded = expanded.has(update.itemId)
                       const progress = downloadProgress?.itemId === update.itemId ? downloadProgress : null
                       const isIndeterminate = progress?.percent === null
@@ -337,7 +340,7 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
                               {(update.iconUrl ?? installedIcons.get(update.itemId)) ? (
                                 <img data-ui="instance-instance-updates-dialog-img-2" src={update.iconUrl ?? installedIcons.get(update.itemId)} alt="" className="h-full w-full object-cover" />
                               ) : (
-                                <IconPackage className="h-5 w-5 text-muted-foreground/50" strokeWidth={1.75} />
+                                <ContentIcon className="h-5 w-5 text-muted-foreground/50" strokeWidth={1.75} />
                               )}
                             </div>
                             <div data-ui="instance-instance-updates-dialog-div-18" className="min-w-0 flex-1">

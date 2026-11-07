@@ -1,3 +1,4 @@
+import fs from "node:fs/promises"
 import { prepareInstanceStorageSync } from "../shared-game-cache"
 import { randomUUID } from "crypto"
 import path from "path"
@@ -26,9 +27,17 @@ export async function discoverAllInstances(): Promise<LauncherInstance[]> {
     discoverModrinthAppInstances(),
     discoverMillidaInstances(),
   ])
-  const all = [...gd, ...mmcLike, ...xlauncher, ...modrinthapp, ...millida].sort((a, b) => a.name.localeCompare(b.name, "ru"))
-  console.log('[discoverAllInstances] Total instances:', all.length)
-  console.log('[discoverAllInstances] Sources:', all.map(i => `${i.name} (${i.source})`))
+  const found = [...gd, ...mmcLike, ...xlauncher, ...modrinthapp, ...millida]
+  const paths = await Promise.all(found.map(async instance => {
+    const canonical = await fs.realpath(instance.path).catch(() => path.resolve(instance.path))
+    return process.platform === "win32" ? canonical.toLowerCase() : canonical
+  }))
+  const seenPaths = new Set<string>()
+  const all = found.filter((_instance, index) => {
+    if (seenPaths.has(paths[index])) return false
+    seenPaths.add(paths[index])
+    return true
+  }).sort((a, b) => a.name.localeCompare(b.name, "ru"))
 
   const hydrated = await Promise.all(
     all.map(async (instance) => ({

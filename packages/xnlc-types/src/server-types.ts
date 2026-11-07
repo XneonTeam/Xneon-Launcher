@@ -6,6 +6,7 @@
 export type McServerInfo = {
   id: string
   name: string
+  description?: string
   gameVersion: string
   modloader: string
   modloaderVersion?: string

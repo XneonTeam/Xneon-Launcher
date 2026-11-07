@@ -132,7 +132,7 @@ export function PlayersTab({ serverId }: PlayersTabProps) {
       {/* List */}
       <div data-ui="server-players-tab-div-5" className={`flex-1 overflow-y-auto rounded-2xl border border-border bg-card ${contentEnter ?? ""}`}>
         {loading ? (
-          <div data-ui="server-players-tab-div-6" className="flex items-center justify-center py-12">
+          <div data-ui="server-players-tab-div-6" className="flex min-h-full items-center justify-center">
             <div data-ui="server-players-tab-div-7" className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
           </div>
         ) : players.length === 0 ? (

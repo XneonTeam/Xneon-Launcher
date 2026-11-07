@@ -1,3 +1,4 @@
+import { serverDatapackDirectory, installServerDatapack, deleteServerDatapack, downloadDatapack } from "./server-datapacks"
 import { registerMcServerHandler } from "./remote-servers/handlers"
 import { getMinecraftResourceRoot } from "./shared-game-cache"
 import { opFailure } from "./errors"
@@ -24,7 +25,6 @@ import type { ModrinthVersionDetail, ModrinthManifestFile, CurseForgeManifestFil
 import type { McServerInfo, McServerState, McServerMetrics, McPlayerEntry, XnConnectState } from "@xnlc/types" with { "resolution-mode": "import" }
 import { logRuntime, sendToRenderer } from "./runtime"
 import { loadXnlcModule } from "./minecraft-core"
-import { findJavaBinarySync } from "./system"
 import { getMcServerDir } from "./paths"
 import { recordServerSession } from "./stats"
 import { upsertActiveServerSession, takeActiveServerSession } from "./session-tracker"
@@ -131,6 +131,7 @@ function rowToInfo(row: McServerRow): McServerInfo {
   return {
     id: row.id,
     name: row.name,
+    description: row.description ?? "",
     gameVersion: row.gameVersion,
     modloader: row.modloader,
     modloaderVersion: row.modloaderVersion ?? undefined,
@@ -290,12 +291,13 @@ export function registerMcServerHandlers() {
     return row ? rowToInfo(row) : null
   })
 
-  registerMcServerHandler("mc-server:create", async (_event, data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string; extraJavaArgs?: string }) => {
+  registerMcServerHandler("mc-server:create", async (_event, data: { name: string; description?: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string; extraJavaArgs?: string }) => {
     const id = randomUUID()
     const now = new Date().toISOString()
     const server: McServerRow = {
       id,
       name: data.name,
+      description: typeof data.description === "string" ? data.description.trim().slice(0, 2000) : "",
       gameVersion: data.gameVersion,
       modloader: data.modloader ?? "vanilla",
       modloaderVersion: data.modloaderVersion ?? null,
@@ -551,6 +553,7 @@ export function registerMcServerHandlers() {
     // Прогресс подготовки: нужен уже на этапе Java (её скачивание может быть
     // первым шагом, до загрузки ядра).
     const sendProgress = (progress: DownloadProgress) => {
+      if (cancelledByStop()) return
       // Последнее состояние установки запоминаем: страница сервера можно покинуть
       // и вернуться, а события прогресса к тому моменту уже отправлены — без этого
       // баннер пропадал и казалось, что установка встала.
@@ -565,33 +568,29 @@ export function registerMcServerHandlers() {
      * событие — чтобы строки шли вживую, как у запущенного сервера.
      */
     const sendConsoleLine = (line: string) => {
+      if (cancelledByStop()) return
       serverManager.appendConsoleLine(id, line)
       sendToRenderer("mc-server:log", { id, line })
     }
 
-    // Auto-detect Java from settings or system
+    // Требование Java берём из метаданных Minecraft, включая snapshots.
     const storedJava = row.javaPath && row.javaPath !== "auto" ? row.javaPath : null
-    let javaPath: string | undefined = storedJava ?? (await dbHelpers.getSetting("javaPath")) ?? undefined
-    if (!javaPath) {
-      // Try to find java in common locations
-      javaPath = findJavaBinarySync() ?? undefined
+    const preferredJava = storedJava ?? (await dbHelpers.getSetting("javaPath")) ?? undefined
+    let javaPath: string
+    try {
+      sendProgress({ phase: "downloading", message: "Проверка Java по метаданным Minecraft...", percent: 0 })
+      const runtime = await ensureServerJava(serverInfo.gameVersion, (percent, required) => {
+        sendProgress({ phase: "downloading", message: `Подготовка Java ${required}...`, percent })
+      }, preferredJava)
+      javaPath = runtime.path
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (cancelledByStop()) return finishCancelled()
+      sendProgress({ phase: "error", message: `Не удалось подготовить Java для сервера: ${message}` })
+      throw new Error(`Не удалось подготовить Java для сервера: ${message}`)
     }
-    if (!javaPath) {
-      // Java на машине нет и вручную не выбрана — скачиваем рантайм Mojang
-      // (как это делает запуск клиента). Без этого сервер не стартовал вовсе:
-      // путь к Java нужен и для установки ядра (инсталляторы Forge/NeoForge).
-      const required = requiredJavaForMcVersion(serverInfo.gameVersion)
-      sendProgress({ phase: "downloading", message: `Java не найдена — скачиваю рантайм (Java ${required})...`, percent: 0 })
-      try {
-        const runtime = await ensureServerJava(serverInfo.gameVersion, (percent) => {
-          sendProgress({ phase: "downloading", message: `Скачивание Java ${required}...`, percent })
-        })
-        javaPath = runtime.path
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        throw new Error(`Java не найдена, и не удалось скачать рантайм: ${message}`)
-      }
-    }
+
+    if (cancelledByStop()) return finishCancelled()
 
     // Ensure server JAR exists — download if needed
     let resolvedJarPath: string
@@ -607,9 +606,12 @@ export function registerMcServerHandlers() {
         sendConsoleLine,
       )
     } catch (err: any) {
+      if (cancelledByStop()) return finishCancelled()
       sendProgress({ phase: "error", message: `Ошибка загрузки: ${err.message}` })
       throw new Error(`Failed to download server JAR: ${err.message}`)
     }
+
+    if (cancelledByStop()) return finishCancelled()
 
     // Accept EULA if needed — check eula.txt on disk
     const eulaPath = path.join(serverDir, "eula.txt")
@@ -965,6 +967,49 @@ export function registerMcServerHandlers() {
   })
 
   // ── Server Files ─────────────────────────────────────────
+
+  const datapackDirectory = async (id: string) => {
+    const root = getServerDir(id)
+    const properties = loadServerProperties(path.join(root, "server.properties"))
+    const directory = await serverDatapackDirectory(root, properties["level-name"])
+    return { root, directory }
+  }
+  registerMcServerHandler("mc-server:datapacks-list", async (_event, id: string) => {
+    const { root, directory } = await datapackDirectory(id)
+    const entries = await fs.promises.readdir(directory, { withFileTypes: true }).catch(error => { if (error.code === "ENOENT") return []; throw error })
+    const files = await Promise.all(entries.filter(entry => entry.isDirectory() || /\.zip$/i.test(entry.name)).map(async entry => {
+      const stat = await fs.promises.lstat(path.join(directory, entry.name))
+      return { name: entry.name, isDir: entry.isDirectory(), size: stat.size, lastModified: stat.mtimeMs }
+    }))
+    return { directory: path.relative(root, directory).replace(/\\/g, "/"), entries: files }
+  })
+  const datapackDownloads = new Map<string, AbortController>()
+  registerMcServerHandler("mc-server:datapacks-cancel", async (_event, id: string, requestId: string) => {
+    datapackDownloads.get(`${id}:${requestId}`)?.abort(new Error("CONTENT_DOWNLOAD_CANCELLED"))
+  })
+  registerMcServerHandler("mc-server:datapacks-install", async (_event, id: string, name: string, source: { url?: string; base64?: string; requestId?: string }) => {
+    const controller = new AbortController()
+    const key = `${id}:${source.requestId || randomUUID()}`
+    if (datapackDownloads.has(key)) return { success: false, error: "Duplicate download" }
+    datapackDownloads.set(key, controller)
+    try {
+      if ((!source.url && !source.base64) || (source.url && source.base64)) throw new Error("Invalid datapack source")
+      if (source.base64 && source.base64.length > 45 * 1024 * 1024) throw new Error("Datapack exceeds 32 MiB")
+      const buffer = source.url ? await downloadDatapack(source.url, controller.signal) : Buffer.from(source.base64!, "base64")
+      const { directory } = await datapackDirectory(id)
+      controller.signal.throwIfAborted()
+      await installServerDatapack(directory, name, buffer, controller.signal)
+      return { success: true }
+    } catch (error) { return opFailure(error) }
+    finally { datapackDownloads.delete(key) }
+  })
+  registerMcServerHandler("mc-server:datapacks-delete", async (_event, id: string, name: string) => {
+    try {
+      const { directory } = await datapackDirectory(id)
+      await deleteServerDatapack(directory, name)
+      return { success: true }
+    } catch (error) { return opFailure(error) }
+  })
 
   registerMcServerHandler("mc-server:fs-list", async (_event, id: string, relativePath: string) => {
     const targetDir = resolveInsideServer(getServerDir(id), relativePath)
@@ -1326,44 +1371,23 @@ async function applyServerOverrides(zip: {
   }
 }
 
-/**
- * Требуемая версия Java для версии Minecraft (как в манифесте Mojang):
- * ≤ 1.16.5 → 8, 1.17 → 16, 1.18–1.20.4 → 17, 1.20.5+ → 21.
- * Снапшоты и нестандартные id трактуем как современные.
- */
-export function requiredJavaForMcVersion(mcVersion: string): number {
-  const match = /^(\d+)\.(\d+)(?:\.(\d+))?/.exec((mcVersion ?? "").trim())
-  if (!match) return 21
-  const major = Number(match[1])
-  const minor = Number(match[2])
-  const patch = Number(match[3] ?? 0)
-  if (major !== 1) return 21
-  if (minor <= 16) return 8
-  if (minor === 17) return 16
-  if (minor < 20 || (minor === 20 && patch < 5)) return 17
-  return 21
-}
-
-/**
- * Java для запуска сервера.
- *
- * Если на машине нет ни одной Java и вручную она не выбрана, рантайм
- * скачивается тем же механизмом, что и при запуске клиента (`JavaManager` из
- * @xnlc/core) — в общий каталог `<gameDir>/runtime`, поэтому клиент и сервер
- * переиспользуют одну установку. Раньше старт сервера в этой ситуации просто
- * падал с «Java not found. Please set Java path in settings», из-за чего без
- * установленной вручную Java сервер нельзя было запустить вообще (ядро даже не
- * начинало скачиваться, потому что путь к Java нужен уже для инсталляторов).
- */
+/** Требования и компонент runtime берутся из JSON версии Mojang. */
 export async function ensureServerJava(
   mcVersion: string,
-  onProgress: (percent: number) => void,
+  onProgress: (percent: number, requiredVersion: number) => void,
+  userJavaPath?: string,
 ): Promise<{ path: string; version?: number }> {
   const core = await loadXnlcModule()
-  const manager = new core.JavaManager(new core.Downloader(), getMinecraftResourceRoot())
-  const required = requiredJavaForMcVersion(mcVersion)
-  logRuntime(`[Server] Java не найдена — скачиваю рантайм (Java ${required})`)
-  const runtime = await manager.findOrDownloadJava(required, undefined, onProgress)
+  const resourceRoot = getMinecraftResourceRoot()
+  const metadata = await new core.MetaClient(resourceRoot).fetchVersionJson(mcVersion)
+  const required = core.getRequiredJavaVersion(metadata)
+  const manager = new core.JavaManager(new core.Downloader(), resourceRoot)
+  logRuntime(`[Server] Minecraft ${mcVersion}: требуется Java ${required}, компонент ${metadata.javaVersion?.component ?? "legacy"}`)
+  const runtime = await manager.findOrDownloadJava(
+    required,
+    userJavaPath,
+    (percent) => onProgress(percent, required),
+    metadata.javaVersion,
+  )
   return { path: runtime.path, version: runtime.version }
 }
-

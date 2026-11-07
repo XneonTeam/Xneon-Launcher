@@ -1,3 +1,4 @@
+import { ModalCloseButton } from "@/components/ui/modal-close-button"
 import { SettingsSwitch } from "./settings-switch"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
@@ -125,8 +126,9 @@ export function SettingsAuthlib({
 
       {showWarningModal && createPortal(
         <ModalLayer windowId="settings-settings-authlib-window-1" onClose={() => setShowWarningModal(false)} className="animate-in fade-in-0">
-          <div data-ui="settings-settings-authlib-div-12" className="w-full max-w-md p-6 rounded-2xl bg-card border border-destructive/50 shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
-            <div data-ui="settings-settings-authlib-div-13" className="flex items-center gap-4 mb-6">
+          <div data-ui="settings-settings-authlib-div-12" className="relative w-full max-w-md p-6 rounded-2xl bg-card border border-destructive/50 shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
+            <ModalCloseButton className="absolute right-3 top-3 z-10" onClick={() => setShowWarningModal(false)} />
+            <div data-ui="settings-settings-authlib-div-13" className="flex items-center gap-4 mb-6 pr-9">
               <div data-ui="settings-settings-authlib-div-14" className="w-12 h-12 rounded-xl bg-destructive/20 flex items-center justify-center">
                 <IconAlertTriangle className="w-6 h-6 text-destructive" strokeWidth={1.5} />
               </div>

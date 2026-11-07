@@ -62,7 +62,7 @@ export function AddonGallery({ images, projectName }: AddonGalleryProps) {
               <div className="truncate text-sm font-medium text-foreground">{current.title || projectName}</div>
               <div className="text-xs text-muted-foreground">{viewIndex + 1} / {images.length}</div>
             </div>
-            <button type="button" onClick={() => setViewIndex(null)} title={t("screenshots.close")} aria-label={t("screenshots.close")}
+            <button data-modal-close type="button" onClick={() => setViewIndex(null)} title={t("screenshots.close")} aria-label={t("screenshots.close")}
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted/50 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
               <IconX className="h-5 w-5" strokeWidth={1.75} />
             </button>

@@ -539,7 +539,7 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
               </button>
             </div>
 
-            <button data-ui="settings-theme-editor-button-3"
+            <button data-modal-close data-ui="settings-theme-editor-button-3"
               type="button"
               onClick={onClose}
               aria-label={t("themeEditor.cancel")}

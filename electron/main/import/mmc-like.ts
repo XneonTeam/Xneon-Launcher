@@ -192,6 +192,5 @@ export async function discoverMmcLikeInstances(customPath?: string, customType?:
       return readMmcLikeInstance(dir, type)
     },
   )
-  console.log('[MultiMC/PolyMC/Prism] Total instances found:', instances.length)
   return instances
 }

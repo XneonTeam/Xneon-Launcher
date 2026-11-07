@@ -1,3 +1,4 @@
+import { dependencyProjectId } from "./builds/dependency-project"
 // ============================================================
 // XNLC — зависимости мода из метаданных jar
 // Author: MAINER4IK
@@ -54,7 +55,8 @@ export interface JarDependencyInspection {
  * Резолв проекта по id зависимости. Итог кэшируем: один и тот же мод (fabric-api,
  * cloth-config, architectury) встречается в половине сборки.
  */
-const projectCache = new Map<string, ModDependency | null>()
+const projectCache = new Map<string, Promise<ModDependency | null>>()
+const missingProjectWarnings = new Set<string>()
 
 /** Убираем загрузчик, игру и сам мод — остаётся то, что реально можно поставить. */
 function filterInstallable(
@@ -122,11 +124,12 @@ async function resolveModrinthProject(modId: string): Promise<ModDependency | nu
 }
 
 async function resolveProject(modId: string, source: "modrinth" | "curseforge"): Promise<ModDependency | null> {
-  const key = `${source}:${modId.toLowerCase()}`
+  const projectId = dependencyProjectId(modId)
+  const key = `${source}:${projectId}`
   if (!projectCache.has(key)) {
-    projectCache.set(key, source === "curseforge" ? await resolveCurseForgeProject(modId) : await resolveModrinthProject(modId))
+    projectCache.set(key, source === "curseforge" ? resolveCurseForgeProject(projectId) : resolveModrinthProject(projectId))
   }
-  return projectCache.get(key) ?? null
+  return await projectCache.get(key) ?? null
 }
 
 /**
@@ -136,9 +139,12 @@ async function resolveProject(modId: string, source: "modrinth" | "curseforge"):
 export async function inspectJarDependencies(
   url: string,
   source: "modrinth" | "curseforge",
+  signal?: AbortSignal,
+  downloadId?: string,
 ): Promise<JarDependencyInspection> {
   const fileName = path.basename(url.split("?")[0]) || "mod.jar"
-  const jarPath = await cacheJarFromUrl(url, fileUrl => downloadBuffer(fileUrl, undefined, fileName))
+  const jarPath = await cacheJarFromUrl(url, fileUrl => downloadBuffer(fileUrl, signal, fileName, downloadId))
+  signal?.throwIfAborted()
   if (!jarPath) {
     return { modId: null, dependencies: [], declared: [] }
   }
@@ -154,9 +160,13 @@ export async function inspectJarDependencies(
   for (const candidate of installable) {
     const project = await resolveProject(candidate.modId, source)
     if (project) {
-      dependencies.push({ ...project, versionId: null })
+      if (!dependencies.some(dependency => dependency.projectId === project.projectId)) dependencies.push({ ...project, versionId: null })
     } else {
-      console.warn(`[jar-deps] проект для «${candidate.modId}» не найден в ${source} — пропускаем`)
+      const key = `${source}:${dependencyProjectId(candidate.modId)}`
+      if (!missingProjectWarnings.has(key)) {
+        missingProjectWarnings.add(key)
+        console.warn(`[jar-deps] проект для «${candidate.modId}» не найден в ${source} — пропускаем`)
+      }
     }
   }
 

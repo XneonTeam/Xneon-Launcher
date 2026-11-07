@@ -677,6 +677,59 @@ export const LAUNCHER_CAPABILITIES: LauncherCapability[] = [
     "callable": true
   },
   {
+    "method": "watchBuildContent",
+    "signature": "(buildId: string, token: string) => Promise<boolean>",
+    "parameters": [
+      {
+        "name": "buildId",
+        "optional": false,
+        "type": "string"
+      },
+      {
+        "name": "token",
+        "optional": false,
+        "type": "string"
+      }
+    ],
+    "channels": [
+      "build:watch-content"
+    ],
+    "event": false,
+    "callable": true
+  },
+  {
+    "method": "unwatchBuildContent",
+    "signature": "(token: string) => Promise<void>",
+    "parameters": [
+      {
+        "name": "token",
+        "optional": false,
+        "type": "string"
+      }
+    ],
+    "channels": [
+      "build:unwatch-content"
+    ],
+    "event": false,
+    "callable": true
+  },
+  {
+    "method": "onBuildContentChanged",
+    "signature": "(callback: (event: { buildId: string; token: string }) => void) => CleanupFn",
+    "parameters": [
+      {
+        "name": "callback",
+        "optional": false,
+        "type": "(event: { buildId: string; token: string }) => void"
+      }
+    ],
+    "channels": [
+      "build:content-changed"
+    ],
+    "event": true,
+    "callable": true
+  },
+  {
     "method": "scanBuildIntentContent",
     "signature": "(buildName: string) => Promise<BuildIntentScanResult>",
     "parameters": [
@@ -2008,6 +2061,26 @@ export const LAUNCHER_CAPABILITIES: LauncherCapability[] = [
     "callable": true
   },
   {
+    "method": "getDataMoveStatus",
+    "signature": "() => Promise<{ pendingRoot?: string; error?: string }>",
+    "parameters": [],
+    "channels": [
+      "launcher:data-move-status"
+    ],
+    "event": false,
+    "callable": true
+  },
+  {
+    "method": "restartForDataMove",
+    "signature": "() => Promise<{ success: boolean; error?: string }>",
+    "parameters": [],
+    "channels": [
+      "launcher:restart-for-data-move"
+    ],
+    "event": false,
+    "callable": true
+  },
+  {
     "method": "getInstancesRoot",
     "signature": "() => Promise<string>",
     "parameters": [],
@@ -2197,7 +2270,7 @@ export const LAUNCHER_CAPABILITIES: LauncherCapability[] = [
   },
   {
     "method": "setInstancesRoot",
-    "signature": "(newRoot: string) => Promise<{ success: boolean; root?: string; error?: string }>",
+    "signature": "(newRoot: string) => Promise<{ success: boolean; root?: string; requiresRestart?: boolean; error?: string }>",
     "parameters": [
       {
         "name": "newRoot",
@@ -2207,6 +2280,22 @@ export const LAUNCHER_CAPABILITIES: LauncherCapability[] = [
     ],
     "channels": [
       "build:set-instances-root"
+    ],
+    "event": false,
+    "callable": true
+  },
+  {
+    "method": "cancelContentDownload",
+    "signature": "(downloadId: string) => Promise<boolean>",
+    "parameters": [
+      {
+        "name": "downloadId",
+        "optional": false,
+        "type": "string"
+      }
+    ],
+    "channels": [
+      "content:cancel-download"
     ],
     "event": false,
     "callable": true
@@ -2939,6 +3028,16 @@ export const LAUNCHER_CAPABILITIES: LauncherCapability[] = [
     "parameters": [],
     "channels": [
       "java:pick-file"
+    ],
+    "event": false,
+    "callable": true
+  },
+  {
+    "method": "agentClipboardFiles",
+    "signature": "() => Promise<Array<{ name: string; dataUrl: string }>>",
+    "parameters": [],
+    "channels": [
+      "agent:clipboard-files"
     ],
     "event": false,
     "callable": true
@@ -4430,12 +4529,12 @@ export const LAUNCHER_CAPABILITIES: LauncherCapability[] = [
   },
   {
     "method": "mcServerCreate",
-    "signature": "(data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }) => Promise<McServerInfo>",
+    "signature": "(data: { name: string; description?: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }) => Promise<McServerInfo>",
     "parameters": [
       {
         "name": "data",
         "optional": false,
-        "type": "{ name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }"
+        "type": "{ name: string; description?: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }"
       }
     ],
     "channels": [
@@ -5253,6 +5352,90 @@ export const LAUNCHER_CAPABILITIES: LauncherCapability[] = [
     "callable": true
   },
   {
+    "method": "mcServerDatapacksList",
+    "signature": "(id: string) => Promise<{ directory: string; entries: McFsEntry[] }>",
+    "parameters": [
+      {
+        "name": "id",
+        "optional": false,
+        "type": "string"
+      }
+    ],
+    "channels": [
+      "mc-server:datapacks-list"
+    ],
+    "event": false,
+    "callable": true
+  },
+  {
+    "method": "mcServerDatapacksInstall",
+    "signature": "(id: string, name: string, source: { url?: string; base64?: string; requestId?: string }) => Promise<{ success: boolean; error?: string }>",
+    "parameters": [
+      {
+        "name": "id",
+        "optional": false,
+        "type": "string"
+      },
+      {
+        "name": "name",
+        "optional": false,
+        "type": "string"
+      },
+      {
+        "name": "source",
+        "optional": false,
+        "type": "{ url?: string; base64?: string; requestId?: string }"
+      }
+    ],
+    "channels": [
+      "mc-server:datapacks-install"
+    ],
+    "event": false,
+    "callable": true
+  },
+  {
+    "method": "mcServerDatapacksCancel",
+    "signature": "(id: string, requestId: string) => Promise<void>",
+    "parameters": [
+      {
+        "name": "id",
+        "optional": false,
+        "type": "string"
+      },
+      {
+        "name": "requestId",
+        "optional": false,
+        "type": "string"
+      }
+    ],
+    "channels": [
+      "mc-server:datapacks-cancel"
+    ],
+    "event": false,
+    "callable": true
+  },
+  {
+    "method": "mcServerDatapacksDelete",
+    "signature": "(id: string, name: string) => Promise<{ success: boolean; error?: string }>",
+    "parameters": [
+      {
+        "name": "id",
+        "optional": false,
+        "type": "string"
+      },
+      {
+        "name": "name",
+        "optional": false,
+        "type": "string"
+      }
+    ],
+    "channels": [
+      "mc-server:datapacks-delete"
+    ],
+    "event": false,
+    "callable": true
+  },
+  {
     "method": "mcServerFsDownload",
     "signature": "(id: string, relativePath: string, url: string, fileName: string) => Promise<{ success: boolean; filePath?: string; error?: string }>",
     "parameters": [
@@ -5574,4 +5757,4 @@ export const LAUNCHER_CAPABILITIES: LauncherCapability[] = [
   }
 ]
 export const UNBRIDGED_IPC_CHANNELS = []
-export const IPC_CHANNELS = ["share:cancel-install","share:execute","mc-server:remote","mc-server:history","startup:ready","startup:theme-cache","system:get-total-memory","auth:elyby-login","auth:elyby-device-start","auth:elyby-device-poll","auth:xnskins-login","auth:xnskins-device-start","auth:xnskins-device-poll","auth:microsoft-login","auth:microsoft-device-start","auth:microsoft-device-poll","authlib:list-servers","authlib:probe-server","authlib:add-server","authlib:remove-server","authlib:refresh-server","authlib:login","authlib:ensure-session","authlib:invalidate","authlib:get-profile-textures","fetch:minecraft-news","fetch:launcher-news","db:load-accounts","db:save-account","db:remove-account","db:load-builds-light","db:load-build-content","build:fetch-missing-mods","db:save-builds","db:insert-build","db:update-build-fields","db:is-fallback-storage","db:reorder-accounts","build:scan-intent-content","build:get-intent-path","build:get-instances-root","common:pick-folder","common:pick-file","theme:read-media","theme:pick-media","theme:local-list","theme:local-import","theme:local-save","theme:local-delete","theme:local-export","theme:open-directory","build:set-instances-root","build:save-mod-to-intent","build:save-local-mod-to-intent","build:read-local-content-metadata","build:classify-drop-paths","build:save-content-to-intent","build:save-local-content-to-intent","build:delete-content-from-intent","build:set-content-enabled","build:set-intent-path","build:prune-loader-profiles","build:delete-intent","build:import-modrinth","build:import-curseforge","build:import-ftb","build:open-and-import","build:cancel-import","build:copy","build:rename-intent","build:export-zip","build:export-modlist","build:move-intent-to-trash","build:restore-intent-from-trash","build:purge-trash","build:list-trash","build:delete-trash-item","build:check-content-updates","build:get-content-updates-cache","build:get-content-updates-counts","build:dismiss-content-update","stats:overview","storage:scan","storage:clean","agent:complete","agent:hardware","agent:cancel","agent:set-archived","agent:list-chats","agent:get-chat","agent:save-chat","agent:delete-chat","agent:build-file","agent:build-destination","ai:get-config","ai:save-config","ai:list-models","ai:analyze-crash","ai:analyze-crash-stream","launcher:discover-importable-instances","launcher:discover-from-path","launcher:import-gdlauncher-instances","launcher:import-instances","mods:modrinth-search","mods:modrinth-details","mods:modrinth-versions","mods:modrinth-pack-contents","mods:curseforge-search","mods:curseforge-details","mods:curseforge-download-url","mods:curseforge-changelog","mods:resolve-dependencies","mods:inspect-jar-dependencies","mods:check-loader-requirements","mods:ftb-search","mods:ftb-catalog-facets","mods:ftb-details","mods:ftb-changelog","mods:modrinth-categories","mods:curseforge-categories","minecraft:get-versions","minecraft:get-latest-release","minecraft:get-fabric-versions","minecraft:get-fabric-supported","minecraft:get-liteloader-versions","minecraft:get-liteloader-recommended","minecraft:get-liteloader-supported","minecraft:get-quilt-versions","minecraft:get-quilt-supported","minecraft:get-optifine-versions","minecraft:get-optifine-recommended","minecraft:get-optifine-supported","minecraft:get-neoforge-versions","minecraft:get-neoforge-recommended","minecraft:get-neoforge-supported","minecraft:get-forge-versions","minecraft:get-forge-recommended","minecraft:get-forge-supported","minecraft:get-custom-versions","minecraft:get-paper-versions","minecraft:get-paper-supported","minecraft:get-purpur-versions","minecraft:get-purpur-supported","minecraft:get-folia-versions","minecraft:get-folia-supported","minecraft:get-velocity-versions","minecraft:get-velocity-supported","minecraft:get-waterfall-versions","minecraft:get-waterfall-supported","minecraft:get-sponge-versions","minecraft:get-sponge-supported","minecraft:set-offline-auth","minecraft:get-game-dir","minecraft:get-auth","minecraft:launch","minecraft:stop","minecraft:is-running","settings:get","settings:set","worlds:list","worlds:rename","worlds:delete","worlds:set-icon","worlds:list-datapacks","worlds:install-datapack-remote","worlds:install-datapack-local","worlds:delete-datapack","worlds:import-zip","worlds:import-remote","worlds:copy","worlds:reset-icon","screenshots:list","screenshots:get","screenshots:delete","screenshots:rename","shell:open-external","shell:open-launcher-folder","shell:open-path","servers:list","servers:write-dat","servers:ping","quickplay:list","quickplay:clear","quickplay:remove","update:check","update:download","update:install","update:get-channel","update:set-channel","read-local-file","skins:get-profile","skins:delete-skin","skins:set-cape","skins:list-library","skins:save-to-library","skins:delete-from-library","skins:update-variant","skins:apply-library-skin","laby:catalog","laby:tags","laby:similar","laby:player","laby:save-to-library","laby:apply","avatar:get-textures","avatar:get-head","avatar:get-skin","avatar:get-cape","avatar:invalidate-cache","java:detect","java:pick-file","cloud:list-providers","cloud:connect","cloud:is-connected","cloud:disconnect","cloud:list-files","cloud:download-file","cloud:delete-file","cloud:get-quota","cloud:upload-theme","cloud:import-theme","cloud:upload-build","cloud:upload-server","cloud:upload-account","cloud:download-and-import","xn-connect:authorize","xn-connect:start","xn-connect:stop","xn-connect:status","xn-connect:usage","mc-server:list","mc-server:get","mc-server:host-settings","mc-server:create","mc-server:analyze-jar","mc-server:update","mc-server:delete","mc-server:restore","mc-server:list-trash","mc-server:purge-trash","mc-server:permanent-delete","mc-server:export-zip","mc-server:duplicate","mc-server:start","mc-server:stop","mc-server:kill","mc-server:send-command","mc-server:status","mc-server:metrics-subscribe","mc-server:metrics-unsubscribe","mc-server:logs","mc-server:install-state","mc-server:open-folder","mc-server:read-properties","mc-server:write-properties","mc-server:get-whitelist","mc-server:add-whitelist","mc-server:remove-whitelist","mc-server:get-ops","mc-server:add-op","mc-server:remove-op","mc-server:get-banned","mc-server:ban-player","mc-server:unban-player","mc-server:get-banned-ips","mc-server:ban-ip","mc-server:unban-ip","mc-server:get-addresses","mc-server:check-eula","mc-server:accept-eula","mc-server:fs-list","mc-server:fs-read","mc-server:fs-write","mc-server:fs-delete","mc-server:fs-rename","mc-server:fs-mkdir","mc-server:fs-download","mc-server:resolve-installed","mc-server:install-pack","share:progress","share:installed","share:invitation","theme:local-changed","minecraft:java-progress","minecraft:debug","minecraft:data","minecraft:download-progress","minecraft:close","import:progress","build:export-progress","content:download-progress","cloud:upload-progress","mc-server:download-progress","mc-server:log","mc-server:state-change","mc-server:metrics","mc-server:remote-snapshot","mc-server:remote-connection","xn-connect:usage-updated","xn-connect:state","xn-connect:log","xn-connect:auth-state","ai:stream-chunk","agent:delta","ai:stream-done","ai:stream-error","update:status","update:progress","cli:launch-build","stats:updated","authlib:login-progress","settings:updated"]
+export const IPC_CHANNELS = ["share:cancel-install","share:execute","mc-server:remote","mc-server:history","startup:ready","startup:theme-cache","system:get-total-memory","auth:elyby-login","auth:elyby-device-start","auth:elyby-device-poll","auth:xnskins-login","auth:xnskins-device-start","auth:xnskins-device-poll","auth:microsoft-login","auth:microsoft-device-start","auth:microsoft-device-poll","authlib:list-servers","authlib:probe-server","authlib:add-server","authlib:remove-server","authlib:refresh-server","authlib:login","authlib:ensure-session","authlib:invalidate","authlib:get-profile-textures","fetch:minecraft-news","fetch:launcher-news","db:load-accounts","db:save-account","db:remove-account","db:load-builds-light","db:load-build-content","build:fetch-missing-mods","db:save-builds","db:insert-build","db:update-build-fields","db:is-fallback-storage","db:reorder-accounts","build:watch-content","build:unwatch-content","build:scan-intent-content","build:get-intent-path","launcher:data-move-status","launcher:restart-for-data-move","build:get-instances-root","common:pick-folder","common:pick-file","theme:read-media","theme:pick-media","theme:local-list","theme:local-import","theme:local-save","theme:local-delete","theme:local-export","theme:open-directory","build:set-instances-root","content:cancel-download","build:save-mod-to-intent","build:save-local-mod-to-intent","build:read-local-content-metadata","build:classify-drop-paths","build:save-content-to-intent","build:save-local-content-to-intent","build:delete-content-from-intent","build:set-content-enabled","build:set-intent-path","build:prune-loader-profiles","build:delete-intent","build:import-modrinth","build:import-curseforge","build:import-ftb","build:open-and-import","build:cancel-import","build:copy","build:rename-intent","build:export-zip","build:export-modlist","build:move-intent-to-trash","build:restore-intent-from-trash","build:purge-trash","build:list-trash","build:delete-trash-item","build:check-content-updates","build:get-content-updates-cache","build:get-content-updates-counts","build:dismiss-content-update","stats:overview","storage:scan","storage:clean","agent:clipboard-files","agent:complete","agent:hardware","agent:cancel","agent:set-archived","agent:list-chats","agent:get-chat","agent:save-chat","agent:delete-chat","agent:build-file","agent:build-destination","ai:get-config","ai:save-config","ai:list-models","ai:analyze-crash","ai:analyze-crash-stream","launcher:discover-importable-instances","launcher:discover-from-path","launcher:import-gdlauncher-instances","launcher:import-instances","mods:modrinth-search","mods:modrinth-details","mods:modrinth-versions","mods:modrinth-pack-contents","mods:curseforge-search","mods:curseforge-details","mods:curseforge-download-url","mods:curseforge-changelog","mods:resolve-dependencies","mods:inspect-jar-dependencies","mods:check-loader-requirements","mods:ftb-search","mods:ftb-catalog-facets","mods:ftb-details","mods:ftb-changelog","mods:modrinth-categories","mods:curseforge-categories","minecraft:get-versions","minecraft:get-latest-release","minecraft:get-fabric-versions","minecraft:get-fabric-supported","minecraft:get-liteloader-versions","minecraft:get-liteloader-recommended","minecraft:get-liteloader-supported","minecraft:get-quilt-versions","minecraft:get-quilt-supported","minecraft:get-optifine-versions","minecraft:get-optifine-recommended","minecraft:get-optifine-supported","minecraft:get-neoforge-versions","minecraft:get-neoforge-recommended","minecraft:get-neoforge-supported","minecraft:get-forge-versions","minecraft:get-forge-recommended","minecraft:get-forge-supported","minecraft:get-custom-versions","minecraft:get-paper-versions","minecraft:get-paper-supported","minecraft:get-purpur-versions","minecraft:get-purpur-supported","minecraft:get-folia-versions","minecraft:get-folia-supported","minecraft:get-velocity-versions","minecraft:get-velocity-supported","minecraft:get-waterfall-versions","minecraft:get-waterfall-supported","minecraft:get-sponge-versions","minecraft:get-sponge-supported","minecraft:set-offline-auth","minecraft:get-game-dir","minecraft:get-auth","minecraft:launch","minecraft:stop","minecraft:is-running","settings:get","settings:set","worlds:list","worlds:rename","worlds:delete","worlds:set-icon","worlds:list-datapacks","worlds:install-datapack-remote","worlds:install-datapack-local","worlds:delete-datapack","worlds:import-zip","worlds:import-remote","worlds:copy","worlds:reset-icon","screenshots:list","screenshots:get","screenshots:delete","screenshots:rename","shell:open-external","shell:open-launcher-folder","shell:open-path","servers:list","servers:write-dat","servers:ping","quickplay:list","quickplay:clear","quickplay:remove","update:check","update:download","update:install","update:get-channel","update:set-channel","read-local-file","skins:get-profile","skins:delete-skin","skins:set-cape","skins:list-library","skins:save-to-library","skins:delete-from-library","skins:update-variant","skins:apply-library-skin","laby:catalog","laby:tags","laby:similar","laby:player","laby:save-to-library","laby:apply","avatar:get-textures","avatar:get-head","avatar:get-skin","avatar:get-cape","avatar:invalidate-cache","java:detect","java:pick-file","cloud:list-providers","cloud:connect","cloud:is-connected","cloud:disconnect","cloud:list-files","cloud:download-file","cloud:delete-file","cloud:get-quota","cloud:upload-theme","cloud:import-theme","cloud:upload-build","cloud:upload-server","cloud:upload-account","cloud:download-and-import","xn-connect:authorize","xn-connect:start","xn-connect:stop","xn-connect:status","xn-connect:usage","mc-server:list","mc-server:get","mc-server:host-settings","mc-server:create","mc-server:analyze-jar","mc-server:update","mc-server:delete","mc-server:restore","mc-server:list-trash","mc-server:purge-trash","mc-server:permanent-delete","mc-server:export-zip","mc-server:duplicate","mc-server:start","mc-server:stop","mc-server:kill","mc-server:send-command","mc-server:status","mc-server:metrics-subscribe","mc-server:metrics-unsubscribe","mc-server:logs","mc-server:install-state","mc-server:open-folder","mc-server:read-properties","mc-server:write-properties","mc-server:get-whitelist","mc-server:add-whitelist","mc-server:remove-whitelist","mc-server:get-ops","mc-server:add-op","mc-server:remove-op","mc-server:get-banned","mc-server:ban-player","mc-server:unban-player","mc-server:get-banned-ips","mc-server:ban-ip","mc-server:unban-ip","mc-server:get-addresses","mc-server:check-eula","mc-server:accept-eula","mc-server:fs-list","mc-server:fs-read","mc-server:fs-write","mc-server:fs-delete","mc-server:fs-rename","mc-server:fs-mkdir","mc-server:datapacks-list","mc-server:datapacks-install","mc-server:datapacks-cancel","mc-server:datapacks-delete","mc-server:fs-download","mc-server:resolve-installed","mc-server:install-pack","share:progress","share:installed","share:invitation","theme:local-changed","minecraft:java-progress","minecraft:debug","minecraft:data","minecraft:download-progress","minecraft:close","import:progress","build:export-progress","build:content-changed","content:download-progress","cloud:upload-progress","mc-server:download-progress","mc-server:log","mc-server:state-change","mc-server:metrics","mc-server:remote-snapshot","mc-server:remote-connection","xn-connect:usage-updated","xn-connect:state","xn-connect:log","xn-connect:auth-state","ai:stream-chunk","agent:delta","ai:stream-done","ai:stream-error","update:status","update:progress","cli:launch-build","stats:updated","authlib:login-progress","settings:updated"]

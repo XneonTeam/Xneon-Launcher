@@ -15,6 +15,7 @@ export interface ActivityNotification {
   timestamp: number
   progress?: number | null
   itemName?: string | null
+  downloadId?: string | null
   busy?: boolean
   read: boolean
 }
@@ -26,6 +27,7 @@ interface ActivityNotificationInput {
   message: string
   progress?: number | null
   itemName?: string | null
+  downloadId?: string | null
   busy?: boolean
 }
 
@@ -36,12 +38,14 @@ interface ContentInstallStart {
 }
 
 interface ContentInstallPatch {
+  downloadId?: string | null
   message?: string
   progress?: number | null
 }
 
 /** Состояние текущей установки: заголовок задаёт вызывающий, он же и снимает запись. */
 interface ContentInstallState {
+  downloadId?: string | null
   title: string
   message: string
   itemName: string | null
@@ -103,6 +107,7 @@ function createNotification(input: ActivityNotificationInput, read: boolean, liv
     progress: input.progress ?? null,
     itemName: input.itemName ?? null,
     busy: input.busy ?? false,
+    downloadId: input.downloadId ?? null,
     read,
   }
 }
@@ -199,6 +204,7 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
     if (!state) return
     if (patch.message !== undefined) state.message = patch.message
     if (patch.progress !== undefined) state.progress = patch.progress
+    if (patch.downloadId !== undefined) state.downloadId = patch.downloadId
     upsertLiveNotification(CONTENT_INSTALL_LIVE_KEY, {
       kind: "progress",
       source: "install",
@@ -206,6 +212,7 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
       message: state.message,
       progress: state.progress,
       itemName: state.itemName,
+      downloadId: state.downloadId,
       busy: true,
     })
   }, [upsertLiveNotification])
@@ -313,7 +320,7 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
       // поэтому завершение отдельного файла запись не закрывает — иначе она
       // мигала бы между файлами и снималась бы раньше времени.
       if (contentInstallRef.current) {
-        if (!progress.done) updateContentInstall({ progress: Math.round((current / total) * 100) })
+        updateContentInstall({ downloadId: progress.done ? null : progress.downloadId ?? null, ...(!progress.done ? { progress: progress.total > 0 ? Math.round((current / total) * 100) : null } : {}) })
         return
       }
 
@@ -346,6 +353,7 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
         progress: shown,
         itemName: progress.fileName || null,
         busy: !progress.done,
+        downloadId: progress.done ? null : progress.downloadId,
       })
       // Файл закрыт — держим запись ещё немного: следующий файл пачки просто
       // продолжит её, а по-настоящему одинокая загрузка исчезнет сама.

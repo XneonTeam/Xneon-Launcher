@@ -1,3 +1,4 @@
+import { contentMetadataEvents } from "./content-metadata-events"
 import fs from "fs/promises"
 import { loadModsModule } from "./helpers"
 import { inspectJar, primeJarInspectionCache } from "./jar-inspector"
@@ -146,6 +147,7 @@ function enrichWithModrinthInBackground(toParse: Array<{ filePath: string; sha1:
         })
       }
       await dbHelpers.upsertResources(updates)
+      if (updates.length) contentMetadataEvents.emit("updated", toParse.map(item => item.filePath))
     } catch {
       // Background Modrinth enrichment is best-effort: fail silently.
     }
@@ -469,6 +471,7 @@ function enrichCachedIconsInBackground(
         })
       }
       await dbHelpers.upsertResources(updates)
+      if (updates.length) contentMetadataEvents.emit("updated", cachedWithoutIcon.map(item => item.filePath))
     } catch {}
   })()
 }
@@ -534,6 +537,7 @@ function enrichWithCurseforgeInBackground(candidates: CfCandidate[]): void {
       try { await dbHelpers.markResourcesCurseforgeChecked(checkedSha1s) } catch {}
       try { await dbHelpers.setResourcesCurseforge(cfMatches) } catch {}
       await dbHelpers.upsertResources(updates)
+      if (updates.length) contentMetadataEvents.emit("updated", pending.map(item => item.filePath))
     } catch {}
   })()
 }

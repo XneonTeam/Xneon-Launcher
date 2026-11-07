@@ -102,7 +102,8 @@ export async function discoverModrinthAppInstances(customPath?: string): Promise
 
   for (const row of rows) {
     const dir = path.isAbsolute(row.path) ? path.normalize(row.path) : path.join(profilesDir, row.path)
-    const normalized = path.normalize(dir)
+    const normalized = process.platform === "win32" ? path.resolve(dir).toLowerCase() : path.resolve(dir)
+    if (foundPaths.has(normalized)) continue
     profileMap.set(normalized, row)
     if (!(await fileExists(dir))) continue
     const instance = await readModrinthInstance(dir, row, dataDir, profilesDir, path.join(dataDir, "meta"))
@@ -111,7 +112,7 @@ export async function discoverModrinthAppInstances(customPath?: string): Promise
   }
 
   const fromDirs = await discoverInstancesFromDirs([profilesDir], async (dir) => {
-    const normalized = path.normalize(dir)
+    const normalized = process.platform === "win32" ? path.resolve(dir).toLowerCase() : path.resolve(dir)
     if (foundPaths.has(normalized)) return null
     return readModrinthInstance(dir, profileMap.get(normalized), dataDir, profilesDir, path.join(dataDir, "meta"))
   })

@@ -306,7 +306,7 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
       } catch {}
     }
     loadCategories()
-  }, [view, modSource, detailTab])
+  }, [view, modSource])
 
   const [detailsKind, setDetailsKind] = useState<ProjectKind>("mod")
   const openProjectModal = useCallback(async (item: ModSearchResult, kind: ProjectKind = "mod") => {

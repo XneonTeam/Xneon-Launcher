@@ -151,6 +151,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   reorderAccounts: (ids: string[]) => ipcRenderer.invoke('db:reorder-accounts', ids) as Promise<void>,
 
   // ── Build / Intent ─────────────────────────────────────
+  watchBuildContent: (buildId: string, token: string) => ipcRenderer.invoke('build:watch-content', buildId, token),
+  unwatchBuildContent: (token: string) => ipcRenderer.invoke('build:unwatch-content', token),
+  onBuildContentChanged: (callback: (event: { buildId: string; token: string }) => void) => subscribe('build:content-changed', callback),
   scanBuildIntentContent: (buildName: string) => ipcRenderer.invoke('build:scan-intent-content', buildName) as Promise<BuildIntentScanResult>,
   discoverImportableInstances: invoke<ImportableLauncherInstance[]>('launcher:discover-importable-instances'),
   // Импорт из произвольной папки: хендлер launcher:discover-from-path (system.ts).
@@ -252,6 +255,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Build Intent Operations ────────────────────────────
   getBuildIntentPath: (buildId: string) => ipcRenderer.invoke('build:get-intent-path', buildId) as Promise<string>,
+  getDataMoveStatus: () => ipcRenderer.invoke("launcher:data-move-status") as Promise<{ pendingRoot?: string; error?: string }>,
+  restartForDataMove: () => ipcRenderer.invoke("launcher:restart-for-data-move") as Promise<{ success: boolean; error?: string }>,
   getInstancesRoot: () => ipcRenderer.invoke('build:get-instances-root') as Promise<string>,
   pickFolder: (title?: string) => ipcRenderer.invoke('common:pick-folder', title) as Promise<string | null>,
   pickThemeFile: (kind?: 'image' | 'video', title?: string) => ipcRenderer.invoke('common:pick-file', { kind, title }) as Promise<string | null>,
@@ -264,7 +269,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportLocalTheme: (theme: import('@xnlc/types').Theme, format: 'xntheme') => ipcRenderer.invoke('theme:local-export', theme, format),
   openThemesDirectory: () => ipcRenderer.invoke('theme:open-directory'),
   onLocalThemesChanged: (callback: (snapshot: import('@xnlc/types').LocalThemeSnapshot) => void) => subscribe('theme:local-changed', callback),
-  setInstancesRoot: (newRoot: string) => ipcRenderer.invoke('build:set-instances-root', newRoot) as Promise<{ success: boolean; root?: string; error?: string }>,
+  setInstancesRoot: (newRoot: string) => ipcRenderer.invoke('build:set-instances-root', newRoot) as Promise<{ success: boolean; root?: string; requiresRestart?: boolean; error?: string }>,
+  cancelContentDownload: (downloadId: string) => ipcRenderer.invoke("content:cancel-download", downloadId) as Promise<boolean>,
   saveModToIntent: (buildId: string, url: string, fileName: string) => ipcRenderer.invoke('build:save-mod-to-intent', buildId, url, fileName) as Promise<string | null>,
   saveLocalModToIntent: (buildId: string, localFilePath: string) => ipcRenderer.invoke('build:save-local-mod-to-intent', buildId, localFilePath) as Promise<string | null>,
   // Метаданные локального файла: нужны, чтобы брошенный в панель мод появлялся
@@ -322,6 +328,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   pickJavaFile: invoke<string | null>('java:pick-file'),
 
   // ── AI ─────────────────────────────────────────────────
+  agentClipboardFiles: () => ipcRenderer.invoke("agent:clipboard-files") as Promise<Array<{ name: string; dataUrl: string }>>,
   agentComplete: (request: import('@xnlc/types').AgentTurnRequest) => ipcRenderer.invoke('agent:complete', request) as Promise<import('@xnlc/types').AgentTurnResult>,
   agentCancel: (requestId: string) => ipcRenderer.invoke('agent:cancel', requestId) as Promise<void>,
   agentSetArchived: (id: string, archived: boolean) => ipcRenderer.invoke('agent:set-archived', id, archived) as Promise<void>,
@@ -413,7 +420,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   mcServerList: invoke<McServerInfo[]>('mc-server:list'),
   mcServerGet: (id: string) => ipcRenderer.invoke('mc-server:get', id) as Promise<McServerInfo | null>,
   mcServerHostSettings: (id: string, command: import('@xnlc/types').ServerHostSettingsCommand) => ipcRenderer.invoke('mc-server:host-settings', id, command) as Promise<import('@xnlc/types').ServerHostSettings>,
-  mcServerCreate: (data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }) => ipcRenderer.invoke('mc-server:create', data) as Promise<McServerInfo>,
+  mcServerCreate: (data: { name: string; description?: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }) => ipcRenderer.invoke('mc-server:create', data) as Promise<McServerInfo>,
   mcServerInstallPack: (params: { source: "modrinth" | "curseforge"; projectSlug?: string; versionId?: string; modId?: number; fileId?: number; name?: string; icon?: string; port?: number; xmx?: number; xms?: number; extraJavaArgs?: string; javaPath?: string; relayEnabled?: boolean; onlineMode?: boolean; maxPlayers?: number }) => ipcRenderer.invoke('mc-server:install-pack', params) as Promise<McServerInfo>,
   mcServerAnalyzeJar: (jarPath: string) => ipcRenderer.invoke('mc-server:analyze-jar', jarPath) as Promise<{ minecraftVersion: string | null; loaderId: string | null; loaderLabel: string | null; modId: string | null; mainClass: string | null; error?: string }>,
   mcServerUpdate: (id: string, update: Record<string, unknown>) => ipcRenderer.invoke('mc-server:update', id, update) as Promise<void>,
@@ -460,6 +467,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   mcServerFsDelete: (id: string, relativePath: string) => ipcRenderer.invoke('mc-server:fs-delete', id, relativePath) as Promise<void>,
   mcServerFsRename: (id: string, oldPath: string, newPath: string) => ipcRenderer.invoke('mc-server:fs-rename', id, oldPath, newPath) as Promise<void>,
   mcServerFsMkdir: (id: string, relativePath: string) => ipcRenderer.invoke('mc-server:fs-mkdir', id, relativePath) as Promise<void>,
+  mcServerDatapacksList: (id: string) => ipcRenderer.invoke('mc-server:datapacks-list', id),
+  mcServerDatapacksInstall: (id: string, name: string, source: { url?: string; base64?: string; requestId?: string }) => ipcRenderer.invoke('mc-server:datapacks-install', id, name, source),
+  mcServerDatapacksCancel: (id: string, requestId: string) => ipcRenderer.invoke("mc-server:datapacks-cancel", id, requestId),
+  mcServerDatapacksDelete: (id: string, name: string) => ipcRenderer.invoke('mc-server:datapacks-delete', id, name),
   mcServerFsDownload: (id: string, relativePath: string, url: string, fileName: string) => ipcRenderer.invoke('mc-server:fs-download', id, relativePath, url, fileName) as Promise<{ success: boolean; filePath?: string; error?: string }>,
   mcServerResolveInstalled: (id: string, relativePath: string) => ipcRenderer.invoke('mc-server:resolve-installed', id, relativePath) as Promise<Array<{ name: string; sha1: string; projectId?: string; versionId?: string }>>,
 

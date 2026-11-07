@@ -1,0 +1,28 @@
+.addon-row-container {
+  container-type: inline-size;
+  container-name: addon-row;
+}
+
+@container addon-row (max-width: 680px) {
+  [data-component="category-badge"].addon-row-category-badge {
+    width: 1.25rem;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+    border-radius: 9999px;
+    overflow: hidden;
+  }
+
+  [data-component="category-badge"].addon-row-category-badge [data-category-badge-label] {
+    display: none;
+  }
+
+  [data-component="category-badge"].addon-row-category-badge [data-ui="instance-category-badge-span-2"],
+  [data-component="category-badge"].addon-row-category-badge [data-ui="instance-category-badge-img-1"],
+  [data-component="category-badge"].addon-row-category-badge > span:not([data-category-badge-label]) {
+    width: 0.875rem;
+    height: 0.875rem;
+  }
+}

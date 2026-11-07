@@ -198,8 +198,12 @@ export interface IpcInvokeMap {
   "db:reorder-accounts": { args: [ids: string[]]; return: void }
 
   // ── Build / Intent ──
+  "build:watch-content": { args: [buildId: string, token: string]; return: boolean }
+  "build:unwatch-content": { args: [token: string]; return: void }
   "build:scan-intent-content": { args: [buildName: string]; return: BuildIntentScanResult }
   "build:get-intent-path": { args: [buildId: string]; return: string }
+  "launcher:data-move-status": { args: []; return: { pendingRoot?: string; error?: string } }
+  "launcher:restart-for-data-move": { args: []; return: { success: boolean; error?: string } }
   "build:get-instances-root": { args: []; return: string }
   "common:pick-folder": { args: [title?: string]; return: string | null }
   "common:pick-file": { args: [options?: { title?: string; kind?: "image" | "video" }]; return: string | null }
@@ -211,7 +215,8 @@ export interface IpcInvokeMap {
   "theme:local-delete": { args: [fileName: string]; return: void }
   "theme:local-export": { args: [theme: Theme, format: "xntheme"]; return: boolean }
   "theme:open-directory": { args: []; return: string }
-  "build:set-instances-root": { args: [newRoot: string]; return: { success: boolean; root?: string; error?: string } }
+  "build:set-instances-root": { args: [newRoot: string]; return: { success: boolean; root?: string; requiresRestart?: boolean; error?: string } }
+  "content:cancel-download": { args: [downloadId: string]; return: boolean }
   "build:save-mod-to-intent": { args: [buildId: string, url: string, fileName: string]; return: string | null }
   "build:save-local-mod-to-intent": { args: [buildId: string, localFilePath: string]; return: string | null }
   "build:read-local-content-metadata": { args: [localFilePath: string]; return: ContentFileMetadata | null }
@@ -252,6 +257,7 @@ export interface IpcInvokeMap {
   "storage:clean": { args: [target: StorageCleanTarget]; return: StorageCleanResult }
 
   // ── Xneon Agent ──
+  "agent:clipboard-files": { args: []; return: Array<{ name: string; dataUrl: string }> }
   "agent:complete": { args: [request: import("./agent-types.js").AgentTurnRequest]; return: import("./agent-types.js").AgentTurnResult }
   "agent:hardware": { args: []; return: import("./agent-types.js").AgentHardware }
   "agent:cancel": { args: [requestId: string]; return: void }
@@ -453,7 +459,7 @@ export interface IpcInvokeMap {
   "mc-server:list": { args: []; return: McServerInfo[] }
   "mc-server:get": { args: [id: string]; return: McServerInfo | null }
   "mc-server:host-settings": { args: [id: string, command: import("./remote-server-types.js").ServerHostSettingsCommand]; return: import("./remote-server-types.js").ServerHostSettings }
-  "mc-server:create": { args: [data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }]; return: McServerInfo }
+  "mc-server:create": { args: [data: { name: string; description?: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }]; return: McServerInfo }
   "mc-server:analyze-jar": { args: [jarPath: string]; return: { minecraftVersion: string | null; loaderId: string | null; loaderLabel: string | null; modId: string | null; mainClass: string | null; error?: string } }
   "mc-server:update": { args: [id: string, update: Record<string, unknown>]; return: void }
   "mc-server:delete": { args: [id: string]; return: void }
@@ -498,6 +504,10 @@ export interface IpcInvokeMap {
   "mc-server:fs-delete": { args: [id: string, relativePath: string]; return: void }
   "mc-server:fs-rename": { args: [id: string, oldPath: string, newPath: string]; return: void }
   "mc-server:fs-mkdir": { args: [id: string, relativePath: string]; return: void }
+  "mc-server:datapacks-list": { args: [id: string]; return: { directory: string; entries: McFsEntry[] } }
+  "mc-server:datapacks-install": { args: [id: string, name: string, source: { url?: string; base64?: string; requestId?: string }]; return: { success: boolean; error?: string } }
+  "mc-server:datapacks-cancel": { args: [id: string, requestId: string]; return: void }
+  "mc-server:datapacks-delete": { args: [id: string, name: string]; return: { success: boolean; error?: string } }
   "mc-server:fs-download": { args: [id: string, relativePath: string, url: string, fileName: string]; return: { success: boolean; filePath?: string; error?: string } }
   "mc-server:resolve-installed": { args: [id: string, relativePath: string]; return: ResolvedPlugin[] }
   "mc-server:install-pack": {
@@ -521,6 +531,7 @@ export interface IpcEventMap {
   "minecraft:close": MinecraftCloseInfo
   "import:progress": ImportProgress
   "build:export-progress": { current: number; total: number }
+  "build:content-changed": { buildId: string; token: string }
   "content:download-progress": ContentDownloadProgress
   "cloud:upload-progress": { id: string; percent: number; stage: "zip" | "upload" }
   "mc-server:download-progress": McServerDownloadProgress
@@ -609,6 +620,9 @@ export interface ElectronAPIExplicit {
   updateBuildFields: (buildId: string, fields: Partial<DbBuild>) => Promise<void>
   dbIsFallbackStorage: () => Promise<{ isFallback: boolean }>
   reorderAccounts: (ids: string[]) => Promise<void>
+  watchBuildContent: (buildId: string, token: string) => Promise<boolean>
+  unwatchBuildContent: (token: string) => Promise<void>
+  onBuildContentChanged: (callback: (event: { buildId: string; token: string }) => void) => CleanupFn
   scanBuildIntentContent: (buildName: string) => Promise<BuildIntentScanResult>
   discoverImportableInstances: () => Promise<ImportableLauncherInstance[]>
   discoverFromPath: (source: string, customPath: string) => Promise<ImportableLauncherInstance[]>
@@ -665,12 +679,15 @@ export interface ElectronAPIExplicit {
   getSetting: (key: string) => Promise<string | undefined>
   setSetting: (key: string, value: string) => Promise<void>
   getBuildIntentPath: (buildId: string) => Promise<string>
+  getDataMoveStatus: () => Promise<{ pendingRoot?: string; error?: string }>
+  restartForDataMove: () => Promise<{ success: boolean; error?: string }>
   getInstancesRoot: () => Promise<string>
   pickFolder: (title?: string) => Promise<string | null>
   pickThemeFile: (kind?: "image" | "video", title?: string) => Promise<string | null>
   readThemeMedia: (source: string, maxBytes?: number) => Promise<string | null>
   pickThemeMedia: (kind: "image" | "video" | "font") => Promise<{ source: string; name: string } | null>
-  setInstancesRoot: (newRoot: string) => Promise<{ success: boolean; root?: string; error?: string }>
+  setInstancesRoot: (newRoot: string) => Promise<{ success: boolean; root?: string; requiresRestart?: boolean; error?: string }>
+  cancelContentDownload: (downloadId: string) => Promise<boolean>
   saveModToIntent: (buildId: string, url: string, fileName: string) => Promise<string | null>
   saveLocalModToIntent: (buildId: string, localFilePath: string) => Promise<string | null>
   readLocalContentMetadata: (localFilePath: string) => Promise<ContentFileMetadata | null>
@@ -738,6 +755,7 @@ export interface ElectronAPIExplicit {
 // launcher-specific method that historically lived in src/electron.d.ts.
 
 export interface ElectronAPIExtra {
+  agentClipboardFiles: () => Promise<Array<{ name: string; dataUrl: string }>>
   agentComplete: (request: import("./agent-types.js").AgentTurnRequest) => Promise<import("./agent-types.js").AgentTurnResult>
   agentHardware: () => Promise<import("./agent-types.js").AgentHardware>
   agentCancel: (requestId: string) => Promise<void>
@@ -759,12 +777,14 @@ export interface ElectronAPIExtra {
   onAiStreamError: (callback: (data: { requestId: string; error: string }) => void) => () => void
   getTotalMemory: () => Promise<number>
   reorderAccounts: (ids: string[]) => Promise<void>
+  getDataMoveStatus: () => Promise<{ pendingRoot?: string; error?: string }>
+  restartForDataMove: () => Promise<{ success: boolean; error?: string }>
   getInstancesRoot: () => Promise<string>
   pickFolder: (title?: string) => Promise<string | null>
   pickThemeFile: (kind?: "image" | "video", title?: string) => Promise<string | null>
   readThemeMedia: (source: string, maxBytes?: number) => Promise<string | null>
   pickThemeMedia: (kind: "image" | "video" | "font") => Promise<{ source: string; name: string } | null>
-  setInstancesRoot: (newRoot: string) => Promise<{ success: boolean; root?: string; error?: string }>
+  setInstancesRoot: (newRoot: string) => Promise<{ success: boolean; root?: string; requiresRestart?: boolean; error?: string }>
   cloudListProviders: () => Promise<Array<{ id: string; name: string }>>
   cloudConnect: (providerId: string, authData?: Record<string, string>) => Promise<{ success: boolean; provider?: string; error?: string }>
   cloudIsConnected: (providerId: string) => Promise<boolean>
@@ -845,7 +865,7 @@ export interface ElectronAPIExtra {
   mcServerList: () => Promise<McServerInfo[]>
   mcServerGet: (id: string) => Promise<McServerInfo | null>
   mcServerHostSettings: (id: string, command: import("./remote-server-types.js").ServerHostSettingsCommand) => Promise<import("./remote-server-types.js").ServerHostSettings>
-  mcServerCreate: (data: { name: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }) => Promise<McServerInfo>
+  mcServerCreate: (data: { name: string; description?: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }) => Promise<McServerInfo>
   mcServerInstallPack: (params: { source: "modrinth" | "curseforge"; projectSlug?: string; versionId?: string; modId?: number; fileId?: number; name?: string; icon?: string; port?: number; xmx?: number; xms?: number; extraJavaArgs?: string; javaPath?: string; relayEnabled?: boolean; onlineMode?: boolean; maxPlayers?: number }) => Promise<McServerInfo>
   mcServerAnalyzeJar: (jarPath: string) => Promise<{ minecraftVersion: string | null; loaderId: string | null; loaderLabel: string | null; modId: string | null; mainClass: string | null; error?: string }>
   mcServerUpdate: (id: string, update: Record<string, unknown>) => Promise<void>
@@ -893,6 +913,10 @@ export interface ElectronAPIExtra {
   mcServerFsDelete: (id: string, relativePath: string) => Promise<void>
   mcServerFsRename: (id: string, oldPath: string, newPath: string) => Promise<void>
   mcServerFsMkdir: (id: string, relativePath: string) => Promise<void>
+  mcServerDatapacksList: (id: string) => Promise<{ directory: string; entries: McFsEntry[] }>
+  mcServerDatapacksInstall: (id: string, name: string, source: { url?: string; base64?: string; requestId?: string }) => Promise<{ success: boolean; error?: string }>
+  mcServerDatapacksCancel: (id: string, requestId: string) => Promise<void>
+  mcServerDatapacksDelete: (id: string, name: string) => Promise<{ success: boolean; error?: string }>
   mcServerFsDownload: (id: string, relativePath: string, url: string, fileName: string) => Promise<{ success: boolean; filePath?: string; error?: string }>
   mcServerResolveInstalled: (id: string, relativePath: string) => Promise<Array<{ name: string; sha1: string; projectId?: string; versionId?: string }>>
 

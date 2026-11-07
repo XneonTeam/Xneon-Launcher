@@ -23,7 +23,7 @@ test('установка по коду работает для всех роле
   const published = await publisher.publish((await publisher.scan(metadata)).manifest, 'alice')
   const repositoryId = published.repository.id
   const code = await fs.readFile(new URL('../../dist-electron/main/share/service.js', import.meta.url), 'utf8')
-  const nativeRequire = createRequire(import.meta.url)
+  const nativeRequire = createRequire(new URL("../../dist-electron/main/share/service.js", import.meta.url))
   for (const role of ['owner', 'editor', 'viewer']) {
     const user = role === 'owner' ? 'alice' : 'bob'
     const request = async (route, method = 'GET', body) => {
@@ -53,7 +53,7 @@ test('установка по коду работает для всех роле
       '../../db/share': { getShareBinding: id => bindings.get(id), saveShareBinding: (id, link) => bindings.set(id, link), finishShareInstall: (id, link, fields) => { Object.assign(builds.get(id), fields); bindings.set(id, link) } },
       '../builds/scanner': { scanIntentDir: async () => { if (failScan) { failScan = false; throw new Error('Temporary scan failure') } return { mods: [], resourcepacks: [], shaders: [], installedMods: {} } } },
       '../runtime': { sendToRenderer() {} }, './links': {},
-      './content-presentation': { describeShareContent: async () => ({}) },
+      './content-presentation': { describeShareContent: async () => ({}), describeIncomingShareContent: async () => ({}) },
     }
     const exports = {}
     vm.runInNewContext(code, { exports, require: name => name in mocks ? mocks[name] : nativeRequire(name), fetch, process: { env: {} }, Buffer })
@@ -71,3 +71,28 @@ test('установка по коду работает для всех роле
 })
 
 import './share-launch-settings.test.mjs'
+
+test('локальный запуск не блокируется фоновой операцией Share или недоступным сервисом', async () => {
+  const code = await fs.readFile(new URL('../../dist-electron/main/share/service.js', import.meta.url), 'utf8')
+  const nativeRequire = createRequire(new URL('../../dist-electron/main/share/service.js', import.meta.url))
+  let release, entered
+  const started = new Promise(resolve => { entered = resolve })
+  const session = new Promise(resolve => { release = resolve })
+  const mocks = {
+    '../../db': { dbHelpers: { findBuildById: async id => ({ id, name: 'Local' }) } },
+    '../../db/share': { getShareBinding: () => null },
+    './auth': { shareSession: async () => { entered(); return session } },
+    '../builds/helpers': {}, '../minecraft-core': {}, './worktree': {}, '../system': {},
+    '../builds/scanner': {}, '../runtime': {}, './links': {}, './content-presentation': {},
+  }
+  const exports = {}
+  vm.runInNewContext(code, { exports, require: name => name in mocks ? mocks[name] : nativeRequire(name), Buffer, process: { env: {} } })
+  const status = exports.executeShare({ action: 'status', buildId: 'local' }, () => {})
+  await started
+  try {
+    const result = await exports.executeShare({ action: 'checkLaunch', buildId: 'local' }, () => {})
+    assert.deepEqual(Object.keys(result), [])
+  } finally { release({ configured: false, signedIn: false }); await status }
+  const result = await exports.executeShare({ action: 'checkLaunch', buildId: 'local' }, () => {})
+  assert.deepEqual(Object.keys(result), [])
+})

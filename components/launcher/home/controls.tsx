@@ -1,3 +1,4 @@
+import { getAccountIcon } from "../accounts/account-provider-icon"
 import { memo, useCallback, useEffect, useState } from "react"
 import type { Dispatch, KeyboardEvent, SetStateAction } from "react"
 import { useTranslation } from "react-i18next"
@@ -148,14 +149,14 @@ function QuickPlayServerRow({ entry, ping, onLaunch }: {
     >
       <span data-ui="home-controls-span-2" className="relative flex-shrink-0">
         <ServerFavicon icon={status?.icon} label={entry.label} />
-        <span data-ui="home-controls-span-3" className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/65 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+        <span data-ui="home-controls-span-3" className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/35 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
           <IconPlayerPlay className="h-4 w-4 text-primary" strokeWidth={2} fill="currentColor" />
         </span>
       </span>
 
       <div data-ui="home-controls-div-2" className="flex min-w-0 flex-1 flex-col">
         <div data-ui="home-controls-div-3" className="flex items-center gap-2">
-          <span data-ui="home-controls-span-4" className="truncate text-[13px] font-medium text-foreground transition-colors group-hover:text-primary">
+          <span data-ui="home-controls-span-4" className="truncate text-[13px] font-medium text-foreground">
             {entry.label}
           </span>
           {online && (
@@ -183,7 +184,7 @@ function QuickPlayServerRow({ entry, ping, onLaunch }: {
               </span>
               {status?.version ? (
                 <span data-ui="home-controls-span-8"
-                  className="max-w-[130px] truncate rounded-md bg-muted/50 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                  className="max-w-[130px] truncate rounded-md border border-border bg-muted/70 px-1.5 py-0.5 text-[10px] text-foreground transition-colors group-hover:bg-background/80"
                   title={status.version}
                 >
                   {status.version}
@@ -228,24 +229,24 @@ function QuickPlayWorldRow({ world, onPlay }: {
             <IconMap className="h-4 w-4 text-success/70" />
           )}
         </span>
-        <span data-ui="home-controls-span-12" className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/65 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+        <span data-ui="home-controls-span-12" className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/35 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
           <IconPlayerPlay className="h-4 w-4 text-primary" strokeWidth={2} fill="currentColor" />
         </span>
       </span>
 
       <div data-ui="home-controls-div-7" className="flex min-w-0 flex-1 flex-col">
-        <span data-ui="home-controls-span-13" className="truncate text-[13px] font-medium text-foreground transition-colors group-hover:text-primary">
+        <span data-ui="home-controls-span-13" className="truncate text-[13px] font-medium text-foreground">
           {world.name}
         </span>
 
         <div data-ui="home-controls-div-8" className="mt-1 flex items-center gap-1.5">
           {world.gameMode ? (
-            <span data-ui="home-controls-span-14" className="rounded-md bg-muted/50 px-1.5 py-0.5 text-[10px] capitalize text-muted-foreground">
+            <span data-ui="home-controls-span-14" className="rounded-md border border-border bg-muted/70 px-1.5 py-0.5 text-[10px] capitalize text-foreground transition-colors group-hover:bg-background/80">
               {world.gameMode}
             </span>
           ) : null}
           {world.mcVersion ? (
-            <span data-ui="home-controls-span-15" className="rounded-md bg-muted/50 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+            <span data-ui="home-controls-span-15" className="rounded-md border border-border bg-muted/70 px-1.5 py-0.5 text-[10px] text-foreground transition-colors group-hover:bg-background/80">
               {world.mcVersion}
             </span>
           ) : null}
@@ -516,7 +517,7 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
               </div>
               <div data-ui="home-controls-div-25" className="flex-1 min-w-0">
                 <p data-ui="home-controls-p-3" className="font-semibold text-foreground text-sm truncate">{account?.username ?? "Player"}</p>
-                <p data-ui="home-controls-p-4" className="text-xs text-muted-foreground">{ACCOUNT_TYPE_LABELS[account?.type ?? "offline"]}</p>
+                <p data-ui="home-controls-p-4" className="flex items-center gap-1.5 text-xs text-muted-foreground"><span aria-hidden="true" className="inline-flex shrink-0 text-primary">{getAccountIcon(account?.type ?? "offline", "h-3.5 w-3.5")}</span>{ACCOUNT_TYPE_LABELS[account?.type ?? "offline"]}</p>
               </div>
             </div>
           </button>
@@ -526,15 +527,15 @@ export const HomeControls = memo(function HomeControls(props: HomeControlsProps)
               <DialogHeader className="px-5 pt-5 pb-3">
                 <DialogTitle className="flex items-center gap-2"><ModalTitleIcon><IconUsers className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t("home.account")}</DialogTitle>
               </DialogHeader>
-              <div data-ui="home-controls-div-26" className="flex flex-col gap-1 px-3 pb-3 max-h-[400px] overflow-y-auto">
+              <div data-ui="home-controls-div-26" className="flex flex-col gap-2 px-3 pb-3 max-h-[400px] overflow-y-auto">
                 {accounts.map(acc => {
                   const isActive = acc.id === account?.id
                   return (
-                    <button data-ui="home-controls-button-7" key={acc.id} type="button" onClick={() => { setActiveAccount(acc.id); setAccountComboOpen(false) }} className={cn("flex items-center gap-3 w-full px-3 py-2.5 rounded-xl outline-none transition-colors duration-150 text-left focus-visible:ring-0 focus-visible:border-primary", isActive ? "bg-primary/15 border border-primary/25" : "hover:bg-muted/60 border border-transparent")}>
+                    <button data-ui="home-controls-button-7" key={acc.id} type="button" onClick={() => { setActiveAccount(acc.id); setAccountComboOpen(false) }} className={cn("flex items-center gap-3 w-full px-3 py-2.5 rounded-xl outline-none transition-colors duration-150 text-left focus-visible:ring-0 focus-visible:border-primary", isActive ? "bg-primary/15 border border-primary/25" : "bg-muted/40 border border-border hover:bg-muted/70 hover:border-primary/30")}>
                       <div data-ui="home-controls-div-27" className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0"><CachedAvatar src={accountAvatarUrls[acc.id]} alt="" className="w-full h-full object-cover" /></div>
                       <div data-ui="home-controls-div-28" className="flex-1 min-w-0">
                         <p data-ui="home-controls-p-5" className="font-medium text-sm text-foreground truncate">{acc.username}</p>
-                        <p data-ui="home-controls-p-6" className="text-[11px] text-muted-foreground">{ACCOUNT_TYPE_LABELS[acc.type] ?? acc.type}</p>
+                        <p data-ui="home-controls-p-6" className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><span aria-hidden="true" className="inline-flex shrink-0 text-primary">{getAccountIcon(acc.type, "h-3.5 w-3.5")}</span>{ACCOUNT_TYPE_LABELS[acc.type] ?? acc.type}</p>
                       </div>
                       {isActive && <IconCheck className="w-4 h-4 text-primary flex-shrink-0" strokeWidth={2} />}
                     </button>

@@ -199,12 +199,14 @@ export function InstanceFtb({
             ))}
           </div>
         )}
-        <Pagination
-          currentPage={page}
-          totalPages={totalPages}
-          onPageChange={onPageChange}
-          className="mt-auto"
-        />
+        {!ftbLoading && (
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={onPageChange}
+            className="mt-auto"
+          />
+        )}
       </div>
     </div>
   )

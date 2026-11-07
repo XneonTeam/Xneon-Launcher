@@ -1,8 +1,11 @@
+import { Checkbox } from "@/components/ui/checkbox"
+import { datapackVersionFile } from "@/lib/datapack-version"
+import { useActivityCenter } from "@/src/ActivityCenterContext"
 import { useContentEnter, CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useState, useEffect, useCallback, useRef, useMemo, useDeferredValue } from "react"
 import { useTranslation } from "react-i18next"
 import {
-  IconSearch, IconUpload, IconPlug, IconPuzzle, IconLoader2,
+  IconDownload, IconX, IconSearch, IconUpload, IconPlug, IconPuzzle, IconLoader2,
 } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -25,12 +28,41 @@ import type { ModalTab, SelectedAddonCategory } from "./addons/types"
 
 interface AddonsTabProps {
   server: McServerInfo
+  datapacks?: boolean
+  canReload?: boolean
 }
 
-export function AddonsTab({ server }: AddonsTabProps) {
+export function AddonsTab({ server, datapacks = false, canReload = false }: AddonsTabProps) {
   const { t } = useTranslation()
-  const contentType = getContentType(server.modloader)
-  const contentDir = getContentDir(server.modloader)
+  const contentType = datapacks ? "datapack" : getContentType(server.modloader)
+  const contentDir = datapacks ? "datapacks" : getContentDir(server.modloader)
+  const { pushNotification } = useActivityCenter()
+  const reportError = (error: unknown) => pushNotification({ kind: "error", source: "install", title: t("servers.datapacks.title"), message: error instanceof Error ? error.message : String(error) })
+  const compatible = useCallback((version: ModVersion) => datapacks
+    ? Boolean(datapackVersionFile(version)) && version.gameVersion.split(/[|,/]/).map(value => value.trim()).includes(server.gameVersion)
+    : isVersionCompatibleWithServer(version, server.gameVersion, server.modloader), [datapacks, server.gameVersion, server.modloader])
+  const activeAttempt = useRef<{ id: string; cancelled: boolean } | null>(null)
+  const cancelAttempt = () => {
+    const attempt = activeAttempt.current
+    if (!attempt) return
+    attempt.cancelled = true
+    activeAttempt.current = null
+    setInstallingSlug(null)
+    if (datapacks) void window.electronAPI?.mcServerDatapacksCancel(server.id, attempt.id).catch(console.error)
+  }
+  useEffect(() => () => {
+    const attempt = activeAttempt.current
+    if (attempt) {
+      attempt.cancelled = true
+      if (datapacks) void window.electronAPI?.mcServerDatapacksCancel(server.id, attempt.id).catch(console.error)
+    }
+  }, [server.id, datapacks])
+  const installFile = async (name: string, url: string, requestId?: string) => {
+    const result = datapacks
+      ? await window.electronAPI?.mcServerDatapacksInstall(server.id, name, { url, requestId })
+      : await window.electronAPI?.mcServerFsDownload(server.id, contentDir, url, name)
+    if (!result?.success) throw new Error(result?.error || t("worlds.errors.datapackDownload"))
+  }
 
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
@@ -51,6 +83,14 @@ export function AddonsTab({ server }: AddonsTabProps) {
   const [fileInputRef, setFileInputRef] = useState<HTMLInputElement | null>(null)
   const deferredResults = useDeferredValue(results)
   const [categories, setCategories] = useState<ModCategory[]>([])
+  const [selectedProjects, setSelectedProjects] = useState<Record<string, ModSearchResult>>({})
+  const [batchInstalling, setBatchInstalling] = useState(false)
+  const batchGeneration = useRef(0)
+  const batchRunning = useRef(false)
+  useEffect(() => {
+    setSelectedProjects({})
+    return () => { batchGeneration.current++ }
+  }, [server.id, datapacks])
   const [selectedCategories, setSelectedCategories] = useState<SelectedAddonCategory[]>([])
 
   const searchVersionRef = useRef(0)
@@ -67,8 +107,8 @@ export function AddonsTab({ server }: AddonsTabProps) {
 
   // Показываем только совместимые версии — как в инстансах.
   const compatibleDetailVersions = useMemo(
-    () => detailVersions.filter(ver => isVersionCompatibleWithServer(ver, server.gameVersion, server.modloader)),
-    [detailVersions, server.gameVersion, server.modloader],
+    () => detailVersions.filter(compatible).map(version => datapacks ? { ...version, ...datapackVersionFile(version)! } : version),
+    [detailVersions, compatible, datapacks],
   )
 
   useEffect(() => {
@@ -79,15 +119,23 @@ export function AddonsTab({ server }: AddonsTabProps) {
   const loadInstalled = useCallback(async () => {
     if (!contentDir) return
     try {
+      if (datapacks) {
+        const result = await window.electronAPI?.mcServerDatapacksList(server.id)
+        setInstalledFiles(result?.entries ?? [])
+        const resolved = result ? await window.electronAPI?.mcServerResolveInstalled(server.id, result.directory) : []
+        setResolvedPlugins(resolved ?? [])
+        return
+      }
       const entries = await window.electronAPI?.mcServerFsList(server.id, contentDir)
       setInstalledFiles(entries ?? [])
       const resolved = await window.electronAPI?.mcServerResolveInstalled(server.id, contentDir)
       setResolvedPlugins(resolved ?? [])
-    } catch {
+    } catch (error) {
       setInstalledFiles([])
       setResolvedPlugins([])
+      if (datapacks) reportError(error)
     }
-  }, [server.id, contentDir])
+  }, [server.id, contentDir, datapacks])
 
   useEffect(() => {
     loadInstalled()
@@ -121,7 +169,8 @@ export function AddonsTab({ server }: AddonsTabProps) {
 
   const isInstalled = useCallback((project: ModSearchResult): boolean => {
     if (project.source === "modrinth" && project.projectId) {
-      return resolvedPlugins.some(r => r.projectId === project.projectId)
+      if (resolvedPlugins.some(r => r.projectId === project.projectId)) return true
+      if (!datapacks) return false
     }
     if (project.source === "curseforge" && typeof project.modId === "number") {
       return installedFiles.some(f => f.name.toLowerCase().includes(project.slug?.toLowerCase() ?? ""))
@@ -131,7 +180,14 @@ export function AddonsTab({ server }: AddonsTabProps) {
       const fLower = f.name.toLowerCase()
       return fLower.includes(nameLower) || fLower.includes(project.slug?.toLowerCase() ?? "")
     })
-  }, [resolvedPlugins, installedFiles])
+  }, [resolvedPlugins, installedFiles, datapacks])
+  useEffect(() => {
+    setSelectedProjects(current => {
+      const remaining = Object.entries(current).filter(([, project]) => !isInstalled(project))
+      return remaining.length === Object.keys(current).length ? current : Object.fromEntries(remaining)
+    })
+  }, [isInstalled])
+
 
   /**
    * Имя файла уже установленного плагина для открытого в окне проекта: по нему
@@ -238,58 +294,104 @@ export function AddonsTab({ server }: AddonsTabProps) {
   const totalPages = Math.max(1, Math.ceil(totalHits / MODS_PER_PAGE))
 
   const handleDownload = useCallback(async (project: ModSearchResult) => {
-    if (!contentDir || installingSlug) return
+    if (!contentDir || activeAttempt.current) return false
+    const attempt = { id: crypto.randomUUID(), cancelled: false }
+    activeAttempt.current = attempt
     setInstallingSlug(contentProjectKey(project))
 
     try {
       let downloadUrl: string | null = null
-      let fileName = `${project.name}.jar`
+      let fileName = `${project.slug || project.name}.${datapacks ? "zip" : "jar"}`
 
       if (project.source === "modrinth" && project.projectId) {
         const versions = await window.electronAPI?.modsModrinthVersions(project.projectId!)
         if (versions && versions.length > 0) {
-          const loader = server.modloader
-          const compatible = versions.filter(v => {
-            const gvs = v.gameVersion.split(/[|,/]/).map(s => s.trim()).filter(Boolean)
-            const gameOk = gvs.length === 0 || gvs.includes(server.gameVersion)
-            const loaders = v.loaders ?? []
-            const loaderOk = loaders.length === 0 || loaders.includes(loader)
-              || (loader === "paper" && loaders.includes("folia"))
-              || (loader === "folia" && loaders.includes("paper"))
-            return gameOk && loaderOk
-          })
-          const ver = compatible.length > 0 ? compatible[0] : versions[0]
-          downloadUrl = ver.downloadUrl ?? null
-          fileName = ver.fileName || fileName
+          const matching = versions.filter(compatible)
+          const ver = matching[0]
+          if (!ver) throw new Error(t("worlds.errors.datapackNoVersion"))
+          const file = datapacks ? datapackVersionFile(ver)! : ver
+          downloadUrl = file.downloadUrl ?? null
+          fileName = file.fileName || fileName
         }
       } else if (project.source === "curseforge" && project.modId && project.primaryFileId) {
-        const url = await window.electronAPI?.modsCurseforgeDownloadUrl(project.primaryFileId, project.modId)
+        let fileId = project.primaryFileId
+        if (datapacks) {
+          const details = await window.electronAPI?.modsCurseforgeDetails(project.modId)
+          const version = details?.versions.filter(compatible)[0]
+          if (!version) throw new Error(t("worlds.errors.datapackNoVersion"))
+          fileId = Number(version.id)
+          fileName = datapackVersionFile(version)!.fileName
+        }
+        const url = await window.electronAPI?.modsCurseforgeDownloadUrl(fileId, project.modId)
         if (url) {
           downloadUrl = url
-          fileName = project.primaryFileName || fileName
+          if (!datapacks) fileName = project.primaryFileName || fileName
         }
       }
 
-      if (!downloadUrl) return
+      if (!downloadUrl || attempt.cancelled) return false
 
-      await window.electronAPI?.mcServerFsDownload(server.id, contentDir, downloadUrl, fileName)
+      await installFile(fileName, downloadUrl, attempt.id)
       await loadInstalled()
+      return !attempt.cancelled
     } catch (err) {
-      console.error("Download failed:", err)
+      if (!attempt.cancelled) reportError(err)
+      return false
     } finally {
-      setInstallingSlug(null)
+      if (activeAttempt.current === attempt) {
+        activeAttempt.current = null
+        setInstallingSlug(null)
+      }
     }
-  }, [contentDir, installingSlug, server.id, server.gameVersion, server.modloader, loadInstalled])
+  }, [contentDir, installingSlug, server.id, server.gameVersion, server.modloader, loadInstalled, compatible, datapacks])
+
+  const installSelected = async () => {
+    if (batchRunning.current || activeAttempt.current) return
+    const projects = Object.values(selectedProjects).filter(project => !isInstalled(project))
+    if (!projects.length) return
+    batchRunning.current = true
+    setBatchInstalling(true)
+    const generation = batchGeneration.current
+    try {
+      for (const project of projects) {
+        if (generation !== batchGeneration.current) break
+        if (await handleDownload(project)) {
+          setSelectedProjects(current => {
+            const next = { ...current }
+            delete next[contentProjectKey(project)]
+            return next
+          })
+        }
+      }
+    } finally {
+      batchRunning.current = false
+      setBatchInstalling(false)
+    }
+  }
+  const selectable = results.filter(project => !isInstalled(project))
+  const allSelected = selectable.length > 0 && selectable.every(project => selectedProjects[contentProjectKey(project)])
 
   const handleUpload = useCallback(async (file: File) => {
     if (!contentDir) return
     try {
+      if (datapacks) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(String(reader.result).split(",")[1])
+          reader.onerror = () => reject(reader.error)
+          reader.readAsDataURL(file)
+        })
+        const result = await window.electronAPI?.mcServerDatapacksInstall(server.id, file.name, { base64 })
+        if (!result?.success) throw new Error(result?.error || t("worlds.errors.datapackInstall"))
+        await loadInstalled()
+        return
+      }
       const arrayBuffer = await file.arrayBuffer()
       const content = new TextDecoder("latin1").decode(arrayBuffer)
       await window.electronAPI?.mcServerFsWrite(server.id, `${contentDir}/${file.name}`, content)
       await loadInstalled()
-    } catch {}
-  }, [contentDir, server.id, loadInstalled])
+    } catch (error) { reportError(error) }
+  }, [contentDir, server.id, loadInstalled, datapacks])
 
   const openDetails = useCallback(async (project: ModSearchResult) => {
     setModalTab("changelog")
@@ -339,9 +441,9 @@ export function AddonsTab({ server }: AddonsTabProps) {
     )
   }
 
-  const emptyStateText = contentType === "plugin" ? t("servers.addons.findPlugins") : t("servers.addons.findMods")
-  const notFoundText = contentType === "plugin" ? t("servers.addons.pluginsNotFound") : t("servers.addons.modsNotFound")
-  const searchTitle = contentType === "plugin" ? t("servers.addons.plugins") : t("servers.addons.mods")
+  const emptyStateText = datapacks ? t("servers.datapacks.find") : contentType === "plugin" ? t("servers.addons.findPlugins") : t("servers.addons.findMods")
+  const notFoundText = datapacks ? t("servers.datapacks.notFound") : contentType === "plugin" ? t("servers.addons.pluginsNotFound") : t("servers.addons.modsNotFound")
+  const searchTitle = datapacks ? t("servers.datapacks.title") : contentType === "plugin" ? t("servers.addons.plugins") : t("servers.addons.mods")
 
   return (
     <div data-ui="server-addons-tab-div-4" data-component="addons-tab" className="flex-1 min-h-0 flex flex-col gap-2">
@@ -400,22 +502,22 @@ export function AddonsTab({ server }: AddonsTabProps) {
           <button data-ui="server-addons-tab-button-1"
             type="button"
             onClick={() => fileInputRef?.click()}
+            disabled={batchInstalling || installingSlug !== null}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium bg-muted text-foreground hover:bg-muted/80 transition-colors"
           >
             <IconUpload className="w-4 h-4" strokeWidth={1.75} />
-            {t("servers.addons.uploadJar")}
+            {t(datapacks ? "servers.datapacks.upload" : "servers.addons.uploadJar")}
           </button>
           <input data-ui="server-addons-tab-input-2"
             ref={setFileInputRef}
             type="file"
-            accept=".jar,.zip"
+            accept={datapacks ? ".zip" : ".jar,.zip"}
+            multiple
             className="hidden"
-            onChange={e => {
-              const file = e.target.files?.[0]
-              if (file) {
-                handleUpload(file)
-                e.target.value = ""
-              }
+            onChange={async e => {
+              const files = Array.from(e.target.files ?? [])
+              e.target.value = ""
+              for (const file of files) await handleUpload(file)
             }}
           />
         </div>
@@ -438,10 +540,20 @@ export function AddonsTab({ server }: AddonsTabProps) {
                   key={project.id}
                   project={project}
                   installed={isInstalled(project)}
+                  selected={Boolean(selectedProjects[contentProjectKey(project)])}
+                  selectionDisabled={batchInstalling || installingSlug !== null}
+                  onSelectionChange={checked => setSelectedProjects(current => {
+                    const next = { ...current }
+                    if (checked) next[contentProjectKey(project)] = project
+                    else delete next[contentProjectKey(project)]
+                    return next
+                  })}
+                  installDisabled={batchInstalling || installingSlug !== null}
                   installing={installingSlug === contentProjectKey(project)}
                   installLabel={t("servers.installModpack")}
-                  projectKind={contentType === "plugin" ? "plugin" : "mod"}
+                  projectKind={datapacks ? "datapack" : contentType === "plugin" ? "plugin" : "mod"}
                   onDetails={() => openDetails(project)}
+                  onCancelDownload={datapacks ? cancelAttempt : undefined}
                   onInstall={() => handleDownload(project)}
                 />
               ))}
@@ -449,15 +561,35 @@ export function AddonsTab({ server }: AddonsTabProps) {
           ) : loading ? (
             <Spinner />
           ) : (search || selectedCategories.length > 0) ? (
-            <EmptyState title={notFoundText} className="h-full" />
+            <EmptyState title={notFoundText} className="h-full rounded-none border-0 bg-transparent" />
           ) : (
             <EmptyState
               title={t("servers.addons.startSearch")}
               icon={IconSearch}
-              className="h-full rounded-2xl border border-dashed border-border"
+              className="h-full rounded-none border-0 bg-transparent"
             />
           )}
         </div>
+        {(Object.keys(selectedProjects).length > 0 || batchInstalling) && (
+          <div className="mt-3 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3">
+            <label className="flex items-center gap-2 text-xs">
+              <Checkbox checked={allSelected} disabled={batchInstalling || installingSlug !== null} onCheckedChange={checked => setSelectedProjects(current => {
+                const next = { ...current }
+                for (const project of selectable) {
+                  if (checked === true) next[contentProjectKey(project)] = project
+                  else delete next[contentProjectKey(project)]
+                }
+                return next
+              })} />{t("addon.batch.selectAll")}
+            </label>
+            <span className="text-xs text-muted-foreground">{t("addon.batch.selected", { count: Object.keys(selectedProjects).length })}</span>
+            <div className="flex items-center gap-2">
+              <button type="button" disabled={batchInstalling} onClick={() => setSelectedProjects({})} className="rounded-lg bg-muted px-3 py-2 text-xs disabled:opacity-50">{t("addon.batch.clear")}</button>
+              {batchInstalling ? <button type="button" onClick={() => { batchGeneration.current++; if (datapacks) cancelAttempt() }} className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs"><IconX className="size-4 text-primary" />{t("common.cancel")}</button>
+                : <button type="button" disabled={installingSlug !== null} onClick={() => void installSelected()} className="flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50"><IconDownload className="size-4" />{t("addon.batch.install")}</button>}
+            </div>
+          </div>
+        )}
         <Pagination
           currentPage={page - 1}
           totalPages={totalPages}
@@ -475,7 +607,7 @@ export function AddonsTab({ server }: AddonsTabProps) {
         loadingModal={loadingDetail}
         onClose={closeDetails}
         targetLabel={t("addon.target.server")}
-        projectKind={contentType === "plugin" ? "plugin" : "mod"}
+        projectKind={datapacks ? "datapack" : contentType === "plugin" ? "plugin" : "mod"}
         installedVersion={installedFileName}
         onInstallVersion={(ver) => (async () => {
           if (!contentDir || !selectedDetails) return false
@@ -497,9 +629,8 @@ export function AddonsTab({ server }: AddonsTabProps) {
               }
             }
             if (!downloadUrl) return false
-            await window.electronAPI?.mcServerFsDownload(
-              server.id, contentDir, downloadUrl, ver.fileName || `${selectedDetails.name}.jar`,
-            )
+            if (!compatible(ver)) return false
+            await installFile(ver.fileName || `${selectedDetails.slug || selectedDetails.name}.${datapacks ? "zip" : "jar"}`, downloadUrl)
             await loadInstalled()
             return true
           } finally {

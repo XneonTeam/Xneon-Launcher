@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { changeLanguage } from "@/src/i18n"
 import { cn } from "@/lib/utils"
-import { IconCpu, IconDeviceDesktop, IconShield, IconCloud, IconFolder, IconPlayerPlay, IconSettings, IconVersions } from "@tabler/icons-react"
+import { IconCpu, IconDeviceDesktop, IconShield, IconCloud, IconFolder, IconPlayerPlay, IconSettings, IconVersions, IconLoader2, IconRefresh } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { settingsTabs } from "./data"
 import { useThemeRegistry } from "./theme-store"
@@ -59,6 +59,9 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
     return stored || "ru"
   })
   const [instancesRoot, setInstancesRoot] = useState("")
+  const [pendingDataRoot, setPendingDataRoot] = useState("")
+  const [dataMoveBusy, setDataMoveBusy] = useState(false)
+  const [dataMoveError, setDataMoveError] = useState("")
 
   /**
    * Тема — из общего реестра: он сам применяет выбранную тему, пишет выбор в
@@ -174,7 +177,8 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
       }
       try {
         const root = await api.getInstancesRoot()
-        if (!cancelled) setInstancesRoot(root ?? "")
+        const move = await api.getDataMoveStatus()
+        if (!cancelled) { setInstancesRoot(root ?? ""); setPendingDataRoot(move.pendingRoot ?? ""); setDataMoveError(move.error ?? "") }
       } catch {}
       settingsHydratedRef.current = true
     }
@@ -277,15 +281,26 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
   }
 
   const handleChangeInstancesDir = async () => {
-    if (!window.electronAPI) return
+    if (!window.electronAPI || dataMoveBusy) return
     const picked = await window.electronAPI.pickFolder(t("settings.buildsFolder.pickTitle"))
     if (!picked) return
-    const result = await window.electronAPI.setInstancesRoot(picked)
-    if (result.success && result.root) {
-      setInstancesRoot(result.root)
-    } else if (result.error) {
-      console.warn("[Settings] Failed to change builds folder:", result.error)
-    }
+    setDataMoveBusy(true); setDataMoveError("")
+    try {
+      const result = await window.electronAPI.setInstancesRoot(picked)
+      if (result.success && result.root) {
+        setPendingDataRoot(result.requiresRestart ? result.root : "")
+      } else setDataMoveError(result.error ?? "DATA_MOVE_FAILED")
+    } catch (error) { setDataMoveError(error instanceof Error ? error.message : String(error)) }
+    finally { setDataMoveBusy(false) }
+  }
+  const restartForMove = async () => {
+    if (!window.electronAPI || dataMoveBusy) return
+    setDataMoveBusy(true); setDataMoveError("")
+    try {
+      const result = await window.electronAPI.restartForDataMove()
+      if (!result.success) setDataMoveError(result.error ?? "DATA_MOVE_FAILED")
+    } catch (error) { setDataMoveError(error instanceof Error ? error.message : String(error)) }
+    finally { setDataMoveBusy(false) }
   }
 
   return (
@@ -412,10 +427,16 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
                 <p data-ui="settings-index-p-4" className="text-sm text-muted-foreground mb-3">{t("settings.buildsFolder.desc")}</p>
                 <div data-ui="settings-index-div-16" className="flex items-center gap-3">
                   <code data-ui="settings-index-code-1" className="flex-1 truncate rounded-lg bg-background/60 border border-border px-3 py-2 text-xs text-muted-foreground">{instancesRoot || t("settings.buildsFolder.loading")}</code>
-                  <button data-ui="settings-index-button-2" type="button" onClick={() => void handleChangeInstancesDir()} className="px-3 py-2 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 shrink-0">
+                  <button data-ui="settings-index-button-2" type="button" onClick={() => void handleChangeInstancesDir()} disabled={dataMoveBusy} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 shrink-0 disabled:opacity-50">
+                    {dataMoveBusy && <IconLoader2 className="h-3.5 w-3.5 animate-spin text-primary-foreground" />}
                     {t("settings.buildsFolder.change")}
                   </button>
                 </div>
+                {pendingDataRoot && <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/10 p-3">
+                  <div className="min-w-0 text-xs"><p className="font-medium text-foreground">{t("settings.buildsFolder.pending")}</p><code className="mt-1 block break-all text-muted-foreground">{pendingDataRoot}</code></div>
+                  <button type="button" disabled={dataMoveBusy} onClick={() => void restartForMove()} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50"><IconRefresh className="h-3.5 w-3.5 text-primary-foreground" />{t("settings.buildsFolder.restart")}</button>
+                </div>}
+                {dataMoveError && <p role="alert" className="mt-3 text-xs text-destructive">{t(`settings.buildsFolder.errors.${dataMoveError}`, { defaultValue: t("settings.buildsFolder.failed", { message: dataMoveError }) })}</p>}
               </div>
             </section>
 

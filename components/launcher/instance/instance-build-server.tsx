@@ -15,10 +15,10 @@ export function InstanceBuildServer({ build, updateBuild }: InstanceBuildServerP
   const port = build.serverPort ?? "25565"
 
   return (
-    <div data-ui="instance-instance-build-server-div-1" data-component="instance-build-server" className="rounded-3xl border border-border bg-card/40 p-6">
+    <div data-ui="instance-instance-build-server-div-1" data-component="instance-build-server" className="launcher-settings-panel">
       <div data-ui="instance-instance-build-server-div-2" className="flex items-start justify-between gap-4">
         <div data-ui="instance-instance-build-server-div-3">
-          <div data-ui="instance-instance-build-server-div-4" className="flex items-center gap-2 text-lg font-semibold text-foreground">
+          <div data-ui="instance-instance-build-server-div-4" className="launcher-settings-heading flex items-center gap-2 font-semibold text-foreground">
             <IconServer className="h-5 w-5 text-primary" strokeWidth={1.75} />
             {t("build.server.title")}
           </div>
@@ -29,18 +29,18 @@ export function InstanceBuildServer({ build, updateBuild }: InstanceBuildServerP
         <button data-ui="instance-instance-build-server-button-1"
           type="button"
           onClick={() => updateBuild(build.id, { serverOverride: !override })}
-          className={cn(
-            "flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition-colors",
-            override ? "bg-primary text-primary-foreground" : "bg-muted/60 text-muted-foreground hover:bg-muted"
-          )}
+          role="switch"
+          aria-checked={override}
+          aria-label={t("build.server.overrideOn")}
+          title={override ? t("build.server.overrideOn") : t("build.java.useLauncher")}
+          className="settings-switch"
         >
-          <span data-ui="instance-instance-build-server-span-1" className={cn("w-2 h-2 rounded-full", override ? "bg-primary-foreground" : "bg-muted-foreground/50")} />
-          {override ? t("build.server.overrideOn") : t("build.java.useLauncher")}
+          <span className="settings-switch-thumb" />
         </button>
       </div>
 
       {override && (
-        <div data-ui="instance-instance-build-server-div-5" className="mt-6 grid gap-5">
+        <div data-ui="instance-instance-build-server-div-5" className="mt-4 grid gap-4">
           <div data-ui="instance-instance-build-server-div-6" className="space-y-2">
             <label data-ui="instance-instance-build-server-label-1" className="block text-xs font-medium text-muted-foreground">{t("build.server.ip")}</label>
             <input data-ui="instance-instance-build-server-input-1"

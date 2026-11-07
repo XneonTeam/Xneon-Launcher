@@ -3,7 +3,7 @@ import { getMainWindow, sendToRenderer } from "../runtime"
 let pending: string | undefined
 export function takeShareInvitation() { const value = pending; pending = undefined; return value }
 export function registerShareLinks() {
-  if (app.isPackaged && !app.requestSingleInstanceLock()) { app.quit(); return }
+  if (app.isPackaged && !app.hasSingleInstanceLock() && !app.requestSingleInstanceLock()) { app.quit(); return }
   function receive(value: string) {
     try {
       const url = new URL(value)

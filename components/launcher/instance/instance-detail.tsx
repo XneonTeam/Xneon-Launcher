@@ -1,3 +1,4 @@
+import { isContentDownloadCancelled } from "@/lib/content-download"
 import { CONTENT_ENTER_DELAYED } from "../content-motion"
 import { memo, useCallback, useState, useEffect, useMemo } from "react"
 import { useTranslation } from "react-i18next"
@@ -82,7 +83,7 @@ interface InstanceDetailProps {
   setModCategories: (value: SelectedModCategory[]) => void
   categories: ModCategory[]
   modFileInputRef: React.RefObject<HTMLInputElement | null>
-  addLocalModToBuild: (buildId: string, file: File) => void
+  addLocalModToBuild: (buildId: string, file: File) => void | Promise<void>
   addLocalContentToBuild: (buildId: string, type: "resourcepacks" | "shaders", file: File) => void | Promise<void>
   removeContentFromBuild: (buildId: string, type: "mods" | "resourcepacks" | "shaders", item: Build["mods"][number]) => Promise<boolean>
   reloadBuilds: () => Promise<void>
@@ -376,7 +377,10 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
         modId: depModId,
         matchSlug: dep.slug || dep.projectId,
       })
-    } catch { /* skip failed dep */ }
+    } catch (error) {
+      if (isContentDownloadCancelled(error)) throw error
+      // Остальные ошибки необязательной зависимости не прерывают установку.
+    }
   }, [doDownloadMod, resolveDepVersion])
 
   /** План установки зависимостей: что именно поставим — показываем в окне подтверждения. */
@@ -617,69 +621,71 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       itemName: mod.name,
     })
 
-    // Сначала сетевые запросы: версии, потом зависимости. Это несколько секунд,
-    // поэтому этап подписан — иначе прогресс «висит» без объяснений.
-    onPhase?.("resolving")
+    try {
+      // Сначала сетевые запросы: версии, потом зависимости. Это несколько секунд,
+      // поэтому этап подписан — иначе прогресс «висит» без объяснений.
+      onPhase?.("resolving")
 
-    let selectedVersion: ModVersion | undefined
-    if (source === "modrinth") {
-      const versions = await window.electronAPI?.modsModrinthVersions(mod.projectId ?? mod.slug)
-      selectedVersion = pickCompatibleVersion(versions, activeBuild)
-    } else if (source === "curseforge" && mod.modId) {
-      const details = await window.electronAPI?.modsCurseforgeDetails(mod.modId)
-      selectedVersion = pickCompatibleVersion(details?.versions ?? [], activeBuild)
-    }
+      let selectedVersion: ModVersion | undefined
+      if (source === "modrinth") {
+        const versions = await window.electronAPI?.modsModrinthVersions(mod.projectId ?? mod.slug)
+        selectedVersion = pickCompatibleVersion(versions, activeBuild)
+      } else if (source === "curseforge" && mod.modId) {
+        const details = await window.electronAPI?.modsCurseforgeDetails(mod.modId)
+        selectedVersion = pickCompatibleVersion(details?.versions ?? [], activeBuild)
+      }
 
-    if (!selectedVersion) {
-      endContentInstall()
-      return
-    }
-
-    const overrideMeta = { name: mod.name, description: mod.summary, iconUrl: mod.iconUrl, projectId: mod.projectId, modId: mod.modId }
-
-    const resolvedDeps = await resolveRequiredDeps(selectedVersion, source, mod.modId)
-    const missingRequiredDeps = await filterDepsForBuild(resolvedDeps.filter(dep => {
-      if (dep.dependencyType !== "required") return false
-      return !activeBuild.mods.some(installedMod =>
-        isInstalledBuildMod(installedMod, source, dep.projectId, source === "curseforge" ? Number(dep.projectId) : undefined, dep.slug || dep.projectId),
-      )
-    }), source)
-
-    // Зависимости обязательные, выбирать нечего — спрашиваем согласие одним окном.
-    // Версии подбираем заранее, чтобы в окне было видно, что именно поставим.
-    let depsToInstall = missingRequiredDeps
-    let depVersions: Map<string, ModVersion> | undefined
-    if (missingRequiredDeps.length > 0) {
-      onPhase?.("confirm")
-      updateContentInstall({ message: t("mods.install.phaseConfirm") })
-      const plan = await planDeps(missingRequiredDeps, source)
-      const approved = await askAboutDeps(mod.name, mod.iconUrl, source, plan)
-      if (!approved) {
-        // Отказ: окно закрылось, установка не началась.
+      if (!selectedVersion) {
         endContentInstall()
-        onPhase?.(null)
         return
       }
-      depsToInstall = approved.map(item => item.dep)
-      depVersions = new Map(approved.filter(item => item.version).map(item => [item.dep.projectId, item.version!]))
-    }
 
-    // Текст уведомления ведём по тем же этапам, что подпись на карточке:
-    // до этого «зависимости» сразу перекрывались «скачиванием».
-    const reportPhase = (phase: "resolving" | "confirm" | "downloading" | "deps" | null) => {
-      onPhase?.(phase)
-      if (phase === "downloading") {
-        updateContentInstall({ message: t("builds.mod.downloading", { name: mod.name }) })
-      } else if (phase === "deps") {
-        updateContentInstall({ message: t("mods.install.phaseDeps") })
+      const overrideMeta = { name: mod.name, description: mod.summary, iconUrl: mod.iconUrl, projectId: mod.projectId, modId: mod.modId }
+
+      // Версия уже выбрана. Проверка зависимостей может скачивать JAR, поэтому
+      // карточка и уведомление должны покинуть этап поиска до начала проверки.
+      onPhase?.("downloading")
+      updateContentInstall({ message: t("builds.mod.downloading", { name: mod.name }) })
+      const resolvedDeps = await resolveRequiredDeps(selectedVersion, source, mod.modId)
+      const missingRequiredDeps = await filterDepsForBuild(resolvedDeps.filter(dep => {
+        if (dep.dependencyType !== "required") return false
+        return !activeBuild.mods.some(installedMod =>
+          isInstalledBuildMod(installedMod, source, dep.projectId, source === "curseforge" ? Number(dep.projectId) : undefined, dep.slug || dep.projectId),
+        )
+      }), source)
+
+      // Зависимости обязательные, выбирать нечего — спрашиваем согласие одним окном.
+      // Версии подбираем заранее, чтобы в окне было видно, что именно поставим.
+      let depsToInstall = missingRequiredDeps
+      let depVersions: Map<string, ModVersion> | undefined
+      if (missingRequiredDeps.length > 0) {
+        onPhase?.("confirm")
+        updateContentInstall({ message: t("mods.install.phaseConfirm") })
+        const plan = await planDeps(missingRequiredDeps, source)
+        const approved = await askAboutDeps(mod.name, mod.iconUrl, source, plan)
+        if (!approved) {
+          // Отказ: окно закрылось, установка не началась.
+          endContentInstall()
+          onPhase?.(null)
+          return
+        }
+        depsToInstall = approved.map(item => item.dep)
+        depVersions = new Map(approved.filter(item => item.version).map(item => [item.dep.projectId, item.version!]))
       }
-    }
 
-    try {
+      // Текст уведомления ведём по тем же этапам, что подпись на карточке:
+      // до этого «зависимости» сразу перекрывались «скачиванием».
+      const reportPhase = (phase: "resolving" | "confirm" | "downloading" | "deps" | null) => {
+        onPhase?.(phase)
+        if (phase === "downloading") {
+          updateContentInstall({ message: t("builds.mod.downloading", { name: mod.name }) })
+        } else if (phase === "deps") {
+          updateContentInstall({ message: t("mods.install.phaseDeps") })
+        }
+      }
+
       await installVersionWithDeps(selectedVersion, source, depsToInstall, overrideMeta, reportPhase, depVersions)
-    } finally {
-      endContentInstall()
-    }
+    } finally { endContentInstall() }
   }, [activeBuild, activeBuild.id, activeBuild.mods, askAboutDeps, beginContentInstall, endContentInstall, filterDepsForBuild, installVersionWithDeps, isInstalledBuildMod, planDeps, resolveRequiredDeps, t, updateContentInstall])
 
   const handleInstallVersion = useCallback(async (version: ModVersion): Promise<boolean> => {
@@ -695,48 +701,46 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       message: t("mods.install.phaseResolving"),
       itemName: selectedDetails.name,
     })
-    const resolvedDeps = await resolveRequiredDeps(version, source, selectedDetails.modId)
-    const missingRequiredDeps = await filterDepsForBuild(resolvedDeps.filter(dep => {
-      if (dep.dependencyType !== "required") return false
-      return !activeBuild.mods.some(mod => isInstalledBuildMod(
-        mod,
-        source,
-        dep.projectId,
-        source === "curseforge" ? Number(dep.projectId) : undefined,
-        dep.slug || dep.projectId,
-      ))
-    }), source)
-
-    // Зависимости обязательные — одно окно подтверждения, затем установка в списке модов.
-    let depsToInstall = missingRequiredDeps
-    let depVersions: Map<string, ModVersion> | undefined
-    if (missingRequiredDeps.length > 0) {
-      updateContentInstall({ message: t("mods.install.phaseConfirm") })
-      const plan = await planDeps(missingRequiredDeps, source)
-      const approved = await askAboutDeps(selectedDetails.name, selectedDetails.iconUrl, source, plan)
-      if (!approved) {
-        endContentInstall()
-        return false
-      }
-      depsToInstall = approved.map(item => item.dep)
-      depVersions = new Map(approved.filter(item => item.version).map(item => [item.dep.projectId, item.version!]))
-    }
-
-    // Текст уведомления ведём по тем же этапам, что подпись на карточке.
-    const reportPhase = (phase: "resolving" | "confirm" | "downloading" | "deps" | null) => {
-      if (phase === "downloading") {
-        updateContentInstall({ message: t("builds.mod.downloading", { name: selectedDetails.name }) })
-      } else if (phase === "deps") {
-        updateContentInstall({ message: t("mods.install.phaseDeps") })
-      }
-    }
-
     try {
+      const resolvedDeps = await resolveRequiredDeps(version, source, selectedDetails.modId)
+      const missingRequiredDeps = await filterDepsForBuild(resolvedDeps.filter(dep => {
+        if (dep.dependencyType !== "required") return false
+        return !activeBuild.mods.some(mod => isInstalledBuildMod(
+          mod,
+          source,
+          dep.projectId,
+          source === "curseforge" ? Number(dep.projectId) : undefined,
+          dep.slug || dep.projectId,
+        ))
+      }), source)
+
+      // Зависимости обязательные — одно окно подтверждения, затем установка в списке модов.
+      let depsToInstall = missingRequiredDeps
+      let depVersions: Map<string, ModVersion> | undefined
+      if (missingRequiredDeps.length > 0) {
+        updateContentInstall({ message: t("mods.install.phaseConfirm") })
+        const plan = await planDeps(missingRequiredDeps, source)
+        const approved = await askAboutDeps(selectedDetails.name, selectedDetails.iconUrl, source, plan)
+        if (!approved) {
+          endContentInstall()
+          return false
+        }
+        depsToInstall = approved.map(item => item.dep)
+        depVersions = new Map(approved.filter(item => item.version).map(item => [item.dep.projectId, item.version!]))
+      }
+
+      // Текст уведомления ведём по тем же этапам, что подпись на карточке.
+      const reportPhase = (phase: "resolving" | "confirm" | "downloading" | "deps" | null) => {
+        if (phase === "downloading") {
+          updateContentInstall({ message: t("builds.mod.downloading", { name: selectedDetails.name }) })
+        } else if (phase === "deps") {
+          updateContentInstall({ message: t("mods.install.phaseDeps") })
+        }
+      }
+
       await installVersionWithDeps(version, source, depsToInstall, undefined, reportPhase, depVersions)
-    } finally {
-      endContentInstall()
-    }
-    return true
+      return true
+    } finally { endContentInstall() }
   }, [activeBuild.mods, askAboutDeps, beginContentInstall, endContentInstall, filterDepsForBuild, installVersionWithDeps, isInstalledBuildMod, planDeps, resolveRequiredDeps, selectedDetails, t, updateContentInstall])
 
   /**
@@ -765,35 +769,46 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
 
   return (
     <div data-ui="instance-instance-detail-div-1" data-component="instance-detail" id="build-detail-page" data-tab={detailTab} className="h-full flex flex-col">
-      <div data-ui="instance-instance-detail-div-2" className={`launcher-page-header flex items-center justify-between gap-4 mb-5 ${CONTENT_ENTER_DELAYED}`}>
-        <div data-ui="instance-instance-detail-div-3" className="flex items-center gap-4">
+      <div data-ui="instance-instance-detail-div-2" className={`launcher-page-header flex flex-wrap items-center justify-between gap-x-6 gap-y-4 mb-5 ${CONTENT_ENTER_DELAYED}`}>
+        <div data-ui="instance-instance-detail-div-3" className="flex min-w-0 max-w-full items-center gap-3">
           <button data-ui="instance-instance-detail-button-1"
             type="button"
             onClick={goToMyBuilds}
-            className="p-2 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/50 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <IconArrowLeft className="w-5 h-5" />
           </button>
-          <div data-ui="instance-instance-detail-div-4" className="flex items-center gap-3 rounded-2xl bg-muted/50 px-4 py-2.5">
-            {buildHasImage && (
-              <div data-ui="instance-instance-detail-div-5" className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
-                <EntityIcon src={activeBuild.icon} className="w-full h-full p-1 text-primary" imgClassName="w-full h-full object-cover" />
+          <div data-ui="instance-instance-detail-div-4" className="flex w-fit min-w-0 max-w-full sm:max-w-[460px] items-center gap-3 rounded-xl border border-border bg-muted/40 px-3 py-2.5">
+            <div data-ui="instance-instance-detail-div-5" className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl">
+              {buildHasImage ? (
+                <EntityIcon src={activeBuild.icon} className="h-full w-full p-1 text-primary" imgClassName="h-full w-full object-cover" />
+              ) : <LoaderIcon loaderId={activeBuild.modLoader} className="h-10 w-10 text-primary" />}
+            </div>
+            <div data-ui="instance-instance-detail-div-6" className="flex min-w-0 flex-1 flex-col gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <h1 data-ui="instance-instance-detail-h1-1" className="line-clamp-2 w-full [overflow-wrap:anywhere] text-xl font-bold leading-tight text-foreground">{activeBuild.name}</h1>
+
               </div>
-            )}
-            <div data-ui="instance-instance-detail-div-6" className="flex flex-col">
-              <h1 data-ui="instance-instance-detail-h1-1" className="text-xl font-bold text-foreground">{activeBuild.name}</h1>
-              <div data-ui="instance-instance-detail-div-7" className="flex items-center gap-2 text-sm text-muted-foreground">
-                <LoaderIcon loaderId={activeBuild.modLoader} className="w-4 h-4 text-muted-foreground inline-block flex-shrink-0" />
-                <span data-ui="instance-instance-detail-span-1">{loaderLabel(activeBuild.modLoader)} · {activeBuild.version}</span>
+              <div data-ui="instance-instance-detail-div-7" className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                <span data-ui="instance-instance-detail-span-1" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2 py-0.5">
+                  <LoaderIcon loaderId={activeBuild.modLoader} className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  {loaderLabel(activeBuild.modLoader)}
+                </span>
+                <span className="rounded-lg border border-border bg-muted/30 px-2 py-0.5 tabular-nums">{activeBuild.version}</span>
+
               </div>
             </div>
-          </div>
+
           <button data-ui="instance-open-agent-button" type="button" title={t("agent.askAboutBuild")} aria-label={t("agent.askAboutBuild")} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => {
             const { icon, coverImage, customEnv, mods, resourcepacks, shaders, installedMods, ...context } = activeBuild
             void openAgent([{ id: `build:${activeBuild.id}`, kind: "build", name: activeBuild.name, iconUrl: icon || undefined, content: JSON.stringify(context, null, 2) }])
           }}>
             <IconRobot className="w-5 h-5" aria-hidden="true" />
           </button>
+          </div>
+
+
+
         </div>
         <div data-ui="instance-instance-detail-div-8" className="flex flex-col gap-1">
           <div data-ui="instance-instance-detail-div-9" className="flex gap-0.5 p-1 rounded-xl bg-muted/30 border border-border/50">

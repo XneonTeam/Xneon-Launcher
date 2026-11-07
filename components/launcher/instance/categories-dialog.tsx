@@ -42,7 +42,7 @@ export function CategoriesDialog({ categories, selected, onApply, triggerClassNa
   const groups = useMemo(() => {
     const map = new Map<string, CategoriesDialogCategory[]>()
     for (const category of categories) {
-      const key = category.source ?? "both"
+      const key = category.source ?? (category.header === "FTB" ? "ftb" : "both")
       const list = map.get(key)
       if (list) list.push(category)
       else map.set(key, [category])
@@ -93,6 +93,7 @@ export function CategoriesDialog({ categories, selected, onApply, triggerClassNa
             const groupLabels: Record<string, string> = {
               modrinth: "Modrinth",
               curseforge: "CurseForge",
+              ftb: "FTB",
               both: t("servers.addons.bothPlatforms"),
             }
             return (
@@ -147,7 +148,7 @@ export function CategoriesDialog({ categories, selected, onApply, triggerClassNa
                         <img data-ui="instance-categories-dialog-img-1" src={cat.icon} alt="" className="w-4 h-4 shrink-0 rounded-sm object-contain" />
                       )}
                       <span data-ui="instance-categories-dialog-span-5" className="flex-1">{cat.name}</span>
-                      {cat.header !== "categories" && (
+                      {cat.header !== "categories" && cat.header !== "FTB" && (
                         <span data-ui="instance-categories-dialog-span-6" className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">{cat.header}</span>
                       )}
                     </label>

@@ -72,6 +72,7 @@ export default defineConfig({
         '**/.tmp*/**',
       ],
       usePolling: false,
+      awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 20 },
     },
   },
   build: {

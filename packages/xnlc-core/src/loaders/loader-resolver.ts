@@ -124,6 +124,7 @@ export class LoaderResolver {
       case "custom":
         return this.getCustomVersionHandler();
     }
+    throw new Error(`Unknown loader: ${loaderType}`);
   }
 
   async installLoader(

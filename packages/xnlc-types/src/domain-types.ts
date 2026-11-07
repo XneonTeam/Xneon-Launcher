@@ -401,6 +401,7 @@ export type ImportProgress = {
 }
 
 export type ContentDownloadProgress = {
+  downloadId?: string
   fileName: string
   current: number
   total: number

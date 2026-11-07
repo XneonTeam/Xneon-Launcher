@@ -219,7 +219,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
 
       await api.launchMinecraft({
         version: build.version,
-        modLoader: (build.customVersionPath ? "custom" : build.modLoader) as "vanilla" | "forge" | "fabric" | "quilt" | "liteloader" | "optifine" | "neoforge" | "custom",
+        modLoader: (build.customVersionPath ? "custom" : build.modLoader) as import("@xnlc/types").MinecraftLaunchParams["modLoader"],
         ...(build.loaderVersion ? { loaderVersion: build.loaderVersion } : {}),
         ...(build.customVersionPath ? { customVersionPath: build.customVersionPath } : {}),
         account: { type: launchAccount.type, username: launchAccount.username, uuid: launchAccount.uuid, accessToken: launchAccount.accessToken },
@@ -491,7 +491,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
           >
             <div data-ui="instance-instance-servers-tab-div-29" className="flex items-center justify-between">
               <h3 data-ui="instance-instance-servers-tab-h3-4" className="flex items-center gap-2 text-lg font-semibold text-foreground"><ModalTitleIcon><IconServer className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{t(editingIp ? "servers.edit" : "servers.addServer")}</h3>
-              <button data-ui="instance-instance-servers-tab-button-9"
+              <button data-modal-close data-ui="instance-instance-servers-tab-button-9"
                 onClick={() => setShowAddModal(false)}
                 className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
               >

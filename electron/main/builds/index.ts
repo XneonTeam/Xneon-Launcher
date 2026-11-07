@@ -1,3 +1,9 @@
+import { watchBuildContent } from "./content-watcher"
+import { getLauncherDataRoot, getDefaultLauncherDataRoot, launcherLocationConfig } from "../paths"
+import { readDataLocation, scheduleInstancesMove } from "../data-location"
+import { isLaunchActive } from "../minecraft-core"
+import { serverManager } from "@xnlc/servers"
+import { cancelContentDownload, runContentDownload, hasActiveContentDownloads } from "../content-downloads"
 import { describeModrinthImportFiles, describeCurseforgeImportFiles, describeFtbImportFiles, withImportFileProgress } from "./import-file-progress"
 import { toErrorMessage, opFailure } from "../errors"
 import { app, dialog, ipcMain } from "electron"
@@ -282,6 +288,37 @@ type OpenImportResult = ImportResult & {
 }
 
 export function registerBuildHandlers() {
+  const contentWatchers = new Map<number, { token: string; close?: () => void }>()
+  const watchedOwners = new WeakSet<Electron.WebContents>()
+  ipcMain.handle("build:watch-content", async (event, buildId: string, token: string) => {
+    const owner = event.sender
+    contentWatchers.get(owner.id)?.close?.()
+    const subscription: { token: string; close?: () => void } = { token }
+    contentWatchers.set(owner.id, subscription)
+    if (!watchedOwners.has(owner)) {
+      watchedOwners.add(owner)
+      owner.once("destroyed", () => {
+        contentWatchers.get(owner.id)?.close?.()
+        contentWatchers.delete(owner.id)
+      })
+    }
+    try {
+      const build = await dbHelpers.findBuildById(buildId)
+      if (!build || owner.isDestroyed() || contentWatchers.get(owner.id) !== subscription) return false
+      const directory = build.intentPath || getBuildIntentPath(build.name)
+      subscription.close = watchBuildContent(directory, () => {
+        if (!owner.isDestroyed()) owner.send("build:content-changed", { buildId, token })
+      })
+      return true
+    } catch { return false }
+  })
+  ipcMain.handle("build:unwatch-content", (event, token: string) => {
+    const subscription = contentWatchers.get(event.sender.id)
+    if (subscription?.token !== token) return
+    subscription.close?.()
+    contentWatchers.delete(event.sender.id)
+  })
+
   ipcMain.handle("build:check-content-updates", async (_event, buildId: string, channel?: UpdateChannel): Promise<BuildContentUpdates> => {
     try {
       return await checkContentUpdates(buildId, channel ?? "release")
@@ -320,35 +357,42 @@ export function registerBuildHandlers() {
 
   ipcMain.handle("build:get-instances-root", async (): Promise<string> => getInstancesRoot())
 
-  ipcMain.handle("build:set-instances-root", async (_event, newRoot: string): Promise<{ success: boolean; root?: string; error?: string }> => {
+  let dataMoveRestartPending = false
+  const storageBusy = async () => {
+    if (isLaunchActive() || isImportInProgress() || hasActiveContentDownloads()) return true
+    const { hasPendingMcServerOperation } = await import("../mc-server-handlers.js")
+    return (await dbHelpers.listMcServers()).some(server => serverManager.isRunning(server.id) || hasPendingMcServerOperation(server.id))
+  }
+  ipcMain.handle("launcher:data-move-status", () => {
+    const state = readDataLocation(launcherLocationConfig, getLauncherDataRoot())
+    return { pendingRoot: state.pendingInstances?.target, error: state.error }
+  })
+  ipcMain.handle("launcher:restart-for-data-move", async () => {
     try {
-      const trimmed = (newRoot ?? "").trim()
-      if (!trimmed) {
-        await dbHelpers.setSetting("instancesPath", "")
-        await loadInstancesRoot()
-        return { success: true, root: getInstancesRoot() }
-      }
-      const absRoot = path.resolve(trimmed)
-      await fs.mkdir(absRoot, { recursive: true })
-      // If the default location still holds the intents folder, move it over so builds are preserved.
-      const defaultIntents = path.join(getBaseDataRoot(), "intents")
-      const targetIntents = path.join(absRoot, "intents")
-      try {
-        await fs.access(defaultIntents)
-        await fs.access(targetIntents).catch(async () => {
-          await fs.rename(defaultIntents, targetIntents)
-        })
-      } catch {}
-      await dbHelpers.setSetting("instancesPath", absRoot)
-      await loadInstancesRoot()
-      return { success: true, root: getInstancesRoot() }
-    } catch (error) {
-      return opFailure(error)
-    }
+      if (dataMoveRestartPending) return { success: true }
+      if (await storageBusy()) throw new Error("DATA_PATH_BUSY")
+      const state = readDataLocation(launcherLocationConfig, getLauncherDataRoot())
+      if (!state.pendingInstances) return { success: true }
+      dataMoveRestartPending = true
+      // Даём IPC-ответу дойти до renderer перед закрытием окна.
+      setTimeout(() => { app.relaunch(); app.quit() }, 150)
+      return { success: true }
+    } catch (error) { return opFailure(error) }
+  })
+  ipcMain.handle("build:set-instances-root", async (_event, newRoot: string): Promise<{ success: boolean; root?: string; requiresRestart?: boolean; error?: string }> => {
+    try {
+      if (dataMoveRestartPending || await storageBusy()) throw new Error("DATA_PATH_BUSY")
+      const target = newRoot.trim() || getDefaultLauncherDataRoot()
+      const state = readDataLocation(launcherLocationConfig, getLauncherDataRoot())
+      const next = scheduleInstancesMove(launcherLocationConfig, state, getInstancesRoot(), target)
+      return { success: true, root: next.pendingInstances?.target ?? getInstancesRoot(), requiresRestart: !!next.pendingInstances }
+    } catch (error) { return opFailure(error) }
   })
 
-  ipcMain.handle("build:save-mod-to-intent", async (_event, dirName: string, url: string, fileName: string): Promise<string | null> => {
-    return await saveRemoteContentToIntent(dirName, "mod", url, fileName)
+  ipcMain.handle("content:cancel-download", (event, id: string) => cancelContentDownload(event.sender.id, id))
+
+  ipcMain.handle("build:save-mod-to-intent", async (event, dirName: string, url: string, fileName: string): Promise<string | null> => {
+    return runContentDownload(event.sender.id, (signal, id) => saveRemoteContentToIntent(dirName, "mod", url, fileName, signal, id))
   })
 
   ipcMain.handle("build:save-local-mod-to-intent", async (_event, dirName: string, localFilePath: string): Promise<string | null> => {
@@ -373,8 +417,8 @@ export function registerBuildHandlers() {
     return classifyContentDropPaths(paths ?? [], kind)
   })
 
-  ipcMain.handle("build:save-content-to-intent", async (_event, dirName: string, contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string): Promise<string | null> => {
-    return await saveRemoteContentToIntent(dirName, contentType, url, fileName)
+  ipcMain.handle("build:save-content-to-intent", async (event, dirName: string, contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string): Promise<string | null> => {
+    return runContentDownload(event.sender.id, (signal, id) => saveRemoteContentToIntent(dirName, contentType, url, fileName, signal, id))
   })
 
   ipcMain.handle("build:save-local-content-to-intent", async (_event, dirName: string, contentType: "mod" | "resourcepack" | "shader", localFilePath: string): Promise<string | null> => {

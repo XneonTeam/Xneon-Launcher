@@ -1,3 +1,4 @@
+import { ModalCloseButton } from "@/components/ui/modal-close-button"
 import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -561,7 +562,7 @@ export const InstanceList = memo(function InstanceList({
                   {t("instanceList.exportZipDesc", { name: builds.find(b => b.id === exportDialogFor)?.name ?? "" })}
                 </p>
               </div>
-              <button data-ui="instance-instance-list-button-9" type="button" onClick={() => setExportDialogFor(null)} className="p-1 rounded-md hover:bg-muted text-muted-foreground">
+              <button data-modal-close data-ui="instance-instance-list-button-9" type="button" onClick={() => setExportDialogFor(null)} className="p-1 rounded-md hover:bg-muted text-muted-foreground">
                 <IconX className="w-4 h-4" />
               </button>
             </div>
@@ -715,7 +716,8 @@ export const InstanceList = memo(function InstanceList({
 
       {renameGroupFor && (
         <ModalLayer windowId="instance-instance-list-window-1" className="" onClose={() => setRenameGroupFor(null)}>
-          <div data-ui="instance-instance-list-div-41" className="w-72 rounded-2xl border border-border bg-card p-4 shadow-2xl">
+          <div data-ui="instance-instance-list-div-41" className="relative w-72 rounded-2xl border border-border bg-card p-4 shadow-2xl pt-14">
+          <ModalCloseButton className="absolute right-3 top-3 z-10" onClick={() => setRenameGroupFor(null)} />
             <p data-ui="instance-instance-list-p-7" className="text-sm font-semibold mb-3">{t("instanceList.renameGroup")}</p>
             <input data-ui="instance-instance-list-input-1" autoFocus value={renameGroupDraft} onChange={e => setRenameGroupDraft(e.target.value)}
               onKeyDown={e => {

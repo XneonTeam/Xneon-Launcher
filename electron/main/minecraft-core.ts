@@ -39,9 +39,10 @@ export function loadXnlcModule(): Promise<XnlcModule> {
 
 export async function getHandler(): Promise<XnlcHandler> {
   if (!handler) {
-    const { createDefaultHandler, getDefaultMinecraftRootFromEnv } = await loadXnlcModule()
-    process.env.XNLC_GAME_DIR = getDefaultMinecraftRootFromEnv()
+    const { createDefaultHandler } = await loadXnlcModule()
+    process.env.XNLC_GAME_DIR = getMinecraftResourceRoot()
     handler = createDefaultHandler({
+      gameDir: process.env.XNLC_GAME_DIR,
       resourceDir: prepareInstanceStorageSync(process.env.XNLC_GAME_DIR),
       javaRoot: getMinecraftResourceRoot(),
       memoryMax: "4G",
@@ -78,8 +79,7 @@ export async function callHandler<T>(
 // ---------- Game Dir ----------
 
 export async function getGameDir(): Promise<string> {
-  const { getDefaultMinecraftRootFromEnv } = await loadXnlcModule()
-  return getDefaultMinecraftRootFromEnv()
+  return getMinecraftResourceRoot()
 }
 
 // ---------- Worker Lifecycle (delegated to LaunchOrchestrator) ----------

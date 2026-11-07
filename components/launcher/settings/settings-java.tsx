@@ -107,7 +107,7 @@ export function SettingsJava({
           <div data-ui="settings-settings-java-div-8" className="w-full max-w-lg p-6 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4">
             <div data-ui="settings-settings-java-div-9" className="flex items-center justify-between mb-5">
               <h3 data-ui="settings-settings-java-h3-1" className="flex items-center gap-2 text-lg font-semibold text-foreground"><ModalTitleIcon><IconCoffee className="h-4 w-4" strokeWidth={1.75} /></ModalTitleIcon>{editingJavaVersion ? `Java ${editingJavaVersion}` : t("settings.java.selectJavaPath")}</h3>
-              <button data-ui="settings-settings-java-button-3"
+              <button data-modal-close data-ui="settings-settings-java-button-3"
                 onClick={() => { setShowJavaModal(false); setEditingJavaVersion("") }}
                 className="w-8 h-8 rounded-lg bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
               >

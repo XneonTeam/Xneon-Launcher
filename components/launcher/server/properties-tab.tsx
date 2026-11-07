@@ -2,7 +2,7 @@ import { CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { EmptyState } from "@/components/ui/empty-state"
-import { IconCheck, IconLoader2, IconSearch, IconChevronDown, IconChevronRight, IconRefresh, IconWorld, IconDeviceGamepad, IconBolt, IconPackage, IconRadio, IconTool, IconAdjustments } from "@tabler/icons-react"
+import { IconCheck, IconLoader2, IconSearch, IconChevronDown, IconChevronRight, IconRefresh, IconWorld, IconDeviceGamepad, IconBolt, IconPhoto, IconRadio, IconTool, IconAdjustments } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { McServerInfo } from "@xnlc/types"
 import { cn } from "@/lib/utils"
@@ -121,7 +121,7 @@ const GROUPS: Record<string, { labelKey: string; icon: React.ElementType }> = {
   game: { labelKey: "properties.group.game", icon: IconDeviceGamepad },
   world: { labelKey: "properties.group.world", icon: IconAdjustments },
   performance: { labelKey: "properties.group.performance", icon: IconBolt },
-  resourcepack: { labelKey: "properties.group.resourcepack", icon: IconPackage },
+  resourcepack: { labelKey: "properties.group.resourcepack", icon: IconPhoto },
   broadcast: { labelKey: "properties.group.broadcast", icon: IconRadio },
   management: { labelKey: "properties.group.management", icon: IconTool },
   misc: { labelKey: "properties.group.misc", icon: IconAdjustments },
@@ -344,7 +344,7 @@ export function PropertiesTab({ server, flushRef, onServerUpdated }: PropertiesT
         })}
 
         {filteredDefs.length === 0 && (
-          <EmptyState compact title={t("properties.noResults")} className="py-10" />
+          <EmptyState compact title={t("properties.noResults")} className="rounded-none border-0 bg-transparent py-10" />
         )}
       </div>
       </div>

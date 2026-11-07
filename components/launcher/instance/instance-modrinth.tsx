@@ -146,12 +146,14 @@ export function InstanceModrinth({
             ))}
           </div>
         )}
-        <Pagination
-          currentPage={page}
-          totalPages={totalPages}
-          onPageChange={onPageChange}
-          className="mt-auto"
-        />
+        {!loading && (
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={onPageChange}
+            className="mt-auto"
+          />
+        )}
       </div>
     </div>
   )

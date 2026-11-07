@@ -47,7 +47,7 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
 
     const result = await window.electronAPI.launchMinecraft({
       version: selectedVersion,
-      modLoader: selectedModLoader as "vanilla" | "forge" | "fabric" | "quilt" | "liteloader" | "optifine" | "neoforge",
+      modLoader: selectedModLoader as import("@xnlc/types").MinecraftLaunchParams["modLoader"],
       ...(selectedLoaderVersion ? { loaderVersion: selectedLoaderVersion } : {}),
       account: { type: account.type, username: account.username, uuid: account.uuid, accessToken: account.accessToken },
       memory: { min: settings.savedMemoryMin || "512M", max: settings.savedMemoryMax || "4G" },

@@ -4,6 +4,7 @@ import { deleteServerSessionsForDeletedServer } from "./stats"
 export type McServerRow = {
   id: string
   name: string
+  description?: string
   gameVersion: string
   modloader: string
   modloaderVersion: string | null
@@ -43,8 +44,8 @@ export async function getMcServer(id: string): Promise<McServerRow | null> {
 export async function createMcServer(server: McServerRow): Promise<void> {
   if (!isDbAvailable()) { warnDbUnavailable("createMcServer"); return }
   run(
-    "INSERT INTO mc_servers (id, name, gameVersion, modloader, modloaderVersion, port, xmx, xms, extraJavaArgs, javaPath, autoRestart, icon, relayEnabled, onlineMode, maxPlayers, createdAt, customJar, source, [group]) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    [server.id, server.name, server.gameVersion, server.modloader, server.modloaderVersion ?? null, server.port, server.xmx, server.xms, server.extraJavaArgs, server.javaPath ?? null, server.autoRestart, server.icon ?? null, server.relayEnabled ?? 0, server.onlineMode ?? 1, server.maxPlayers ?? 20, server.createdAt, server.customJar ?? null, server.source ?? "local", server.group ?? null]
+    "INSERT INTO mc_servers (id, name, description, gameVersion, modloader, modloaderVersion, port, xmx, xms, extraJavaArgs, javaPath, autoRestart, icon, relayEnabled, onlineMode, maxPlayers, createdAt, customJar, source, [group]) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [server.id, server.name, server.description ?? "", server.gameVersion, server.modloader, server.modloaderVersion ?? null, server.port, server.xmx, server.xms, server.extraJavaArgs, server.javaPath ?? null, server.autoRestart, server.icon ?? null, server.relayEnabled ?? 0, server.onlineMode ?? 1, server.maxPlayers ?? 20, server.createdAt, server.customJar ?? null, server.source ?? "local", server.group ?? null]
   )
 }
 

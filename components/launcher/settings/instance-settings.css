@@ -1,0 +1,54 @@
+/* Геометрия совпадает с карточками вкладки «Игра» общих настроек. */
+.instance-settings-content .launcher-settings-panel {
+  margin: 0;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+}
+.instance-settings-content .launcher-settings-heading,
+.instance-settings-content .launcher-settings-panel > h3 {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.instance-settings-content .launcher-settings-heading > svg,
+.instance-settings-content .launcher-settings-panel > h3 > svg { width: 16px; height: 16px; }
+.instance-settings-content p { line-height: 1.65; }
+.instance-settings-content [data-component="settings-resolution"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.instance-settings-content [data-component="settings-resolution"] > button {
+  padding: 10px 12px;
+  font-size: 12px;
+  box-shadow: none;
+  background: var(--background);
+  color: var(--muted-foreground);
+}
+.instance-settings-content [data-component="settings-resolution"] > button[aria-pressed="true"] {
+  border-color: var(--primary);
+  background: color-mix(in oklab, var(--primary) 7%, var(--background));
+  color: var(--foreground);
+}
+.instance-settings-content [data-ui="settings-settings-resolution-div-2"] {
+  grid-column: 1 / -1;
+  align-items: flex-start;
+  padding-top: 6px;
+  font-size: 12px;
+}
+.instance-settings-content [data-component="ram-allocation"] {
+  border-radius: var(--radius-xl);
+}
+/* Внутри общей карточки не создаём второй фон под ползунком. */
+.instance-settings-content [data-component="instance-build-java"] [data-component="ram-allocation"] {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+.instance-settings-content input:not([type="range"]):not([type="checkbox"]),
+.instance-settings-content textarea {
+  font-size: 13px;
+  border-radius: var(--radius-xl);
+}
