@@ -1,9 +1,14 @@
 import type { ElectrobunConfig } from "electrobun"
 import packageJson from "./package.json"
 
-const identifier = "com.xneonlauncher.app"
+const portable = process.env.XNEON_BUILD_PORTABLE === "1"
+const identifier = portable ? "com.xneonlauncher.portable" : "com.xneonlauncher.app"
 const artifactChannel = process.env.XNEON_ARTIFACT_CHANNEL ?? "stable"
 if (!["stable", "canary", "dev"].includes(artifactChannel)) throw new Error("Invalid artifact channel")
+
+if (portable && (process.platform !== "win32" || process.arch !== "x64" || artifactChannel !== "dev")) {
+  throw new Error("Portable requires Windows x64 and the Electrobun dev channel")
+}
 
 export default {
   app: {
@@ -14,8 +19,8 @@ export default {
   },
   build: {
     mainProcess: "bun",
-    bun: { entrypoint: "electrobun/main/bootstrap.ts", external: ["bun:sqlite", "bun:ffi"] },
-    buildFolder: "build-electrobun",
+    bun: { entrypoint: "electrobun/main/bootstrap.ts", external: ["bun:sqlite", "bun:ffi"], define: { XNEON_PORTABLE_BUILD: JSON.stringify(portable) } },
+    buildFolder: portable ? "build-electrobun/portable" : "build-electrobun",
     artifactFolder: "release-electrobun/" + artifactChannel,
     copy: {
       dist: "views/launcher",
@@ -24,7 +29,7 @@ export default {
       "assets/steve-skin.b64": "views/launcher/assets/steve-skin.b64",
     },
     win: { defaultRenderer: "native", bundleCEF: false, icon: "build/icon.ico" },
-    mac: { defaultRenderer: "native", bundleCEF: false },
+    mac: { defaultRenderer: "native", bundleCEF: false, createDmg: true },
     linux: { defaultRenderer: "native", bundleCEF: false },
   },
   scripts: { postBuild: "scripts/set-windows-executable-identity.ts" },

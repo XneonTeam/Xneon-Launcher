@@ -1,7 +1,9 @@
+import { lstatSync, mkdirSync } from "node:fs"
+import path from "node:path"
 import { lockLauncherProfile } from "../platform/instance-lock"
 import { readWindowsLauncherArgs } from "../platform/windows-native"
 import { cli, forwardCli, parseCliLaunch, startCliListener } from "./cli"
-import { launcherLocationConfig } from "./profile-path"
+import { getDefaultLauncherDataRoot, isPortable, launcherLocationConfig } from "./profile-path"
 
 async function quitNative(code: number) {
   const { Utils } = await import("electrobun/main")
@@ -9,6 +11,12 @@ async function quitNative(code: number) {
 }
 
 async function start() {
+  if (isPortable) {
+    const profile = getDefaultLauncherDataRoot()
+    mkdirSync(profile, { recursive: true })
+    if (!lstatSync(profile).isDirectory()) throw new Error("PortableProfile must be a local directory")
+    process.env.WEBVIEW2_USER_DATA_FOLDER = path.join(profile, "WebView2")
+  }
   const primary = lockLauncherProfile(launcherLocationConfig)
   if (primary && process.platform === "win32") await startCliListener(launcherLocationConfig)
 
