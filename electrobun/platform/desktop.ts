@@ -124,14 +124,14 @@ export class DesktopWindow extends EventEmitter {
         console.warn("[Desktop] Could not enable Windows window transitions:", error)
       }
     }
-    if (windowHandle && build.isPackaged) {
+    if (windowHandle && process.platform === "win32") {
       try {
         releaseWindowIcons = setWindowsWindowIcons(windowHandle)
       } catch (error) {
         console.warn("[Desktop] Could not set Windows window icons:", error)
       }
       try {
-        if (typeof appUserModelId === "string") {
+        if (build.isPackaged && typeof appUserModelId === "string") {
           this.clearTaskbarIdentity = setWindowsTaskbarIdentity(windowHandle, appUserModelId, title)
         }
       } catch (error) {
