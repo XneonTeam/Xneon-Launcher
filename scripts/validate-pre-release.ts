@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import { copyFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
+import { validateBundleCredentials, windowsX64 } from "./windows-candidate-validation"
 
 const [input, output, version = "1.0.8"] = Bun.argv.slice(2)
 assert.ok(input && output && path.resolve(input) !== path.resolve(output), "Expected distinct candidate and output directories")
@@ -30,12 +31,6 @@ function tar(file: string, entry?: string): Buffer {
   return Buffer.from(result.stdout)
 }
 
-function windowsX64(bytes: Buffer): void {
-  assert.ok(bytes.length > 64 && bytes.toString("ascii", 0, 2) === "MZ", "Invalid PE file")
-  const offset = bytes.readUInt32LE(60)
-  assert.ok(offset < bytes.length - 6 && bytes.readUInt32LE(offset) === 0x4550, "Invalid PE header")
-  assert.equal(bytes.readUInt16LE(offset + 4), 0x8664, "PE must be x64")
-}
 const sha256 = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex")
 const read = (file: string) => readFile(path.join(input, file))
 const v2 = JSON.parse(await readFile(path.join(input, manifest), "utf8"))
@@ -83,11 +78,7 @@ assert.equal(local.hash, v2.hash)
 windowsX64(tar(archive, "XneonLauncher/bin/launcher.exe"))
 windowsX64(tar(archive, "XneonLauncher/bin/bun.exe"))
 const bundle = tar(archive, prefix + "app/bun/index.js").toString()
-const credentials = bundle.match(/cloudCredentials\s*=\s*\{([\s\S]*?)\n\s*\};/)
-assert.ok(credentials, "Cannot inspect bundled OAuth configuration")
-const values = [...credentials[1].matchAll(/\b(?:clientId|clientSecret|deviceClientId):\s*("(?:[^"\\]|\\.)*")/g)]
-assert.ok(values.length === 12 && values.every(match => JSON.parse(match[1]) === ""), "Bundled OAuth configuration must be empty")
-assert.ok(!/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|(?:github_pat_|ghp_|sk-proj-)[a-zA-Z0-9_-]{24,}/.test(bundle), "Possible private credential in packaged app")
+validateBundleCredentials(bundle)
 
 const installer = await read(name)
 windowsX64(installer)

@@ -1,5 +1,6 @@
 import { watchBuildContent } from "./content-watcher"
 import { getLauncherDataRoot, getDefaultLauncherDataRoot, launcherLocationConfig } from "../paths"
+import { isPortable } from "../profile-path"
 import { readDataLocation, scheduleInstancesMove } from "../data-location"
 import { isLaunchActive } from "../minecraft-core"
 import { serverManager } from "@xnlc/servers"
@@ -365,12 +366,13 @@ export function registerBuildHandlers() {
     return (await dbHelpers.listMcServers()).some(server => serverManager.isRunning(server.id) || hasPendingMcServerOperation(server.id))
   }
   rpcRegistry.handle("launcher:data-move-status", () => {
-    const state = readDataLocation(launcherLocationConfig, getLauncherDataRoot())
+    const state = isPortable ? { pendingInstances: undefined, error: undefined } : readDataLocation(launcherLocationConfig, getLauncherDataRoot())
     return { pendingRoot: state.pendingInstances?.target, error: state.error }
   })
   rpcRegistry.handle("launcher:restart-for-data-move", async () => {
     try {
       if (dataMoveRestartPending) return { success: true }
+      if (isPortable) throw new Error("Portable storage cannot be moved.")
       if (await storageBusy()) throw new Error("DATA_PATH_BUSY")
       const state = readDataLocation(launcherLocationConfig, getLauncherDataRoot())
       if (!state.pendingInstances) return { success: true }
@@ -382,6 +384,7 @@ export function registerBuildHandlers() {
   })
   rpcRegistry.handle("build:set-instances-root", async (_event, newRoot: string): Promise<{ success: boolean; root?: string; requiresRestart?: boolean; error?: string }> => {
     try {
+      if (isPortable) throw new Error("Portable storage cannot be moved.")
       if (dataMoveRestartPending || await storageBusy()) throw new Error("DATA_PATH_BUSY")
       const target = newRoot.trim() || getDefaultLauncherDataRoot()
       const state = readDataLocation(launcherLocationConfig, getLauncherDataRoot())

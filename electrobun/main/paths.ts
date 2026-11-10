@@ -2,9 +2,9 @@ import { app } from "../platform/desktop"
 import path from "path"
 import fs from "node:fs"
 import { readDataLocation, migrateInstancesLocation, writeDataLocation } from "./data-location"
-import { getDefaultLauncherDataRoot, launcherLocationConfig } from "./profile-path"
+import { getDefaultLauncherDataRoot, isPortable, launcherLocationConfig } from "./profile-path"
 export { getDefaultLauncherDataRoot, launcherLocationConfig } from "./profile-path"
-let location = readDataLocation(launcherLocationConfig, getDefaultLauncherDataRoot())
+let location = isPortable ? { root: getDefaultLauncherDataRoot() } : readDataLocation(launcherLocationConfig, getDefaultLauncherDataRoot())
 // Отменяем ещё не выполненный перенос всех данных: настройка снова относится только к сборкам.
 if (location.pending) { location = { ...location, pending: undefined }; writeDataLocation(launcherLocationConfig, location) }
 export function applyPendingInstancesMove(): void {
