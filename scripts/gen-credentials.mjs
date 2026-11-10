@@ -26,7 +26,7 @@ function loadDotEnv() {
   }
 }
 
-loadDotEnv()
+if (process.env.XNLC_SKIP_LOCAL_DOTENV !== "1") loadDotEnv()
 
 const read = (name) => process.env[name] || ""
 
