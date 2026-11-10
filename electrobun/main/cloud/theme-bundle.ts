@@ -54,7 +54,23 @@ export async function createThemeBundle(input: unknown, mediaDirectory: string):
     return portable
   }
   if (typeof theme.font?.source === "string") theme.font.source = await localSource(theme.font.source)
-  if (typeof theme.background?.source === "string") theme.background.source = await localSource(theme.background.source)
+  if (typeof theme.background?.source === "string") {
+    const source = theme.background.source
+    const embeddedImage = /^data:image\/(png|jpeg|webp|gif|avif|bmp);base64,/i.exec(source)
+    if (embeddedImage) {
+      const payload = source.slice(embeddedImage[0].length)
+      if (payload.length > Math.ceil(MAX_MEDIA / 3) * 4) throw new Error("Theme media exceeds archive size limit")
+      const data = Buffer.from(payload, "base64")
+      if (!data.length || data.toString("base64").replace(/=+$/, "") !== payload.replace(/=+$/, "")) {
+        throw new Error("Invalid embedded theme image")
+      }
+      const name = `${createHash("sha256").update(data).digest("hex")}.${embeddedImage[1].toLowerCase()}`
+      addAsset(name, data)
+      theme.background.source = `xnl-theme://asset/${name}`
+    } else {
+      theme.background.source = await localSource(source)
+    }
+  }
   for (const key of ["css", "readerCss"] as const) {
     const css = theme[key]
     if (!css) continue

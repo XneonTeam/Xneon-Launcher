@@ -27,5 +27,6 @@ export default {
     mac: { defaultRenderer: "native", bundleCEF: false },
     linux: { defaultRenderer: "native", bundleCEF: false },
   },
+  scripts: { postBuild: "scripts/set-windows-executable-identity.ts" },
   runtime: { exitOnLastWindowClosed: false, appUserModelId: identifier },
 } satisfies ElectrobunConfig
