@@ -317,7 +317,7 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
     setFontBusy(true)
     setFontError(null)
     try {
-      const media = await window.electronAPI?.pickThemeMedia("font")
+      const media = await window.electrobunAPI?.pickThemeMedia("font")
       if (media) {
         setCustomFontEditing(false)
         setCustomFontInput("")
@@ -356,7 +356,7 @@ export function ThemeEditor({ initialTheme, isNew, themes, onSave, onDelete, onC
     const kind = draft.background?.kind ?? "image"
     if (kind !== "image" && kind !== "video") return
     try {
-      const picked = await window.electronAPI?.pickThemeMedia(kind)
+      const picked = await window.electrobunAPI?.pickThemeMedia(kind)
       if (picked) {
         setBackground({ source: picked.source })
         setExtractError(null)

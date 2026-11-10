@@ -130,7 +130,7 @@ export const InstanceList = memo(function InstanceList({
       setExportProgress(null)
       return
     }
-    const off = window.electronAPI?.onBuildExportProgress?.((progress) => setExportProgress(progress))
+    const off = window.electrobunAPI?.onBuildExportProgress?.((progress) => setExportProgress(progress))
     return () => off?.()
   }, [exportingId])
 
@@ -657,7 +657,7 @@ export const InstanceList = memo(function InstanceList({
           <button data-ui="instance-instance-list-button-16" type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
             onClick={() => {
               const build = builds.find(b => b.id === buildContextMenu.id)
-              if (build) void window.electronAPI?.getBuildIntentPath(build.name).then(p => { if (p) window.electronAPI?.openPath(p) })
+              if (build) void window.electrobunAPI?.getBuildIntentPath(build.name).then(p => { if (p) window.electrobunAPI?.openPath(p) })
               setBuildContextMenu(null)
             }}>
             <IconFolder className="w-4 h-4 text-muted-foreground" />

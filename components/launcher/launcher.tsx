@@ -61,6 +61,24 @@ export function Launcher({ onReady }: LauncherProps) {
    */
   const registry = useThemeRegistry()
   const [activeTab, setActiveTab] = useState<TabId>("home")
+  const [startupBuild, setStartupBuild] = useState<{ id: string; build: string } | null>(null)
+  useEffect(() => {
+    let active = true
+    let generation = 0
+    const api = window.electrobunAPI
+    if (!api) return
+    const read = () => {
+      const request = ++generation
+      void api.startupLaunchBuild().then(build => {
+        if (!active || request !== generation || !build) return
+        setStartupBuild(build)
+        setActiveTab("builds")
+      }).catch(error => console.error("[CLI] Failed to read launch request", error))
+    }
+    const unsubscribe = api.onStartupLaunchPending(read)
+    read()
+    return () => { active = false; unsubscribe() }
+  }, [])
   useEffect(() => {
     document.body.dataset.launcherPage = activeTab
     return () => { delete document.body.dataset.launcherPage }
@@ -85,7 +103,7 @@ export function Launcher({ onReady }: LauncherProps) {
   // localStorage); тему (включая свои темы) применяет и подхватывает
   // `useThemeRegistry`.
   useEffect(() => {
-    const off = window.electronAPI?.onSettingsUpdated?.(({ key, value }) => {
+    const off = window.electrobunAPI?.onSettingsUpdated?.(({ key, value }) => {
       if (key === "language") {
         void changeLanguage(value)
       }
@@ -97,7 +115,7 @@ export function Launcher({ onReady }: LauncherProps) {
     let cancelled = false
 
     const loadOnboardingState = async () => {
-      const completed = await window.electronAPI?.getSetting("onboardingCompleted")
+      const completed = await window.electrobunAPI?.getSetting("onboardingCompleted")
       if (!cancelled) {
         setShowOnboarding(completed !== "true")
       }
@@ -110,7 +128,7 @@ export function Launcher({ onReady }: LauncherProps) {
   useEffect(() => {
     const checkDbFallback = async () => {
       try {
-        const result = await window.electronAPI?.dbIsFallbackStorage()
+        const result = await window.electrobunAPI?.dbIsFallbackStorage()
         if (result?.isFallback) {
           setShowDbFallbackBanner(true)
         }
@@ -191,7 +209,7 @@ export function Launcher({ onReady }: LauncherProps) {
 
   const finishOnboarding = useCallback(() => {
     setShowOnboarding(false)
-    void window.electronAPI?.setSetting("onboardingCompleted", "true")
+    void window.electrobunAPI?.setSetting("onboardingCompleted", "true")
   }, [])
 
   // Ручной переход по вкладкам сбрасывает подсказку краша: иначе при возврате
@@ -224,7 +242,7 @@ export function Launcher({ onReady }: LauncherProps) {
   const renderPage = () => {
     switch (activeTab) {
       case "home": return <HomePage />
-      case "builds": return <InstancePage rootResetToken={sectionResetToken} />
+      case "builds": return <InstancePage rootResetToken={sectionResetToken} startupBuild={startupBuild} />
       case "logs": return <LogsPage focus={logsFocus} />
       case "agent": return <AgentPage />
       case "stats": return <StatsPage />

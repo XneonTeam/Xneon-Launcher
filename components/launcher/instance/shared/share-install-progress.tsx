@@ -32,7 +32,7 @@ export function ShareInstallProgress() {
     let active = true
     let unsubscribe: (() => void) | undefined
     async function run(job: Installation) {
-      if (running.current || !window.electronAPI) return
+      if (running.current || !window.electrobunAPI) return
       const t = translate.current
       running.current = true
       installation.current = job
@@ -41,7 +41,7 @@ export function ShareInstallProgress() {
       setProgress({ operation: "modpack", title: job.name, iconUrl: job.iconUrl, phase: "preparing", current: 0, total: 100, message: t("share.flow.stage.start") })
       const requestId = crypto.randomUUID()
       activeRequest.current = requestId
-      unsubscribe = window.electronAPI.onShareProgress(event => {
+      unsubscribe = window.electrobunAPI.onShareProgress(event => {
         if (!active || event.requestId !== requestId || event.stage === "error" || event.stage === "done") return
         const fraction = event.total > 0 ? Math.max(0, Math.min(1, event.done / event.total)) : 0
         const current = event.stage === "index" ? 95 : event.stage === "download" ? 10 + 80 * fraction : 5
@@ -54,7 +54,7 @@ export function ShareInstallProgress() {
       })
       job.onStarted?.()
       try {
-        const result = await window.electronAPI.shareExecute({ action: "installInvite", previewId: job.previewId, name: job.name, requestId })
+        const result = await window.electrobunAPI.shareExecute({ action: "installInvite", previewId: job.previewId, name: job.name, requestId })
         if (!active) return
         if (!result.success) {
           if (result.error.code === "CANCELLED") { setProgress(null); setCancelling(false); return }
@@ -81,7 +81,7 @@ export function ShareInstallProgress() {
   return <InstanceImportOverlay importProgress={progress} importError={error} isCancelling={cancelling} canCancel={progress?.phase !== "scanning"} onRetry={() => retry.current()} onCancel={() => {
     if (running.current) {
       setCancelling(true)
-      void window.electronAPI?.cancelShareInstall(activeRequest.current).then(accepted => { if (!accepted) setCancelling(false) }).catch(() => setCancelling(false))
+      void window.electrobunAPI?.cancelShareInstall(activeRequest.current).then(accepted => { if (!accepted) setCancelling(false) }).catch(() => setCancelling(false))
       return
     }
     setProgress(null); setError(null); installation.current = null

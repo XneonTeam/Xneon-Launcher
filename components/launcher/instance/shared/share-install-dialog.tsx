@@ -10,14 +10,13 @@ import { EntityIcon } from "../entity-icon"
 import type { ShareController } from "./use-share"
 import { startShareInstallation } from "./share-install-progress"
 
-export function ShareInstallDialog({ controller, onInstalled, onCancel, initialInvitation = "" }: {
+export function ShareInstallDialog({ controller, onInstalled, onCancel }: {
   controller: ShareController
   onInstalled(): void
   onCancel?(): void
-  initialInvitation?: string
 }) {
   const { t } = useTranslation()
-  const [invitation, setInvitation] = useState(initialInvitation)
+  const [invitation, setInvitation] = useState("")
   const [preview, setPreview] = useState<ShareResponse["invitationPreview"]>()
   const [id, setId] = useState("")
   const [name, setName] = useState("")

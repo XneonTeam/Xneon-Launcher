@@ -1,3 +1,5 @@
+import "../electrobun/preload"
+import { bootstrapDesktop } from "../electrobun/platform/renderer"
 import ReactDOM from 'react-dom/client'
 import { initializeTheme } from '@/components/launcher/settings/theme-store'
 import '@fontsource/plus-jakarta-sans/400.css'
@@ -18,15 +20,23 @@ window.addEventListener('app:hydrated', () => { void dismissStartupSplash() }, {
 // успевает отрисоваться, пока загружаются приложение и сохранённая тема.
 void Promise.all([
   import('./App'),
-  (window.electronAPI?.startupReady?.() ?? Promise.resolve()).then(() => initializeTheme()).catch(error => console.error('[theme] Startup theme failed:', error)),
+  bootstrapDesktop().then(async () => {
+    const startupError = await window.electrobunAPI?.startupReady()
+    if (startupError !== null && startupError !== undefined) throw new Error(startupError)
+    await initializeTheme().catch(error => console.error('[theme] Startup theme failed:', error))
+  }),
 ]).then(([{ App }]) => {
   rootEl.render(<App />)
   document.documentElement.dataset.themeReady = 'true'
   window.dispatchEvent(new Event('theme:ready'))
 }).catch(error => {
   console.error('[startup] Application failed to load:', error)
-  // Экран загрузки остаётся видимым вместо пустого окна при ошибке чанка.
-  document.getElementById('splash')?.setAttribute('data-startup-error', 'true')
+  const splash = document.getElementById('splash')
+  if (!splash) return
+  splash.setAttribute('role', 'alert')
+  splash.querySelector('.bar-track')?.remove()
+  const hint = splash.querySelector('.hint')
+  if (hint) hint.textContent = error instanceof Error ? error.message : String(error)
 })
 
 // Файл, брошенный мимо зоны приёма, не должен открываться в окне лаунчера:

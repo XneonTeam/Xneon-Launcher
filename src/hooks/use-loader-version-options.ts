@@ -75,7 +75,7 @@ export function useLoaderVersionOptions(modLoader: string, mcVersion: string) {
         let nextOptions: LoaderVersionOption[] = []
 
         if (normalizedLoader === "fabric") {
-          const versions = await window.electronAPI?.getFabricVersions(mcVersion)
+          const versions = await window.electrobunAPI?.getFabricVersions(mcVersion)
           nextOptions = (versions ?? []).map(version => ({
             value: version.version,
             label: version.stable ? `${version.version} Stable` : version.version,
@@ -84,8 +84,8 @@ export function useLoaderVersionOptions(modLoader: string, mcVersion: string) {
           }))
         } else if (normalizedLoader === "liteloader") {
           const [versions, recommended] = await Promise.all([
-            window.electronAPI?.getLiteLoaderVersions(mcVersion),
-            window.electronAPI?.getLiteLoaderRecommended(mcVersion),
+            window.electrobunAPI?.getLiteLoaderVersions(mcVersion),
+            window.electrobunAPI?.getLiteLoaderRecommended(mcVersion),
           ])
           nextOptions = (versions ?? []).map(version => ({
             value: version.version,
@@ -98,7 +98,7 @@ export function useLoaderVersionOptions(modLoader: string, mcVersion: string) {
             recommended: recommended === version.version,
           }))
         } else if (normalizedLoader === "quilt") {
-          const versions = await window.electronAPI?.getQuiltVersions(mcVersion)
+          const versions = await window.electrobunAPI?.getQuiltVersions(mcVersion)
           nextOptions = (versions ?? []).map(version => ({
             value: version.version,
             label: version.stable ? `${version.version} Stable` : version.version,
@@ -107,8 +107,8 @@ export function useLoaderVersionOptions(modLoader: string, mcVersion: string) {
           }))
         } else if (normalizedLoader === "neoforge") {
           const [versions, recommended] = await Promise.all([
-            window.electronAPI?.getNeoForgeVersions(mcVersion),
-            window.electronAPI?.getNeoForgeRecommended(mcVersion),
+            window.electrobunAPI?.getNeoForgeVersions(mcVersion),
+            window.electrobunAPI?.getNeoForgeRecommended(mcVersion),
           ])
           nextOptions = (versions ?? []).map(version => ({
             value: version.version,
@@ -122,8 +122,8 @@ export function useLoaderVersionOptions(modLoader: string, mcVersion: string) {
           }))
         } else if (normalizedLoader === "forge") {
           const [versions, recommended] = await Promise.all([
-            window.electronAPI?.getForgeVersions(mcVersion),
-            window.electronAPI?.getForgeRecommended(mcVersion),
+            window.electrobunAPI?.getForgeVersions(mcVersion),
+            window.electrobunAPI?.getForgeRecommended(mcVersion),
           ])
           nextOptions = (versions ?? []).map(version => ({
             value: version.version,
@@ -137,8 +137,8 @@ export function useLoaderVersionOptions(modLoader: string, mcVersion: string) {
           }))
         } else if (normalizedLoader === "optifine") {
           const [versions, recommended] = await Promise.all([
-            window.electronAPI?.getOptifineVersions(mcVersion),
-            window.electronAPI?.getOptifineRecommended(mcVersion),
+            window.electrobunAPI?.getOptifineVersions(mcVersion),
+            window.electrobunAPI?.getOptifineRecommended(mcVersion),
           ])
           nextOptions = (versions ?? []).map(version => ({
             value: version.filename,
@@ -150,7 +150,7 @@ export function useLoaderVersionOptions(modLoader: string, mcVersion: string) {
             recommended: recommended === version.filename,
           }))
         } else if (normalizedLoader === "paper") {
-          const versions = await window.electronAPI?.getPaperVersions(mcVersion)
+          const versions = await window.electrobunAPI?.getPaperVersions(mcVersion)
           nextOptions = (versions ?? []).map(v => ({
             value: v.value,
             label: v.label,
@@ -158,7 +158,7 @@ export function useLoaderVersionOptions(modLoader: string, mcVersion: string) {
             recommended: v.recommended,
           }))
         } else if (normalizedLoader === "purpur") {
-          const versions = await window.electronAPI?.getPurpurVersions(mcVersion)
+          const versions = await window.electrobunAPI?.getPurpurVersions(mcVersion)
           nextOptions = (versions ?? []).map(v => ({
             value: v.value,
             label: v.label,
@@ -166,7 +166,7 @@ export function useLoaderVersionOptions(modLoader: string, mcVersion: string) {
             recommended: v.recommended,
           }))
         } else if (normalizedLoader === "folia") {
-          const versions = await window.electronAPI?.getFoliaVersions(mcVersion)
+          const versions = await window.electrobunAPI?.getFoliaVersions(mcVersion)
           nextOptions = (versions ?? []).map(v => ({
             value: v.value,
             label: v.label,
@@ -174,7 +174,7 @@ export function useLoaderVersionOptions(modLoader: string, mcVersion: string) {
             recommended: v.recommended,
           }))
         } else if (normalizedLoader === "velocity") {
-          const versions = await window.electronAPI?.getVelocityVersions(mcVersion)
+          const versions = await window.electrobunAPI?.getVelocityVersions(mcVersion)
           nextOptions = (versions ?? []).map(v => ({
             value: v.value,
             label: v.label,
@@ -182,7 +182,7 @@ export function useLoaderVersionOptions(modLoader: string, mcVersion: string) {
             recommended: v.recommended,
           }))
         } else if (normalizedLoader === "waterfall") {
-          const versions = await window.electronAPI?.getWaterfallVersions(mcVersion)
+          const versions = await window.electrobunAPI?.getWaterfallVersions(mcVersion)
           nextOptions = (versions ?? []).map(v => ({
             value: v.value,
             label: v.label,
@@ -191,7 +191,7 @@ export function useLoaderVersionOptions(modLoader: string, mcVersion: string) {
           }))
         } else if (normalizedLoader === "sponge" || normalizedLoader === "spongevanilla" || normalizedLoader === "spongeforge" || normalizedLoader === "spongeneo") {
           const spongeType = normalizedLoader === "sponge" ? "spongevanilla" : normalizedLoader
-          const versions = await window.electronAPI?.getSpongeVersions(spongeType, mcVersion)
+          const versions = await window.electrobunAPI?.getSpongeVersions(spongeType, mcVersion)
           nextOptions = (versions ?? []).map(v => ({
             value: v.value,
             label: v.label,

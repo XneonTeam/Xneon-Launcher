@@ -85,7 +85,7 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
       const startFn = provider === "elyby" ? "startElyByDeviceCode"
         : provider === "xnskins" ? "startXnSkinsDeviceCode"
         : "startMicrosoftDeviceCode"
-      const info = await (window.electronAPI as any)?.[startFn]()
+      const info = await (window.electrobunAPI as any)?.[startFn]()
       if (info) {
         setDeviceCodeInfo({
           deviceCode: info.deviceCode,
@@ -124,7 +124,7 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
         const pollFn = chosenProvider === "elyby" ? "pollElyByDeviceCode"
           : chosenProvider === "xnskins" ? "pollXnSkinsDeviceCode"
           : "pollMicrosoftDeviceCode"
-        const result = await (window.electronAPI as any)?.[pollFn](deviceCodeInfo.deviceCode)
+        const result = await (window.electrobunAPI as any)?.[pollFn](deviceCodeInfo.deviceCode)
         if (cancelled || !result) return
         if (result.status === "complete" && result.account) {
           finishDeviceLogin(chosenProvider, result.account)

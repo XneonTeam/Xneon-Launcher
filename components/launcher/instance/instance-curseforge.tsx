@@ -7,6 +7,7 @@ import { Spinner } from "./spinner"
 import { formatDownloads } from "./utils"
 import { InstanceBrowseToolbar } from "./instance-browse-toolbar"
 import { CategoryBadge } from "./category-badge"
+import "./instance-search-card.css"
 import { Pagination } from "./pagination"
 import type { CategoriesDialogCategory } from "./categories-dialog"
 import type { SelectedModCategory } from "./use-mod-search"
@@ -92,7 +93,7 @@ export function InstanceCurseForge({
         ) : (
           <div data-ui="instance-instance-curseforge-div-3" className="grid gap-3">
             {cfResults.map(pack => (
-              <div data-ui="instance-instance-curseforge-div-4" key={pack.modId} className="rounded-2xl border border-border bg-card p-4 hover:border-primary/40 transition-colors">
+              <div data-ui="instance-instance-curseforge-div-4" key={pack.modId} className="instance-search-card rounded-2xl border border-border bg-card p-4 hover:border-primary/40 transition-colors">
                 <div data-ui="instance-instance-curseforge-div-5" className="flex flex-wrap items-center gap-4">
                   <div data-ui="instance-instance-curseforge-div-6" className="flex min-w-0 flex-1 items-center gap-4">
                     <div data-ui="instance-instance-curseforge-div-7" className="w-14 h-14 rounded-2xl bg-muted/70 flex items-center justify-center overflow-hidden flex-shrink-0 text-2xl">
@@ -104,7 +105,7 @@ export function InstanceCurseForge({
                       <div data-ui="instance-instance-curseforge-div-9" className="mt-2 flex flex-wrap items-center gap-2">
                         <span data-ui="instance-instance-curseforge-span-1" className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">{formatDownloads(pack.downloadCount)} {t("builds.downloads")}</span>
                         {pack.categories?.slice(0, 3).map(category => (
-                          <CategoryBadge key={category} name={category} source={pack.source} />
+                          <CategoryBadge key={category} name={category} source={pack.source} responsive className="instance-search-card-category-badge" />
                         ))}
                       </div>
                     </div>

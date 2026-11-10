@@ -223,7 +223,7 @@ export function SettingsThemes({ registry }: SettingsThemesProps) {
   }) }
 
   const importTheme = () => { void run(async () => {
-    const imported = await window.electronAPI?.importLocalTheme()
+    const imported = await window.electrobunAPI?.importLocalTheme()
     if (!imported) return
     if (imported.kind !== "bundle") throw new Error(t("themeEditor.css.invalid"))
     const source = sanitizeTheme(imported.theme)
@@ -276,7 +276,7 @@ export function SettingsThemes({ registry }: SettingsThemesProps) {
                 onEdit={() => setEditing({ theme, isNew: false })}
                 onDuplicate={() => handleDuplicate(theme)}
                 onDelete={() => setPendingDelete(theme)}
-                onExport={() => { void run(async () => { await window.electronAPI?.exportLocalTheme(theme, "xntheme") }) }}
+                onExport={() => { void run(async () => { await window.electrobunAPI?.exportLocalTheme(theme, "xntheme") }) }}
               />
             ))}
           </div>

@@ -10,13 +10,14 @@ export function useShare(buildId: string) {
   const [data, setData] = useState<ShareResponse>({}), [busy, setBusy] = useState(false), [error, setError] = useState("")
   const generation = useRef(0), running = useRef(false)
   const run = useCallback(async (request: ShareRequest): Promise<ShareResponse | undefined> => {
-    if (!window.electronAPI || running.current) return
+    if (!window.electrobunAPI || running.current) return
     const current = generation.current
     running.current = true; setBusy(true); setError("")
     try {
-      const result = await window.electronAPI.shareExecute({ ...request, requestId: request.requestId ?? crypto.randomUUID() })
+      const result = await window.electrobunAPI.shareExecute({ ...request, requestId: request.requestId ?? crypto.randomUUID() })
       if (current !== generation.current) return
       if (!result.success) {
+        if (result.error.code === "CANCELLED") return
         const message = t(`share.errors.${result.error.code}`, { defaultValue: t("share.failed") })
         setError(result.error.filePath ? t("share.flow.fileError", { message, path: result.error.filePath }) : message)
         return

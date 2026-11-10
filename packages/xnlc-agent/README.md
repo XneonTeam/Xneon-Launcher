@@ -13,6 +13,6 @@
 
 React-адаптер находится в `components/launcher/agent/store.ts`, настройка зависимостей — в `components/launcher/agent/host.ts`. Хранение и IPC-обработчики остаются в `electron/main/agent-workspace.ts`.
 
-Сборка: `pnpm --filter @xnlc/agent run build`. Выпускаются ESM (`lib/`) и CommonJS (`lib-cjs/`) с общими TypeScript-декларациями. Лаунчер собирает пакет перед dev/build/package; `sync:xnlc` также его подключает и собирает.
+Сборка: `bun run --filter @xnlc/agent build`. Выпускаются ESM (`lib/`) и CommonJS (`lib-cjs/`) с общими TypeScript-декларациями. Лаунчер собирает пакет перед dev/build/package; `sync:xnlc` также его подключает и собирает.
 
 Каталог IPC генерируется в `src/launcher-ipc-catalog.ts` скриптом лаунчера `scripts/gen-agent-ipc-catalog.mjs`. Готовый пакет использует сохранённый каталог и не требует исходников Electron.

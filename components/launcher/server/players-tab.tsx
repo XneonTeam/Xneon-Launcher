@@ -23,7 +23,7 @@ export function PlayersTab({ serverId }: PlayersTabProps) {
     setLoading(true)
     try {
       let data: McPlayerEntry[] = []
-      const api = window.electronAPI
+      const api = window.electrobunAPI
       if (activeList === "whitelist") {
         data = await api?.mcServerGetWhitelist(serverId) ?? []
       } else if (activeList === "ops") {
@@ -46,7 +46,7 @@ export function PlayersTab({ serverId }: PlayersTabProps) {
 
   const handleAdd = async () => {
     if (!newUsername.trim()) return
-    const api = window.electronAPI
+    const api = window.electrobunAPI
     if (activeList === "whitelist") {
       await api?.mcServerAddWhitelist(serverId, newUsername.trim())
     } else if (activeList === "ops") {
@@ -61,7 +61,7 @@ export function PlayersTab({ serverId }: PlayersTabProps) {
   }
 
   const handleRemove = async (entry: McPlayerEntry) => {
-    const api = window.electronAPI
+    const api = window.electrobunAPI
     if (activeList === "whitelist") {
       await api?.mcServerRemoveWhitelist(serverId, entry.uuid)
     } else if (activeList === "ops") {

@@ -87,7 +87,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
     setRepairDone(false)
     try {
       if (activeBuild.source === "modrinth" && activeBuild.projectSlug) {
-        const res = await window.electronAPI?.importModrinthModpack(
+        const res = await window.electrobunAPI?.importModrinthModpack(
           activeBuild.name,
           activeBuild.projectSlug,
           activeBuild.modpackVersionId,
@@ -109,7 +109,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
           })
         }
       } else if (activeBuild.source === "curseforge" && activeBuild.modId && activeBuild.fileId) {
-        const res = await window.electronAPI?.importCurseforgeModpack(
+        const res = await window.electrobunAPI?.importCurseforgeModpack(
           activeBuild.name,
           activeBuild.modId,
           activeBuild.fileId,
@@ -162,7 +162,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
    */
   const pruneStaleLoaders = useCallback((modLoader: string, loaderVersion?: string) => {
     if (!activeBuild.name) return
-    void window.electronAPI?.pruneLoaderProfiles(activeBuild.name, modLoader, loaderVersion)
+    void window.electrobunAPI?.pruneLoaderProfiles(activeBuild.name, modLoader, loaderVersion)
       .then((result) => {
         if (!result?.removed?.length) return
         // Профиль прежнего загрузчика реально стёрт с диска — показываем это,
@@ -437,7 +437,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
                 {activeBuild.intentPath && (
                   <button data-ui="instance-instance-detail-general-button-7"
                     type="button"
-                    onClick={() => window.electronAPI?.openPath(activeBuild.intentPath!)}
+                    onClick={() => window.electrobunAPI?.openPath(activeBuild.intentPath!)}
                     className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-3.5 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted"
                   >
                     <IconFolder className="h-4 w-4 text-primary" />

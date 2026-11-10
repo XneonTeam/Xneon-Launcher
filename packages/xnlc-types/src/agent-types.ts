@@ -3,14 +3,45 @@ export interface AgentHardware {
   os: { platform: string; arch: string; release: string; version: string }
   cpu: { model: string; logicalCores: number; speedMHz: number }
   memory: { totalBytes: number; freeBytes: number }
-  gpu: Array<{ name: string; vendorId?: number; deviceId?: number; active?: boolean }>
+  gpu: Array<{ name: string; vendorId?: number; deviceId?: number; active?: boolean }> | null
   displays: Array<{ width: number; height: number; scaleFactor: number; refreshRate: number; primary: boolean }>
   storage: { availableBytes: number; totalBytes: number } | null
   launcherVersion: string
 }
 export interface AiModelConfig { id: string; contextWindow: number; supportsImages: boolean }
-export interface AiConfig { apiKey: string; endpoint: string; model: string; protocol?: AiProtocol; models?: AiModelConfig[] }
+export interface AiConfig { endpoint: string; model: string; protocol?: AiProtocol; models?: AiModelConfig[] }
+export interface AiConfigStatus extends AiConfig { hasApiKey: boolean }
+export interface AiConfigUpdate extends AiConfig { apiKey?: string }
 export interface AiModelDiscovery { apiKey?: string; endpoint?: string; protocol?: AiProtocol }
+
+/** User-configured Model Context Protocol connection. Exactly one of command/url is required. */
+export interface AgentMcpServerConfig {
+  name: string
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  url?: string
+  headers?: Record<string, string>
+  enabled?: boolean
+}
+export interface AgentMcpToolInfo {
+  server: string
+  name: string
+  description: string
+  inputSchema: Record<string, unknown>
+}
+export interface AgentMcpServerState extends AgentMcpServerConfig {
+  connected: boolean
+  tools: string[]
+  error?: string
+}
+export interface AgentMcpServerSummary {
+  name: string
+  transport: "stdio" | "http"
+  connected: boolean
+  tools: string[]
+  error?: string
+}
 
 export interface AgentToolCall {
   id: string

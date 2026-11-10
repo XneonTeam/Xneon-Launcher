@@ -185,7 +185,7 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
     setLoading(true)
     setError(null)
     try {
-      const items = await window.electronAPI?.mcServerFsList(serverId, dirPath)
+      const items = await window.electrobunAPI?.mcServerFsList(serverId, dirPath)
       setEntries(items ?? [])
     } catch (err: any) {
       setError(err.message ?? "Failed to load directory")
@@ -237,7 +237,7 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
     setEditorLoading(true)
     setEditorError(null)
     try {
-      const content = await window.electronAPI?.mcServerFsRead(serverId, filePath)
+      const content = await window.electrobunAPI?.mcServerFsRead(serverId, filePath)
       if (content === null) {
         setEditorError("File not found")
         return
@@ -281,7 +281,7 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
   const handleSave = useCallback(async (filePath: string, content: string) => {
     if (!canChange(filePath)) return
     try {
-      await window.electronAPI?.mcServerFsWrite(serverId, filePath, content)
+      await window.electrobunAPI?.mcServerFsWrite(serverId, filePath, content)
       setTabs(prev => prev.map(t => t.path === filePath ? { ...t, saved: true } : t))
     } catch (err: any) {
       setEditorError(err.message ?? "Failed to save file")
@@ -292,7 +292,7 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
     const filePath = currentPath ? `${currentPath}/${entry.name}` : entry.name
     if (!canChange(filePath)) return
     try {
-      await window.electronAPI?.mcServerFsDelete(serverId, filePath)
+      await window.electrobunAPI?.mcServerFsDelete(serverId, filePath)
       closeTab(filePath)
       loadDirectory(currentPath)
     } catch (err: any) {
@@ -307,7 +307,7 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
     const newPath = currentPath ? `${currentPath}/${renameValue.trim()}` : renameValue.trim()
     if (!canChange(oldPath) || !canChange(newPath)) return
     try {
-      await window.electronAPI?.mcServerFsRename(serverId, oldPath, newPath)
+      await window.electrobunAPI?.mcServerFsRename(serverId, oldPath, newPath)
       setTabs(prev => prev.map(t => t.path === oldPath ? { ...t, path: newPath } : t))
       if (activeTab === oldPath) setActiveTab(newPath)
       loadDirectory(currentPath)
@@ -323,9 +323,9 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
     if (!canChange(fullPath)) return
     try {
       if (creatingType === "folder") {
-        await window.electronAPI?.mcServerFsMkdir(serverId, fullPath)
+        await window.electrobunAPI?.mcServerFsMkdir(serverId, fullPath)
       } else {
-        await window.electronAPI?.mcServerFsWrite(serverId, fullPath, "")
+        await window.electrobunAPI?.mcServerFsWrite(serverId, fullPath, "")
       }
       loadDirectory(currentPath)
     } catch (err: any) {

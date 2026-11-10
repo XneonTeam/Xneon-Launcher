@@ -48,6 +48,7 @@ export type MinecraftLaunchParams = {
 }
 
 export type MinecraftProgress = {
+  removedLoaders?: string[]
   type?: string
   installationPhase?: string
   task?: number

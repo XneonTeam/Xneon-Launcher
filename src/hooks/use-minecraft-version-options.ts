@@ -30,7 +30,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T | null
 
 async function loadMinecraftVersions(): Promise<MinecraftVersionOption[] | null> {
   const fromMain = await withRetry(async () => {
-    const versions = await window.electronAPI?.getMinecraftVersions()
+    const versions = await window.electrobunAPI?.getMinecraftVersions()
     if (Array.isArray(versions) && versions.length > 0) {
       return versions
     }
@@ -73,7 +73,7 @@ export function useMinecraftVersionOptions() {
 
     const loadFlag = async (key: "showSnapshot" | "showBeta" | "showAlpha", setter: (value: boolean) => void) => {
       try {
-        const value = await window.electronAPI?.getSetting(key)
+        const value = await window.electrobunAPI?.getSetting(key)
         if (!cancelled) setter(value === "true")
       } catch (error) {
         console.error(`Failed to load ${key} setting`, error)

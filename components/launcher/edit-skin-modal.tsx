@@ -80,8 +80,8 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
     setSaving(true)
     try {
       let filePath: string | undefined
-      if (pendingFile && window.electronAPI) {
-        filePath = window.electronAPI.getFilePath(pendingFile)
+      if (pendingFile && window.electrobunAPI) {
+        filePath = await window.electrobunAPI.getFilePath(pendingFile)
       }
       await onSave({ filePath, variant, capeId: selectedCapeId })
       onClose()

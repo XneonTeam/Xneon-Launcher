@@ -54,7 +54,7 @@ function CleanButton({ label, size, disabled, onClean }: {
       type="button"
       disabled={disabled || size <= 0}
       onClick={onClean}
-      className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground disabled:hover:border-border"
+      className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-card disabled:hover:text-muted-foreground disabled:hover:border-border"
     >
       <IconTrash className="h-3 w-3" strokeWidth={1.75} />
       {label} · {formatBytes(size)}
@@ -142,8 +142,8 @@ function BuildStorageRow({ entry, onClean, cleaning }: {
         </button>
         <button data-ui="settings-settings-storage-button-4"
           type="button"
-          onClick={() => void window.electronAPI?.openPath(entry.path)}
-          className="shrink-0 rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          onClick={() => void window.electrobunAPI?.openPath(entry.path)}
+          className="shrink-0 rounded-lg border border-border bg-card p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           title={t("storage.openFolder")}
         >
           <IconFolder className="h-4 w-4" strokeWidth={1.75} />
@@ -244,8 +244,8 @@ function ServerStorageRow({ entry }: { entry: ServerStorageEntry }) {
         </button>
         <button data-ui="settings-settings-storage-button-7"
           type="button"
-          onClick={() => void window.electronAPI?.openPath(entry.path)}
-          className="shrink-0 rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          onClick={() => void window.electrobunAPI?.openPath(entry.path)}
+          className="shrink-0 rounded-lg border border-border bg-card p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           title={t("storage.openFolder")}
         >
           <IconFolder className="h-4 w-4" strokeWidth={1.75} />
@@ -307,7 +307,7 @@ export function SettingsStorage() {
   const handleClean = useCallback(async (buildId: string, kind: CleanKind) => {
     setCleaning(true)
     try {
-      const result = await window.electronAPI?.cleanStorage({ kind, buildId })
+      const result = await window.electrobunAPI?.cleanStorage({ kind, buildId })
       if (result?.success) {
         setLastFreed(result.freedBytes)
         await runScan()
@@ -322,7 +322,7 @@ export function SettingsStorage() {
   const handleCleanTrash = useCallback(async () => {
     setCleaning(true)
     try {
-      const result = await window.electronAPI?.cleanStorage({ kind: "trash" })
+      const result = await window.electrobunAPI?.cleanStorage({ kind: "trash" })
       if (result?.success) {
         setLastFreed(result.freedBytes)
         await runScan()
@@ -335,7 +335,7 @@ export function SettingsStorage() {
   const handleDeleteRuntime = useCallback(async (runtimePath: string) => {
     setCleaning(true)
     try {
-      const result = await window.electronAPI?.cleanStorage({ kind: "java-runtime", path: runtimePath })
+      const result = await window.electrobunAPI?.cleanStorage({ kind: "java-runtime", path: runtimePath })
       if (result?.success) {
         setLastFreed(result.freedBytes)
         await runScan()
@@ -367,7 +367,7 @@ export function SettingsStorage() {
             type="button"
             disabled={loading}
             onClick={() => void runScan()}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
           >
             {loading ? <IconLoader2 className="h-3.5 w-3.5 animate-spin text-primary" strokeWidth={1.75} /> : <IconRefresh className="h-3.5 w-3.5" strokeWidth={1.75} />}
             {loading ? t("storage.scanning") : t("storage.rescan")}
@@ -388,8 +388,9 @@ export function SettingsStorage() {
         )}
 
         {loading && !scan ? (
-          <div data-ui="settings-settings-storage-div-27" className="flex items-center justify-center py-16">
-            <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
+          <div data-ui="settings-settings-storage-div-27" className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-muted-foreground" role="status" aria-live="polite">
+            <IconLoader2 className="h-8 w-8 animate-spin text-primary" strokeWidth={1.75} />
+            <span>{t("storage.scanning")}</span>
           </div>
         ) : scan && totals ? (
           <>
@@ -420,7 +421,7 @@ export function SettingsStorage() {
                   type="button"
                   disabled={cleaning}
                   onClick={() => void handleCleanTrash()}
-                  className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                 >
                   <IconTrash className="h-3.5 w-3.5" strokeWidth={1.75} />
                   {t("storage.cleanTrash")}
@@ -480,7 +481,7 @@ export function SettingsStorage() {
                         type="button"
                         disabled={cleaning}
                         onClick={() => void handleDeleteRuntime(runtime.path)}
-                        className="shrink-0 rounded-lg border border-border p-1.5 text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                        className="shrink-0 rounded-lg border border-border bg-card p-1.5 text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                         title={t("storage.deleteRuntime")}
                       >
                         <IconTrash className="h-3.5 w-3.5" strokeWidth={1.75} />

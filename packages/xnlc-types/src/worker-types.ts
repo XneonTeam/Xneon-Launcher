@@ -1,3 +1,5 @@
+import type { MinecraftProgress, JavaProgress } from "./launch-types.js"
+
 // ============================================================
 // @xnlc/types — Worker Types
 // Message types for the forked launch worker process
@@ -63,8 +65,8 @@ export type WorkerLaunchPayload = {
 export type WorkerMessage =
   | { type: "launch"; payload: WorkerLaunchPayload }
   | { type: "stop" }
-  | { type: "progress"; progress: Record<string, unknown> }
-  | { type: "java-progress"; progress: { type: string; percent: number; message: string } }
+  | { type: "progress"; progress: MinecraftProgress }
+  | { type: "java-progress"; progress: JavaProgress }
   | { type: "started"; pid?: number }
   | { type: "stdout"; data: string }
   | { type: "stderr"; data: string }

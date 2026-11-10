@@ -33,6 +33,7 @@ export {
   modrinthGetProjectInfo,
   modrinthGetProjectsByIds,
   modrinthGetRawVersions,
+  modrinthGetProjectIdByVersion,
   modrinthGetFileByHash,
   modrinthGetFilesByHash,
   modrinthGetCategories,

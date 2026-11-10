@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react"
 import packageInfo from "@/package.json"
-import { SettingsUpdate } from "./settings-update"
 import { SettingsSwitch } from "./settings-switch"
 import { SETTINGS_CONTENT_ENTER_DELAYED } from "./settings-motion"
 import { cn } from "@/lib/utils"
 import { APP_NAME, APP_VERSION } from "@/lib/app-meta"
-import { IconCheck, IconBrandGithub, IconBrandDiscord, IconDeviceGamepad2, IconLanguage, IconWorld, IconBrandTelegram, IconArrowUpRight } from "@tabler/icons-react"
+import { IconCheck, IconBrandGithub, IconBrandDiscord, IconDeviceGamepad2, IconLanguage, IconWorld, IconBrandTelegram, IconArrowUpRight, IconRefresh } from "@tabler/icons-react"
 import type { Language } from "./types"
 
 const FLAG_RU = (
@@ -96,7 +95,7 @@ export const languages: Language[] = [
 
 /**
  * Коды локалей Minecraft для языков лаунчера (подсказка под тумблером).
- * Та же карта, что в `electron/main/mc-language.ts` — там она применяется к
+ * Та же карта, что в `electrobun/main/mc-language.ts` — там она применяется к
  * options.txt: до 1.11 код писался в исходном регистре (ru_RU), начиная с
  * 16w32a (1.11) — строчными буквами (ru_ru).
  */
@@ -291,8 +290,16 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
         ))}
       </nav>
 
-      <section aria-label={t("launcherUpdate.title")} className="rounded-2xl border border-border bg-card px-5 pb-5">
-        <SettingsUpdate />
+      <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h4 className="text-sm font-medium text-foreground">{t("settings.about.onboarding.title")}</h4>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t("settings.about.onboarding.description")}</p>
+        </div>
+        <button type="button" onClick={() => window.dispatchEvent(new Event("launcher:onboarding-reset"))}
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-primary/5">
+          <IconRefresh className="h-4 w-4 text-primary" strokeWidth={1.75} aria-hidden="true" />
+          {t("settings.about.onboarding.button")}
+        </button>
       </section>
     </div>
   )

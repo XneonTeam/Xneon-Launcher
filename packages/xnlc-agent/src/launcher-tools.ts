@@ -1,5 +1,5 @@
 import { getAgentHost } from "./host.js"
-import type { ElectronAPI } from "@xnlc/types"
+import type { ElectrobunAPI } from "@xnlc/types"
 import type { AgentTool, Field } from "./tools.js"
 import { LAUNCHER_CAPABILITIES, IPC_CHANNELS, type LauncherCapability } from "./launcher-ipc-catalog.js"
 
@@ -8,15 +8,15 @@ const str:Field={type:"string",maxLength:300}
 const opt=(field:Field):Field=>({...field,optional:true})
 const argsField:Field={type:"string",maxLength:128000,optional:true,description:"JSON-массив позиционных аргументов по signature из get_launcher_capability. Не передавай пароли или токены."}
 const privateKey=/(?:password|secret|credential|api.?key|access.?token|refresh.?token|client.?token|device.?code|user.?code|^token$|^authorization$|^cookie$|customEnv)/i
-const domain:Record<string,string[]>={renameBuildIntent:["rename_build"],copyBuild:["copy_build"],saveBuilds:["create_build","rename_build","set_build_options"],insertBuild:["create_build","install_modpack"],updateBuildFields:["get_build","unlock_build","set_build_options","set_build_memory","set_build_version"],setSetting:["set_setting","set_theme","set_language"],launchMinecraft:["launch_build"],importModrinthModpack:["install_modpack"],importCurseforgeModpack:["install_modpack"],importFtbModpack:["install_modpack"],saveModToIntent:["install_content"],saveContentToIntent:["install_content"],deleteContentFromIntent:["remove_content"],setContentEnabled:["toggle_content"],agentBuildFile:["read_build_file","list_build_files","write_build_config"],agentBuildDestination:["create_build","rename_build"],saveAccount:["open_launcher_section"],setBuildIntentPath:["create_build"],deleteBuildIntent:["trash_build"],moveBuildIntentToTrash:["trash_build"],restoreBuildIntentFromTrash:["restore_build"],setOfflineAuth:["open_launcher_section"]}
-const extraRead = new Set(["loadAccounts","loadBuildsLight","loadBuildContent","agentGetChat","agentListChats","agentHardware","xnConnectStatus","updateCheck","mcServerAnalyzeJar","classifyDropPaths"])
-const runtime=new Set(["startupReady","agentComplete","agentCancel","agentSaveChat","agentDeleteChat","agentSetArchived","analyzeCrash","analyzeCrashStream","getFilePath"])
+const domain:Record<string,string[]>={shareExecute:["get_build_share_status","prepare_build_publication","publish_build_share","create_build_invitation"],renameBuildIntent:["rename_build"],copyBuild:["copy_build"],saveBuilds:["create_build","rename_build","set_build_options"],insertBuild:["create_build","install_modpack"],updateBuildFields:["get_build","unlock_build","set_build_options","set_build_memory","set_build_version"],setSetting:["set_setting","set_theme","set_language"],launchMinecraft:["launch_build"],importModrinthModpack:["install_modpack"],importCurseforgeModpack:["install_modpack"],importFtbModpack:["install_modpack"],saveModToIntent:["install_content"],saveContentToIntent:["install_content"],deleteContentFromIntent:["remove_content"],setContentEnabled:["toggle_content"],agentBuildFile:["read_build_file","list_build_files","write_build_config"],agentBuildDestination:["create_build","rename_build"],saveAccount:["open_launcher_section"],setBuildIntentPath:["create_build"],deleteBuildIntent:["trash_build"],moveBuildIntentToTrash:["trash_build"],restoreBuildIntentFromTrash:["list_build_trash","restore_build"],setOfflineAuth:["open_launcher_section"]}
+const extraRead = new Set(["loadAccounts","loadBuildsLight","loadBuildContent","agentGetChat","agentListChats","agentHardware","xnConnectStatus","mcServerAnalyzeJar","classifyDropPaths"])
+const runtime=new Set(["startupReady","startupLaunchBuild","agentComplete","agentCancel","agentSaveChat","agentDeleteChat","agentSetArchived","analyzeCrash","analyzeCrashStream","getFilePath"])
 function uiSection(method:string):string|null {
   if(/^(login|start.*DeviceCode|poll.*DeviceCode|authlibLogin|authlibEnsureSession|authlibAddServer)/.test(method))return"accounts"
   if(method==="cloudConnect")return"cloud"
   if(method==="xnConnectAuthorize")return"servers"
   if(method==="openAndImportModpack")return"builds"
-  if(method==="saveAiConfig")return"settings:ai"
+  if(method==="saveAiConfig" || /^(get|save|connect|disconnect)AiMcpServer/.test(method))return"settings:ai"
   if(method==="readLocalFile")return"agent:files"
   return null
 }
@@ -42,10 +42,24 @@ export function redactLauncherValue(value:unknown,depth=0):unknown {
 function describe(item:LauncherCapability){return{...item,mode:launcherCapabilityMode(item),useTools:domain[item.method],section:uiSection(item.method)}}
 function resolve(method:string){const item=LAUNCHER_CAPABILITIES.find(item=>item.method===method);if(!item)throw new Error("Unknown launcher method; call list_launcher_capabilities");return item}
 function parseArgs(item:LauncherCapability,raw:string){const args:unknown=JSON.parse(raw||"[]");if(!Array.isArray(args)||args.length>item.parameters.length||args.length<item.parameters.filter(param=>!param.optional).length)throw new Error("Arguments must match the launcher method signature");function validate(value:unknown,depth=0){if(depth>16)throw new Error("Arguments are too deeply nested");if(typeof value==="number"&&!Number.isFinite(value))throw new Error("Invalid number");if(typeof value==="string"&&value.length>128000)throw new Error("Argument too large");if(value&&typeof value==="object")for(const[key,part]of Object.entries(value)){if(["__proto__","constructor","prototype"].includes(key))throw new Error("Invalid object key");if(privateKey.test(key))throw new Error("Enter credentials in the launcher UI");validate(part,depth+1)}}validate(args);return args.map((value,index)=>{const param=item.parameters[index];if(value===null&&param.optional)return undefined;const type=param.type;if(["string","number","boolean"].includes(type)&&typeof value!==type)throw new Error("Invalid argument: "+param.name);return value})}
-export async function invokeLauncherCapability(api:ElectronAPI,method:string,raw:string,mode:"read"|"action"):Promise<unknown>{
+export async function invokeLauncherCapability(api:ElectrobunAPI,method:string,raw:string,mode:"read"|"action"):Promise<unknown>{
   const item=resolve(method),kind=launcherCapabilityMode(item)
   if(kind==="interface") { const section=uiSection(method)!; getAgentHost().emit("launcher:open-section",{section});return{opened:true,section,awaitingUserInput:true,instruction:"The user completes credential entry or file selection in the launcher. Do not request passwords or codes in chat."} }
-  if(kind==="domain")return{useTools:domain[method],instruction:"Use these domain tools to preserve build metadata, compatibility, dependency handling and user confirmations."}
+  if(kind==="domain") {
+    // Публикация и приглашение имеют специализированный workflow. Остальные
+    // операции Share остаются доступны через подтверждаемый IPC-инструмент.
+    if(method==="shareExecute" && mode==="action") {
+      const args=parseArgs(item,raw)
+      const request=args[0] as { action?: unknown } | undefined
+      const actions=new Set(["session","checkLaunch","history","preview","apply","restoreApply","connect","command","createBranch","stash","restore","mergePreview","merge","installInvite","deletePublication"])
+      if(request && typeof request.action==="string" && actions.has(request.action)) {
+        const result=await api.shareExecute(request as Parameters<ElectrobunAPI["shareExecute"]>[0])
+        getAgentHost().emit("launcher:agent-updated")
+        return redactLauncherValue(result)
+      }
+    }
+    return{useTools:domain[method],instruction:"Use these domain tools to preserve build metadata, compatibility, dependency handling and user confirmations."}
+  }
   if(kind==="runtime")return{managedByRuntime:true,method,instruction:"This lifecycle or agent-persistence method is already managed by the launcher. Use chat controls or normal agent tools."}
   if(kind!==mode)throw new Error("Use the matching launcher read/action/event tool")
   if(method==="getSetting") { const args=JSON.parse(raw||"[]");if(privateKey.test(String(args[0])))return{requiresUserInput:true,section:"settings",redacted:true} }

@@ -53,5 +53,5 @@ const saved = await skins.library.importFromCatalog({ hash, accountId }, true)
 ## Сборка
 
 ```bash
-pnpm --filter @xnlc/skins build   # tsc → lib/
+bun run --filter @xnlc/skins build   # tsc → lib/
 ```

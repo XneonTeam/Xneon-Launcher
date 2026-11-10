@@ -2,6 +2,7 @@ import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useState, useEffect, useCallback } from "react"
 import { IconServer, IconArrowLeft, IconCheck, IconFolderPlus, IconLoader2, IconShield, IconRouter, IconClipboard, IconExternalLink } from "@tabler/icons-react"
 import { XnConnectLogo } from "./server/xn-connect-logo"
+import { SettingsSwitch } from "./settings/settings-switch"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { MemorySlider } from "@/components/ui/memory-slider"
 import { useMemoryOptions } from "@/src/hooks/use-memory-options"
@@ -77,13 +78,13 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
   useEffect(() => {
     if (!open) return
     reset()
-    window.electronAPI?.getSetting("javaPath").then(p => setGlobalJavaPath(p ?? ""))
+    window.electrobunAPI?.getSetting("javaPath").then(p => setGlobalJavaPath(p ?? ""))
   }, [open, reset])
 
   useEffect(() => {
     if (!open || step !== "java") return
     setLoadingJava(true)
-    void window.electronAPI?.detectJavaInstallations().then(installs => {
+    void window.electrobunAPI?.detectJavaInstallations().then(installs => {
       setDetectedJava(installs ?? [])
       setLoadingJava(false)
     }).catch(() => {
@@ -94,7 +95,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
 
   useEffect(() => {
     if (!open) return
-    return window.electronAPI?.onXnConnectAuthState((data) => {
+    return window.electrobunAPI?.onXnConnectAuthState((data) => {
       const s = data.state
       if (s.status === "auth_required" && "authUrl" in s && s.authUrl) {
         setAuthUrl(s.authUrl)
@@ -139,7 +140,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
     setAuthing(true)
     setAuthUrl(null)
     try {
-      const ok = await window.electronAPI?.xnConnectAuthorize()
+      const ok = await window.electrobunAPI?.xnConnectAuthorize()
       if (ok) setAuthDone(true)
     } finally {
       setAuthing(false)
@@ -150,7 +151,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
     if (!pack || installing) return
     setInstalling(true)
     try {
-      await window.electronAPI?.mcServerInstallPack({
+      await window.electrobunAPI?.mcServerInstallPack({
         source: pack.source,
         projectSlug: pack.projectSlug,
         versionId: pack.versionId,
@@ -304,27 +305,10 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                     </div>
                     <div data-ui="server-pack-install-dialog-div-19" className="space-y-2">
                       <label data-ui="server-pack-install-dialog-label-5" className="text-xs font-medium text-muted-foreground">{t("servers.packInstall.pirate")}</label>
-                      <button data-ui="server-pack-install-dialog-button-1"
-                        type="button"
-                        onClick={() => setOnlineMode(!onlineMode)}
-                        className={cn(
-                          "w-full flex items-center justify-between px-4 py-2.5 rounded-xl border transition-all",
-                          !onlineMode
-                            ? "border-primary bg-primary/10"
-                            : "border-border bg-muted/30"
-                        )}
-                      >
+                      <div className="flex items-center justify-between rounded-xl border border-border bg-muted/30 px-4 py-2.5">
                         <span data-ui="server-pack-install-dialog-span-4" className="text-sm text-foreground">{!onlineMode ? t("servers.packInstall.on") : t("servers.packInstall.off")}</span>
-                        <div data-ui="server-pack-install-dialog-div-20" className={cn(
-                          "relative w-9 h-5 rounded-full transition-colors",
-                          !onlineMode ? "bg-primary" : "bg-muted"
-                        )}>
-                          <div data-ui="server-pack-install-dialog-div-21" className={cn(
-                            "absolute top-0.5 w-4 h-4 rounded-full bg-foreground transition-transform shadow-sm",
-                            !onlineMode ? "translate-x-4.5" : "translate-x-0.5"
-                          )} />
-                        </div>
-                      </button>
+                        <SettingsSwitch label={t("servers.packInstall.pirate")} checked={!onlineMode} onCheckedChange={enabled => setOnlineMode(!enabled)} />
+                      </div>
                     </div>
                   </div>
 
@@ -434,7 +418,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
 
                     <button data-ui="server-pack-install-dialog-button-5"
                       onClick={async () => {
-                        const picked = await window.electronAPI?.pickJavaFile()
+                        const picked = await window.electrobunAPI?.pickJavaFile()
                         if (picked) setJavaPath(picked)
                       }}
                       className="w-full p-3 rounded-xl border border-dashed border-border bg-muted/20 hover:border-accent hover:bg-accent/5 transition-all flex items-center justify-between px-4 text-muted-foreground hover:text-accent"
@@ -490,18 +474,7 @@ export function ServerPackInstallDialog({ open, onOpenChange, pack, onInstalled 
                         <p data-ui="server-pack-install-dialog-p-6" className="text-sm font-medium text-foreground">{t("servers.packInstall.xnEnable")}</p>
                         <p data-ui="server-pack-install-dialog-p-7" className="text-xs text-muted-foreground mt-0.5">{t("servers.packInstall.xnEnableDesc")}</p>
                       </div>
-                      <button data-ui="server-pack-install-dialog-button-6"
-                        onClick={() => setRelayEnabled(!relayEnabled)}
-                        className={cn(
-                          "relative w-11 h-6 rounded-full transition-colors",
-                          relayEnabled ? "bg-primary" : "bg-muted"
-                        )}
-                      >
-                        <div data-ui="server-pack-install-dialog-div-54" className={cn(
-                          "absolute top-0.5 w-5 h-5 rounded-full bg-foreground transition-transform shadow-sm",
-                          relayEnabled ? "translate-x-5.5" : "translate-x-0.5"
-                        )} />
-                      </button>
+                      <SettingsSwitch label={t("servers.packInstall.xnEnable")} checked={relayEnabled} onCheckedChange={setRelayEnabled} />
                     </div>
                     {relayEnabled && (
                       <div data-ui="server-pack-install-dialog-div-55" className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/10">

@@ -1,0 +1,101 @@
+import { toErrorMessage, opFailure } from "./errors"
+// ============================================================
+// Servers IPC Handlers
+// - "servers:list": read servers from a build's servers.dat
+// - "servers:write-dat": write servers.dat into a build's intent dir
+// - "servers:ping": check server status using the native SLP
+//   protocol (no external API dependency)
+// ============================================================
+
+import { rpcRegistry } from "../platform/desktop"
+import fs from "fs"
+import path from "path"
+import { NBTReader, NBTWriter } from "@xnlc/nbt"
+import { getBuildIntentPath } from "./builds/helpers"
+import { pingServer } from "@xnlc/servers"
+
+function readServersDat(datPath: string): any {
+  const data = fs.readFileSync(datPath)
+  return new NBTReader(data).read()
+}
+
+function writeServersDatFile(datPath: string, nbt: any): void {
+  const buffer = new NBTWriter().write(nbt)
+  fs.writeFileSync(datPath, buffer)
+}
+
+export function registerServerHandlers() {
+  rpcRegistry.handle("servers:list", async (_event, buildName: string): Promise<Array<{ name: string; ip: string; resourcePack?: "prompt" | "enabled" | "disabled" }>> => {
+    try {
+      const intentPath = getBuildIntentPath(buildName)
+      const datPath = path.join(intentPath, "servers.dat")
+      if (!fs.existsSync(datPath)) return []
+      const nbt = readServersDat(datPath)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const servers = (nbt as any).servers
+      if (!servers?.values) return []
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return servers.values.map((s: any) => ({
+        name: String(s.name ?? ""),
+        ip: String(s.ip ?? ""),
+        resourcePack: s.acceptTextures === undefined ? "prompt" : s.acceptTextures ? "enabled" : "disabled",
+      }))
+    } catch {
+      return []
+    }
+  })
+
+  rpcRegistry.handle(
+    "servers:write-dat",
+    async (_event, buildName: string, servers: Array<{ name: string; ip: string; resourcePack?: "prompt" | "enabled" | "disabled" }>) => {
+      try {
+        const intentPath = getBuildIntentPath(buildName)
+        if (!fs.existsSync(intentPath)) {
+          fs.mkdirSync(intentPath, { recursive: true })
+        }
+        const datPath = path.join(intentPath, "servers.dat")
+
+        let nbt: any
+        if (fs.existsSync(datPath)) {
+          try {
+            nbt = readServersDat(datPath)
+          } catch {
+            nbt = { servers: { type: 10, values: [] } }
+          }
+        } else {
+          nbt = { servers: { type: 10, values: [] } }
+        }
+
+        const existing = new Map<string, any>((nbt.servers?.values || []).map((s: any) => [s.ip, s]))
+        nbt.servers = { type: 10, values: servers.map((s) => {
+          const entry = { ...existing.get(s.ip), name: s.name, ip: s.ip }
+          if (s.resourcePack === "prompt") delete entry.acceptTextures
+          else if (s.resourcePack === "enabled" || s.resourcePack === "disabled") entry.acceptTextures = s.resourcePack === "enabled" ? 1 : 0
+          return entry
+        }) }
+
+        writeServersDatFile(datPath, nbt)
+        return { success: true }
+      } catch (e) {
+        return opFailure(e)
+      }
+    }
+  )
+
+  rpcRegistry.handle("servers:ping", async (_event, address: string) => {
+    try {
+      return await pingServer(String(address ?? ""))
+    } catch (e) {
+      return {
+        online: false,
+        ip: String(address ?? ""),
+        port: 0,
+        players_online: 0,
+        players_max: 0,
+        version: "",
+        latency_ms: 0,
+        error: toErrorMessage(e),
+      }
+    }
+  })
+}

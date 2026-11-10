@@ -13,7 +13,7 @@ export async function localFileToBlobUrl(filePath: string): Promise<string> {
   if (cached) return cached
 
   try {
-    const base64 = await window.electronAPI?.readLocalFile(filePath)
+    const base64 = await window.electrobunAPI?.readLocalFile(filePath)
     if (!base64) return ""
 
     const byteString = atob(base64)

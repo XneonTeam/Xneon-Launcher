@@ -6,60 +6,43 @@ on:
       - 'v*'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: linux
-            artifact_name: Xneon-Launcher-Linux
-            build_cmd: pnpm exec electron-builder --linux AppImage deb rpm tar.xz pacman --publish never
-          - os: windows-latest
-            target: windows
-            artifact_name: Xneon-Launcher-Windows
-            build_cmd: pnpm exec electron-builder --win nsis zip --publish never
-          - os: macos-latest
-            target: mac
-            artifact_name: Xneon-Launcher-Mac
-            build_cmd: pnpm exec electron-builder --mac dmg zip --publish never
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          version: 11
+          bun-version: 1.4.4
 
-      - name: Install system deps (Linux)
-        if: matrix.target == 'linux'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+
+      - name: Install Hutch
+        shell: pwsh
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libarchive-tools rpm2cpio cpio
+          & ([scriptblock]::Create((Invoke-RestMethod https://hutch.blackboard.sh/hutch/install.ps1))) -Version 0.29.0
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value (Join-Path $env:USERPROFILE ".hutch/bin")
 
       - name: Configure git.xneon.org npm registry auth
         env:
           FORGEJO_NPM_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+        shell: pwsh
         run: |
-          printf "%s\n" "//git.xneon.org/api/packages/MAINER4IK/npm/:_authToken=${FORGEJO_NPM_TOKEN}" >> .npmrc
-          printf "%s\n" "always-auth=true" >> .npmrc
+          if ($env:FORGEJO_NPM_TOKEN) {
+            Add-Content -LiteralPath .npmrc -Value "//git.xneon.org/api/packages/MAINER4IK/npm/:_authToken=$env:FORGEJO_NPM_TOKEN"
+          }
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # Пакеты @xnlc/* подключены как workspace:* (симлинки на packages/*), а их
-      # собранный lib/ в репозиторий не попадает. Без этой сборки tsc не находит
-      # @xnlc/types и весь шаг Build app падает.
-      - name: Build local @xnlc packages
-        run: pnpm -r --filter "./packages/*" run build
+        run: bun install --frozen-lockfile
 
       - name: Build app
         env:
@@ -75,24 +58,23 @@ jobs:
           XN_CLIENT_SECRET: ${{ secrets.XN_CLIENT_SECRET }}
           MICROSOFT_CLIENT_ID: ${{ secrets.MICROSOFT_CLIENT_ID }}
           MICROSOFT_DEVICE_CLIENT_ID: ${{ secrets.MICROSOFT_DEVICE_CLIENT_ID }}
-        run: pnpm run build
-
-      - name: Package
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: ${{ matrix.build_cmd }}
+        run: bun run build
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ matrix.artifact_name }}
-          path: release/*
+          name: Xneon-Launcher-Windows
+          path: |
+            release-electrobun/stable/*
+            !release-electrobun/stable/*-Setup.zip
           if-no-files-found: error
           retention-days: 1
 
   release:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       # git cliff строит ченджлог по истории и тегам: без fetch-depth: 0 он не увидит
@@ -100,6 +82,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: actions/download-artifact@v5
         with:

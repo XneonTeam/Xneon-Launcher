@@ -62,7 +62,7 @@ export function CategoryAssignModal({
 
   useEffect(() => {
     let alive = true
-    void window.electronAPI?.getSetting(VIEW_SETTING_KEY).then((stored) => {
+    void window.electrobunAPI?.getSetting(VIEW_SETTING_KEY).then((stored) => {
       if (alive && (stored === "cards" || stored === "list")) setView(stored)
     })
     return () => { alive = false }
@@ -70,7 +70,7 @@ export function CategoryAssignModal({
 
   const changeView = (mode: CategoryView) => {
     setView(mode)
-    void window.electronAPI?.setSetting(VIEW_SETTING_KEY, mode)
+    void window.electrobunAPI?.setSetting(VIEW_SETTING_KEY, mode)
   }
 
   const commitRename = () => {

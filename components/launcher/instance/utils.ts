@@ -25,7 +25,7 @@ export function loadBuilds(): Build[] {
         modpackVersion: build.modpackVersion,
         playtime: 0,
       }))
-      void window.electronAPI?.saveBuilds(migrated as never)
+      void window.electrobunAPI?.saveBuilds(migrated as never)
       localStorage.removeItem("xneon-launcher:builds:legacy")
       return migrated
     }

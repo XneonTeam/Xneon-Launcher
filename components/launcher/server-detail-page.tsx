@@ -66,7 +66,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
   useEffect(() => {
     let active = true
     setAccessEnabled(!!server.remote)
-    window.electronAPI?.mcServerRemote({ action: "access", serverId: server.id }).then(result => {
+    window.electrobunAPI?.mcServerRemote({ action: "access", serverId: server.id }).then(result => {
       if (active) setAccessEnabled(!!result.access)
     }).catch(() => {})
     return () => { active = false }
@@ -77,7 +77,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
   const [remoteError, setRemoteError] = useState("")
   useEffect(() => {
     if (!server.remote) return
-    return window.electronAPI?.onMcServerRemoteConnection(event => {
+    return window.electrobunAPI?.onMcServerRemoteConnection(event => {
       if (event.id !== server.id) return
       setRemoteOnline(event.online); setRemotePermissions(event.info.remote?.permissions)
       onServerUpdated?.(event.info)
@@ -92,10 +92,10 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
   const propertiesFlushRef = useRef<(() => Promise<void>) | null>(null)
 
   useEffect(() => {
-    window.electronAPI?.mcServerGetAddresses(server.id).then(addrs => {
+    window.electrobunAPI?.mcServerGetAddresses(server.id).then(addrs => {
       if (addrs) setAddresses(addrs)
     }).catch(() => {})
-    window.electronAPI?.mcServerCheckEula(server.id).then(accepted => {
+    window.electrobunAPI?.mcServerCheckEula(server.id).then(accepted => {
       setEulaAccepted(accepted)
     }).catch(() => {})
 
@@ -105,9 +105,9 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
     // остановлен, — relay стучался в закрытый порт и мигал реконнектами.
 
     // Re-fetch addresses when relay state changes
-    const unsubXn = window.electronAPI?.onXnConnectState((data) => {
+    const unsubXn = window.electrobunAPI?.onXnConnectState((data) => {
       if (data.serverId === server.id) {
-        window.electronAPI?.mcServerGetAddresses(server.id).then(addrs => {
+        window.electrobunAPI?.mcServerGetAddresses(server.id).then(addrs => {
           if (addrs) setAddresses(addrs)
         })
         if (data.state.status === "limit_reached") {
@@ -127,7 +127,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
   }
 
   const handleEulaAccept = async () => {
-    await window.electronAPI?.mcServerAcceptEula(server.id)
+    await window.electrobunAPI?.mcServerAcceptEula(server.id)
     setEulaAccepted(true)
     setShowEula(false)
     if (!isBusy) {
@@ -142,7 +142,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
 
   const handleIconChange = async (newIcon: string) => {
     setIcon(newIcon)
-    await window.electronAPI?.mcServerUpdate(server.id, { icon: newIcon || null })
+    await window.electrobunAPI?.mcServerUpdate(server.id, { icon: newIcon || null })
   }
 
   const isRunning = state.status === "running"
@@ -185,7 +185,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
   const handleSendCommand = async () => {
     if (!command.trim()) return
     try {
-      await window.electronAPI?.mcServerSendCommand(server.id, command.trim())
+      await window.electrobunAPI?.mcServerSendCommand(server.id, command.trim())
       setCommand("")
     } catch (error) {
       if (server.remote) setRemoteError(remoteServerError(error, t))
@@ -339,7 +339,7 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
           <button type="button" disabled={remoteOffline} onClick={() => setShowAccess(true)} className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"><IconShare className="h-4 w-4 text-primary" />{t(accessEnabled ? "share.manage" : "share.launcher.share")}</button>
           <button data-ui="server-detail-page-button-3"
             disabled={remoteOffline || (!!server.remote && !allowed("readFiles"))}
-            onClick={() => server.remote ? setActiveTab("files") : window.electronAPI?.mcServerOpenFolder(server.id)}
+            onClick={() => server.remote ? setActiveTab("files") : window.electrobunAPI?.mcServerOpenFolder(server.id)}
             className="p-2 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
             title={t("servers.openFolder")}
           >
@@ -398,13 +398,13 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
           </span>
           <div data-ui="server-detail-page-div-10" className="flex gap-2 flex-shrink-0">
             <button data-ui="server-detail-page-button-6"
-              onClick={() => window.electronAPI?.openExternal("https://connect.xneon.org/dashboard")}
+              onClick={() => window.electrobunAPI?.openExternal("https://connect.xneon.org/dashboard")}
               className="px-2.5 h-7 rounded-lg border border-border bg-muted/30 text-xs text-foreground hover:bg-muted/60 transition-colors"
             >
               {t("servers.settings.xnconnect.openDashboard")}
             </button>
             <button data-ui="server-detail-page-button-7"
-              onClick={() => window.electronAPI?.openExternal("https://connect.xneon.org/subscribe")}
+              onClick={() => window.electrobunAPI?.openExternal("https://connect.xneon.org/subscribe")}
               className="px-2.5 h-7 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
             >
               {t("servers.settings.xnconnect.subscribe")}

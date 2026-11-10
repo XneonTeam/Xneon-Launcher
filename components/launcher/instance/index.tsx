@@ -24,7 +24,7 @@ import { useBuildLaunch } from "@/src/hooks/use-build-launch"
 import type { ViewMode, DetailTab, ModSearchResult, ModVersion, ModSort } from "./types"
 import { SORT_OPTIONS_BY_SOURCE } from "./sort-options"
 
-export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
+export function InstancePage({ rootResetToken, startupBuild }: { rootResetToken?: number; startupBuild?: { id: string; build: string } | null }) {
   const [view, setView] = useState<ViewMode>("my")
   const [detailTab, setDetailTab] = useState<DetailTab>("general")
   const [createOpen, setCreateOpen] = useState(false)
@@ -33,7 +33,7 @@ export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
   const [trashedNotice, setTrashedNotice] = useState<string | null>(null)
   const trashedNoticeTimerRef = useRef<number | null>(null)
 
-  const { activeAccount } = useAccounts()
+  const { activeAccount, accountsHydrated } = useAccounts()
   const { launchInstance } = useBuildLaunch({ account: activeAccount ?? undefined })
 
   const [mrSearch, setMrSearch] = useState("")
@@ -91,7 +91,7 @@ export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
       // Только счётчики: полный кэш обновлений — это мегабайты JSON с иконками,
       // и его передача в renderer на каждое изменение списка сборок была дороже
       // самой проверки обновлений.
-      const cachedCounts = await window.electronAPI?.getContentUpdatesCounts?.()
+      const cachedCounts = await window.electrobunAPI?.getContentUpdatesCounts?.()
       const counts: Record<string, number> = {}
       for (const [buildId, entry] of Object.entries(cachedCounts ?? {})) {
         const count = (entry?.mods ?? 0) + (entry?.resourcepacks ?? 0) + (entry?.shaders ?? 0)
@@ -120,18 +120,25 @@ export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
     if (view === "my") void refreshUpdatesCount()
   }, [view, refreshUpdatesCount])
 
-  // CLI launch (--launch <buildName>, e.g. from a desktop shortcut)
   useEffect(() => {
-    return window.electronAPI?.onCliLaunchBuild?.(async (buildName) => {
-      if (!buildName) return
-      const build = builds.find((b) => b.name === buildName)
-      if (!build) return
-      setActiveBuildId(build.id)
-      setView("detail")
-      setDetailTab("general")
-      await launchInstance(build)
-    })
-  }, [builds, launchInstance])
+    if (!startupBuild || !buildsHydrated || !accountsHydrated) return
+    const api = window.electrobunAPI
+    if (!api) return
+    const build = builds.find(item => item.name === startupBuild.build)
+    void api.startupLaunchBuild({ kind: "claim", id: startupBuild.id }).then(async claimed => {
+      if (!claimed) return
+      const finish = (error?: string) => api.startupLaunchBuild({ kind: "finish", id: claimed.id, error }).then(() => {})
+      try {
+        if (!build) throw new Error(`Build not found: ${claimed.build}`)
+        setActiveBuildId(build.id)
+        setView("detail")
+        setDetailTab("general")
+        await launchInstance(build, { acknowledge: finish })
+      } catch (error) {
+        await finish(error instanceof Error ? error.message : String(error))
+      }
+    }).catch(error => console.error("[CLI] Launch failed", error))
+  }, [startupBuild, buildsHydrated, accountsHydrated, builds, launchInstance, setActiveBuildId])
 
   const {
     modSearch, setModSearch, modLoading,
@@ -162,7 +169,7 @@ export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
       const key = `modrinth:search:modpack:${searchQuery}:${selectedVersion === "all" ? "" : selectedVersion}:${selectedModLoader === "all" ? "" : selectedModLoader}:${mrSortBy}:${currentPage}:${categories.join(",")}`
       const resp = await dataCache.getOrFetch(
         key,
-        () => window.electronAPI?.modsModrinthSearch(
+        () => window.electrobunAPI?.modsModrinthSearch(
           searchQuery,
           "modpack",
           selectedVersion === "all" ? undefined : selectedVersion,
@@ -191,7 +198,7 @@ export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
       const key = `curseforge:search:modpack:${searchQuery}:${selectedVersion === "all" ? "" : selectedVersion}:${selectedModLoader === "all" ? "" : selectedModLoader}:${cfSortBy}:${currentPage}:${categories.join(",")}`
       const resp = await dataCache.getOrFetch(
         key,
-        () => window.electronAPI?.modsCurseforgeSearch(
+        () => window.electrobunAPI?.modsCurseforgeSearch(
           searchQuery,
           "modpack",
           selectedVersion === "all" ? undefined : selectedVersion,
@@ -229,8 +236,8 @@ export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
     let cancelled = false
     const load = async () => {
       const [modrinth, curseforge] = await Promise.all([
-        window.electronAPI?.modsModrinthCategories?.() ?? Promise.resolve([]),
-        window.electronAPI?.modsCurseforgeCategories?.() ?? Promise.resolve([]),
+        window.electrobunAPI?.modsModrinthCategories?.() ?? Promise.resolve([]),
+        window.electrobunAPI?.modsCurseforgeCategories?.() ?? Promise.resolve([]),
       ])
       if (cancelled) return
       setMrPackCategories((modrinth as CategoriesDialogCategory[])
@@ -270,7 +277,7 @@ export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
       const key = `ftb:search:${searchQuery}:${currentPage}:${ftbSortBy}:${gameVersion ?? ""}:${loader ?? ""}:${categories.join(",")}`
       const resp = await dataCache.getOrFetch(
         key,
-        () => window.electronAPI?.modsFtbSearch(searchQuery, currentPage, {
+        () => window.electrobunAPI?.modsFtbSearch(searchQuery, currentPage, {
           sortBy: ftbSortBy,
           categories: categories.length > 0 ? categories : undefined,
           gameVersion,
@@ -314,7 +321,7 @@ export function InstancePage({ rootResetToken }: { rootResetToken?: number }) {
       // в общем кэше: возврат на вкладку не должен поднимать каталог заново.
       const facets = await dataCache.getOrFetch(
         "ftb:facets",
-        () => window.electronAPI?.modsFtbCatalogFacets?.() ?? null,
+        () => window.electrobunAPI?.modsFtbCatalogFacets?.() ?? null,
         { ttl: MOD_SEARCH_CACHE_TTL, persist: true },
       )
       if (cancelled || !facets) return

@@ -43,6 +43,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      'electrobun/view': path.resolve(__dirname, '.hutch/devkit/api/browser/index.ts'),
       '@': path.resolve(__dirname, '.'),
     },
   },
@@ -51,16 +52,12 @@ export default defineConfig({
     strictPort: true,
     watch: {
       ignored: [
-        // Chokidar не читает .gitignore: локальный store содержит десятки тысяч
-        // файлов и установка наблюдателей блокировала dev-сервер на 40–50 секунд.
-        '**/.pnpm-store/**',
-        '**/.electron-mcp/**',
         '**/.dsh-*/**',
         '**/logs/**',
         '**/screenshots/**',
         '**/tsconfig.tsbuildinfo',
         '**/release/**',
-        '**/dist-electron/**',
+        '**/dist-electrobun/**',
         '**/dist/**',
         '**/xnlc-package/lib/**',
         '**/xnlc-package/installer.log',
@@ -93,9 +90,6 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes('node_modules')) return
 
-          // Extract the real package name. pnpm store paths look like
-          // `node_modules/.pnpm/@tabler+icons-react@3.45.0/node_modules/@tabler/icons-react/...`,
-          // so we must take the segments AFTER the last `node_modules` occurrence.
           const segments = id.split(/[\\/]/)
           const idx = segments.lastIndexOf('node_modules')
           if (idx < 0 || idx + 1 >= segments.length) return 'vendor'
@@ -114,7 +108,6 @@ export default defineConfig({
           if (pkg === 'react-markdown' || pkg === 'rehype-raw' || pkg === 'rehype-sanitize' || pkg === 'remark-rehype' || pkg === 'unified') return 'markdown'
           if (pkg === 'axios' || pkg === 'form-data' || pkg === 'follow-redirects') return 'http'
           if (pkg === 'webdav') return 'webdav'
-          if (pkg === 'electron-updater' || pkg === 'builder-util-runtime') return 'updater'
           if (pkg === 'adm-zip') return 'adm-zip'
           return 'vendor'
         },

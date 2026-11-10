@@ -172,7 +172,7 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
   const removeLiveNotification = useCallback((liveKey: string) => {
     setNotifications((prev) => prev.filter((item) => item.liveKey !== liveKey))
   }, [])
-  useEffect(() => window.electronAPI?.onShareProgress(event => {
+  useEffect(() => window.electrobunAPI?.onShareProgress(event => {
     if (!event.requestId || event.stage === "scan") return
     const key = `share:${event.requestId}`
     if (event.stage === "done" || event.stage === "error") {
@@ -253,7 +253,7 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
       }, delay)
     }
 
-    const off = window.electronAPI?.onImportProgress((progress) => {
+    const off = window.electrobunAPI?.onImportProgress((progress) => {
       const source = importSessionSourceRef.current
       const total = Math.max(progress.total, 1)
       const current = Math.max(0, Math.min(progress.current, total))
@@ -306,7 +306,7 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
       }, delay)
     }
 
-    const off = window.electronAPI?.onContentDownloadProgress?.((progress) => {
+    const off = window.electrobunAPI?.onContentDownloadProgress?.((progress) => {
       if (!progress) return
       // Пока идёт импорт (свой или запущенный main), проценты отдельных файлов
       // не показываем: у импорта своя шкала этапов.

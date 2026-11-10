@@ -1,17 +1,39 @@
 {
   "compilerOptions": {
-    "lib": ["ESNext", "DOM"],
+    "lib": [
+      "ESNext",
+      "DOM"
+    ],
     "target": "ES2020",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "outDir": "dist-electron",
-    "rootDir": "electron",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "strict": false,
+    "strictNullChecks": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "types": ["node"]
+    "types": [
+      "node",
+      "bun"
+    ],
+    "noEmit": true,
+    "paths": {
+      "electrobun/view": [
+        "./.hutch/devkit/api/browser/index.ts"
+      ],
+      "electrobun/main": [
+        "./.hutch/devkit/api/sdks/main/index.ts"
+      ],
+      "electrobun": [
+        "./.hutch/devkit/api/sdks/main/index.ts"
+      ]
+    }
   },
-  "include": ["electron/**/*.ts", "electron/**/*.d.ts"],
-  "exclude": ["node_modules"]
+  "include": [
+    "electrobun/**/*.ts",
+    "electrobun/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

@@ -1,4 +1,4 @@
-import type { DbBuildLight, ElectronAPI } from "@xnlc/types"
+import type { DbBuildLight, ElectrobunAPI } from "@xnlc/types"
 import type { AgentTool, Field } from "./tools.js"
 import { getAgentHost } from "./host.js"
 import { THEME_COLOR_KEYS, createCustomTheme, duplicateTheme, parseThemes, serializeThemes, sanitizeTheme, normalizeHex, themePreviewColors } from "./host.js"
@@ -13,9 +13,9 @@ const choice = (...values: string[]): Field => ({ ...str, enum: values })
 const text = (input: Input, key: string) => String(input[key] ?? "")
 function bounded(value: unknown, min: number, max: number) { if (typeof value !== "number" || !Number.isInteger(value) || value < min || value > max) throw new Error(`Expected integer between ${min} and ${max}`); return value }
 function safeMap(value: string | undefined): Record<string, string> { try { const input = JSON.parse(value || "{}"); return Object.fromEntries(Object.entries(input).filter(([key, item]) => !["__proto__", "constructor", "prototype"].includes(key) && typeof item === "string")) as Record<string,string> } catch { return {} } }
-async function themes(api: ElectronAPI) { return [...getAgentHost().themes.presets, ...parseThemes(await api.getSetting("customThemes"))] }
-async function theme(api: ElectronAPI, input: Input) { const id = text(input, "themeId") || await api.getSetting("theme") || "orange"; const found = (await themes(api)).find(item => item.id === id); if (!found) throw new Error("Theme not found; call list_themes first"); return found }
-async function editTheme(api: ElectronAPI, input: Input, change: (value: Theme) => Theme) {
+async function themes(api: ElectrobunAPI) { return [...getAgentHost().themes.presets, ...parseThemes(await api.getSetting("customThemes"))] }
+async function theme(api: ElectrobunAPI, input: Input) { const id = text(input, "themeId") || await api.getSetting("theme") || "orange"; const found = (await themes(api)).find(item => item.id === id); if (!found) throw new Error("Theme not found; call list_themes first"); return found }
+async function editTheme(api: ElectrobunAPI, input: Input, change: (value: Theme) => Theme) {
   const all = await themes(api), current = await theme(api,input)
   const editable = current.custom ? structuredClone(current) : duplicateTheme(current, current.name, all.map(item => item.id))
   const next = sanitizeTheme({ ...change(editable), updatedAt: Date.now() })
@@ -26,7 +26,7 @@ async function editTheme(api: ElectronAPI, input: Input, change: (value: Theme) 
 }
 const themeId = { themeId: { ...str, optional: true } }
 
-export function registerExtendedTools(add: Register, deps: { build: (api: ElectronAPI,input:Input)=>Promise<DbBuildLight>; unlocked: (api: ElectronAPI,input:Input)=>Promise<DbBuildLight>; call: (name:string,api:ElectronAPI,input:Input)=>Promise<unknown> }) {
+export function registerExtendedTools(add: Register, deps: { build: (api: ElectrobunAPI,input:Input)=>Promise<DbBuildLight>; unlocked: (api: ElectrobunAPI,input:Input)=>Promise<DbBuildLight>; call: (name:string,api:ElectrobunAPI,input:Input)=>Promise<unknown> }) {
   add("get_hardware", "Характеристики ПК: CPU, видеокарты, ОЗУ, ОС, экраны и свободное место. Используй перед настройкой лаунчера.", "read", {}, api => api.agentHardware())
   add("unlock_build", "Разблокировать сборку для изменения модов и настроек. Среда выполнения ОБЯЗАТЕЛЬНО задаст интерактивный вопрос пользователю, в том числе в авторежиме. После согласия продолжи исходную задачу.", "write", { buildId: str }, async (api,input) => { const target=await deps.build(api,input); await api.updateBuildFields(target.id,{locked:false}); return { success:true,buildId:target.id,locked:false } })
   add("lock_build", "Защитить сборку модпака от изменения содержимого.", "write", { buildId:str }, async(api,input)=>{const target=await deps.build(api,input);if(!["modrinth","curseforge"].includes(target.source))throw new Error("Only linked modpacks can be locked");await api.updateBuildFields(target.id,{locked:true});return{success:true,locked:true}})

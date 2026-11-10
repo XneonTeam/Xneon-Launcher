@@ -70,7 +70,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
       setModLoader(BUILD_MOD_LOADERS[0].id)
       setLoaderVersion("")
       setImportProgress(null)
-      void window.electronAPI?.discoverImportableInstances?.().then((instances) => {
+      void window.electrobunAPI?.discoverImportableInstances?.().then((instances) => {
         const next = instances ?? []
       setImportableInstances(next)
       setSelectedImportIds([])
@@ -80,7 +80,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
 
   useEffect(() => {
     if (!open) { setImportProgress(null); return }
-    const off = window.electronAPI?.onImportProgress?.((progress) => {
+    const off = window.electrobunAPI?.onImportProgress?.((progress) => {
       setImportProgress(previous => mergeImportProgress(previous, progress))
       // Первое событие прогресса = файл уже выбран в системном окне: закрываем
       // диалог сразу, иначе «Локальный импорт» висит поверх всего импорта.
@@ -153,7 +153,7 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
     if (!selectedImportIds.length) return
     setImporting(true)
     try {
-      await window.electronAPI?.importLauncherInstances(selectedImportIds)
+      await window.electrobunAPI?.importLauncherInstances(selectedImportIds)
       await onImported()
       setOpen(false)
       reset()
@@ -177,10 +177,10 @@ export function InstanceCreateDialog({ open, setOpen, onCreate, onImported, onIm
   }
 
   const handlePickCustomPath = useCallback(async (source: ImportSource) => {
-    const pickedPath = await window.electronAPI?.pickFolder(t("builds.pickFolderTitle", { source: sourceNames[source] }))
+    const pickedPath = await window.electrobunAPI?.pickFolder(t("builds.pickFolderTitle", { source: sourceNames[source] }))
     if (!pickedPath) return
     setCustomPaths((prev) => ({ ...prev, [source]: pickedPath }))
-    const instances = await window.electronAPI?.discoverFromPath(source, pickedPath)
+    const instances = await window.electrobunAPI?.discoverFromPath(source, pickedPath)
     if (instances) {
       setImportableInstances((prev) => {
         const withoutSource = prev.filter((item) => item.source !== source)

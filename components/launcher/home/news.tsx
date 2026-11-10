@@ -1,11 +1,9 @@
-import { lazy, Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { CSSProperties } from "react"
 import { useTranslation } from "react-i18next"
 import { IconCoffee, IconInfoCircle, IconLayoutGrid, IconNews, IconPhoto, IconRefresh, IconDeviceDesktop, IconLoader2 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { formatDate, NEWS_CARD_STYLE, NEWS_CARD_TEXT_HEIGHT, NEWS_GRID_GAP, NEWS_GRID_OVERSCAN_ROWS, NEWS_SCROLL_STYLE, type NewsEntry } from "@/lib/home-page-shared"
-
-const NewsReaderModal = lazy(() => import("@/components/launcher/news-reader-modal").then(m => ({ default: m.NewsReaderModal })))
 
 const REFRESH_INTERVAL = 30 * 60 * 1000
 const NEWS_STORAGE_KEY = "xnlc:news-cache:v1"
@@ -142,7 +140,7 @@ let cachedLauncherNews: NewsEntry[] | null = readLauncherNewsCache()
 let cachedMojangNewsPromise: Promise<NewsEntry[]> | null = null
 
 function fetchMojangNewsDirect(): Promise<NewsEntry[]> {
-  cachedMojangNewsPromise = window.electronAPI?.fetchMinecraftNews().then((entries) => {
+  cachedMojangNewsPromise = window.electrobunAPI?.fetchMinecraftNews().then((entries) => {
     cachedMojangNews = entries
     writeNewsCache(entries)
     return entries
@@ -155,8 +153,8 @@ async function fetchLauncherNewsDirect(): Promise<NewsEntry[]> {
     // Адрес ленты живёт в main-процессе (XNLC_NEWS_URL, по умолчанию сайт
     // лаунчера), а разбор ответа — в одном месте (parseLauncherNewsItems).
     // Здесь только помечаем записи лаунчера: от этого зависит рубрика карточки.
-    if (!window.electronAPI?.fetchLauncherNews) return cachedLauncherNews ?? []
-    const res = await window.electronAPI.fetchLauncherNews()
+    if (!window.electrobunAPI?.fetchLauncherNews) return cachedLauncherNews ?? []
+    const res = await window.electrobunAPI.fetchLauncherNews()
     const entries: NewsEntry[] = (Array.isArray(res) ? res : []).map((entry) => {
       const typed = entry as NewsEntry
       return {
@@ -184,9 +182,9 @@ export const NewsSection = memo(function NewsSection() {
   const [refreshing, setRefreshing] = useState(false)
   const [filter, setFilter] = useState<NewsFilter>("java")
   // Новость, открытая в читалке: статья показывается модалом внутри окна лаунчера.
-  const [readerEntry, setReaderEntry] = useState<NewsEntry | null>(null)
-  const handleRead = useCallback((entry: NewsEntry) => setReaderEntry(entry), [])
-  const handleReaderClose = useCallback(() => setReaderEntry(null), [])
+  const handleRead = useCallback((entry: NewsEntry) => {
+    if (entry.readMoreLink) void window.electrobunAPI?.openExternal(entry.readMoreLink).catch(console.error)
+  }, [])
 
   const loadAllNews = useCallback(async () => {
     const [mojang, launcher] = await Promise.all([
@@ -288,7 +286,6 @@ export const NewsSection = memo(function NewsSection() {
         ) : <VirtualNewsGrid entries={filtered} onRead={handleRead} />}
       </div>
 
-      {readerEntry && <Suspense fallback={null}><NewsReaderModal entry={readerEntry} onClose={handleReaderClose} /></Suspense>}
     </div>
   )
 })

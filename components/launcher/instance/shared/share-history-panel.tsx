@@ -24,7 +24,7 @@ export function ShareHistoryPanel({ controller, buildId, onRestore }: { controll
 
   useEffect(() => {
     if (!selected) return
-    const api = window.electronAPI
+    const api = window.electrobunAPI
     if (!api) return
     let active = true
     setDetails(undefined); setError("")

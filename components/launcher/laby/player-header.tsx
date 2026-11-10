@@ -32,7 +32,7 @@ export function PlayerHeader({ player }: { player: LabyPlayer }) {
       <div data-ui="laby-player-header-div-3" className="min-w-0 flex-1">
         <button data-ui="laby-player-header-button-1"
           type="button"
-          onClick={() => void window.electronAPI?.openExternal(labyPlayerPageUrl(player.username))}
+          onClick={() => void window.electrobunAPI?.openExternal(labyPlayerPageUrl(player.username))}
           className="flex items-center gap-1.5 text-sm font-semibold text-foreground transition-colors hover:text-primary"
         >
           {player.username}

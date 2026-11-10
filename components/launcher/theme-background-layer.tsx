@@ -1,3 +1,4 @@
+import { launcherAssetUrl } from "@/lib/launcher-assets"
 import { useEffect, useState } from "react"
 import type { Theme } from "./settings/types"
 import { cssBackgroundVideo, useAppliedTheme, useMediaPaused } from "./settings/theme-runtime"
@@ -17,7 +18,7 @@ async function resolveSource(source: string): Promise<string | null> {
   const target = source.trim()
   if (!target) return null
   if (target.startsWith("data:") || target.startsWith("xnl-theme:") || /^https?:\/\//i.test(target)) return target
-  return (await window.electronAPI?.readThemeMedia(target)) ?? null
+  return (await window.electrobunAPI?.readThemeMedia(target)) ?? null
 }
 
 export function ThemeBackgroundLayer({ theme: initial }: { theme: Theme }) {
@@ -26,7 +27,7 @@ export function ThemeBackgroundLayer({ theme: initial }: { theme: Theme }) {
   const paused = useMediaPaused()
   const override = cssBackgroundVideo(theme)
   const kind = override ? "video" : theme.background?.kind ?? "image"
-  const source = kind === "particles" || kind === "halo" ? "" : override || theme.background?.source || ""
+  const source = kind === "particles" || kind === "halo" ? "" : launcherAssetUrl(override || theme.background?.source || "")
   const mediaKey = `${kind}:${source}`
   const [media, setMedia] = useState<{ key: string; resolved: string | null; failed: boolean } | null>(null)
   const resolved = media?.key === mediaKey ? media.resolved : null

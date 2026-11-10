@@ -1,7 +1,7 @@
 import { SharePublishTabs } from "./share-publish-tabs"
 import { IconX as LauncherCloseIcon } from "@tabler/icons-react"
 import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
-import { useEffect, useRef, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { IconCheck, IconLoader2, IconCloudUpload, IconShieldCheck, IconGitCommit, IconGitCompare, IconFiles } from "@tabler/icons-react"
 import type { ScanResult, DiffEntry } from "@xnlc/share"
@@ -11,7 +11,8 @@ import { ShareModal, ShareButton, shareInput, bytesLabel } from "./share-ui"
 import { ShareFileTree } from "./share-file-tree"
 import type { ShareController } from "./use-share"
 import { ShareContentChanges } from "./share-content-changes"
-import { ShareContentIdentity } from "./share-content-identity"
+
+const ProjectDetailsModal = lazy(() => import("../../agent/project-details-modal"))
 
 const contentPath = (path: string) => /^(mods|resourcepacks|shaderpacks)\//.test(path)
 
@@ -22,6 +23,7 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
   buildId: string
 }) {
   const { t } = useTranslation()
+  const [detailsProject, setDetailsProject] = useState<ShareContentPresentation | null>(null)
   const [scan, setScan] = useState<ScanResult>()
   const [presentation, setPresentation] = useState<Record<string, ShareContentPresentation>>({})
   const [previewId, setPreviewId] = useState("")
@@ -32,6 +34,7 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
   const [publishing, setPublishing] = useState(false)
   const [transfer, setTransfer] = useState({ stage: "start", done: 0, total: 1, bytes: 0 })
   const requestId = useRef("")
+  const [cancelling, setCancelling] = useState(false)
   const shared = !!controller.data.link
   const indeterminate = transfer.stage === "start" || transfer.stage === "commit" || transfer.total <= 0
   const percent = Math.min(100, Math.max(0, Math.round(100 * transfer.done / Math.max(transfer.total, 1))))
@@ -39,7 +42,7 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
 
   useEffect(() => {
     if (!open) return
-    return window.electronAPI?.onShareProgress(event => {
+    return window.electrobunAPI?.onShareProgress(event => {
       if (event.requestId === requestId.current && event.buildId === buildId && !["done", "error"].includes(event.stage)) setTransfer(event)
     })
   }, [open, buildId])
@@ -62,10 +65,20 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
   const changes: DiffEntry[] = scan?.changes?.filter(change => contentPath(change.path) || change.path.startsWith("@instance/") || selected.includes(change.path))
     ?? (scan?.manifest.entries.filter(entry => contentPath(entry.path) || selected.includes(entry.path)) ?? []).map(entry => ({ path: entry.path, type: "added", changes: [] }))
 
+  const presentationWithSources = useMemo(() => {
+    const result = { ...presentation }
+    for (const entry of scan?.manifest.entries ?? []) {
+      if (!entry.source || !result[entry.path]) continue
+      result[entry.path] = { ...result[entry.path], source: entry.source.provider as "modrinth" | "curseforge", projectId: entry.source.projectId }
+    }
+    return result
+  }, [presentation, scan])
+
   async function publish() {
     if (publishing) return
     requestId.current = crypto.randomUUID()
     setPublishing(true)
+    setCancelling(false)
     setTransfer({ stage: "start", done: 0, total: 1, bytes: 0 })
     const paths = [
       ...content.map(entry => entry.path),
@@ -82,19 +95,26 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
       setSuccess({ uploaded: result.uploadedBytes ?? 0, reused: result.reusedBytes ?? 0 })
       await controller.refresh()
     }
-    } finally { setPublishing(false); requestId.current = "" }
+    } finally { setPublishing(false); setCancelling(false); requestId.current = "" }
   }
 
-  return (
+  function cancelOrClose() {
+    if (!publishing) { onClose(); return }
+    if (!requestId.current || cancelling) return
+    setCancelling(true)
+    void window.electrobunAPI?.cancelShareInstall(requestId.current).then(accepted => { if (!accepted) setCancelling(false) }).catch(() => setCancelling(false))
+  }
+
+  return <>
     <ShareModal
       wide
       fixedHeight={!success}
-      open={open}
+      open={open && !detailsProject}
       onClose={() => { if (!publishing) onClose() }}
       title={t(success ? "share.launcher.published" : shared ? "share.launcher.publishUpdate" : "share.launcher.publishTitle")}
       description={t(success ? "share.flow.publishedDescription" : "share.launcher.publishDescription")}
       footer={success ? <ShareButton onClick={onClose}>{<span className="inline-flex items-center justify-center gap-2"><LauncherCloseIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("share.launcher.close")}</span>}</ShareButton> : <>
-        <ShareButton secondary disabled={publishing} onClick={onClose}>{<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("share.flow.cancel")}</span>}</ShareButton>
+        <ShareButton secondary disabled={cancelling} onClick={cancelOrClose}>{<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("share.flow.cancel")}</span>}</ShareButton>
         <ShareButton disabled={controller.busy || !scan} busy={controller.busy} onClick={() => void publish()}>
           {t(shared ? "share.launcher.publishUpdate" : "share.publish")}
         </ShareButton>
@@ -108,13 +128,23 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
         </div>
       ) : (
         <div className="flex h-full min-h-0 flex-col gap-4">
+          {publishing ? (
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border border-border/70 bg-card/40 px-6 py-8" role="status" aria-live="polite">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><TransferIcon className="h-6 w-6" strokeWidth={1.75} /></div>
+              <p className="mt-4 text-base font-semibold text-foreground">{t(`share.flow.stage.${transfer.stage}`, { defaultValue: t("share.flow.working") })}</p>
+              <div className="mt-5 w-full max-w-sm">
+                <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground"><span>{transfer.bytes > 0 ? t("share.flow.uploadedBytes", { size: bytesLabel(transfer.bytes) }) : ""}</span>{!indeterminate && <span className="font-medium tabular-nums text-foreground">{percent}%</span>}</div>
+                <div role="progressbar" aria-label={t("share.publish")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={indeterminate ? undefined : percent} className="h-1.5 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full bg-primary transition-[width] duration-200 motion-reduce:transition-none ${indeterminate ? "progress-launch" : ""}`} style={{ width: indeterminate ? "100%" : `${percent}%` }} /></div>
+              </div>
+            </div>
+          ) : <>
           <SharePublishTabs value={tab} onChange={setTab} shared={shared} changeCount={changes.length} fileCount={selected.length} />
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/40">
             {!scan && <div role="status" className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-xs text-muted-foreground">
               {controller.busy && <IconLoader2 className="h-6 w-6 animate-spin text-primary" />}
               {t(controller.busy ? "share.flow.scanning" : "share.failed")}
             </div>}
-            {scan && tab === "changes" && <ShareContentChanges expanded changes={changes} presentation={presentation} showChangeType={shared} />}
+            {scan && tab === "changes" && <ShareContentChanges expanded changes={changes} presentation={presentationWithSources} showChangeType={shared} onDetails={setDetailsProject} />}
             {scan && tab === "files" && <>
               <p className="shrink-0 border-b border-border/50 px-4 py-3 text-xs leading-relaxed text-muted-foreground">{t("share.launcher.filesDescription")}</p>
               <div className="min-h-0 flex-1 overflow-y-auto p-3 [scrollbar-gutter:stable]">
@@ -131,24 +161,15 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
               <p className="shrink-0 border-t border-border/50 px-4 py-3 text-xs text-muted-foreground">{t("share.flow.fileSizeLimit", { size: MAX_FILE_BYTES / 1024 / 1024 })}</p>
             </>}
           </div>
-          {publishing && <div className="shrink-0 space-y-2 rounded-xl border border-border/70 bg-muted/20 p-3" role="status" aria-live="polite">
-            {content.length > 0 && <div className="max-h-36 space-y-2 overflow-y-auto border-b border-border/50 pb-2 pr-1" aria-live="off">
-              {content.map(entry => <div key={entry.path} className="flex items-center gap-3 rounded-lg bg-card/40 p-2">
-                <ShareContentIdentity path={entry.path} presentation={presentation[entry.path]} />
-                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{bytesLabel(entry.size)}</span>
-              </div>)}
-            </div>}
-            <div className="flex items-center justify-between gap-3 text-xs"><span className="flex items-center gap-2 text-muted-foreground"><TransferIcon className="size-4 shrink-0 text-primary" strokeWidth={1.75} /><IconLoader2 className="size-3.5 shrink-0 animate-spin text-primary" aria-hidden="true" />{t(`share.flow.stage.${transfer.stage}`, { defaultValue: t("share.flow.working") })}</span>{!indeterminate && <span className="font-medium tabular-nums">{percent}%</span>}</div>
-            <div role="progressbar" aria-label={t("share.publish")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={indeterminate ? undefined : percent} className="h-2 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full bg-primary transition-[width] duration-200 motion-reduce:transition-none ${indeterminate ? "animate-pulse" : ""}`} style={{ width: indeterminate ? "100%" : `${percent}%` }} /></div>
-            {transfer.bytes > 0 && <p className="text-xs tabular-nums text-muted-foreground">{t("share.flow.uploadedBytes", { size: bytesLabel(transfer.bytes) })}</p>}
-          </div>}
           <label className="block shrink-0 space-y-2">
             <span className="text-xs font-medium text-muted-foreground">{t("share.launcher.comment")}</span>
             <input className={shareInput} value={message} onChange={event => setMessage(event.target.value)} placeholder={t("share.flow.updateNotePlaceholder")} maxLength={500} disabled={controller.busy} />
           </label>
+          </>}
           {controller.error && <p role="alert" className="shrink-0 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">{controller.error}</p>}
         </div>
       )}
     </ShareModal>
-  )
+    {open && detailsProject && <Suspense fallback={null}><ProjectDetailsModal project={{ ...detailsProject, contentType: "mod" }} onClose={() => setDetailsProject(null)} /></Suspense>}
+  </>
 }

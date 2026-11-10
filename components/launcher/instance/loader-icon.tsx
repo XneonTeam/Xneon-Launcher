@@ -28,6 +28,7 @@ const LOADER_DISPLAY_NAMES: Record<string, string> = {
   neoforge: "NeoForge",
   liteloader: "LiteLoader",
   optifine: "OptiFine",
+  iris: "Iris",
   paper: "Paper",
   spigot: "Spigot",
   bukkit: "Bukkit",

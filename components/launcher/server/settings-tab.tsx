@@ -62,7 +62,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
     const refresh = async () => {
       if (pending) return
       pending = true
-      try { const value = await window.electronAPI!.mcServerHostSettings(server.id, { action: "get" }); if (active) applyHostSettings(value) }
+      try { const value = await window.electrobunAPI!.mcServerHostSettings(server.id, { action: "get" }); if (active) applyHostSettings(value) }
       catch (error) { if (active) setError(remoteServerError(error, t)) }
       finally { pending = false }
     }
@@ -78,12 +78,12 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
     setError("")
     setSaving(true)
     try {
-      await window.electronAPI?.mcServerUpdate(server.id, update)
+      await window.electrobunAPI?.mcServerUpdate(server.id, update)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
       // Родитель держит свой снапшот сервера: без обновления он остаётся со
       // старыми значениями, и при перемонтировании вкладки мы читаем их заново.
-      const fresh = await window.electronAPI?.mcServerGet(server.id)
+      const fresh = await window.electrobunAPI?.mcServerGet(server.id)
       if (fresh) onServerUpdated?.(fresh)
       return true
     } catch (error) {
@@ -108,7 +108,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
     setRelayToggling(true)
     setRelayEnabled(next)
     if (remote) {
-      try { applyHostSettings(await window.electronAPI!.mcServerHostSettings(server.id, { action: "relay", enabled: next })); setError("") }
+      try { applyHostSettings(await window.electrobunAPI!.mcServerHostSettings(server.id, { action: "relay", enabled: next })); setError("") }
       catch (error) { setRelayEnabled(!next); setError(remoteServerError(error, t)) }
       finally { setRelayToggling(false) }
       return
@@ -117,7 +117,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
     if (next) {
       setRelayState({ status: "starting" })
       try {
-        const fresh = await window.electronAPI?.xnConnectUsage()
+        const fresh = await window.electrobunAPI?.xnConnectUsage()
         if (fresh) setUsage(fresh)
         if (fresh && fresh.used >= fresh.max) {
           setRelayEnabled(false)
@@ -136,10 +136,10 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
       // туннель только если сервер уже запущен, иначе туннель начнёт работу
       // вместе со стартом сервера (см. mc-server:start).
       if (!next) {
-        await window.electronAPI?.xnConnectStop(server.id)
+        await window.electrobunAPI?.xnConnectStop(server.id)
         setRelayState({ status: "stopped" })
       } else {
-        const started = await window.electronAPI?.xnConnectStart(server.id)
+        const started = await window.electrobunAPI?.xnConnectStart(server.id)
         if (started) setRelayState(started)
       }
     } catch (e) {
@@ -153,13 +153,13 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
 
   useEffect(() => {
     if (remote) return
-    const unsubState = window.electronAPI?.onXnConnectState((data) => {
+    const unsubState = window.electrobunAPI?.onXnConnectState((data) => {
       if (data.serverId === server.id) setRelayState(data.state)
     })
-    const unsubUsage = window.electronAPI?.onXnConnectUsage((u) => setUsage(u))
+    const unsubUsage = window.electrobunAPI?.onXnConnectUsage((u) => setUsage(u))
     // Get initial state + tunnel usage counter
-    window.electronAPI?.xnConnectStatus(server.id).then(s => setRelayState(s))
-    window.electronAPI?.xnConnectUsage().then(u => { if (u) setUsage(u) })
+    window.electrobunAPI?.xnConnectStatus(server.id).then(s => setRelayState(s))
+    window.electrobunAPI?.xnConnectUsage().then(u => { if (u) setUsage(u) })
     return () => {
       unsubState?.()
       unsubUsage?.()
@@ -175,7 +175,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
       return
     }
     let cancelled = false
-    window.electronAPI?.mcServerGetAddresses(server.id).then(addrs => {
+    window.electrobunAPI?.mcServerGetAddresses(server.id).then(addrs => {
       if (!cancelled) setTunnelAddress(addrs?.custom ?? null)
     }).catch(() => {})
     return () => { cancelled = true }
@@ -183,7 +183,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
 
   const handlePickJava = async (path: string) => {
     if (remote) {
-      try { applyHostSettings(await window.electronAPI!.mcServerHostSettings(server.id, { action: "java", path: path || null })); setShowJavaModal(false); setError("") }
+      try { applyHostSettings(await window.electrobunAPI!.mcServerHostSettings(server.id, { action: "java", path: path || null })); setShowJavaModal(false); setError("") }
       catch (error) { setError(remoteServerError(error, t)) }
       return
     }
@@ -193,13 +193,13 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
   }
 
   const handlePickJavaFile = async () => {
-    const picked = await window.electronAPI?.pickJavaFile()
+    const picked = await window.electrobunAPI?.pickJavaFile()
     if (picked) handlePickJava(picked)
   }
 
   useEffect(() => {
     if (remote) return
-    window.electronAPI?.detectJavaInstallations().then(list => {
+    window.electrobunAPI?.detectJavaInstallations().then(list => {
       setDetectedJava(list ?? [])
     }).catch(() => {})
   }, [remote])
@@ -208,7 +208,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
     if (remote || !showJavaModal || detectedJava.length > 0) return
     let cancelled = false
     setLoadingJava(true)
-    window.electronAPI?.detectJavaInstallations().then(list => {
+    window.electrobunAPI?.detectJavaInstallations().then(list => {
       if (!cancelled) setDetectedJava(list ?? [])
     }).catch(() => {}).finally(() => {
       if (!cancelled) setLoadingJava(false)
@@ -419,13 +419,13 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
             </p>
             <div data-ui="server-settings-tab-div-13" className="flex gap-2">
               <button data-ui="server-settings-tab-button-5"
-                onClick={() => window.electronAPI?.openExternal("https://connect.xneon.org/dashboard")}
+                onClick={() => window.electrobunAPI?.openExternal("https://connect.xneon.org/dashboard")}
                 className="px-3 h-8 rounded-lg border border-border bg-muted/30 text-xs text-foreground hover:bg-muted/60 transition-colors"
               >
                 {t("servers.settings.xnconnect.openDashboard")}
               </button>
               <button data-ui="server-settings-tab-button-6"
-                onClick={() => window.electronAPI?.openExternal("https://connect.xneon.org/subscribe")}
+                onClick={() => window.electrobunAPI?.openExternal("https://connect.xneon.org/subscribe")}
                 className="px-3 h-8 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
               >
                 {t("servers.settings.xnconnect.subscribe")}
@@ -453,7 +453,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
       {!remote && relayState.status === "auth_required" && (
         <ModalLayer windowId="server-settings-tab-window-1"
           onClose={() => {
-            window.electronAPI?.xnConnectStop(server.id)
+            window.electrobunAPI?.xnConnectStop(server.id)
             setRelayEnabled(false)
             save({ relayEnabled: 0 })
           }}
@@ -467,7 +467,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
               </h3>
               <button data-modal-close data-ui="server-settings-tab-button-7"
                 onClick={() => {
-                  window.electronAPI?.xnConnectStop(server.id)
+                  window.electrobunAPI?.xnConnectStop(server.id)
                   setRelayEnabled(false)
                   save({ relayEnabled: 0 })
                 }}
@@ -505,7 +505,7 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
             <div data-ui="server-settings-tab-div-19" className="flex gap-3">
               <button data-ui="server-settings-tab-button-9"
                 onClick={() => {
-                  window.electronAPI?.xnConnectStop(server.id)
+                  window.electrobunAPI?.xnConnectStop(server.id)
                   setRelayEnabled(false)
                   save({ relayEnabled: 0 })
                 }}

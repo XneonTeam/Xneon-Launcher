@@ -83,8 +83,8 @@
     "@xnlc/types": "workspace:*"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && node scripts/build-cjs.mjs",
-    "prepublishOnly": "pnpm run build"
+    "build": "bun --bun run tsc -p tsconfig.json && bun scripts/build-cjs.mjs",
+    "prepublishOnly": "bun run build"
   },
   "publishConfig": {
     "registry": "https://git.xneon.org/api/packages/MAINER4IK/npm/"

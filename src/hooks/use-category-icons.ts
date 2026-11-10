@@ -30,7 +30,7 @@ export function useCategoryIcons(scope: CategoryIconScope) {
     let alive = true
     iconsRef.current = {}
     setIcons({})
-    void window.electronAPI?.getSetting(key).then((raw) => {
+    void window.electrobunAPI?.getSetting(key).then((raw) => {
       if (!alive || !raw) return
       try {
         const parsed = JSON.parse(raw) as CategoryIconMap
@@ -49,7 +49,7 @@ export function useCategoryIcons(scope: CategoryIconScope) {
     const next = mutate(iconsRef.current)
     iconsRef.current = next
     setIcons(next)
-    void window.electronAPI?.setSetting(key, JSON.stringify(next))
+    void window.electrobunAPI?.setSetting(key, JSON.stringify(next))
   }, [key])
 
   /** Ставит иконку категории; пустая строка — убирает иконку. */

@@ -30,7 +30,7 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
   const loadJavaInstallations = useCallback(async (force = false) => {
     setLoadingDetect(true)
     try {
-      const list = await window.electronAPI?.detectJavaInstallations(force)
+      const list = await window.electrobunAPI?.detectJavaInstallations(force)
       setDetected(list ?? [])
     } catch {
       setDetected([])
@@ -45,7 +45,7 @@ export function InstanceBuildJava({ build, updateBuild }: InstanceBuildJavaProps
   }, [showJavaModal, detected.length, loadJavaInstallations])
 
   const handlePickJavaFile = async () => {
-    const picked = await window.electronAPI?.pickJavaFile()
+    const picked = await window.electrobunAPI?.pickJavaFile()
     if (picked) {
       updateBuild(build.id, { javaPath: picked })
       setShowJavaModal(false)

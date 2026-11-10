@@ -3,7 +3,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const outDir = path.join(root, "electron", "main", "cloud")
+const outDir = path.join(root, "electrobun", "main", "cloud")
 const outFile = path.join(outDir, "credentials.generated.ts")
 
 function loadDotEnv() {

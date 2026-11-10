@@ -96,7 +96,7 @@ export function FavoritesTab() {
 
   const fetchProfile = useCallback(async (force = false) => {
     const accountId = account?.id
-    if (!accountId || !window.electronAPI) return
+    if (!accountId || !window.electrobunAPI) return
 
     // Мгновенная отрисовка из кэша: сетевой запрос уходит в фон.
     // `force` — после смены/сброса скина: там нужен свежий ответ, а не кэш.
@@ -107,7 +107,7 @@ export function FavoritesTab() {
     }
 
     try {
-      const result = await window.electronAPI.skinsGetProfile(accountId)
+      const result = await window.electrobunAPI.skinsGetProfile(accountId)
       // Ответ мог прийти уже после смены аккаунта — отбрасываем
       if (activeAccountIdRef.current !== accountId) return
       profileCache.set(accountId, { profile: result ?? null, at: Date.now() })
@@ -120,10 +120,10 @@ export function FavoritesTab() {
 
   const fetchLibrary = useCallback(async () => {
     const accountId = account?.id
-    if (!accountId || !window.electronAPI) return
+    if (!accountId || !window.electrobunAPI) return
     setLoading(true)
     try {
-      const skins = await window.electronAPI.skinsListLibrary(accountId)
+      const skins = await window.electrobunAPI.skinsListLibrary(accountId)
       // Ответ мог прийти уже после смены аккаунта — отбрасываем
       if (activeAccountIdRef.current !== accountId) return
       setLibrarySkins(skins)
@@ -226,15 +226,15 @@ export function FavoritesTab() {
   }, [selectedSkin, profile])
 
   const handleUploadFile = useCallback(async (file: File) => {
-    if (!window.electronAPI || !account?.id) return
+    if (!window.electrobunAPI || !account?.id) return
     try {
-      const filePath = window.electronAPI.getFilePath(file)
+      const filePath = await window.electrobunAPI.getFilePath(file)
       const name = file.name.replace(/\.png$/i, "")
       const variant = selectedSkin?.variant ?? "classic"
       // Плащ к новому скину не привязываем: раньше сюда уходил активный плащ
       // аккаунта, и добавленный скин выглядел так, будто ему сразу надели плащ.
       // Плащ выбирается явно в модалке редактирования.
-      const saved = await window.electronAPI.skinsSaveToLibrary(filePath, name, variant, account.id, null)
+      const saved = await window.electrobunAPI.skinsSaveToLibrary(filePath, name, variant, account.id, null)
       if (saved) {
         await fetchLibrary()
         setSelectedId(saved.id)
@@ -259,15 +259,15 @@ export function FavoritesTab() {
   }, [handleUploadFile])
 
   const handleApply = useCallback(async () => {
-    if (!window.electronAPI || !account?.id || !selectedSkin || isApplying) return
+    if (!window.electrobunAPI || !account?.id || !selectedSkin || isApplying) return
     if (selectedSkin.id === "__api__") return
 
     setIsApplying(true)
     try {
-      const ok = await window.electronAPI.skinsApplyLibrarySkin(selectedSkin.id, account.id)
+      const ok = await window.electrobunAPI.skinsApplyLibrarySkin(selectedSkin.id, account.id)
       if (ok) {
         localStorage.setItem(`skin-equipped-${account.id}`, selectedSkin.id)
-        await window.electronAPI.avatarInvalidateCache?.({ username: account.username, uuid: account.uuid, type: account.type })
+        await window.electrobunAPI.avatarInvalidateCache?.({ username: account.username, uuid: account.uuid, type: account.type })
         // Ссылка на активную текстуру у аккаунтов с сервером обновляет main —
         // перечитываем аккаунты, чтобы аватар показал новый скин.
         await reloadAccounts()
@@ -289,17 +289,17 @@ export function FavoritesTab() {
   }, [account?.id, selectedSkin, isApplying, fetchProfile, pushNotification, reloadAccounts])
 
   const handleReset = useCallback(async () => {
-    if (!window.electronAPI || !account?.id) return
+    if (!window.electrobunAPI || !account?.id) return
     try {
       // Раньше результат не проверялся, и «Сбросить» показывало успех даже
       // когда запрос к Minecraft Services не прошёл.
-      const ok = await window.electronAPI.skinsDeleteSkin(account.id)
+      const ok = await window.electrobunAPI.skinsDeleteSkin(account.id)
       if (!ok) {
         pushNotification({ kind: "error", source: "launch", title: t("skins.error"), message: "" })
         return
       }
       localStorage.removeItem(`skin-equipped-${account.id}`)
-      await window.electronAPI.avatarInvalidateCache?.({ username: account.username, uuid: account.uuid, type: account.type })
+      await window.electrobunAPI.avatarInvalidateCache?.({ username: account.username, uuid: account.uuid, type: account.type })
       // После сброса ссылка на текстуру в записи аккаунта тоже меняется —
       // перечитываем аккаунты, чтобы аватар стал актуальным.
       await reloadAccounts()
@@ -319,13 +319,13 @@ export function FavoritesTab() {
   }, [account?.id, fetchProfile, pushNotification, t, reloadAccounts])
 
   const handleDeleteSkin = useCallback(async (skinId: string) => {
-    if (!window.electronAPI || !account?.id) return
+    if (!window.electrobunAPI || !account?.id) return
     if (skinId === "__api__") {
       await handleReset()
       return
     }
     try {
-      await window.electronAPI.skinsDeleteFromLibrary(skinId)
+      await window.electrobunAPI.skinsDeleteFromLibrary(skinId)
       if (selectedId === skinId) {
         // Надетого может не быть вовсе (скин добавлен, но не надет) — тогда берём
         // любую оставшуюся запись, чтобы превью не осталось без скина и без
@@ -345,23 +345,23 @@ export function FavoritesTab() {
   }, [selectedId, equippedId, librarySkins, account?.id, fetchLibrary, handleReset, pushNotification])
 
   const handleEditSave = useCallback(async (params: { filePath?: string; variant: "classic" | "slim"; capeId: string | null }) => {
-    if (!window.electronAPI || !account?.id) return
+    if (!window.electrobunAPI || !account?.id) return
     try {
       if (params.filePath && editModalSkin) {
         const name = editModalSkin.name
-        const saved = await window.electronAPI.skinsSaveToLibrary(params.filePath, name, params.variant, account.id, params.capeId)
+        const saved = await window.electrobunAPI.skinsSaveToLibrary(params.filePath, name, params.variant, account.id, params.capeId)
         if (saved) setSelectedId(saved.id)
       } else if (params.filePath) {
         const name = "skin"
-        const saved = await window.electronAPI.skinsSaveToLibrary(params.filePath, name, params.variant, account.id, params.capeId)
+        const saved = await window.electrobunAPI.skinsSaveToLibrary(params.filePath, name, params.variant, account.id, params.capeId)
         if (saved) setSelectedId(saved.id)
       } else if (editModalSkin) {
-        await window.electronAPI.skinsUpdateVariant(editModalSkin.id, params.variant, params.capeId)
+        await window.electrobunAPI.skinsUpdateVariant(editModalSkin.id, params.variant, params.capeId)
       }
       if (editingCurrentSkin) {
         // Меняем плащ у скина, который сейчас надет, — только это действие
         // должно доходить до аккаунта.
-        await window.electronAPI.skinsSetCape(params.capeId, account.id)
+        await window.electrobunAPI.skinsSetCape(params.capeId, account.id)
       }
       await fetchLibrary()
       await fetchProfile(true)
@@ -388,7 +388,7 @@ export function FavoritesTab() {
   // Если аккаунт не выбран
   if (!account) {
     return (
-      <div data-ui="skins-favorites-tab-div-1" data-component="favorites-tab" className={`flex min-h-0 flex-1 items-center justify-center ${CONTENT_ENTER_DELAYED}`}>
+      <div data-ui="skins-favorites-tab-div-1" data-component="favorites-tab" className={`flex min-h-0 flex-1 ${CONTENT_ENTER_DELAYED}`}>
         <EmptySkinsState />
       </div>
     )

@@ -98,7 +98,7 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
   }, [t])
 
   useEffect(() => {
-    const unsubscribe = window.electronAPI?.onAuthlibLoginProgress((progress) => {
+    const unsubscribe = window.electrobunAPI?.onAuthlibLoginProgress((progress) => {
       if (closedRef.current) return
       setLoginPhase(progress.phase)
     })
@@ -109,7 +109,7 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
   const loadServers = useCallback(async () => {
     setLoadingServers(true)
     try {
-      const list = await window.electronAPI?.authlibListServers()
+      const list = await window.electrobunAPI?.authlibListServers()
       if (list) {
         setServers(list)
         if (list.length > 0 && !selectedServerId) {
@@ -137,7 +137,7 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
     setLoginPhase("metadata")
 
     try {
-      const outcome = await window.electronAPI?.authlibLogin(
+      const outcome = await window.electrobunAPI?.authlibLogin(
         selectedServerId,
         username.trim(),
         password,
@@ -214,7 +214,7 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
     setProbeError("")
 
     try {
-      const outcome = await window.electronAPI?.authlibProbeServer(inputUrl.trim())
+      const outcome = await window.electrobunAPI?.authlibProbeServer(inputUrl.trim())
       if (!outcome) {
         setProbeError(t("accounts.authlibCheckFailed", "Failed to check authorization server"))
         setAddStep("input")
@@ -241,7 +241,7 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
     setAddingServer(true)
     setProbeError("")
     try {
-      const outcome = await window.electronAPI?.authlibAddServer(probeResult)
+      const outcome = await window.electrobunAPI?.authlibAddServer(probeResult)
       if (!outcome) {
         setProbeError(t("accounts.authlibCheckFailed", "Failed to check authorization server"))
         return
@@ -271,7 +271,7 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
   const handleRemoveServer = async (serverId: string, e: React.MouseEvent) => {
     e.stopPropagation()
     try {
-      const accounts = await window.electronAPI?.loadAccounts() ?? []
+      const accounts = await window.electrobunAPI?.loadAccounts() ?? []
       const linked = accounts.filter((a) => a.type === "authlib-injector" && a.serverId === serverId)
       setPendingServerRemoval({ id: serverId, linkedCount: linked.length })
     } catch (err) {
@@ -283,7 +283,7 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
     if (!pendingServerRemoval) return
     const serverId = pendingServerRemoval.id
     try {
-      const result = await window.electronAPI?.authlibRemoveServer(serverId)
+      const result = await window.electrobunAPI?.authlibRemoveServer(serverId)
       const removed = result?.removedAccounts ?? 0
       await loadServers()
       if (selectedServerId === serverId) {

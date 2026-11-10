@@ -1,6 +1,10 @@
 {
   "compilerOptions": {
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "target": "ESNext",
     "skipLibCheck": true,
@@ -13,7 +17,18 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ],
+      "electrobun/view": [
+        "./.hutch/devkit/api/browser/index.ts"
+      ],
+      "electrobun/main": [
+        "./.hutch/devkit/api/sdks/main/index.ts"
+      ],
+      "electrobun": [
+        "./.hutch/devkit/api/sdks/main/index.ts"
+      ]
     }
   },
   "include": [
@@ -25,9 +40,11 @@
     "hooks/**/*.tsx",
     "lib/**/*.ts",
     "lib/**/*.tsx",
-    "electron/**/*.ts",
-    "electron/**/*.d.ts",
     "vite.config.mts"
   ],
-  "exclude": ["node_modules", "dist", "dist-electron"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-electrobun-tests"
+  ]
 }

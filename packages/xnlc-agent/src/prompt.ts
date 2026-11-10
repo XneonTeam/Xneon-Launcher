@@ -22,6 +22,10 @@ export function agentSystemPrompt(language = "ru", toolNames: readonly string[] 
     : /^Servers:/.test(line) ? has("list_servers", "server_status", "create_server", "set_server_property", "get_server")
     : /^Diagnostics:/.test(line) ? has("server_logs", "read_build_file") : false)
   const guidance = [...sections].sort((a, b) => a - b).map(number => promptSections.get(number)).filter(Boolean)
+  if (has("get_build_share_status", "prepare_build_publication", "publish_build_share", "create_build_invitation")) {
+    const sharing = promptSections.get(3)?.split("\n").find(line => line.startsWith("Sharing builds:"))
+    if (sharing) guidance.push(sharing)
+  }
   const questions = questionOnly ? "Questions-only mode: Answer the user's question and use only the provided read-only tools when useful. Do not ask interactive questions or create plans. Never modify launcher settings, files, builds, worlds, servers, skins or accounts; never install, delete, launch, or send commands. If the user asks for an action, explain that they can switch to an action mode." : ""
   return [AGENT_CORE_PROMPT, ...guidance, ...domain, questions, `Launcher interface language: ${names[code] || names.ru} (${code}). Respond in this language unless the user explicitly requests another.`].filter(Boolean).join("\n\n")
 }

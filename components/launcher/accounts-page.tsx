@@ -75,7 +75,7 @@ export function AccountsPage() {
     setElybyAuthLoading(true)
     setAuthError("")
     try {
-      const result = await window.electronAPI?.loginElyBy()
+      const result = await window.electrobunAPI?.loginElyBy()
       if (result) {
         addAccount({
           id: result.id,
@@ -106,7 +106,7 @@ export function AccountsPage() {
     setDeviceCodeInfo(null)
     setElybyMethod("device")
     try {
-      const info = await window.electronAPI?.startElyByDeviceCode()
+      const info = await window.electrobunAPI?.startElyByDeviceCode()
       if (info) {
         setDeviceCodeInfo({
           deviceCode: info.deviceCode,
@@ -146,7 +146,7 @@ export function AccountsPage() {
     setXnSkinsAuthLoading(true)
     setAuthError("")
     try {
-      const result = await window.electronAPI?.loginXnSkins()
+      const result = await window.electrobunAPI?.loginXnSkins()
       if (result) {
         addAccount({
           id: result.id,
@@ -178,7 +178,7 @@ export function AccountsPage() {
     setDeviceCodeInfo(null)
     setXnskinsMethod("device")
     try {
-      const info = await window.electronAPI?.startXnSkinsDeviceCode()
+      const info = await window.electrobunAPI?.startXnSkinsDeviceCode()
       if (info) {
         setDeviceCodeInfo({
           deviceCode: info.deviceCode,
@@ -218,7 +218,7 @@ export function AccountsPage() {
     setMicrosoftAuthLoading(true)
     setAuthError("")
     try {
-      const result = await window.electronAPI?.loginMicrosoft()
+      const result = await window.electrobunAPI?.loginMicrosoft()
       if (result) {
         addAccount({
           id: result.id,
@@ -251,7 +251,7 @@ export function AccountsPage() {
     setDeviceCodeInfo(null)
     setMicrosoftMethod("device")
     try {
-      const info = await window.electronAPI?.startMicrosoftDeviceCode()
+      const info = await window.electrobunAPI?.startMicrosoftDeviceCode()
       if (info) {
         setDeviceCodeInfo({
           deviceCode: info.deviceCode,
@@ -299,10 +299,10 @@ export function AccountsPage() {
       if (cancelled) return
       try {
         const result = activeMethod === "elyby"
-          ? await window.electronAPI?.pollElyByDeviceCode(deviceCodeInfo.deviceCode)
+          ? await window.electrobunAPI?.pollElyByDeviceCode(deviceCodeInfo.deviceCode)
           : activeMethod === "xnskins"
-            ? await window.electronAPI?.pollXnSkinsDeviceCode(deviceCodeInfo.deviceCode)
-            : await window.electronAPI?.pollMicrosoftDeviceCode(deviceCodeInfo.deviceCode)
+            ? await window.electrobunAPI?.pollXnSkinsDeviceCode(deviceCodeInfo.deviceCode)
+            : await window.electrobunAPI?.pollMicrosoftDeviceCode(deviceCodeInfo.deviceCode)
         if (cancelled) return
         if (!result) return
         if (result.status === "complete" && result.account) {
@@ -852,7 +852,7 @@ export function AccountsPage() {
                       <div data-ui="accounts-page-div-61" className="text-center">
                         <p data-ui="accounts-page-p-11" className="text-sm text-muted-foreground mb-2">{t("accounts.enterCodeAtLink")}</p>
                         <button data-ui="accounts-page-button-21"
-                          onClick={() => window.electronAPI?.openExternal(deviceCodeInfo.verificationUriComplete)}
+                          onClick={() => window.electrobunAPI?.openExternal(deviceCodeInfo.verificationUriComplete)}
                           className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium transition-colors"
                         >
                           <IconExternalLink className="w-4 h-4" strokeWidth={1.75} />
@@ -1120,7 +1120,7 @@ export function AccountsPage() {
                       <div data-ui="accounts-page-div-96" className="text-center">
                         <p data-ui="accounts-page-p-19" className="text-sm text-muted-foreground mb-2">{t("accounts.enterCodeAtLink")}</p>
                         <button data-ui="accounts-page-button-34"
-                          onClick={() => window.electronAPI?.openExternal(deviceCodeInfo.verificationUriComplete)}
+                          onClick={() => window.electrobunAPI?.openExternal(deviceCodeInfo.verificationUriComplete)}
                           className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium transition-colors"
                         >
                           <IconExternalLink className="w-4 h-4" strokeWidth={1.75} />
@@ -1388,7 +1388,7 @@ export function AccountsPage() {
                       <div data-ui="accounts-page-div-131" className="text-center">
                         <p data-ui="accounts-page-p-27" className="text-sm text-muted-foreground mb-2">{t("accounts.enterCodeAtLink")}</p>
                         <button data-ui="accounts-page-button-47"
-                          onClick={() => window.electronAPI?.openExternal(deviceCodeInfo.verificationUriComplete)}
+                          onClick={() => window.electrobunAPI?.openExternal(deviceCodeInfo.verificationUriComplete)}
                           className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium transition-colors"
                         >
                           <IconExternalLink className="w-4 h-4" strokeWidth={1.75} />

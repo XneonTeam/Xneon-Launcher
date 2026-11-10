@@ -1,0 +1,263 @@
+import fs from "fs/promises"
+import path from "path"
+import { app } from "../platform/desktop"
+import { presenceSmallImage, type DiscordActivity } from "./discord-presence"
+
+const CLIENT_ID = "1279183673660538972"
+const RETRY_DELAY_MS = 15_000
+let rpc: any = null
+let connected = false
+let connecting = false
+let retryTimer: NodeJS.Timeout | null = null
+let shuttingDown = false
+let pendingActivity: DiscordActivity | null = null
+let lastActivity: DiscordActivity | null = null
+let gameStartTimestamp: number | undefined = undefined
+
+export function resetGameStartTimestamp(): void {
+  gameStartTimestamp = undefined
+}
+
+async function getRuntimeDirCandidates(): Promise<string[]> {
+  if (process.platform === "win32") return []
+
+  const uid = typeof process.getuid === "function" ? process.getuid() : undefined
+  const runUserDir = uid !== undefined ? path.join("/run/user", String(uid)) : undefined
+
+  const baseDirs = [
+    process.env.XDG_RUNTIME_DIR,
+    runUserDir,
+    process.env.TMPDIR,
+    process.env.TEMP,
+    process.env.TMP,
+    "/tmp",
+  ].filter((dir): dir is string => !!dir)
+
+  const candidates = [
+    ...(runUserDir ? [
+      path.join(runUserDir, "app", "com.discordapp.DiscordCanary"),
+      path.join(runUserDir, ".flatpak", "com.discordapp.DiscordCanary", "xdg-run"),
+      path.join(runUserDir, "app", "com.discordapp.DiscordPTB"),
+      path.join(runUserDir, ".flatpak", "com.discordapp.DiscordPTB", "xdg-run"),
+    ] : []),
+    ...baseDirs,
+  ]
+
+  const results: string[] = []
+  for (const dir of [...new Set(candidates)]) {
+    try {
+      await fs.access(dir)
+      results.push(dir)
+    } catch {}
+  }
+  return results
+}
+
+async function hasDiscordIpcSocket(runtimeDir: string): Promise<boolean> {
+  for (let i = 0; i < 10; i += 1) {
+    try {
+      await fs.access(path.join(runtimeDir, `discord-ipc-${i}`))
+      return true
+    } catch { }
+  }
+  return false
+}
+
+async function loginWithRuntimeDir(runtimeDir?: string): Promise<any> {
+  const { Client } = await import("discord-rpc")
+  const previousRuntimeDir = process.env.XDG_RUNTIME_DIR
+  const client = new Client({ transport: "ipc" })
+
+  client.on("disconnected", () => {
+    connected = false
+    rpc = null
+    scheduleRetry()
+  })
+
+  client.on("error", (err: { code: number }) => {
+    if (err.code !== 1000) {
+      console.error("Discord RPC error:", err)
+    }
+    connected = false
+    rpc = null
+    scheduleRetry()
+  })
+
+  client.on("ready", () => {
+    connected = true
+    flushPendingActivity()
+  })
+
+  try {
+    if (runtimeDir) {
+      process.env.XDG_RUNTIME_DIR = runtimeDir
+    }
+    await client.login({ clientId: CLIENT_ID })
+    // discord-rpc resolves login() once the READY frame arrived, so a pending
+    // activity must be flushed here even if the "ready" event raced us.
+    connected = true
+    return client
+  } catch (error) {
+    // login() мог успеть поднять IPC-соединение и навесить слушателей: без
+    // destroy() каждая неудачная попытка утекала, а retry раз в 15 секунд
+    // создавал новый клиент.
+    try { await client.destroy() } catch { /* клиент мог не успеть создать соединение */ }
+    throw error
+  } finally {
+    if (previousRuntimeDir === undefined) {
+      delete process.env.XDG_RUNTIME_DIR
+    } else {
+      process.env.XDG_RUNTIME_DIR = previousRuntimeDir
+    }
+  }
+}
+
+function scheduleRetry(): void {
+  if (retryTimer || shuttingDown) return
+  retryTimer = setTimeout(() => {
+    retryTimer = null
+    if (!connected) {
+      void initDiscordRpc()
+    }
+  }, RETRY_DELAY_MS)
+  // Never keep the Electron process alive just for the retry timer.
+  retryTimer.unref?.()
+}
+
+function flushPendingActivity(): void {
+  if (!connected || !rpc) return
+  const activity = pendingActivity ?? lastActivity
+  if (!activity) return
+  pendingActivity = null
+  applyActivity(activity)
+}
+
+export async function initDiscordRpc(): Promise<void> {
+  if (connected || connecting || shuttingDown) return
+  connecting = true
+
+  try {
+    if (process.platform === "win32") {
+      try {
+        rpc = await loginWithRuntimeDir()
+      } catch {
+        rpc = null
+      }
+      return
+    }
+
+    const runtimeDirs = await getRuntimeDirCandidates()
+    const preferredRuntimeDirs: string[] = []
+    for (const dir of runtimeDirs) {
+      if (await hasDiscordIpcSocket(dir)) {
+        preferredRuntimeDirs.push(dir)
+      }
+    }
+    const candidates = preferredRuntimeDirs.length > 0 ? preferredRuntimeDirs : runtimeDirs
+
+    for (const runtimeDir of candidates) {
+      try {
+        rpc = await loginWithRuntimeDir(runtimeDir)
+        return
+      } catch {
+        rpc = null
+      }
+    }
+  } finally {
+    connecting = false
+    if (connected) {
+      if (retryTimer) {
+        clearTimeout(retryTimer)
+        retryTimer = null
+      }
+      flushPendingActivity()
+    } else {
+      // Discord may simply not be running yet — keep retrying in the background
+      // so the presence shows up without requiring a game launch first.
+      scheduleRetry()
+    }
+  }
+}
+
+export function setDiscordActivity(activity: DiscordActivity): void {
+  if (activity.startTimestamp) {
+    gameStartTimestamp = activity.startTimestamp
+  }
+  if (!connected || !rpc) {
+    pendingActivity = activity
+    initDiscordRpc()
+    return
+  }
+  applyActivity(activity)
+}
+
+function applyActivity(activity: DiscordActivity): void {
+  lastActivity = activity
+  const {
+    state = "В меню",
+    largeImageKey = "logo",
+    largeImageText = "Xneon Launcher",
+    startTimestamp,
+  } = activity
+
+  const activityData: Record<string, unknown> = {
+    state,
+    largeImageKey,
+    largeImageText,
+    buttons: [
+      { label: "Сайт Лаунчера", url: "https://launcher.xneon.org" },
+      { label: "Discord Сервер", url: "https://discord.gg/a9mDjtqcbQ" },
+    ],
+  }
+
+  const smallImage = presenceSmallImage(activity)
+  if (smallImage.key) {
+    activityData.smallImageKey = smallImage.key
+    if (smallImage.text) activityData.smallImageText = smallImage.text
+  }
+
+  if (startTimestamp) {
+    activityData.startTimestamp = startTimestamp
+    gameStartTimestamp = startTimestamp
+  } else if (gameStartTimestamp) {
+    activityData.startTimestamp = gameStartTimestamp
+  }
+
+  console.log("[DiscordRPC] setActivity - state:", state, "timestamp:", activityData.startTimestamp)
+  rpc?.setActivity(activityData).catch((err: unknown) => {
+    console.error("[DiscordRPC] Failed to set activity:", err)
+    connected = false
+    rpc = null
+    scheduleRetry()
+  })
+}
+
+// Launcher just started — publish the "in menu" presence right away instead of
+// waiting for the first game launch to set any activity.
+setTimeout(() => {
+  setDiscordActivity({ state: "В меню" })
+}, 1500)
+
+/**
+ * Корректно останавливает RPC при выходе приложения: уничтожает клиент (вместе
+ * с IPC-соединением и слушателями) и снимает retry-таймер, чтобы после
+ * `before-quit` не оставалось живых подписок и повторных попыток подключения.
+ */
+export function shutdownDiscordRpc(): void {
+  shuttingDown = true
+  if (retryTimer) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
+  const client = rpc
+  rpc = null
+  connected = false
+  pendingActivity = null
+  if (client) {
+    try { void client.destroy() } catch { /* клиент мог быть уже уничтожен */ }
+  }
+}
+
+app.on("before-quit", () => {
+  shutdownDiscordRpc()
+})

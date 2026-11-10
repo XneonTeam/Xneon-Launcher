@@ -38,7 +38,7 @@ let cachedSelectedTheme: string | undefined
 const pendingThemeWrites = new Set<string>()
 
 async function writeThemeFiles(themes: Theme[], onlyMissing: boolean): Promise<Theme[]> {
-  const api = typeof window !== "undefined" ? window.electronAPI : undefined
+  const api = typeof window !== "undefined" ? window.electrobunAPI : undefined
   return Promise.all(themes.map(async theme => {
     if ((onlyMissing && theme.localFile) || !theme.id.startsWith("custom-") || !api?.saveLocalTheme) return theme
     try { return { ...theme, localFile: (await api.saveLocalTheme(theme, serializeThemeCss(theme))).fileName } }
@@ -69,7 +69,7 @@ function readLocalSelectedTheme(): string {
 /** Список кастомных тем: localStorage сразу, БД — при первой возможности. */
 export async function loadCustomThemes(): Promise<Theme[]> {
   const local = readLocalCustomThemes()
-  const api = typeof window !== "undefined" ? window.electronAPI : undefined
+  const api = typeof window !== "undefined" ? window.electrobunAPI : undefined
   if (!api?.getSetting) return local
   try {
     const stored = await api.getSetting(CUSTOM_THEMES_SETTING)
@@ -91,7 +91,7 @@ export function persistCustomThemes(themes: Theme[]): void {
   } catch {
     /* приватный режим/квота — не повод ронять интерфейс */
   }
-  const api = window.electronAPI
+  const api = window.electrobunAPI
   if (api) {
     pendingThemeWrites.add(raw)
     void api.setSetting(CUSTOM_THEMES_SETTING, raw).catch(error => console.error("[Themes] Save failed", error)).finally(() => pendingThemeWrites.delete(raw))
@@ -106,7 +106,7 @@ export function persistSelectedTheme(id: string): void {
   } catch {
     /* см. выше */
   }
-  void window.electronAPI?.setSetting(SELECTED_THEME_SETTING, id)
+  void window.electrobunAPI?.setSetting(SELECTED_THEME_SETTING, id)
 }
 
 /** Пресеты вместе с кастомными темами; кастомная тема с тем же id перекрывает пресет. */
@@ -118,7 +118,7 @@ export function allThemes(custom: Theme[]): Theme[] {
 export async function initializeTheme(): Promise<void> {
   const [customThemes, storedId] = await Promise.all([
     loadCustomThemes(),
-    window.electronAPI?.getSetting(SELECTED_THEME_SETTING).catch(() => undefined),
+    window.electrobunAPI?.getSetting(SELECTED_THEME_SETTING).catch(() => undefined),
   ])
   cachedCustomThemes = customThemes
   cachedSelectedTheme = normalizePresetId(storedId ?? readLocalSelectedTheme())
@@ -172,7 +172,7 @@ export function useThemeRegistry(): ThemeRegistry {
     void (async () => {
       const [storedThemes, storedTheme] = await Promise.all([
         loadCustomThemes(),
-        window.electronAPI?.getSetting(SELECTED_THEME_SETTING).catch(() => undefined),
+        window.electrobunAPI?.getSetting(SELECTED_THEME_SETTING).catch(() => undefined),
       ])
       if (cancelled) return
       cachedCustomThemes = storedThemes
@@ -199,9 +199,9 @@ export function useThemeRegistry(): ThemeRegistry {
         return merged
       })
     }
-    const off = window.electronAPI?.onLocalThemesChanged?.(receive)
+    const off = window.electrobunAPI?.onLocalThemesChanged?.(receive)
     let alive = true
-    void window.electronAPI?.listLocalThemes?.().then(snapshot => { if (alive) receive(snapshot) }).catch(() => {})
+    void window.electrobunAPI?.listLocalThemes?.().then(snapshot => { if (alive) receive(snapshot) }).catch(() => {})
     return () => { alive = false; off?.() }
   }, [])
 
@@ -213,7 +213,7 @@ export function useThemeRegistry(): ThemeRegistry {
 
   // Изменения из main: тема и список своих тем (например, их правит агент).
   useEffect(() => {
-    const off = window.electronAPI?.onSettingsUpdated?.(({ key, value }) => {
+    const off = window.electrobunAPI?.onSettingsUpdated?.(({ key, value }) => {
       if (key === SELECTED_THEME_SETTING) {
         cachedSelectedTheme = value
         try { window.localStorage.setItem(SELECTED_THEME_SETTING, value) } catch { /* БД остаётся источником правды. */ }
@@ -244,7 +244,7 @@ export function useThemeRegistry(): ThemeRegistry {
   }, [])
 
   const saveTheme = useCallback(async (theme: Theme) => {
-    const file = await window.electronAPI?.saveLocalTheme?.(theme, serializeThemeCss(theme))
+    const file = await window.electrobunAPI?.saveLocalTheme?.(theme, serializeThemeCss(theme))
     const saved = file ? themeFromLocalFile(file, theme) ?? { ...theme, localFile: file.fileName } : theme
     setCustomThemes((current) => {
       const next = current.some((item) => item.id === theme.id)
@@ -257,7 +257,7 @@ export function useThemeRegistry(): ThemeRegistry {
 
   const deleteTheme = useCallback(async (id: string) => {
     const theme = customThemes.find(item => item.id === id)
-    if (theme?.localFile) await window.electronAPI?.deleteLocalTheme?.(theme.localFile)
+    if (theme?.localFile) await window.electrobunAPI?.deleteLocalTheme?.(theme.localFile)
     setCustomThemes((current) => {
       const next = current.filter((item) => item.id !== id)
       persistCustomThemes(next)

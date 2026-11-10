@@ -79,6 +79,7 @@ export interface SharePorts {
   progress?(event: { stage: string; done: number; total: number; bytes: number; files?: { path: string; size: number; name?: string; iconUrl?: string; status: "queued" | "downloading" | "complete" | "error" }[] }): void
 }
 export interface ShareTransport {
+  setSignal?(signal?: AbortSignal): void
   create(): Promise<string>
   get(id: string): Promise<Repository>
   mutate(id: string, command: RepositoryCommand): Promise<Repository>
