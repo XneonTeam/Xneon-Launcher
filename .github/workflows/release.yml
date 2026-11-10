@@ -1,111 +1,159 @@
-name: Release
+name: Windows experimental pre-release
 
 on:
+  workflow_dispatch:
+    inputs:
+      publish_run_id:
+        description: 'Successful validation run on v1.0.8 to publish'
+        type: string
+        required: false
   push:
     tags:
-      - 'v*'
+      - 'v1.0.8'
 
 permissions:
   contents: read
 
 jobs:
   build:
-    runs-on: windows-latest
-
+    if: github.repository == 'MAINER4IK/Xneon-Launcher-bun' && !inputs.publish_run_id
+    runs-on: windows-2022
+    env:
+      HUTCH_NO_UPDATE_CHECK: '1'
+      BUN_OPTIONS: --no-env-file
+      XNLC_SKIP_LOCAL_DOTENV: '1'
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4
-
-      - uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
-
-      - name: Install Hutch
-        shell: pwsh
+      - name: Check target
         run: |
-          & ([scriptblock]::Create((Invoke-RestMethod https://hutch.blackboard.sh/hutch/install.ps1))) -Version 0.29.0
-          Add-Content -LiteralPath $env:GITHUB_PATH -Value (Join-Path $env:USERPROFILE ".hutch/bin")
-
-      - name: Configure git.xneon.org npm registry auth
-        env:
-          FORGEJO_NPM_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
-        shell: pwsh
+          if ('${{ runner.arch }}' -ne 'X64') { throw 'Windows x64 required' }
+          if ((bun --version) -ne '1.4.4') { throw 'Unexpected Bun version' }
+      - name: Install Hutch 0.29.0
         run: |
-          if ($env:FORGEJO_NPM_TOKEN) {
-            Add-Content -LiteralPath .npmrc -Value "//git.xneon.org/api/packages/MAINER4IK/npm/:_authToken=$env:FORGEJO_NPM_TOKEN"
+          $installer = Join-Path $env:RUNNER_TEMP 'hutch-install.ps1'
+          Invoke-WebRequest -Uri 'https://hutch.blackboard.sh/hutch/install.ps1' -OutFile $installer
+          if ((Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash -ne '185CC615D3D1B6E7156C104BEB902CCE3F4B9F35CB3D14DF047586AA432883E7') {
+            throw 'Hutch bootstrap checksum mismatch'
           }
-
+          & $installer -Version 0.29.0 -NoModifyPath
+          $bin = Join-Path $env:USERPROFILE '.hutch/bin'
+          if ((& (Join-Path $bin 'hutch.exe') --version) -ne '0.29.0') { throw 'Unexpected Hutch version' }
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value $bin
       - name: Install dependencies
         run: bun install --frozen-lockfile
-
-      - name: Build app
-        env:
-          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
-          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
-          DROPBOX_CLIENT_ID: ${{ secrets.DROPBOX_CLIENT_ID }}
-          YANDEX_CLIENT_ID: ${{ secrets.YANDEX_CLIENT_ID }}
-          ONEDRIVE_CLIENT_ID: ${{ secrets.ONEDRIVE_CLIENT_ID }}
-          ELY_CLIENT_ID: ${{ secrets.ELY_CLIENT_ID }}
-          ELY_CLIENT_SECRET: ${{ secrets.ELY_CLIENT_SECRET }}
-          ELY_DEVICE_CLIENT_ID: ${{ secrets.ELY_DEVICE_CLIENT_ID }}
-          XN_CLIENT_ID: ${{ secrets.XN_CLIENT_ID }}
-          XN_CLIENT_SECRET: ${{ secrets.XN_CLIENT_SECRET }}
-          MICROSOFT_CLIENT_ID: ${{ secrets.MICROSOFT_CLIENT_ID }}
-          MICROSOFT_DEVICE_CLIENT_ID: ${{ secrets.MICROSOFT_DEVICE_CLIENT_ID }}
+      - name: Build Windows x64
         run: bun run build
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v5
         with:
-          name: Xneon-Launcher-Windows
-          path: |
-            release-electrobun/stable/*
-            !release-electrobun/stable/*-Setup.zip
+          name: windows-x64-candidate
+          path: release-electrobun/stable/*
           if-no-files-found: error
           retention-days: 1
 
-  release:
+  validate:
     needs: build
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - uses: actions/download-artifact@v5
+        with:
+          name: windows-x64-candidate
+          path: candidate
+      - name: Validate artifact and prepare manual download
+        run: bun scripts/validate-pre-release.ts candidate verified
+      - uses: actions/upload-artifact@v5
+        with:
+          name: windows-x64-verified
+          path: verified/*
+          if-no-files-found: error
+          retention-days: 3
+
+  verify_previous:
+    if: github.repository == 'MAINER4IK/Xneon-Launcher-bun' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish_run_id != ''
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Verify source run and tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.publish_run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          root="repos/$GITHUB_REPOSITORY"
+          tag=$(gh api "$root/git/ref/tags/v1.0.8" --jq '.object.sha')
+          commit=$(gh api "$root/git/tags/$tag" --jq '.object.sha')
+          workflow=$(gh api "$root/actions/workflows/release.yml" --jq '.id')
+          gh api "$root/actions/runs/$RUN_ID" |
+            jq -e --arg sha "$commit" --argjson workflow "$workflow" '
+              .workflow_id == $workflow and .head_sha == $sha and
+              .head_branch == "v1.0.8" and .conclusion == "success"
+            ' >/dev/null
+          gh api "$root/actions/runs/$RUN_ID/jobs" |
+            jq -e 'any(.jobs[]; .name == "validate" and .conclusion == "success")' >/dev/null
+      - uses: actions/download-artifact@v5
+        with:
+          name: windows-x64-verified
+          path: verified
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.publish_run_id }}
+      - name: Recheck verified artifact
+        working-directory: verified
+        run: |
+          set -euo pipefail
+          test "$(find . -maxdepth 1 -type f | wc -l)" -eq 2
+          expected=$(sha256sum xneon-launcher-1.0.8-win-x64.exe)
+          test "$(cat SHA256SUMS.txt)" = "$expected"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: windows-x64-verified
+          path: |
+            verified/xneon-launcher-1.0.8-win-x64.exe
+            verified/SHA256SUMS.txt
+          if-no-files-found: error
+
+  release:
+    if: >-
+      ${{ always() && !cancelled() && github.repository == 'MAINER4IK/Xneon-Launcher-bun' &&
+          ((github.event_name == 'push' && github.ref == 'refs/tags/v1.0.8' && needs.validate.result == 'success') ||
+           (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && needs.verify_previous.result == 'success')) }}
+    needs: [validate, verify_previous]
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
-      # git cliff строит ченджлог по истории и тегам: без fetch-depth: 0 он не увидит
-      # предыдущий релиз и выдаст пустой результат.
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
       - uses: actions/download-artifact@v5
         with:
-          path: artifacts
-          merge-multiple: true
-
-      # Ченджлог через git cliff: только коммиты от предыдущего тега до текущего,
-      # без заголовка/подвала — он идёт телом релиза ниже.
-      - name: Generate changelog (git cliff)
-        id: git-cliff
-        uses: orhun/git-cliff-action@v4
-        with:
-          config: cliff.toml
-          args: --latest --strip all
-        env:
-          OUTPUT: CHANGELOG.md
-          GITHUB_REPO: ${{ github.repository }}
-
-      - name: Create GitHub Release
+          name: windows-x64-verified
+          path: verified
+      - name: Recheck downloadable bytes
+        working-directory: verified
+        run: sha256sum --check SHA256SUMS.txt
+      - name: Publish experimental pre-release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
-          body: ${{ steps.git-cliff.outputs.content }}
-          files: artifacts/*
+          tag_name: v1.0.8
+          name: 1.0.8
+          prerelease: true
+          make_latest: false
           fail_on_unmatched_files: true
+          body: |
+            Experimental Windows x64 build for controlled manual testing.
+            In-app updates are disabled. The installer is supplied for manual installation.
+            Windows VM lifecycle, signed manifests, downgrade protection and remaining security work are pending.
+            This build does not include private OAuth client credentials.
+          files: |
+            verified/xneon-launcher-1.0.8-win-x64.exe
+            verified/SHA256SUMS.txt
