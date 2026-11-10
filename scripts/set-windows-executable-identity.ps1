@@ -4,6 +4,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @"
 using System;
 using System.ComponentModel;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 public static class XneonVersionResource {
@@ -26,6 +27,10 @@ public static class XneonVersionResource {
     [DllImport("kernel32", CharSet = CharSet.Unicode, SetLastError = true)]
     static extern bool EndUpdateResource(IntPtr update, bool discard);
 
+    delegate bool ResourceLanguageCallback(IntPtr module, IntPtr type, IntPtr name, ushort language, IntPtr parameter);
+    [DllImport("kernel32", EntryPoint = "EnumResourceLanguagesW", SetLastError = true)]
+    static extern bool EnumResourceLanguages(IntPtr module, IntPtr type, IntPtr name, ResourceLanguageCallback callback, IntPtr parameter);
+
     public static void Copy(string source, string target) {
         var type = new IntPtr(16);
         var id = new IntPtr(1);
@@ -44,9 +49,27 @@ public static class XneonVersionResource {
             Marshal.Copy(pointer, data, 0, (int)size);
         } finally { FreeLibrary(module); }
 
+        var languages = new List<ushort>();
+        var targetModule = LoadLibraryEx(target, IntPtr.Zero, 2);
+        if (targetModule == IntPtr.Zero) throw new Win32Exception();
+        try {
+            ResourceLanguageCallback callback = (handle, resourceType, resourceName, language, parameter) => {
+                languages.Add(language);
+                return true;
+            };
+            EnumResourceLanguages(targetModule, type, id, callback, IntPtr.Zero);
+            GC.KeepAlive(callback);
+        } finally { FreeLibrary(targetModule); }
+
         var update = BeginUpdateResource(target, false);
         if (update == IntPtr.Zero) throw new Win32Exception();
-        // Existing Bun resources can use US English; launcher.exe may start without one.
+        foreach (var language in languages) {
+            if (!UpdateResource(update, type, id, language, null, 0)) {
+                var error = new Win32Exception();
+                EndUpdateResource(update, true);
+                throw error;
+            }
+        }
         if (!UpdateResource(update, type, id, 1033, data, (uint)data.Length)) {
             var error = new Win32Exception();
             EndUpdateResource(update, true);
@@ -76,20 +99,18 @@ using System.Reflection;
 [assembly: AssemblyInformationalVersion("$version")]
 "@ | Set-Content -LiteralPath $source -Encoding UTF8
     foreach ($file in $files) {
-        $resource = Join-Path $temporary $file
+        $resource = Join-Path $temporary "Xneon Launcher.dll"
         & $compiler /nologo /target:library "/out:$resource" $source
         if ($LASTEXITCODE -ne 0) { throw 'Version resource compilation failed' }
         $target = Join-Path $Wrapper "bin/$file"
         [XneonVersionResource]::Copy($resource, $target)
         $identity = [Diagnostics.FileVersionInfo]::GetVersionInfo($target)
-        if ($identity.FileDescription -ne 'Xneon Launcher' -or $identity.ProductName -ne 'Xneon Launcher') {
+        if ($identity.FileDescription -ne 'Xneon Launcher' -or $identity.ProductName -ne 'Xneon Launcher' -or $identity.InternalName -ne 'Xneon Launcher.dll' -or $identity.OriginalFilename -ne 'Xneon Launcher.dll') {
             throw "Incorrect Windows metadata for $file"
         }
     }
 } finally {
-    foreach ($file in $files) {
-        Remove-Item -LiteralPath (Join-Path $temporary $file) -ErrorAction SilentlyContinue
-    }
+    Remove-Item -LiteralPath (Join-Path $temporary "Xneon Launcher.dll") -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $source -ErrorAction SilentlyContinue
     [IO.Directory]::Delete($temporary)
 }
