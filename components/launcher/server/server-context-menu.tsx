@@ -60,7 +60,7 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
     if (exporting) return
     setExporting(true)
     try {
-      await window.electronAPI?.mcServerExportZip(server.id, server.name, Array.from(exportCategories))
+      await window.electrobunAPI?.mcServerExportZip(server.id, server.name, Array.from(exportCategories))
     } finally {
       setExporting(false)
       setExportDialogFor(false)
@@ -82,7 +82,7 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
           {isRunning ? t("servers.contextStop") : t("servers.contextStart")}
         </button>
         {!server.remote && <><button data-ui="server-server-context-menu-button-3" type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
-          onClick={() => { window.electronAPI?.mcServerOpenFolder(server.id); onClose() }}>
+          onClick={() => { window.electrobunAPI?.mcServerOpenFolder(server.id); onClose() }}>
           <IconFolder className="w-4 h-4 text-muted-foreground" />
           {t("servers.contextOpenFolder")}
         </button>

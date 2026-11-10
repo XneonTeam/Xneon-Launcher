@@ -30,7 +30,7 @@ export type ServerHistoryCommand =
   | { action: "commentPullRequest"; id: string; text: string }
   | { action: "review"; id: string; resolutions?: Record<string, "current" | "incoming"> }
 export interface ServerHistoryResponse {
-  presentation?: Record<string, { name: string; version?: string; author?: string; iconUrl?: string; source?: "local" | "modrinth" | "curseforge" }>
+  presentation?: Record<string, { name: string; version?: string; author?: string; iconUrl?: string; source?: "local" | "modrinth" | "curseforge"; projectId?: string }>
   view?: ServerHistoryView
   changes?: ServerHistoryChange[]
   fingerprint?: string

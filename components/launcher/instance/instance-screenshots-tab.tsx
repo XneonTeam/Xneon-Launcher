@@ -30,7 +30,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const list = await window.electronAPI?.listScreenshots(build.name)
+      const list = await window.electrobunAPI?.listScreenshots(build.name)
       setShots(list ?? [])
     } finally {
       setLoading(false)
@@ -49,7 +49,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
     let cancelled = false
     setLoadingFull(true)
     setFullImage(null)
-    window.electronAPI?.getScreenshot(build.name, shots[viewIndex]?.name ?? "").then(dataUrl => {
+    window.electrobunAPI?.getScreenshot(build.name, shots[viewIndex]?.name ?? "").then(dataUrl => {
       if (!cancelled) setFullImage(dataUrl)
     }).finally(() => {
       if (!cancelled) setLoadingFull(false)
@@ -71,7 +71,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
   const handleDelete = async (index: number) => {
     const shot = shots?.[index]
     if (!shot) return
-    const result = await window.electronAPI?.deleteScreenshot(build.name, shot.name)
+    const result = await window.electrobunAPI?.deleteScreenshot(build.name, shot.name)
     if (result?.success) {
       if (viewIndex === index) setViewIndex(null)
       await refresh()
@@ -86,7 +86,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
       setRenameFor(null)
       return
     }
-    const result = await window.electronAPI?.renameScreenshot(build.name, oldName, newName)
+    const result = await window.electrobunAPI?.renameScreenshot(build.name, oldName, newName)
     setRenameFor(null)
     if (result?.success) {
       await refresh()
@@ -214,7 +214,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
               </button>
               <button data-ui="instance-instance-screenshots-tab-button-7"
                 type="button"
-                onClick={() => window.electronAPI?.openPath(shots[viewIndex]?.path ?? "")}
+                onClick={() => window.electrobunAPI?.openPath(shots[viewIndex]?.path ?? "")}
                 className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 title={t("screenshots.openFolder")}
               >

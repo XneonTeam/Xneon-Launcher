@@ -29,9 +29,9 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "bun --bun run tsc -p tsconfig.json",
     "clean": "rm -rf lib",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "bun run build"
   },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

@@ -48,19 +48,19 @@ export function AddonsTab({ server, datapacks = false, canReload = false }: Addo
     attempt.cancelled = true
     activeAttempt.current = null
     setInstallingSlug(null)
-    if (datapacks) void window.electronAPI?.mcServerDatapacksCancel(server.id, attempt.id).catch(console.error)
+    if (datapacks) void window.electrobunAPI?.mcServerDatapacksCancel(server.id, attempt.id).catch(console.error)
   }
   useEffect(() => () => {
     const attempt = activeAttempt.current
     if (attempt) {
       attempt.cancelled = true
-      if (datapacks) void window.electronAPI?.mcServerDatapacksCancel(server.id, attempt.id).catch(console.error)
+      if (datapacks) void window.electrobunAPI?.mcServerDatapacksCancel(server.id, attempt.id).catch(console.error)
     }
   }, [server.id, datapacks])
   const installFile = async (name: string, url: string, requestId?: string) => {
     const result = datapacks
-      ? await window.electronAPI?.mcServerDatapacksInstall(server.id, name, { url, requestId })
-      : await window.electronAPI?.mcServerFsDownload(server.id, contentDir, url, name)
+      ? await window.electrobunAPI?.mcServerDatapacksInstall(server.id, name, { url, requestId })
+      : await window.electrobunAPI?.mcServerFsDownload(server.id, contentDir, url, name)
     if (!result?.success) throw new Error(result?.error || t("worlds.errors.datapackDownload"))
   }
 
@@ -120,15 +120,15 @@ export function AddonsTab({ server, datapacks = false, canReload = false }: Addo
     if (!contentDir) return
     try {
       if (datapacks) {
-        const result = await window.electronAPI?.mcServerDatapacksList(server.id)
+        const result = await window.electrobunAPI?.mcServerDatapacksList(server.id)
         setInstalledFiles(result?.entries ?? [])
-        const resolved = result ? await window.electronAPI?.mcServerResolveInstalled(server.id, result.directory) : []
+        const resolved = result ? await window.electrobunAPI?.mcServerResolveInstalled(server.id, result.directory) : []
         setResolvedPlugins(resolved ?? [])
         return
       }
-      const entries = await window.electronAPI?.mcServerFsList(server.id, contentDir)
+      const entries = await window.electrobunAPI?.mcServerFsList(server.id, contentDir)
       setInstalledFiles(entries ?? [])
-      const resolved = await window.electronAPI?.mcServerResolveInstalled(server.id, contentDir)
+      const resolved = await window.electrobunAPI?.mcServerResolveInstalled(server.id, contentDir)
       setResolvedPlugins(resolved ?? [])
     } catch (error) {
       setInstalledFiles([])
@@ -147,8 +147,8 @@ export function AddonsTab({ server, datapacks = false, canReload = false }: Addo
       try {
         if (source === "both") {
           const [mrCats, cfCats] = await Promise.all([
-            window.electronAPI?.modsModrinthCategories(),
-            window.electronAPI?.modsCurseforgeCategories(),
+            window.electrobunAPI?.modsModrinthCategories(),
+            window.electrobunAPI?.modsCurseforgeCategories(),
           ])
           const merged = [
             ...(mrCats ?? []).map(c => ({ ...c, source: "modrinth" as const })),
@@ -156,10 +156,10 @@ export function AddonsTab({ server, datapacks = false, canReload = false }: Addo
           ]
           if (merged.length > 0) setCategories(merged as ModCategory[])
         } else if (source === "curseforge") {
-          const cats = await window.electronAPI?.modsCurseforgeCategories()
+          const cats = await window.electrobunAPI?.modsCurseforgeCategories()
           if (cats) setCategories(cats.map(c => ({ ...c, source: "curseforge" as const })) as ModCategory[])
         } else {
-          const cats = await window.electronAPI?.modsModrinthCategories()
+          const cats = await window.electrobunAPI?.modsModrinthCategories()
           if (cats) setCategories(cats.map(c => ({ ...c, source: "modrinth" as const })) as ModCategory[])
         }
       } catch {}
@@ -211,7 +211,7 @@ export function AddonsTab({ server, datapacks = false, canReload = false }: Addo
     const key = `modrinth:server-search:${type}:${query ?? ""}:${version ?? ""}:${sort}:${page}:${(cats ?? []).join(",")}`
     return dataCache.getOrFetch(
       key,
-      () => window.electronAPI?.modsModrinthSearch(query, type, version, undefined, sort, page, cats) ?? null,
+      () => window.electrobunAPI?.modsModrinthSearch(query, type, version, undefined, sort, page, cats) ?? null,
       { ttl: MOD_SEARCH_CACHE_TTL, persist: true },
     )
   }, [])
@@ -223,7 +223,7 @@ export function AddonsTab({ server, datapacks = false, canReload = false }: Addo
     const key = `curseforge:server-search:${type}:${query ?? ""}:${version ?? ""}:${sort}:${page}:${(cats ?? []).join(",")}`
     return dataCache.getOrFetch(
       key,
-      () => window.electronAPI?.modsCurseforgeSearch(query, type, version, undefined, sort, page, cats) ?? null,
+      () => window.electrobunAPI?.modsCurseforgeSearch(query, type, version, undefined, sort, page, cats) ?? null,
       { ttl: MOD_SEARCH_CACHE_TTL, persist: true },
     )
   }, [])
@@ -304,7 +304,7 @@ export function AddonsTab({ server, datapacks = false, canReload = false }: Addo
       let fileName = `${project.slug || project.name}.${datapacks ? "zip" : "jar"}`
 
       if (project.source === "modrinth" && project.projectId) {
-        const versions = await window.electronAPI?.modsModrinthVersions(project.projectId!)
+        const versions = await window.electrobunAPI?.modsModrinthVersions(project.projectId!)
         if (versions && versions.length > 0) {
           const matching = versions.filter(compatible)
           const ver = matching[0]
@@ -316,13 +316,13 @@ export function AddonsTab({ server, datapacks = false, canReload = false }: Addo
       } else if (project.source === "curseforge" && project.modId && project.primaryFileId) {
         let fileId = project.primaryFileId
         if (datapacks) {
-          const details = await window.electronAPI?.modsCurseforgeDetails(project.modId)
+          const details = await window.electrobunAPI?.modsCurseforgeDetails(project.modId)
           const version = details?.versions.filter(compatible)[0]
           if (!version) throw new Error(t("worlds.errors.datapackNoVersion"))
           fileId = Number(version.id)
           fileName = datapackVersionFile(version)!.fileName
         }
-        const url = await window.electronAPI?.modsCurseforgeDownloadUrl(fileId, project.modId)
+        const url = await window.electrobunAPI?.modsCurseforgeDownloadUrl(fileId, project.modId)
         if (url) {
           downloadUrl = url
           if (!datapacks) fileName = project.primaryFileName || fileName
@@ -381,20 +381,20 @@ export function AddonsTab({ server, datapacks = false, canReload = false }: Addo
           reader.onerror = () => reject(reader.error)
           reader.readAsDataURL(file)
         })
-        const result = await window.electronAPI?.mcServerDatapacksInstall(server.id, file.name, { base64 })
+        const result = await window.electrobunAPI?.mcServerDatapacksInstall(server.id, file.name, { base64 })
         if (!result?.success) throw new Error(result?.error || t("worlds.errors.datapackInstall"))
         await loadInstalled()
         return
       }
       const arrayBuffer = await file.arrayBuffer()
       const content = new TextDecoder("latin1").decode(arrayBuffer)
-      await window.electronAPI?.mcServerFsWrite(server.id, `${contentDir}/${file.name}`, content)
+      await window.electrobunAPI?.mcServerFsWrite(server.id, `${contentDir}/${file.name}`, content)
       await loadInstalled()
     } catch (error) { reportError(error) }
   }, [contentDir, server.id, loadInstalled, datapacks])
 
   const openDetails = useCallback(async (project: ModSearchResult) => {
-    setModalTab("changelog")
+    setModalTab("description")
     setLoadingDetail(true)
     setSelectedDetails({
       id: project.id, slug: project.slug, name: project.name, summary: project.summary,
@@ -406,13 +406,13 @@ export function AddonsTab({ server, datapacks = false, canReload = false }: Addo
     try {
       if (project.source === "modrinth" && project.slug) {
         const [d, v] = await Promise.all([
-          dataCache.getOrFetch(`modrinth:details:${project.slug}`, () => window.electronAPI?.modsModrinthDetails(project.slug) ?? null, { immutable: true }),
-          dataCache.getOrFetch(`modrinth:versions:${project.slug}`, () => window.electronAPI?.modsModrinthVersions(project.projectId ?? project.slug) ?? null, { immutable: true }),
+          dataCache.getOrFetch(`modrinth:details:${project.slug}`, () => window.electrobunAPI?.modsModrinthDetails(project.slug) ?? null, { immutable: true }),
+          dataCache.getOrFetch(`modrinth:versions:${project.slug}`, () => window.electrobunAPI?.modsModrinthVersions(project.projectId ?? project.slug) ?? null, { immutable: true }),
         ])
         if (d) setSelectedDetails(d)
         setDetailVersions(v ?? [])
       } else if (project.source === "curseforge" && project.modId) {
-        const d = await dataCache.getOrFetch(`curseforge:details:${project.modId}`, () => window.electronAPI?.modsCurseforgeDetails(project.modId!) ?? null, { immutable: true })
+        const d = await dataCache.getOrFetch(`curseforge:details:${project.modId}`, () => window.electrobunAPI?.modsCurseforgeDetails(project.modId!) ?? null, { immutable: true })
         if (d) setSelectedDetails(d)
         setDetailVersions(d?.versions ?? [])
       }
@@ -617,7 +617,7 @@ export function AddonsTab({ server, datapacks = false, canReload = false }: Addo
             // У версий CurseForge прямой ссылки в ответе нет — запрашиваем её
             // отдельно, иначе кнопка «Скачать» молча ничего не делала.
             if (!downloadUrl && selectedDetails.source === "curseforge" && selectedDetails.modId) {
-              downloadUrl = await window.electronAPI?.modsCurseforgeDownloadUrl(Number(ver.id), selectedDetails.modId) ?? null
+              downloadUrl = await window.electrobunAPI?.modsCurseforgeDownloadUrl(Number(ver.id), selectedDetails.modId) ?? null
             }
             // Если автор запретил раздачу через API, файл всё равно лежит на
             // официальном CDN — собираем прямую ссылку по id (та же схема, что

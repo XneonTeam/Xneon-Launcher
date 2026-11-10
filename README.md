@@ -13,7 +13,7 @@
   <a href="https://github.com/XneonTeam/Xneon-Launcher/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License">
   </a>
-  <img src="https://img.shields.io/badge/Electron-43-47848F?style=flat-square&logo=electron" alt="Electron">
+  <img src="https://img.shields.io/badge/Electrobun-2-47848F?style=flat-square" alt="Electrobun">
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react" alt="React">
   <img src="https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite" alt="Vite">
   <br>
@@ -107,21 +107,21 @@
 
 ## Быстрый старт
 
-Нужны **Node.js 22+** и **pnpm 11+** (проект — pnpm-воркспейс, локальные пакеты подключаются через `workspace:*`).
+Добавьте **Bun 1.4.4** и **Hutch 0.29.0** в PATH. Для сборки установщика Windows x64 нужны Windows PowerShell и 64-битный компилятор C# из .NET Framework 4.x. Приложение использует WebView2.
 
 ```bash
 # Установка зависимостей
-pnpm install
+bun install --frozen-lockfile
 
-# Запуск в режиме разработки (Vite + Electron)
-pnpm run dev
+# Запуск в режиме разработки (Vite + Electrobun)
+bun run dev
 
 # Проверка типов
-pnpm run typecheck
+bun run typecheck
 
 # Production-сборка и упаковка в дистрибутив
-pnpm run build
-pnpm run package
+bun run build
+bun run package
 ```
 
 ## Импорт из других лаунчеров
@@ -160,8 +160,8 @@ Xneon автоматически обнаружит установленные �
 ### Архитектура
 
 - **Renderer** (`components/`, `src/`, `lib/`) — интерфейс на React 19 + Vite 8 + Tailwind 4
-- **Electron main** (`electron/main/`) — IPC-обработчики, база данных, запуск Minecraft в отдельном worker-процессе
-- **Пакеты** (`packages/`) — доменная логика, подключённая как pnpm-воркспейс:
+- **Backend** (`electrobun/main/`) — обработчики RPC, база данных, запуск Minecraft в отдельном worker-процессе
+- **Пакеты** (`packages/`) — доменная логика, подключённая как Bun-воркспейс:
   - `@xnlc/core` — движок запуска Minecraft и загрузчики
   - `@xnlc/mods` — клиенты Modrinth, CurseForge и FTB
   - `@xnlc/servers` — ядра серверов, установка и управление процессами
@@ -173,24 +173,26 @@ Xneon автоматически обнаружит установленные �
 ### Команды
 
 ```bash
-pnpm run dev           # Vite + Electron с hot-reload
-pnpm run dev:fast      # то же, без пересборки main перед стартом
-pnpm run build         # typecheck + сборка renderer и main
-pnpm run package       # electron-builder → release/
-pnpm run typecheck     # tsc --noEmit
-pnpm run sync:xnlc     # собрать и перелинковать пакеты @xnlc/*
+bun run dev           # сборка интерфейса и воркеров, запуск через Electrobun
+bun run build         # typecheck + сборка renderer и main
+bun run package       # Stable → release-electrobun/stable/
+bun run typecheck     # tsc --noEmit
+bun run test:desktop  # desktop-тесты под Bun 1.4.4
+bun run share:test    # тесты пакета Share и локального сервиса
 ```
 
+После сборки Windows x64 можно проверить изоляцию каналов через
+`bun scripts/test-channel-artifacts.mjs`.
+
 Переменные окружения: `XNLC_NEWS_URL` — адрес ленты новостей лаунчера (по умолчанию
-`https://launcher.xneon.org/news.json`), `ELECTRON_DEBUG_PORT` — порт
-remote-debugging для `scripts/launch-electron-dev.mjs` (по умолчанию не открывается).
+`https://launcher.xneon.org/news.json`).
 
 ### Структура
 
 ```
 components/launcher/   # UI-компоненты (страницы, модалки, настройки)
-electron/main/         # Electron main: IPC, БД, сборки, серверы, облако
-electron/preload.ts    # Preload-скрипт (IPC-мост)
+electrobun/main/         # Backend Electrobun: RPC, БД, сборки, серверы, облако
+electrobun/preload.ts    # API интерфейса поверх Electrobun RPC
 lib/                   # Общие утилиты renderer (кэш, форматирование, ссылки)
 packages/              # Локальные пакеты @xnlc/*
 src/                   # Точка входа renderer, i18n, контексты, хуки
@@ -206,7 +208,11 @@ docs/screenshots/      # Скриншоты для README и релизов
 | macOS | `~/Library/Application Support/xneonlauncher` |
 | Linux | `~/.xneonlauncher` |
 
-Внутри: `data.db` (SQLite, better-sqlite3), `cache/` (каталог Laby, каталог FTB), `intents/<сборка>/` — изолированный `.minecraft` каждой сборки, `mc-servers/<id>/` — локальные серверы, `skins/` — сохранённые скины.
+SQLite (`data.db`, драйвер `bun:sqlite`) хранит аккаунты и их данные авторизации, настройки (включая ИИ, MCP и метаданные тем), записи сборок, серверов, скинов, статистику, облачные конфигурации и историю чатов. Файлы остаются в исходных каталогах профиля: `themes/`, `theme-media/`, `minecraft/`, `intents/` (сборки, моды, миры и скриншоты), `mc-servers/`, `skins/` и `cache/`. Явные пути сборок и внешних ресурсов сохраняются.
+
+Перед первым открытием существующей базы для записи и при переходе между версиями схемы лаунчер проверяет файл и создаёт согласованный снимок `data.db.electrobun-v<исходная>-to-v<целевая>.bak`. Снимок включает подтверждённые записи из WAL и проверяется перед применением транзакции миграции. При ошибке проверки лаунчер показывает путь к базе и причину ошибки на экране запуска.
+
+Для локальной разработки `XNEON_BUN_DATA_DIR` явно задаёт корень тестового профиля. Относительный путь разрешается от рабочего каталога, а тестовый `data-location.json` хранится в указанном корне. Укажите отдельную папку с тестовыми данными. Автоматического импорта из тестового профиля в основной нет.
 
 ## Лицензия
 
@@ -218,6 +224,6 @@ docs/screenshots/      # Скриншоты для README и релизов
 - [X Minecraft Launcher](https://xmcl.app) — за отличный пример Electron-лаунчера
 - [Modrinth](https://modrinth.com), [CurseForge](https://curseforge.com) и [FTB](https://api.modpacks.ch) — за API для модов и модпаков
 - [skinview3d](https://github.com/bs-community/skinview3d) и [three.js](https://threejs.org) — за 3D-превью скинов
-- [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) — за быструю работу с базой данных
+- [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) — для тестовых баз прежнего формата
 - [shadcn/ui](https://ui.shadcn.com) — за компоненты интерфейса
 - [Tabler Icons](https://tabler-icons.io) — за иконки

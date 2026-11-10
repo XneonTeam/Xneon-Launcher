@@ -14,6 +14,7 @@ import { useHomeVersions } from "@/src/hooks/use-home-versions"
 import { useLoaderVersionOptions } from "@/src/hooks/use-loader-version-options"
 import { LoaderIcon } from "./instance/loader-icon"
 import { XnConnectLogo } from "./server/xn-connect-logo"
+import { SettingsSwitch } from "./settings/settings-switch"
 import { IconPickerModal } from "./instance/icon-picker-modal"
 import { EntityIcon } from "./instance/entity-icon"
 import type { JavaInstallation } from "./settings/types"
@@ -113,9 +114,9 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
     if (modloader !== "sponge") return
     let cancelled = false
     Promise.all([
-      window.electronAPI?.getSpongeSupported("spongevanilla") ?? Promise.resolve([]),
-      window.electronAPI?.getSpongeSupported("spongeforge") ?? Promise.resolve([]),
-      window.electronAPI?.getSpongeSupported("spongeneo") ?? Promise.resolve([]),
+      window.electrobunAPI?.getSpongeSupported("spongevanilla") ?? Promise.resolve([]),
+      window.electrobunAPI?.getSpongeSupported("spongeforge") ?? Promise.resolve([]),
+      window.electrobunAPI?.getSpongeSupported("spongeneo") ?? Promise.resolve([]),
     ]).then(([sv, sf, sn]) => {
       if (!cancelled) {
         setSpongeSupported({
@@ -176,7 +177,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
     setAuthing(false)
     setAuthUrl(null)
     setAuthDone(false)
-    window.electronAPI?.getSetting("javaPath").then(p => setGlobalJavaPath(p ?? ""))
+    window.electrobunAPI?.getSetting("javaPath").then(p => setGlobalJavaPath(p ?? ""))
   }, [open])
 
   useEffect(() => {
@@ -188,14 +189,14 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
   useEffect(() => {
     if (!open) return
     // Tunnel usage counter (used/max/plan) for the XN-Connect step
-    window.electronAPI?.xnConnectUsage().then(u => { if (u) setUsage(u) })
-    return window.electronAPI?.onXnConnectUsage((u) => setUsage(u))
+    window.electrobunAPI?.xnConnectUsage().then(u => { if (u) setUsage(u) })
+    return window.electrobunAPI?.onXnConnectUsage((u) => setUsage(u))
   }, [open])
 
   useEffect(() => {
     if (!open || step !== "java") return
     setLoadingJava(true)
-    void window.electronAPI?.detectJavaInstallations().then(installs => {
+    void window.electrobunAPI?.detectJavaInstallations().then(installs => {
       setDetectedJava(installs ?? [])
       setLoadingJava(false)
     }).catch(() => {
@@ -206,7 +207,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
 
   useEffect(() => {
     if (!open) return
-    return window.electronAPI?.onXnConnectAuthState((data) => {
+    return window.electrobunAPI?.onXnConnectAuthState((data) => {
       const s = data.state
       if (s.status === "auth_required" && "authUrl" in s && s.authUrl) {
         setAuthUrl(s.authUrl)
@@ -243,7 +244,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
       setAnalyzingJar(true)
       setJarError(null)
       try {
-        const info = await window.electronAPI?.mcServerAnalyzeJar(customJarPath)
+        const info = await window.electrobunAPI?.mcServerAnalyzeJar(customJarPath)
         if (info?.error) {
           setJarError(info.error)
           return
@@ -280,7 +281,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
     setAuthing(true)
     setAuthUrl(null)
     try {
-      const ok = await window.electronAPI?.xnConnectAuthorize()
+      const ok = await window.electrobunAPI?.xnConnectAuthorize()
       if (ok) setAuthDone(true)
     } finally {
       setAuthing(false)
@@ -419,13 +420,13 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                   type="file"
                   accept=".jar"
                   className="hidden"
-                  onChange={e => {
+                  onChange={async e => {
                     const file = e.target.files?.[0]
+                    e.currentTarget.value = ""
                     if (file) {
-                      const filePath = window.electronAPI?.getFilePath(file)
+                      const filePath = await window.electrobunAPI?.getFilePath(file)
                       if (filePath) setCustomJarPath(filePath)
                     }
-                    e.target.value = ""
                   }}
                 />
                 <button data-ui="server-create-dialog-button-4"
@@ -663,28 +664,11 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                   />
                 </div>
                 <div data-ui="server-create-dialog-div-54" className="space-y-2">
-                  <label data-ui="server-create-dialog-label-9" className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><IconShield className="size-3.5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("servers.create.pirateMode")}</label>
-                  <button data-ui="server-create-dialog-button-7"
-                    type="button"
-                    onClick={() => setOnlineMode(!onlineMode)}
-                    className={cn(
-                      "w-full flex items-center justify-between px-4 py-2.5 rounded-xl border transition-all",
-                      !onlineMode
-                        ? "border-primary bg-primary/10"
-                        : "border-border bg-muted/30"
-                    )}
-                  >
+                  <div data-ui="server-create-dialog-label-9" className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><IconShield className="size-3.5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("servers.create.pirateMode")}</div>
+                  <div className="flex items-center justify-between rounded-xl border border-border bg-muted/30 px-4 py-2.5">
                     <span data-ui="server-create-dialog-span-8" className="text-sm text-foreground">{!onlineMode ? t("servers.create.on") : t("servers.create.off")}</span>
-                    <div data-ui="server-create-dialog-div-55" className={cn(
-                      "relative w-9 h-5 rounded-full transition-colors",
-                      !onlineMode ? "bg-primary" : "bg-muted"
-                    )}>
-                      <div data-ui="server-create-dialog-div-56" className={cn(
-                        "absolute top-0.5 w-4 h-4 rounded-full bg-foreground transition-transform shadow-sm",
-                        !onlineMode ? "translate-x-4.5" : "translate-x-0.5"
-                      )} />
-                    </div>
-                  </button>
+                    <SettingsSwitch label={t("servers.create.pirateMode")} checked={!onlineMode} onCheckedChange={enabled => setOnlineMode(!enabled)} />
+                  </div>
                 </div>
               </div>
 
@@ -798,7 +782,7 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
 
                 <button data-ui="server-create-dialog-button-11"
                   onClick={async () => {
-                    const picked = await window.electronAPI?.pickJavaFile()
+                    const picked = await window.electrobunAPI?.pickJavaFile()
                     if (picked) setJavaPath(picked)
                   }}
                   className="w-full p-3 rounded-xl border border-dashed border-border bg-muted/20 hover:border-accent hover:bg-accent/5 transition-all flex items-center justify-between px-4 text-muted-foreground hover:text-accent"
@@ -868,26 +852,18 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                     <p data-ui="server-create-dialog-p-17" className="text-sm font-medium text-foreground">{t("servers.create.enableXnConnect")}</p>
                     <p data-ui="server-create-dialog-p-18" className="text-xs text-muted-foreground mt-0.5">{t("servers.create.enableXnConnectDesc")}</p>
                   </div>
-                  <button data-ui="server-create-dialog-button-12"
-                    type="button"
-                    onClick={() => {
-                      if (!relayEnabled && usage && usage.used >= usage.max) {
+                  <SettingsSwitch
+                    label={t("servers.create.xnConnect")}
+                    checked={relayEnabled}
+                    onCheckedChange={enabled => {
+                      if (enabled && usage && usage.used >= usage.max) {
                         setUsageLimitShown(true)
                         return
                       }
                       setUsageLimitShown(false)
-                      setRelayEnabled(!relayEnabled)
+                      setRelayEnabled(enabled)
                     }}
-                    className={cn(
-                      "relative w-11 h-6 rounded-full transition-colors",
-                      relayEnabled ? "bg-primary" : "bg-muted"
-                    )}
-                  >
-                    <div data-ui="server-create-dialog-div-92" className={cn(
-                      "absolute top-0.5 w-5 h-5 rounded-full bg-foreground transition-transform shadow-sm",
-                      relayEnabled ? "translate-x-5.5" : "translate-x-0.5"
-                    )} />
-                  </button>
+                  />
                 </div>
                 {relayEnabled && (
                   <div data-ui="server-create-dialog-div-93" className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
@@ -957,13 +933,13 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                     </p>
                     <div data-ui="server-create-dialog-div-99" className="flex gap-2 mt-2.5">
                       <button data-ui="server-create-dialog-button-15"
-                        onClick={() => window.electronAPI?.openExternal("https://connect.xneon.org/dashboard")}
+                        onClick={() => window.electrobunAPI?.openExternal("https://connect.xneon.org/dashboard")}
                         className="px-3 h-8 rounded-lg border border-border bg-muted/30 text-xs text-foreground hover:bg-muted/60 transition-colors"
                       >
                         <IconExternalLink className="mr-1.5 inline-block size-4" aria-hidden="true" />{t("servers.settings.xnconnect.openDashboard")}
                       </button>
                       <button data-ui="server-create-dialog-button-16"
-                        onClick={() => window.electronAPI?.openExternal("https://connect.xneon.org/subscribe")}
+                        onClick={() => window.electrobunAPI?.openExternal("https://connect.xneon.org/subscribe")}
                         className="px-3 h-8 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
                       >
                         <IconCreditCard className="mr-1.5 inline-block size-4" aria-hidden="true" />{t("servers.settings.xnconnect.subscribe")}

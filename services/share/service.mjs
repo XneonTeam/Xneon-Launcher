@@ -162,21 +162,12 @@ export function createShareService({ db, objectStore, schema, bootstrap = [], cl
       const id = parts[2], role = permission(id, user)
       if (parts.length === 3 && req.method === 'DELETE') {
         permission(id, user, true, true)
-        const objects = db.prepare('SELECT object_hash AS hash FROM object_references WHERE repository_id=? UNION SELECT object_hash AS hash FROM uploads WHERE repository_id=?').all(id, id)
         db.transaction(() => {
           for (const table of ['pull_request_comments', 'pull_requests', 'releases', 'tags', 'branches', 'object_references', 'uploads', 'invitations', 'events', 'repository_members', 'commits']) {
             db.prepare(`DELETE FROM ${table} WHERE repository_id=?`).run(id)
           }
           db.prepare('DELETE FROM repositories WHERE id=?').run(id)
           db.prepare('INSERT INTO deleted_publications VALUES (?,?)').run(id, clock())
-          db.prepare('DELETE FROM snapshots WHERE NOT EXISTS (SELECT 1 FROM commits WHERE snapshot_id=snapshots.id)').run()
-          db.prepare('DELETE FROM manifest_entries WHERE NOT EXISTS (SELECT 1 FROM snapshots WHERE manifest_hash=manifest_entries.manifest_hash)').run()
-          db.prepare('DELETE FROM manifests WHERE NOT EXISTS (SELECT 1 FROM snapshots WHERE manifest_hash=manifests.hash)').run()
-        }).immediate()
-        for (const { hash } of objects) db.transaction(() => {
-          if (db.prepare('SELECT 1 FROM object_references WHERE object_hash=? UNION SELECT 1 FROM uploads WHERE object_hash=? AND expires_at>?').get(hash, hash, clock())) return
-          try { objectStore.removeSync(hash) } catch (error) { if (error.code !== 'ENOENT') return }
-          db.prepare('DELETE FROM objects WHERE hash=?').run(hash)
         }).immediate()
         return send({ deleted: true })
       }
@@ -208,12 +199,14 @@ export function createShareService({ db, objectStore, schema, bootstrap = [], cl
         const data = parse((await body(req, 4096)).toString('utf8'))
         if (data.revoke) { db.prepare('UPDATE invitations SET revoked=1 WHERE token_hash=? AND repository_id=?').run(digest(data.revoke), id); return send({ revoked: true }) }
         if (!['viewer','editor'].includes(data.role) || !Number.isSafeInteger(data.maxUses) || data.maxUses < 1 || data.maxUses > 100) error('INVITE', 'Invalid invitation settings')
+        const expiresInDays = data.expiresInDays === undefined ? 7 : data.expiresInDays
+        if (!Number.isSafeInteger(expiresInDays) || expiresInDays < 1 || expiresInDays > 365) error('INVITE', 'Invitation duration must be between 1 and 365 days')
         if (data.recipient !== undefined) error('INVITE', 'Only invitation links are supported')
         let invite
         do { invite = invitationCode() } while (db.prepare('SELECT 1 FROM invitations WHERE token_hash=?').get(digest(invite)))
-        const expires = clock() + 7 * 86400000
+        const expires = clock() + expiresInDays * 86400000
         db.prepare('INSERT INTO invitations VALUES (?,?,?,?,?,0,?,0)').run(digest(invite), id, data.role, null, expires, data.maxUses)
-        return send({ token: invite, expiresAt: expires })
+        return send({ token: invite, expiresAt: expires, expiresInDays, maxUses: data.maxUses })
       }
       if (parts[3] === 'objects' && /^[a-f0-9]{64}$/.test(parts[4] ?? '')) {
         const object = parts[4]
@@ -259,6 +252,12 @@ export function createShareService({ db, objectStore, schema, bootstrap = [], cl
   }
   async function gc() {
     remoteServers.gc()
+    // История и файлы очищаются отдельно от пользовательского запроса.
+    db.transaction(() => {
+      db.prepare('DELETE FROM snapshots WHERE NOT EXISTS (SELECT 1 FROM commits WHERE snapshot_id=snapshots.id)').run()
+      db.prepare('DELETE FROM manifest_entries WHERE NOT EXISTS (SELECT 1 FROM snapshots WHERE manifest_hash=manifest_entries.manifest_hash)').run()
+      db.prepare('DELETE FROM manifests WHERE NOT EXISTS (SELECT 1 FROM snapshots WHERE manifest_hash=manifests.hash)').run()
+    }).immediate()
     // Льготный срок защищает незавершённые публикации; объекты с любыми ссылками сохраняются.
     const candidates = db.prepare('SELECT hash FROM objects WHERE created_at<? AND NOT EXISTS (SELECT 1 FROM object_references r WHERE r.object_hash=objects.hash) AND NOT EXISTS (SELECT 1 FROM uploads u WHERE u.object_hash=objects.hash AND u.expires_at>?)').all(clock() - 7 * 86400000, clock())
     let removed = 0

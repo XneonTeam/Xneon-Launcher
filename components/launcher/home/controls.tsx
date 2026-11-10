@@ -274,7 +274,7 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, available, onQui
   const buildName = selectedModLoader === "instance" ? selectedVersion : undefined
 
   const pingEntries = useCallback(async (list: QuickPlayEntry[]) => {
-    const ping = window.electronAPI?.pingServer
+    const ping = window.electrobunAPI?.pingServer
     const multiplayer = list.filter(entry => entry.type === "multiplayer")
     if (!ping || multiplayer.length === 0) return
 
@@ -312,14 +312,14 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, available, onQui
   }, [])
 
   const loadEntries = useCallback(async () => {
-    if (!available || !window.electronAPI) {
+    if (!available || !window.electrobunAPI) {
       setLoading(false)
       return
     }
     setLoading(true)
     try {
       if (buildName) {
-        const worldsList = await window.electronAPI.listWorlds(buildName)
+        const worldsList = await window.electrobunAPI.listWorlds(buildName)
         const sorted = [...worldsList].sort((a, b) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0))
         setWorlds(sorted.slice(0, QUICK_PLAY_MAX))
       } else {
@@ -327,8 +327,8 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, available, onQui
         // от предыдущей выбранной сборки.
         setWorlds([])
       }
-      const gameDir = buildName ? await window.electronAPI.getBuildIntentPath(buildName) : await window.electronAPI.getGameDir()
-      const list = await window.electronAPI.quickPlayList(buildName, gameDir)
+      const gameDir = buildName ? await window.electrobunAPI.getBuildIntentPath(buildName) : await window.electrobunAPI.getGameDir()
+      const list = await window.electrobunAPI.quickPlayList(buildName, gameDir)
       const mpEntries = list.filter(e => e.type === "multiplayer").slice(0, QUICK_PLAY_SERVERS)
       setEntries(mpEntries)
       void pingEntries(mpEntries)
@@ -485,7 +485,7 @@ function QuickPlaySection({ selectedModLoader, selectedVersion, available, onQui
 
 export const HomeControls = memo(function HomeControls(props: HomeControlsProps) {
   const { t } = useTranslation()
-  const handleOpenLauncherFolder = useCallback(() => { void window.electronAPI?.openLauncherFolder() }, [])
+  const handleOpenLauncherFolder = useCallback(() => { void window.electrobunAPI?.openLauncherFolder() }, [])
   const { gameReady } = useLaunchControls()
   const {
     accounts, account, accountComboOpen, setAccountComboOpen, setActiveAccount,

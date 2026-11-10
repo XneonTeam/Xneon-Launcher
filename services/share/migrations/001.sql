@@ -20,3 +20,10 @@ CREATE TABLE IF NOT EXISTS pull_request_comments (repository_id TEXT NOT NULL, p
 CREATE TABLE IF NOT EXISTS tags (repository_id TEXT NOT NULL REFERENCES repositories(id), name TEXT NOT NULL, commit_id TEXT NOT NULL REFERENCES commits(id), PRIMARY KEY(repository_id,name));
 CREATE TABLE IF NOT EXISTS releases (repository_id TEXT NOT NULL, tag TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(repository_id,tag));
 CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, repository_id TEXT NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, at INTEGER NOT NULL);
+
+CREATE INDEX IF NOT EXISTS commits_snapshot ON commits(snapshot_id);
+CREATE INDEX IF NOT EXISTS snapshots_manifest ON snapshots(manifest_hash);
+CREATE INDEX IF NOT EXISTS uploads_repository ON uploads(repository_id);
+CREATE INDEX IF NOT EXISTS uploads_object ON uploads(object_hash, expires_at);
+CREATE INDEX IF NOT EXISTS invitations_repository ON invitations(repository_id);
+CREATE INDEX IF NOT EXISTS events_repository ON events(repository_id);

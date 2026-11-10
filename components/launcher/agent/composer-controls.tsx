@@ -35,11 +35,11 @@ export function ComposerControls({ mode, model, disabled, running, onFile, onMod
   useEffect(() => { if (disabled || running) setPopup(null) }, [disabled, running])
   const close = () => setPopup(null)
   const loadModels = async () => {
-    if (!window.electronAPI || loading) return
+    if (!window.electrobunAPI || loading) return
     const request = ++generation.current
     setLoading(true); setError("")
     try {
-      const result = await window.electronAPI.getAiConfig().then(config => ({ success: true, models: (config.models || [{ id: config.model }]).map(item => item.id), error: "" }))
+      const result = await window.electrobunAPI.getAiConfig().then(config => ({ success: true, models: (config.models || [{ id: config.model }]).map(item => item.id), error: "" }))
       if (request !== generation.current) return
       if (!result.success) throw new Error(result.error || t("ai.modelsError"))
       setModels([...new Set(result.models || [])])

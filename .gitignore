@@ -3,7 +3,7 @@ node_modules/
 
 # Build output
 dist/
-dist-electron/
+dist-electrobun/
 release/
 
 # Local sub-package build outputs (TS build artifacts, can be regenerated)
@@ -29,12 +29,11 @@ desktop.ini
 .env*.local
 .env.production
 .env.development
-electron/main/cloud/credentials.generated.ts
+electrobun/main/cloud/credentials.generated.ts
 
 # Cache
 .codex/
 .xneonlauncher/
-.pnpm-store/
 *.tsbuildinfo
 tsconfig.tsbuildinfo
 
@@ -113,6 +112,7 @@ restart-*.js
 ssh-check.js
 test-*.js
 test-*.mjs
+!/scripts/test-channel-artifacts.mjs
 # Скачанные артефакты (authlib-injector.jar и прочие) в репозиторий не кладём.
 *.jar
 update-*.js
@@ -139,3 +139,13 @@ __pycache__/
 /services/share/.env
 /.wrangler/
 /services/share/.wrangler/
+
+# Electrobun
+/.hutch/
+/dist-workers/
+/build-electrobun/
+/release-electrobun/
+/.migration-node-modules/
+/.cottontail-tmp/
+
+/dist-electrobun-tests/

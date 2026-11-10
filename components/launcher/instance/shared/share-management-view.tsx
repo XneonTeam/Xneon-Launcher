@@ -14,11 +14,11 @@ export function ShareManagementView({ shared, branch, busy, memberCount, onMembe
       </div>
       {!shared && <p className="mt-3 border-t border-border/50 pt-3 text-xs leading-relaxed text-muted-foreground">{contentHelp ?? t("share.launcher.contentHelp")}</p>}
     </div>}
-    <div className="divide-y divide-border/50 rounded-2xl border border-border/70 bg-card/40 px-4">
-      <button type="button" disabled={busy} className="flex w-full items-center gap-3 py-3 text-left text-sm transition-colors hover:text-primary disabled:opacity-50" onClick={onMembers}>
+    <div className="divide-y divide-border/50 overflow-hidden rounded-2xl border border-border/70 bg-card/40">
+      <button type="button" disabled={busy} className="flex w-full items-center gap-3 rounded-t-2xl px-4 py-3 text-left text-sm transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary disabled:opacity-50" onClick={onMembers}>
         <IconUsers className="h-4 w-4 text-primary" /><span className="flex-1">{t("share.tabs.members")}</span><span className="text-xs tabular-nums text-muted-foreground">{memberCount}</span><IconChevronRight className="h-3.5 w-3.5 text-primary" />
       </button>
-      <button type="button" disabled={busy} className="flex w-full items-center gap-3 py-3 text-left text-sm transition-colors hover:text-primary disabled:opacity-50" onClick={onVersions}>
+      <button type="button" disabled={busy} className="flex w-full items-center gap-3 rounded-b-2xl px-4 py-3 text-left text-sm transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary disabled:opacity-50" onClick={onVersions}>
         <IconGitBranch className="h-4 w-4 text-primary" /><span className="flex-1">{t("share.launcher.versions")}</span><IconChevronRight className="h-3.5 w-3.5 text-primary" />
       </button>
     </div>

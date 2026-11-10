@@ -194,7 +194,7 @@ export async function themePaletteFromImage(
   if (target.startsWith("data:") || target.startsWith("xnl-theme:")) {
     dataUrl = target
   } else {
-    dataUrl = (await window.electronAPI?.readThemeMedia(target, MAX_SOURCE_BYTES)) ?? null
+    dataUrl = (await window.electrobunAPI?.readThemeMedia(target, MAX_SOURCE_BYTES)) ?? null
   }
   if (!dataUrl) return null
 

@@ -12,7 +12,7 @@ export function useMemoryOptions() {
     const resolve = async () => {
       let memoryMb = FALLBACK_MAX_MB
       try {
-        const bytes = await window.electronAPI?.getTotalMemory()
+        const bytes = await window.electrobunAPI?.getTotalMemory()
         if (typeof bytes === "number" && bytes > 0) {
           memoryMb = Math.floor(bytes / 1024 / 1024)
         } else {

@@ -5,12 +5,14 @@ import { MAX_FILE_BYTES, fail } from "./manifest.js"
 
 export class ShareApiClient implements ShareTransport {
   private base: string
+  private signal?: AbortSignal
   constructor(base: string, private token: () => Promise<string>, private fetcher: FetchPort) {
     const url = new URL(base)
     if (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))) fail("API_URL", "Share API requires HTTPS or loopback")
     if (url.username || url.password || url.search || url.hash) fail("API_URL", "Invalid API base URL")
     this.base = base.replace(/\/$/, "")
   }
+  setSignal(signal?: AbortSignal): void { this.signal = signal }
   private async request(path: string, method = "GET", body?: unknown, onUpload?: (transferred: number) => void): Promise<Response> {
     const headers: Record<string, string> = { Authorization: `Bearer ${await this.token()}` }
     if (body && !(body instanceof Uint8Array)) headers["Content-Type"] = "application/json"
@@ -25,7 +27,9 @@ export class ShareApiClient implements ShareTransport {
         },
       })
     }
-    const init: RequestInit & { duplex?: "half" } = { method, headers, body: requestBody, redirect: "error", signal: AbortSignal.timeout(120000), ...(onUpload && body instanceof Uint8Array ? { duplex: "half" as const } : {}) }
+    const timeout = AbortSignal.timeout(120000)
+    const signal = this.signal ? AbortSignal.any([timeout, this.signal]) : timeout
+    const init: RequestInit & { duplex?: "half" } = { method, headers, body: requestBody, redirect: "error", signal, ...(onUpload && body instanceof Uint8Array ? { duplex: "half" as const } : {}) }
     const response = await this.fetcher(this.base + "/v1" + path, init)
     if (!response.ok) {
       const error = await response.json().catch(() => ({})) as { error?: { code?: string; message?: string } }

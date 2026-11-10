@@ -6,7 +6,7 @@
     <title>Xneon Launcher</title>
     <script>
       try {
-        var cachedTheme = window.electronAPI && window.electronAPI.startupThemeSnapshot;
+        var cachedTheme = window.xneonStartupTheme;
         if (cachedTheme) {
           var startupTheme = JSON.parse(cachedTheme);
           document.documentElement.classList.toggle('dark', startupTheme.mode === 'dark');

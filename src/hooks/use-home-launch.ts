@@ -18,10 +18,10 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
   const { launchInstance } = useBuildLaunch({ account })
 
   const launchVanilla = useCallback(async (quickPlay?: QuickPlayLaunchRequest) => {
-    if (!account || !window.electronAPI) return
+    if (!account || !window.electrobunAPI) return
 
     const usesSkinInjector = account.type === "xnskins" || account.type === "elyby"
-    const normalizedJavaPath = normalizeJavaPath(await window.electronAPI.getSetting("javaPath"))
+    const normalizedJavaPath = normalizeJavaPath(await window.electrobunAPI.getSetting("javaPath"))
     const settings = await loadLaunchSettings()
     const { width, height } = resolveLaunchDimensions(settings)
     const server = settings.savedAutoJoinServer === "true" ? (settings.savedServer ?? "") : ""
@@ -45,7 +45,7 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
     clearLogs()
     addLog(`[Запуск] Minecraft ${selectedVersion} · ${formatLoaderLabel(selectedModLoader, selectedLoaderVersion)} · ${account.username}`)
 
-    const result = await window.electronAPI.launchMinecraft({
+    const result = await window.electrobunAPI.launchMinecraft({
       version: selectedVersion,
       modLoader: selectedModLoader as import("@xnlc/types").MinecraftLaunchParams["modLoader"],
       ...(selectedLoaderVersion ? { loaderVersion: selectedLoaderVersion } : {}),
@@ -67,9 +67,9 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
     if (result.success) {
       setIsRunning(true)
       saveLastLaunchedPrefs(selectedVersion, selectedModLoader, selectedLoaderVersion)
-      const afterLaunch = await window.electronAPI?.getSetting("afterLaunch")
-      if (afterLaunch === "minimize") window.electronAPI?.minimize()
-      else if (afterLaunch === "close") window.electronAPI?.close()
+      const afterLaunch = await window.electrobunAPI?.getSetting("afterLaunch")
+      if (afterLaunch === "minimize") window.electrobunAPI?.minimize()
+      else if (afterLaunch === "close") window.electrobunAPI?.close()
     }
   }, [account, addLog, clearLogs, patchLaunchUi, selectedLoaderVersion, selectedModLoader, selectedVersion, setIsRunning, t])
 
@@ -78,7 +78,7 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
    * Возвращает null, если выбор некорректен (ошибка уже показана в UI).
    */
   const resolveLaunchTarget = useCallback(async (): Promise<{ build?: BuildLaunchParams } | null> => {
-    if (!window.electronAPI) return null
+    if (!window.electrobunAPI) return null
 
     if (selectedModLoader === "instance") {
       if (!selectedVersion) {
@@ -88,7 +88,7 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
       }
 
       // Лёгкий список: для запуска нужны версия/загрузчик/путь, а не контент сборки.
-      const builds = (await window.electronAPI?.loadBuildsLight()) ?? []
+      const builds = (await window.electrobunAPI?.loadBuildsLight()) ?? []
       const build = builds.find((item) => item.name === selectedVersion)
       if (!build) {
         patchLaunchUi({ isLaunching: false, phase: "idle", progress: null, status: "Сборка не найдена" })
@@ -113,12 +113,12 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
       // Процесс стартует раньше, чем открывается окно игры: пока игра не
       // подтвердила готовность, кнопка — «Запускается...», и клик ничего не гасит.
       if (!gameReady) return
-      return await window.electronAPI?.stopMinecraft()
+      return await window.electrobunAPI?.stopMinecraft()
     }
     // Пока идёт запуск/установка, повторный клик ничего не делает: раньше он
     // уходил во второй launch и два JVM дрались за одну папку инстанса.
     if (launchUi.isLaunching) return
-    if (!account || !window.electronAPI) return
+    if (!account || !window.electrobunAPI) return
 
     const target = await resolveLaunchTarget()
     if (!target) return
@@ -137,7 +137,7 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
    * Java/инъекторов — отличается только адресом подключения.
    */
   const handleQuickPlay = useCallback(async (type: "singleplayer" | "multiplayer", address: string) => {
-    if (isRunning || launchUi.isLaunching || !account || !window.electronAPI) return
+    if (isRunning || launchUi.isLaunching || !account || !window.electrobunAPI) return
 
     const target = await resolveLaunchTarget()
     if (!target) return

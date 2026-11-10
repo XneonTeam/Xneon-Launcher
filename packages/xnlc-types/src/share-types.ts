@@ -7,11 +7,11 @@ export interface ShareContentPresentation {
   author?: string
   iconUrl?: string
   source?: "local" | "modrinth" | "curseforge"
+  projectId?: string
 }
 export interface ShareLink { repositoryId: string; branch: string; applied: string; latest: string; userId: string; role: "owner" | "editor" | "viewer"; status: "not_ready" | "up_to_date" | "update_available" | "applying" | "error" }
 export type ShareRequest = (
   | { action: "session" }
-  | { action: "pendingInvitation" }
   | { action: "checkLaunch"; buildId: string }
   | { action: "invitationPreview"; invitation: string }
   | { action: "installInvite"; previewId: string; name: string }
@@ -27,7 +27,7 @@ export type ShareRequest = (
   | { action: "connect"; buildId: string; repositoryId: string; branch: string }
   | { action: "command"; buildId: string; command: RepositoryCommand }
   | { action: "createBranch"; buildId: string; name: string; source: string; independent: boolean }
-  | { action: "invite"; buildId: string; role: "viewer" | "editor"; maxUses: number }
+  | { action: "invite"; buildId: string; role: "viewer" | "editor"; maxUses: number; expiresInDays: number }
   | { action: "acceptInvite"; token: string }
   | { action: "stash"; buildId: string; previewId: string; name: string }
   | { action: "restore"; buildId: string; commit: string; message: string }
@@ -40,12 +40,11 @@ export interface ShareResponse {
   contentPresentation?: Record<string, ShareContentPresentation>
   eligible?: boolean; username?: string; memberNames?: Record<string, string>
   serviceAvailable?: boolean; signedIn?: boolean; wrongAccount?: boolean; buildId?: string
-  pendingInvitation?: string
   invitationPreview?: { owner: string; manifest: Manifest; repositoryId: string; branch: string; head: string }
   configured?: boolean; user?: string; link?: ShareLink; repository?: Repository
   scan?: ScanResult; preview?: UpdatePreview; previewId?: string
   uploadedBytes?: number; reusedBytes?: number; metadataBytes?: number
-  invitation?: { token: string; expiresAt: number }; repositoryId?: string
+  invitation?: { token: string; expiresAt: number; expiresInDays: number; maxUses: number }; repositoryId?: string
   merge?: { current: string; incoming: string; base: string; manifest: Manifest; conflicts: import("@xnlc/share").MergeConflict[]; diff: import("@xnlc/share").DiffEntry[] }
 }
 export type ShareResult = { success: true; data: ShareResponse } | { success: false; error: { code: string; message: string; filePath?: string } }

@@ -1,3 +1,4 @@
+import { launcherAssetUrl } from "@/lib/launcher-assets"
 import { ModalCloseButton } from "@/components/ui/modal-close-button"
 import { IconX as LauncherCloseIcon } from "@tabler/icons-react"
 import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
@@ -35,7 +36,7 @@ function CloudFileIcon({ icon, name }: { icon?: string; name: string }) {
     }
   }, [icon])
   if (!icon) return null
-  return <img data-ui="cloud-cloud-file-browser-img-1" data-component="cloud-file-icon" src={icon} alt="" className="w-full h-full object-cover rounded" onError={handleError} />
+  return <img data-ui="cloud-cloud-file-browser-img-1" data-component="cloud-file-icon" src={launcherAssetUrl(icon)} alt="" className="w-full h-full object-cover rounded" onError={handleError} />
 }
 
 function BuildThumbIcon({ icon }: { icon?: string }) {
@@ -47,7 +48,7 @@ function BuildThumbIcon({ icon }: { icon?: string }) {
       </div>
     )
   }
-  return <img data-ui="cloud-cloud-file-browser-img-2" data-component="build-thumb-icon" src={icon} alt="" className="w-full h-full object-cover" onError={() => setFailed(true)} />
+  return <img data-ui="cloud-cloud-file-browser-img-2" data-component="build-thumb-icon" src={launcherAssetUrl(icon)} alt="" className="w-full h-full object-cover" onError={() => setFailed(true)} />
 }
 
 function FileIcon({ file, currentPath, localBuilds, localServers }: {
@@ -97,7 +98,7 @@ function FileIcon({ file, currentPath, localBuilds, localServers }: {
   return <IconFile className="w-5 h-5 text-muted-foreground/60" />
 }
 
-const api = typeof window !== "undefined" ? window.electronAPI : undefined
+const api = typeof window !== "undefined" ? window.electrobunAPI : undefined
 
 type CloudFile = {
   id: string
@@ -141,7 +142,7 @@ export function CloudFileBrowser({ providerId, pendingThemeId, onPendingThemeHan
   const [pendingDelete, setPendingDelete] = useState<CloudFile | null>(null)
 
   useEffect(() => {
-    return window.electronAPI?.onCloudUploadProgress?.((data) => {
+    return window.electrobunAPI?.onCloudUploadProgress?.((data) => {
       setUploadProgress(prev => ({ ...prev, [data.id]: { percent: data.percent, stage: data.stage } }))
     })
   }, [])
@@ -179,10 +180,10 @@ export function CloudFileBrowser({ providerId, pendingThemeId, onPendingThemeHan
   }, [pendingThemeId, onPendingThemeHandled])
 
   useEffect(() => {
-    window.electronAPI?.loadBuildsLight().then(builds => {
+    window.electrobunAPI?.loadBuildsLight().then(builds => {
       setLocalBuilds(builds.map(b => ({ id: b.id, name: b.name, icon: b.icon, version: b.version, modLoader: b.modLoader })))
     }).catch(() => {})
-    window.electronAPI?.mcServerList().then(servers => {
+    window.electrobunAPI?.mcServerList().then(servers => {
       setLocalServers(servers.map(s => ({ id: s.id, name: s.name, icon: s.icon, version: s.gameVersion, modloader: s.modloader })))
     }).catch(() => {})
   }, [])
@@ -237,7 +238,7 @@ export function CloudFileBrowser({ providerId, pendingThemeId, onPendingThemeHan
           if (!result.success) showAlert(result.error || t("cloud.errorDownload"))
         }
       } else {
-        showAlert(t("cloud.onlyElectron"))
+        showAlert(t("cloud.desktopOnly"))
       }
     }
   }, [providerId, currentPath, addAccount, showAlert, importingTheme, t])
@@ -605,14 +606,14 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
   // первый дублировал этот же запрос при монтировании (uploading === null).
   useEffect(() => {
     if (uploading !== null) return
-    void window.electronAPI?.getSetting("customThemes").then(raw => setLocalThemes(parseThemes(raw))).catch(() => setLocalThemes([]))
-    window.electronAPI?.loadBuildsLight().then(builds => {
+    void window.electrobunAPI?.getSetting("customThemes").then(raw => setLocalThemes(parseThemes(raw))).catch(() => setLocalThemes([]))
+    window.electrobunAPI?.loadBuildsLight().then(builds => {
       setLocalBuilds(builds.map(b => ({ id: b.id, name: b.name, icon: b.icon, version: b.version, modLoader: b.modLoader })))
     })
-    window.electronAPI?.mcServerList().then(servers => {
+    window.electrobunAPI?.mcServerList().then(servers => {
       setLocalServers(servers.map(s => ({ id: s.id, name: s.name, icon: s.icon, version: s.gameVersion, modloader: s.modloader })))
     })
-    window.electronAPI?.loadAccounts().then(accs => {
+    window.electrobunAPI?.loadAccounts().then(accs => {
       setLocalAccounts(accs.map(a => ({ id: a.id, type: a.type, username: a.username, uuid: a.uuid })))
     })
   }, [uploading])
@@ -699,7 +700,7 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
                     <div data-ui="cloud-cloud-file-browser-div-36" key={s.id} className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary/50 transition-all">
                       <div data-ui="cloud-cloud-file-browser-div-37" className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-primary/10">
                         {s.icon ? (
-                          <img data-ui="cloud-cloud-file-browser-img-3" src={s.icon} alt="" className="w-full h-full object-cover" />
+                          <img data-ui="cloud-cloud-file-browser-img-3" src={launcherAssetUrl(s.icon)} alt="" className="w-full h-full object-cover" />
                         ) : (
                           <IconServer className="w-6 h-6 text-primary" strokeWidth={1.75} />
                         )}
@@ -767,7 +768,7 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
                   return (
                     <div data-ui="cloud-cloud-file-browser-div-44" key={a.id} className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:border-primary/50 transition-all">
                       <div data-ui="cloud-cloud-file-browser-div-45" className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ backgroundColor: `color-mix(in srgb, ${info.color} 12.5%, transparent)` }}>
-                        <CachedAvatar src={getAvatarUrl(a, a.username)} alt="" className="w-full h-full object-cover" />
+                        <CachedAvatar src={launcherAssetUrl(getAvatarUrl(a, a.username))} alt="" className="w-full h-full object-cover" />
                       </div>
                       <div data-ui="cloud-cloud-file-browser-div-46" className="flex-1 min-w-0">
                         <span data-ui="cloud-cloud-file-browser-span-21" className="font-medium text-foreground truncate block">{a.username}</span>

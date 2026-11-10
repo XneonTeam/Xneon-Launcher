@@ -20,7 +20,7 @@ export default function AgentProjectDetailsModal({ project, onClose }: { project
   }))
   useEffect(() => {
     let cancelled = false
-    const api = window.electronAPI
+    const api = window.electrobunAPI
     if (!api) { setLoading(false); setError(t("agent.projectLoadError")); return }
     void loadAgentProjectDetails(api, project).then(result => {
       if (!cancelled) { setDetails(result.details); setVersions(result.versions) }

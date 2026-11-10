@@ -54,8 +54,30 @@ function AgentQuestion({ item }: { item: AgentTimelineItem }) {
   const [answer, setAnswer] = useState("")
   const [localSubmitted, setLocalSubmitted] = useState("")
   const [expanded, setExpanded] = useState(false)
+  const [optionEntities, setOptionEntities] = useState<Record<string, { icon?: string; kind: "build" | "server"; loader?: string }>>({})
   let question = "", options: string[] = [], submitted = ""
   try { const input = JSON.parse(item.input || "{}"); question = String(input.question || ""); options = Array.isArray(input.options) ? input.options.filter((value: unknown) => typeof value === "string").slice(0, 6) : [] } catch { /* Старый чат может содержать некорректный вызов. */ }
+  const optionsKey = options.join("\u0000")
+  useEffect(() => {
+    let active = true
+    const labels = optionsKey.split("\u0000").filter(Boolean)
+    if (!labels.length || !window.electrobunAPI) { setOptionEntities({}); return }
+    void Promise.all([window.electrobunAPI.loadBuildsLight(), window.electrobunAPI.mcServerList()]).then(([builds, servers]) => {
+      if (!active) return
+      const normalize = (value: string) => value.trim().toLocaleLowerCase()
+      const matchesLabel = (name: string, key: string) => key === normalize(name) || key.startsWith(`${normalize(name)} (`)
+      const entities: typeof optionEntities = {}
+      for (const label of labels) {
+        const key = normalize(label)
+        const build = builds.find(candidate => matchesLabel(candidate.name, key))
+        if (build) { entities[key] = { icon: build.icon, kind: "build", loader: build.modLoader }; continue }
+        const server = servers.find(candidate => matchesLabel(candidate.name, key))
+        if (server) entities[key] = { icon: server.icon, kind: "server", loader: server.modloader }
+      }
+      setOptionEntities(entities)
+    }).catch(() => { if (active) setOptionEntities({}) })
+    return () => { active = false }
+  }, [optionsKey])
   try { submitted = String(JSON.parse(item.output || "{}").answer || "") } catch { /* Ответ ещё не получен. */ }
   submitted = localSubmitted || submitted
   const pending = state.questionId === item.id && !state.stopping
@@ -78,7 +100,7 @@ function AgentQuestion({ item }: { item: AgentTimelineItem }) {
       {resolved && <button type="button" className="agent-question-collapse" aria-expanded={true} aria-label={t("agent.question.collapse")} onClick={() => setExpanded(false)}><IconChevronUp size={15} /></button>}
     </div>
     <h3>{question}</h3>
-    {!!options.length && <div className="agent-question-options">{options.map(option => <button key={option} type="button" disabled={!pending} aria-pressed={submitted === option} onClick={() => submitAnswer(option)}><span className="agent-question-option-text">{option}</span>{submitted === option && <IconCheck size={15} className="shrink-0" aria-hidden="true" />}</button>)}</div>}
+    {!!options.length && <div className="agent-question-options">{options.map(option => { const entity = optionEntities[option.trim().toLocaleLowerCase()]; return <button key={option} type="button" disabled={!pending} aria-pressed={submitted === option} onClick={() => submitAnswer(option)}>{entity && <AgentEntityIcon src={entity.icon} kind={entity.kind} loader={entity.loader} name={option} className={cn("agent-question-option-icon", entity.icon && "agent-question-option-icon-custom")} />}<span className="agent-question-option-text">{option}</span>{submitted === option && <IconCheck size={15} className="shrink-0" aria-hidden="true" />}</button> })}</div>}
     {pending ? <form onSubmit={event => { event.preventDefault(); submitAnswer(answer) }} className="agent-question-form"><input value={answer} onChange={event => setAnswer(event.target.value)} maxLength={6000} aria-label={t("agent.question.answer")} placeholder={t("agent.question.answer")} /><button type="submit" className="agent-primary" disabled={!answer.trim()}>{t("agent.question.submit")}</button></form> : <p className="agent-question-result">{submitted || t("agent.question.cancelled")}</p>}
   </section>
 }
@@ -135,7 +157,7 @@ function ToolActionDescription({ item, project }: { item: AgentTimelineItem; pro
   useEffect(() => {
     let cancelled = false
     setBuild(undefined)
-    if (buildId) void window.electronAPI?.loadBuildsLight().then(builds => { if (!cancelled) setBuild(builds.find(candidate => candidate.id === buildId)) }).catch(() => {})
+    if (buildId) void window.electrobunAPI?.loadBuildsLight().then(builds => { if (!cancelled) setBuild(builds.find(candidate => candidate.id === buildId)) }).catch(() => {})
     return () => { cancelled = true }
   }, [buildId])
   return <div className="space-y-2 text-xs">
@@ -145,6 +167,26 @@ function ToolActionDescription({ item, project }: { item: AgentTimelineItem; pro
     </div>}
     {item.toolName === "install_content" && <p className="text-muted-foreground">{t("agent.action.installDescription")}</p>}
     {build && <p className="text-muted-foreground">{t("agent.action.targetBuild", { name: build.name, version: build.version })}</p>}
+  </div>
+}
+
+function AgentCodeBlock({ children, technical = false, className }: { children?: React.ReactNode; technical?: boolean; className?: string }) {
+  const { t } = useTranslation()
+  const codeRef = useRef<HTMLPreElement>(null)
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle")
+  useEffect(() => {
+    if (copyState === "idle") return
+    const timer = setTimeout(() => setCopyState("idle"), 2000)
+    return () => clearTimeout(timer)
+  }, [copyState])
+  const label = t(copyState === "copied" ? "ai.copied" : copyState === "error" ? technical ? "agent.copyTextFailed" : "agent.copyCodeFailed" : technical ? "ai.copyResult" : "agent.copyCode")
+  return <div className="agent-code-block">
+    <pre ref={codeRef} className={className}>{children}</pre>
+    <button type="button" className="agent-code-copy" title={label} aria-label={label} onClick={() => {
+      const value = codeRef.current?.textContent ?? ""
+      void navigator.clipboard.writeText(technical ? value : value.replace(/\n$/, "")).then(() => setCopyState("copied"), () => setCopyState("error"))
+    }}>{copyState === "copied" ? <IconCheck size={15} aria-hidden="true" /> : copyState === "error" ? <IconAlertTriangle size={15} aria-hidden="true" /> : <IconCopy size={15} aria-hidden="true" />}</button>
+    <span className="sr-only" role="status">{copyState === "idle" ? "" : label}</span>
   </div>
 }
 
@@ -164,15 +206,15 @@ function TimelineItem({ item, timeline, onPreview, pending, context = [], projec
       </summary>
       <div className="mt-3 space-y-2">
         <ToolActionDescription item={item} project={project} />
-        <details><summary className="cursor-pointer text-[11px] text-muted-foreground">{t("agent.action.technicalDetails")}</summary><pre className="agent-json mt-2">{(() => { try { return JSON.stringify(JSON.parse(item.input || "{}"), null, 2) } catch { return item.input } })()}</pre></details>
-        {item.output && <details><summary className="cursor-pointer text-xs text-muted-foreground">{t("agent.result")}</summary><pre className="agent-json mt-2">{item.output}</pre></details>}
+        <details><summary className="cursor-pointer text-[11px] text-muted-foreground">{t("agent.action.technicalDetails")}</summary><AgentCodeBlock technical className="agent-json">{(() => { try { return JSON.stringify(JSON.parse(item.input || "{}"), null, 2) } catch { return item.input } })()}</AgentCodeBlock></details>
+        {item.output && <details><summary className="cursor-pointer text-xs text-muted-foreground">{t("agent.result")}</summary><AgentCodeBlock technical className="agent-json">{item.output}</AgentCodeBlock></details>}
       </div>
       {item.status === "done" && <ProjectResults item={item} />}
     </details>
     {item.status === "running" && <AgentToolProgress itemId={item.id} />}
     {pending && <div className="mt-3 flex items-center justify-end gap-2 border-t border-border/50 pt-3">
-      <button className="agent-secondary" type="button" onClick={() => answerAgentApproval(false)}>{t("agent.deny")}</button>
-      <button className="agent-primary" type="button" onClick={() => answerAgentApproval(true)}><IconCheck size={14} />{t("agent.allow")}</button>
+      <button className="agent-secondary" type="button" onClick={() => answerAgentApproval(item.id, false)}><IconX size={14} aria-hidden="true" />{t("agent.deny")}</button>
+      <button className="agent-primary" type="button" onClick={() => answerAgentApproval(item.id, true)}><IconCheck size={14} />{t("agent.allow")}</button>
     </div>}
   </div>
   if (item.kind === "error" || item.kind === "stopped") return <div className={cn("text-xs px-3 py-2 rounded-lg", item.kind === "error" ? "bg-destructive/10 text-destructive" : "text-muted-foreground")} role={item.kind === "error" ? "alert" : undefined}>{item.text}</div>
@@ -186,8 +228,9 @@ function TimelineItem({ item, timeline, onPreview, pending, context = [], projec
       {item.kind === "assistant" && !projects.length && !!context.length && <AttachedProjectCards attachments={context} />}
       {item.kind === "user" ? <div className="agent-user-bubble whitespace-pre-wrap">{item.text}</div> : <div className="agent-markdown">
         {item.text ? sections.map((section, index) => <div key={index} className="agent-project-section">{section.project && <ProjectCards projects={[section.project]} limit={1} />}<ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml components={{
-          a: ({ href, children }) => <a href={href} onClick={event => { event.preventDefault(); if (href && /^https?:\/\//.test(href)) void window.electronAPI?.openExternal(href) }}>{children}</a>,
+          a: ({ href, children }) => <a href={href} onClick={event => { event.preventDefault(); if (href && /^https?:\/\//.test(href)) void window.electrobunAPI?.openExternal(href) }}>{children}</a>,
           img: ({ alt }) => cardNames.length ? null : <span className="text-muted-foreground">{alt}</span>,
+          pre: ({ children }) => <AgentCodeBlock>{children}</AgentCodeBlock>,
         }}>{section.text}</ReactMarkdown></div>) : <span className="inline-flex items-center gap-2 text-muted-foreground"><IconLoader2 size={15} className="animate-spin" />{t("agent.thinking")}</span>}
         {item.status === "running" && item.text && <span className="agent-cursor" />}
       </div>}
@@ -314,11 +357,11 @@ function ProjectLookupGroup({ items, timeline }: { items: AgentTimelineItem[]; t
       {items.filter(item => !["get_project", "search_projects"].includes(item.toolName || "") && !(projects.length && ["get_project_versions", "install_content"].includes(item.toolName || "") && item.status === "done")).map(item => <details key={item.id} className="rounded-lg border border-border/60 px-3 py-2">
         <summary className="cursor-pointer text-xs text-muted-foreground">{requestLabel(item)}</summary>
         <div className="mt-2 space-y-2">
-          <pre className="agent-json">{(() => { try { return JSON.stringify(JSON.parse(item.input || "{}"), null, 2) } catch { return item.input || "" } })()}</pre>
-          {item.output && <pre className="agent-json">{item.output}</pre>}
+          <AgentCodeBlock technical className="agent-json">{(() => { try { return JSON.stringify(JSON.parse(item.input || "{}"), null, 2) } catch { return item.input || "" } })()}</AgentCodeBlock>
+          {item.output && <AgentCodeBlock technical className="agent-json">{item.output}</AgentCodeBlock>}
         </div>
       </details>)}
-      {items.filter(item => item.status === "error" || item.status === "denied").map(item => <pre key={item.id} className="agent-json">{item.output || item.text}</pre>)}
+      {items.filter(item => item.status === "error" || item.status === "denied").map(item => <AgentCodeBlock key={item.id} technical className="agent-json">{item.output || item.text}</AgentCodeBlock>)}
     </div>
   </details>
 }
@@ -346,7 +389,7 @@ function ProjectCards({ projects, limit = 4 }: { projects: Array<Record<string, 
       <div className="agent-project-heading">
         <AgentEntityIcon src={typeof project.iconUrl === "string" ? project.iconUrl : undefined} kind={kind} name={String(project.name)} className="agent-project-image" />
         <div className="min-w-0 flex-1"><button type="button" className="agent-project-title" title={t("builds.details")} disabled={!remote} onClick={() => setDetails(project)}>{String(project.name)}</button><span className="agent-project-provider"><SourceMark source={String(project.source)} />{project.source === "modrinth" ? "Modrinth" : project.source === "curseforge" ? "CurseForge" : project.source === "ftb" ? "FTB" : t(`agent.attach.${kind}`)}{typeof downloads === "number" && <span><IconDownload size={12} />{new Intl.NumberFormat(i18n.language, { notation: "compact" }).format(downloads)}</span>}</span></div>
-        {url && <button type="button" className="agent-icon-button" title={t("agent.openProject")} aria-label={t("agent.openProject")} onClick={() => void window.electronAPI?.openExternal(url)}><IconExternalLink size={16} /></button>}
+        {url && <button type="button" className="agent-icon-button" title={t("agent.openProject")} aria-label={t("agent.openProject")} onClick={() => void window.electrobunAPI?.openExternal(url)}><IconExternalLink size={16} /></button>}
       </div>
       {(typeof project.version === "string" || typeof project.buildName === "string") && <div className="agent-project-tags">{typeof project.version === "string" && <span>{project.version}</span>}{typeof project.buildName === "string" && <span>{project.buildName}</span>}</div>}
       {typeof project.summary === "string" && project.summary.trim() && <p className="agent-project-summary">{project.summary}</p>}
@@ -365,8 +408,8 @@ function AttachedProjectCards({ attachments }: { attachments: AgentAttachment[] 
     setProjects(local)
     void Promise.all(local.map(async project => {
       const id = project.source === "curseforge" ? project.modId || project.projectId : project.projectId
-      if (!window.electronAPI || !id || !["modrinth", "curseforge", "ftb"].includes(String(project.source))) return project
-      try { return { ...project, ...await getAgentProject(window.electronAPI, String(project.source), String(id)), version: project.version, buildName: project.buildName, attachmentId: project.attachmentId, contentType: project.contentType } } catch { return project }
+      if (!window.electrobunAPI || !id || !["modrinth", "curseforge", "ftb"].includes(String(project.source))) return project
+      try { return { ...project, ...await getAgentProject(window.electrobunAPI, String(project.source), String(id)), version: project.version, buildName: project.buildName, attachmentId: project.attachmentId, contentType: project.contentType } } catch { return project }
     })).then(items => { if (!cancelled) setProjects(items) })
     return () => { cancelled = true }
   }, [attachments])
@@ -396,7 +439,7 @@ export function AgentPage() {
   const composer = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {
     void initializeAgent()
-    const refresh = () => { void refreshAgentConfig().then(value => { if (value) setConfig({ ready: !!value.apiKey || value.protocol === "ollama" || /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(value.endpoint), model: value.model }) }).catch(error => setLocalError(String(error))) }
+    const refresh = () => { void refreshAgentConfig().then(value => { if (value) setConfig({ ready: value.hasApiKey || value.protocol === "ollama" || /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(value.endpoint), model: value.model }) }).catch(error => setLocalError(String(error))) }
     refresh()
     const pickFiles = () => fileInput.current?.click()
     window.addEventListener("launcher:agent-pick-files", pickFiles)
@@ -436,7 +479,7 @@ export function AgentPage() {
   }
   const settings = () => window.dispatchEvent(new CustomEvent("launcher:open-settings", { detail: { tab: "ai" } }))
   const selectModel = async (model: string) => {
-    const api = window.electronAPI
+    const api = window.electrobunAPI
     if (!api) throw new Error("Electron API unavailable")
     setModelSaving(true)
     try {
@@ -454,7 +497,7 @@ export function AgentPage() {
       if (files.length) { event.preventDefault(); event.stopPropagation(); guarded(() => readFiles(files)); return }
       if (!event.clipboardData.getData("text/plain")) {
         guarded(async () => {
-          const copied = await window.electronAPI?.agentClipboardFiles?.() ?? []
+          const copied = await window.electrobunAPI?.agentClipboardFiles?.() ?? []
           const files = await Promise.all(copied.map(async file => { const blob = await (await fetch(file.dataUrl)).blob(); return new File([blob], file.name, { type: blob.type }) }))
           if (files.length) await readFiles(files)
         })
@@ -507,7 +550,7 @@ export function AgentPage() {
     </div>
     <input ref={fileInput} className="hidden" type="file" multiple accept=".log,.txt,.md,.json,.json5,.toml,.cfg,.conf,.properties,.yaml,.yml,.png,.jpg,.jpeg,.webp,.gif" onChange={event => { if (event.target.files) void readFiles(event.target.files); event.target.value = "" }} />
     {previewProject && <Suspense fallback={null}><AgentProjectDetailsModal project={previewProject} onClose={() => setPreviewProject(null)} /></Suspense>}
-    <Dialog open={!!preview} onOpenChange={open => { if (!open) setPreview(null) }}><DialogContent className="max-w-2xl" data-window="agent-attachment-preview"><DialogHeader><DialogTitle>{preview?.name}</DialogTitle><DialogDescription>{t("agent.previewDescription")}</DialogDescription></DialogHeader>{preview?.kind === "project" && preview.projectId && <ProjectResults item={{ id: preview.id, kind: "tool", text: "", toolName: "get_project", output: preview.content }} />}{preview?.imageUrl && <img src={preview.imageUrl} alt={preview.name} className="max-h-[50vh] w-full rounded-xl object-contain" />}<details open={!preview?.projectId && !preview?.imageUrl}><summary className="cursor-pointer text-xs text-muted-foreground">{t("agent.result")}</summary><pre className="agent-json max-h-[40vh] mt-2">{preview?.content}</pre></details></DialogContent></Dialog>
+    <Dialog open={!!preview} onOpenChange={open => { if (!open) setPreview(null) }}><DialogContent className="max-w-2xl" data-window="agent-attachment-preview"><DialogHeader><DialogTitle>{preview?.name}</DialogTitle><DialogDescription>{t("agent.previewDescription")}</DialogDescription></DialogHeader>{preview?.kind === "project" && preview.projectId && <ProjectResults item={{ id: preview.id, kind: "tool", text: "", toolName: "get_project", output: preview.content }} />}{preview?.imageUrl && <img src={preview.imageUrl} alt={preview.name} className="max-h-[50vh] w-full rounded-xl object-contain" />}<details open={!preview?.projectId && !preview?.imageUrl}><summary className="cursor-pointer text-xs text-muted-foreground">{t("agent.result")}</summary><AgentCodeBlock technical className="agent-json max-h-[40vh]">{preview?.content}</AgentCodeBlock></details></DialogContent></Dialog>
     <ActionConfirmDialog
       open={!!deleteId}
       onClose={() => setDeleteId(null)}

@@ -1,3 +1,4 @@
+import { launcherAssetUrl } from "@/lib/launcher-assets"
 import type { Theme, ThemeBackground, ThemeColorKey, ThemeFont, ThemeGlow } from "./types"
 
 /**
@@ -408,6 +409,7 @@ function applyBackgroundVars(root: HTMLElement, background: Theme["background"])
  * так пользователь может переопределить что угодно, и это снимается одной строкой.
  */
 function applyCustomCss(css: string | undefined) {
+  css = css?.replace(/xnl-theme:\/\/asset\/[a-f0-9]{64}\.[a-z0-9]+/gi, launcherAssetUrl)
   const content = typeof css === "string" ? css.trim() : ""
   if (!content) return
   // База темы идёт перед пользовательским CSS, чтобы обычный :root мог
@@ -445,11 +447,11 @@ function applyCustomCss(css: string | undefined) {
 
 /** Кеш только цветов splash, без CSS, медиа и обращения к БД при следующем старте. */
 function persistStartupTheme(root: HTMLElement) {
-  if (typeof window === "undefined" || typeof getComputedStyle !== "function" || !window.electronAPI?.setSetting) return
+  if (typeof window === "undefined" || typeof getComputedStyle !== "function" || !window.electrobunAPI?.setSetting) return
   const styles = getComputedStyle(root)
   const colors = Object.fromEntries(["--background", "--foreground", "--primary", "--accent", "--border", "--muted-foreground", "--glow-primary", "--glow-accent"].map(key => [key, styles.getPropertyValue(key).trim()]))
   const snapshot = JSON.stringify({ mode: root.classList.contains("dark") ? "dark" : "light", colors })
-  void window.electronAPI.setSetting("_startupThemeSnapshot", snapshot).catch(() => {})
+  void window.electrobunAPI.setSetting("_startupThemeSnapshot", snapshot).catch(() => {})
 }
 
 /**

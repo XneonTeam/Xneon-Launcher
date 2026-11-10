@@ -1,7 +1,7 @@
-import type { ElectronAPI, ModLoaderFilter, ModSearchResponse } from "@xnlc/types"
+import type { ElectrobunAPI, ModLoaderFilter, ModSearchResponse } from "@xnlc/types"
 
 /** Покрытие версий в выборке популярных модпаков, а не статистика игроков. */
-export async function recommendMinecraftVersions(api: ElectronAPI, query = "", loader?: ModLoaderFilter) {
+export async function recommendMinecraftVersions(api: ElectrobunAPI, query = "", loader?: ModLoaderFilter) {
   const releases = (await api.getMinecraftVersions()).filter(item => item.type === "release" && item.stable)
   if (!releases.length) throw new Error("Minecraft release list is unavailable")
   const available = new Set(releases.map(item => item.version))

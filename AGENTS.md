@@ -8,50 +8,48 @@ Code, function names, API, terminal commands, and error messages — keep in the
 
 ## Project
 
-Xneon Launcher — Electron + React 19 Minecraft launcher.
+Xneon Launcher — Electrobun + React 19 Minecraft launcher.
 - **Renderer** (React): `components/`, `src/`, `lib/`
-- **Electron main**: `electron/main/`, `electron/preload.ts`
-- **Local packages** (`packages/`): `@xnlc/core`, `@xnlc/mods`, `@xnlc/types`, `@xnlc/nbt`, `@xnlc/servers`, `@xnlc/skins` — linked via pnpm workspace (`workspace:*` in `package.json`). Registry fallback at `https://git.xneon.org/api/packages/MAINER4IK/npm/`
+- **Electrobun main**: `electrobun/main/`, `electrobun/preload.ts`
+- **Local packages** (`packages/`): `@xnlc/core`, `@xnlc/mods`, `@xnlc/types`, `@xnlc/nbt`, `@xnlc/servers`, `@xnlc/skins` — linked via Bun workspace (`workspace:*` in `package.json`). Registry fallback at `https://git.xneon.org/api/packages/MAINER4IK/npm/`
 - **IPC contracts**: `packages/xnlc-types/src/ipc-contracts.ts` — single source of truth for channel signatures
 - **Launch params**: `packages/xnlc-types/src/launch-types.ts` — `MinecraftLaunchParams`
 
 ## Commands
 
 ```bash
-pnpm run dev          # Vite + Electron dev (hot-reload)
-pnpm run build        # production build (vite + tsc)
-pnpm run package      # build + electron-builder → release/
-pnpm run typecheck    # tsc --noEmit (renderer tsconfig)
-pnpm run sync:xnlc    # build & symlink local @xnlc/* packages into node_modules
+bun run dev          # Vite + Electrobun dev
+bun run build        # production build (vite + tsc)
+bun run package      # Hutch → release-electrobun/
+bun run typecheck    # tsc --noEmit (renderer tsconfig)
+bun run test:desktop # desktop-тесты под Bun 1.4.4
 ```
 
-No lint scripts exist. `pnpm run build` is the primary verification.
+Отдельной команды lint нет. Основная проверка — `bun run build`.
 
 ## Environment variables
 
 - `XNLC_NEWS_URL` — адрес ленты новостей лаунчера (`fetch:launcher-news`). По умолчанию `https://launcher.xneon.org/news.json`.
-- `ELECTRON_DEBUG_PORT` — открывает `--remote-debugging-port` в `scripts/launch-electron-dev.mjs`; без него порт не открывается (иначе второй инстанс падал на занятом 9222).
-- `PNPM_SCRIPT` — путь к `pnpm.mjs` для `scripts/sync-local-xnlc.mjs` (в репозитории абсолютных путей машины нет).
 
 ## Build pipeline
 
-`predev`, `prebuild`, `prepackage` all run `scripts/gen-credentials.mjs` which reads `.env` and generates `electron/main/cloud/credentials.generated.ts`. This file is gitignored — without `.env`, cloud features won't compile, but the build still succeeds (empty creds).
+`prepare:desktop` запускает `scripts/gen-credentials.mjs`, который читает `.env` и генерирует игнорируемый Git файл `electrobun/main/cloud/credentials.generated.ts`. Без `.env` сборка проходит с пустыми значениями для облачных провайдеров.
 
 `build:renderer` = `vite build` → `dist/`
-`build:electron` = `tsc -p tsconfig.node.json` → `dist-electron/`
+`build:workers` = Bun → `dist-workers/`
 
 ## Key architecture notes
 
-- **Vite `base: './'`** — all asset paths in HTML must be relative (`./path`), not absolute (`/path`). Absolute paths break in the packaged Electron app (asar).
+- **Vite `base: './'`** — all asset paths in HTML must be relative (`./path`), not absolute (`/path`). В пакете Electrobun HTML загружается по views://launcher/index.html.
 - **`@/*` alias** resolves to project root: `@/src` → `src/`, `@/components` → `components/`.
-- **IPC**: preload exposes `window.electronAPI` methods. Types in `src/electron.d.ts`. Adding a new IPC channel requires updating: handler in `electron/main/`, preload bridge in `electron/preload.ts`, type in `src/electron.d.ts`, and contract in `packages/xnlc-types/src/ipc-contracts.ts`.
+- **IPC**: preload exposes `window.electrobunAPI` methods. Types in `src/electrobun.d.ts`. Adding a new IPC channel requires updating: handler in `electrobun/main/`, preload bridge in `electrobun/preload.ts`, type in `src/electrobun.d.ts`, and contract in `packages/xnlc-types/src/ipc-contracts.ts`.
 - **Server data**: `servers.dat` uses raw NBT via `@xnlc/nbt` — **no** `{ compressed: "gzip" }` on read/write. `level.dat` **requires** `{ compressed: "gzip" }`.
-- **Minecraft launch**: `electron/main/minecraft-launch-worker.ts` runs in a forked worker. `--quickPlayMultiplayer ip:port` is used for server connect (not `--server`/`--port`).
-- **Хранение Minecraft**: обычный запуск использует `<data>/minecraft/`, сборка — собственный `intents/<имя>/`. `assets/`, `libraries/`, `versions/`, `runtime/` инстанса читаются и устанавливаются в его каталог; автоматической подмены общим Minecraft нет. Новые сборки не создают junction. `electron/main/shared-game-cache.ts` объединяет старый общий кэш с `<data>/minecraft/`, а старые управляемые ссылки инстансов заменяет независимыми копиями. Пользовательские файлы импортов сохраняются.
+- **Minecraft launch**: `electrobun/main/minecraft-launch-worker.ts` runs in a forked worker. `--quickPlayMultiplayer ip:port` is used for server connect (not `--server`/`--port`).
+- **Хранение Minecraft**: обычный запуск использует `<data>/minecraft/`, сборка — собственный `intents/<имя>/`. `assets/`, `libraries/`, `versions/`, `runtime/` инстанса читаются и устанавливаются в его каталог; автоматической подмены общим Minecraft нет. Новые сборки не создают junction. `electrobun/main/shared-game-cache.ts` объединяет старый общий кэш с `<data>/minecraft/`, а старые управляемые ссылки инстансов заменяет независимыми копиями. Пользовательские файлы импортов сохраняются.
 - **Build intent dirs**: `getBuildIntentPath(buildName)` → `%APPDATA%/xneonlauncher/intents/<sanitized-name>/` — isolates each build's `.minecraft`.
 - **Accounts**: `src/AccountsContext.tsx` provides `activeAccount`, `accounts`.
 - **Темы (пресеты и свои)**: домен живёт в `components/launcher/settings/theme-model.ts` — 20 CSS-переменных (`ThemeColorKey` ↔ `THEME_CSS_VARS`), палитра в hex, `DARK_PALETTE` (hex-эквивалент `.dark` из `src/index.css`) как стартовая точка новой темы, свечение `--glow-*` задаётся цветом и альфой и пишется 8-значным hex. `applyTheme` имеет две ветки: тема **без** `palette` (встроенный пресет) меняет только акценты и кольца, тема **с** `palette` переопределяет свои переменные, а остальные снимает — поэтому переход «своя тема → пресет» обязан убирать `--background` и прочие поверхности. Хранение и реестр — `theme-store.ts`: `useThemeRegistry()` отдаёт «пресеты + мои темы», применяет выбранную тему и пишет её в `settings:set("theme")`, а свои темы — в `settings:set("customThemes")` (JSON; CSS связанных тем и соседние .css.json живут в <userData>/themes, файлы обновляют снимок в БД, localStorage ускоряет холодный старт); `settings:updated` подхватывается на лету, поэтому тему можно создать и из main (например агентом). UI: `settings/settings-themes.tsx` («Готовые темы» + «Мои темы»), `settings/theme-editor.tsx` (все цвета + свечение, живой предпросмотр), `settings/theme-preview.tsx` (миниатюра окна). Добавляя новый цвет, правьте четыре места: `ThemeColorKey` в `types.ts`, `THEME_CSS_VARS` и `DARK_PALETTE` в `theme-model.ts`, группу в `THEME_COLOR_GROUPS` и ключ `themeEditor.vars.<key>` в локалях. Декоративные свечения фона (шапка лаунчера, панель Laby, превью скина) берут цвет из `--ambient-primary`/`--ambient-accent` (их выставляет `applyTheme`, дефолт — в `src/index.css`), а прозрачность задают сами через `color-mix`, поэтому один акцент в трёх местах светится с разной силой.
-- **Скины**: одна вкладка `skins` в сайдбаре с двумя разделами — «Избранное» (`components/launcher/skins/`, локальные сохранённые скины) и «Библиотека» (`components/launcher/laby/`, каталог Laby). **Вся доменная логика — в `@xnlc/skins`** (`packages/xnlc-skins`): каталог Laby, «Избранное», локальные скины, надевание/сброс, кэш. Пакет не знает ни про Electron, ни про SQLite, ни про файлы: выход наружу описан портами (`SkinDiskCache`, `SkinLibraryStore`, `SkinAccountPort`), а их реализации — в `electron/main/skins/ports.ts` (база, `<data>/skins`, `<data>/cache/laby`, токены Microsoft). IPC-слой — тонкий: `electron/main/skins/index.ts` только приводит аргументы и зовёт домен. Каталог ходит в открытый API Laby (`https://laby.net/api/v3`, без ключа) через main, т.к. CORS-заголовков API не отдаёт; текстуры и рендеры, наоборот, берутся напрямую с CDN (`texture.laby.net/{hash}.png`, `laby.net/api/v3/render/skin/{hash}.png`) — они разрешают кросс-доменные запросы. Типы, пересекающие границу main ↔ renderer, лежат в `packages/xnlc-types/src/laby.ts` (только типы, без логики). Связь «Избранного» с каталогом — `skin_library.sourceId` (`laby:<hash>`; старые записи Craftdex — голый UUID), помощники — `labySourceId`/`labyHashFromSourceId`.
+- **Скины**: одна вкладка `skins` в сайдбаре с двумя разделами — «Избранное» (`components/launcher/skins/`, локальные сохранённые скины) и «Библиотека» (`components/launcher/laby/`, каталог Laby). **Вся доменная логика — в `@xnlc/skins`** (`packages/xnlc-skins`): каталог Laby, «Избранное», локальные скины, надевание/сброс, кэш. Пакет не знает ни про Electron, ни про SQLite, ни про файлы: выход наружу описан портами (`SkinDiskCache`, `SkinLibraryStore`, `SkinAccountPort`), а их реализации — в `electrobun/main/skins/ports.ts` (база, `<data>/skins`, `<data>/cache/laby`, токены Microsoft). IPC-слой — тонкий: `electrobun/main/skins/index.ts` только приводит аргументы и зовёт домен. Каталог ходит в открытый API Laby (`https://laby.net/api/v3`, без ключа) через main, т.к. CORS-заголовков API не отдаёт; текстуры и рендеры, наоборот, берутся напрямую с CDN (`texture.laby.net/{hash}.png`, `laby.net/api/v3/render/skin/{hash}.png`) — они разрешают кросс-доменные запросы. Типы, пересекающие границу main ↔ renderer, лежат в `packages/xnlc-types/src/laby.ts` (только типы, без логики). Связь «Избранного» с каталогом — `skin_library.sourceId` (`laby:<hash>`; старые записи Craftdex — голый UUID), помощники — `labySourceId`/`labyHashFromSourceId`.
 - **Laby: что защищено и чем заменено.** `/api/v3/user/{uuid}/profile` и `/api/search/names/{query}` отдают **428 Challenge token required** — обходить нельзя. Поэтому: ник ищется точно через `/user/{ник}/uniqueId`, история скинов берётся из `/user/{uuid}/textures` (не защищён, данные те же), аватарка — `laby.net/texture/profile/head/{uuid}.png?size=64`. Поиска по частичному нику нет и подсказок при вводе быть не может.
 - **Laby: фильтр по тегу и конец выдачи.** Каталог (`/search/textures/skin`) серверную фильтрацию не поддерживает: `search`/`tag`/`tags`/`tag_ids`/`q` игнорируются. Единственная настоящая серверная фильтрация — `/api/v3/tag/{id}?size&offset`: она отдаёт скины одного тега и листается до конца (у крупных тегов это десятки страниц). Поэтому `LabyCatalog.page()` работает в трёх режимах: без фильтров — лента, ровно один тег без текста — серверная пагинация по тегу, несколько тегов и/или текст — локальный фильтр по пулу (до 5 страниц × 100, пулы ограничены 16 штуками по LRU). Ответ `/tag/{id}` беднее поиска: в нём нет строки `tags`, поэтому тег проставляет `mapLabyTagSkin`, а текстовый поиск внутри тег-выдачи невозможен — при тексте пул снова берётся из общей ленты. За концом выдачи Laby отвечает **403** (не пустым массивом): это штатный конец списка, а не блокировка — `LabyCatalog` превращает его в `endOfFeed`, чтобы UI не показывал ошибку доступа.
 - **Скины: кэш.** Один `SkinCache` на каталог вместо прежних трёх: память (TTL, не больше 256 записей) плюс диск через порт (последнее удачное значение для офлайна, текстуры — по неизменному `image_hash`). Пустые результаты поиска в кэш не пишутся.
@@ -59,16 +57,12 @@ No lint scripts exist. `pnpm run build` is the primary verification.
 
 ## Common pitfalls
 
-- Running `pnpm run package` fails with `EPERM` on `dxil.dll` if a previous Electron process is still running — kill it first.
-- After adding/editing IPC channels, run `pnpm run build` (not just `dev`) to catch type errors across both tsconfigs.
+- After adding/editing IPC channels, run `bun run build` (not just `dev`) to catch type errors across both tsconfigs.
 - `multimc.svg` and `polymc.svg` icons don't exist in `public/launcher-icons/` — only `.png` variants are available.
-- `better-sqlite3` (Node-API, v13) — единственная SQLite-реализация в проекте: и `data.db` лаунчера (`electron/db/`), и чтение Modrinth App `app.db` (`electron/main/import/helpers.ts`). Таблица в Modrinth App — `instances` joined with `instance_content_sets`, **не** `profiles`. Соединение живёт только в main-процессе (в renderer не отдаётся), схема и миграции — `electron/db/migrations.ts`, WAL/prepared statements/транзакции — `electron/db/core.ts`. Пакет ставится без `node-gyp`: в нём уже лежат Node-API prebuilds (`prebuilds/win32-x64.node`), поэтому `electron-rebuild` не нужен.
-- **Колоночные миграции применяются только при `currentVersion < SCHEMA_VERSION`** (`electron/db/migrations.ts`). Добавили `addColumnIfMissing` — поднимите `SCHEMA_VERSION`, иначе на существующей БД колонка не появится вовсе, а запросы с ней упадут с `no such column`.
+- **SQLite** — приложение использует `bun:sqlite` через `electrobun/platform/sqlite.ts`. База лаунчера открывается в main, WAL и снимки перед миграциями обслуживает `electrobun/db/core.ts`. Импорт Modrinth App читает `instances` и `instance_content_sets` через соединение только для чтения. `better-sqlite3` используется в тестах.
+- **Колоночные миграции применяются только при `currentVersion < SCHEMA_VERSION`** (`electrobun/db/migrations.ts`). Добавили `addColumnIfMissing` — поднимите `SCHEMA_VERSION`, иначе на существующей БД колонка не появится вовсе, а запросы с ней упадут с `no such column`.
 - `prismarine-nbt` was replaced by `@xnlc/nbt` — do not re-add prismarine-nbt.
 
 ## Package manager
 
-This project uses **pnpm** (v11+). Configuration lives in:
-- `pnpm-workspace.yaml` — workspace packages, overrides, allowBuilds, security settings
-- `.npmrc` — auth/registry settings only (pnpm 11 ignores non-auth settings here)
-- `package.json` — dependencies use `workspace:*` for local `@xnlc/*` packages
+Bun 1.4.4 uses the workspace definitions and overrides in `package.json`, the scoped registry in `.npmrc`, and the canonical `bun.lock`. Install with `bun install --frozen-lockfile`.

@@ -24,7 +24,7 @@ export function useCategoryList(scope: CategoryListScope) {
     let alive = true
     namesRef.current = []
     setNames([])
-    void window.electronAPI?.getSetting(key).then((raw) => {
+    void window.electrobunAPI?.getSetting(key).then((raw) => {
       if (!alive || !raw) return
       try {
         const parsed = JSON.parse(raw) as unknown
@@ -44,7 +44,7 @@ export function useCategoryList(scope: CategoryListScope) {
     const next = mutate(namesRef.current)
     namesRef.current = next
     setNames(next)
-    void window.electronAPI?.setSetting(key, JSON.stringify(next))
+    void window.electrobunAPI?.setSetting(key, JSON.stringify(next))
   }, [key])
 
   /** Создаёт категорию. Никаких вещей не трогает — перемещение выбирает пользователь. */

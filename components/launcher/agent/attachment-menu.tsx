@@ -31,15 +31,15 @@ export function AttachmentMenu({ onClose, onFile }: { onClose: () => void; onFil
   const searchInput = useRef<HTMLInputElement>(null)
   useEffect(() => {
     let cancelled = false
-    void window.electronAPI?.loadBuildsLight().then(items => { if (!cancelled) setBuilds(items) }).catch(error => { if (!cancelled) setError(String(error)) })
-    void window.electronAPI?.mcServerList().then(items => { if (!cancelled) setServers(items) }).catch(error => { if (!cancelled) setError(String(error)) })
+    void window.electrobunAPI?.loadBuildsLight().then(items => { if (!cancelled) setBuilds(items) }).catch(error => { if (!cancelled) setError(String(error)) })
+    void window.electrobunAPI?.mcServerList().then(items => { if (!cancelled) setServers(items) }).catch(error => { if (!cancelled) setError(String(error)) })
     return () => { cancelled = true; generation.current++ }
   }, [])
   useEffect(() => { searchInput.current?.focus() }, [view.kind])
   const navigate = (next: View) => { generation.current++; setView(next); setQuery(""); setError(""); setResults([]); setBusy(false) }
   const attach = (item: AgentAttachment) => { attachToAgent(item); onClose() }
   const chooseBuild = async (build: DbBuildLight, purpose: Purpose) => {
-    if (!window.electronAPI || busy) return
+    if (!window.electrobunAPI || busy) return
     if (purpose === "build") {
       const { icon, coverImage, customEnv, ...context } = build
       attach({ id: `build:${build.id}`, kind: "build", name: build.name, iconUrl: build.icon || undefined, content: JSON.stringify(context, null, 2) })
@@ -52,18 +52,18 @@ export function AttachmentMenu({ onClose, onFile }: { onClose: () => void; onFil
       if (purpose === "log" || purpose === "crash") {
         const folder = purpose === "log" ? "logs" : "crash-reports"
         try {
-          const result = await window.electronAPI.agentBuildFile({ buildId: build.id, path: folder, operation: "list" })
+          const result = await window.electrobunAPI.agentBuildFile({ buildId: build.id, path: folder, operation: "list" })
           items = (result.entries || []).filter(name => !name.endsWith("/") && /\.(log|txt)$/i.test(name)).sort((a, b) => a === "latest.log" ? -1 : b === "latest.log" ? 1 : b.localeCompare(a)).map(name => ({ id: `${purpose}:${build.id}:${name}`, name, detail: build.name, content: `${folder}/${name}`, kind: "file" }))
         } catch (error) {
           if (!/ENOENT/.test(String(error))) throw error
           items = []
         }
       } else if (purpose === "datapack") {
-        const worlds = await window.electronAPI.listWorlds(build.name)
-        const groups = await Promise.all(worlds.map(async world => (await window.electronAPI!.listWorldDatapacks(build.name, world.folder)).map(pack => ({ id: `content:datapack:${build.id}:${world.folder}:${pack.name}`, name: pack.name, detail: world.name, kind: "project" as const, content: JSON.stringify({ buildId: build.id, buildName: build.name, world: world.folder, datapack: pack.name }) }))))
+        const worlds = await window.electrobunAPI.listWorlds(build.name)
+        const groups = await Promise.all(worlds.map(async world => (await window.electrobunAPI!.listWorldDatapacks(build.name, world.folder)).map(pack => ({ id: `content:datapack:${build.id}:${world.folder}:${pack.name}`, name: pack.name, detail: world.name, kind: "project" as const, content: JSON.stringify({ buildId: build.id, buildName: build.name, world: world.folder, datapack: pack.name }) }))))
         items = groups.flat()
       } else {
-        const scanned = await window.electronAPI.scanBuildIntentContent(build.name)
+        const scanned = await window.electrobunAPI.scanBuildIntentContent(build.name)
         const key = purpose === "mod" ? "mods" : purpose === "shader" ? "shaders" : "resourcepacks"
         items = scanned[key].map((mod: DbBuildMod) => ({ id: `content:${purpose}:${build.id}:${mod.slug}`, name: mod.name || mod.slug, detail: mod.slug, iconUrl: mod.icon_url, source: mod.source === "modrinth" || mod.source === "curseforge" ? mod.source : undefined, kind: "project", content: JSON.stringify({ buildId: build.id, buildName: build.name, contentType: purpose, fileName: mod.slug, ...mod }, null, 2) }))
       }
@@ -76,31 +76,31 @@ export function AttachmentMenu({ onClose, onFile }: { onClose: () => void; onFil
     else navigate({ kind: "builds", purpose })
   }
   const chooseEntry = async (entry: Entry) => {
-    if (view.kind !== "content" || !window.electronAPI || busy) return
+    if (view.kind !== "content" || !window.electrobunAPI || busy) return
     if (entry.kind !== "file") { attach({ id: entry.id, kind: "project", name: entry.name, content: entry.content, source: entry.source, iconUrl: entry.iconUrl }); return }
     const request = ++generation.current
     setBusy(true); setError("")
     try {
-      const result = await window.electronAPI.agentBuildFile({ buildId: view.build.id, path: entry.content, operation: "read" })
+      const result = await window.electrobunAPI.agentBuildFile({ buildId: view.build.id, path: entry.content, operation: "read" })
       if (request === generation.current) attach({ id: entry.id, kind: "file", name: `${view.build.name} · ${entry.name}`, content: result.content || "" })
     } catch (error) { if (request === generation.current) setError(String(error)) } finally { if (request === generation.current) setBusy(false) }
   }
   const searchCatalog = async () => {
-    if (!query.trim() || busy || !window.electronAPI) return
+    if (!query.trim() || busy || !window.electrobunAPI) return
     const request = ++generation.current
     setBusy(true); setError("")
     try {
-      const result = source === "ftb" ? await window.electronAPI.modsFtbSearch(query.trim()) : source === "modrinth" ? await window.electronAPI.modsModrinthSearch(query.trim(), type) : await window.electronAPI.modsCurseforgeSearch(query.trim(), type)
+      const result = source === "ftb" ? await window.electrobunAPI.modsFtbSearch(query.trim()) : source === "modrinth" ? await window.electrobunAPI.modsModrinthSearch(query.trim(), type) : await window.electrobunAPI.modsCurseforgeSearch(query.trim(), type)
       if (request === generation.current) setResults(result.results)
     } catch (error) { if (request === generation.current) setError(String(error)) } finally { if (request === generation.current) setBusy(false) }
   }
   const chooseProject = async (project: ModSearchResult) => {
-    if (!window.electronAPI || busy) return
+    if (!window.electrobunAPI || busy) return
     const request = ++generation.current
     setBusy(true); setError("")
     try {
       const projectId = project.source === "curseforge" ? String(project.modId || project.id) : project.projectId || project.id
-      const details = await getAgentProject(window.electronAPI, project.source, projectId)
+      const details = await getAgentProject(window.electrobunAPI, project.source, projectId)
       if (request === generation.current) attach({ id: `${project.source}:${projectId}`, kind: "project", name: project.name, source: project.source as "modrinth" | "curseforge" | "ftb", projectId, iconUrl: project.iconUrl, content: JSON.stringify({ ...project, contentType: type, description: details.description.slice(0, 18000), versions: details.versions.slice(0, 12) }, null, 2) })
     } catch (error) { if (request === generation.current) setError(String(error)) } finally { if (request === generation.current) setBusy(false) }
   }

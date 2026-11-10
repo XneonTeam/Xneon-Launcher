@@ -22,9 +22,9 @@ type PendingInstall =
 async function persistImportedBuild(build: Build) {
   // Лёгкий список достаточен: тяжёлый контент уже существующих сборок
   // сохраняет saveAllBuilds (пустые значения означают «не загружено»).
-  const existing = await window.electronAPI?.loadBuildsLight() ?? []
+  const existing = await window.electrobunAPI?.loadBuildsLight() ?? []
   const next = [build, ...existing.filter(item => item.id !== build.id && item.name !== build.name)]
-  await window.electronAPI?.saveBuilds(next as Parameters<NonNullable<Window["electronAPI"]>["saveBuilds"]>[0])
+  await window.electrobunAPI?.saveBuilds(next as Parameters<NonNullable<Window["electrobunAPI"]>["saveBuilds"]>[0])
 }
 
 function getImportSourceLabel(t: (key: string) => string, source: ImportProgressState["source"]): string {
@@ -80,7 +80,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
   }, [])
 
   useEffect(() => {
-    const off = window.electronAPI?.onImportProgress((progress) => {
+    const off = window.electrobunAPI?.onImportProgress((progress) => {
       const source = activeImportSourceRef.current
       if (!source) return
       safeSetImportProgress(previous => ({ ...mergeImportProgress(previous, progress), source: progress.source ?? source }))
@@ -134,7 +134,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
     const source = activeImportSourceRef.current ?? importProgress.source
     setIsCancellingImport(true)
     try {
-      await window.electronAPI?.cancelImportModpack?.()
+      await window.electrobunAPI?.cancelImportModpack?.()
       finishImportSession()
       safeSetImportError(null)
       safeSetImportProgress(null)
@@ -165,13 +165,13 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
       const id = crypto.randomUUID()
       let intentPath = ""
       try {
-        intentPath = await window.electronAPI?.getBuildIntentPath(buildName) ?? ""
-        await window.electronAPI?.setBuildIntentPath(buildName, intentPath)
+        intentPath = await window.electrobunAPI?.getBuildIntentPath(buildName) ?? ""
+        await window.electrobunAPI?.setBuildIntentPath(buildName, intentPath)
       } catch {
         // ignore path preparation errors here, import will surface its own failure
       }
 
-      const importResult = await window.electronAPI?.importModrinthModpack(buildName, project.slug, versionId)
+      const importResult = await window.electrobunAPI?.importModrinthModpack(buildName, project.slug, versionId)
       if (importResult?.cancelled) {
         finishImportSession()
         safeSetImportError(null)
@@ -236,12 +236,12 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
       const id = crypto.randomUUID()
       let intentPath = ""
       try {
-        intentPath = await window.electronAPI?.getBuildIntentPath(buildName) ?? ""
+        intentPath = await window.electrobunAPI?.getBuildIntentPath(buildName) ?? ""
       } catch {
         // ignore lookup error, import will fail clearly if needed
       }
 
-      const importResult = await window.electronAPI?.importCurseforgeModpack(buildName, pack.modId, fileId)
+      const importResult = await window.electrobunAPI?.importCurseforgeModpack(buildName, pack.modId, fileId)
       if (importResult?.cancelled) {
         finishImportSession()
         safeSetImportError(null)
@@ -306,7 +306,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
     try {
       let targetVersionId = versionId
       if (!targetVersionId) {
-        const details = await window.electronAPI?.modsFtbDetails(modpackId)
+        const details = await window.electrobunAPI?.modsFtbDetails(modpackId)
         const release = details?.versions?.find(v => v.versionType === "release")
         if (!release) {
           throw new Error(t("import.ftbNoVersion"))
@@ -317,12 +317,12 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
       const id = crypto.randomUUID()
       let intentPath = ""
       try {
-        intentPath = await window.electronAPI?.getBuildIntentPath(buildName) ?? ""
+        intentPath = await window.electrobunAPI?.getBuildIntentPath(buildName) ?? ""
       } catch {
         // ignore lookup error, import will fail clearly if needed
       }
 
-      const importResult = await window.electronAPI?.importFtbModpack(buildName, modpackId, targetVersionId)
+      const importResult = await window.electrobunAPI?.importFtbModpack(buildName, modpackId, targetVersionId)
       if (importResult?.cancelled) {
         finishImportSession()
         safeSetImportError(null)
@@ -408,7 +408,7 @@ export function useImport(setBuilds: React.Dispatch<React.SetStateAction<Build[]
     // пользователь ещё только выбирает архив.
     beginImportSession("local")
     try {
-      const result = await window.electronAPI?.openAndImportModpack(format, buildNameOverride)
+      const result = await window.electrobunAPI?.openAndImportModpack(format, buildNameOverride)
       if (!result) {
         finishImportSession()
         safeSetImportProgress(null)

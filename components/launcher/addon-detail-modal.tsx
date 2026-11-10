@@ -142,7 +142,7 @@ export function AddonDetailModal({
 
   // Прогресс скачивания файлов приходит из main-процесса по имени файла.
   useEffect(() => {
-    const off = window.electronAPI?.onContentDownloadProgress?.((progress) => {
+    const off = window.electrobunAPI?.onContentDownloadProgress?.((progress) => {
       if (installStateRef.current?.phase !== "running") return
       setInstall(prev => {
         if (!prev || prev.phase !== "running") return prev
@@ -189,12 +189,12 @@ export function AddonDetailModal({
           if (source === "curseforge") {
             const fileId = Number(v.id)
             if (!fileId || isNaN(fileId)) return null
-            text = await window.electronAPI?.modsCurseforgeChangelog(projectId, fileId)
+            text = await window.electrobunAPI?.modsCurseforgeChangelog(projectId, fileId)
           } else {
             // Версии FTB приходят с id вида `ftb-<versionId>`.
             const versionId = Number(String(v.id).replace(/^ftb-/, ""))
             if (!versionId || isNaN(versionId)) return null
-            text = await window.electronAPI?.modsFtbChangelog(projectId, versionId)
+            text = await window.electrobunAPI?.modsFtbChangelog(projectId, versionId)
           }
           return { id: v.id, text: text || "" }
         } catch {
@@ -508,7 +508,7 @@ export function AddonDetailModal({
                         </div>
                         <div data-ui="addon-detail-modal-div-30" className="flex flex-wrap items-center gap-2 mt-1">
                           <GameVersionChips gameVersion={ver.gameVersion} />
-                          <LoaderBadges loaders={ver.loaders} />
+                          {ver.loaders && ver.loaders.length > 0 && <span className="inline-flex flex-wrap items-center gap-1.5"><span className="text-[11px] text-muted-foreground">{t("addon.versions.compatibleWith")}:</span><LoaderBadges loaders={ver.loaders} /></span>}
                           {mismatch && (
                             <span data-ui="addon-detail-modal-span-15" className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/15 text-destructive font-medium">
                               {t("addon.otherLoader")}
@@ -555,8 +555,19 @@ export function AddonDetailModal({
                       </button>}
                     </div>
 
+                    {!!ver.dependencies?.length && (
+                      <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-3 text-xs">
+                        <span className="mr-1 text-muted-foreground">{t("addon.versions.dependencies")}:</span>
+                        {(["required", "optional", "incompatible", "embedded"] as const).map((type) => {
+                          const dependencies = ver.dependencies?.filter((dependency) => dependency.dependencyType === type) ?? []
+                          if (!dependencies.length) return null
+                          const names = dependencies.map((dependency) => dependency.name || dependency.slug || dependency.fileName || dependency.projectId || dependency.versionId).filter(Boolean).join(", ")
+                          return <span key={type} title={names || undefined} className="rounded-md bg-muted px-2 py-1 text-muted-foreground">{t(`addon.versions.dependencyType.${type}`)}: {dependencies.length}</span>
+                        })}
+                      </div>
+                    )}
                     {installState && <VersionInstallProgress state={installState} />}
-                    {installState?.phase === "running" && cancellableDownload && <button type="button" onClick={() => void window.electronAPI?.cancelContentDownload(cancellableDownload)} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-xs text-foreground hover:bg-muted"><IconX className="h-3.5 w-3.5 text-primary" />{t("common.cancel")}</button>}
+                    {installState?.phase === "running" && cancellableDownload && <button type="button" onClick={() => void window.electrobunAPI?.cancelContentDownload(cancellableDownload)} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-xs text-foreground hover:bg-muted"><IconX className="h-3.5 w-3.5 text-primary" />{t("common.cancel")}</button>}
                   </div>
                   )
                 })

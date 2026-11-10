@@ -8,6 +8,7 @@ import { Spinner } from "./spinner"
 import { formatDownloads, isFtbCategoryTag } from "./utils"
 import { Pagination } from "./pagination"
 import { CategoryBadge } from "./category-badge"
+import "./instance-search-card.css"
 import { CategoriesDialog, type CategoriesDialogCategory } from "./categories-dialog"
 import { MOD_LOADER_OPTIONS } from "./instance-browse-toolbar"
 import { LoaderIcon } from "./loader-icon"
@@ -143,7 +144,7 @@ export function InstanceFtb({
         ) : (
           <div data-ui="instance-instance-ftb-div-5" className="grid gap-3">
             {ftbResults.map(pack => (
-              <div data-ui="instance-instance-ftb-div-6" key={pack.projectId} className="rounded-2xl border border-border bg-card p-4 hover:border-primary/40 transition-colors">
+              <div data-ui="instance-instance-ftb-div-6" key={pack.projectId} className="instance-search-card rounded-2xl border border-border bg-card p-4 hover:border-primary/40 transition-colors">
                 <div data-ui="instance-instance-ftb-div-7" className="flex flex-wrap items-center gap-4">
                   <div data-ui="instance-instance-ftb-div-8" className="flex min-w-0 flex-1 items-center gap-4">
                     <div data-ui="instance-instance-ftb-div-9" className="w-14 h-14 rounded-2xl bg-muted/70 flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -157,7 +158,7 @@ export function InstanceFtb({
                       <div data-ui="instance-instance-ftb-div-11" className="mt-2 flex flex-wrap items-center gap-2">
                         <span data-ui="instance-instance-ftb-span-3" className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">{formatDownloads(pack.downloadCount)} {t("builds.downloads")}</span>
                         {pack.categories?.filter(isFtbCategoryTag).slice(0, 3).map(category => (
-                          <CategoryBadge key={category} name={category} source="ftb" />
+                          <CategoryBadge key={category} name={category} source="ftb" responsive className="instance-search-card-category-badge" />
                         ))}
                       </div>
                     </div>

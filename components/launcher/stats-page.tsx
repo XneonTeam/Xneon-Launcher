@@ -123,7 +123,7 @@ function RankingList({ entries, emptyKey, maxSeconds }: { entries: RankingEntry[
   return (
     <div data-ui="stats-page-div-12" data-component="ranking-list" className="space-y-3">
       {entries.map((entry, index) => (
-        <div data-ui="stats-page-div-13" key={entry.id} className="flex items-center gap-3">
+        <div data-ui="stats-page-div-13" key={entry.id} className="flex items-center gap-3 rounded-xl border border-border bg-card p-2.5">
           <span data-ui="stats-page-span-4" className="w-5 shrink-0 text-center text-sm font-bold text-muted-foreground">{index + 1}</span>
           <EntryIcon icon={entry.icon} fallback={<IconColorSwatch className="h-4 w-4" strokeWidth={1.75} />} />
           <div data-ui="stats-page-div-14" className="min-w-0 flex-1">
@@ -147,17 +147,22 @@ function RankingList({ entries, emptyKey, maxSeconds }: { entries: RankingEntry[
 }
 
 export function StatsPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [stats, setStats] = useState<StatsOverview | null>(null)
   const contentEnter = useContentEnter(stats !== null)
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<"builds" | "servers">("builds")
   const [range, setRange] = useState<StatsRange>(() => defaultRange())
+  const dateFormatter = useMemo(
+    () => new Intl.DateTimeFormat(i18n.resolvedLanguage, { day: "numeric", month: "short", year: "numeric" }),
+    [i18n.resolvedLanguage],
+  )
+  const serverActivityRange = `${dateFormatter.format(range.from)} — ${dateFormatter.format(range.to)}`
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const result = await window.electronAPI?.getStatsOverview(range)
+      const result = await window.electrobunAPI?.getStatsOverview(range)
       if (result) setStats(result)
     } catch (error) {
       console.error("[Stats] Failed to load overview:", error)
@@ -175,8 +180,8 @@ export function StatsPage() {
   // интервал работает только пока запущена игра или сервер — лишь тогда
   // счётчики времени реально меняются между push-событиями.
   useEffect(() => {
-    const offUpdated = window.electronAPI?.onStatsUpdated?.(() => void load())
-    const offServer = window.electronAPI?.onMcServerStateChange?.(() => void load())
+    const offUpdated = window.electrobunAPI?.onStatsUpdated?.(() => void load())
+    const offServer = window.electrobunAPI?.onMcServerStateChange?.(() => void load())
     return () => {
       offUpdated?.()
       offServer?.()
@@ -332,7 +337,7 @@ export function StatsPage() {
 
             <div data-ui="stats-page-div-32" className="grid gap-5 lg:grid-cols-2">
               <section data-ui="stats-page-section-3" className="rounded-2xl border border-border bg-card p-5">
-                <h2 data-ui="stats-page-h2-3" className="mb-4 text-base font-semibold text-foreground">{t("stats.serverActivityTitle")}</h2>
+                <h2 data-ui="stats-page-h2-3" className="mb-4 text-base font-semibold text-foreground">{t("stats.serverActivityTitle", { range: serverActivityRange })}</h2>
                 <DailyChart data={stats.dailyServerUptime ?? []} />
               </section>
 

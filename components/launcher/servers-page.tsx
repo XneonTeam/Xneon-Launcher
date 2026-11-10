@@ -107,7 +107,7 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
       const key = `servers:modrinth:${searchQuery}:${selectedVersion}:${selectedModLoader}:${mrSortBy}:${catsKey}:${currentPage}`
       const resp = await dataCache.getOrFetch(
         key,
-        () => window.electronAPI?.modsModrinthSearch(
+        () => window.electrobunAPI?.modsModrinthSearch(
           searchQuery,
           "modpack",
           selectedVersion === "all" ? undefined : selectedVersion,
@@ -136,7 +136,7 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
       const key = `servers:curseforge:${searchQuery}:${selectedVersion}:${selectedModLoader}:${cfSortBy}:${catsKey}:${currentPage}`
       const resp = await dataCache.getOrFetch(
         key,
-        () => window.electronAPI?.modsCurseforgeSearch(
+        () => window.electrobunAPI?.modsCurseforgeSearch(
           searchQuery,
           "modpack",
           selectedVersion === "all" ? undefined : selectedVersion,
@@ -192,8 +192,8 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
     const loadCategories = async () => {
       try {
         const [mrCats, cfCats] = await Promise.all([
-          window.electronAPI?.modsModrinthCategories() ?? Promise.resolve([]),
-          window.electronAPI?.modsCurseforgeCategories() ?? Promise.resolve([]),
+          window.electrobunAPI?.modsModrinthCategories() ?? Promise.resolve([]),
+          window.electrobunAPI?.modsCurseforgeCategories() ?? Promise.resolve([]),
         ])
         if (cancelled) return
         const merged = [
@@ -241,13 +241,13 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
     try {
       if (item.source === "modrinth") {
         const [details, versions] = await Promise.all([
-          dataCache.getOrFetch(`servers-modrinth:details:${item.slug}`, () => window.electronAPI?.modsModrinthDetails(item.slug) ?? null, { immutable: true }),
-          dataCache.getOrFetch(`servers-modrinth:versions:${item.slug}`, () => window.electronAPI?.modsModrinthVersions(item.slug) ?? null, { immutable: true }),
+          dataCache.getOrFetch(`servers-modrinth:details:${item.slug}`, () => window.electrobunAPI?.modsModrinthDetails(item.slug) ?? null, { immutable: true }),
+          dataCache.getOrFetch(`servers-modrinth:versions:${item.slug}`, () => window.electrobunAPI?.modsModrinthVersions(item.slug) ?? null, { immutable: true }),
         ])
         if (details) setSelectedDetails(details)
         setProjectVersions(versions ?? [])
       } else if (item.source === "curseforge" && item.modId != null) {
-        const details = await dataCache.getOrFetch(`servers-curseforge:details:${item.modId}`, () => window.electronAPI?.modsCurseforgeDetails(item.modId!) ?? null, { immutable: true })
+        const details = await dataCache.getOrFetch(`servers-curseforge:details:${item.modId}`, () => window.electrobunAPI?.modsCurseforgeDetails(item.modId!) ?? null, { immutable: true })
         if (details) setSelectedDetails(details)
         setProjectVersions(details?.versions ?? [])
       }

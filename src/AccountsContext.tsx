@@ -27,8 +27,8 @@ async function fetchAccounts(): Promise<Account[]> {
     validAccountTypes.includes(t as typeof validAccountTypes[number])
 
   try {
-    if (window.electronAPI) {
-      const dbAccounts = await window.electronAPI.loadAccounts()
+    if (window.electrobunAPI) {
+      const dbAccounts = await window.electrobunAPI.loadAccounts()
       const validAccounts = dbAccounts.filter(a => isValidType(a.type))
       if (validAccounts.length > 0) {
         if (validAccounts.length !== dbAccounts.length) {
@@ -48,7 +48,7 @@ async function fetchAccounts(): Promise<Account[]> {
       const parsed = JSON.parse(raw) as Account[]
       const validAccounts = parsed.filter(a => isValidType(a.type))
       for (const a of validAccounts) {
-        await window.electronAPI?.saveAccount(a)
+        await window.electrobunAPI?.saveAccount(a)
       }
       if (validAccounts.length > 0) return validAccounts
     }
@@ -63,6 +63,7 @@ interface AccountsContextValue {
   setActiveAccount: (id: string) => void
   moveAccount: (id: string, direction: -1 | 1) => void
   activeAccount: Account | null
+  accountsHydrated: boolean
   avatarVersion: number
   bumpAvatarVersion: () => void
   /** Перечитывает аккаунты из БД: main мог обновить ссылку на активный скин. */
@@ -72,6 +73,7 @@ interface AccountsContextValue {
 const AccountsContext = createContext<AccountsContextValue | null>(null)
 
 export function AccountsProvider({ children }: PropsWithChildren) {
+  const [accountsHydrated, setAccountsHydrated] = useState(false)
   const [accounts, setAccounts] = useState<Account[]>(FALLBACK)
   const [avatarVersion, setAvatarVersion] = useState<number>(() => Date.now())
   const accountsLoadedRef = useRef(false)
@@ -97,6 +99,7 @@ export function AccountsProvider({ children }: PropsWithChildren) {
     void fetchAccounts().then((loadedAccounts) => {
       accountsLoadedRef.current = true
       setAccounts(loadedAccounts)
+      setAccountsHydrated(true)
     })
   }, [])
 
@@ -129,7 +132,7 @@ export function AccountsProvider({ children }: PropsWithChildren) {
         // сохранит прежнее значение из БД. У оффлайн-аккаунта ссылка указывает
         // на локальный файл, там её задаёт сам renderer.
         const serverOwnsSkin = account.type !== "offline"
-        void window.electronAPI?.saveAccount(
+        void window.electrobunAPI?.saveAccount(
           serverOwnsSkin ? { ...account, skinUrl: undefined } : account
         )
       })
@@ -170,7 +173,7 @@ export function AccountsProvider({ children }: PropsWithChildren) {
     const target = accountsRef.current.find(a => a.id === id)
     if (target?.type === "authlib-injector") {
       try {
-        void window.electronAPI?.authlibInvalidate(id).catch((err: unknown) => {
+        void window.electrobunAPI?.authlibInvalidate(id).catch((err: unknown) => {
           console.warn("[Accounts] authlib invalidate failed:", err)
         })
       } catch (err) {
@@ -183,10 +186,10 @@ export function AccountsProvider({ children }: PropsWithChildren) {
       const wasActive = prev.find(a => a.id === id)?.isActive
       if (wasActive && remaining.length > 0) {
         const updated = remaining.map((a, i) => ({ ...a, isActive: i === 0 }))
-        void window.electronAPI?.removeAccount(id)
+        void window.electrobunAPI?.removeAccount(id)
         return updated
       }
-      void window.electronAPI?.removeAccount(id)
+      void window.electrobunAPI?.removeAccount(id)
       return remaining
     })
   }, [])
@@ -207,13 +210,14 @@ export function AccountsProvider({ children }: PropsWithChildren) {
       const [moved] = next.splice(index, 1)
       next.splice(target, 0, moved)
       const ordered = next.map((a, i) => ({ ...a, sortOrder: i }))
-      void window.electronAPI?.reorderAccounts(ordered.map(a => a.id))
+      void window.electrobunAPI?.reorderAccounts(ordered.map(a => a.id))
       return ordered
     })
   }, [])
 
   const activeAccount = useMemo(() => accounts.find(a => a.isActive) ?? accounts[0] ?? null, [accounts])
   const value = useMemo<AccountsContextValue>(() => ({
+    accountsHydrated,
     accounts,
     addAccount,
     removeAccount,
@@ -223,7 +227,7 @@ export function AccountsProvider({ children }: PropsWithChildren) {
     avatarVersion,
     bumpAvatarVersion,
     reloadAccounts,
-  }), [accounts, addAccount, removeAccount, setActiveAccount, moveAccount, activeAccount, avatarVersion, bumpAvatarVersion, reloadAccounts])
+  }), [accountsHydrated, accounts, addAccount, removeAccount, setActiveAccount, moveAccount, activeAccount, avatarVersion, bumpAvatarVersion, reloadAccounts])
 
   return (
     <AccountsContext.Provider value={value}>

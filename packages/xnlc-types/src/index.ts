@@ -4,7 +4,7 @@
 // ============================================================
 
 // Domain types
-export type { AgentToolCall, AgentWireMessage, AgentToolSpec, AgentTurnRequest, AgentTurnResult, AgentAttachment, AgentTimelineItem, AgentChatSummary, AgentChat, AgentBuildFileRequest } from "./agent-types.js"
+export type { AgentToolCall, AgentWireMessage, AgentToolSpec, AgentTurnRequest, AgentTurnResult, AgentAttachment, AgentTimelineItem, AgentChatSummary, AgentChat, AgentBuildFileRequest, AgentMcpServerConfig, AgentMcpServerState, AgentMcpServerSummary, AgentMcpToolInfo } from "./agent-types.js"
 export type {
   DbAccount,
   DbBuild,
@@ -126,9 +126,9 @@ export type {
   ModpackContents,
   IpcInvokeMap,
   IpcEventMap,
-  ElectronAPIExplicit,
-  ElectronAPIExtra,
-  ElectronAPI,
+  ElectrobunAPIExplicit,
+  ElectrobunAPIExtra,
+  ElectrobunAPI,
   BuildLoaderRequirementIssue,
   BuildLoaderRequirementReport,
 } from "./ipc-contracts.js"
@@ -165,7 +165,7 @@ export type {
   ServerStatusResult,
 } from "./server-types.js"
 
-export type { AiProtocol, AiModelConfig, AiConfig, AiModelDiscovery } from "./agent-types.js"
+export type { AiProtocol, AiModelConfig, AiConfig, AiConfigStatus, AiConfigUpdate, AiModelDiscovery } from "./agent-types.js"
 export type { AgentHardware } from "./agent-types.js"
 export type { ShareRequest, ShareResponse, ShareResult, ShareLink, ShareContentPresentation } from "./share-types.js"
 export type { ServerHostSettingsCommand, ServerHostSettings, ServerPermissions, ServerPermission, RemoteServerMember, RemoteServerAccess, RemoteServerRequest, RemoteServerResponse } from "./remote-server-types.js"

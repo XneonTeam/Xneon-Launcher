@@ -1,4 +1,4 @@
-import type { ElectronAPI, Theme, ThemeColorKey } from "@xnlc/types"
+import type { ElectrobunAPI, Theme, ThemeColorKey } from "@xnlc/types"
 
 export interface AgentLaunchSettings {
   authlibEnabled?: string; savedJavaArgs?: string; savedMemoryMin?: string; savedMemoryMax?: string;
@@ -7,7 +7,7 @@ export interface AgentLaunchSettings {
 }
 /** Адаптер приложения: пакет не импортирует Electron, React, БД или модули лаунчера. */
 export interface AgentHost {
-  api(): ElectronAPI
+  api(): ElectrobunAPI
   translate(key: string, values?: Record<string, unknown>): string
   language(): string
   emit(name: string, detail?: unknown): void

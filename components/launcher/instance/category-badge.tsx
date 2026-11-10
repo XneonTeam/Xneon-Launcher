@@ -19,8 +19,8 @@ let iconsPromise: Promise<CategoryIconMaps> | null = null
 function loadCategoryIcons(): Promise<CategoryIconMaps> {
   if (!iconsPromise) {
     iconsPromise = Promise.all([
-      window.electronAPI?.modsModrinthCategories?.() ?? Promise.resolve([]),
-      window.electronAPI?.modsCurseforgeCategories?.() ?? Promise.resolve([]),
+      window.electrobunAPI?.modsModrinthCategories?.() ?? Promise.resolve([]),
+      window.electrobunAPI?.modsCurseforgeCategories?.() ?? Promise.resolve([]),
     ])
       .then(([mr, cf]) => {
         const modrinth: Record<string, string> = {}
@@ -81,6 +81,7 @@ export function CategoryBadge({ name, source, className, iconOnly = false, respo
 
   return (
     <span data-ui="instance-category-badge-span-1" data-component="category-badge"
+      data-has-icon={icon || isLoader ? "true" : "false"}
       role={responsive ? "img" : undefined}
       aria-label={responsive ? names.join(" / ") : undefined}
       title={iconOnly || responsive ? names.join(" / ") : undefined}

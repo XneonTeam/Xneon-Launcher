@@ -318,10 +318,10 @@ export const InstanceContentTab = memo(function InstanceContentTab({
 
     // Папку от файла отличает только main, поэтому расклад «подходит / не
     // подходит» спрашиваем у него, а не гадаем по расширению в рендерере.
-    const entries = files.map(file => ({ file, path: window.electronAPI?.getFilePath(file) ?? "" }))
+    const entries = await Promise.all(files.map(async file => ({ file, path: await window.electrobunAPI?.getFilePath(file) ?? "" })))
     const paths = entries.map(entry => entry.path).filter(Boolean)
     const classification = paths.length > 0
-      ? await window.electronAPI?.classifyDropPaths(paths, contentKind)
+      ? await window.electrobunAPI?.classifyDropPaths(paths, contentKind)
       : null
 
     if (!classification) {
@@ -406,7 +406,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
     }
     setLoaderWarningDismissed(false)
     let cancelled = false
-    window.electronAPI
+    window.electrobunAPI
       ?.checkBuildLoaderRequirements(activeBuild.name, activeBuild.modLoader, activeBuild.loaderVersion)
       .then(report => { if (!cancelled) setLoaderRequirementReport(report) })
       .catch(() => { if (!cancelled) setLoaderRequirementReport(null) })
@@ -421,7 +421,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   const refreshUpdatesCount = useCallback(async () => {
     try {
       // Счётчики, а не весь кэш: полный ответ весит мегабайты (data-URL иконки).
-      const counts = await window.electronAPI?.getContentUpdatesCounts?.()
+      const counts = await window.electrobunAPI?.getContentUpdatesCounts?.()
       const entry = counts?.[activeBuild.id]
       const count = type === "mods"
         ? (entry?.mods ?? 0)
@@ -460,7 +460,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
 
     let cancelled = false
     setLoadingPickerChangelog(true)
-    void window.electronAPI?.modsCurseforgeChangelog(item.modId, fileId)
+    void window.electrobunAPI?.modsCurseforgeChangelog(item.modId, fileId)
       .then((text) => {
         if (cancelled) return
         setCfChangelogs(prev => ({ ...prev, [ver.id]: text || "" }))
@@ -472,7 +472,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   }, [versionPickerItem, selectedPickerVersion, cfChangelogs])
 
   useEffect(() => {
-    const off = window.electronAPI?.onContentDownloadProgress?.((progress) => {
+    const off = window.electrobunAPI?.onContentDownloadProgress?.((progress) => {
       setDownloadProgress(progress)
     })
     return () => off?.()
@@ -557,7 +557,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
             className="hidden"
             onChange={async e => {
               const files = Array.from(e.target.files ?? [])
-              e.target.value = ""
+              e.currentTarget.value = ""
               for (const file of files) await onUploadFile(file)
             }}
           />
@@ -722,14 +722,14 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                           setVersionPickerVersions([])
                           setVersionPickerLoading(true)
                           const fetchPromise = item.source === "modrinth" && item.projectId
-                            ? window.electronAPI?.modsModrinthVersions(item.projectId)
+                            ? window.electrobunAPI?.modsModrinthVersions(item.projectId)
                             : item.source === "curseforge" && item.modId
-                              ? window.electronAPI?.modsCurseforgeDetails(item.modId).then(r => r?.versions ?? [])
-                              : window.electronAPI?.modsModrinthVersions("", item.id)
+                              ? window.electrobunAPI?.modsCurseforgeDetails(item.modId).then(r => r?.versions ?? [])
+                              : window.electrobunAPI?.modsModrinthVersions("", item.id)
                           void Promise.resolve(fetchPromise).then(async versions => {
                             // При неполных или устаревших метаданных определяем проект по файлу.
                             if (!versions?.length && (item.projectId || item.modId)) {
-                              return await window.electronAPI?.modsModrinthVersions("", item.id)
+                              return await window.electrobunAPI?.modsModrinthVersions("", item.id)
                             }
                             return versions
                           }).then((versions) => {
@@ -850,7 +850,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                         phase={isInstalling ? installPhase : null}
                         onCancelDownload={isInstalling && (installPhase === "resolving" || (downloadProgress?.downloadId && !downloadProgress.done)) ? () => {
                           if (installAttemptRef.current) installAttemptRef.current.cancelled = true
-                          if (downloadProgress?.downloadId && !downloadProgress.done) void window.electronAPI?.cancelContentDownload(downloadProgress.downloadId)
+                          if (downloadProgress?.downloadId && !downloadProgress.done) void window.electrobunAPI?.cancelContentDownload(downloadProgress.downloadId)
                           setInstallPhase(null)
                           setInstallingModSlug(null)
                           endContentInstall()

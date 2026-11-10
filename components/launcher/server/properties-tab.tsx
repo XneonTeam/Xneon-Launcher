@@ -153,7 +153,7 @@ export function PropertiesTab({ server, flushRef, onServerUpdated }: PropertiesT
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    window.electronAPI?.mcServerReadProperties(server.id).then(props => {
+    window.electrobunAPI?.mcServerReadProperties(server.id).then(props => {
       if (cancelled) return
       if (props) {
         setProperties(props)
@@ -170,10 +170,10 @@ export function PropertiesTab({ server, flushRef, onServerUpdated }: PropertiesT
   const save = useCallback(async (props: Record<string, string>) => {
     setSaving(true)
     try {
-      await window.electronAPI?.mcServerWriteProperties(server.id, props)
+      await window.electrobunAPI?.mcServerWriteProperties(server.id, props)
       // Запись возвращает актуальные данные сервера: порт/online-mode/слоты
       // синхронизируются с файлом, поэтому список в лаунчере тоже обновляем.
-      const fresh = await window.electronAPI?.mcServerGet(server.id)
+      const fresh = await window.electrobunAPI?.mcServerGet(server.id)
       if (fresh) onServerUpdated?.(fresh)
       setSaved(true)
       setHasChanges(false)

@@ -351,6 +351,16 @@ export async function modrinthGetRawVersions(slug: string): Promise<ModrinthVers
   }
 }
 
+/** Resolves the owning project for a version ID embedded in an .mrpack index. */
+export async function modrinthGetProjectIdByVersion(versionId: string): Promise<string | null> {
+  try {
+    const data = await mrFetch(`/version/${encodeURIComponent(versionId)}`) as { project_id?: unknown }
+    return typeof data.project_id === "string" ? data.project_id : null
+  } catch {
+    return null
+  }
+}
+
 export async function modrinthGetFileByHash(sha1: string): Promise<{ projectId: string; versionId: string } | null> {
   try {
     const data = (await mrFetch(`/version_file/${sha1}`)) as {

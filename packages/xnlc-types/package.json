@@ -18,8 +18,8 @@
   ],
   "dependencies": { "@xnlc/share": "workspace:*" },
   "scripts": {
-    "build": "node -e \"fs.rmSync('lib',{recursive:true,force:true})\" && tsc -p tsconfig.json",
-    "clean": "node -e \"fs.rmSync('lib',{recursive:true,force:true})\""
+    "build": "bun -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\" && bun --bun run tsc -p tsconfig.json",
+    "clean": "bun -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\""
   },
   "publishConfig": {
     "registry": "https://git.xneon.org/api/packages/MAINER4IK/npm/"

@@ -42,7 +42,7 @@ interface InstanceServersTabProps {
 }
 
 async function fetchServerStatus(ip: string): Promise<ServerStatus> {
-  const api = window.electronAPI
+  const api = window.electrobunAPI
   if (!api?.pingServer) throw new Error("Ping API unavailable")
   const result = await api.pingServer(ip)
   if (!result.online && result.error) throw new Error(result.error)
@@ -80,7 +80,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
       // Load favorites from localStorage
       let favoriteIps: Set<string> = new Set()
       try {
-        const raw = await window.electronAPI?.getSetting("servers_favorites")
+        const raw = await window.electrobunAPI?.getSetting("servers_favorites")
         if (raw) {
           const favs: string[] = JSON.parse(raw)
           favoriteIps = new Set(favs)
@@ -90,7 +90,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
       // Load base server list from servers.dat
       let serverList: Array<{ name: string; ip: string; resourcePack?: "prompt" | "enabled" | "disabled" }> = []
       try {
-        const datServers = await window.electronAPI?.listServers(build.name)
+        const datServers = await window.electrobunAPI?.listServers(build.name)
         if (datServers && datServers.length > 0) {
           serverList = datServers
         }
@@ -120,8 +120,8 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
     if (!initialized) return
 
     const favoriteIps = servers.filter((s) => s.isFavorite).map((s) => s.ip)
-    void window.electronAPI?.setSetting("servers_favorites", JSON.stringify(favoriteIps))
-    void window.electronAPI?.writeServersDat(build.name, servers.map((s) => ({ name: s.name, ip: s.ip, resourcePack: s.resourcePack })))
+    void window.electrobunAPI?.setSetting("servers_favorites", JSON.stringify(favoriteIps))
+    void window.electrobunAPI?.writeServersDat(build.name, servers.map((s) => ({ name: s.name, ip: s.ip, resourcePack: s.resourcePack })))
   }, [servers, initialized, build.name])
 
   const fetchAll = useCallback(async () => {
@@ -208,7 +208,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
     const launchAccount = accounts.find(account => account.id === build.defaultAccountId) ?? activeAccount
     const status = server.status
     if (!status?.online || !status.ip || !launchAccount) return
-    const api = window.electronAPI
+    const api = window.electrobunAPI
     if (!api) return
     setConnectingIp(server.ip)
     try {

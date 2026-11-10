@@ -94,6 +94,27 @@ function push(item: AgentTimelineItem) { if (state.chat) edit({ timeline: [...st
 function updateItem(itemId: string, value: Partial<AgentTimelineItem>) { if (state.chat) edit({ timeline: state.chat.timeline.map(item => item.id === itemId ? { ...item, ...value } : item) }) }
 function removeItem(itemId: string) { if (state.chat) edit({ timeline: state.chat.timeline.filter(item => item.id !== itemId) }) }
 function appendMessages(...messages: AgentWireMessage[]) { if (state.chat) edit({ messages: [...state.chat.messages, ...messages] }) }
+function redactMcpInstallInput(value: string): string {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    const scrub = (item: unknown): unknown => {
+      if (Array.isArray(item)) return item.map(scrub)
+      if (!item || typeof item !== "object") return item
+      return Object.fromEntries(Object.entries(item).map(([key, child]) => [key, ["env", "headers"].includes(key) && child && typeof child === "object" && !Array.isArray(child)
+        ? Object.fromEntries(Object.keys(child).map(name => [name, "[REDACTED]"]))
+        : scrub(child)]))
+    }
+    return JSON.stringify(scrub(parsed))
+  } catch { return "[MCP configuration omitted]" }
+}
+function safeToolInput(name: string, value: string) {
+  if (name !== "install_mcp_server") return value
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>
+    if (typeof parsed.configJson === "string") return JSON.stringify({ ...parsed, configJson: redactMcpInstallInput(parsed.configJson) })
+  } catch {}
+  return "[MCP configuration omitted]"
+}
 function summarize(chat: AgentChat): AgentChatSummary { return { id: chat.id, title: chat.title, updatedAt: chat.updatedAt, archived: !!chat.archived } }
 
 async function save() {
@@ -198,7 +219,17 @@ export function attachToAgent(attachment: AgentAttachment) {
   edit({ attachments: [...state.chat.attachments, attachment] }); scheduleSave()
 }
 export function removeAgentAttachment(attachmentId: string) { if (state.chat) { edit({ attachments: state.chat.attachments.filter(item => item.id !== attachmentId) }); scheduleSave() } }
-export function answerAgentApproval(allowed: boolean) { const resolve = approval; approval = undefined; patch({ pendingId: null }); resolve?.(allowed) }
+export function answerAgentApproval(itemId: string, allowed: boolean) {
+  if (state.pendingId !== itemId || !approval || (allowed && state.stopping)) return
+  const resolve = approval
+  approval = undefined
+  patch({ pendingId: null })
+  resolve(allowed)
+}
+
+function cancelAgentApproval() {
+  if (state.pendingId !== null) answerAgentApproval(state.pendingId, false)
+}
 export function answerAgentQuestion(itemId: string, answer: string) {
   if (state.questionId !== itemId || !answer.trim() || answer.length > 6000 || state.stopping) return
   const resolve = questionAnswer
@@ -213,7 +244,7 @@ export async function stopAgent() {
   questionAnswer = undefined
   patch({ questionId: null })
   resolveQuestion?.(null)
-  answerAgentApproval(false)
+  cancelAgentApproval()
   if (state.requestId) await api().agentCancel(state.requestId)
   if (state.chat?.timeline.some(item => item.toolName === "install_modpack" && item.status === "running")) await api().cancelImportModpack()
 }
@@ -469,7 +500,9 @@ export async function sendAgentMessage() {
       }
       planReminder = undefined
       if (implicitQuestionCall) removeItem(itemId)
-      appendMessages({ role: "assistant", content: implicitQuestionCall ? null : result.text || null, ...(callsToProcess.length ? { tool_calls: callsToProcess } : {}), ...(!implicitQuestionCall && result.providerParts ? { providerParts: result.providerParts } : {}) })
+      const storedCalls = callsToProcess.map(call => call.function.name === "install_mcp_server" ? { ...call, function: { ...call.function, arguments: safeToolInput(call.function.name, call.function.arguments) } } : call)
+      const providerParts = callsToProcess.some(call => call.function.name === "install_mcp_server") ? undefined : result.providerParts
+      appendMessages({ role: "assistant", content: implicitQuestionCall ? null : result.text || null, ...(storedCalls.length ? { tool_calls: storedCalls } : {}), ...(!implicitQuestionCall && providerParts ? { providerParts } : {}) })
       if (Number.isFinite(result.usage?.prompt_tokens) && result.usage!.prompt_tokens! > 0) {
         const input = result.usage!.prompt_tokens!
         const output = Number.isFinite(result.usage?.completion_tokens) ? Math.max(0, result.usage!.completion_tokens!) : 0
@@ -505,7 +538,7 @@ export async function sendAgentMessage() {
         }
         const tool = AGENT_TOOLS.find(tool => tool.name === call.function.name)
         const toolId = id()
-        push({ id: toolId, kind: "tool", text: "", toolName: call.function.name, input: call.function.arguments, status: "running" })
+        push({ id: toolId, kind: "tool", text: "", toolName: call.function.name, input: safeToolInput(call.function.name, call.function.arguments), status: "running" })
         let output: string
         let contextOutput: string | undefined
         try {
@@ -603,8 +636,13 @@ export async function sendAgentMessage() {
             updateItem(toolId, { status: "approval" })
             // Обработчик ставится до уведомления React о появлении кнопок.
             const decision = new Promise<boolean>(resolve => { approval = resolve; patch({ pendingId: toolId }) })
-            await save()
-            const allowed = await decision
+            let allowed: boolean
+            try {
+              await save()
+              allowed = await decision
+            } finally {
+              answerAgentApproval(toolId, false)
+            }
             if (!allowed || state.stopping) {
               output = JSON.stringify({ error: "The user declined or stopped this action. Do not retry it." })
               updateItem(toolId, { status: "denied", output })
@@ -637,7 +675,7 @@ export async function sendAgentMessage() {
     if (!state.stopping) { const message = error instanceof Error ? error.message : String(error); patch({ error: message }); push({ id: id(), kind: "error", text: message }) }
   } finally {
     if (state.stopping) push({ id: id(), kind: "stopped", text: translate("stopped") })
-    answerAgentApproval(false)
+    cancelAgentApproval()
     questionAnswer = undefined
     patch({ running: false, stopping: false, requestId: null, questionId: null })
     await save().catch(error => patch({ error: String(error) }))

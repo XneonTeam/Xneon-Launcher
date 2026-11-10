@@ -18,8 +18,10 @@ export async function createShareServer({ directory, ...options } = {}) {
   }
   const service = createShareService({ ...options, db, objectStore, schema: readFileSync(new URL('./migrations/001.sql', import.meta.url), 'utf8') })
   const server = http.createServer(service.handle)
+  const gcTimer = setInterval(() => { void service.gc().catch(error => console.error('[Share] Garbage collection failed:', error)) }, 24 * 60 * 60 * 1000)
+  gcTimer.unref()
   server.requestTimeout = 120000; server.headersTimeout = 15000
-  return { ...service, server, close: async () => { await new Promise(resolve => server.close(resolve)); db.close() } }
+  return { ...service, server, close: async () => { clearInterval(gcTimer); await new Promise(resolve => server.close(resolve)); db.close() } }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

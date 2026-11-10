@@ -139,9 +139,12 @@ export interface IpcInvokeMap {
   "share:execute": { args: [request: import("./share-types.js").ShareRequest]; return: import("./share-types.js").ShareResult }
   "mc-server:remote": { args: [request: import("./remote-server-types.js").RemoteServerRequest]; return: import("./remote-server-types.js").RemoteServerResponse }
   "mc-server:history": { args: [id: string, command: import("@xnlc/share").ServerHistoryCommand]; return: import("@xnlc/share").ServerHistoryResponse }
-  "startup:ready": { args: []; return: void }
+  "startup:ready": { args: []; return: string | null }
   // Синхронное чтение маленького кеша в preload, до первого кадра HTML.
-  "startup:theme-cache": { args: []; return: string | null }
+  "startup:launch-build": {
+    args: [action?: { kind: "claim" | "finish"; id: string; error?: string }]
+    return: { id: string; build: string } | null
+  }
   // ── System ──
   "system:get-total-memory": { args: []; return: number }
 
@@ -237,7 +240,7 @@ export interface IpcInvokeMap {
   "build:rename-intent": { args: [oldName: string, newName: string]; return: { success: boolean; intentPath?: string; error?: string } }
   "build:export-zip": { args: [buildName: string, buildNameLabel: string, categories?: BuildExportCategory[]]; return: { success: boolean; path?: string; error?: string } }
   "build:export-modlist": { args: [buildName: string, buildNameLabel: string, format: "html" | "markdown" | "json" | "csv" | "plaintext"]; return: { success: boolean; path?: string; error?: string } }
-  "build:move-intent-to-trash": { args: [dirName: string]; return: { success: boolean; trashName?: string; error?: string } }
+  "build:move-intent-to-trash": { args: [dirName: string, metadata?: Record<string, unknown>]; return: { success: boolean; trashName?: string; error?: string } }
   "build:restore-intent-from-trash": { args: [dirName: string, trashName: string]; return: { success: boolean; error?: string } }
   "build:purge-trash": { args: []; return: { success: boolean; error?: string } }
   "build:list-trash": { args: []; return: Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string; modLoader?: string }> }
@@ -268,9 +271,16 @@ export interface IpcInvokeMap {
   "agent:delete-chat": { args: [id: string]; return: void }
   "agent:build-file": { args: [request: import("./agent-types.js").AgentBuildFileRequest]; return: { entries?: string[]; content?: string; success: boolean } }
   "agent:build-destination": { args: [name: string, excludeBuildId?: string]; return: { path: string; available: boolean } }
+  "agent:mcp-tools": { args: []; return: import("./agent-types.js").AgentMcpToolInfo[] }
+  "agent:mcp-call": { args: [server: string, tool: string, args: Record<string, unknown>]; return: unknown }
+  "agent:mcp-install": { args: [configJson: string]; return: import("./agent-types.js").AgentMcpServerSummary[] }
   // ── AI ──
-  "ai:get-config": { args: []; return: import("./agent-types.js").AiConfig }
-  "ai:save-config": { args: [config: import("./agent-types.js").AiConfig]; return: void }
+  "ai:mcp-list": { args: []; return: import("./agent-types.js").AgentMcpServerState[] }
+  "ai:mcp-save": { args: [value: import("./agent-types.js").AgentMcpServerConfig[]]; return: import("./agent-types.js").AgentMcpServerState[] }
+  "ai:mcp-connect": { args: [name: string]; return: import("./agent-types.js").AgentMcpServerState }
+  "ai:mcp-disconnect": { args: [name: string]; return: import("./agent-types.js").AgentMcpServerState }
+  "ai:get-config": { args: []; return: import("./agent-types.js").AiConfigStatus }
+  "ai:save-config": { args: [config: import("./agent-types.js").AiConfigUpdate]; return: void }
   "ai:list-models": { args: [override?: import("./agent-types.js").AiModelDiscovery]; return: { success: boolean; models?: string[]; contextWindows?: Record<string, number>; error?: string } }
   "ai:analyze-crash": { args: [logContent: string, model?: string]; return: { success: boolean; analysis?: string; error?: string } }
   "ai:analyze-crash-stream": { args: [requestId: string, logContent: string]; return: { success: boolean; analysis?: string; error?: string } }
@@ -282,13 +292,13 @@ export interface IpcInvokeMap {
   "launcher:import-instances": { args: [ids: string[]]; return: { success: boolean; imported: number; error?: string } }
 
   // ── Mods (Modrinth) ──
-  "mods:modrinth-search": { args: [query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, categories?: string[]]; return: ModSearchResponse }
+  "mods:modrinth-search": { args: [query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, categories?: string[], environment?: ModEnvironment]; return: ModSearchResponse }
   "mods:modrinth-details": { args: [slug: string]; return: ModDetails | null }
   "mods:modrinth-versions": { args: [slug: string, sha1?: string]; return: ModVersion[] }
   "mods:modrinth-pack-contents": { args: [slug: string, versionId: string]; return: ModpackContents }
 
   // ── Mods (CurseForge) ──
-  "mods:curseforge-search": { args: [query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, categories?: string[]]; return: ModSearchResponse }
+  "mods:curseforge-search": { args: [query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, categories?: string[], environment?: ModEnvironment]; return: ModSearchResponse }
   "mods:curseforge-details": { args: [modId: number]; return: ModDetails | null }
   "mods:curseforge-download-url": { args: [fileId: number, modId: number]; return: string | null }
   "mods:curseforge-changelog": { args: [modId: number, fileId: number]; return: string }
@@ -385,12 +395,6 @@ export interface IpcInvokeMap {
   "quickplay:clear": { args: [buildName?: string, gameDir?: string]; return: void }
   "quickplay:remove": { args: [buildName: string | undefined, gameDir: string | undefined, entry: QuickPlayEntry]; return: void }
 
-  // ── Updater ──
-  "update:check": { args: []; return: { available: boolean; version?: string; error?: string } }
-  "update:download": { args: []; return: { success: boolean; error?: string } }
-  "update:install": { args: []; return: void }
-  "update:get-channel": { args: []; return: "stable" | "beta" }
-  "update:set-channel": { args: [channel: string]; return: void }
 
   // ── Misc (без доменного префикса — историческое имя канала) ──
   "read-local-file": { args: [filePath: string]; return: string | null }
@@ -446,7 +450,7 @@ export interface IpcInvokeMap {
   "cloud:upload-build": { args: [providerId: string, buildName: string, uploadId?: string, categories?: CloudUploadCategory[]]; return: { success: boolean; id?: string; name?: string; error?: string } }
   "cloud:upload-server": { args: [providerId: string, serverId: string, serverName: string, uploadId?: string, categories?: CloudUploadCategory[]]; return: { success: boolean; id?: string; name?: string; error?: string } }
   "cloud:upload-account": { args: [providerId: string, account: { id: string; type: string; username: string; uuid?: string }]; return: { success: boolean; id?: string; name?: string; error?: string } }
-  "cloud:download-and-import": { args: [providerId: string, remotePath: string, fileType: string, selectedCategories?: CloudUploadCategory[]]; return: { success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } } }
+  "cloud:download-and-import": { args: [providerId: string, remotePath: string, fileType: string, selectedCategories?: string[]]; return: { success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } } }
 
   // ── XN-Connect Relay ──
   "xn-connect:authorize": { args: []; return: boolean }
@@ -520,9 +524,9 @@ export interface IpcInvokeMap {
 // Maps channel name → payload type (for subscribe/on listeners)
 
 export interface IpcEventMap {
+  "startup:launch-pending": null
   "share:progress": { stage: string; done: number; total: number; bytes: number; files?: { path: string; size: number; name?: string; iconUrl?: string; status: "queued" | "downloading" | "complete" | "error" }[]; requestId?: string; buildId?: string }
   "share:installed": { buildId: string }
-  "share:invitation": { invitation: string }
   "theme:local-changed": LocalThemeSnapshot
   "minecraft:java-progress": JavaProgress
   "minecraft:debug": string
@@ -548,9 +552,6 @@ export interface IpcEventMap {
   "agent:delta": { requestId: string; text: string }
   "ai:stream-done": { requestId: string; fullText: string }
   "ai:stream-error": { requestId: string; error: string }
-  "update:status": { status: string; version?: string; releaseDate?: string; releaseNotes?: string; error?: string }
-  "update:progress": { percent: number; transferred: number; total: number }
-  "cli:launch-build": string
   "stats:updated": {}
   // Фаза логина authlib-injector: «проверка сервера» → «вход» → «профили».
   "authlib:login-progress": AuthlibLoginProgress
@@ -559,11 +560,11 @@ export interface IpcEventMap {
   "settings:updated": { key: string; value: string }
 }
 
-// ── Explicit ElectronAPI ────────────────────────────────────
+// ── Explicit ElectrobunAPI ────────────────────────────────────
 // The IpcInvokeMap above serves as the canonical channel registry.
-// The ElectronAPIExplicit below is derived from it and used by preload.ts and electron.d.ts.
+// The ElectrobunAPIExplicit below is derived from it and used by preload.ts and electrobun.d.ts.
 
-export interface ElectronAPIExplicit {
+export interface ElectrobunAPIExplicit {
   shareExecute: (request: import("./share-types.js").ShareRequest) => Promise<import("./share-types.js").ShareResult>
   mcServerRemote: (request: import("./remote-server-types.js").RemoteServerRequest) => Promise<import("./remote-server-types.js").RemoteServerResponse>
   mcServerHistory: (id: string, command: import("@xnlc/share").ServerHistoryCommand) => Promise<import("@xnlc/share").ServerHistoryResponse>
@@ -572,7 +573,6 @@ export interface ElectronAPIExplicit {
   cancelShareInstall: (requestId: string) => Promise<boolean>
   onShareProgress: (callback: (progress: { stage: string; done: number; total: number; bytes: number; files?: { path: string; size: number; name?: string; iconUrl?: string; status: "queued" | "downloading" | "complete" | "error" }[]; requestId?: string; buildId?: string }) => void) => CleanupFn
   onShareInstalled: (callback: (event: { buildId: string }) => void) => CleanupFn
-  onShareInvitation: (callback: (event: { invitation: string }) => void) => CleanupFn
   listLocalThemes: () => Promise<LocalThemeSnapshot>
   importLocalTheme: () => Promise<LocalThemeImport | null>
   saveLocalTheme: (theme: Theme, css: string) => Promise<LocalThemeFile>
@@ -581,7 +581,9 @@ export interface ElectronAPIExplicit {
   openThemesDirectory: () => Promise<string>
   onLocalThemesChanged: (callback: (snapshot: LocalThemeSnapshot) => void) => CleanupFn
   startupThemeSnapshot: string | null
-  startupReady: () => Promise<void>
+  startupReady: () => Promise<IpcInvokeMap["startup:ready"]["return"]>
+  startupLaunchBuild: (...args: IpcInvokeMap["startup:launch-build"]["args"]) => Promise<IpcInvokeMap["startup:launch-build"]["return"]>
+  onStartupLaunchPending: (callback: () => void) => () => void
   minimize: () => void
   maximize: () => void
   close: () => void
@@ -675,7 +677,6 @@ export interface ElectronAPIExplicit {
   onMinecraftData: (callback: (message: string) => void) => CleanupFn
   onMinecraftDownloadStatus: (callback: (progress: MinecraftProgress) => void) => CleanupFn
   onMinecraftClose: (callback: (info: MinecraftCloseInfo) => void) => CleanupFn
-  onCliLaunchBuild: (callback: (buildName: string) => void) => CleanupFn
   getSetting: (key: string) => Promise<string | undefined>
   setSetting: (key: string, value: string) => Promise<void>
   getBuildIntentPath: (buildId: string) => Promise<string>
@@ -750,11 +751,11 @@ export interface ElectronAPIExplicit {
   onXnConnectUsage: (callback: (usage: XnConnectUsage) => void) => CleanupFn
 }
 
-// ── ElectronAPI (full merged bridge surface) ─────────────────
-// Single type for window.electronAPI: the base contract plus every
-// launcher-specific method that historically lived in src/electron.d.ts.
+// ── ElectrobunAPI (full merged bridge surface) ─────────────────
+// Single type for window.electrobunAPI: the base contract plus every
+// launcher-specific method that historically lived in src/electrobun.d.ts.
 
-export interface ElectronAPIExtra {
+export interface ElectrobunAPIExtra {
   agentClipboardFiles: () => Promise<Array<{ name: string; dataUrl: string }>>
   agentComplete: (request: import("./agent-types.js").AgentTurnRequest) => Promise<import("./agent-types.js").AgentTurnResult>
   agentHardware: () => Promise<import("./agent-types.js").AgentHardware>
@@ -766,9 +767,16 @@ export interface ElectronAPIExtra {
   agentDeleteChat: (id: string) => Promise<void>
   agentBuildFile: (request: import("./agent-types.js").AgentBuildFileRequest) => Promise<{ entries?: string[]; content?: string; success: boolean }>
   agentBuildDestination: (name: string, excludeBuildId?: string) => Promise<{ path: string; available: boolean }>
+  agentMcpListTools: () => Promise<import("./agent-types.js").AgentMcpToolInfo[]>
+  agentMcpCallTool: (server: string, tool: string, args: Record<string, unknown>) => Promise<unknown>
+  agentMcpInstall: (configJson: string) => Promise<import("./agent-types.js").AgentMcpServerSummary[]>
   onAgentDelta: (callback: (data: { requestId: string; text: string }) => void) => CleanupFn
-  getAiConfig: () => Promise<import("./agent-types.js").AiConfig>
-  saveAiConfig: (config: import("./agent-types.js").AiConfig) => Promise<void>
+  getAiConfig: () => Promise<import("./agent-types.js").AiConfigStatus>
+  saveAiConfig: (config: import("./agent-types.js").AiConfigUpdate) => Promise<void>
+  getAiMcpServers: (...args: IpcInvokeMap["ai:mcp-list"]["args"]) => Promise<IpcInvokeMap["ai:mcp-list"]["return"]>
+  saveAiMcpServers: (...args: IpcInvokeMap["ai:mcp-save"]["args"]) => Promise<IpcInvokeMap["ai:mcp-save"]["return"]>
+  connectAiMcpServer: (...args: IpcInvokeMap["ai:mcp-connect"]["args"]) => Promise<IpcInvokeMap["ai:mcp-connect"]["return"]>
+  disconnectAiMcpServer: (...args: IpcInvokeMap["ai:mcp-disconnect"]["args"]) => Promise<IpcInvokeMap["ai:mcp-disconnect"]["return"]>
   listAiModels: (override?: import("./agent-types.js").AiModelDiscovery) => Promise<{ success: boolean; models?: string[]; contextWindows?: Record<string, number>; error?: string }>
   analyzeCrash: (logContent: string, model?: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
   analyzeCrashStream: (requestId: string, logContent: string) => Promise<{ success: boolean; analysis?: string; error?: string }>
@@ -799,7 +807,7 @@ export interface ElectronAPIExtra {
   cloudUploadServer: (providerId: string, serverId: string, serverName: string, uploadId?: string, categories?: CloudUploadCategory[]) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
   onContentDownloadProgress: (callback: (progress: ContentDownloadProgress) => void) => () => void
   onCloudUploadProgress: (callback: (data: { id: string; percent: number; stage: "zip" | "upload" }) => void) => () => void
-  getFilePath: (file: File) => string
+  getFilePath: (file: File) => Promise<string>
   cloudUploadAccount: (providerId: string, account: { id: string; type: string; username: string; uuid?: string }) => Promise<{ success: boolean; id?: string; name?: string; error?: string }>
   cloudDownloadAndImport: (providerId: string, remotePath: string, fileType: string, selectedCategories?: string[]) => Promise<{ success: boolean; error?: string; account?: { id: string; type: string; username: string; uuid?: string } }>
   listWorlds: (buildName: string) => Promise<WorldInfo[]>
@@ -834,14 +842,6 @@ export interface ElectronAPIExtra {
   listTrashBuilds: () => Promise<Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string; modLoader?: string }>>
   deleteTrashItem: (trashName: string) => Promise<{ success: boolean; error?: string }>
   setContentEnabled: (buildName: string, contentType: "mod" | "resourcepack" | "shader", fileName: string, enabled: boolean) => Promise<{ success: boolean; fileName?: string; error?: string }>
-  onCliLaunchBuild: (callback: (buildName: string) => void) => () => void
-  updateCheck: () => Promise<{ available: boolean; version?: string; error?: string }>
-  updateDownload: () => Promise<{ success: boolean; error?: string }>
-  updateInstall: () => Promise<void>
-  updateGetChannel: () => Promise<"stable" | "beta">
-  updateSetChannel: (channel: string) => Promise<void>
-  onUpdateStatus: (callback: (status: { status: string; version?: string; releaseDate?: string; releaseNotes?: string; error?: string }) => void) => () => void
-  onUpdateProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void
   skinsGetProfile: (accountId?: string) => Promise<McProfile | null>
   skinsDeleteSkin: (accountId?: string) => Promise<boolean>
   skinsSetCape: (capeId: string | null, accountId?: string) => Promise<boolean>
@@ -951,5 +951,5 @@ export interface ElectronAPIExtra {
 
 // Legacy cloud-контракты (`cloudLogin`/`cloudGetFiles`/… token-based) удалены:
 // хендлеров и preload-методов для них не было, а имена конфликтовали с новым
-// provider-API в ElectronAPIExtra. Omit-хирургия больше не нужна.
-export type ElectronAPI = ElectronAPIExplicit & ElectronAPIExtra
+// provider-API в ElectrobunAPIExtra. Omit-хирургия больше не нужна.
+export type ElectrobunAPI = ElectrobunAPIExplicit & ElectrobunAPIExtra

@@ -2,6 +2,7 @@ import { useState } from "react"
 import { IconAlertTriangle, IconColorSwatch, IconPuzzle, IconPhoto, IconSparkles, IconArchive, IconFileText, IconLayoutGrid, IconServer } from "@tabler/icons-react"
 import { EntityIcon } from "../instance/entity-icon"
 import { LoaderIcon } from "../instance/loader-icon"
+import { LOADER_SVG_ICONS } from "../instance/loader-icons"
 
 const icons = { build: IconColorSwatch, mod: IconPuzzle, resourcepack: IconPhoto, shader: IconSparkles, datapack: IconArchive, file: IconFileText, log: IconFileText, crash: IconAlertTriangle, project: IconLayoutGrid, server: IconServer }
 
@@ -10,6 +11,6 @@ export function AgentEntityIcon({ src, kind = "project", className = "", name, l
   const typeIcon = Object.hasOwn(icons, kind) ? icons[kind as keyof typeof icons] : undefined
   const Icon = typeIcon || IconLayoutGrid
   return <span className={`agent-entity-icon ${className}`}>
-    {src && failed !== src ? <EntityIcon src={src} className="agent-entity-image p-[6%] text-primary" imgClassName="agent-entity-image object-cover" onImgError={() => setFailed(src)} /> : kind === "build" ? <LoaderIcon loaderId={loader || "vanilla"} className="h-full w-full p-[20%] text-primary/40" /> : !typeIcon && name ? <span className="text-sm font-semibold text-muted-foreground">{name[0]}</span> : <Icon size={20} strokeWidth={1.75} />}
+    {src && failed !== src ? <EntityIcon src={src} className="agent-entity-image p-[6%] text-primary" imgClassName="agent-entity-image object-cover" onImgError={() => setFailed(src)} /> : (kind === "build" || kind === "server" && Boolean(LOADER_SVG_ICONS[loader || ""])) ? <LoaderIcon loaderId={loader || "vanilla"} className="h-full w-full p-[20%] text-primary" /> : !typeIcon && name ? <span className="text-sm font-semibold text-muted-foreground">{name[0]}</span> : <Icon size={20} strokeWidth={1.75} />}
   </span>
 }

@@ -87,7 +87,7 @@ export function OnboardingModal({ selectedTheme, themes, onSelectTheme, onFinish
   useEffect(() => {
     let cancelled = false
     const loadSettings = async () => {
-      const api = window.electronAPI
+      const api = window.electrobunAPI
       if (!api) return
       const [min, max, discoveredInstances] = await Promise.all([
         api.getSetting("memoryMin"),
@@ -159,7 +159,7 @@ export function OnboardingModal({ selectedTheme, themes, onSelectTheme, onFinish
     const loginFns = { elyby: "loginElyBy", xnskins: "loginXnSkins", microsoft: "loginMicrosoft" } as const
     loadingSetters[provider](true)
     try {
-      const result = await (window.electronAPI as any)?.[loginFns[provider]]()
+      const result = await (window.electrobunAPI as any)?.[loginFns[provider]]()
       if (result) addAccount({ id: result.id, type: provider, username: result.username, uuid: result.uuid, accessToken: result.accessToken, refreshToken: result.refreshToken, skinUrl: result.skinUrl, isActive: accounts.length === 0 })
     } catch (e) { setError(e instanceof Error ? e.message : copy.errors.loginFailed) }
     finally { loadingSetters[provider](false) }
@@ -178,7 +178,7 @@ export function OnboardingModal({ selectedTheme, themes, onSelectTheme, onFinish
     setImportingInstances(true)
     setError("")
     try {
-      const api = window.electronAPI
+      const api = window.electrobunAPI
       if (!api) return
       const importFn = api.importLauncherInstances ?? api.importGdLauncherInstances
       if (!importFn) return
@@ -193,7 +193,7 @@ export function OnboardingModal({ selectedTheme, themes, onSelectTheme, onFinish
   }
 
   const persistLauncherSettings = async () => {
-    const api = window.electronAPI
+    const api = window.electrobunAPI
     if (!api) return
     await Promise.all([
       api.setSetting("memoryMin", normalizeMemoryValue(memoryMin, "512M")),

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { ModalLayer } from "@/components/ui/modal-layer"
 import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
-import { IconCheck, IconCoffee, IconFolderPlus, IconLoader2, IconRefresh, IconX } from "@tabler/icons-react"
+import { IconCheck, IconCoffee, IconFolderPlus, IconLoader2, IconRefresh, IconTerminal2, IconX } from "@tabler/icons-react"
 import type { JavaInstallation } from "./types"
 
 interface SettingsJavaProps {
@@ -85,7 +85,7 @@ export function SettingsJava({
         </button>
 
         <div data-ui="settings-settings-java-div-7" data-settings-tone="violet" className="settings-color-panel space-y-2 p-4">
-          <label data-ui="settings-settings-java-label-1" className="block text-sm font-medium text-foreground">{t("settings.java.args")}</label>
+          <label data-ui="settings-settings-java-label-1" className="mb-1 flex items-center gap-2 text-sm font-medium text-foreground"><IconTerminal2 className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("settings.java.args")}</label>
           <textarea data-ui="settings-settings-java-textarea-1"
             value={javaArgs}
             onChange={(e) => setJavaArgs(e.target.value)}
@@ -120,7 +120,7 @@ export function SettingsJava({
                 onClick={() => {
                   const ver = editingJavaVersion || "11"
                   setSelectedJavaPath(ver)
-                  void window.electronAPI?.setSetting("javaPath", ver)
+                  void window.electrobunAPI?.setSetting("javaPath", ver)
                   setShowJavaModal(false)
                   setEditingJavaVersion("")
                 }}
@@ -169,7 +169,7 @@ export function SettingsJava({
                         key={index}
                         onClick={() => {
                           setSelectedJavaPath(java.path)
-                          void window.electronAPI?.setSetting("javaPath", java.path)
+                          void window.electrobunAPI?.setSetting("javaPath", java.path)
                           setShowJavaModal(false)
                           setEditingJavaVersion("")
                         }}

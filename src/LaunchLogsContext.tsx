@@ -321,7 +321,7 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
   // во время установки/скачивания. Повторный опрос (например, после смены языка)
   // помечал установку как «игра уже запущена» и подменял кнопку прогресса на «Стоп».
   useEffect(() => {
-    void window.electronAPI?.isMinecraftRunning().then((running) => {
+    void window.electrobunAPI?.isMinecraftRunning().then((running) => {
       const ui = launchUiRef.current
       if (ui.isLaunching || ui.phase === "installing" || ui.phase === "launching") return
       setIsRunning(!!running)
@@ -337,7 +337,7 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
   }, [patchLaunchUi])
 
   useEffect(() => {
-    const offDownload = window.electronAPI?.onMinecraftDownloadStatus?.((progress) => {
+    const offDownload = window.electrobunAPI?.onMinecraftDownloadStatus?.((progress) => {
       const patch: Partial<LaunchUiState> = {
         status: getStageLabel(progress.type, progress.installationPhase, tRef.current),
       }
@@ -353,7 +353,7 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
       if (progress.fileName || progress.name) patch.currentFileName = progress.fileName ?? progress.name ?? null
       patchLaunchUi(patch)
     })
-    const offJava = window.electronAPI?.onMinecraftJavaProgress?.((progress) => {
+    const offJava = window.electrobunAPI?.onMinecraftJavaProgress?.((progress) => {
       patchLaunchUi({
         progress: progress.percent,
         status: progress.message,
@@ -361,7 +361,7 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
       })
       addLog(`[Java] ${progress.message} ${progress.percent}%`, "launcher")
     })
-    const offDebug = window.electronAPI?.onMinecraftDebug?.((message) => {
+    const offDebug = window.electrobunAPI?.onMinecraftDebug?.((message) => {
       if (message && !shouldIgnoreDebugLog(message)) addLog(message)
       // Пока процесс жив, но игра не подтвердила готовность, статус не трогаем:
       // иначе «Игра запускается...» тут же затиралась очередной debug-строкой.
@@ -373,13 +373,13 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
         })
       }
     })
-    const offData = window.electronAPI?.onMinecraftData?.((line) => {
+    const offData = window.electrobunAPI?.onMinecraftData?.((line) => {
       if (line?.trim()) addLog(line.trimEnd())
       // Процесс жив с момента спавна, но «запущено» показываем только когда игра
       // реально поднялась (маркер в её логе) — либо по страховочному таймауту.
       if (line && GAME_READY_RE.test(line)) markGameReady()
     })
-    const offClose = window.electronAPI?.onMinecraftClose?.((info) => {
+    const offClose = window.electrobunAPI?.onMinecraftClose?.((info) => {
       const code = info?.code ?? 0
       const crashed = Boolean(info?.crashed)
       const crashReport = info?.crashReport
@@ -422,7 +422,7 @@ export function LaunchLogsProvider({ children }: PropsWithChildren) {
       }
 
       resetLaunchUi()
-      window.electronAPI?.restore()
+      window.electrobunAPI?.restore()
 
       // Краш — сразу открываем логи: разбираться нужно именно там. Обычный
       // выход игру не прерывает, поэтому пользователя не дёргаем.

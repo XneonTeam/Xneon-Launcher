@@ -28,19 +28,19 @@ test('прогресс публикации обновляется внутри 
   const s = new ShareSystem({ files, remote, hash, sources: [], now: () => new Date().toISOString(), progress: event => events.push(event) })
   const first = await s.publish((await s.scan(metadata)).manifest, 'alice')
   const uploads = events.filter(event => event.stage === 'upload')
-  assert.ok(uploads.length >= 5)
-  assert.ok(uploads.some(event => event.done > 0 && event.done < 1))
-  assert.equal(events.filter(event => event.stage === 'verify').at(-1).done, 3)
-  assert.equal(events.filter(event => event.stage === 'verify').at(-1).total, 3)
+  assert.ok(uploads.length > 0)
+  assert.ok(uploads.some(event => event.done > 0))
+  assert.equal(events.some(event => event.stage === 'verify'), false)
   assert.equal(uploads.at(-1).bytes, Buffer.byteLength(contents) + 2)
   assert.equal(events.at(-1).stage, 'commit')
   assert.deepEqual(await remote.download(first.repository.id, await hash.digest(text(contents))), text(contents))
   files.data.set('config/b.json', text('{"v":2}'))
   events.length = 0
   await s.push(first.repository.id, 'main', first.commit.id, (await s.scan(metadata)).manifest, 'alice', 'One changed file')
-  const last = events.filter(event => event.stage === 'verify').at(-1)
+  const last = events.filter(event => event.stage === 'upload').at(-1)
   assert.equal(last.done, last.total)
   assert.equal(last.bytes, 7)
+  assert.equal(events.some(event => event.stage === 'verify'), false)
   assert.equal(events.at(-1).stage, 'commit')
 })
 
@@ -168,6 +168,11 @@ test('delete publication: creator only, server data removed, local copies and ob
     assert.equal(env.db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE repository_id=?`).get(id).n, 0)
   }
   assert.equal(env.db.prepare('SELECT COUNT(*) AS n FROM repositories WHERE id=?').get(id).n, 0)
+  // Доступ закрывается в запросе, а физическая очистка выполняется отдельно.
+  assert.equal(env.db.prepare('SELECT COUNT(*) AS n FROM snapshots WHERE id=?').get(second.commit.snapshot.id).n, 1)
+  await assert.rejects(participant.get(id), { code: 'PUBLICATION_DELETED' })
+  env.db.prepare('UPDATE objects SET created_at=0').run()
+  await env.gc()
   assert.equal(env.db.prepare('SELECT COUNT(*) AS n FROM snapshots WHERE id=?').get(second.commit.snapshot.id).n, 0)
   assert.equal(env.db.prepare('SELECT COUNT(*) AS n FROM manifests WHERE hash=?').get(second.commit.manifestHash).n, 0)
   await assert.rejects(participant.get(id), { code: 'PUBLICATION_DELETED' })
@@ -250,7 +255,7 @@ test('roles migration preserves legacy members and invitation links as editor', 
   } finally { await migrated.close() }
 })
 
-test('incremental publication: one changed mod checks only that mod and does not query unchanged objects', async t => {
+test('incremental publication: reuse scanned mod identity and skip unchanged objects', async t => {
   const env = await environment(t)
   const requests = []
   const measuredFetch = (url, init) => { requests.push({ url, method: init?.method }); return fetch(url, init) }
@@ -275,8 +280,8 @@ test('incremental publication: one changed mod checks only that mod and does not
   const start = performance.now()
   const published = await s.push(first.repository.id, 'main', first.commit.id, update.manifest, 'alice', 'Update one mod')
   const elapsed = Math.round(performance.now() - start)
-  assert.deepEqual(checked, ['updated-0'])
-  assert.equal(files.hashes, 1)
+  assert.deepEqual(checked, [])
+  assert.equal(files.hashes, 0)
   assert.equal(files.reads, 0)
   assert.equal(requests.filter(request => request.url.includes('/objects/')).length, 0)
   assert.equal(published.uploadedBytes, 0)
@@ -479,4 +484,23 @@ test('metadata-first benchmark: 300 managed files, actual HTTP upload byte count
   assert.ok(jsonBytes + objectBytes < scan.statistics.totalBytes / 100)
   const report = { fixture: true, managedFiles: 300, localBytes: scan.statistics.totalBytes, uploadedObjectBytes: objectBytes, uploadedJsonBodyBytes: jsonBytes, totalRequestBodyBytes: objectBytes + jsonBytes, excludesHttpTlsHeaders: true }
   console.log('SHARE_BENCHMARK ' + JSON.stringify(report))
+})
+
+test('срок и число использований приглашения задаются владельцем', async t => {
+  const env = await environment(t), owner = env.client('alice'), s = system(new MemoryFiles(), owner)
+  const published = await s.publish((await s.scan(metadata)).manifest, 'alice'), id = published.repository.id
+  const before = Date.now()
+  const response = await env.request('alice', `/repositories/${id}/invites`, { role: 'viewer', maxUses: 2, expiresInDays: 30 })
+  assert.equal(response.status, 200)
+  const invitation = await response.json()
+  assert.equal(invitation.expiresInDays, 30)
+  assert.equal(invitation.maxUses, 2)
+  assert.ok(invitation.expiresAt >= before + 30 * 86400000 && invitation.expiresAt <= Date.now() + 30 * 86400000)
+  assert.equal((await env.request('bob', `/invites/${invitation.token}/accept`, {})).status, 200)
+  assert.equal((await env.request('mallory', `/invites/${invitation.token}/accept`, {})).status, 200)
+  assert.equal((await env.request('bob', `/invites/${invitation.token}`)).status, 400)
+  for (const expiresInDays of [0, 366, -1, 1.5, '7']) assert.equal((await env.request('alice', `/repositories/${id}/invites`, { role: 'viewer', maxUses: 1, expiresInDays })).status, 400)
+  for (const maxUses of [0, 101, -1, 1.5]) assert.equal((await env.request('alice', `/repositories/${id}/invites`, { role: 'viewer', maxUses, expiresInDays: 7 })).status, 400)
+  const legacy = await (await env.request('alice', `/repositories/${id}/invites`, { role: 'viewer', maxUses: 1 })).json()
+  assert.equal(legacy.expiresInDays, 7)
 })

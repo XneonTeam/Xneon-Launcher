@@ -42,6 +42,18 @@ function normalizeContentIdentity(value?: string): string {
     .replace(/[\W_]+/g, "")
 }
 
+/** Iris и Sodium публикуют Fabric-версии без отдельной метки Quilt. */
+function pickDependencyVersion(versions: ModVersion[], build: Build, dep: ModDependency): ModVersion | undefined {
+  const exact = pickCompatibleVersion(versions, build)
+  if (exact) return exact
+  const supportsFabricOnQuilt = [dep.slug, dep.projectId, dep.name].some(value => {
+    const normalized = normalizeContentIdentity(value ?? undefined)
+    return normalized === "iris" || normalized === "irisshaders" || normalized === "sodium"
+  })
+  if (build.modLoader?.toLowerCase() !== "quilt" || !supportsFabricOnQuilt) return undefined
+  return pickCompatibleVersion(versions, { ...build, modLoader: "fabric" })
+}
+
 /** Одна зависимость в плане установки: что за мод и какая именно версия пойдёт. */
 interface DepPlanItem {
   dep: ModDependency
@@ -230,13 +242,14 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       if (!dep.projectId) return dep
       try {
         if (source === "modrinth") {
-          const versions = await window.electronAPI?.modsModrinthVersions(dep.projectId) ?? []
-          return versions.some(version => matchesBuildVersion(version, activeBuild)) ? dep : null
+          const versions = await window.electrobunAPI?.modsModrinthVersions(dep.projectId) ?? []
+          return versions.some(version => matchesBuildVersion(version, activeBuild)) || pickDependencyVersion(versions, activeBuild, dep) ? dep : null
         }
         const modId = Number.parseInt(dep.projectId, 10)
         if (!Number.isInteger(modId)) return dep
-        const details = await window.electronAPI?.modsCurseforgeDetails(modId)
-        return (details?.versions ?? []).some(version => matchesBuildVersion(version, activeBuild)) ? dep : null
+        const details = await window.electrobunAPI?.modsCurseforgeDetails(modId)
+        const versions = details?.versions ?? []
+        return versions.some(version => matchesBuildVersion(version, activeBuild)) || pickDependencyVersion(versions, activeBuild, dep) ? dep : null
       } catch {
         // Данные о проекте недоступны — не прячем зависимость от пользователя.
         return dep
@@ -262,7 +275,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
   ) => {
     const buildName = activeBuild.name
     if (!buildName) return
-    const saved = await window.electronAPI?.saveModToIntent(buildName, fileUrl, fileName)
+    const saved = await window.electrobunAPI?.saveModToIntent(buildName, fileUrl, fileName)
     if (saved) {
       setBuilds(prev => prev.map(build => {
         if (build.id !== activeBuild.id) return build
@@ -325,16 +338,16 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
   const resolveDepVersion = useCallback(async (dep: ModDependency, source: string): Promise<ModVersion | undefined> => {
     try {
       if (source === "modrinth") {
-        const versions = await window.electronAPI?.modsModrinthVersions(dep.projectId) ?? []
+        const versions = await window.electrobunAPI?.modsModrinthVersions(dep.projectId) ?? []
         // versionId от API — точное требование мода, его и берём.
         return (dep.versionId ? versions.find(v => v.id === dep.versionId) : undefined)
-          ?? pickCompatibleVersion(versions, activeBuild)
+          ?? pickDependencyVersion(versions, activeBuild, dep)
       }
       const depModId = parseInt(dep.projectId)
       if (isNaN(depModId)) return undefined
-      const versions = (await window.electronAPI?.modsCurseforgeDetails(depModId))?.versions ?? []
+      const versions = (await window.electrobunAPI?.modsCurseforgeDetails(depModId))?.versions ?? []
       return (dep.versionId ? versions.find(v => v.id === dep.versionId) : undefined)
-        ?? pickCompatibleVersion(versions, activeBuild)
+        ?? pickDependencyVersion(versions, activeBuild, dep)
     } catch {
       return undefined
     }
@@ -365,7 +378,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       }
       const depModId = parseInt(dep.projectId)
       if (isNaN(depModId)) return
-      const url = await window.electronAPI?.modsCurseforgeDownloadUrl(Number(version.id), depModId)
+      const url = await window.electrobunAPI?.modsCurseforgeDownloadUrl(Number(version.id), depModId)
       if (!url) return
       const fileName = version.fileName || url.split("/").pop()?.split("?")[0] || `${dep.projectId}.jar`
       await doDownloadMod(url, fileName, {
@@ -383,10 +396,47 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     }
   }, [doDownloadMod, resolveDepVersion])
 
+  /**
+   * Обязательные зависимости версии. CurseForge и Modrinth заполняют их не всегда:
+   * у jei под 26.2 оба API отдают пустой список, из-за чего мод падал с
+   * «Incompatible mods found». Когда API молчит — читаем метаданные самого jar
+   * (fabric.mod.json / quilt.mod.json / mods.toml), там зависимость объявлена всегда.
+   */
+  const resolveRequiredDeps = useCallback(async (
+    version: ModVersion,
+    source: "modrinth" | "curseforge",
+    modId?: number,
+  ): Promise<ModDependency[]> => {
+    const declared = version.dependencies ?? []
+    if (declared.some(dep => dep.dependencyType === "required")) {
+      return await window.electrobunAPI?.modsResolveDependencies(version, source) ?? declared
+    }
+
+    const url = source === "modrinth"
+      ? version.files?.[0]?.url
+      : modId ? await window.electrobunAPI?.modsCurseforgeDownloadUrl(Number(version.id), modId) : null
+    if (!url) return declared
+
+    const inspected = await window.electrobunAPI?.modsInspectJarDependencies(url, source)
+    const fromJar = inspected?.dependencies ?? []
+    if (fromJar.length > 0) {
+      console.info(`[deps] зависимости «${inspected?.modId ?? "mod"}» взяты из jar: ${fromJar.map(dep => dep.slug || dep.projectId).join(", ")}`)
+      return fromJar
+    }
+    return declared
+  }, [])
+
   /** План установки зависимостей: что именно поставим — показываем в окне подтверждения. */
   const planDeps = useCallback(async (deps: ModDependency[], source: "modrinth" | "curseforge"): Promise<DepPlanItem[]> => {
     const items: DepPlanItem[] = []
-    for (const dep of deps) {
+    const queue = [...deps]
+    const seen = new Set<string>()
+    while (queue.length > 0) {
+      const dep = queue.shift()!
+      const key = dep.projectId || dep.slug || dep.versionId
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      if (activeBuild.mods.some(installed => isInstalledBuildMod(installed, source, dep.projectId, source === "curseforge" ? Number(dep.projectId) : undefined, dep.slug || dep.projectId))) continue
       const version = await resolveDepVersion(dep, source)
       // У зависимостей из API обычно нет имени и иконки — в окне подтверждения
       // был виден только slug («iris»). Подтягиваем проект.
@@ -394,11 +444,11 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       if (!dep.name || !dep.iconUrl) {
         try {
           if (source === "modrinth") {
-            const details = await window.electronAPI?.modsModrinthDetails(dep.slug || dep.projectId)
+            const details = await window.electrobunAPI?.modsModrinthDetails(dep.slug || dep.projectId)
             if (details) resolved = { ...dep, name: dep.name || details.name, iconUrl: dep.iconUrl || details.iconUrl }
           } else {
             const modId = Number.parseInt(dep.projectId, 10)
-            const details = Number.isInteger(modId) ? await window.electronAPI?.modsCurseforgeDetails(modId) : null
+            const details = Number.isInteger(modId) ? await window.electrobunAPI?.modsCurseforgeDetails(modId) : null
             if (details) resolved = { ...dep, name: dep.name || details.name, iconUrl: dep.iconUrl || details.iconUrl }
           }
         } catch { /* нет данных о проекте — показываем как есть */ }
@@ -409,9 +459,14 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
         // Требование API совпало с найденной версией — значит версия обязательная.
         pinned: Boolean(dep.versionId && version?.id === dep.versionId),
       })
+      if (version) {
+        const children = await resolveRequiredDeps(version, source, source === "curseforge" ? Number(dep.projectId) : undefined)
+        const required = children.filter(child => child.dependencyType === "required")
+        queue.push(...await filterDepsForBuild(required, source))
+      }
     }
     return items
-  }, [resolveDepVersion])
+  }, [activeBuild.mods, filterDepsForBuild, isInstalledBuildMod, resolveDepVersion, resolveRequiredDeps])
 
   const installVersionWithDeps = useCallback(async (
     version: ModVersion,
@@ -444,7 +499,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     } else {
       const modId = overrideMetadata?.modId || selectedDetails?.modId
       if (modId) {
-        const url = await window.electronAPI?.modsCurseforgeDownloadUrl(Number(version.id), modId)
+        const url = await window.electrobunAPI?.modsCurseforgeDownloadUrl(Number(version.id), modId)
         if (url) {
           const fileName = version.fileName || url.split("/").pop()?.split("?")[0] || `mod-${version.id}.jar`
           await doDownloadMod(url, fileName, {
@@ -467,36 +522,6 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     }
     onPhase?.(null)
   }, [selectedDetails, doDownloadMod, doDownloadDep])
-
-  /**
-   * Обязательные зависимости версии. CurseForge и Modrinth заполняют их не всегда:
-   * у jei под 26.2 оба API отдают пустой список, из-за чего мод падал с
-   * «Incompatible mods found». Когда API молчит — читаем метаданные самого jar
-   * (fabric.mod.json / quilt.mod.json / mods.toml), там зависимость объявлена всегда.
-   */
-  const resolveRequiredDeps = useCallback(async (
-    version: ModVersion,
-    source: "modrinth" | "curseforge",
-    modId?: number,
-  ): Promise<ModDependency[]> => {
-    const declared = version.dependencies ?? []
-    if (declared.some(dep => dep.dependencyType === "required")) {
-      return await window.electronAPI?.modsResolveDependencies(version, source) ?? declared
-    }
-
-    const url = source === "modrinth"
-      ? version.files?.[0]?.url
-      : modId ? await window.electronAPI?.modsCurseforgeDownloadUrl(Number(version.id), modId) : null
-    if (!url) return declared
-
-    const inspected = await window.electronAPI?.modsInspectJarDependencies(url, source)
-    const fromJar = inspected?.dependencies ?? []
-    if (fromJar.length > 0) {
-      console.info(`[deps] зависимости «${inspected?.modId ?? "mod"}» взяты из jar: ${fromJar.map(dep => dep.slug || dep.projectId).join(", ")}`)
-      return fromJar
-    }
-    return declared
-  }, [])
 
   /**
    * Спрашиваем про зависимости и ждём ответа в том же промисе: пока окно открыто,
@@ -548,7 +573,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       return { projectId: "iris", dependencyType: "required", slug: "iris", name: "Iris Shaders" }
     }
     try {
-      const found = await window.electronAPI?.modsCurseforgeSearch("iris shaders", undefined, activeBuild.version, "fabric", undefined, 0)
+      const found = await window.electrobunAPI?.modsCurseforgeSearch("iris shaders", undefined, activeBuild.version, "fabric", undefined, 0)
       const hit = (found?.results ?? []).find(item =>
         /^iris/i.test(String(item.slug ?? "")) || /^iris\s*shaders$/i.test(String(item.name ?? "").trim()))
       if (hit?.modId) {
@@ -574,9 +599,9 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       if (source === "modrinth") {
         // У шейдеров в loaders стоит iris/optifine, а не загрузчик сборки, поэтому
         // совпадение по загрузчику не проверяем — иначе версия не находится вовсе.
-        version = pickCompatibleVersion(await window.electronAPI?.modsModrinthVersions(mod.projectId ?? mod.slug), activeBuild, false)
+        version = pickCompatibleVersion(await window.electrobunAPI?.modsModrinthVersions(mod.projectId ?? mod.slug), activeBuild, false)
       } else if (source === "curseforge" && mod.modId) {
-        const details = await window.electronAPI?.modsCurseforgeDetails(mod.modId)
+        const details = await window.electrobunAPI?.modsCurseforgeDetails(mod.modId)
         version = pickCompatibleVersion(details?.versions ?? [], activeBuild, false)
       }
 
@@ -591,11 +616,10 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
           onPhase?.("confirm")
           const plan = await planDeps(installable, source)
           const approved = await askAboutDeps(mod.name, mod.iconUrl, source, plan)
-          if (approved) {
-            onPhase?.("deps")
-            for (const item of approved) {
-              await doDownloadDep(item.dep, source, item.version)
-            }
+          if (!approved) { onPhase?.(null); return }
+          onPhase?.("deps")
+          for (const item of approved) {
+            await doDownloadDep(item.dep, source, item.version)
           }
         }
       }
@@ -628,10 +652,10 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
 
       let selectedVersion: ModVersion | undefined
       if (source === "modrinth") {
-        const versions = await window.electronAPI?.modsModrinthVersions(mod.projectId ?? mod.slug)
+        const versions = await window.electrobunAPI?.modsModrinthVersions(mod.projectId ?? mod.slug)
         selectedVersion = pickCompatibleVersion(versions, activeBuild)
       } else if (source === "curseforge" && mod.modId) {
-        const details = await window.electronAPI?.modsCurseforgeDetails(mod.modId)
+        const details = await window.electrobunAPI?.modsCurseforgeDetails(mod.modId)
         selectedVersion = pickCompatibleVersion(details?.versions ?? [], activeBuild)
       }
 

@@ -1,0 +1,196 @@
+import path from "path"
+import fs from "fs/promises"
+import { app } from "../../platform/desktop"
+import type { LauncherInstance } from "./helpers"
+import { fileExists, getInstanceContentDirs, countFilesInDirs, isSupportedImportedLoader, discoverInstancesFromDirs, readVersionSelection } from "./helpers"
+
+type MmcLikeType = "multimc" | "polymc" | "prism"
+
+async function getMmcLikeInstancesDirs(customPath?: string, customType?: MmcLikeType): Promise<{ type: MmcLikeType; dirs: string[] }[]> {
+  const home = app.getPath("home")
+  const isWindows = process.platform === "win32"
+  const isMacOS = process.platform === "darwin"
+  const appData = isWindows ? (process.env.APPDATA || "C:\\Windows\\System32\\config\\systemprofile\\AppData\\Roaming") : ""
+  const result: { type: MmcLikeType; dirs: string[] }[] = []
+
+  if (customPath) {
+    const instancesDir = path.join(customPath, "instances")
+    if (await fileExists(instancesDir)) {
+      result.push({ type: customType ?? "prism", dirs: [instancesDir] })
+      return result
+    }
+    if (await fileExists(path.join(customPath, "instance.cfg"))) {
+      result.push({ type: customType ?? "prism", dirs: [path.dirname(customPath)] })
+      return result
+    }
+    if (await fileExists(customPath)) {
+      result.push({ type: customType ?? "prism", dirs: [customPath] })
+      return result
+    }
+  }
+
+  // MultiMC
+  const mmcDirs: string[] = []
+  if (isWindows) {
+    mmcDirs.push(
+      path.join(appData, "MultiMC", "instances"),
+    )
+  } else if (isMacOS) {
+    mmcDirs.push(
+      path.join(home, "Library", "Application Support", "multimc", "instances"),
+    )
+  } else {
+    mmcDirs.push(
+      path.join(home, ".local", "share", "MultiMC", "instances"),
+      path.join(home, ".var", "app", "org.multimc.MultiMC", "data", "MultiMC", "instances"),
+    )
+  }
+  const mmcExisting = (await Promise.all(mmcDirs.map(async d => (await fileExists(d)) ? d : null))).filter(Boolean) as string[]
+  if (mmcExisting.length) result.push({ type: "multimc", dirs: mmcExisting })
+
+  // PolyMC
+  const pmcDirs: string[] = []
+  if (isWindows) {
+    pmcDirs.push(
+      path.join(appData, "PolyMC", "instances"),
+    )
+  } else if (isMacOS) {
+    pmcDirs.push(
+      path.join(home, "Library", "Application Support", "PolyMC", "instances"),
+    )
+  } else {
+    pmcDirs.push(
+      path.join(home, ".local", "share", "PolyMC", "instances"),
+      path.join(home, ".var", "app", "org.polymc.PolyMC", "data", "PolyMC", "instances"),
+    )
+  }
+  const pmcExisting = (await Promise.all(pmcDirs.map(async d => (await fileExists(d)) ? d : null))).filter(Boolean) as string[]
+  if (pmcExisting.length) result.push({ type: "polymc", dirs: pmcExisting })
+
+  // Prism Launcher
+  const prismDirs: string[] = []
+  if (isWindows) {
+    prismDirs.push(
+      path.join(appData, "PrismLauncher", "instances"),
+    )
+  } else if (isMacOS) {
+    prismDirs.push(
+      path.join(home, "Library", "Application Support", "PrismLauncher", "instances"),
+    )
+  } else {
+    prismDirs.push(
+      path.join(home, ".var", "app", "org.prismlauncher.PrismLauncher", "data", "PrismLauncher", "instances"),
+      path.join(home, ".local", "share", "PrismLauncher", "instances"),
+      path.join(home, ".PrismLauncher", "instances"),
+    )
+  }
+  const prismExisting = (await Promise.all(prismDirs.map(async d => (await fileExists(d)) ? d : null))).filter(Boolean) as string[]
+  if (prismExisting.length) result.push({ type: "prism", dirs: prismExisting })
+
+  return result
+}
+
+function parseIniValue(iniContent: string, key: string): string | undefined {
+  const lines = iniContent.split("\n")
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith(key + "=")) {
+      return trimmed.slice(key.length + 1).trim()
+    }
+  }
+  return undefined
+}
+
+async function readMmcLikeInstance(instanceDir: string, type: MmcLikeType): Promise<LauncherInstance | null> {
+  try {
+    const cfgPath = path.join(instanceDir, "instance.cfg")
+    if (!(await fileExists(cfgPath))) return null
+
+    const cfgRaw = await fs.readFile(cfgPath, "utf-8")
+    const cfgName = parseIniValue(cfgRaw, "name")
+
+    let version = "unknown"
+    let modLoader: string = "vanilla"
+    let loaderVersion: string | undefined
+
+    // Try mmc-pack.json first (newer format)
+    const mmcPackPath = path.join(instanceDir, "mmc-pack.json")
+    if (await fileExists(mmcPackPath)) {
+      try {
+        const mmcPack = JSON.parse(await fs.readFile(mmcPackPath, "utf-8"))
+        const components: Array<{ uid: string; version: string }> = mmcPack.components ?? []
+        for (const comp of components) {
+          if (comp.uid === "net.minecraft") version = comp.version
+          else if (comp.uid === "net.fabricmc.fabric-loader") { modLoader = "fabric"; loaderVersion = comp.version }
+          else if (comp.uid === "org.quiltmc.quilt-loader") { modLoader = "quilt"; loaderVersion = comp.version }
+          else if (comp.uid === "net.neoforged") { modLoader = "neoforge"; loaderVersion = comp.version }
+          else if (comp.uid === "net.minecraftforge" || comp.uid === "net.minecraftforgeforge") { modLoader = "forge"; loaderVersion = comp.version }
+        }
+      } catch {}
+    }
+
+    // Fallback: try minecraft.json (older format)
+    if (version === "unknown") {
+      const mcJsonPath = path.join(instanceDir, "minecraft.json")
+      if (await fileExists(mcJsonPath)) {
+        try {
+          const mcJson = JSON.parse(await fs.readFile(mcJsonPath, "utf-8"))
+          if (mcJson.baseVersion) version = mcJson.baseVersion
+          if (mcJson.javaArguments) {
+            const args = mcJson.javaArguments as string
+            if (args.includes("fabric")) modLoader = "fabric"
+            else if (args.includes("quilt")) modLoader = "quilt"
+            else if (args.includes("neoforge")) modLoader = "neoforge"
+            else if (args.includes("forge")) modLoader = "forge"
+          }
+        } catch {}
+      }
+    }
+
+    if (!isSupportedImportedLoader(modLoader)) return null
+
+    const importedVersion = await readVersionSelection(path.join(instanceDir, "versions"), [modLoader])
+
+    let iconPath: string | undefined
+    for (const sub of [path.join(instanceDir, "minecraft"), path.join(instanceDir, ".minecraft"), instanceDir]) {
+      const candidate = path.join(sub, "icon.png")
+      if (await fileExists(candidate)) { iconPath = candidate; break }
+    }
+
+    const modsDirs = await getInstanceContentDirs(instanceDir, "mods")
+    const rpDirs = await getInstanceContentDirs(instanceDir, "resourcepacks")
+    const spDirs = await getInstanceContentDirs(instanceDir, "shaderpacks")
+
+    return {
+      id: `${type}:${path.basename(instanceDir)}`,
+      name: cfgName?.trim() || path.basename(instanceDir),
+      version,
+      modLoader,
+      loaderVersion,
+      icon: iconPath,
+      path: instanceDir,
+      source: type,
+      gameDataRoot: instanceDir,
+      versionId: importedVersion?.id,
+      modCount: await countFilesInDirs(modsDirs),
+      resourcepackCount: await countFilesInDirs(rpDirs),
+      shaderCount: await countFilesInDirs(spDirs),
+    }
+  } catch {
+    return null
+  }
+}
+
+export async function discoverMmcLikeInstances(customPath?: string, customType?: MmcLikeType): Promise<LauncherInstance[]> {
+  const mmcLikeConfigs = await getMmcLikeInstancesDirs(customPath, customType)
+  // Обход каталогов инстансов — общий скелет (см. discoverInstancesFromDirs):
+  // раньше он был скопирован в четырёх импортёрах.
+  const instances = await discoverInstancesFromDirs(
+    mmcLikeConfigs.flatMap(({ dirs }) => dirs),
+    (dir) => {
+      const type = mmcLikeConfigs.find((config) => config.dirs.includes(path.dirname(dir)))?.type ?? "multimc"
+      return readMmcLikeInstance(dir, type)
+    },
+  )
+  return instances
+}

@@ -10,7 +10,7 @@ import { S3SetupModal } from "./cloud-s3-setup"
 import { ErrorBoundary } from "./error-boundary"
 import { useAlertDialog } from "@/lib/use-alert-dialog"
 
-const api = typeof window !== "undefined" ? window.electronAPI : undefined
+const api = typeof window !== "undefined" ? window.electrobunAPI : undefined
 
 type ProviderInfo = { id: string; name: string }
 type ConnectedProvider = { id: string; name: string }

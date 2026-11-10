@@ -149,8 +149,8 @@ export function useBuilds() {
   const syncBuildContent = useCallback(async (build: Build): Promise<Build> => {
     try {
       const targetPath = build.intentPath?.trim() || build.name
-      await window.electronAPI?.getBuildIntentPath(targetPath)
-      const scanned = await window.electronAPI?.scanBuildIntentContent?.(targetPath)
+      await window.electrobunAPI?.getBuildIntentPath(targetPath)
+      const scanned = await window.electrobunAPI?.scanBuildIntentContent?.(targetPath)
       if (!scanned) return build
 
       const mergeContent = (existing: BuildMod[], incoming: BuildMod[]) => {
@@ -240,7 +240,7 @@ export function useBuilds() {
       return true
     }
     try {
-      const content = await window.electronAPI?.loadBuildContent?.(buildId)
+      const content = await window.electrobunAPI?.loadBuildContent?.(buildId)
       if (!content) return false
       const parsed = {
         mods: Array.isArray(content.mods) ? content.mods as BuildMod[] : [],
@@ -293,7 +293,7 @@ export function useBuilds() {
       const pending = pendingPatchesRef.current
       pendingPatchesRef.current = []
       for (const patch of pending) {
-        try { await window.electronAPI?.updateBuildFields?.(patch.id, patch.fields as never) }
+        try { await window.electrobunAPI?.updateBuildFields?.(patch.id, patch.fields as never) }
         catch (error) { console.error("[Builds] Failed to flush pending changes", patch.id, error) }
       }
     }
@@ -303,7 +303,7 @@ export function useBuilds() {
     try {
       // Лёгкий список: контент сборок приходит из buildContentCache или уже
       // загруженного состояния, а не из этого запроса.
-      const rawBuilds = await window.electronAPI?.loadBuildsLight()
+      const rawBuilds = await window.electrobunAPI?.loadBuildsLight()
       const dbBuilds = (Array.isArray(rawBuilds) ? rawBuilds : []) as BuildWithCounts[]
 
       // Пустой ответ — это либо «сборок действительно нет», либо сбой IPC /
@@ -464,7 +464,7 @@ export function useBuilds() {
     try {
       const synced = await syncBuildContent(current)
       // Результат скана после удаления, включая пустую папку, сохраняем явно.
-      await window.electronAPI?.updateBuildFields?.(buildId, {
+      await window.electrobunAPI?.updateBuildFields?.(buildId, {
         mods: synced.mods, resourcepacks: synced.resourcepacks, shaders: synced.shaders,
         installedMods: synced.installedMods ?? {}, modsCount: synced.mods.length,
         resourcepacksCount: synced.resourcepacks.length, shadersCount: synced.shaders.length,
@@ -502,7 +502,7 @@ export function useBuilds() {
   }, [syncBuildContent, setBuilds])
 
   useEffect(() => {
-    const api = window.electronAPI
+    const api = window.electrobunAPI
     if (!activeBuildId || !api?.watchBuildContent) return
     const token = crypto.randomUUID()
     let disposed = false
@@ -566,7 +566,7 @@ export function useBuilds() {
     window.addEventListener("launcher:agent-updated", agentHandler)
     const shareHandler = () => { buildsLightCache = null; buildContentCache.clear(); void reloadBuilds() }
     window.addEventListener("launcher:share-updated", shareHandler)
-    const offShare = window.electronAPI?.onShareInstalled(shareHandler)
+    const offShare = window.electrobunAPI?.onShareInstalled(shareHandler)
     return () => {
       window.removeEventListener("cloud:imported", handler)
       window.removeEventListener("launcher:agent-updated", agentHandler)
@@ -610,7 +610,7 @@ export function useBuilds() {
           // Одна сборка не должна блокировать сохранение остальных: раньше
           // ошибка любого патча прерывала весь цикл, и правки после неё терялись.
           try {
-            await window.electronAPI?.updateBuildFields?.(patch.id, patch.fields as never)
+            await window.electrobunAPI?.updateBuildFields?.(patch.id, patch.fields as never)
             const light = savedLightFieldsRef.current.get(patch.id) ?? {}
             for (const key of Object.keys(patch.fields)) light[key] = patch.fields[key]
             savedLightFieldsRef.current.set(patch.id, light)
@@ -637,7 +637,7 @@ export function useBuilds() {
       saveTimeoutRef.current = null
     }
     for (const patch of pendingPatchesRef.current) {
-      void window.electronAPI?.updateBuildFields?.(patch.id, patch.fields as never)
+      void window.electrobunAPI?.updateBuildFields?.(patch.id, patch.fields as never)
       pendingEditsRef.current.delete(patch.id)
     }
     pendingPatchesRef.current = []
@@ -649,8 +649,8 @@ export function useBuilds() {
     const id = crypto.randomUUID()
     let intentPath = ""
     try {
-      intentPath = await window.electronAPI?.getBuildIntentPath(trimmedName) ?? ""
-      await window.electronAPI?.setBuildIntentPath(trimmedName, intentPath)
+      intentPath = await window.electrobunAPI?.getBuildIntentPath(trimmedName) ?? ""
+      await window.electrobunAPI?.setBuildIntentPath(trimmedName, intentPath)
     } catch {}
     const newBuild: Build = {
       id, name: trimmedName, description: params.description.trim(),
@@ -666,7 +666,7 @@ export function useBuilds() {
     // (`UPDATE ... WHERE id = ?`), а по несуществующей строке это no-op — сборка
     // жила только в памяти и пропадала после перезапуска лаунчера.
     try {
-      await window.electronAPI?.insertBuild?.(newBuild as unknown as Parameters<NonNullable<Window["electronAPI"]>["insertBuild"]>[0])
+      await window.electrobunAPI?.insertBuild?.(newBuild as unknown as Parameters<NonNullable<Window["electrobunAPI"]>["insertBuild"]>[0])
       savedLightFieldsRef.current.set(id, Object.fromEntries(
         LIGHT_BUILD_FIELDS.map(key => [key, (newBuild as unknown as Record<string, unknown>)[key]]),
       ))
@@ -680,7 +680,7 @@ export function useBuilds() {
     const build = builds.find(b => b.id === id)
     if (build) {
       try {
-        await window.electronAPI?.deleteBuildIntent(build.name)
+        await window.electrobunAPI?.deleteBuildIntent(build.name)
       } catch {}
       try {
         const lastVersion = localStorage.getItem("xneon-launcher:lastVersion")
@@ -708,7 +708,7 @@ export function useBuilds() {
       // Метаданные сборки хранятся только в БД; при удалении записи они потерялись бы.
       // Отдаём их main-процессу, чтобы он сохранил снапшот рядом с папкой в корзине —
       // тогда восстановление вернёт сборку целиком, без перезахода.
-      const result = await window.electronAPI?.moveBuildIntentToTrash?.(build.name, build as unknown as Record<string, unknown>)
+      const result = await window.electrobunAPI?.moveBuildIntentToTrash?.(build.name, build as unknown as Record<string, unknown>)
       // Перемещение может не пройти: папку держит другой процесс (EBUSY/EPERM —
       // антивирус, индексатор, открытый файл), диск занят, прав нет. Раньше ответ
       // не проверялся, сборка убиралась из списка «всё равно», а запись в БД
@@ -756,7 +756,7 @@ export function useBuilds() {
     if (!snapshot) return null
     const { build, trashName } = snapshot
     if (trashName) {
-      try { await window.electronAPI?.restoreBuildIntentFromTrash?.(build.name, trashName) } catch {}
+      try { await window.electrobunAPI?.restoreBuildIntentFromTrash?.(build.name, trashName) } catch {}
     }
     setBuilds(prev => [build, ...prev])
     setActiveBuildId(build.id)
@@ -765,7 +765,7 @@ export function useBuilds() {
 
   const purgeBuildTrash = useCallback(async (): Promise<void> => {
     trashStackRef.current = []
-    try { await window.electronAPI?.purgeBuildTrash?.() } catch {}
+    try { await window.electrobunAPI?.purgeBuildTrash?.() } catch {}
   }, [])
 
   /**
@@ -777,7 +777,7 @@ export function useBuilds() {
    */
   const restoreBuildFromTrash = useCallback(async (item: { trashName: string; originalName: string }): Promise<boolean> => {
     try {
-      const result = await window.electronAPI?.restoreBuildIntentFromTrash?.(item.originalName, item.trashName)
+      const result = await window.electrobunAPI?.restoreBuildIntentFromTrash?.(item.originalName, item.trashName)
       if (!result?.success) return false
 
       const restored = result.build as Build | undefined
@@ -790,12 +790,12 @@ export function useBuilds() {
         })
         try {
           // Лёгкий список: контент остальных сборок сохранит saveAllBuilds.
-          const existing = await window.electronAPI?.loadBuildsLight() ?? []
+          const existing = await window.electrobunAPI?.loadBuildsLight() ?? []
           if (!existing.some(b => b.id === restored.id)) {
-            await window.electronAPI?.saveBuilds([
+            await window.electrobunAPI?.saveBuilds([
               restored,
               ...existing,
-            ] as unknown as Parameters<NonNullable<Window["electronAPI"]>["saveBuilds"]>[0])
+            ] as unknown as Parameters<NonNullable<Window["electrobunAPI"]>["saveBuilds"]>[0])
           }
         } catch { /* память уже обновлена; следующий автосейв добьёт состояние */ }
       }
@@ -811,7 +811,7 @@ export function useBuilds() {
   const duplicatingRef = useRef(new Set<string>())
   const duplicateBuild = useCallback(async (id: string): Promise<Build | null> => {
     const source = buildsRef.current.find(build => build.id === id)
-    const api = window.electronAPI
+    const api = window.electrobunAPI
     if (!source || !api || duplicatingRef.current.has(id)) return null
     duplicatingRef.current.add(id)
     const liveKey = `duplicate-build:${id}`
@@ -862,13 +862,13 @@ export function useBuilds() {
   const exportBuildZip = useCallback(async (id: string, categories?: BuildExportCategory[]): Promise<{ success: boolean; path?: string; error?: string }> => {
     const build = builds.find(b => b.id === id)
     if (!build) return { success: false, error: t("builds.errors.notFound") }
-    return await window.electronAPI?.exportBuildZip?.(build.name, build.name, categories) ?? { success: false, error: t("builds.errors.unavailable") }
+    return await window.electrobunAPI?.exportBuildZip?.(build.name, build.name, categories) ?? { success: false, error: t("builds.errors.unavailable") }
   }, [builds])
 
   const exportBuildModlist = useCallback(async (id: string, format: "html" | "markdown" | "json" | "csv" | "plaintext"): Promise<{ success: boolean; path?: string; error?: string }> => {
     const build = builds.find(b => b.id === id)
     if (!build) return { success: false, error: t("builds.errors.notFound") }
-    return await window.electronAPI?.exportBuildModlist?.(build.name, build.name, format) ?? { success: false, error: t("builds.errors.unavailable") }
+    return await window.electrobunAPI?.exportBuildModlist?.(build.name, build.name, format) ?? { success: false, error: t("builds.errors.unavailable") }
   }, [builds])
 
   const renameBuild = useCallback(async (id: string, newName: string): Promise<{ success: boolean; error?: string }> => {
@@ -881,10 +881,10 @@ export function useBuilds() {
       return { success: false, error: t("builds.errors.duplicateName") }
     }
     try {
-      const result = await window.electronAPI?.renameBuildIntent?.(build.name, target)
+      const result = await window.electrobunAPI?.renameBuildIntent?.(build.name, target)
       if (result?.success) {
         // Название должно попасть в следующий скан Share сразу после переименования.
-        await window.electronAPI?.updateBuildFields?.(id, { name: target, intentPath: result.intentPath ?? build.intentPath })
+        await window.electrobunAPI?.updateBuildFields?.(id, { name: target, intentPath: result.intentPath ?? build.intentPath })
         setBuilds(prev => prev.map(b => b.id === id
           ? { ...b, name: target, intentPath: result.intentPath ?? b.intentPath }
           : b))
@@ -909,7 +909,7 @@ export function useBuilds() {
     // только после подтверждённой записи — и лишь для тех ключей, что записали.
     void (async () => {
       try {
-        await window.electronAPI?.updateBuildFields?.(id, fields as unknown as Parameters<NonNullable<Window["electronAPI"]>["updateBuildFields"]>[1])
+        await window.electrobunAPI?.updateBuildFields?.(id, fields as unknown as Parameters<NonNullable<Window["electrobunAPI"]>["updateBuildFields"]>[1])
         const buffered = pendingEditsRef.current.get(id)
         if (buffered) {
           const rest: Partial<Build> = { ...buffered }
@@ -982,14 +982,14 @@ export function useBuilds() {
     if (!buildName) return
 
     const saveRemoteFileToBuild = async (url: string, fileName: string) => {
-      return await window.electronAPI?.saveModToIntent(buildName, url, fileName)
+      return await window.electrobunAPI?.saveModToIntent(buildName, url, fileName)
     }
 
     const downloadDependency = async (dep: ModDependency, source: string) => {
       if (dep.dependencyType !== "required" || !dep.projectId) return
       try {
         if (source === "modrinth") {
-          const versions = await window.electronAPI?.modsModrinthVersions(dep.projectId)
+          const versions = await window.electrobunAPI?.modsModrinthVersions(dep.projectId)
           const latestVersion = targetBuild ? pickCompatibleVersion(versions, targetBuild) : versions?.find(v => v.files?.[0]?.url)
           if (latestVersion?.files?.[0]?.url) {
             await saveRemoteFileToBuild(latestVersion.files[0].url, latestVersion.files[0].filename || `${dep.projectId}.jar`)
@@ -999,12 +999,12 @@ export function useBuilds() {
 
         const depModId = parseInt(dep.projectId)
         if (isNaN(depModId)) return
-        const details = await window.electronAPI?.modsCurseforgeDetails(depModId)
+        const details = await window.electrobunAPI?.modsCurseforgeDetails(depModId)
         const selectedVersion = targetBuild ? pickCompatibleVersion(details?.versions ?? [], targetBuild) : details?.versions?.[0]
         if (!selectedVersion) return
 
         const fileId = Number(selectedVersion.id)
-        const url = await window.electronAPI?.modsCurseforgeDownloadUrl(fileId, depModId)
+        const url = await window.electrobunAPI?.modsCurseforgeDownloadUrl(fileId, depModId)
         if (url) {
           const fileName = selectedVersion.fileName || url.split("/").pop()?.split("?")[0] || `${dep.projectId}.jar`
           await saveRemoteFileToBuild(url, fileName)
@@ -1024,7 +1024,7 @@ export function useBuilds() {
 
         if (mod.source === "modrinth") {
           // Версии берём по project_id: slug — «мягкий» идентификатор, автор может его сменить.
-          const versions = await window.electronAPI?.modsModrinthVersions(mod.projectId ?? mod.slug)
+          const versions = await window.electrobunAPI?.modsModrinthVersions(mod.projectId ?? mod.slug)
           const selectedVersion = targetBuild ? pickCompatibleVersion(versions, targetBuild) : versions?.find(version => version.files?.[0]?.url)
           if (!selectedVersion?.files?.[0]?.url) {
             endContentInstall()
@@ -1054,7 +1054,7 @@ export function useBuilds() {
             }))
           }
 
-          const deps = await window.electronAPI?.modsResolveDependencies(selectedVersion, "modrinth") ?? []
+          const deps = await window.electrobunAPI?.modsResolveDependencies(selectedVersion, "modrinth") ?? []
           for (const dep of deps) {
             await downloadDependency(dep, "modrinth")
           }
@@ -1063,7 +1063,7 @@ export function useBuilds() {
             endContentInstall()
             return
           }
-          const details = await window.electronAPI?.modsCurseforgeDetails(mod.modId)
+          const details = await window.electrobunAPI?.modsCurseforgeDetails(mod.modId)
           const selectedVersion = targetBuild
             ? pickCompatibleVersion(details?.versions ?? [], targetBuild)
             : details?.versions?.find(version => Number(version.id) === mod.primaryFileId) ?? details?.versions?.[0]
@@ -1072,7 +1072,7 @@ export function useBuilds() {
             return
           }
 
-          const url = await window.electronAPI?.modsCurseforgeDownloadUrl(Number(selectedVersion.id), mod.modId)
+          const url = await window.electrobunAPI?.modsCurseforgeDownloadUrl(Number(selectedVersion.id), mod.modId)
           if (!url) {
             endContentInstall()
             return
@@ -1100,7 +1100,7 @@ export function useBuilds() {
             }))
           }
 
-          const deps = await window.electronAPI?.modsResolveDependencies(selectedVersion, "curseforge") ?? []
+          const deps = await window.electrobunAPI?.modsResolveDependencies(selectedVersion, "curseforge") ?? []
           for (const dep of deps) {
             await downloadDependency(dep, "curseforge")
           }
@@ -1165,7 +1165,7 @@ export function useBuilds() {
         shaders: updated.shaders,
         installedMods: updated.installedMods ?? {},
       }
-      await window.electronAPI?.updateBuildFields?.(buildId, { ...content, modsCount: content.mods.length, resourcepacksCount: content.resourcepacks.length, shadersCount: content.shaders.length } as never)
+      await window.electrobunAPI?.updateBuildFields?.(buildId, { ...content, modsCount: content.mods.length, resourcepacksCount: content.resourcepacks.length, shadersCount: content.shaders.length } as never)
       const next = buildsRef.current.map(build => (build.id === buildId ? updated : build))
       // Память держим в согласии с записанным: помечаем контент и снапшот
       // сохранёнными, иначе отложенный debounce отправит более старый снапшот
@@ -1182,15 +1182,15 @@ export function useBuilds() {
 
   const addLocalModToBuild = useCallback(async (buildId: string, file: File) => {
     const modName = file.name.replace(/\.jar$|\.zip$|\.litemod$/i, "").replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase())
-    const localPath = window.electronAPI?.getFilePath(file)
+    const localPath = await window.electrobunAPI?.getFilePath(file)
     let savedPath = ""
     const buildName = builds.find(b => b.id === buildId)?.name
     if (localPath && buildName) {
-      try { savedPath = await window.electronAPI?.saveLocalModToIntent(buildName, localPath) ?? "" } catch {}
+      try { savedPath = await window.electrobunAPI?.saveLocalModToIntent(buildName, localPath) ?? "" } catch {}
     }
     // Мод бросили как есть — никаких проверок зависимостей и запросов к API.
     // Читаем только метаданные архива, чтобы в списке были имя, версия и автор.
-    const metadata = localPath ? await window.electronAPI?.readLocalContentMetadata(localPath) : null
+    const metadata = localPath ? await window.electrobunAPI?.readLocalContentMetadata(localPath) : null
 
     const addMod = (b: Build): BuildWithCounts => {
       if (b.mods.some(m => m.slug === file.name)) return b
@@ -1232,9 +1232,9 @@ export function useBuilds() {
 
     try {
       const versions = mod.source === "modrinth"
-        ? await window.electronAPI?.modsModrinthVersions(mod.projectId ?? mod.slug)
+        ? await window.electrobunAPI?.modsModrinthVersions(mod.projectId ?? mod.slug)
         : mod.modId
-          ? await window.electronAPI?.modsCurseforgeDetails(mod.modId).then(details => details?.versions ?? [])
+          ? await window.electrobunAPI?.modsCurseforgeDetails(mod.modId).then(details => details?.versions ?? [])
           : []
 
       const selectedVersion = mod.source === "modrinth"
@@ -1249,7 +1249,7 @@ export function useBuilds() {
         fileUrl = file?.url ?? ""
         fileName = file?.filename || selectedVersion?.fileName || `${mod.slug}.jar`
       } else if (mod.modId && selectedVersion) {
-        fileUrl = await window.electronAPI?.modsCurseforgeDownloadUrl(Number(selectedVersion.id), mod.modId) ?? ""
+        fileUrl = await window.electrobunAPI?.modsCurseforgeDownloadUrl(Number(selectedVersion.id), mod.modId) ?? ""
         fileName = selectedVersion.fileName || mod.primaryFileName || fileUrl.split("/").pop()?.split("?")[0] || `${mod.slug}.jar`
       }
 
@@ -1258,7 +1258,7 @@ export function useBuilds() {
         return
       }
 
-      const savedPath = await window.electronAPI?.saveContentToIntent?.(build.name, CONTENT_KIND_BY_KEY[type], fileUrl, fileName)
+      const savedPath = await window.electrobunAPI?.saveContentToIntent?.(build.name, CONTENT_KIND_BY_KEY[type], fileUrl, fileName)
       if (!savedPath) {
         endContentInstall()
         pushNotification({
@@ -1315,16 +1315,16 @@ export function useBuilds() {
 
   const addLocalContentToBuild = useCallback(async (buildId: string, type: Exclude<BuildContentListKey, "mods">, file: File) => {
     const build = builds.find(b => b.id === buildId)
-    const localPath = window.electronAPI?.getFilePath(file)
+    const localPath = await window.electrobunAPI?.getFilePath(file)
     if (!build?.name || !localPath) return
 
-    const savedPath = await window.electronAPI?.saveLocalContentToIntent?.(build.name, CONTENT_KIND_BY_KEY[type], localPath)
+    const savedPath = await window.electrobunAPI?.saveLocalContentToIntent?.(build.name, CONTENT_KIND_BY_KEY[type], localPath)
     if (!savedPath) return
 
     const itemName = file.name.replace(/\.jar$|\.zip$/i, "").replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase())
     // Как и у модов: файл просто кладём в сборку, метаданные читаем из архива
     // (pack.mcmeta у ресурспаков, shaders.properties у шейдеров).
-    const metadata = await window.electronAPI?.readLocalContentMetadata?.(localPath)
+    const metadata = await window.electrobunAPI?.readLocalContentMetadata?.(localPath)
     const fallbackEntry: BuildMod = {
       id: crypto.randomUUID(),
       slug: file.name,
@@ -1352,7 +1352,7 @@ export function useBuilds() {
     const build = builds.find(b => b.id === buildId)
     if (!build?.name) return false
 
-    const result = await window.electronAPI?.deleteContentFromIntent?.(build.name, CONTENT_KIND_BY_KEY[type], item.slug)
+    const result = await window.electrobunAPI?.deleteContentFromIntent?.(build.name, CONTENT_KIND_BY_KEY[type], item.slug)
     if (!result?.success) return false
 
     setBuilds(prev => prev.map(b => {
@@ -1377,7 +1377,7 @@ export function useBuilds() {
     if (!build || !item) return false
 
     const enabled = !(item.enabled ?? true)
-    const result = await window.electronAPI?.setContentEnabled?.(build.name, CONTENT_KIND_BY_KEY[type], item.slug, enabled)
+    const result = await window.electrobunAPI?.setContentEnabled?.(build.name, CONTENT_KIND_BY_KEY[type], item.slug, enabled)
     if (!result?.success) return false
 
     setBuilds(prev => prev.map(b => b.id !== buildId ? b : {
@@ -1401,15 +1401,15 @@ export function useBuilds() {
 
     try {
       const savedPath = type === "mods"
-        ? await window.electronAPI?.saveModToIntent?.(build.name, file.url, newFileName)
-        : await window.electronAPI?.saveContentToIntent?.(build.name, CONTENT_KIND_BY_KEY[type], file.url, newFileName)
+        ? await window.electrobunAPI?.saveModToIntent?.(build.name, file.url, newFileName)
+        : await window.electrobunAPI?.saveContentToIntent?.(build.name, CONTENT_KIND_BY_KEY[type], file.url, newFileName)
 
       if (!savedPath) return false
 
       // Удаляем старую версию файла, иначе в папке останется дубликат
       if (oldItem && oldItem.slug !== newFileName) {
         try {
-          await window.electronAPI?.deleteContentFromIntent?.(build.name, CONTENT_KIND_BY_KEY[type], oldItem.slug)
+          await window.electrobunAPI?.deleteContentFromIntent?.(build.name, CONTENT_KIND_BY_KEY[type], oldItem.slug)
         } catch {}
       }
 

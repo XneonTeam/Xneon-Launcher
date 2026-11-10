@@ -15,7 +15,7 @@ export function ServerTrashView({ onBack }: ServerTrashViewProps) {
 
   return (
     <TrashView<McServerInfo>
-      load={async () => (await window.electronAPI?.mcServerListTrash()) ?? []}
+      load={async () => (await window.electrobunAPI?.mcServerListTrash()) ?? []}
       row={(item) => ({
         key: item.id,
         name: item.name,
@@ -40,12 +40,12 @@ export function ServerTrashView({ onBack }: ServerTrashViewProps) {
           </p>
         ) : null,
       })}
-      onRestore={async (item) => { await window.electronAPI?.mcServerRestore(item.id) }}
+      onRestore={async (item) => { await window.electrobunAPI?.mcServerRestore(item.id) }}
       onDeleteForever={async (item, options) => {
-        await window.electronAPI?.mcServerPermanentDelete(item.id, options.extra)
+        await window.electrobunAPI?.mcServerPermanentDelete(item.id, options.extra)
       }}
       onPurgeAll={async (options) => {
-        await window.electronAPI?.mcServerPurgeTrash(options.extra)
+        await window.electrobunAPI?.mcServerPurgeTrash(options.extra)
       }}
       confirmExtra={{
         label: t("servers.trash.deleteTunnel"),

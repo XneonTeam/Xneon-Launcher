@@ -26,3 +26,9 @@
     height: 0.875rem;
   }
 }
+
+@container addon-row (max-width: 680px) {
+  [data-component="category-badge"].addon-row-category-badge[data-has-icon="false"] {
+    display: none;
+  }
+}

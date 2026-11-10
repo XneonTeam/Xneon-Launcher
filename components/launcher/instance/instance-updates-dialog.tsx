@@ -98,7 +98,7 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
 
   // Прогресс скачивания нового файла — рисуем полоску прямо на элементе обновления
   useEffect(() => {
-    const off = window.electronAPI?.onContentDownloadProgress?.((progress) => {
+    const off = window.electrobunAPI?.onContentDownloadProgress?.((progress) => {
       const itemId = activeDownloadRef.current
       if (!itemId) return
       const percent = progress.total > 0
@@ -113,7 +113,7 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
     const seq = ++checkSeqRef.current
     setChecking(true)
     try {
-      const fresh = await window.electronAPI?.checkBuildContentUpdates(activeBuild.id, selectedChannel)
+      const fresh = await window.electrobunAPI?.checkBuildContentUpdates(activeBuild.id, selectedChannel)
       if (seq !== checkSeqRef.current) return
       setResult(fresh ?? { buildId: activeBuild.id, channel: selectedChannel, checkedAt: Date.now(), updates: [] })
       window.dispatchEvent(new CustomEvent("content-updates-changed"))
@@ -130,7 +130,7 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
     setExpanded(new Set())
     setUpdateAllState(null)
     let cancelled = false
-    void window.electronAPI?.getContentUpdatesCache().then((cache) => {
+    void window.electrobunAPI?.getContentUpdatesCache().then((cache) => {
       if (cancelled) return
       const cached = cache?.[activeBuild.id]
       if (cached) {
@@ -150,7 +150,7 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
 
   const handleDismissLocal = useCallback((itemId: string) => {
     setResult((prev) => prev ? { ...prev, updates: prev.updates.filter((u) => u.itemId !== itemId) } : prev)
-    void window.electronAPI?.dismissContentUpdate(activeBuild.id, itemId)
+    void window.electrobunAPI?.dismissContentUpdate(activeBuild.id, itemId)
     window.dispatchEvent(new CustomEvent("content-updates-changed"))
   }, [activeBuild.id])
 
@@ -160,7 +160,7 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
     if (update.source === "curseforge" && !version.files?.[0]?.url) {
       const fileId = Number(version.id)
       const url = update.modId && Number.isFinite(fileId)
-        ? await window.electronAPI?.modsCurseforgeDownloadUrl(fileId, update.modId)
+        ? await window.electrobunAPI?.modsCurseforgeDownloadUrl(fileId, update.modId)
         : null
       if (!url) return false
       version = {

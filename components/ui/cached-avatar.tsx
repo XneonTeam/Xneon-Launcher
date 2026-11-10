@@ -1,3 +1,4 @@
+import { launcherAssetUrl } from "@/lib/launcher-assets"
 import { useEffect, useState } from "react"
 
 const FALLBACK_URL = "avatar://head/Steve"
@@ -192,7 +193,7 @@ export function CachedAvatar({ src, fallbackSrc = FALLBACK_URL, alt = "", classN
   const current = failed ? fallbackSrc : resolved
   return (
     <img data-ui="ui-cached-avatar-img-1"
-      src={current}
+      src={launcherAssetUrl(current)}
       alt={alt}
       className={className}
       style={style}

@@ -2,9 +2,9 @@ import { IconCheck, IconLoader2, IconCloudUpload } from "@tabler/icons-react"
 import { SharePublishTabs } from "../instance/shared/share-publish-tabs"
 import { ShareFileTree } from "../instance/shared/share-file-tree"
 import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
-import { useEffect, useRef, useState } from "react"
+import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import type { McServerInfo, ServerPermissions } from "@xnlc/types"
+import type { McServerInfo, ServerPermissions, ShareContentPresentation } from "@xnlc/types"
 import type { ServerHistoryCommand, ServerHistoryResponse, ServerHistoryView } from "@xnlc/share"
 import { ShareModal, ShareButton, shareInput } from "../instance/shared/share-ui"
 import { ShareHistoryView } from "../instance/shared/share-history-view"
@@ -15,6 +15,8 @@ import { ShareVersionNavigation, type ShareVersionTab } from "../instance/shared
 import { useMcServerState } from "@/src/hooks/use-mc-servers"
 import { remoteServerError } from "./remote-access-dialog"
 import { serverChanges, serverPresentation, serverContentCategories } from "./server-history-adapter"
+
+const ProjectDetailsModal = lazy(() => import("../agent/project-details-modal"))
 
 export function useServerHistory(server: McServerInfo, enabled: boolean) {
   const { t } = useTranslation()
@@ -31,7 +33,7 @@ export function useServerHistory(server: McServerInfo, enabled: boolean) {
     const current = generation.current
     running.current = true; setBusy(true); setError("")
     try {
-      const result = await window.electronAPI!.mcServerHistory(server.id, command)
+      const result = await window.electrobunAPI!.mcServerHistory(server.id, command)
       if (current !== generation.current) return
       if (result.view) setView(result.view)
       return result
@@ -64,7 +66,7 @@ export function ServerHistoryPanel({ server, permissions, controller }: { server
     let active = true; setDetails(undefined)
     if (!selected) return
     setLoading(true)
-    window.electronAPI!.mcServerHistory(server.id, { action: "details", commit: selected.id }).then(result => { if (active) setDetails(result) }).catch(error => { if (active) controller.showError(error) }).finally(() => { if (active) setLoading(false) })
+    window.electrobunAPI!.mcServerHistory(server.id, { action: "details", commit: selected.id }).then(result => { if (active) setDetails(result) }).catch(error => { if (active) controller.showError(error) }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [server.id, selected?.id])
   const beginPreview = async (target: { branch?: string; commit?: string }) => {
@@ -94,13 +96,14 @@ export function ServerPublishDialog({ server, controller, onClose }: { server: M
   const { t } = useTranslation()
   const { busy, error, run, view } = controller
   const [scan, setScan] = useState<ServerHistoryResponse>(), [message, setMessage] = useState("")
+  const [detailsProject, setDetailsProject] = useState<ShareContentPresentation | null>(null)
   const [tab, setTab] = useState<"changes" | "files">("changes")
   const [success, setSuccess] = useState(false)
   const shared = Boolean(view?.head)
   const changes = serverChanges(scan?.changes)
   const files = (scan?.changes ?? []).filter(change => !change.path.startsWith("@") && change.after).map(change => ({ path: change.path, size: change.after!.size }))
   useEffect(() => { let active = true; void run({ action: "scan" }).then(result => { if (active) setScan(result) }); return () => { active = false } }, [])
-  return <ShareModal open onClose={() => { if (!busy) onClose() }} wide fixedHeight={!success}
+  return <><ShareModal open={!detailsProject} onClose={() => { if (!busy) onClose() }} wide fixedHeight={!success}
     title={t(success ? "share.launcher.published" : shared ? "share.launcher.publishUpdate" : "share.launcher.publishTitle")}
     description={t(success ? "share.flow.publishedDescription" : "serverHistory.publishDescription")}
     footer={success ? <ShareButton onClick={onClose}><LauncherCancelIcon className="h-4 w-4" />{t("share.launcher.close")}</ShareButton> : <>
@@ -117,14 +120,16 @@ export function ServerPublishDialog({ server, controller, onClose }: { server: M
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/40">
         {!scan ? <div role="status" className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-xs text-muted-foreground">
           {busy && <IconLoader2 className="h-6 w-6 animate-spin text-primary" />}{t(busy ? "share.flow.scanning" : "share.failed")}
-        </div> : tab === "changes" ? <ShareContentChanges contentCategories={serverContentCategories(server.modloader)} expanded changes={changes} presentation={serverPresentation(scan)} showChangeType={shared} />
+        </div> : tab === "changes" ? <ShareContentChanges contentCategories={serverContentCategories(server.modloader)} expanded changes={changes} presentation={serverPresentation(scan)} showChangeType={shared} onDetails={setDetailsProject} />
           : <div className="min-h-0 flex-1 overflow-y-auto p-3 [scrollbar-gutter:stable]">
             {files.length ? <ShareFileTree readOnly files={files} selected={files.map(file => file.path)} onChange={() => {}} /> : <p className="flex h-full items-center justify-center py-6 text-xs text-muted-foreground">{t("share.flow.noAdditionalFiles")}</p>}
           </div>}
       </div>
-      {!!scan?.skipped?.length && <details className="shrink-0 rounded-xl border border-border/60 bg-muted/20 px-3 text-xs text-muted-foreground"><summary className="cursor-pointer py-3">{t("serverHistory.skipped", { count: scan.skipped.length })}</summary><p className="mb-3 max-h-20 overflow-auto whitespace-pre-line">{scan.skipped.join("\n")}</p></details>}
+      {!!scan?.skipped?.length && <details className="shrink-0 rounded-xl border border-border/60 bg-muted/20 text-xs text-muted-foreground"><summary className="cursor-pointer rounded-xl px-3 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">{t("serverHistory.skipped", { count: scan.skipped.length })}</summary><p className="mx-3 mb-3 max-h-20 overflow-auto whitespace-pre-line">{scan.skipped.join("\n")}</p></details>}
       <label className="block shrink-0 space-y-2"><span className="text-xs font-medium text-muted-foreground">{t("share.launcher.comment")}</span><input className={shareInput} value={message} onChange={event => setMessage(event.target.value)} maxLength={500} placeholder={t("share.flow.updateNotePlaceholder")} disabled={busy} /></label>
       {error && <p role="alert" className="shrink-0 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">{error}</p>}
     </div>}
   </ShareModal>
+  {detailsProject && <Suspense fallback={null}><ProjectDetailsModal project={{ ...detailsProject, contentType: "mod" }} onClose={() => setDetailsProject(null)} /></Suspense>}
+  </>
 }

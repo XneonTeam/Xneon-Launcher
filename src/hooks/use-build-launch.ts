@@ -82,7 +82,7 @@ type LaunchSettings = {
 }
 
 export async function loadLaunchSettings(): Promise<LaunchSettings> {
-  const api = window.electronAPI
+  const api = window.electrobunAPI
   if (!api) {
     return { authlibEnabled: undefined, savedJavaArgs: undefined, savedMemoryMin: undefined, savedMemoryMax: undefined, savedUseCustomRes: undefined, savedCustomW: undefined, savedCustomH: undefined, savedResLabel: undefined, savedAutoJoinServer: undefined, savedServer: undefined, savedServerPort: undefined }
   }
@@ -137,16 +137,19 @@ export function useBuildLaunch({ account: activeAccount }: { account?: Account }
   const { accounts } = useAccounts()
   const { isRunning, setIsRunning, clearLogs, addLog, launchUi, patchLaunchUi } = useLaunchControls()
 
-  const launchInstance = useCallback(async (build: BuildLaunchParams, options?: { quickPlay?: QuickPlayLaunchRequest }) => {
+  const launchInstance = useCallback(async (build: BuildLaunchParams, options?: { quickPlay?: QuickPlayLaunchRequest; acknowledge?: (error?: string) => Promise<void> }) => {
     const account = accounts.find(account => account.id === build.defaultAccountId) ?? activeAccount
-    if (!account || !window.electronAPI) return
+    if (!account || !window.electrobunAPI) {
+      await options?.acknowledge?.("No active account. Please select an account first.")
+      return
+    }
 
     const settings = await loadLaunchSettings()
     const buildWindow = build.windowOverride === true && build.windowWidth && build.windowHeight
     const { width, height } = buildWindow
       ? { width: build.windowWidth, height: build.windowHeight }
       : resolveLaunchDimensions(settings)
-    const intentPath = await window.electronAPI.getBuildIntentPath(build.name) ?? ""
+    const intentPath = await window.electrobunAPI.getBuildIntentPath(build.name) ?? ""
 
     // Custom environment variables (KEY=VALUE per line) → Record<string,string>.
     const envRecord: Record<string, string> = {}
@@ -179,7 +182,7 @@ export function useBuildLaunch({ account: activeAccount }: { account?: Account }
     const memoryMin = useBuildJava && build.memoryMin ? build.memoryMin : settings.savedMemoryMin || "512M"
     const memoryMax = useBuildJava && build.memoryMax ? build.memoryMax : settings.savedMemoryMax || "4G"
     const buildJavaPath = useBuildJava && build.javaPath ? build.javaPath : undefined
-    const normalizedJavaPath = normalizeJavaPath(buildJavaPath ?? await window.electronAPI.getSetting("javaPath"))
+    const normalizedJavaPath = normalizeJavaPath(buildJavaPath ?? await window.electrobunAPI.getSetting("javaPath"))
     const javaArgs = useBuildJava
       ? (build.javaArgs ?? "")
       : (settings.savedJavaArgs ?? "")
@@ -198,7 +201,7 @@ export function useBuildLaunch({ account: activeAccount }: { account?: Account }
     clearLogs()
     addLog(`[Запуск] Сборка ${build.name} · ${formatLoaderLabel(build.modLoader, build.loaderVersion)} · ${account.username}`)
 
-    const result = await window.electronAPI.launchMinecraft({
+    const result = await window.electrobunAPI.launchMinecraft({
       version: build.version,
       modLoader: build.modLoader as import("@xnlc/types").MinecraftLaunchParams["modLoader"],
       ...(build.loaderVersion ? { loaderVersion: build.loaderVersion } : {}),
@@ -225,12 +228,13 @@ export function useBuildLaunch({ account: activeAccount }: { account?: Account }
       ? { isLaunching: false, phase: "idle", progress: 100, status: t("launcherStatus.starting") }
       : { isLaunching: false, status: result.error ?? "Ошибка запуска" })
     if (!result.success) addLog(`[Лаунчер] ${result.error ?? "Ошибка запуска"}`, "error")
+    await options?.acknowledge?.(result.success ? undefined : result.error ?? "Minecraft launch failed.")
     if (result.success) {
       setIsRunning(true)
       saveLastLaunchedPrefs(build.name, "instance")
-      const afterLaunch = await window.electronAPI?.getSetting("afterLaunch")
-      if (afterLaunch === "minimize") window.electronAPI?.minimize()
-      else if (afterLaunch === "close") window.electronAPI?.close()
+      const afterLaunch = await window.electrobunAPI?.getSetting("afterLaunch")
+      if (afterLaunch === "minimize") window.electrobunAPI?.minimize()
+      else if (afterLaunch === "close") window.electrobunAPI?.close()
     }
   }, [activeAccount, accounts, addLog, clearLogs, patchLaunchUi, setIsRunning, t])
 

@@ -75,14 +75,14 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
     localStorage.setItem("language", selectedLanguage)
     // Дублируем в БД, чтобы агент (get_settings) видел реальный язык, а не
     // устаревшее значение — иначе он отвечает не на том языке.
-    window.electronAPI?.setSetting("language", selectedLanguage)
+    window.electrobunAPI?.setSetting("language", selectedLanguage)
   }, [selectedLanguage])
 
   useEffect(() => {
     let cancelled = false
 
     const loadSettings = async () => {
-      const api = window.electronAPI
+      const api = window.electrobunAPI
       if (!api) {
         settingsHydratedRef.current = true
         return
@@ -191,7 +191,7 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
   const flushSetting = useCallback((key: string, value: string) => {
     if (lastPersistedSettingsRef.current[key] === value) return
     lastPersistedSettingsRef.current[key] = value
-    void window.electronAPI?.setSetting(key, value)
+    void window.electrobunAPI?.setSetting(key, value)
     window.dispatchEvent(new CustomEvent("launcher-setting-changed", { detail: { key, value } }))
   }, [])
 
@@ -257,7 +257,7 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
   const loadJavaInstallations = useCallback(async (force = false) => {
     setLoadingJavaInstallations(true)
     try {
-      const installs = await window.electronAPI?.detectJavaInstallations(force)
+      const installs = await window.electrobunAPI?.detectJavaInstallations(force)
       setDetectedJavaInstallations(installs ?? [])
     } catch {
       setDetectedJavaInstallations([])
@@ -272,21 +272,21 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
   }, [showJavaModal, loadJavaInstallations])
 
   const handlePickJavaFile = async () => {
-    const picked = await window.electronAPI?.pickJavaFile()
+    const picked = await window.electrobunAPI?.pickJavaFile()
     if (picked) {
       setSelectedJavaPath(picked)
-      void window.electronAPI?.setSetting("javaPath", picked)
+      void window.electrobunAPI?.setSetting("javaPath", picked)
       setShowJavaModal(false)
     }
   }
 
   const handleChangeInstancesDir = async () => {
-    if (!window.electronAPI || dataMoveBusy) return
-    const picked = await window.electronAPI.pickFolder(t("settings.buildsFolder.pickTitle"))
+    if (!window.electrobunAPI || dataMoveBusy) return
+    const picked = await window.electrobunAPI.pickFolder(t("settings.buildsFolder.pickTitle"))
     if (!picked) return
     setDataMoveBusy(true); setDataMoveError("")
     try {
-      const result = await window.electronAPI.setInstancesRoot(picked)
+      const result = await window.electrobunAPI.setInstancesRoot(picked)
       if (result.success && result.root) {
         setPendingDataRoot(result.requiresRestart ? result.root : "")
       } else setDataMoveError(result.error ?? "DATA_MOVE_FAILED")
@@ -294,10 +294,10 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
     finally { setDataMoveBusy(false) }
   }
   const restartForMove = async () => {
-    if (!window.electronAPI || dataMoveBusy) return
+    if (!window.electrobunAPI || dataMoveBusy) return
     setDataMoveBusy(true); setDataMoveError("")
     try {
-      const result = await window.electronAPI.restartForDataMove()
+      const result = await window.electrobunAPI.restartForDataMove()
       if (!result.success) setDataMoveError(result.error ?? "DATA_MOVE_FAILED")
     } catch (error) { setDataMoveError(error instanceof Error ? error.message : String(error)) }
     finally { setDataMoveBusy(false) }

@@ -23,9 +23,9 @@
     "toml": "^5.0.0"
   },
   "scripts": {
-    "build": "node -e \"fs.rmSync('lib',{recursive:true,force:true})\" && tsc -p tsconfig.json",
-    "clean": "node -e \"fs.rmSync('lib',{recursive:true,force:true})\"",
-    "prepublishOnly": "npm run build"
+    "build": "bun -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\" && bun --bun run tsc -p tsconfig.json",
+    "clean": "bun -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\"",
+    "prepublishOnly": "bun run build"
   },
   "publishConfig": {
     "registry": "https://git.xneon.org/api/packages/MAINER4IK/npm/"

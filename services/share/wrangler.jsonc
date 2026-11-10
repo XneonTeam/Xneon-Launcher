@@ -6,6 +6,7 @@
   "compatibility_date": "2026-03-01",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "routes": [{ "pattern": "share.xneon.org", "custom_domain": true }],
   "observability": { "enabled": true },
   "durable_objects": { "bindings": [{ "name": "SHARE_SERVICE", "class_name": "ShareService" }, { "name": "REMOTE_SERVERS", "class_name": "RemoteServerRelay" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ShareService"] }, { "tag": "v2-remote-servers", "new_sqlite_classes": ["RemoteServerRelay"] }],

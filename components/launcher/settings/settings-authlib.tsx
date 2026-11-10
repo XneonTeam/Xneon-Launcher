@@ -31,11 +31,11 @@ export function SettingsAuthlib({
     } else {
       setEnabled(true)
       if (injectorType === "authlib") {
-        window.electronAPI?.setSetting("authlibInjectorEnabled", "true")
-        window.electronAPI?.setSetting("retroauthInjectorEnabled", "false")
+        window.electrobunAPI?.setSetting("authlibInjectorEnabled", "true")
+        window.electrobunAPI?.setSetting("retroauthInjectorEnabled", "false")
       } else {
-        window.electronAPI?.setSetting("authlibInjectorEnabled", "false")
-        window.electronAPI?.setSetting("retroauthInjectorEnabled", "true")
+        window.electrobunAPI?.setSetting("authlibInjectorEnabled", "false")
+        window.electrobunAPI?.setSetting("retroauthInjectorEnabled", "true")
       }
     }
   }
@@ -43,12 +43,12 @@ export function SettingsAuthlib({
   const handleTypeChange = (type: "authlib" | "retroauth") => {
     setInjectorType(type)
     if (type === "retroauth") {
-      window.electronAPI?.setSetting("retroauthInjectorEnabled", "true")
-      window.electronAPI?.setSetting("authlibInjectorEnabled", "false")
+      window.electrobunAPI?.setSetting("retroauthInjectorEnabled", "true")
+      window.electrobunAPI?.setSetting("authlibInjectorEnabled", "false")
       setEnabled(true)
     } else {
-      window.electronAPI?.setSetting("retroauthInjectorEnabled", "false")
-      window.electronAPI?.setSetting("authlibInjectorEnabled", "true")
+      window.electrobunAPI?.setSetting("retroauthInjectorEnabled", "false")
+      window.electrobunAPI?.setSetting("authlibInjectorEnabled", "true")
       setEnabled(true)
     }
   }
@@ -152,8 +152,8 @@ export function SettingsAuthlib({
               <button data-ui="settings-settings-authlib-button-5"
                 onClick={() => {
                   setEnabled(false)
-                  window.electronAPI?.setSetting("authlibInjectorEnabled", "false")
-                  window.electronAPI?.setSetting("retroauthInjectorEnabled", "false")
+                  window.electrobunAPI?.setSetting("authlibInjectorEnabled", "false")
+                  window.electrobunAPI?.setSetting("retroauthInjectorEnabled", "false")
                   setShowWarningModal(false)
                 }}
                 className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground font-medium transition-colors"

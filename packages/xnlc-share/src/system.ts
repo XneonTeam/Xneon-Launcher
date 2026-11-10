@@ -8,8 +8,11 @@ export interface ScanResult { manifest: Manifest; localOnly: string[]; blocked?:
 export interface UpdatePreview { head: string; manifest: Manifest; diff: ReturnType<typeof diff>; conflicts: ReturnType<typeof merge>["conflicts"]; downloads: Record<string, number>; localBytes: number; expected: Record<string, string | null> }
 export class ShareSystem {
   private cache = new Map<string, { fingerprint: string; hashes: Hashes }>()
+  private externalValidationCache = new Map<string, { fingerprint: string; sha256: string }>()
+  private scannedSources = new Map<string, { fingerprint: string; sha256: string; source: string }>()
   constructor(private ports: SharePorts) {}
   setProgress(progress: SharePorts["progress"]): void { this.ports.progress = progress }
+  setAbortSignal(signal?: AbortSignal): void { this.ports.remote.setSignal?.(signal) }
   private async hashes(file: FileInfo, force: boolean): Promise<Hashes> {
     const cached = this.cache.get(file.path)
     if (!force && cached?.fingerprint === file.fingerprint) return cached.hashes
@@ -56,14 +59,23 @@ export class ShareSystem {
       }
       if (!source) {
         if (file.size > MAX_FILE_BYTES) { block(file, "size"); continue }
-        try {
-          const bytes = await this.ports.files.read(file.path)
-          validateExternal(file.path, bytes)
-          this.ports.inspectExternal?.(bytes)
+        const validated = this.externalValidationCache.get(file.path)
+        if (options.force || validated?.fingerprint !== file.fingerprint || validated.sha256 !== hashes.sha256) {
+          try {
+            const bytes = await this.ports.files.read(file.path)
+            validateExternal(file.path, bytes)
+            this.ports.inspectExternal?.(bytes)
+          }
+          catch (e) { if ((e as { code?: string }).code !== "FILE_POLICY") throw e; this.externalValidationCache.delete(file.path); block(file, "format"); continue }
+          if (this.externalValidationCache.size >= 10000) this.externalValidationCache.delete(this.externalValidationCache.keys().next().value!)
+          this.externalValidationCache.set(file.path, { fingerprint: file.fingerprint, sha256: hashes.sha256 })
         }
-        catch (e) { if ((e as { code?: string }).code !== "FILE_POLICY") throw e; block(file, "format"); continue }
         externalBytes += file.size
-      } else managedBytes += file.size
+      } else {
+        managedBytes += file.size
+        if (this.scannedSources.size >= 10000) this.scannedSources.delete(this.scannedSources.keys().next().value!)
+        this.scannedSources.set(file.path, { fingerprint: file.fingerprint, sha256: hashes.sha256, source: stable(source) })
+      }
       entries.push({ path: file.path, kind: file.path.startsWith("mods/") ? "mod" : file.path.startsWith("resourcepacks/") ? "resourcepack" : file.path.startsWith("shaderpacks/") ? "shader" : "config", sha256: hashes.sha256, size: file.size, enabled: !file.path.endsWith(".disabled"), ...(source ? { source } : { object: hashes.sha256 }) })
       this.ports.progress?.({ stage: "scan", done: ++done, total: files.length, bytes: externalBytes })
     }
@@ -75,11 +87,14 @@ export class ShareSystem {
     const objects = new Set<string>()
     const previousByPath = new Map(base?.entries.map(entry => [entry.path, entry]) ?? [])
     const inheritedObjects = new Set(base?.entries.filter(entry => entry.object).map(entry => entry.sha256) ?? [])
-    const total = manifest.entries.reduce((sum, entry) => sum + Math.max(1, entry.size), 0)
+    // Учитываем в прогрессе только локальные объекты: моды из каталога не загружаются.
+    const total = manifest.entries.reduce((sum, entry) => {
+      const previous = previousByPath.get(entry.path)
+      return entry.object && (!previous || stable(previous) !== stable(entry)) ? sum + Math.max(1, entry.size) : sum
+    }, 0)
     let currentSize = 0
-    const report = (stage = "verify", fraction = 0, bytes = uploadedBytes) => this.ports.progress?.({ stage, done: done + fraction * currentSize, total, bytes })
-    const finish = () => { done += currentSize; report() }
-    report()
+    const reportUpload = (fraction = 0, bytes = uploadedBytes) => this.ports.progress?.({ stage: "upload", done: done + fraction * currentSize, total, bytes })
+    const currentFiles = this.scannedSources.size ? new Map((await this.ports.files.list()).map(file => [file.path, file])) : new Map<string, FileInfo>()
     for (const e of manifest.entries) {
       currentSize = Math.max(1, e.size)
       const previous = previousByPath.get(e.path)
@@ -89,17 +104,19 @@ export class ShareSystem {
         if (e.object && !objects.has(e.sha256)) {
           objects.add(e.sha256); reusedBytes += e.size
         }
-        finish()
         continue
       }
       if (e.source) {
-        const adapter = this.ports.sources.find(a => a.id === e.source!.provider)
-        if (!adapter) fail("SOURCE", `Unsupported provider: ${e.source.provider}`)
-        const resolved = await adapter.resolve(e.source)
-        const local = await this.ports.files.hash(e.path)
-        if (local.sha256 !== e.sha256 || resolved.size !== e.size) fail("INTEGRITY", `Managed content changed: ${e.path}`)
-        if (resolved.sha512 ? resolved.sha512 !== local.sha512 : resolved.sha256 ? resolved.sha256 !== local.sha256 : await this.ports.hash.digest(await adapter.download(resolved)) !== e.sha256) fail("INTEGRITY", `Source content mismatch: ${e.path}`)
-        finish()
+        const scanned = this.scannedSources.get(e.path), current = currentFiles.get(e.path)
+        const matchesScan = scanned && current && scanned.fingerprint === current.fingerprint && scanned.sha256 === e.sha256 && scanned.source === stable(e.source) && current.size === e.size
+        if (!matchesScan) {
+          const adapter = this.ports.sources.find(a => a.id === e.source!.provider)
+          if (!adapter) fail("SOURCE", `Unsupported provider: ${e.source.provider}`)
+          const resolved = await adapter.resolve(e.source)
+          const local = await this.ports.files.hash(e.path)
+          if (local.sha256 !== e.sha256 || resolved.size !== e.size) fail("INTEGRITY", `Managed content changed: ${e.path}`)
+          if (resolved.sha512 ? resolved.sha512 !== local.sha512 : resolved.sha256 ? resolved.sha256 !== local.sha256 : await this.ports.hash.digest(await adapter.download(resolved)) !== e.sha256) fail("INTEGRITY", `Source content mismatch: ${e.path}`)
+        }
         continue
       }
       const bytes = await this.ports.files.read(e.path)
@@ -111,18 +128,18 @@ export class ShareSystem {
         throw error
       }
       if (bytes.length !== e.size || await this.ports.hash.digest(bytes) !== e.sha256) fail("INTEGRITY", `External file changed after preview: ${e.path}`)
-      if (objects.has(e.sha256)) { finish(); continue }
+      if (objects.has(e.sha256)) { done += currentSize; continue }
       objects.add(e.sha256)
       if (inheritedObjects.has(e.sha256) || await this.ports.remote.hasObject(id, e.sha256)) reusedBytes += bytes.length
       else {
-        try { await this.ports.remote.upload(id, e.sha256, bytes, this.ports.progress ? transferred => report("upload", e.size ? Math.min(1, transferred / e.size) : 0, uploadedBytes + transferred) : undefined) }
+        try { await this.ports.remote.upload(id, e.sha256, bytes, this.ports.progress ? transferred => reportUpload(e.size ? Math.min(1, transferred / e.size) : 0, uploadedBytes + transferred) : undefined) }
         catch (error) {
           if (error instanceof ShareError) throw new ShareError(error.code, error.message, e.path)
           throw error
         }
         uploadedBytes += bytes.length
       }
-      finish()
+      done += currentSize
     }
     return { uploadedBytes, reusedBytes }
   }

@@ -118,7 +118,7 @@ export function LabyPanel({
 
           <button data-ui="laby-laby-panel-button-3"
             type="button"
-            onClick={() => void window.electronAPI?.openExternal(labySkinPageUrl(skin.hash))}
+            onClick={() => void window.electrobunAPI?.openExternal(labySkinPageUrl(skin.hash))}
             className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-4 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <IconExternalLink className="h-3.5 w-3.5" />

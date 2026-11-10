@@ -1,8 +1,8 @@
 # XNLC/Share в Cloudflare Workers
 
-Рабочий адрес: https://xnlc-share.stepangavrilov736.workers.dev
+Рабочий адрес: https://share.xneon.org
 
-Сервис разворачивается Wrangler из `wrangler.jsonc`. Обработчик `worker/index.mjs` использует ту же логику запросов и авторизации, что и локальный Node-сервер. Для клиента API остаётся `/v1`.
+Сервис разворачивается Wrangler из `wrangler.jsonc`. Обработчик `worker/index.mjs` использует ту же логику запросов и авторизации, что и локальный Bun-сервер. Для клиента API остаётся `/v1`.
 
 ## Хранение
 
@@ -14,19 +14,19 @@
 
 ## Команды
 
-Требуются pnpm и Wrangler 4; при необходимости сначала выполните `wrangler login`.
+Bun 1.4.4 загружает Wrangler 4 через bun x. Для запуска CLI нужна поддерживаемая версия Node.js; при необходимости сначала выполните `bun x wrangler@4.160.0 login`.
 
 ```powershell
-pnpm run share:worker:dev
-pnpm run share:worker:deploy
-pnpm run share:worker:smoke -- https://xnlc-share.stepangavrilov736.workers.dev
+bun run share:worker:dev
+bun run share:worker:deploy
+bun run share:worker:smoke -- https://share.xneon.org
 ```
 
 Прямое развёртывание:
 
 ```powershell
-pnpm run build:share
-wrangler deploy --config services/share/wrangler.jsonc
+bun run build:share
+bun x wrangler@4.160.0 deploy --config services/share/wrangler.jsonc
 ```
 
 Проверка `worker-smoke.mjs` создаёт временные учётные записи устройств и тестовую публикацию, проверяет вход Ed25519, запрет повторной подписи, права, загрузку и скачивание R2, большой JSON, коды приглашений, обновления, ветки и pull request. Собственная тестовая публикация удаляется в `finally`, сессии завершаются.
@@ -36,11 +36,11 @@ wrangler deploy --config services/share/wrangler.jsonc
 Перед экспортом остановите запись в локальный Share-сервер. `worker/export-local.mjs` проверяет SHA-256 объектов и создаёт модуль с данными в игнорируемом `.tmp/`. Старые bearer-сессии не переносятся: лаунчер входит заново тем же ключом устройства.
 
 ```powershell
-node services/share/worker/export-local.mjs .share-data .tmp/share-initial-data.mjs
+bun services/share/worker/export-local.mjs .share-data .tmp/share-initial-data.mjs
 ```
 
 Для одноразовой загрузки `worker/initial-data.mjs` может реэкспортировать этот модуль. Перенос загружает R2 по 24 объекта за запрос и импортирует SQL транзакцией. Пока перенос не завершён, `/health` возвращает `503` со статусом `migrating`; после завершения — `200`. Повторный запуск защищён постоянной отметкой в Durable Object.
 
 После успешного переноса верните `initial-data.mjs` к `export default null` и повторите deploy: данные останутся в постоянном хранилище, а экспорт уйдёт из кода Worker. Экспорт содержит данные сервера, поэтому его следует хранить в игнорируемом локальном каталоге.
 
-`XNLC_SHARE_URL` позволяет выбрать другой сервер. Для локальной разработки используйте `pnpm run dev:share`.
+`XNLC_SHARE_URL` позволяет выбрать другой сервер. Для локальной разработки используйте `bun run dev:share`.

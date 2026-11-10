@@ -63,9 +63,9 @@ export function ModpackChangeVersionDialog({
       try {
         let list: ModVersion[] = []
         if (build.source === "modrinth" && build.projectSlug) {
-          list = (await window.electronAPI?.modsModrinthVersions(build.projectSlug)) ?? []
+          list = (await window.electrobunAPI?.modsModrinthVersions(build.projectSlug)) ?? []
         } else if (build.source === "curseforge" && build.modId) {
-          const details = await window.electronAPI?.modsCurseforgeDetails(build.modId)
+          const details = await window.electrobunAPI?.modsCurseforgeDetails(build.modId)
           list = details?.versions ?? []
         }
         if (!active) return
@@ -90,7 +90,7 @@ export function ModpackChangeVersionDialog({
       setImportProgress(null)
       return
     }
-    const off = window.electronAPI?.onImportProgress?.((progress) => {
+    const off = window.electrobunAPI?.onImportProgress?.((progress) => {
       setImportProgress(previous => mergeImportProgress(previous, progress))
     })
     return () => {
@@ -124,7 +124,7 @@ export function ModpackChangeVersionDialog({
 
     try {
       if (build.source === "modrinth" && build.projectSlug) {
-        const res = await window.electronAPI?.importModrinthModpack(
+        const res = await window.electrobunAPI?.importModrinthModpack(
           build.name,
           build.projectSlug,
           selectedVersion.id,
@@ -145,7 +145,7 @@ export function ModpackChangeVersionDialog({
         })
       } else if (build.source === "curseforge" && build.modId) {
         const fileId = Number(selectedVersion.id)
-        const res = await window.electronAPI?.importCurseforgeModpack(
+        const res = await window.electrobunAPI?.importCurseforgeModpack(
           build.name,
           build.modId,
           fileId,
