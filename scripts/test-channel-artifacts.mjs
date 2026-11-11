@@ -4,6 +4,7 @@ import { createHash } from "node:crypto"
 import { createReadStream } from "node:fs"
 import { readdir, readFile, stat } from "node:fs/promises"
 import path from "node:path"
+import { appIdentifier } from "../electrobun/main/app-identity"
 
 const pkg = JSON.parse(await readFile("package.json", "utf8"))
 
@@ -20,7 +21,7 @@ async function verify(channel) {
   const [legacy, current] = await Promise.all(["-update.json", "-update-v2.json"].map(async suffix =>
     JSON.parse(await readFile(path.join(dir, prefix + suffix), "utf8"))))
   for (const manifest of [legacy, current]) {
-    assert.equal(manifest.identifier, "com.xneonlauncher.app")
+    assert.equal(manifest.identifier, appIdentifier)
     assert.equal(manifest.version, pkg.version)
     assert.equal(manifest.channel, channel)
     assert.equal(manifest.platform, "win")

@@ -46,6 +46,19 @@ jobs:
           Add-Content -LiteralPath $env:GITHUB_PATH -Value $bin
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Ensure NSIS
+        run: |
+          $candidates = @(
+            (Join-Path $env:ProgramFiles 'NSIS\makensis.exe'),
+            (Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe')
+          ) | Where-Object { Test-Path -LiteralPath $_ }
+          if (-not $candidates) {
+            choco install nsis --yes --no-progress
+            $candidates = @((Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe')) | Where-Object { Test-Path -LiteralPath $_ }
+          }
+          if (-not $candidates) { throw 'makensis (NSIS 3) is required to build the Windows installer' }
+          Add-Content -LiteralPath $env:GITHUB_ENV -Value ('XNEON_MAKENSIS=' + $candidates[0])
+          & $candidates[0] /VERSION
       - name: Build Windows x64
         run: bun run build
       - uses: actions/upload-artifact@v5
@@ -115,14 +128,17 @@ jobs:
         working-directory: verified
         run: |
           set -euo pipefail
-          test "$(find . -maxdepth 1 -type f | wc -l)" -eq 2
-          expected=$(sha256sum xneon-launcher-1.0.8-win-x64.exe)
-          test "$(cat SHA256SUMS.txt)" = "$expected"
+          test "$(find . -maxdepth 1 -type f | wc -l)" -eq 6
+          sha256sum --check SHA256SUMS.txt
       - uses: actions/upload-artifact@v5
         with:
           name: windows-x64-verified
           path: |
             verified/xneon-launcher-1.0.8-win-x64.exe
+            verified/xneon-launcher-1.0.8-win-x64.exe.blockmap
+            verified/xneon-launcher-1.0.8-win-x64.zip
+            verified/xneon-launcher-1.0.8-win-x64.zip.blockmap
+            verified/latest.yml
             verified/SHA256SUMS.txt
           if-no-files-found: error
 
@@ -158,4 +174,8 @@ jobs:
             This build does not include private OAuth client credentials.
           files: |
             verified/xneon-launcher-1.0.8-win-x64.exe
+            verified/xneon-launcher-1.0.8-win-x64.exe.blockmap
+            verified/xneon-launcher-1.0.8-win-x64.zip
+            verified/xneon-launcher-1.0.8-win-x64.zip.blockmap
+            verified/latest.yml
             verified/SHA256SUMS.txt

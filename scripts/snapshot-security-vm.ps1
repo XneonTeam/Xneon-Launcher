@@ -8,7 +8,7 @@ $ErrorActionPreference = 'Stop'
 if (-not $DisposableVm) { throw 'Run this inventory only in the disposable Windows x64 VM.' }
 if (-not [Environment]::Is64BitOperatingSystem) { throw 'Windows x64 is required.' }
 
-$installRoot = Join-Path $env:LOCALAPPDATA 'com.xneonlauncher.app'
+$installRoot = Join-Path $env:LOCALAPPDATA 'org.xneon.launcher'
 $profileRoot = Join-Path $env:APPDATA 'xneonlauncher'
 $registryPaths = @(
     'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*'

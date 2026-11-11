@@ -36,6 +36,8 @@ electrobun/main/cloud/credentials.generated.ts
 .xneonlauncher/
 *.tsbuildinfo
 tsconfig.tsbuildinfo
+# Инструменты linux-таргетов (nfpm, appimagetool) — scripts/package-linux-targets.sh
+/.cache/
 
 # Logs
 *.log

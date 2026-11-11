@@ -14,7 +14,9 @@ export type LauncherRPC = {
   bun: {
     requests: {
       invoke: { params: Invocation; response: unknown }
-      stageFile: { params: { name: string; encoded: string }; response: string }
+      stageFileBegin: { params: { name: string; size: number }; response: { id: string; chunkBytes: number } }
+      stageFileChunk: { params: { id: string; encoded: string; final: boolean }; response: string }
+      stageFileAbort: { params: { id: string }; response: boolean }
       bootstrap: { params: undefined; response: { assetBase: string } }
     }
     messages: { windowControl: { action: WindowControl } }

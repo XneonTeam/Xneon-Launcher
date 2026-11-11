@@ -1,0 +1,139 @@
+name: Verify cross-platform distribution candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unix:
+    if: github.repository == 'MAINER4IK/Xneon-Launcher-bun' && github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            target: macos-arm64
+            arch: arm64
+          - runner: ubuntu-24.04
+            target: linux-x64
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    env:
+      HUTCH_NO_UPDATE_CHECK: '1'
+      BUN_OPTIONS: --no-env-file
+      XNLC_SKIP_LOCAL_DOTENV: '1'
+      XNEON_TARGET: ${{ matrix.target }}
+      XNEON_MACHINE: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - name: Install verified toolchain
+        shell: bash
+        run: |
+          test "$(uname -m)" = "$XNEON_MACHINE"
+          test "$(bun --version)" = 1.4.4
+          bootstrap="$RUNNER_TEMP/hutch-install.sh"
+          curl --fail --silent --show-error --location https://hutch.blackboard.sh/hutch/install.sh -o "$bootstrap"
+          echo 'ac0ad498dfb09d2bc80fc9a6a0254c183cd0f125c83dce32defff65a1cf793e7  '"$bootstrap" | shasum -a 256 -c -
+          bash "$bootstrap" --version 0.29.0 --no-modify-path
+          test "$("$HOME/.hutch/bin/hutch" --version)" = 0.29.0
+          echo "$HOME/.hutch/bin" >> "$GITHUB_PATH"
+      - name: Install Linux native dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+            binutils squashfs-tools zstd desktop-file-utils
+      - name: Ensure NSIS
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $candidates = @(
+            (Join-Path $env:ProgramFiles 'NSIS\makensis.exe'),
+            (Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe')
+          ) | Where-Object { Test-Path -LiteralPath $_ }
+          if (-not $candidates) {
+            choco install nsis --yes --no-progress
+            $candidates = @((Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe')) | Where-Object { Test-Path -LiteralPath $_ }
+          }
+          if (-not $candidates) { throw 'makensis (NSIS 3) is required to build the Windows installer' }
+          Add-Content -LiteralPath $env:GITHUB_ENV -Value ('XNEON_MAKENSIS=' + $candidates[0])
+          & $candidates[0] /VERSION
+      - name: Build
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+      - name: Package and validate distribution files
+        run: bash scripts/package-unix-candidate.sh "$XNEON_TARGET"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: distribution-candidate-${{ matrix.target }}
+          path: checked-distribution/*
+          if-no-files-found: error
+
+  verify-distribution:
+    needs: unix
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: distribution-candidate-*
+          path: packages
+      - name: Verify transport hashes and exact asset sets
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(bun -p 'require("./package.json").version')"
+          mac=packages/distribution-candidate-macos-arm64
+          linux=packages/distribution-candidate-linux-x64
+          # Имена и набор файлов — как у Electron-сборки (electron-builder):
+          # mac — dmg + zip + карты блоков, linux — tar.xz, deb, rpm, pacman, AppImage.
+          mac_expected=(
+            "latest-mac.yml"
+            "xneon-launcher-$version-mac-arm64.dmg"
+            "xneon-launcher-$version-mac-arm64.dmg.blockmap"
+            "xneon-launcher-$version-mac-arm64.zip"
+            "xneon-launcher-$version-mac-arm64.zip.blockmap"
+            "SHA256SUMS.txt"
+          )
+          linux_expected=(
+            "latest-linux.yml"
+            "xneon-launcher-$version-amd64.deb"
+            "xneon-launcher-$version-x64.tar.xz"
+            "xneon-launcher-$version-x86_64.AppImage"
+            "xneon-launcher-$version-x86_64.AppImage.blockmap"
+            "xneon-launcher-$version-x86_64.pacman"
+            "xneon-launcher-$version-x86_64.rpm"
+            "SHA256SUMS.txt"
+          )
+          diff <(printf '%s\n' "${mac_expected[@]}" | sort) <(ls -A "$mac" | sort)
+          diff <(printf '%s\n' "${linux_expected[@]}" | sort) <(ls -A "$linux" | sort)
+          (cd "$mac" && sha256sum --check --strict SHA256SUMS.txt)
+          (cd "$linux" && sha256sum --check --strict SHA256SUMS.txt)
+          grep -qx "path: xneon-launcher-$version-mac-arm64.zip" "$mac/latest-mac.yml"
+          grep -qx "path: xneon-launcher-$version-x86_64.AppImage" "$linux/latest-linux.yml"
+          # Карта блоков должна покрывать ровно свой артефакт.
+          for map in "$mac"/*.blockmap "$linux"/*.blockmap; do
+            artifact="${map%.blockmap}"
+            test -f "$artifact"
+            bun -e '
+              const [map, artifact] = process.argv.slice(1)
+              const doc = JSON.parse(Buffer.from(Bun.gunzipSync(Buffer.from(await Bun.file(map).arrayBuffer()))).toString())
+              if (doc.version !== "2" || doc.files.length !== 1) throw new Error("bad blockmap: " + map)
+              const total = doc.files[0].sizes.reduce((a, b) => a + b, 0)
+              const size = (await Bun.file(artifact).stat()).size
+              if (total !== size) throw new Error("blockmap does not cover " + artifact)
+            ' "$map" "$artifact"
+          done

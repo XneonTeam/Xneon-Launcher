@@ -1,9 +1,11 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { lazy, Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { CSSProperties } from "react"
 import { useTranslation } from "react-i18next"
 import { IconCoffee, IconInfoCircle, IconLayoutGrid, IconNews, IconPhoto, IconRefresh, IconDeviceDesktop, IconLoader2 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { formatDate, NEWS_CARD_STYLE, NEWS_CARD_TEXT_HEIGHT, NEWS_GRID_GAP, NEWS_GRID_OVERSCAN_ROWS, NEWS_SCROLL_STYLE, type NewsEntry } from "@/lib/home-page-shared"
+
+const NewsReaderModal = lazy(() => import("@/components/launcher/news-reader-modal").then(m => ({ default: m.NewsReaderModal })))
 
 const REFRESH_INTERVAL = 30 * 60 * 1000
 const NEWS_STORAGE_KEY = "xnlc:news-cache:v1"
@@ -182,9 +184,9 @@ export const NewsSection = memo(function NewsSection() {
   const [refreshing, setRefreshing] = useState(false)
   const [filter, setFilter] = useState<NewsFilter>("java")
   // Новость, открытая в читалке: статья показывается модалом внутри окна лаунчера.
-  const handleRead = useCallback((entry: NewsEntry) => {
-    if (entry.readMoreLink) void window.electrobunAPI?.openExternal(entry.readMoreLink).catch(console.error)
-  }, [])
+  const [readerEntry, setReaderEntry] = useState<NewsEntry | null>(null)
+  const handleRead = useCallback((entry: NewsEntry) => setReaderEntry(entry), [])
+  const handleReaderClose = useCallback(() => setReaderEntry(null), [])
 
   const loadAllNews = useCallback(async () => {
     const [mojang, launcher] = await Promise.all([
@@ -286,6 +288,12 @@ export const NewsSection = memo(function NewsSection() {
         ) : <VirtualNewsGrid entries={filtered} onRead={handleRead} />}
       </div>
 
+      {/* Читалка грузится лениво: показывается только после клика по карточке. */}
+      {readerEntry && (
+        <Suspense fallback={null}>
+          <NewsReaderModal entry={readerEntry} onClose={handleReaderClose} />
+        </Suspense>
+      )}
     </div>
   )
 })
