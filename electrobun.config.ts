@@ -1,8 +1,9 @@
 import type { ElectrobunConfig } from "electrobun"
 import packageJson from "./package.json"
+import { appIdentifier, portableAppIdentifier } from "./electrobun/main/app-identity"
 
 const portable = process.env.XNEON_BUILD_PORTABLE === "1"
-const identifier = portable ? "com.xneonlauncher.portable" : "com.xneonlauncher.app"
+const identifier = portable ? portableAppIdentifier : appIdentifier
 const artifactChannel = process.env.XNEON_ARTIFACT_CHANNEL ?? "stable"
 if (!["stable", "canary", "dev"].includes(artifactChannel)) throw new Error("Invalid artifact channel")
 

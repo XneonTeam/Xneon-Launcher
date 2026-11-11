@@ -1,9 +1,11 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
+import { existsSync } from "node:fs"
 import { copyFile, cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 import packageJson from "../package.json"
-import { validateBundleCredentials, windowsX64 } from "./windows-candidate-validation"
+import { portableAppIdentifier } from "../electrobun/main/app-identity"
+import { validateBundleCredentials, windowsInstaller, windowsX64 } from "./windows-candidate-validation"
 
 const [installer, destination] = Bun.argv.slice(2)
 assert.ok(installer && destination && process.platform === "win32" && process.arch === "x64")
@@ -58,7 +60,7 @@ const readEntry = (name: string) => tar(["-xOf", zip, name])
 const identity = JSON.parse(readEntry("Resources/version.json").toString())
 assert.equal(identity.version, version)
 assert.equal(identity.channel, "dev")
-assert.equal(identity.identifier, "com.xneonlauncher.portable")
+assert.equal(identity.identifier, portableAppIdentifier)
 assert.equal(identity.baseUrl, "")
 const build = JSON.parse(readEntry("Resources/build.json").toString())
 assert.equal(build.runtime.appUserModelId, identity.identifier)
@@ -78,9 +80,23 @@ validateBundleCredentials(bundle)
 
 const exe = path.join(output, name + ".exe")
 const installerBytes = await readFile(installer)
-windowsX64(installerBytes)
+windowsInstaller(installerBytes)
 await copyFile(installer, exe)
-const hashes = await Promise.all([exe, zip].map(async file =>
+// Распакованное приложение и метафайлы electron-builder (.blockmap, latest.yml)
+// готовит scripts/build-windows-distribution.ts, проверяет
+// scripts/validate-pre-release.ts — здесь только переносим в выдачу.
+const candidateDir = path.dirname(path.resolve(installer))
+const unpackedSource = path.join(candidateDir, name + ".zip")
+assert.ok(existsSync(unpackedSource), "Unpacked Windows archive is missing: " + unpackedSource)
+const unpacked = path.join(output, name + ".zip")
+await copyFile(unpackedSource, unpacked)
+const metadata = [name + ".exe.blockmap", name + ".zip.blockmap", "latest.yml"].map(file => {
+  const source = path.join(candidateDir, file)
+  assert.ok(existsSync(source), "Release metadata is missing: " + source)
+  return { source, file: path.join(output, file) }
+})
+for (const entry of metadata) await copyFile(entry.source, entry.file)
+const hashes = await Promise.all([exe, unpacked, zip, ...metadata.map(entry => entry.file)].map(async file =>
   createHash("sha256").update(await readFile(file)).digest("hex") + "  " + path.basename(file)))
 await writeFile(path.join(output, "SHA256SUMS.txt"), hashes.join("\n") + "\n", { flag: "wx" })
 console.log(hashes.join("\n"))

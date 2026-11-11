@@ -8,7 +8,7 @@ import { spawn } from "node:child_process"
 import { assetBase } from "./assets"
 import { invokeHandler, ViewSession } from "./ipc"
 import type { LauncherRPC } from "./schema"
-import { stageFile } from "./staged-files"
+import { appendUpload, abortUpload, beginUpload } from "./staged-files"
 import packageJson from "../../package.json"
 import { enableWindowsWindowTransitions, saveFile, setWindowsAppUserModelId, setWindowsTaskbarIdentity, setWindowsWindowIcons } from "./windows-native"
 import { launcherOperations } from "./operation-gate"
@@ -62,6 +62,53 @@ Electrobun.events.on("reopen", () => app.emit("reopen"))
 const windows = new Map<number, DesktopWindow>()
 type WindowOptions = { width: number; height: number; show?: boolean; launcher?: boolean; startupTheme?: string | null }
 
+/**
+ * Достаёт URL из detail события webview. Electrobun отдаёт его по-разному:
+ * строкой (`will-navigate`), JSON-строкой (`new-window-open` из preload),
+ * объектом `{ url, isCmdClick, ... }` (нативный `new-window-open`) — поэтому
+ * разбираем все варианты, а не полагаемся на один.
+ */
+function detailUrl(value: unknown): string | null {
+  if (typeof value === "string") {
+    const text = value.trim()
+    if (!text) return null
+    if (text.startsWith("{")) {
+      try {
+        return detailUrl(JSON.parse(text))
+      } catch {
+        return null
+      }
+    }
+    return text
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>
+    return detailUrl(record.url ?? record.detail ?? record.data ?? record.href)
+  }
+  return null
+}
+
+/** URL из события webview: `{ data: { detail } }`, `{ data: url }` или голый detail. */
+function eventUrl(event: unknown): string | null {
+  const data = (event as { data?: unknown } | null)?.data
+  return detailUrl(data) ?? detailUrl(event)
+}
+
+/** Навигация внутри собственных views лаунчера — её не уводим в браузер. */
+function isAppNavigation(url: string, base: string) {
+  try {
+    const target = new URL(url)
+    const app = new URL(base)
+    return target.protocol === app.protocol && target.host === app.host
+  } catch {
+    return false
+  }
+}
+
+function openExternalQuietly(url: string) {
+  void shell.openExternal(url).catch(error => console.error("[Desktop] Could not open external URL", error))
+}
+
 export class DesktopWindow extends EventEmitter {
   private readonly native: NativeWindow
   private clearTaskbarIdentity?: () => void
@@ -75,7 +122,9 @@ export class DesktopWindow extends EventEmitter {
       handlers: {
         requests: {
           invoke: request => invokeHandler(this.viewSession, request),
-          stageFile: ({ name, encoded }) => launcherOperations.run(() => stageFile(name, encoded)),
+          stageFileBegin: ({ name, size }) => launcherOperations.run(() => beginUpload(name, size)),
+          stageFileChunk: ({ id, encoded, final }) => launcherOperations.run(() => appendUpload(id, encoded, final)),
+          stageFileAbort: ({ id }) => launcherOperations.run(async () => { await abortUpload(id); return true }),
           bootstrap: () => ({ assetBase: assetBase() }),
         },
         messages: {
@@ -140,13 +189,6 @@ export class DesktopWindow extends EventEmitter {
     }
     this.viewSession = new ViewSession(this.native.webview.id, event => rpc?.send.launcherEvent(event))
     windows.set(this.viewSession.id, this)
-    this.native.on("close", () => {
-      releaseWindowIcons?.()
-      windows.delete(this.viewSession.id)
-      this.viewSession.destroy()
-      this.emit("closed")
-      if (windows.size === 0) app.emit("window-all-closed")
-    })
     const forwardNavigation = (event: unknown, channel: string) => {
       const data = (event as { data: unknown }).data
       const url = typeof data === "string" ? data : (data as { detail?: string } | null)?.detail
@@ -154,6 +196,44 @@ export class DesktopWindow extends EventEmitter {
       this.currentUrl = url
       this.viewSession.emit(channel, {}, url)
     }
+    // Окно лаунчера не должно уходить со своей страницы: как в Electron, любые
+    // внешние ссылки (в том числе обычные `<a href>` из Markdown-ов CurseForge)
+    // открываем в системном браузере. `new-window-open` приходит только через
+    // глобальный emitter (`BrowserView.on` этот тип не принимает), поэтому
+    // подписываемся на конкретный webview по его id.
+    let detachExternalLinks: (() => void) | undefined
+    if (options.launcher) {
+      const webviewId = this.native.webview.id
+      const newWindowEvent = `new-window-open-${webviewId}`
+      const willNavigateEvent = `will-navigate-${webviewId}`
+      const handleNewWindow = (event: unknown) => {
+        const url = eventUrl(event)
+        if (url && !isAppNavigation(url, launcherUrl)) openExternalQuietly(url)
+      }
+      const handleWillNavigate = (event: unknown) => {
+        const url = eventUrl(event)
+        if (!url) return
+        if (isAppNavigation(url, launcherUrl)) {
+          forwardNavigation(event, "will-navigate")
+          return
+        }
+        openExternalQuietly(url)
+      }
+      Electrobun.events.on(newWindowEvent, handleNewWindow)
+      Electrobun.events.on(willNavigateEvent, handleWillNavigate)
+      detachExternalLinks = () => {
+        Electrobun.events.off(newWindowEvent, handleNewWindow)
+        Electrobun.events.off(willNavigateEvent, handleWillNavigate)
+      }
+    }
+    this.native.on("close", () => {
+      detachExternalLinks?.()
+      releaseWindowIcons?.()
+      windows.delete(this.viewSession.id)
+      this.viewSession.destroy()
+      this.emit("closed")
+      if (windows.size === 0) app.emit("window-all-closed")
+    })
     if (!options.launcher) this.native.webview.on("will-navigate", event => forwardNavigation(event, "will-navigate"))
     this.native.webview.on("did-navigate", event => forwardNavigation(event, "did-navigate"))
     this.native.webview.on("did-navigate-in-page", event => forwardNavigation(event, "did-navigate-in-page"))
