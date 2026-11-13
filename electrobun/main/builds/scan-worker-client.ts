@@ -1,99 +1,70 @@
 import { bundledWorker } from "../../platform/resources"
-// ============================================================
-// XNLC — клиент worker'а холодного сканирования JAR
-// ============================================================
-//
-// Запускает `scan-worker.js` в отдельном потоке (аналог upload-worker.ts),
-// собирает результаты чанками и гарантированно завершает поток: если worker
-// почему-то не ответит, сканирование продолжится в main-процессе — падение
-// потока не должно ломать открытие сборки.
-
 import { Worker } from "worker_threads"
-import type { JarInspection } from "./jar-inspector"
+import type { ScanFile, ScanResult, ScanOutcome } from "./scan-worker-protocol"
 
-type ScanFile = { filePath: string; size: number; mtime: number }
-
-type ScanResult = {
-  filePath: string
-  size: number
-  mtime: number
-  inspection: JarInspection
-}
-
-type ScanMessage =
-  | { type: "chunk"; results: ScanResult[] }
-  | { type: "done"; inspected: number }
-  | { type: "error"; filePath: string; message: string }
-
-/** Таймаут на весь скан: воркер не должен подвешивать открытие сборки. */
-const SCAN_TIMEOUT_MS = 120_000
-
-/**
- * Инспектирует файлы в worker-потоке, вызывая `onResult` по мере готовности
- * чанков, и сообщает, какие файлы удалось обработать.
- *
- * `ok === false` означает, что воркер упал или не уложился в таймаут: часть
- * файлов уже обработана (их переразбирать нельзя — будут дубли), остаток
- * вызывающий код добирает локально.
- */
+/** Ответ применяется ровно один раз; fallback начинается только после остановки потока. */
 export async function runJarScanWorker(
   files: ScanFile[],
   onResult: (result: ScanResult) => void,
-): Promise<{ ok: boolean; processedPaths: string[] }> {
-  if (files.length === 0) return { ok: true, processedPaths: [] }
-
-  const workerPath = bundledWorker("scan-worker")
-
-  return new Promise((resolve) => {
-    let settled = false
-    const processedPaths: string[] = []
-    let worker: Worker
-    let timer: NodeJS.Timeout | null = null
-
-    const finish = (ok: boolean): void => {
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
+): Promise<ScanOutcome> {
+  const errors: ScanOutcome["errors"] = []
+  const processed = new Set<string>(), received = new Set<string>()
+  const expected = new Map(files.map(file => [file.filePath, file]))
+  if (options.signal?.aborted) return { state: "cancelled", ok: false, processedPaths: [], errors }
+  if (!files.length) return { state: "success", ok: true, processedPaths: [], errors }
+  return new Promise(resolve => {
+    let settled = false, worker: Worker | undefined, timer: ReturnType<typeof setTimeout> | undefined
+    const finish = (state: ScanOutcome["state"]) => {
       if (settled) return
       settled = true
-      if (timer) clearTimeout(timer)
-      // terminate() не ждём: поток уже прислал done либо мы уходим в fallback.
-      void worker.terminate().catch(() => {})
-      resolve({ ok, processedPaths })
+      clearTimeout(timer)
+      options.signal?.removeEventListener("abort", abort)
+      worker?.removeListener("message", message)
+      // error listener остаётся до завершения, чтобы поздний error не стал uncaught.
+      void (async () => {
+        try { await worker?.terminate() } catch (error) { errors.push({ filePath: "", message: String(error) }); state = "failed" }
+        worker?.removeAllListeners()
+        resolve({ state, ok: state === "success", processedPaths: [...processed], errors: [...errors] })
+      })()
     }
-
-    try {
-      worker = new Worker(workerPath, { workerData: { files } })
-    } catch {
-      resolve({ ok: false, processedPaths: [] })
-      return
+    const abort = () => finish("cancelled")
+    const fail = (error: unknown) => {
+      if (settled) return
+      errors.push({ filePath: "", message: error instanceof Error ? error.message : String(error) })
+      finish(processed.size ? "partial" : "failed")
     }
-
-    timer = setTimeout(() => finish(false), SCAN_TIMEOUT_MS)
-    timer.unref?.()
-
-    worker.on("message", (message: ScanMessage) => {
-      if (message.type === "chunk") {
-        for (const result of message.results) {
-          try {
-            onResult(result)
-            processedPaths.push(result.filePath)
-          } catch {
-            /* один битый файл не должен ронять весь скан */
-          }
+    const message = (value: any) => {
+      if (settled) return
+      if (!value || typeof value !== "object") return fail("Invalid scan message")
+      if (value.type === "chunk") {
+        if (!Array.isArray(value.results) || value.results.length > 32) return fail("Invalid scan chunk")
+        for (const result of value.results) {
+          const file = expected.get(result?.filePath)
+          if (!file || result.size !== file.size || result.mtime !== file.mtime
+            || !/^[a-f0-9]{40}$/.test(result.inspection?.sha1 ?? "")
+            || !result.inspection.metadata || typeof result.inspection.metadata !== "object") return fail("Invalid scan result")
+          if (received.has(file.filePath)) { errors.push({ filePath: file.filePath, message: "Duplicate scan result" }); continue }
+          received.add(file.filePath)
+          try { onResult(result); processed.add(file.filePath) }
+          catch (error) { errors.push({ filePath: file.filePath, message: error instanceof Error ? error.message : String(error) }) }
         }
-        return
-      }
-      if (message.type === "done") {
-        finish(true)
-        return
-      }
-      if (message.type === "error") {
-        // Ошибка отдельного файла: скан продолжается, файл просто пропущен.
-        return
-      }
-    })
-
-    worker.on("error", () => finish(false))
-    // Выход без сообщения "done" — воркер упал: отдаём уже собранное, остаток
-    // вызывающий код доберёт локально.
-    worker.on("exit", () => finish(false))
+      } else if (value.type === "error") {
+        if (typeof value.filePath !== "string" || !expected.has(value.filePath)) return fail(value.message || "Scan failed")
+        errors.push({ filePath: value.filePath, message: String(value.message) })
+      } else if (value.type === "failed") fail(value.message || "Scan failed")
+      else if (value.type === "done") {
+        if (!Number.isSafeInteger(value.inspected) || value.inspected !== received.size) errors.push({ filePath: "", message: "Invalid inspected count" })
+        finish(processed.size === expected.size && errors.length === 0 ? "success" : processed.size ? "partial" : "failed")
+      } else fail("Unknown scan message")
+    }
+    try { worker = new Worker(bundledWorker("scan-worker"), { workerData: { files } }) }
+    catch (error) { fail(error); return }
+    worker.on("message", message)
+    worker.on("error", fail)
+    worker.on("exit", () => { if (!settled) fail("Scan worker exited without terminal result") })
+    timer = setTimeout(() => fail("Scan worker timed out"), options.timeoutMs ?? 120_000)
+    options.signal?.addEventListener("abort", abort, { once: true })
+    if (options.signal?.aborted) abort()
   })
 }
