@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react"
+import { createContext, createElement, useContext, useCallback, useEffect, useLayoutEffect, useMemo, useState, type PropsWithChildren } from "react"
 import type { Theme } from "./types"
 import { mergeLocalThemes, themeFromLocalFile } from "./theme-local"
 import { presetThemes } from "./data"
@@ -35,6 +35,8 @@ function normalizePresetId(id: string): string {
 // которая была прочитана и применена до первого рендера приложения.
 let cachedCustomThemes: Theme[] | undefined
 let cachedSelectedTheme: string | undefined
+let initialized = false
+let cachedLocalSnapshot: import("@xnlc/types").LocalThemeSnapshot | undefined
 const pendingThemeWrites = new Set<string>()
 
 async function writeThemeFiles(themes: Theme[], onlyMissing: boolean): Promise<Theme[]> {
@@ -75,6 +77,7 @@ export async function loadCustomThemes(): Promise<Theme[]> {
     const stored = await api.getSetting(CUSTOM_THEMES_SETTING)
     const saved = await writeThemeFiles(stored === undefined ? local : parseThemes(stored), true)
     const snapshot = await api.listLocalThemes?.().catch(() => undefined)
+    if (snapshot) cachedLocalSnapshot = snapshot
     const merged = snapshot ? mergeLocalThemes(saved, snapshot) : saved
     if (serializeThemes(merged) !== (stored ?? serializeThemes(local))) persistCustomThemes(merged)
     return merged
@@ -129,6 +132,7 @@ export async function initializeTheme(): Promise<void> {
   } catch { /* Тему всё равно сохраняет кэш в памяти. */ }
   const themes = allThemes(customThemes)
   applyTheme(findTheme(themes, cachedSelectedTheme) ?? findTheme(themes, DEFAULT_THEME_ID) ?? presetThemes[0])
+  initialized = true
 }
 
 export interface ThemeRegistry {
@@ -154,10 +158,10 @@ export interface ThemeRegistry {
  * Единый источник темы для лаунчера и настроек: применяет выбранную тему,
  * хранит свои темы и реагирует на изменения настроек из main (агент, другая вкладка).
  */
-export function useThemeRegistry(): ThemeRegistry {
+function useThemeRegistryState(): ThemeRegistry {
   const [customThemes, setCustomThemes] = useState<Theme[]>(() => readLocalCustomThemes())
   const [selectedThemeId, setSelectedThemeId] = useState<string>(() => readLocalSelectedTheme())
-  const [ready, setReady] = useState(false)
+  const [ready, setReady] = useState(initialized)
   const [localErrors, setLocalErrors] = useState<string[]>([])
 
   const themes = useMemo(() => allThemes(customThemes), [customThemes])
@@ -168,6 +172,7 @@ export function useThemeRegistry(): ThemeRegistry {
 
   // Первичная загрузка: темы и выбранный id из БД.
   useEffect(() => {
+    if (initialized) return
     let cancelled = false
     void (async () => {
       const [storedThemes, storedTheme] = await Promise.all([
@@ -191,6 +196,7 @@ export function useThemeRegistry(): ThemeRegistry {
     const receive = (snapshot: import("@xnlc/types").LocalThemeSnapshot) => {
       if (snapshot.revision <= revision) return
       revision = snapshot.revision
+      cachedLocalSnapshot = snapshot
       setLocalErrors(snapshot.errors)
       setCustomThemes(current => {
         const merged = mergeLocalThemes(current, snapshot)
@@ -201,7 +207,8 @@ export function useThemeRegistry(): ThemeRegistry {
     }
     const off = window.electrobunAPI?.onLocalThemesChanged?.(receive)
     let alive = true
-    void window.electrobunAPI?.listLocalThemes?.().then(snapshot => { if (alive) receive(snapshot) }).catch(() => {})
+    if (cachedLocalSnapshot) receive(cachedLocalSnapshot)
+    else void window.electrobunAPI?.listLocalThemes?.().then(snapshot => { if (alive) receive(snapshot) }).catch(() => {})
     return () => { alive = false; off?.() }
   }, [])
 
@@ -308,4 +315,18 @@ export function useThemeRegistry(): ThemeRegistry {
     copyTheme,
     makeTheme,
   }
+}
+
+const ThemeRegistryContext = createContext<ThemeRegistry | null>(null)
+
+/** Один владелец IPC-подписок и применения CSS для лаунчера и настроек. */
+export function ThemeRegistryProvider({ children }: PropsWithChildren) {
+  const registry = useThemeRegistryState()
+  return createElement(ThemeRegistryContext.Provider, { value: registry }, children)
+}
+
+export function useThemeRegistry(): ThemeRegistry {
+  const registry = useContext(ThemeRegistryContext)
+  if (!registry) throw new Error("useThemeRegistry must be used inside ThemeRegistryProvider")
+  return registry
 }

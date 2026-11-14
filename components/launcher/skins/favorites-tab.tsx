@@ -1,9 +1,8 @@
 import { useContentEnter, CONTENT_ENTER_DELAYED } from "../content-motion"
-import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { lazy, Suspense, useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { useAccounts } from "@/src/AccountsContext"
 import { useActivityCenter } from "@/src/ActivityCenterContext"
-import { EditSkinModal } from "../edit-skin-modal"
 import { localFileToBlobUrl } from "@/lib/local-file-url"
 import { EmptySkinsState, SkinPreviewPanel, SkinGrid, type SkinCardData } from "./index"
 import { resolveSkinCapeUrl, findActiveCape } from "./cape-url"
@@ -23,6 +22,7 @@ const profileCache = new Map<string, { profile: McProfile | null; at: number }>(
 
 /** TTL, после которого профиль обновляем в фоне (показанные данные не блокируют). */
 const PROFILE_CACHE_TTL_MS = 60_000
+const EditSkinModal = lazy(() => import("../edit-skin-modal").then(module => ({ default: module.EditSkinModal })))
 
 /**
  * Вкладка «Избранное»: сохранённые скины аккаунта.
@@ -398,7 +398,7 @@ export function FavoritesTab() {
     <div data-ui="skins-favorites-tab-div-2" data-component="favorites-tab" className="flex min-h-0 flex-1 flex-col">
       <input data-ui="skins-favorites-tab-input-1" ref={fileInputRef} type="file" accept=".png" className="hidden" onChange={handleFileInput} />
 
-      <EditSkinModal
+      {editModalOpen && <Suspense fallback={null}><EditSkinModal
         open={editModalOpen}
         onClose={() => setEditModalOpen(false)}
         skin={editModalSkin}
@@ -407,7 +407,7 @@ export function FavoritesTab() {
         // у скина из профиля — текущий плащ аккаунта.
         activeCapeId={editModalSkin?.capeId ?? (editingCurrentSkin ? activeCape?.id ?? null : null)}
         onSave={handleEditSave}
-      />
+      /></Suspense>}
 
       <div data-ui="skins-favorites-tab-div-3" className="@container flex min-h-0 flex-1 flex-col">
         <div data-ui="skins-favorites-tab-div-4" className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto pr-1 @[820px]:grid-cols-[280px_minmax(0,1fr)] @[820px]:overflow-hidden">

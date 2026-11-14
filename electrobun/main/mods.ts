@@ -7,7 +7,7 @@ import { runContentDownload } from "./content-downloads"
 import { rpcRegistry } from "../platform/desktop"
 import path from "path"
 import { readModrinthPackContents } from "./mods-pack-contents"
-import { getBuildIntentPath } from "./builds/helpers"
+import { getContentIntentDir } from "./builds/helpers"
 import { getLauncherDataRoot } from "./paths"
 import { checkLoaderRequirements, type LoaderRequirementReport } from "./mods-loader-requirements"
 import { inspectJarDependencies, type JarDependencyInspection } from "./mods-jar-deps"
@@ -283,7 +283,7 @@ export function registerModsHandlers(): void {
     "mods:check-loader-requirements",
     async (_event, buildName: string, modLoader?: string, loaderVersion?: string): Promise<LoaderRequirementReport> => {
       try {
-        const modsDir = path.join(getBuildIntentPath(buildName), "mods")
+        const modsDir = path.join(await getContentIntentDir(buildName), "mods")
         return await checkLoaderRequirements(modsDir, modLoader, loaderVersion)
       } catch (err) {
         console.error("Loader requirement check error:", err)

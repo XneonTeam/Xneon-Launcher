@@ -9,6 +9,7 @@ import { opFailure } from "./errors"
 import { rpcRegistry, nativeImage } from "../platform/desktop"
 import path from "path"
 import fs from "fs/promises"
+import { runScanWorker, type DatapackMetadata } from "@xnlc/parser"
 import type { NBTCompound } from "@xnlc/nbt"
 import { ensureBuildIntentDir, downloadBuffer, sanitizeFileName } from "./builds/helpers"
 import type { WorldInfo, DatapackInfo, ScreenshotInfo } from "@xnlc/types" with { "resolution-mode": "import" }
@@ -262,16 +263,40 @@ async function listDatapacks(worldPath: string): Promise<DatapackInfo[]> {
   const dpDir = path.join(worldPath, "datapacks")
   let entries: string[] = []
   try { entries = await fs.readdir(dpDir) } catch { return [] }
-  const result: DatapackInfo[] = []
-  for (const entry of entries) {
+  const values = await Promise.all(entries.map(async entry => {
     const full = path.join(dpDir, entry)
     try {
       const stat = await fs.stat(full)
-      result.push({ name: entry, sizeBytes: stat.size, lastModified: stat.mtimeMs, path: full })
-    } catch { /* ignore */ }
-  }
+      return { name: entry, sizeBytes: stat.size, lastModified: stat.mtimeMs, path: full } as DatapackInfo
+    } catch { return null }
+  }))
+  const result = values.filter((value): value is DatapackInfo => value !== null)
+  const byPath = new Map(result.map(value => [value.path, value]))
+  try {
+    await runScanWorker(result.map(value => ({ filePath: value.path })), { datapack: true }, item => {
+      const entry = byPath.get(item.filePath)
+      if (!entry) return
+      if (item.error) { entry.parseError = item.error; return }
+      if (item.datapack) Object.assign(entry, datapackDisplayMetadata(item.datapack))
+    })
+  } catch { /* Список файлов остаётся доступен при сбое worker. */ }
   result.sort((a, b) => a.name.localeCompare(b.name))
   return result
+}
+
+function datapackDisplayMetadata(pack: DatapackMetadata): Pick<DatapackInfo, "description" | "packFormat" | "format" | "namespaces"> {
+  const value = pack.description
+  const description = typeof value === "string" ? value : value && typeof value === "object" && "text" in value && typeof value.text === "string" ? value.text : undefined
+  return { description, packFormat: pack.packFormat, format: pack.format, namespaces: pack.namespaces }
+}
+
+async function validateWorldDatapack(input: string | Uint8Array): Promise<void> {
+  let parsed = false, failure: string | undefined
+  await runScanWorker([{ filePath: typeof input === "string" ? input : "datapack", bytes: typeof input === "string" ? undefined : input }], { datapack: true }, result => {
+    parsed = !!result.datapack
+    failure = result.error
+  })
+  if (!parsed) throw new Error(failure ?? "Datapack could not be analyzed")
 }
 
 // ---------- Handlers ----------
@@ -494,6 +519,7 @@ export function registerWorldsHandlers(): void {
       if (!filePath) return { success: false, error: "Некорректное имя файла" }
       const buffer = await downloadBuffer(url)
       if (buffer.length < 4) return { success: false, error: "Файл пуст" }
+      await validateWorldDatapack(buffer)
       try { await fs.access(filePath) } catch {
         await fs.writeFile(filePath, buffer)
       }
@@ -513,8 +539,11 @@ export function registerWorldsHandlers(): void {
       await fs.mkdir(dpDir, { recursive: true }).catch(() => {})
       const destPath = resolveChildPath(dpDir, path.basename(localFilePath))
       if (!destPath) return { success: false, error: "Некорректное имя файла" }
+      const sourceStat = await fs.stat(localFilePath)
+      await validateWorldDatapack(localFilePath)
       try { await fs.access(destPath) } catch {
-        await fs.copyFile(localFilePath, destPath)
+        if (sourceStat.isDirectory()) await fs.cp(localFilePath, destPath, { recursive: true })
+        else await fs.copyFile(localFilePath, destPath)
       }
       return { success: true, path: destPath }
     } catch (error) {

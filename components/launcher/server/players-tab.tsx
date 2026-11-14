@@ -158,7 +158,10 @@ export function PlayersTab({ serverId }: PlayersTabProps) {
                 </div>
                 <button data-ui="server-players-tab-button-3"
                   onClick={() => handleRemove(entry)}
-                  className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
+                  type="button"
+                  title={t("common.delete")}
+                  aria-label={t("common.delete")}
+                  className="p-1.5 rounded-lg border border-border bg-muted/60 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                 >
                   <IconTrash className="w-4 h-4" />
                 </button>

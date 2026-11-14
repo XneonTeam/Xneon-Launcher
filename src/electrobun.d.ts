@@ -1,6 +1,7 @@
 import type { ElectrobunAPI } from '@xnlc/types'
 // Чтение состава Modrinth-сборок без установки: modsModrinthPackContents — из общего контракта.
 // XNLC/Share: shareExecute и типы запросов объявлены в общем контракте @xnlc/types.
+// onShareProgress использует ShareProgress: действие, имя сборки и код ошибки.
 // Удалённые mc-servers: mcServerRemote и события соединения объявлены в том же IPC-контракте.
 // История mc-servers: mcServerHistory объявлен в общем контракте.
 // Настройки хоста: mcServerHostSettings использует тот же контракт.
@@ -11,6 +12,7 @@ import type { ElectrobunAPI } from '@xnlc/types'
 export {}
 
 // startupReady/startupThemeSnapshot объявлены в общем контракте @xnlc/types.
+// getSettings(keys) читает разрешённые настройки одним IPC; секреты AI исключены в main.
 // ── Launcher Extra API ─────────────────────────────────────
 // window.electrobunAPI is typed by the single `ElectrobunAPI`
 // contract from @xnlc/types (ElectrobunAPIExplicit & ElectrobunAPIExtra).

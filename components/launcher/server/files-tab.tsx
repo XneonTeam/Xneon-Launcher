@@ -582,7 +582,7 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
                       </span>
                     )}
                     {!isRenaming && (
-                      <div data-ui="server-files-tab-div-16" className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                      <div data-ui="server-files-tab-div-16" className="flex items-center gap-1 flex-shrink-0">
                         <button data-ui="server-files-tab-button-12"
                           disabled={!canChange(currentPath ? `${currentPath}/${entry.name}` : entry.name)}
                           onClick={e => {
@@ -590,7 +590,7 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
                             setRenamingEntry(entry.name)
                             setRenameValue(entry.name)
                           }}
-                          className="p-1 rounded hover:bg-muted text-muted-foreground"
+                          className="p-1.5 rounded-md border border-border bg-muted/60 hover:bg-muted text-muted-foreground transition-colors disabled:opacity-50"
                           title={t("files.rename")}
                         >
                           <IconPencil className="w-3.5 h-3.5" />
@@ -598,7 +598,7 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
                         <button data-ui="server-files-tab-button-13"
                           disabled={!canChange(currentPath ? `${currentPath}/${entry.name}` : entry.name)}
                           onClick={e => { e.stopPropagation(); handleDelete(entry) }}
-                          className="p-1 rounded hover:bg-destructive/10 text-destructive"
+                          className="p-1.5 rounded-md border border-border bg-muted/60 hover:bg-destructive/10 text-destructive transition-colors disabled:opacity-50"
                           title={t("files.delete")}
                         >
                           <IconTrash className="w-3.5 h-3.5" />
@@ -655,7 +655,7 @@ export function FilesTab({ serverId, canWrite = true, canWriteProperties = true 
                     )}
                     <button data-ui="server-files-tab-button-14"
                       onClick={e => { e.stopPropagation(); closeTab(tab.path) }}
-                      className="p-0.5 rounded hover:bg-muted/80 text-muted-foreground/0 group-hover:text-muted-foreground transition-colors flex-shrink-0"
+                      className="p-1 rounded-md border border-border bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
                     >
                       <IconX className="w-3 h-3" />
                     </button>

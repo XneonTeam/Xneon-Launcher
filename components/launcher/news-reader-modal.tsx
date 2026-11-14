@@ -138,6 +138,17 @@ interface NewsReaderModalProps {
   onClose: () => void
 }
 
+/** React 19 пишет props в свойства custom element, но sandbox у SDK имеет только getter. */
+export function prepareNewsReaderWebview(el: ElectrobunWebviewElement) {
+  // Гостевой тег SDK по умолчанию выбирает native, независимо от build.defaultRenderer.
+  const platform = typeof window === "undefined" ? undefined : (window as Window & { __electrobunPlatform?: string }).__electrobunPlatform
+  el.setAttribute("renderer", platform === "linux" ? "cef" : "native")
+  // Native читает начальное состояние через hasAttribute в отложенном initWebview.
+  el.setAttribute("sandbox", "")
+  el.setAttribute("transparent", "")
+  el.setAttribute("passthrough", "")
+}
+
 export function NewsReaderModal({ entry, onClose }: NewsReaderModalProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(true)
@@ -170,6 +181,7 @@ export function NewsReaderModal({ entry, onClose }: NewsReaderModalProps) {
     detachRef.current = null
     if (!node) return
     const el = node as ElectrobunWebviewElement
+    prepareNewsReaderWebview(el)
 
     setLoading(true)
     setFailed(false)
@@ -321,10 +333,10 @@ export function NewsReaderModal({ entry, onClose }: NewsReaderModalProps) {
                 ref={attachWebview}
                 src={url}
                 partition="persist:xneon-news"
-                sandbox
-                transparent
-                passthrough
                 className="absolute inset-0 h-full w-full"
+                // CSS SDK вне @layer задаёт 800×300 и перекрывает utilities Tailwind.
+                // Native берёт геометрию из DOM: задаём размер inline, включая ресайз модала.
+                style={{ width: "100%", height: "100%", background: "var(--card)" }}
               />
             )}
 

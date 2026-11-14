@@ -4,13 +4,13 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
   IconColorSwatch, IconPlus, IconCopy, IconTrash, IconDownload, IconUpload, IconCategoryPlus,
-  IconX, IconChevronDown, IconChevronRight,
+  IconChevronDown, IconChevronRight,
   IconPencil, IconPuzzle, IconSparkles, IconMap,
   IconSettings, IconBug, IconFolder, IconLayoutGrid, IconLayoutList, IconRefreshDot, IconPhoto,
   IconLoader2, IconPlayerPlay,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
-import { Checkbox } from "@/components/ui/checkbox"
+import { ExportCategoriesDialog } from "../export-categories-dialog"
 import { FloatingContextMenu } from "@/components/ui/floating-context-menu"
 import { ModalLayer } from "@/components/ui/modal-layer"
 import { InstanceExportModal } from "./instance-export-modal"
@@ -346,21 +346,21 @@ export const InstanceList = memo(function InstanceList({
                   <span data-ui="instance-instance-list-span-2" className="text-xs text-muted-foreground">({groupBuilds.length})</span>
                   <div data-ui="instance-instance-list-div-10" className="flex-1" />
                   {groupKey !== "" && (
-                    <div data-ui="instance-instance-list-div-11" className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    <div data-ui="instance-instance-list-div-11" className="flex items-center gap-1"
                       onClick={(e) => e.stopPropagation()}>
                       <button data-ui="instance-instance-list-button-4" type="button" title={t("categoryMenu.icon")}
                         onClick={() => setIconPickerFor(groupKey)}
-                        className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
+                        className="p-1.5 rounded-md border border-border bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
                         <IconPhoto className="w-3.5 h-3.5" />
                       </button>
                       <button data-ui="instance-instance-list-button-5" type="button" title={t("instanceList.renameGroup")}
                         onClick={() => { setRenameGroupFor(groupKey); setRenameGroupDraft(groupKey) }}
-                        className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
+                        className="p-1.5 rounded-md border border-border bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
                         <IconPencil className="w-3.5 h-3.5" />
                       </button>
                       <button data-ui="instance-instance-list-button-6" type="button" title={t("instanceList.deleteGroup")}
                         onClick={() => onDeleteGroup(groupKey)}
-                        className="p-1 rounded-md hover:bg-destructive/15 text-muted-foreground hover:text-destructive">
+                        className="p-1.5 rounded-md border border-border bg-muted/60 hover:bg-destructive/15 text-muted-foreground hover:text-destructive transition-colors">
                         <IconTrash className="w-3.5 h-3.5" strokeWidth={1.75} />
                       </button>
                     </div>
@@ -429,7 +429,7 @@ export const InstanceList = memo(function InstanceList({
                               <div data-ui="instance-instance-list-div-20" className="absolute top-2 left-2 p-1 rounded-md bg-card/90">
                                 <svg data-ui="instance-instance-list-svg-3" data-icon="instance-instance-list-svg-3" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 1544.031 1112.211">
                                   <path data-ui="instance-instance-list-path-3" fill="#0ea5e9" d="M456.147 246.012C470.315 163.992 483.696 81.758 499.344 0c30.976 9.746 63.159 15.542 95.61 16.596 77.388 2.528 154.771.841 232.157 1.316 65.324-.37 132.279 2.686 195.284-17.753 13.694 82.126 30.552 163.988 41.562 246.484-10.798 1.157-21.596 2.476-32.343 3.846-25.764-59.054-55.581-120.636-109.469-159.038-30.814-21.494-68.271-29.975-105.255-31.713-.686 238.267-.418 476.585-.896 714.853 22.809 3.057 45.728 5.269 68.589 8.112-.159 14.173-.159 28.392-.106 42.622-82.76-.318-165.518-.059-248.225-.165.16-13.797 0-27.601-.576-41.401 22.703-4.744 45.986-5.742 68.957-9.009.104-238.215-.051-476.482-.211-714.695-46.409.896-93.769 16.278-127.223 49.36-40.826 38.402-64.794 90.241-87.023 140.705-11.378-.895-22.757-2.158-34.029-4.108z"/>
-                                  <path data-ui="instance-instance-list-path-4" fill="#0ea5e9" d="M405.68 305.171c38.929-.316 77.861-5.479 115.103-17.121 18.756 86.236 38.46 172.261 56.157 258.706-13.381 1.95-26.763 3.794-40.143 5.69-34.875-78.598-89.766-156.404-173.944-186.327-56.893-22.598-118.847-16.856-178.636-15.961-2.108 108.729-.581 217.669-1.105 326.453 44.196-1.316 95.244 7.32 132.381-22.491 27.657-27.766 35.929-68.276 44.829-105.047a1685.8 1685.8 0 0 1 40.039-.157c.052 99.196-.16 198.338-.262 297.533-13.016-.107-26.026-.052-39.037.053-10.854-37.931-17.439-82.285-49.782-108.682-38.455-25.389-87.291-17.486-130.854-19.015-.051 114.577-.211 229.204-.051 343.833 22.806 3.106 45.883 4.794 68.586 8.746a1749.451 1749.451 0 0 0-.16 40.621-82.81.152-165.619-.319-248.435.205.211-13.905.268-27.813.159-41.67 22.548-3.9 46.988-2.367 68.271-9.848-.16-234.844.211-469.737-.946-704.529-22.707-1.95-45.25-4.85-67.851-7.641v-43.303c135.228-.1 270.455-.048 405.681-.048z"/>
+                                  <path data-ui="instance-instance-list-path-4" fill="#0ea5e9" d="M405.68 305.171c38.929-.316 77.861-5.479 115.103-17.121 18.756 86.236 38.46 172.261 56.157 258.706-13.381 1.95-26.763 3.794-40.143 5.69-34.875-78.598-89.766-156.404-173.944-186.327-56.893-22.598-118.847-16.856-178.636-15.961-2.108 108.729-.581 217.669-1.105 326.453 44.196-1.316 95.244 7.32 132.381-22.491 27.657-27.766 35.929-68.276 44.829-105.047a1685.8 1685.8 0 0 1 40.039-.157c.052 99.196-.16 198.338-.262 297.533-13.016-.107-26.026-.052-39.037.053-10.854-37.931-17.439-82.285-49.782-108.682-38.455-25.389-87.291-17.486-130.854-19.015-.051 114.577-.211 229.204-.051 343.833 22.806 3.106 45.883 4.794 68.586 8.746a1749.451 1749.451 0 0 0-.16 40.621c-82.81.152-165.619-.319-248.435.205.211-13.905.268-27.813.159-41.67 22.548-3.9 46.988-2.367 68.271-9.848-.16-234.844.211-469.737-.946-704.529-22.707-1.95-45.25-4.85-67.851-7.641v-43.303c135.228-.1 270.455-.048 405.681-.048z"/>
                                   <path data-ui="instance-instance-list-path-5" fill="#0ea5e9" d="M942.955 305.277c87.765-.055 175.523-.055 263.286-.055 67.537-.262 137.388.528 200.813 26.551 45.408 16.964 84.656 53.894 97.193 101.513 13.117 50.678 11.692 108.625-17.121 153.823-33.607 49.048-91.926 75.223-148.817 86.129 63.374 15.752 126.69 44.776 167.466 97.615 33.82 44.617 42.776 103.458 36.295 157.928-4.161 50.104-28.289 98.883-68.375 129.806-48.784 37.93-112.204 50.569-172.632 53.102-119.212.524-238.424-.318-357.636.422.262-13.859.313-27.76.211-41.619 23.021-2.787 46.195-4.054 68.956-8.693-1.632-235.208-.159-470.474-1.79-705.685-22.651-2.107-45.251-4.898-67.851-7.587.002-14.434.002-28.87.002-43.25m183.904 44.987c-1.797 100.828-.269 201.708-1.056 302.59 67.167-1.214 137.964 2.737 200.494-26.134 39.406-17.542 67.063-56.731 72.012-99.402 4.48-38.876 1.898-80.969-19.332-114.945-15.485-25.707-43.671-40.036-71.482-48.623-58.426-17.91-120.323-15.698-180.636-13.486m-3.586 347.996c.106 122.005-.211 244.011.056 366.017 58.997 10.164 120.21 9.431 178.42-5.166 39.298-10.375 78.653-32.233 97.563-69.748 22.019-42.821 24.971-92.976 19.597-140.071-5.583-49.094-34.242-94.978-77.28-119.737-65.115-39.67-145.028-37.829-218.356-31.295z"/>
                                 </svg>
                               </div>
@@ -553,64 +553,19 @@ export const InstanceList = memo(function InstanceList({
       )}
 
       {exportDialogFor && !exportingId && (
-        <ModalLayer windowId="instance-instance-list-window-2" className="p-4" onClose={() => setExportDialogFor(null)}>
-          <div data-ui="instance-instance-list-div-31" className="w-full max-w-[420px] rounded-2xl border border-border bg-card p-5 shadow-2xl">
-            <div data-ui="instance-instance-list-div-32" className="flex items-start justify-between gap-3">
-              <div data-ui="instance-instance-list-div-33">
-                <p data-ui="instance-instance-list-p-5" className="text-base font-semibold text-foreground">{t("instanceList.exportZip")}</p>
-                <p data-ui="instance-instance-list-p-6" className="mt-0.5 text-xs text-muted-foreground">
-                  {t("instanceList.exportZipDesc", { name: builds.find(b => b.id === exportDialogFor)?.name ?? "" })}
-                </p>
-              </div>
-              <button data-modal-close data-ui="instance-instance-list-button-9" type="button" onClick={() => setExportDialogFor(null)} className="p-1 rounded-md hover:bg-muted text-muted-foreground">
-                <IconX className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div data-ui="instance-instance-list-div-34" className="mt-4 space-y-2">
-              {exportCategoryOptions.map(cat => (
-                <label data-ui="instance-instance-list-label-1" key={cat.id} className="flex items-start gap-3 rounded-xl border border-border bg-muted/30 px-3 py-2.5 cursor-pointer transition-colors hover:border-primary/40">
-                  <span data-ui="instance-instance-list-span-8" className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">{cat.icon}</span>
-                  <Checkbox
-                    checked={exportCategories.has(cat.id)}
-                    onCheckedChange={(checked) => {
-                      setExportCategories(prev => {
-                        const next = new Set(prev)
-                        if (checked) next.add(cat.id)
-                        else next.delete(cat.id)
-                        return next
-                      })
-                    }}
-                    className="mt-0.5"
-                  />
-                  <span data-ui="instance-instance-list-span-9" className="min-w-0">
-                    <span data-ui="instance-instance-list-span-10" className="block text-sm font-medium text-foreground">{cat.label}</span>
-                    <span data-ui="instance-instance-list-span-11" className="block text-xs text-muted-foreground">{cat.description}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-
-            <div data-ui="instance-instance-list-div-35" className="mt-5 flex items-center justify-between gap-2">
-              <button data-ui="instance-instance-list-button-10" type="button" onClick={() => setExportCategories(new Set(exportCategoryOptions.map(c => c.id)))}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted">
-                {t("instanceList.selectAll")}
-              </button>
-              <div data-ui="instance-instance-list-div-36" className="flex gap-2">
-                <button data-ui="instance-instance-list-button-11" type="button" onClick={() => setExportDialogFor(null)}
-                  className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-muted text-muted-foreground">
-                  {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel")}</span>}
-                </button>
-                <button data-ui="instance-instance-list-button-12" type="button" disabled={exportCategories.size === 0}
-                  onClick={() => { void handleExportZip(exportDialogFor); setExportDialogFor(null) }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed">
-                  {exportingId ? <IconDownload className="w-4 h-4 animate-pulse" /> : <IconDownload className="w-4 h-4" />}
-                  {t("instanceList.export")}
-                </button>
-              </div>
-            </div>
-          </div>
-        </ModalLayer>
+        <ExportCategoriesDialog
+          windowId="instance-instance-list-window-2"
+          title={t("instanceList.exportZip")}
+          description={t("instanceList.exportZipDesc", { name: builds.find(b => b.id === exportDialogFor)?.name ?? "" })}
+          categories={exportCategoryOptions}
+          selected={exportCategories}
+          onSelectedChange={setExportCategories}
+          onClose={() => setExportDialogFor(null)}
+          onExport={() => { void handleExportZip(exportDialogFor); setExportDialogFor(null) }}
+          selectAllLabel={t("instanceList.selectAll")}
+          cancelLabel={t("common.cancel")}
+          exportLabel={t("instanceList.export")}
+        />
       )}
 
       {/* Перемещение сборки в категорию — модальное окно категорий */}

@@ -10,33 +10,23 @@ import type { ProjectKind } from "@/lib/project-links"
 
 export type SelectedModCategory = { name: string; source?: "modrinth" | "curseforge" }
 
-function isProjectInstalled(
-  project: ModSearchResult,
-  installedItems: Build["mods"],
-): boolean {
-  const projectProjectId = project.projectId ?? (project.source === "modrinth" ? project.id : undefined)
-  const normalizedProjectSlug = normalizeContentIdentity(project.slug)
-  const normalizedProjectName = normalizeContentIdentity(project.name)
+const EMPTY_CONTENT: Build["mods"] = []
+const installedIndexes = new WeakMap<Build["mods"], { projects: Set<string>; mods: Set<number>; names: Set<string> }>()
 
-  return installedItems.some(item => {
-    if (projectProjectId && item.projectId && projectProjectId === item.projectId) return true
-    if (project.source === "curseforge" && typeof project.modId === "number" && item.modId === project.modId) return true
-
-    // Проверка по slug и нормализованному имени:
-    // если мод только что скачан или загружен локально/через другую площадку,
-    // projectId может ещё не успеть сопоставиться, но мод уже находится в сборке.
-    const itemSlug = normalizeContentIdentity(item.slug)
-    const itemName = normalizeContentIdentity(item.name)
-
-    if (normalizedProjectSlug && (itemSlug === normalizedProjectSlug || itemName === normalizedProjectSlug)) {
-      return true
+function getInstalledIndex(items: Build["mods"]) {
+  const cached = installedIndexes.get(items)
+  if (cached) return cached
+  const index = { projects: new Set<string>(), mods: new Set<number>(), names: new Set<string>() }
+  for (const item of items) {
+    if (item.projectId) index.projects.add(item.projectId)
+    if (typeof item.modId === "number") index.mods.add(item.modId)
+    for (const value of [item.slug, item.name]) {
+      const name = normalizeContentIdentity(value)
+      if (name) index.names.add(name)
     }
-    if (normalizedProjectName && (itemSlug === normalizedProjectName || itemName === normalizedProjectName)) {
-      return true
-    }
-
-    return false
-  })
+  }
+  installedIndexes.set(items, index)
+  return index
 }
 
 /** Сквозная сортировка объединённых результатов обеих платформ по выбранному виду */
@@ -165,12 +155,17 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
     )
   }, [])
 
+  const items = (detailTab === "mods" ? activeBuild?.mods
+    : detailTab === "resourcepacks" ? activeBuild?.resourcepacks
+    : detailTab === "shaders" ? activeBuild?.shaders : undefined) ?? EMPTY_CONTENT
   const isInstalledFn = useCallback((project: ModSearchResult): boolean => {
-    const items = detailTab === "mods"
-      ? activeBuild?.mods ?? []
-      : detailTab === "resourcepacks" ? activeBuild?.resourcepacks ?? [] : activeBuild?.shaders ?? []
-    return isProjectInstalled(project, items)
-  }, [activeBuild, detailTab])
+    const index = getInstalledIndex(items)
+    const projectId = project.projectId ?? (project.source === "modrinth" ? project.id : undefined)
+    return (!!projectId && index.projects.has(projectId))
+      || (project.source === "curseforge" && typeof project.modId === "number" && index.mods.has(project.modId))
+      || index.names.has(normalizeContentIdentity(project.slug))
+      || index.names.has(normalizeContentIdentity(project.name))
+  }, [items])
 
   const modTotalPages = useMemo(() => {
     if (modTotalHits === 0) return 1

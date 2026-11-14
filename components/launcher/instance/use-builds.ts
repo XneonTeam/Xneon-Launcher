@@ -1,5 +1,5 @@
 import { isContentDownloadCancelled } from "@/lib/content-download"
-import { buildContentPatch } from "@/lib/build-content-patch"
+import { beginContentMutationGuard, buildContentPatch, CONTENT_PATCH_FIELDS, createContentRefreshQueue, filterStaleContentPatch } from "@/lib/build-content-patch"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { MOD_LOADERS } from "./constants"
 import { loadBuilds, pickCompatibleVersion } from "./utils"
@@ -104,12 +104,17 @@ export function useBuilds() {
   const buildsRef = useRef<Build[]>(buildsState)
   const isReloadingRef = useRef(false)
   const reloadSeqRef = useRef(0)
+  const contentScanSeqRef = useRef<Map<string, number>>(new Map())
+  const contentMutationsRef = useRef<Map<string, number>>(new Map())
+  const displayedContentRef = useRef(new Set<string>())
+  const contentRefreshRef = useRef<(buildId: string, changed?: boolean) => Promise<void>>(async () => {})
+  const [queueContentRefresh] = useState(createContentRefreshQueue)
   const lastSavedSnapshotRef = useRef("")
   /** Что уже записано в БД: лёгкие поля — по значению, контент — по ссылке на массив. */
   const savedLightFieldsRef = useRef<Map<string, Record<string, unknown>>>(new Map())
   const savedContentRef = useRef<Map<string, { mods: BuildMod[]; resourcepacks: BuildMod[]; shaders: BuildMod[]; installedMods: Record<string, string> }>>(new Map())
   /** Несохранённые правки — дописываются при уходе с вкладки. */
-  const pendingPatchesRef = useRef<Array<{ id: string; fields: Record<string, unknown> }>>([])
+  const pendingPatchesRef = useRef<Array<{ id: string; fields: Record<string, unknown>; contentSeq: number }>>([])
 
   /**
    * Правки, сделанные пользователем в UI, но ещё не записанные в БД (сохранение
@@ -146,12 +151,19 @@ export function useBuilds() {
 
   const builds = buildsState
 
-  const syncBuildContent = useCallback(async (build: Build): Promise<Build> => {
+  const currentPatchFields = useCallback((patch: { id: string; fields: Record<string, unknown>; contentSeq: number }) => {
+    return filterStaleContentPatch(patch.fields, patch.contentSeq, contentScanSeqRef.current.get(patch.id) ?? 0, contentMutationsRef.current.has(patch.id))
+  }, [])
+
+  const beginContentMutation = useCallback((buildId: string) => {
+    return beginContentMutationGuard(contentMutationsRef.current, contentScanSeqRef.current, buildId, () => { void contentRefreshRef.current(buildId, true) })
+  }, [])
+
+  const syncBuildContent = useCallback(async (build: Build): Promise<Build | null> => {
     try {
       const targetPath = build.intentPath?.trim() || build.name
-      await window.electrobunAPI?.getBuildIntentPath(targetPath)
       const scanned = await window.electrobunAPI?.scanBuildIntentContent?.(targetPath)
-      if (!scanned) return build
+      if (!scanned) return null
 
       const mergeContent = (existing: BuildMod[], incoming: BuildMod[]) => {
         const normalize = (value?: string) => value?.trim().toLowerCase() ?? ""
@@ -197,7 +209,8 @@ export function useBuilds() {
 
           return {
             ...item,
-            slug: matched.slug || item.slug,
+            // Путь с диска обязателен: старый slug может относиться к другой версии файла.
+            slug: item.slug,
             name: item.name && item.name.length > 1 ? item.name : matched.name || item.name,
             description: matched.description || item.description,
             icon_url: matched.icon_url || item.icon_url,
@@ -222,7 +235,7 @@ export function useBuilds() {
         installedMods: scanned.installedMods ?? build.installedMods ?? {},
       }
     } catch {
-      return build
+      return null
     }
   }, [])
 
@@ -232,10 +245,14 @@ export function useBuilds() {
    * вкладку не тянет десятки мегабайт.
    */
   const ensureBuildContent = useCallback(async (buildId: string): Promise<boolean> => {
+    if (contentMutationsRef.current.has(buildId)) return true
+    if (displayedContentRef.current.has(buildId)) return true
+    const contentSeq = contentScanSeqRef.current.get(buildId) ?? 0
     const cached = buildContentCache.get(buildId)
     if (cached) {
+      displayedContentRef.current.add(buildId)
       setBuilds(prev => prev.map(build => build.id === buildId
-        ? { ...build, mods: cached.mods, resourcepacks: cached.resourcepacks, shaders: cached.shaders, installedMods: cached.installedMods }
+        ? contentMutationsRef.current.has(buildId) || (contentScanSeqRef.current.get(buildId) ?? 0) !== contentSeq ? build : { ...build, mods: cached.mods, resourcepacks: cached.resourcepacks, shaders: cached.shaders, installedMods: cached.installedMods }
         : build))
       return true
     }
@@ -253,10 +270,13 @@ export function useBuilds() {
         enrichBuildModNames(parsed.resourcepacks),
         enrichBuildModNames(parsed.shaders),
       ])
+      if ((contentScanSeqRef.current.get(buildId) ?? 0) !== contentSeq || contentMutationsRef.current.has(buildId)) return true
       const enriched = { ...parsed, mods, resourcepacks, shaders }
+      displayedContentRef.current.add(buildId)
       updateCachedBuildContent(buildId, enriched)
       savedContentRef.current.set(buildId, enriched)
-      setBuilds(prev => prev.map(build => build.id === buildId ? { ...build, ...enriched } : build))
+      setBuilds(prev => contentMutationsRef.current.has(buildId) || (contentScanSeqRef.current.get(buildId) ?? 0) !== contentSeq
+        ? prev : prev.map(build => build.id === buildId ? { ...build, ...enriched } : build))
       return true
     } catch {
       // Контент не критичен для отрисовки: при ошибке оставляем счётчики.
@@ -270,20 +290,12 @@ export function useBuilds() {
     if (!activeBuildId) return
     let cancelled = false
     void (async () => {
-      if (!await ensureBuildContent(activeBuildId)) return
+      await ensureBuildContent(activeBuildId)
       if (cancelled) return
-      const target = buildsRef.current.find(build => build.id === activeBuildId)
-      if (!target) return
-      const synced = await syncBuildContent(target)
-      if (cancelled) return
-      updateCachedBuildContent(activeBuildId, {
-        mods: synced.mods, resourcepacks: synced.resourcepacks, shaders: synced.shaders,
-        installedMods: synced.installedMods ?? {},
-      })
-      setBuilds(prev => prev.map(build => build.id === activeBuildId ? { ...build, mods: synced.mods, resourcepacks: synced.resourcepacks, shaders: synced.shaders, installedMods: synced.installedMods } : build))
+      void contentRefreshRef.current(activeBuildId)
     })()
     return () => { cancelled = true }
-  }, [activeBuildId, ensureBuildContent, syncBuildContent, setBuilds])
+  }, [activeBuildId, ensureBuildContent])
 
   const reloadBuilds = useCallback(async () => {
     // Flush pending save before reloading so in-memory changes aren't lost.
@@ -293,7 +305,10 @@ export function useBuilds() {
       const pending = pendingPatchesRef.current
       pendingPatchesRef.current = []
       for (const patch of pending) {
-        try { await window.electrobunAPI?.updateBuildFields?.(patch.id, patch.fields as never) }
+        try {
+          const fields = currentPatchFields(patch)
+          if (Object.keys(fields).length) await window.electrobunAPI?.updateBuildFields?.(patch.id, fields as never)
+        }
         catch (error) { console.error("[Builds] Failed to flush pending changes", patch.id, error) }
       }
     }
@@ -321,12 +336,16 @@ export function useBuilds() {
         return
       }
 
+      const previousById = new Map(buildsRef.current.map(build => [build.id, build]))
+      const previousByName = new Map(buildsRef.current.map(build => [build.name, build]))
       const processed: Build[] = dbBuilds.map(build => {
         const b = build as BuildWithCounts
-        const inMemoryBuild = buildsRef.current.find(existing => existing.id === build.id || existing.name === build.name)
+        const inMemoryBuild = previousById.get(build.id) ?? previousByName.get(build.name)
         // Тяжёлый контент из памяти/кэша: приходит не из лёгкого запроса, а из
         // buildContentCache (или из уже загруженного состояния).
-        const cached = buildContentCache.get(build.id)
+        const cached = contentMutationsRef.current.has(build.id) && inMemoryBuild
+          ? { mods: inMemoryBuild.mods, resourcepacks: inMemoryBuild.resourcepacks, shaders: inMemoryBuild.shaders, installedMods: inMemoryBuild.installedMods ?? {} }
+          : buildContentCache.get(build.id)
         const mods = cached?.mods ?? (Array.isArray(b.mods) ? b.mods : inMemoryBuild?.mods ?? [])
         const resourcepacks = cached?.resourcepacks ?? (Array.isArray(b.resourcepacks) ? b.resourcepacks : inMemoryBuild?.resourcepacks ?? [])
         const shaders = cached?.shaders ?? (Array.isArray(b.shaders) ? b.shaders : inMemoryBuild?.shaders ?? [])
@@ -348,7 +367,7 @@ export function useBuilds() {
         const pending = pendingEditsRef.current.get(normalized.id)
         if (pending) {
           for (const key of Object.keys(pending) as (keyof Build)[]) {
-            ;(normalized as Record<string, unknown>)[key as string] = pending[key]
+            if (!CONTENT_PATCH_FIELDS.has(key)) (normalized as Record<string, unknown>)[key] = pending[key]
           }
         }
 
@@ -361,7 +380,17 @@ export function useBuilds() {
       buildsLightCacheAt = performance.now()
 
       // Устанавливаем сборки сразу — UI отрисовывается без ожидания сканирования
-      setBuilds(processed)
+      setBuilds(prev => {
+        const byId = new Map(prev.map(build => [build.id, build as BuildWithCounts]))
+        return processed.map(build => {
+          const current = byId.get(build.id)
+          if (!current || (!displayedContentRef.current.has(build.id) && !contentMutationsRef.current.has(build.id))) return build
+          // Лёгкий ответ БД не должен заменять уже показанный список.
+          return { ...build, mods: current.mods, resourcepacks: current.resourcepacks, shaders: current.shaders,
+            installedMods: current.installedMods, modsCount: current.mods.length,
+            resourcepacksCount: current.resourcepacks.length, shadersCount: current.shaders.length }
+        })
+      })
 
       // Запоминаем, что уже лежит в БД, чтобы точечное сохранение не писало всё заново.
       savedLightFieldsRef.current = new Map(processed.map(build => [
@@ -377,32 +406,13 @@ export function useBuilds() {
       // сборки: раньше оно запускалось для всех сразу и тормозило вход во вкладку.
       const activeId = activeBuildIdRef.current
       const toSync = activeId ? processed.filter(build => build.id === activeId) : []
-      void Promise.all(toSync.map(async (normalized) => {
-        if (!await ensureBuildContent(normalized.id)) return
+      void Promise.all(toSync.map(async ({ id }) => {
+        await ensureBuildContent(id)
         if (seq !== reloadSeqRef.current) return
-        const current = buildsRef.current.find(build => build.id === normalized.id) ?? normalized
-        const synced = await syncBuildContent(current)
-        updateCachedBuildContent(synced.id, { mods: synced.mods, resourcepacks: synced.resourcepacks, shaders: synced.shaders, installedMods: synced.installedMods ?? {} })
-        if (seq !== reloadSeqRef.current) return
-        setBuilds(prev => prev.map(b => {
-          if (b.id !== synced.id) return b
-          // Скан асинхронный: пока он шёл, пользователь мог снова изменить поля
-          // (например, отвязать модпак). Накладываем актуальный буфер поверх
-          // результата синка, чтобы поздний ответ скана не откатил эти правки.
-          const pending = pendingEditsRef.current.get(synced.id)
-          if (!pending) return synced
-          const merged = { ...synced } as Record<string, unknown>
-          for (const key of Object.keys(pending) as (keyof Build)[]) {
-            merged[key as string] = pending[key]
-          }
-          return merged as Build
-        }))
-      })).then(() => {
-        if (seq !== reloadSeqRef.current) return
-        // Сигнализируем что первичная загрузка завершена — splash можно убрать
-        setBuildsHydrated(true)
-        window.dispatchEvent(new Event("app:hydrated"))
-      })
+        void contentRefreshRef.current(id)
+      }))
+      setBuildsHydrated(true)
+      window.dispatchEvent(new Event("app:hydrated"))
 
       // Enrich Modrinth names/authors in the background — don't block the
       // initial render with network requests. Results are cached module-wide
@@ -447,7 +457,7 @@ export function useBuilds() {
     } finally {
       isReloadingRef.current = false
     }
-  }, [syncBuildContent, ensureBuildContent])
+  }, [currentPatchFields, ensureBuildContent])
 
   /**
    * Точечная пересинхронизация ОДНОЙ сборки после установки/удаления/обновления
@@ -458,72 +468,48 @@ export function useBuilds() {
    * фоновое сетевое обогащение имён модов по всем сборкам сразу. Здесь
    * обновляется только изменённая сборка — правки касаются ровно её.
    */
-  const refreshBuildContent = useCallback(async (buildId: string) => {
+  const refreshBuildContent = useCallback((buildId: string, changed = false) => queueContentRefresh(buildId, changed, async () => {
+    if (contentMutationsRef.current.has(buildId)) return
     const current = buildsRef.current.find(build => build.id === buildId)
     if (!current) return
+    const scanSeq = (contentScanSeqRef.current.get(buildId) ?? 0) + 1
+    contentScanSeqRef.current.set(buildId, scanSeq)
     try {
       const synced = await syncBuildContent(current)
+      if (!synced || contentScanSeqRef.current.get(buildId) !== scanSeq) return
+      const content = {
+        mods: synced.mods, resourcepacks: synced.resourcepacks, shaders: synced.shaders,
+        installedMods: synced.installedMods ?? {},
+      }
+      const counts = { modsCount: content.mods.length, resourcepacksCount: content.resourcepacks.length, shadersCount: content.shaders.length }
       // Результат скана после удаления, включая пустую папку, сохраняем явно.
       await window.electrobunAPI?.updateBuildFields?.(buildId, {
-        mods: synced.mods, resourcepacks: synced.resourcepacks, shaders: synced.shaders,
-        installedMods: synced.installedMods ?? {}, modsCount: synced.mods.length,
-        resourcepacksCount: synced.resourcepacks.length, shadersCount: synced.shaders.length,
+        ...content, ...counts,
       } as never)
-      updateCachedBuildContent(buildId, {
-        mods: synced.mods,
-        resourcepacks: synced.resourcepacks,
-        shaders: synced.shaders,
-        installedMods: synced.installedMods ?? {},
-      })
-      setBuilds(prev => prev.map(build => {
-        if (build.id !== synced.id) return build
-        // Скан асинхронный: пока он шёл, пользователь мог снова изменить поля.
-        // Накладываем актуальный буфер поверх результата, чтобы поздний ответ
-        // скана не откатил эти правки.
-        const pending = pendingEditsRef.current.get(synced.id)
-        if (!pending) return synced
-        const merged = { ...synced } as Record<string, unknown>
-        for (const key of Object.keys(pending) as (keyof Build)[]) {
-          merged[key as string] = pending[key]
-        }
-        return merged as Build
-      }))
+      if (contentScanSeqRef.current.get(buildId) !== scanSeq) return
+      displayedContentRef.current.add(buildId)
+      updateCachedBuildContent(buildId, content)
+      setBuilds(prev => contentMutationsRef.current.has(buildId) || contentScanSeqRef.current.get(buildId) !== scanSeq
+        ? prev : prev.map(build => build.id === buildId ? { ...build, ...content, ...counts } : build))
       // Снапшот сохранённого контента держим в согласии с новым состоянием,
       // иначе debounce-эффект записи посчитает его изменившимся и запишет заново.
-      savedContentRef.current.set(synced.id, {
-        mods: synced.mods,
-        resourcepacks: synced.resourcepacks,
-        shaders: synced.shaders,
-        installedMods: synced.installedMods ?? {},
-      })
+      savedContentRef.current.set(buildId, content)
     } catch {
       // Синхронизация вторична: состояние в памяти уже обновлено точечно.
     }
-  }, [syncBuildContent, setBuilds])
+  }), [queueContentRefresh, syncBuildContent, setBuilds])
+  contentRefreshRef.current = refreshBuildContent
 
   useEffect(() => {
     const api = window.electrobunAPI
     if (!activeBuildId || !api?.watchBuildContent) return
     const token = crypto.randomUUID()
     let disposed = false
-    let running = false
-    let dirty = false
-    const refresh = async () => {
-      dirty = true
-      if (running) return
-      running = true
-      try {
-        while (dirty && !disposed) {
-          dirty = false
-          await refreshBuildContent(activeBuildId)
-        }
-      } finally { running = false }
-    }
     const off = api.onBuildContentChanged(event => {
-      if (event.token === token && event.buildId === activeBuildId) void refresh()
+      if (!disposed && event.token === token && event.buildId === activeBuildId) void refreshBuildContent(activeBuildId, true)
     })
     void api.watchBuildContent(activeBuildId, token).then(ready => {
-      if (ready && !disposed) void refresh()
+      if (ready && !disposed) void refreshBuildContent(activeBuildId, true)
     }).catch(console.error)
     return () => {
       disposed = true
@@ -533,6 +519,32 @@ export function useBuilds() {
   }, [activeBuildId, refreshBuildContent])
 
   const activeBuild = useMemo(() => builds.find(b => b.id === activeBuildId) ?? null, [builds, activeBuildId])
+
+  // Установленные ресурспаки могут не содержать автора в pack.mcmeta.
+  useEffect(() => {
+    if (!activeBuild) return
+    if (!activeBuild.resourcepacks.some(item => item.source === "modrinth" && item.projectId && !item.author)) return
+    let cancelled = false
+    const buildId = activeBuild.id
+    void enrichBuildModNames(activeBuild.resourcepacks, { includeOwners: true }).then(enriched => {
+      if (cancelled) return
+      setBuilds(previous => previous.map(build => {
+        if (build.id !== buildId) return build
+        let changed = false
+        const authors = new Map(enriched.filter(item => item.projectId && item.author).map(item => [item.projectId!, item.author!]))
+        const resourcepacks = build.resourcepacks.map(item => {
+          const author = item.source === "modrinth" && !item.author && item.projectId ? authors.get(item.projectId) : undefined
+          if (!author) return item
+          changed = true
+          return { ...item, author }
+        })
+        if (!changed) return build
+        updateCachedBuildContent(buildId, { mods: build.mods, resourcepacks, shaders: build.shaders, installedMods: build.installedMods ?? {} })
+        return { ...build, resourcepacks }
+      }))
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [activeBuild?.id, activeBuild?.resourcepacks, setBuilds])
 
   useEffect(() => {
     // Кэш показываем сразу и в любом случае: список не должен «выгружаться» на
@@ -585,7 +597,7 @@ export function useBuilds() {
   useEffect(() => {
     if (!buildsHydrated || isReloadingRef.current) return
 
-    const patches: Array<{ id: string; fields: Record<string, unknown>; build: Build }> = []
+    const patches: Array<{ id: string; fields: Record<string, unknown>; build: Build; contentSeq: number }> = []
     for (const build of builds) {
       const fields: Record<string, unknown> = {}
       const savedLight = savedLightFieldsRef.current.get(build.id)
@@ -594,14 +606,14 @@ export function useBuilds() {
         if (!savedLight || savedLight[key] !== value) fields[key] = value
       }
       const savedContent = savedContentRef.current.get(build.id)
-      Object.assign(fields, buildContentPatch(build, savedContent, buildContentCache.has(build.id)))
-      if (Object.keys(fields).length > 0) patches.push({ id: build.id, fields, build })
+      if (!contentMutationsRef.current.has(build.id)) Object.assign(fields, buildContentPatch(build, savedContent, buildContentCache.has(build.id)))
+      if (Object.keys(fields).length > 0) patches.push({ id: build.id, fields, build, contentSeq: contentScanSeqRef.current.get(build.id) ?? 0 })
     }
     if (patches.length === 0) return
 
     if (saveTimeoutRef.current !== null) window.clearTimeout(saveTimeoutRef.current)
     // Держим патчи, чтобы успеть дописать их при уходе с вкладки (unmount).
-    pendingPatchesRef.current = patches.map(patch => ({ id: patch.id, fields: patch.fields }))
+    pendingPatchesRef.current = patches.map(patch => ({ id: patch.id, fields: patch.fields, contentSeq: patch.contentSeq }))
     saveTimeoutRef.current = window.setTimeout(() => {
       saveTimeoutRef.current = null
       pendingPatchesRef.current = []
@@ -610,11 +622,13 @@ export function useBuilds() {
           // Одна сборка не должна блокировать сохранение остальных: раньше
           // ошибка любого патча прерывала весь цикл, и правки после неё терялись.
           try {
-            await window.electrobunAPI?.updateBuildFields?.(patch.id, patch.fields as never)
+            const fields = currentPatchFields(patch)
+            if (!Object.keys(fields).length) continue
+            await window.electrobunAPI?.updateBuildFields?.(patch.id, fields as never)
             const light = savedLightFieldsRef.current.get(patch.id) ?? {}
-            for (const key of Object.keys(patch.fields)) light[key] = patch.fields[key]
+            for (const key of Object.keys(fields)) light[key] = fields[key]
             savedLightFieldsRef.current.set(patch.id, light)
-            savedContentRef.current.set(patch.id, {
+            if (Object.keys(currentPatchFields(patch)).some(key => CONTENT_PATCH_FIELDS.has(key))) savedContentRef.current.set(patch.id, {
               mods: patch.build.mods,
               resourcepacks: patch.build.resourcepacks,
               shaders: patch.build.shaders,
@@ -627,7 +641,7 @@ export function useBuilds() {
         }
       })()
     }, 200)
-  }, [builds, buildsHydrated])
+  }, [builds, buildsHydrated, currentPatchFields])
 
   // Уходим с вкладки — дописываем несохранённые правки, иначе последнее изменение
   // (например, только что переименованная сборка) терялось.
@@ -637,11 +651,12 @@ export function useBuilds() {
       saveTimeoutRef.current = null
     }
     for (const patch of pendingPatchesRef.current) {
-      void window.electrobunAPI?.updateBuildFields?.(patch.id, patch.fields as never)
+      const fields = currentPatchFields(patch)
+      if (Object.keys(fields).length) void window.electrobunAPI?.updateBuildFields?.(patch.id, fields as never)
       pendingEditsRef.current.delete(patch.id)
     }
     pendingPatchesRef.current = []
-  }, [])
+  }, [currentPatchFields])
 
   const createBuild = useCallback(async (params: { name: string; description: string; version: string; modLoader: string; loaderVersion?: string; icon: string }) => {
     const trimmedName = params.name.trim()
@@ -836,7 +851,7 @@ export function useBuilds() {
         installedMods: {},
       }
       // Скан новой папки восстанавливает фактические списки и пути installedMods.
-      const newBuild = await syncBuildContent(copy)
+      const newBuild = await syncBuildContent(copy) ?? copy
       await api.insertBuild(newBuild as unknown as Parameters<typeof api.insertBuild>[0])
       savedLightFieldsRef.current.set(newBuild.id, Object.fromEntries(
         LIGHT_BUILD_FIELDS.map(key => [key, (newBuild as unknown as Record<string, unknown>)[key]]),
@@ -960,6 +975,8 @@ export function useBuilds() {
   const addModToBuild = useCallback(async (buildId: string, mod: ModSearchResult) => {
     const targetBuild = builds.find(b => b.id === buildId)
     const buildName = targetBuild?.name
+    if (!buildName) return
+    const finishMutation = beginContentMutation(buildId)
     setBuilds(prev => prev.map(b => {
       if (b.id !== buildId || b.mods.some(m => m.slug === mod.slug || m.name === mod.name)) return b
       return {
@@ -979,8 +996,6 @@ export function useBuilds() {
         }],
       }
     }))
-    if (!buildName) return
-
     const saveRemoteFileToBuild = async (url: string, fileName: string) => {
       return await window.electrobunAPI?.saveModToIntent(buildName, url, fileName)
     }
@@ -1120,19 +1135,20 @@ export function useBuilds() {
           title: t("builds.mod.installed"),
           message: mod.name,
         })
-        void refreshBuildContent(buildId)
       } catch (error) {
         endContentInstall()
-        if (isContentDownloadCancelled(error)) { void refreshBuildContent(buildId); return }
+        if (isContentDownloadCancelled(error)) return
         pushNotification({
           kind: "error",
           source: "install",
           title: t("builds.mod.installFailed"),
           message: mod.name,
         })
+      } finally {
+        finishMutation()
       }
     })()
-  }, [beginContentInstall, builds, endContentInstall, pushNotification, refreshBuildContent])
+  }, [beginContentInstall, beginContentMutation, builds, endContentInstall, pushNotification])
 
   /**
    * Локальный файл копируется на диск, но запись в список должна попасть в БД
@@ -1166,6 +1182,7 @@ export function useBuilds() {
         installedMods: updated.installedMods ?? {},
       }
       await window.electrobunAPI?.updateBuildFields?.(buildId, { ...content, modsCount: content.mods.length, resourcepacksCount: content.resourcepacks.length, shadersCount: content.shaders.length } as never)
+      if (buildsRef.current.find(build => build.id === buildId) !== current) return buildsRef.current
       const next = buildsRef.current.map(build => (build.id === buildId ? updated : build))
       // Память держим в согласии с записанным: помечаем контент и снапшот
       // сохранёнными, иначе отложенный debounce отправит более старый снапшот
@@ -1185,9 +1202,13 @@ export function useBuilds() {
     const localPath = await window.electrobunAPI?.getFilePath(file)
     let savedPath = ""
     const buildName = builds.find(b => b.id === buildId)?.name
+    if (!localPath || !buildName) return
+    const finishMutation = beginContentMutation(buildId)
+    try {
     if (localPath && buildName) {
       try { savedPath = await window.electrobunAPI?.saveLocalModToIntent(buildName, localPath) ?? "" } catch {}
     }
+    if (!savedPath) return
     // Мод бросили как есть — никаких проверок зависимостей и запросов к API.
     // Читаем только метаданные архива, чтобы в списке были имя, версия и автор.
     const metadata = localPath ? await window.electrobunAPI?.readLocalContentMetadata(localPath) : null
@@ -1214,11 +1235,13 @@ export function useBuilds() {
     // Запись в БД + синхронизация памяти: reloadBuilds() здесь не нужен, потому
     // что метаданные уже прочитаны из архива.
     await persistLocalAddition(buildId, addMod)
-  }, [builds, t, persistLocalAddition])
+    } finally { finishMutation() }
+  }, [beginContentMutation, builds, t, persistLocalAddition])
 
   const addContentToBuild = useCallback(async (buildId: string, type: Exclude<BuildContentListKey, "mods">, mod: ModSearchResult) => {
     const build = builds.find(b => b.id === buildId)
     if (!build?.name) return
+    const finishMutation = beginContentMutation(buildId)
 
     const contentTypeLabel = type === "resourcepacks" ? t("builds.content.resourcepack") : t("builds.content.shader")
 
@@ -1300,24 +1323,26 @@ export function useBuilds() {
         title: type === "resourcepacks" ? t("builds.content.installedResourcepack") : t("builds.content.installedShader"),
         message: mod.name,
       })
-      void refreshBuildContent(buildId)
     } catch (error) {
       endContentInstall()
-      if (isContentDownloadCancelled(error)) { void refreshBuildContent(buildId); throw error }
+      if (isContentDownloadCancelled(error)) throw error
       pushNotification({
         kind: "error",
         source: "install",
         title: t("builds.content.installFailed", { type: contentTypeLabel }),
         message: mod.name,
       })
+    } finally {
+      finishMutation()
     }
-  }, [beginContentInstall, builds, endContentInstall, refreshBuildContent, pushNotification])
+  }, [beginContentInstall, beginContentMutation, builds, endContentInstall, pushNotification])
 
   const addLocalContentToBuild = useCallback(async (buildId: string, type: Exclude<BuildContentListKey, "mods">, file: File) => {
     const build = builds.find(b => b.id === buildId)
     const localPath = await window.electrobunAPI?.getFilePath(file)
     if (!build?.name || !localPath) return
-
+    const finishMutation = beginContentMutation(buildId)
+    try {
     const savedPath = await window.electrobunAPI?.saveLocalContentToIntent?.(build.name, CONTENT_KIND_BY_KEY[type], localPath)
     if (!savedPath) return
 
@@ -1346,30 +1371,54 @@ export function useBuilds() {
     setBuilds(prev => prev.map(b => b.id === buildId ? addContent(b) : b))
     // Запись в БД + синхронизация памяти (см. addLocalModToBuild).
     await persistLocalAddition(buildId, addContent)
-  }, [builds, t, persistLocalAddition])
+    } finally { finishMutation() }
+  }, [beginContentMutation, builds, t, persistLocalAddition])
 
   const removeContentFromBuild = useCallback(async (buildId: string, type: BuildContentListKey, item: BuildMod) => {
     const build = builds.find(b => b.id === buildId)
     if (!build?.name) return false
-
-    const result = await window.electrobunAPI?.deleteContentFromIntent?.(build.name, CONTENT_KIND_BY_KEY[type], item.slug)
-    if (!result?.success) return false
-
-    setBuilds(prev => prev.map(b => {
+    const finishMutation = beginContentMutation(buildId)
+    const current = buildsRef.current.find(b => b.id === buildId) ?? build
+    const index = current[type].findIndex(entry => entry.slug === item.slug)
+    const original = current[type][index] ?? item
+    const oldPath = current.installedMods?.[item.slug]
+    const removeItem = (b: Build): Build => {
       if (b.id !== buildId) return b
       const nextInstalledMods = { ...(b.installedMods ?? {}) }
       if (type === "mods") {
         delete nextInstalledMods[item.slug]
       }
+      const content = b[type].filter(existing => existing.slug !== item.slug)
       return {
         ...b,
-        [type]: b[type].filter(existing => existing.slug !== item.slug && existing.id !== item.id),
+        [type]: content,
+        [`${type}Count`]: content.length,
         installedMods: type === "mods" ? nextInstalledMods : b.installedMods,
       }
-    }) as Build[])
-    void refreshBuildContent(buildId)
-    return true
-  }, [builds, refreshBuildContent])
+    }
+    const apply = (edit: (value: Build) => Build) => {
+      const next = buildsRef.current.map(edit)
+      buildsRef.current = next
+      const updated = next.find(b => b.id === buildId)
+      if (updated) updateCachedBuildContent(buildId, { mods: updated.mods, resourcepacks: updated.resourcepacks, shaders: updated.shaders, installedMods: updated.installedMods ?? {} })
+      setBuilds(prev => prev.map(edit))
+    }
+    apply(removeItem)
+    let success = false
+    try {
+      const result = await window.electrobunAPI?.deleteContentFromIntent?.(build.name, CONTENT_KIND_BY_KEY[type], item.slug)
+      success = result?.success === true
+    } catch { /* Возвращаем запись, если файл удалить не удалось. */ }
+    try {
+      if (!success) apply(b => {
+        if (b.id !== buildId || b[type].some(entry => entry.slug === original.slug)) return b
+        const content = [...b[type]]
+        content.splice(index < 0 ? content.length : Math.min(index, content.length), 0, original)
+        return { ...b, [type]: content, [`${type}Count`]: content.length, installedMods: type === "mods" && oldPath !== undefined ? { ...b.installedMods, [item.slug]: oldPath } : b.installedMods }
+      })
+      return success
+    } finally { finishMutation() }
+  }, [beginContentMutation, builds, setBuilds])
 
   const toggleItemEnabled = useCallback(async (buildId: string, type: BuildContentListKey, itemId: string) => {
     const build = builds.find(b => b.id === buildId)
@@ -1377,6 +1426,8 @@ export function useBuilds() {
     if (!build || !item) return false
 
     const enabled = !(item.enabled ?? true)
+    const finishMutation = beginContentMutation(buildId)
+    try {
     const result = await window.electrobunAPI?.setContentEnabled?.(build.name, CONTENT_KIND_BY_KEY[type], item.slug, enabled)
     if (!result?.success) return false
 
@@ -1387,7 +1438,8 @@ export function useBuilds() {
         : entry),
     }) as Build[])
     return true
-  }, [builds])
+    } finally { finishMutation() }
+  }, [beginContentMutation, builds])
 
   const updateItemVersion = useCallback(async (buildId: string, type: BuildContentListKey, itemId: string, newVersion: ModVersion): Promise<boolean> => {
     const build = builds.find(b => b.id === buildId)
@@ -1398,6 +1450,7 @@ export function useBuilds() {
 
     const newFileName = file.filename || `${newVersion.id}.jar`
     const oldItem = build[type].find(m => m.id === itemId)
+    const finishMutation = beginContentMutation(buildId)
 
     try {
       const savedPath = type === "mods"
@@ -1431,12 +1484,13 @@ export function useBuilds() {
           ),
         }
       }))
-      void refreshBuildContent(buildId)
       return true
     } catch {
       return false
+    } finally {
+      finishMutation()
     }
-  }, [builds, refreshBuildContent])
+  }, [beginContentMutation, builds])
 
-  return { builds, buildsHydrated, setBuilds, activeBuildId, setActiveBuildId, activeBuild, fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, restoreBuildFromTrash, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, addCategory, collapsedGroups, toggleGroupCollapse, groups, categoryIcons, setCategoryIcon, updateBuild, addModToBuild, addLocalModToBuild, addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds, toggleItemEnabled, updateItemVersion }
+  return { builds, buildsHydrated, setBuilds, activeBuildId, setActiveBuildId, activeBuild, fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, restoreBuildFromTrash, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, addCategory, collapsedGroups, toggleGroupCollapse, groups, categoryIcons, setCategoryIcon, updateBuild, addModToBuild, addLocalModToBuild, addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds, toggleItemEnabled, updateItemVersion, beginContentMutation }
 }

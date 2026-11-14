@@ -1,47 +1,36 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback } from "react"
+import { I18nextProvider } from "react-i18next"
+import { ThemeRegistryProvider } from "@/components/launcher/settings/theme-store"
 import { ActivityCenterProvider } from "./ActivityCenterContext"
 import { Launcher } from '@/components/launcher/launcher'
 import { LaunchLogsProvider } from "./LaunchLogsContext"
 import { AccountsProvider } from './AccountsContext'
 import { TitleBar } from './TitleBar'
-import { initI18n } from './i18n'
+import i18n from './i18n'
 import { ShareEntryHandler } from '@/components/launcher/instance/shared/share-entry-handler'
 import { ShareInstallProgress } from '@/components/launcher/instance/shared/share-install-progress'
 
 export function App() {
   const notifyReady = useCallback(() => window.dispatchEvent(new Event('app:hydrated')), [])
-  const [modulesReady, setModulesReady] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    void initI18n()
-      .catch((error) => {
-        // Не оставляем UI навсегда в состоянии загрузки: i18n не критичен для старта.
-        console.error("[i18n] init failed, falling back to raw keys:", error)
-      })
-      .then(() => {
-        if (cancelled) return
-        setModulesReady(true)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   return (
-    <ActivityCenterProvider>
-      <AccountsProvider>
-        <LaunchLogsProvider>
-          <div data-ui="app-div-1" className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
-            <TitleBar />
-            <div data-ui="app-div-2" className="flex-1 overflow-hidden">
-              {modulesReady && <Launcher onReady={notifyReady} />}
-              {modulesReady && <ShareEntryHandler />}
-              {modulesReady && <ShareInstallProgress />}
-            </div>
-          </div>
-        </LaunchLogsProvider>
-      </AccountsProvider>
-    </ActivityCenterProvider>
+    <I18nextProvider i18n={i18n}>
+      <ThemeRegistryProvider>
+        <ActivityCenterProvider>
+          <AccountsProvider>
+            <LaunchLogsProvider>
+              <div data-ui="app-div-1" className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+                <TitleBar />
+                <div data-ui="app-div-2" className="flex-1 overflow-hidden">
+                  <Launcher onReady={notifyReady} />
+                  <ShareEntryHandler />
+                  <ShareInstallProgress />
+                </div>
+              </div>
+            </LaunchLogsProvider>
+          </AccountsProvider>
+        </ActivityCenterProvider>
+      </ThemeRegistryProvider>
+    </I18nextProvider>
   )
 }

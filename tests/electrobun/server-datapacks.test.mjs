@@ -39,7 +39,7 @@ test('pack.mcmeta обязателен в корне, ошибочный ZIP н�
   const directory = await serverDatapackDirectory(root)
   const buffer = pack()
   await installServerDatapack(directory, 'test.zip', buffer)
-  assert.throws(() => validateDatapack(pack('wrapper/')))
+  await assert.rejects(validateDatapack(pack('wrapper/')))
   await assert.rejects(installServerDatapack(directory, 'test.zip', Buffer.from('not a zip')))
   assert.deepEqual(await fs.readFile(path.join(directory, 'test.zip')), buffer)
 }))

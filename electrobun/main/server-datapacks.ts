@@ -1,6 +1,6 @@
 import fs from "node:fs/promises"
 import path from "node:path"
-import AdmZip from "adm-zip"
+import { analyzeDatapack } from "@xnlc/parser"
 
 /** Мир сервера определяется level-name; вложенные каталоги допустимы только внутри сервера. */
 export async function serverDatapackDirectory(root: string, levelName?: string): Promise<string> {
@@ -18,12 +18,8 @@ export async function serverDatapackDirectory(root: string, levelName?: string):
   return target
 }
 
-export function validateDatapack(buffer: Buffer): void {
-  const zip = new AdmZip(buffer)
-  const entry = zip.getEntry("pack.mcmeta")
-  if (!entry || entry.isDirectory || entry.header.size > 1024 * 1024) throw new Error("Datapack requires pack.mcmeta at archive root")
-  const metadata = JSON.parse(zip.readAsText(entry))
-  if (!metadata?.pack || typeof metadata.pack !== "object") throw new Error("Invalid pack.mcmeta")
+export async function validateDatapack(buffer: Buffer, signal?: AbortSignal): Promise<void> {
+  await analyzeDatapack(buffer, { signal, limits: { maxMetadataSize: 1024 * 1024 } })
 }
 
 export function datapackFileName(name: string): string {
@@ -35,7 +31,7 @@ export async function installServerDatapack(directory: string, name: string, buf
   signal?.throwIfAborted()
   datapackFileName(name)
   if (!/\.zip$/i.test(name)) throw new Error("Datapack must be a ZIP archive")
-  validateDatapack(buffer)
+  await validateDatapack(buffer, signal)
   await fs.mkdir(directory, { recursive: true })
   const target = path.join(directory, name)
   const stat = await fs.lstat(target).catch(error => { if (error.code === "ENOENT") return null; throw error })

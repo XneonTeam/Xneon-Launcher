@@ -18,6 +18,9 @@ const connections = new Map<string, Connection>()
 const connecting = new Map<string, Promise<Connection>>()
 const wantedClients = new Set<string>(), takenOver = new Set<string>()
 let remoteList: McServerInfo[] = [], listUser = "", shuttingDown = false, starting = false
+let remoteListAt = 0
+let remoteListTask: Promise<void> | undefined
+const REMOTE_LIST_TTL_MS = 30_000
 const hostsKey = "remoteServers.hosts"
 const hosts = async (): Promise<Host[]> => { try { return JSON.parse(await dbHelpers.getSetting(hostsKey) || "[]") } catch { return [] } }
 const saveHosts = (values: Host[]) => dbHelpers.setSetting(hostsKey, JSON.stringify(values))
@@ -159,10 +162,23 @@ export async function listRemoteServers(): Promise<McServerInfo[]> {
     if (listUser !== configuration.userId) {
       for (const id of connections.keys()) closeConnection(id)
       listUser = configuration.userId; remoteList = []
+      remoteListAt = 0
+      remoteListTask = undefined
     }
-    const access = await shareRequest("/remote-servers") as RemoteServerAccess[]
-    remoteList = access.filter(item => !item.isOwner).map(item => remoteInfo(item, connections.get(item.id)?.online))
-  } catch { /* Недоступный сервис не скрывает локальные серверы. */ }
+    // Список локальных серверов не зависит от задержки внешнего сервиса.
+    // Сначала возвращаем снимок, найденные удалённые серверы приходят push-событием.
+    if (!remoteListTask && Date.now() - remoteListAt >= REMOTE_LIST_TTL_MS) {
+      const user = listUser
+      remoteListAt = Date.now()
+      const task = shareRequest("/remote-servers").then(access => {
+        if (user !== listUser || remoteListTask !== task) return
+        remoteList = (access as RemoteServerAccess[]).filter(item => !item.isOwner).map(item => remoteInfo(item, connections.get(item.id)?.online))
+        for (const info of remoteList) sendToRenderer("mc-server:remote-connection", { id: info.id, online: info.remote?.online ?? false, info })
+      }).catch(() => { /* Сохраняем разрешённый снимок при временном сбое сети. */ })
+        .finally(() => { if (remoteListTask === task) remoteListTask = undefined })
+      remoteListTask = task
+    }
+  } catch { remoteList = []; listUser = ""; remoteListAt = 0 }
   return remoteList
 }
 async function invokeRemote(channel: string, remoteId: string, args: unknown[]): Promise<unknown> {
@@ -193,6 +209,7 @@ async function invokeRemote(channel: string, remoteId: string, args: unknown[]):
 export async function manageRemoteServer(input: RemoteServerRequest): Promise<RemoteServerResponse> {
   if (input.action === "join") {
     const access = await shareRequest("/remote-servers/join", "POST", { code: input.code }) as RemoteServerAccess
+    remoteListAt = 0
     await listRemoteServers()
     return { access, server: remoteInfo(access) }
   }

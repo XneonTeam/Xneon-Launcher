@@ -10,6 +10,7 @@ import { toErrorMessage, opFailure } from "../errors"
 import { app, dialog, rpcRegistry } from "../../platform/desktop"
 import path from "path"
 import fs from "fs/promises"
+import { ArchiveContext } from "@xnlc/parser"
 import type {
   ModrinthVersionDetail,
   ModrinthManifestFile,
@@ -28,6 +29,7 @@ import {
   ensureBuildIntentDir,
   getBuildIntentDirName,
   getBuildIntentPath,
+  getContentIntentDir,
   getBaseDataRoot,
   getInstancesRoot,
   loadInstancesRoot,
@@ -67,6 +69,18 @@ import { checkContentUpdates, dismissContentUpdate, readUpdatesCache, readUpdate
 import { pruneStaleLoaderProfiles, type LoaderPruneResult } from "./loader-profiles"
 
 export { ensureBuildIntentDir, getBuildIntentDirName, getBuildIntentPath, scanIntentDir }
+
+async function readPackIndexes(data: Uint8Array, signal: AbortSignal): Promise<{ modrinth?: string; curseforge?: string }> {
+  const archive = await ArchiveContext.open(data, { signal })
+  try {
+    const read = async (name: string) => archive.get(name)
+      ? Buffer.from(await archive.read(name, archive.limits.maxMetadataSize, signal)).toString("utf8")
+      : undefined
+    return { modrinth: await read("modrinth.index.json"), curseforge: await read("manifest.json") }
+  } finally {
+    archive.close()
+  }
+}
 
 function activeBuildImportFailure(buildName: string): ImportResult | null {
   return isGameDirActive(getBuildIntentPath(buildName))
@@ -778,14 +792,10 @@ export function registerBuildHandlers() {
   })
 
   rpcRegistry.handle("build:scan-intent-content", async (_event, dirNameOrPath: string): Promise<ScannedBuildContent> => {
-    try {
-      const intentPath = path.isAbsolute(dirNameOrPath)
-        ? dirNameOrPath
-        : await ensureBuildIntentDir(dirNameOrPath)
-      return await scanIntentDir(intentPath)
-    } catch {
-      return { mods: [], resourcepacks: [], shaders: [], installedMods: {} }
-    }
+    const intentPath = path.isAbsolute(dirNameOrPath)
+      ? dirNameOrPath
+      : await getContentIntentDir(dirNameOrPath)
+    return scanIntentDir(intentPath)
   })
 
   // Ручной запуск докачивания «core»-файлов пака (Missing Mods Checker).
@@ -821,10 +831,11 @@ export function registerBuildHandlers() {
       if (!mrpackFile?.url) throw new Error("URL для .mrpack файла не найден")
       sendImportProgress(0, 100, "Скачивание пакета...")
       const AdmZip = await loadAdmZip()
-      const zip = new AdmZip(await downloadBuffer(mrpackFile.url, signal, mrpackFile.filename || "modpack.mrpack"))
-      const indexEntry = zip.getEntry("modrinth.index.json")
-      if (!indexEntry) throw new Error("modrinth.index.json не найден")
-      const index = JSON.parse(indexEntry.getData().toString("utf-8"))
+      const data = await downloadBuffer(mrpackFile.url, signal, mrpackFile.filename || "modpack.mrpack")
+      const indexes = await readPackIndexes(data, signal)
+      if (!indexes.modrinth) throw new Error("modrinth.index.json не найден")
+      const index = JSON.parse(indexes.modrinth)
+      const zip = new AdmZip(data)
       throwIfImportCancelled(signal)
 
       // Полностью убираем файлы предыдущей версии сборки, чтобы не было дублей
@@ -888,11 +899,11 @@ export function registerBuildHandlers() {
       const scanned = await scanIntentDir(intentPath, (done, total) => {
         const fraction = total > 0 ? done / total : 1
         sendImportProgress(Math.min(99, Math.round(92 + fraction * 7)), 100, `Сканирование сборки (${done}/${total})...`)
-      })
+      }, signal)
       sendImportProgress(100, 100, "Готово!")
       return { success: true, version: gameVersion, modLoader, loaderVersion, modpackVersion: version.name ?? version.version_number ?? version.id, modpackVersionId: version.id, ...scanned }
     } catch (e) {
-      if (isImportCancelledError(e)) {
+      if (signal.aborted || isImportCancelledError(e)) {
         return { success: false, cancelled: true, error: "Импорт отменен" }
       }
       return opFailure(e)
@@ -917,10 +928,11 @@ export function registerBuildHandlers() {
 
       sendImportProgress(0, 100, "Скачивание пакета...")
       const AdmZip = await loadAdmZip()
-      const zip = new AdmZip(await downloadBuffer(zipUrl, signal, "curseforge-modpack.zip"))
-      const manifestEntry = zip.getEntry("manifest.json")
-      if (!manifestEntry) throw new Error("manifest.json не найден")
-      const manifest = JSON.parse(manifestEntry.getData().toString("utf-8"))
+      const data = await downloadBuffer(zipUrl, signal, "curseforge-modpack.zip")
+      const indexes = await readPackIndexes(data, signal)
+      if (!indexes.curseforge) throw new Error("manifest.json не найден")
+      const manifest = JSON.parse(indexes.curseforge)
+      const zip = new AdmZip(data)
       throwIfImportCancelled(signal)
 
       const mcVersion: string = manifest.minecraft?.version ?? ""
@@ -993,11 +1005,11 @@ export function registerBuildHandlers() {
       const scanned = await scanIntentDir(intentPath, (done, total) => {
         const fraction = total > 0 ? done / total : 1
         sendImportProgress(Math.min(99, Math.round(92 + fraction * 7)), 100, `Сканирование сборки (${done}/${total})...`)
-      })
+      }, signal)
       sendImportProgress(100, 100, "Готово!")
       return { success: true, version: mcVersion, modLoader, loaderVersion, ...scanned }
     } catch (e) {
-      if (isImportCancelledError(e)) {
+      if (signal.aborted || isImportCancelledError(e)) {
         return { success: false, cancelled: true, error: "Импорт отменен" }
       }
       return opFailure(e)
@@ -1083,11 +1095,11 @@ export function registerBuildHandlers() {
       const scanned = await scanIntentDir(intentPath, (done, total) => {
         const fraction = total > 0 ? done / total : 1
         sendImportProgress(Math.min(99, Math.round(92 + fraction * 7)), 100, `Сканирование сборки (${done}/${total})...`)
-      })
+      }, signal)
       sendImportProgress(100, 100, "Готово!")
       return { success: true, version, modLoader, loaderVersion, ...scanned }
     } catch (e) {
-      if (isImportCancelledError(e)) {
+      if (signal.aborted || isImportCancelledError(e)) {
         return { success: false, cancelled: true, error: "Импорт отменен" }
       }
       return opFailure(e)
@@ -1127,8 +1139,9 @@ export function registerBuildHandlers() {
       const AdmZip = await loadAdmZip()
       const fileData = await fs.readFile(selectedFile)
       const zip = new AdmZip(fileData)
-      const mrpackIndex = zip.getEntry("modrinth.index.json")
-      const manifestEntry = zip.getEntry("manifest.json")
+      const indexes = await readPackIndexes(fileData, signal)
+      const mrpackIndex = indexes.modrinth
+      const manifestEntry = indexes.curseforge
       if (format === "curseforge" && !manifestEntry) {
         return { success: false, error: "В этом ZIP нет manifest.json CurseForge." }
       }
@@ -1184,7 +1197,7 @@ export function registerBuildHandlers() {
         const scanned = await scanIntentDir(intentPath, (done, total) => {
           const fraction = total > 0 ? done / total : 1
           sendImportProgress(Math.min(99, Math.round(92 + fraction * 7)), 100, `Сканирование сборки (${done}/${total})...`)
-        })
+        }, signal)
 
         sendImportProgress(100, 100, "Готово!")
         return {
@@ -1202,7 +1215,7 @@ export function registerBuildHandlers() {
       }
 
       if (mrpackIndex) {
-        const index = JSON.parse(mrpackIndex.getData().toString("utf-8"))
+        const index = JSON.parse(mrpackIndex)
         const buildName = nameOverride ?? index.name ?? path.basename(selectedFile, path.extname(selectedFile))
         const mods = await loadModsModule()
         let projectId = typeof index.slug === "string" ? index.slug : ""
@@ -1269,7 +1282,7 @@ export function registerBuildHandlers() {
         const scanned = await scanIntentDir(intentPath, (done, total) => {
           const fraction = total > 0 ? done / total : 1
           sendImportProgress(Math.min(99, Math.round(92 + fraction * 7)), 100, `Сканирование сборки (${done}/${total})...`)
-        })
+        }, signal)
 
         let mrIcon = ""
         try {
@@ -1293,7 +1306,7 @@ export function registerBuildHandlers() {
       }
 
       if (manifestEntry) {
-        const manifest = JSON.parse(manifestEntry.getData().toString("utf-8"))
+        const manifest = JSON.parse(manifestEntry)
         const buildName = nameOverride ?? manifest.name ?? path.basename(selectedFile, path.extname(selectedFile))
         const activeFailure = activeBuildImportFailure(buildName)
         if (activeFailure) return { ...activeFailure, name: buildName }
@@ -1376,7 +1389,7 @@ export function registerBuildHandlers() {
         const scanned = await scanIntentDir(intentPath, (done, total) => {
           const fraction = total > 0 ? done / total : 1
           sendImportProgress(Math.min(99, Math.round(92 + fraction * 7)), 100, `Сканирование сборки (${done}/${total})...`)
-        })
+        }, signal)
 
         let cfIcon = ""
         try {
@@ -1402,7 +1415,7 @@ export function registerBuildHandlers() {
 
       return { success: false, error: "Неизвестный формат модпака" }
     } catch (e) {
-      if (isImportCancelledError(e)) {
+      if (signal.aborted || isImportCancelledError(e)) {
         return { success: false, cancelled: true, error: "Импорт отменен" }
       }
       return opFailure(e)

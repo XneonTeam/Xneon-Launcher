@@ -11,18 +11,15 @@ import { dependencyProjectId } from "./builds/dependency-project"
 // загрузчика внутри jar: fabric.mod.json, quilt.mod.json или mods.toml.
 // Их и читаем, а найденные id сопоставляем с проектами источника.
 //
-// Сам разбор архива живёт в builds/jar-dependencies.ts и выполняется единым
-// инспектором JAR: файл читается один раз, а результат кладётся в общий кэш по
-// (path, size, mtime) — повторная проверка того же jar диск не трогает.
+// Архив разбирает @xnlc/parser; здесь только сопоставление с каталогами.
 
 import path from "path"
 import { downloadBuffer, loadModsModule } from "./builds/helpers"
 import { cacheJarFromUrl } from "./jar-cache"
-import { inspectJar } from "./builds/jar-inspector"
-import type { JarDeclaredDependency } from "./builds/jar-dependencies"
+import { inspectJar, type JarDeclaredDependency } from "@xnlc/parser"
 import type { ModDependency } from "@xnlc/mods" with { "resolution-mode": "import" }
 
-export type { JarDeclaredDependency } from "./builds/jar-dependencies"
+export type { JarDeclaredDependency } from "@xnlc/parser"
 
 /** Идентификаторы, которые ставит не лаунчер: загрузчик, сама игра и рантайм. */
 const NON_INSTALLABLE_IDS = new Set([
@@ -149,7 +146,7 @@ export async function inspectJarDependencies(
     return { modId: null, dependencies: [], declared: [] }
   }
 
-  const inspection = await inspectJar(jarPath, { dependencies: true })
+  const inspection = await inspectJar(jarPath, { dependencies: true, signal })
   const { modId, declared } = inspection.dependencies ?? { modId: null, declared: [] as JarDeclaredDependency[] }
   const installable = filterInstallable(declared, modId)
   if (installable.length === 0) {

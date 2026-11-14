@@ -116,6 +116,7 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
       footer={success ? <ShareButton onClick={onClose}>{<span className="inline-flex items-center justify-center gap-2"><LauncherCloseIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("share.launcher.close")}</span>}</ShareButton> : <>
         <ShareButton secondary disabled={cancelling} onClick={cancelOrClose}>{<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />{t("share.flow.cancel")}</span>}</ShareButton>
         <ShareButton disabled={controller.busy || !scan} busy={controller.busy} onClick={() => void publish()}>
+          <IconCloudUpload className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
           {t(shared ? "share.launcher.publishUpdate" : "share.publish")}
         </ShareButton>
       </>}

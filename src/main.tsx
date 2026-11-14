@@ -8,6 +8,11 @@ import '@fontsource/plus-jakarta-sans/600.css'
 import '@fontsource/plus-jakarta-sans/700.css'
 import './index.css'
 import { prepareStartupReveal, dismissStartupSplash } from './startup-splash'
+import { installExternalLinks } from '@/lib/external-links'
+
+// Убираем браузерное меню WebView2; само событие оставляем меню сборок и серверов.
+window.addEventListener('contextmenu', (event) => event.preventDefault(), { capture: true })
+if (window.electrobunAPI) installExternalLinks(window, url => window.electrobunAPI!.openExternal(url))
 
 prepareStartupReveal()
 
@@ -20,6 +25,7 @@ window.addEventListener('app:hydrated', () => { void dismissStartupSplash() }, {
 // успевает отрисоваться, пока загружаются приложение и сохранённая тема.
 void Promise.all([
   import('./App'),
+  import('./i18n').then(({ initI18n }) => initI18n()),
   bootstrapDesktop().then(async () => {
     const startupError = await window.electrobunAPI?.startupReady()
     if (startupError !== null && startupError !== undefined) throw new Error(startupError)

@@ -35,11 +35,12 @@ async function isContentFolder(dirPath: string): Promise<boolean> {
 }
 
 async function listIntentContentFiles(dir: string, parentPath = "", foldersAsContent = false): Promise<IntentContentFile[]> {
-  try { await fs.access(dir) } catch { return [] }
-
   const files: IntentContentFile[] = []
   let entries
-  try { entries = await fs.readdir(dir, { withFileTypes: true }) } catch { return [] }
+  try { entries = await fs.readdir(dir, { withFileTypes: true }) } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return []
+    throw error
+  }
 
   for (const entry of entries) {
     const nextRelativePath = parentPath ? path.posix.join(parentPath, entry.name) : entry.name
@@ -49,9 +50,9 @@ async function listIntentContentFiles(dir: string, parentPath = "", foldersAsCon
       // В resourcepacks/shaderpacks папка верхнего уровня — сам контент, а не
       // контейнер: внутрь не заходим. В mods папки остаются контейнерами.
       if (foldersAsContent && !parentPath) {
-        const rawName = entry.name.endsWith(".disabled") ? entry.name.slice(0, -".disabled".length) : entry.name
+        const rawName = entry.name.replace(/\.disabled$/i, "")
         if (await isContentFolder(filePath)) {
-          files.push({ slug: rawName, filePath, name: rawName, enabled: !entry.name.endsWith(".disabled"), isDirectory: true })
+          files.push({ slug: rawName, filePath, name: rawName, enabled: rawName === entry.name, isDirectory: true })
           continue
         }
       }
@@ -64,83 +65,98 @@ async function listIntentContentFiles(dir: string, parentPath = "", foldersAsCon
     // его видеть: иначе принятый файл исчезал из списка после первого rescan.
     if (!/\.(jar|zip|litemod)(\.disabled)?$/i.test(entry.name)) continue
 
-    const name = entry.name.endsWith(".disabled")
-      ? entry.name.slice(0, -".disabled".length)
-      : entry.name
+    const name = entry.name.replace(/\.disabled$/i, "")
     const slug = parentPath ? path.posix.join(parentPath, name) : name
 
-    files.push({ slug, filePath, name, enabled: !entry.name.endsWith(".disabled") })
+    files.push({ slug, filePath, name, enabled: name === entry.name })
   }
 
   return files
 }
 
-export async function scanIntentDir(intentPath: string, onProgress?: (processed: number, total: number) => void): Promise<ScannedBuildContent> {
+const contentDirs = [
+  { name: "mods", foldersAsContent: false },
+  { name: "resourcepacks", foldersAsContent: true },
+  { name: "shaderpacks", foldersAsContent: true },
+] as const
+
+async function readSnapshot(intentPath: string, signal?: AbortSignal) {
+  signal?.throwIfAborted()
+  return Promise.all(contentDirs.map(async ({ name, foldersAsContent }) => {
+    const files = await listIntentContentFiles(path.join(intentPath, name), "", foldersAsContent)
+    const snapshot = new Map<string, string>()
+    const present: IntentContentFile[] = []
+    await Promise.all(files.map(async file => {
+      try {
+        const info = await fs.stat(file.filePath)
+        snapshot.set(file.filePath, `${info.ino}:${info.size}:${info.mtimeMs}:${info.ctimeMs}`)
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code
+        if (code !== "ENOENT" && code !== "ENOTDIR") throw error
+      }
+    }))
+    for (const file of files) if (snapshot.has(file.filePath)) present.push(file)
+    return { name, files: present, snapshot }
+  }))
+}
+
+const activeScans = new Map<string, Promise<ScannedBuildContent>>()
+
+export function scanIntentDir(intentPath: string, onProgress?: (processed: number, total: number) => void, signal?: AbortSignal): Promise<ScannedBuildContent> {
+  if (onProgress || signal) return scanStableIntentDir(intentPath, onProgress, signal)
+  const normalized = path.resolve(intentPath)
+  const key = process.platform === "win32" ? normalized.toLowerCase() : normalized
+  const active = activeScans.get(key)
+  if (active) return active
+  const scan = scanStableIntentDir(normalized).finally(() => activeScans.delete(key))
+  activeScans.set(key, scan)
+  return scan
+}
+
+async function scanStableIntentDir(intentPath: string, onProgress?: (processed: number, total: number) => void, signal?: AbortSignal): Promise<ScannedBuildContent> {
+  let snapshot = await readSnapshot(intentPath, signal)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const result = await scanSnapshot(snapshot, onProgress, signal)
+    const current = await readSnapshot(intentPath, signal)
+    signal?.throwIfAborted()
+    if (snapshot.every(({ snapshot: before }, i) => {
+      const after = current[i].snapshot
+      return before.size === after.size && [...before].every(([file, signature]) => after.get(file) === signature)
+    })) return result
+    snapshot = current
+  }
+  throw new Error("Content directory changed during scan")
+}
+
+async function scanSnapshot(filesByDir: Awaited<ReturnType<typeof readSnapshot>>, onProgress?: (processed: number, total: number) => void, signal?: AbortSignal): Promise<ScannedBuildContent> {
+  signal?.throwIfAborted()
   const mods: ImportModEntry[] = []
   const resourcepacks: ImportModEntry[] = []
   const shaders: ImportModEntry[] = []
   const installedMods: Record<string, string> = {}
 
-  const dirs = [
-    { dir: path.join(intentPath, "mods"), target: mods, map: installedMods, foldersAsContent: false },
-    { dir: path.join(intentPath, "resourcepacks"), target: resourcepacks, map: null, foldersAsContent: true },
-    { dir: path.join(intentPath, "shaderpacks"), target: shaders, map: null, foldersAsContent: true },
-  ]
-
-  const filesByDir = new Map<string, Awaited<ReturnType<typeof listIntentContentFiles>>>()
-  let total = 0
-  // Три каталога читаем параллельно: раньше это были три последовательных
-  // обхода (readdir + resolver) на каждое открытие сборки.
-  await Promise.all(dirs.map(async ({ dir, foldersAsContent }) => {
-    const files = await listIntentContentFiles(dir, "", foldersAsContent)
-    filesByDir.set(dir, files)
-    total += files.length
-  }))
-
-  // Прогресс считаем по сумме обработанных файлов во всех каталогах.
-  const progressByDir = new Map<string, number>()
-  const report = () => {
-    let processed = 0
-    for (const { dir } of dirs) processed += progressByDir.get(dir) ?? 0
+  const files = filesByDir.flatMap(dir => dir.files)
+  const total = files.length
+  const archives = files.filter(file => !file.isDirectory).map(file => file.filePath)
+  const report = (processed: number) => {
     try { onProgress?.(Math.min(processed, total), total) } catch {}
   }
-
-  const resolvedByDir = new Map<string, Awaited<ReturnType<typeof resolveContentEntries>>>()
-  await Promise.all(dirs.map(async ({ dir }) => {
-    const files = filesByDir.get(dir) ?? []
-    const folderFiles = files.filter((file) => file.isDirectory)
-    const archiveFiles = files.filter((file) => !file.isDirectory)
-    // Папки в resolver не отдаём: там хэширование файла, а папку хэшировать нельзя.
-    progressByDir.set(dir, folderFiles.length)
-    if (archiveFiles.length === 0) {
-      resolvedByDir.set(dir, {})
-      report()
-      return
-    }
-    resolvedByDir.set(dir, await resolveContentEntries(
-      archiveFiles.map((file) => file.filePath),
-      (done) => {
-        progressByDir.set(dir, folderFiles.length + done)
-        report()
-      },
-    ))
-    progressByDir.set(dir, files.length)
-    report()
-  }))
-
-  for (const { dir, target, map } of dirs) {
-    const files = filesByDir.get(dir) ?? []
-    const resolved = resolvedByDir.get(dir) ?? {}
+  const resolved = archives.length ? await resolveContentEntries(archives, report, signal) : {}
+  let processed = archives.length
+  const targets = { mods, resourcepacks, shaderpacks: shaders }
+  for (const { name: dirName, files } of filesByDir) {
+    const target = targets[dirName]
 
     for (const { slug, filePath, name, enabled, isDirectory } of files) {
+      signal?.throwIfAborted()
       const entry = resolved[filePath]
       const fileName = path.basename(name)
       // Папка-ресурспак/шейдер: метаданные (имя, версия, описание, иконка) читаем
       // прямо из неё — так в списке видны настоящие данные, а не имя папки.
-      const folderMetadata = isDirectory ? await readContentMetadataFromPath(filePath) : null
+      const folderMetadata = isDirectory ? await readContentMetadataFromPath(filePath, signal) : null
       const modEntry: ImportModEntry = entry
         ? {
-            id: entry.sha1,
+            id: entry.sha1 || `local:${slug}`,
             slug,
             name: entry.name || formatDisplayNameFromFileName(fileName),
             description: entry.description || "",
@@ -152,6 +168,7 @@ export async function scanIntentDir(intentPath: string, onProgress?: (processed:
             versionId: entry.versionId,
             fileId: entry.fileId,
             author: entry.author,
+            ...(entry.diagnostics?.length ? { diagnostics: entry.diagnostics } : {}),
             enabled,
           }
         : {
@@ -173,18 +190,16 @@ export async function scanIntentDir(intentPath: string, onProgress?: (processed:
         modEntry.icon_url = folderMetadata.icon_url ?? modEntry.icon_url
         modEntry.version = folderMetadata.version || modEntry.version
         modEntry.author = folderMetadata.author ?? modEntry.author
+        if (folderMetadata.diagnostics?.length) modEntry.diagnostics = folderMetadata.diagnostics
       }
 
       target.push(modEntry)
-      if (map !== null) {
-        map[slug] = filePath
-      }
+      if (dirName === "mods") installedMods[slug] = filePath
+      if (isDirectory) report(++processed)
     }
   }
 
-  // Папки не проходили через resolver, поэтому их «обработку» учитываем отдельно.
-  for (const { dir } of dirs) progressByDir.set(dir, (filesByDir.get(dir) ?? []).length)
-  report()
-  onProgress?.(total, total)
+  signal?.throwIfAborted()
+  report(total)
   return { mods, resourcepacks, shaders, installedMods }
 }

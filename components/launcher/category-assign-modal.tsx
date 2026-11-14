@@ -95,7 +95,7 @@ export function CategoryAssignModal({
     : <IconColorSwatch className={size} strokeWidth={2} />
   const count = (group: string) => counts?.[group] ?? 0
 
-  const actionClass = "shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+  const actionClass = "shrink-0 rounded-md border border-border bg-muted/60 p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
   const chipClass = "inline-flex items-center gap-1 rounded-md border border-border/60 bg-background/60 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground"
 
   /** Иконка категории: своя картинка или пресет-логотип, иначе общая иконка категории. */
@@ -267,11 +267,11 @@ export function CategoryAssignModal({
 
                       {/* Действия — там же, где у плитки сервера кнопка запуска */}
                       <div data-ui="category-assign-modal-div-18"
-                        className="absolute bottom-1.5 right-1.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100"
+                        className="absolute bottom-1.5 right-1.5 flex items-center gap-1"
                         onClick={(e) => e.stopPropagation()}>
                         {actions(
                           group,
-                          "rounded-md border border-border bg-card/90 p-1 text-muted-foreground backdrop-blur-sm transition-colors hover:bg-card hover:text-foreground",
+                          "rounded-md border border-border bg-card p-1.5 text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground",
                           "w-3.5 h-3.5",
                         )}
                       </div>
@@ -307,7 +307,7 @@ export function CategoryAssignModal({
                       </span>
                     </button>
 
-                    <div data-ui="category-assign-modal-div-23" className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/row:opacity-100">
+                    <div data-ui="category-assign-modal-div-23" className="flex shrink-0 items-center gap-1">
                       {actions(group, actionClass)}
                     </div>
                   </div>

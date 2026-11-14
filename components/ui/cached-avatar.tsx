@@ -86,7 +86,7 @@ async function loadImage(url: string): Promise<string> {
 
   const promise = (async () => {
     try {
-      const res = await fetch(url)
+      const res = await fetch(launcherAssetUrl(url))
       if (!res.ok) throw new Error(String(res.status))
       const blob = await res.blob()
       const objectUrl = URL.createObjectURL(blob)

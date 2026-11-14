@@ -96,7 +96,7 @@ function sleep(ms: number): Promise<void> {
 function fetchJsonOnce(url: string): Promise<any> {
   return new Promise((resolve, reject) => {
     const client = url.startsWith("https") ? https : http
-    client.get(url, { headers: { "User-Agent": "XneonLauncher/1.0" } }, (res) => {
+    client.get(url, { headers: { "User-Agent": "Xneon-Launcher/1.0.8" } }, (res) => {
       if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         return fetchJsonOnce(res.headers.location).then(resolve, reject)
       }
@@ -132,7 +132,7 @@ function downloadFileOnce(url: string, dest: string, onProgress?: OnProgress): P
     const file = fs.createWriteStream(dest)
     const client = url.startsWith("https") ? https : http
 
-    const req = client.get(url, { headers: { "User-Agent": "XneonLauncher/1.0" } }, (res) => {
+    const req = client.get(url, { headers: { "User-Agent": "Xneon-Launcher/1.0.8" } }, (res) => {
       if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         file.close()
         try { fs.unlinkSync(dest) } catch {}

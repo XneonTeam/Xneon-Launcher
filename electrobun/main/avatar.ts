@@ -6,7 +6,7 @@ import path from "path"
 import fs from "fs"
 import { logRuntime } from "./runtime"
 
-const USER_AGENT = "Xneon-Launcher/1.0.7 (launcher@xneon.fun)"
+const USER_AGENT = "Xneon-Launcher/1.0.8"
 
 const http = axios.create({
   timeout: 5000,

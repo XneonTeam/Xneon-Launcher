@@ -13,20 +13,22 @@ import { resolveTheme } from "./settings/theme-model"
  * (см. `html.theme-with-background` в `src/index.css`).
  */
 
-/** Локальный файл нельзя показать напрямую (dev крутится на http), поэтому читаем через main. */
-async function resolveSource(source: string): Promise<string | null> {
+/** Картинки читаем через main: WebView2 не обращается к стороннему хосту и его cookies. */
+async function resolveSource(source: string, kind = "image"): Promise<string | null> {
   const target = source.trim()
   if (!target) return null
-  if (target.startsWith("data:") || target.startsWith("xnl-theme:") || /^https?:\/\//i.test(target)) return target
+  if (target.startsWith("data:") || target.startsWith("xnl-theme:") || (window.xneonAssetBase && target.startsWith(window.xneonAssetBase))) return target
+  // Видео не превращаем в большой data-URL; браузерное превью сохраняет прямую загрузку.
+  if (/^https?:\/\//i.test(target) && (kind === "video" || !window.electrobunAPI?.readThemeMedia)) return target
   return (await window.electrobunAPI?.readThemeMedia(target)) ?? null
 }
 
 export function ThemeBackgroundLayer({ theme: initial }: { theme: Theme }) {
   const theme = resolveTheme(useAppliedTheme(initial))
   const video = useRef<HTMLVideoElement>(null)
-  const paused = useMediaPaused()
   const override = cssBackgroundVideo(theme)
   const kind = override ? "video" : theme.background?.kind ?? "image"
+  const paused = useMediaPaused(kind === "video" || kind === "particles" || kind === "halo")
   const source = kind === "particles" || kind === "halo" ? "" : launcherAssetUrl(override || theme.background?.source || "")
   const mediaKey = `${kind}:${source}`
   const [media, setMedia] = useState<{ key: string; resolved: string | null; failed: boolean } | null>(null)
@@ -40,14 +42,14 @@ export function ThemeBackgroundLayer({ theme: initial }: { theme: Theme }) {
       setMedia(null)
       return
     }
-    void resolveSource(source).then((result) => {
+    void resolveSource(source, kind).then((result) => {
       if (cancelled) return
       setMedia({ key: mediaKey, resolved: result, failed: !result })
     }).catch(() => { if (!cancelled) setMedia({ key: mediaKey, resolved: null, failed: true }) })
     return () => {
       cancelled = true
     }
-  }, [source, mediaKey])
+  }, [source, kind, mediaKey])
 
   useEffect(() => {
     const player = video.current

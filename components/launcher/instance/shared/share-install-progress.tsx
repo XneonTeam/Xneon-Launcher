@@ -42,7 +42,7 @@ export function ShareInstallProgress() {
       const requestId = crypto.randomUUID()
       activeRequest.current = requestId
       unsubscribe = window.electrobunAPI.onShareProgress(event => {
-        if (!active || event.requestId !== requestId || event.stage === "error" || event.stage === "done") return
+        if (!active || event.requestId !== requestId || ["error", "done", "cancelled"].includes(event.stage)) return
         const fraction = event.total > 0 ? Math.max(0, Math.min(1, event.done / event.total)) : 0
         const current = event.stage === "index" ? 95 : event.stage === "download" ? 10 + 80 * fraction : 5
         setProgress(previous => previous && ({ ...previous, phase: event.stage === "index" ? "scanning" : event.stage === "download" ? "files" : "preparing", current: Math.max(previous.current, current),

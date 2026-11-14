@@ -100,6 +100,7 @@ function createTables() {
       modId INTEGER,
       fileId INTEGER,
       cfChecked INTEGER NOT NULL DEFAULT 0,
+      parserVersion TEXT NOT NULL DEFAULT '',
       updatedAt INTEGER NOT NULL DEFAULT 0
     )
   `)
@@ -287,6 +288,7 @@ function migrateResources() {
   addColumnIfMissing("resources", "modId", "modId INTEGER")
   addColumnIfMissing("resources", "fileId", "fileId INTEGER")
   addColumnIfMissing("resources", "cfChecked", "cfChecked INTEGER NOT NULL DEFAULT 0")
+  addColumnIfMissing("resources", "parserVersion", "parserVersion TEXT NOT NULL DEFAULT ''")
 }
 
 function migrateSkinLibrary() {
@@ -358,7 +360,7 @@ export { DEFAULT_SETTINGS }
  * сама делает PRAGMA table_info), повышение версии — для журнала.
 
  */
-export const SCHEMA_VERSION = 12
+export const SCHEMA_VERSION = 13
 
 function readUserVersion(): number {
   const rows = queryAll<{ user_version?: number }>("PRAGMA user_version")

@@ -29,7 +29,12 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
   const pendingSettingsRef = useRef<Record<string, { timeoutId: number; value: string }>>({})
   const lastPersistedSettingsRef = useRef<Record<string, string>>({})
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>(initialTab)
-  useEffect(() => { setActiveSettingsTab(initialTab) }, [initialTab])
+  const initialTabRef = useRef(initialTab)
+  useEffect(() => {
+    if (initialTabRef.current === initialTab) return
+    initialTabRef.current = initialTab
+    setActiveSettingsTab(initialTab)
+  }, [initialTab])
   const [selectedResolution, setSelectedResolution] = useState("1920x1080 (Full HD)")
   const [customWidth, setCustomWidth] = useState("1920")
   const [customHeight, setCustomHeight] = useState("1080")
@@ -82,6 +87,7 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
     let cancelled = false
 
     const loadSettings = async () => {
+      settingsHydratedRef.current = false
       const api = window.electrobunAPI
       if (!api) {
         settingsHydratedRef.current = true
@@ -108,27 +114,14 @@ export function SettingsPage({ initialTab = "game" }: { initialTab?: SettingsTab
         serverPortSetting,
         afterLaunchSetting,
         autoGameLanguageSetting,
-      ] = await Promise.all([
-        api.getSetting("authlibInjectorEnabled"),
-        api.getSetting("retroauthInjectorEnabled"),
-        api.getSetting("javaPath"),
-        api.getSetting("javaArgs"),
-        api.getSetting("memoryMin"),
-        api.getSetting("memoryMax"),
-        api.getSetting("showAlpha"),
-        api.getSetting("showBeta"),
-        api.getSetting("showSnapshot"),
-        api.getSetting("selectedResolution"),
-        api.getSetting("customWidth"),
-        api.getSetting("customHeight"),
-        api.getSetting("useCustomResolution"),
-        api.getSetting("useBmclapi"),
-        api.getSetting("autoJoinServer"),
-        api.getSetting("server"),
-        api.getSetting("serverPort"),
-        api.getSetting("afterLaunch"),
-        api.getSetting("autoGameLanguage"),
-      ])
+      ] = await (async () => {
+        const keys = ["authlibInjectorEnabled", "retroauthInjectorEnabled", "javaPath", "javaArgs",
+          "memoryMin", "memoryMax", "showAlpha", "showBeta", "showSnapshot", "selectedResolution",
+          "customWidth", "customHeight", "useCustomResolution", "useBmclapi", "autoJoinServer",
+          "server", "serverPort", "afterLaunch", "autoGameLanguage"]
+        const values = await api.getSettings(keys)
+        return keys.map(key => values[key])
+      })()
 
       if (cancelled) return
 

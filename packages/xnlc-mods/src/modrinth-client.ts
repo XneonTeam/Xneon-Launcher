@@ -32,7 +32,7 @@ async function mrFetch(endpoint: string): Promise<unknown> {
     const timer = setTimeout(() => controller.abort(), 15_000);
     try {
       const res = await fetch(`${MODRINTH_API}${endpoint}`, {
-        headers: { "User-Agent": "Xneon-Launcher/1.0 (launcher@xneon.fun)" },
+        headers: { "User-Agent": "Xneon-Launcher/1.0.8" },
         signal: controller.signal,
       });
       if (res.status === 429) {
@@ -279,7 +279,7 @@ export async function modrinthGetProjectsByIds(ids: string[]): Promise<Record<st
       const abort = new AbortController();
       const timer = setTimeout(() => abort.abort(), 15_000);
       const res = await fetch(`${MODRINTH_API}/projects?ids=${encodeURIComponent(JSON.stringify(batch))}`, {
-        headers: { "User-Agent": "Xneon-Launcher/1.0 (launcher@xneon.fun)" },
+        headers: { "User-Agent": "Xneon-Launcher/1.0.8" },
         signal: abort.signal,
       });
       clearTimeout(timer);
@@ -318,7 +318,7 @@ export async function modrinthGetVersionsByIds(ids: string[]): Promise<Record<st
       const abort = new AbortController();
       const timer = setTimeout(() => abort.abort(), 15_000);
       const res = await fetch(`${MODRINTH_API}/versions?ids=${encodeURIComponent(JSON.stringify(batch))}`, {
-        headers: { "User-Agent": "Xneon-Launcher/1.0 (launcher@xneon.fun)" },
+        headers: { "User-Agent": "Xneon-Launcher/1.0.8" },
         signal: abort.signal,
       });
       clearTimeout(timer);
@@ -391,7 +391,7 @@ export async function modrinthGetFilesByHash(sha1s: string[]): Promise<Record<st
       try {
         const res = await fetch(`${MODRINTH_API}/version_files`, {
           method: "POST",
-          headers: { "User-Agent": "Xneon-Launcher/1.0 (launcher@xneon.fun)", "Content-Type": "application/json" },
+          headers: { "User-Agent": "Xneon-Launcher/1.0.8", "Content-Type": "application/json" },
           body: JSON.stringify({ hashes: batch, algorithm: "sha1" }),
         })
         if (res.status === 429) {
@@ -442,7 +442,7 @@ export async function modrinthCheckUpdates(
       const res = await fetch(`${MODRINTH_API}/version_files/update`, {
         method: "POST",
         headers: {
-          "User-Agent": "Xneon-Launcher/1.0 (launcher@xneon.fun)",
+          "User-Agent": "Xneon-Launcher/1.0.8",
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),

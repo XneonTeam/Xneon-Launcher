@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { loadAdmZip } from "./builds/archive-utils"
+import { ArchiveContext } from "@xnlc/parser"
 import type * as ModsApi from "@xnlc/mods" with { "resolution-mode": "import" }
 
 const MAX_ARCHIVE_BYTES = 32 * 1024 * 1024
@@ -27,14 +27,16 @@ export async function readModrinthPackContents(mods: typeof ModsApi, slug: strin
   }
   const buffer = Buffer.concat(chunks)
   if (file.hashes?.sha512 && createHash("sha512").update(buffer).digest("hex") !== file.hashes.sha512) throw new Error("Modpack archive hash mismatch")
-  const AdmZip = await loadAdmZip()
-  const zip = new AdmZip(buffer)
-  const entry = zip.getEntry("modrinth.index.json")
-  if (!entry) throw new Error("Modpack index not found")
-  // Проверяем распакованный размер до декомпрессии индекса.
-  const declaredSize = (entry as unknown as { header: { size: number } }).header.size
-  if (declaredSize > MAX_INDEX_BYTES) throw new Error("Modpack index is too large")
-  const raw: unknown = JSON.parse(entry.getData().toString("utf8"))
+  const archive = await ArchiveContext.open(buffer)
+  let raw: unknown
+  try {
+    const entry = archive.get("modrinth.index.json")
+    if (!entry) throw new Error("Modpack index not found")
+    if (entry.size > MAX_INDEX_BYTES) throw new Error("Modpack index is too large")
+    raw = JSON.parse(Buffer.from(await archive.read(entry.name, MAX_INDEX_BYTES)).toString("utf8"))
+  } finally {
+    archive.close()
+  }
   if (!raw || typeof raw !== "object") throw new Error("Invalid modpack index")
   const index = raw as { game?: string; files?: unknown[]; dependencies?: Record<string, unknown> }
   if (index.game !== "minecraft" || !Array.isArray(index.files) || index.files.length > 2000) throw new Error("Invalid modpack files")

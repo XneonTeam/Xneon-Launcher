@@ -532,15 +532,15 @@ export function CloudFileBrowser({ providerId, pendingThemeId, onPendingThemeHan
                   </p>
                 </div>
                 {!file.isDir && (currentPath === "builds" || currentPath === "servers" || currentPath === "accounts" || file.name.endsWith(".xntheme")) && (
-                  <div data-ui="cloud-cloud-file-browser-div-19" className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div data-ui="cloud-cloud-file-browser-div-19" className="flex shrink-0 items-center gap-1">
                     <button data-ui="cloud-cloud-file-browser-button-7" onClick={(e) => { e.stopPropagation(); handleDownload(file) }}
                       disabled={!!importingTheme}
-                      className="p-1.5 rounded-lg hover:bg-primary/15 text-muted-foreground hover:text-primary transition-colors"
+                      className="p-1.5 rounded-lg border border-border bg-muted/60 hover:bg-primary/15 text-muted-foreground hover:text-primary transition-colors"
 title={t("cloud.download")}>
                       {importingTheme === file.id ? <IconLoader2 className="h-4 w-4 animate-spin" /> : <IconDownload className="w-4 h-4" />}
                     </button>
                     <button data-ui="cloud-cloud-file-browser-button-8" onClick={(e) => { e.stopPropagation(); handleDelete(file) }}
-                      className="p-1.5 rounded-lg hover:bg-destructive/15 text-muted-foreground hover:text-destructive transition-colors"
+                      className="p-1.5 rounded-lg border border-border bg-muted/60 hover:bg-destructive/15 text-muted-foreground hover:text-destructive transition-colors"
                       title={t("cloud.delete")}>
                       <IconTrash className="w-4 h-4" />
                     </button>

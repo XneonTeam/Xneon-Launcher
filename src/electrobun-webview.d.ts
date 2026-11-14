@@ -15,12 +15,12 @@ export type ElectrobunWebviewTagProps = DetailedHTMLProps<HTMLAttributes<HTMLEle
   preload?: string
   partition?: string
   renderer?: "native" | "cef"
-  /** Гостю запрещён RPC: остаются только события (недоверенная страница). */
-  sandbox?: boolean
-  /** Гость прозрачный: сквозь него видно DOM лаунчера. */
-  transparent?: boolean
-  /** Клики проходят сквозь гостя в DOM лаунчера. */
-  passthrough?: boolean
+  /** Getter-only у SDK: устанавливать атрибутом через ref, не React-prop. */
+  sandbox?: never
+  /** Начальный атрибут через ref: native читает его через hasAttribute. */
+  transparent?: never
+  /** Начальный атрибут через ref: клики проходят в DOM лаунчера во время загрузки. */
+  passthrough?: never
   spellcheck?: boolean
   "navigation-rules"?: string
 }

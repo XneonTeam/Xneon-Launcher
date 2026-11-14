@@ -6,7 +6,7 @@ import Database from "better-sqlite3"
 import { stripTypeScriptTypes } from "./transpile.mjs"
 
 const helperSource = await fs.readFile(new URL("../../lib/build-content-patch.ts", import.meta.url), "utf8")
-const { buildContentPatch } = await import("data:text/javascript;base64," + Buffer.from(stripTypeScriptTypes(helperSource)).toString("base64"))
+const { beginContentMutationGuard, buildContentPatch, createContentRefreshQueue, filterStaleContentPatch } = await import("data:text/javascript;base64," + Buffer.from(stripTypeScriptTypes(helperSource)).toString("base64"))
 const empty = () => ({ mods: [], resourcepacks: [], shaders: [], installedMods: {} })
 
 test("незагруженные заглушки не попадают в патч даже без сохранённого снимка", () => {
@@ -22,6 +22,54 @@ test("удаление последнего мода передаёт явный
   assert.equal(patch.modsCount, 0)
   assert.equal(patch.mods.length, 0)
   assert.equal("shaders" in patch, false)
+})
+test("устаревшее сохранение не возвращает контент после удаления или установки", () => {
+  const old = { name: "Build", mods: [{ slug: "old.jar" }], modsCount: 1, installedMods: { "old.jar": "path" } }
+  assert.deepEqual(filterStaleContentPatch(old, 4, 5, false), { name: "Build" })
+  assert.deepEqual(filterStaleContentPatch(old, 4, 4, true), { name: "Build" })
+  assert.equal(filterStaleContentPatch(old, 4, 4, false), old)
+})
+test("пакет операций откладывает перескан и отклоняет предыдущие результаты", () => {
+  const active = new Map(), revisions = new Map([["build", 3]])
+  let refreshes = 0
+  const finishBatch = beginContentMutationGuard(active, revisions, "build", () => refreshes++)
+  const finishDelete = beginContentMutationGuard(active, revisions, "build", () => refreshes++)
+  assert.equal(active.get("build"), 2)
+  assert.deepEqual(filterStaleContentPatch({ mods: ["old"], name: "Build" }, 3, revisions.get("build"), true), { name: "Build" })
+  finishDelete()
+  assert.equal(refreshes, 0)
+  finishBatch()
+  finishBatch()
+  assert.equal(refreshes, 1)
+  assert.equal(active.has("build"), false)
+})
+
+test("удаление во время скана отбрасывает старый снимок и объединяет запросы перескана", async () => {
+  const queue = createContentRefreshQueue()
+  const active = new Map(), revisions = new Map()
+  const first = Promise.withResolvers()
+  const started = Promise.withResolvers()
+  const snapshots = []
+  let passes = 0
+  const refresh = async () => {
+    const revision = revisions.get("build") ?? 0
+    const files = ++passes === 1 ? ["old.jar"] : ["new.jar"]
+    if (passes === 1) {
+      started.resolve()
+      await first.promise
+    }
+    if (revision === (revisions.get("build") ?? 0)) snapshots.push(files)
+  }
+  const task = queue("build", false, refresh)
+  await started.promise
+  assert.equal(queue("build", false, refresh), task)
+  const finish = beginContentMutationGuard(active, revisions, "build", () => queue("build", true, refresh))
+  finish()
+  assert.equal(queue("build", true, refresh), task)
+  first.resolve()
+  await task
+  assert.deepEqual(snapshots, [["new.jar"]])
+  assert.equal(passes, 2)
 })
 
 async function database(t) {

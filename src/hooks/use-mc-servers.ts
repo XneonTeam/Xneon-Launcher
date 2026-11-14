@@ -1,11 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react"
 import type { McServerInfo, McServerState } from "@xnlc/types"
 import { useCategoryIcons } from "@/src/hooks/use-category-icons"
 import { useCategoryList } from "@/src/hooks/use-category-list"
 
+// Как у инстансов: мгновенный локальный снимок и фоновая актуализация по TTL.
+// Удалённые серверы не сохраняем между монтированиями: доступ зависит от аккаунта.
+let serversCache: McServerInfo[] | null = null
+let serversCacheAt = 0
+let hadRemoteServers = false
+let serversInFlight: Promise<McServerInfo[]> | undefined
+const SERVERS_CACHE_TTL_MS = 3000
+
 export function useMcServers() {
-  const [servers, setServers] = useState<McServerInfo[]>([])
-  const [loading, setLoading] = useState(true)
+  const [servers, setServersState] = useState<McServerInfo[]>(() => serversCache ?? [])
+  const [loading, setLoading] = useState(serversCache === null)
+  const serversRef = useRef(servers)
+  const setServers = useCallback((value: SetStateAction<McServerInfo[]>) => {
+    const next = typeof value === "function" ? value(serversRef.current) : value
+    serversRef.current = next
+    hadRemoteServers = next.some(server => Boolean(server.remote))
+    serversCache = next.filter(server => !server.remote)
+    setServersState(next)
+  }, [])
   // Свёрнутые категории (как группы у сборок) — состояние только в UI.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   // Иконки категорий — их можно задать в контекстном меню категории.
@@ -16,9 +32,10 @@ export function useMcServers() {
   } = useCategoryList("servers")
 
   const reload = useCallback(async () => {
-    setLoading(true)
+    if (serversCache === null) setLoading(true)
     try {
-      const list = await window.electrobunAPI?.mcServerList()
+      if (!serversInFlight) serversInFlight = (window.electrobunAPI?.mcServerList() ?? Promise.resolve([])).finally(() => { serversInFlight = undefined })
+      const list = await serversInFlight
       const incoming = Array.isArray(list) ? list : []
       // Пустой ответ — это либо «серверов нет», либо сбой IPC / недоступная БД
       // (они тоже отдают пустой список). Раньше в обоих случаях список
@@ -33,16 +50,25 @@ export function useMcServers() {
       } else {
         setServers(incoming)
       }
+      serversCacheAt = performance.now()
     } catch (error) {
       console.error("[Servers] Не удалось обновить список серверов:", error)
     }
     setLoading(false)
-  }, [])
+  }, [setServers])
 
   useEffect(() => {
-    reload()
-    return window.electrobunAPI?.onMcServerRemoteConnection(event => { setServers(previous => previous.map(server => server.id === event.id ? event.info : server)) })
-  }, [reload])
+    if (serversCache === null || hadRemoteServers || performance.now() - serversCacheAt >= SERVERS_CACHE_TTL_MS) void reload()
+    const off = window.electrobunAPI?.onMcServerRemoteConnection(event => {
+      setServers(previous => previous.some(server => server.id === event.id)
+        ? previous.map(server => server.id === event.id ? event.info : server)
+        : [...previous, event.info])
+    })
+    const imported = () => { serversCacheAt = 0; void reload() }
+    window.addEventListener("launcher:agent-updated", imported)
+    window.addEventListener("cloud:imported", imported)
+    return () => { off?.(); window.removeEventListener("launcher:agent-updated", imported); window.removeEventListener("cloud:imported", imported) }
+  }, [reload, setServers])
 
   const createServer = useCallback(async (data: { name: string; description?: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }) => {
     const server = await window.electrobunAPI?.mcServerCreate(data)
@@ -62,6 +88,7 @@ export function useMcServers() {
 
   const restoreServer = useCallback(async (id: string) => {
     await window.electrobunAPI?.mcServerRestore(id)
+    serversCacheAt = 0
   }, [])
 
   const listTrash = useCallback(async () => {

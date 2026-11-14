@@ -42,6 +42,7 @@ export default defineConfig({
     ],
   },
   resolve: {
+    dedupe: ['react', 'react-dom', 'i18next', 'react-i18next'],
     alias: {
       'electrobun/view': path.resolve(__dirname, '.hutch/devkit/api/browser/index.ts'),
       '@': path.resolve(__dirname, '.'),
@@ -73,6 +74,7 @@ export default defineConfig({
     },
   },
   build: {
+    manifest: true,
     outDir: 'dist',
     emptyOutDir: true,
     chunkSizeWarningLimit: 2000,
@@ -92,24 +94,17 @@ export default defineConfig({
 
           const segments = id.split(/[\\/]/)
           const idx = segments.lastIndexOf('node_modules')
-          if (idx < 0 || idx + 1 >= segments.length) return 'vendor'
+          if (idx < 0 || idx + 1 >= segments.length) return
           let pkg = segments[idx + 1]
           if (pkg.startsWith('@') && idx + 2 < segments.length) {
             pkg = `${pkg}/${segments[idx + 2]}`
           }
 
           if (pkg === 'react' || pkg === 'react-dom' || pkg === 'scheduler') return 'react'
-          if (pkg.startsWith('@radix-ui/')) return 'radix'
-          if (pkg === 'i18next' || pkg === 'react-i18next' || pkg === 'i18next-http-backend' || pkg === 'i18next-resources-to-backend') return 'i18n'
-          if (pkg === 'recharts' || pkg.startsWith('d3-') || pkg === 'victory-vendor') return 'charts'
           if (pkg === 'skinview3d' || pkg === 'three') return 'skinview'
-          if (pkg === 'date-fns') return 'datefns'
           if (pkg.startsWith('@tabler/')) return 'icons'
-          if (pkg === 'react-markdown' || pkg === 'rehype-raw' || pkg === 'rehype-sanitize' || pkg === 'remark-rehype' || pkg === 'unified') return 'markdown'
-          if (pkg === 'axios' || pkg === 'form-data' || pkg === 'follow-redirects') return 'http'
-          if (pkg === 'webdav') return 'webdav'
-          if (pkg === 'adm-zip') return 'adm-zip'
-          return 'vendor'
+          // Остальное делит граф импортов: общий vendor втягивал Markdown/parse5
+          // в entry и принудительно загружал их до первого рендера.
         },
       },
     },

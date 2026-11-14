@@ -1,7 +1,7 @@
 import { lstatSync, mkdirSync } from "node:fs"
 import path from "node:path"
 import { lockLauncherProfile } from "../platform/instance-lock"
-import { readWindowsLauncherArgs } from "../platform/windows-native"
+import { readLauncherArgs } from "../platform/launcher-args"
 import { cli, forwardCli, parseCliLaunch, startCliListener } from "./cli"
 import { getDefaultLauncherDataRoot, isPortable, launcherLocationConfig } from "./profile-path"
 
@@ -54,10 +54,10 @@ async function start() {
     process.env.WEBVIEW2_USER_DATA_FOLDER = path.join(profile, "WebView2")
   }
   const primary = lockLauncherProfile(launcherLocationConfig)
-  if (primary && process.platform === "win32") await startCliListener(launcherLocationConfig)
+  if (primary) await startCliListener(launcherLocationConfig)
 
   const args = process.argv.slice(2)
-  const build = parseCliLaunch(args.includes("--launch") ? args : await readWindowsLauncherArgs())
+  const build = parseCliLaunch(args.includes("--launch") ? args : await readLauncherArgs())
   if (!primary) {
     await forwardCli(launcherLocationConfig, build)
     await quitNative(0)

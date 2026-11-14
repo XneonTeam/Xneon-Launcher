@@ -338,15 +338,15 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
           )}
         </div>
 
-        <div data-ui="instance-instance-servers-tab-div-8" className="flex items-center gap-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button type="button" onClick={() => openEditor(server)} title={t("servers.edit")} className="rounded-lg bg-muted/50 p-2 text-muted-foreground hover:text-foreground"><IconPencil className="h-4 w-4" /></button>
+        <div data-ui="instance-instance-servers-tab-div-8" className="flex items-center gap-2 flex-shrink-0">
+          <button type="button" onClick={() => openEditor(server)} title={t("servers.edit")} className="rounded-lg border border-border bg-muted/60 p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"><IconPencil className="h-4 w-4" /></button>
           <div data-ui="instance-instance-servers-tab-div-9" className="flex flex-col gap-0.5">
             <button data-ui="instance-instance-servers-tab-button-2"
               onClick={(e) => {
                 e.stopPropagation()
                 moveServer(server.ip, -1)
               }}
-              className="p-1 rounded-md bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              className="p-1 rounded-md border border-border bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
               title={t("servers.moveUp")}
             >
               <IconChevronUp className="w-4 h-4" />
@@ -356,7 +356,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
                 e.stopPropagation()
                 moveServer(server.ip, 1)
               }}
-              className="p-1 rounded-md bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              className="p-1 rounded-md border border-border bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
               title={t("servers.moveDown")}
             >
               <IconChevronDown className="w-4 h-4" />
@@ -375,7 +375,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
           )}
           <button data-ui="instance-instance-servers-tab-button-5"
             onClick={() => setServers((prev) => prev.filter((p) => p.ip !== server.ip))}
-            className="p-2 rounded-lg bg-muted/50 hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+            className="p-2 rounded-lg border border-border bg-muted/60 hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
           >
             <IconTrash className="w-4 h-4" />
           </button>

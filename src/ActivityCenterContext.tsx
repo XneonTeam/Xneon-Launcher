@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from "react"
 import i18n from "@/src/i18n"
+import { createShareNotification } from "./share-notifications"
 
 export type ActivityNotificationKind = "info" | "success" | "error" | "progress"
-export type ActivityNotificationSource = "launch" | "import" | "install"
+export type ActivityNotificationSource = "launch" | "import" | "install" | "share"
 export type ImportSessionSource = "modrinth" | "curseforge" | "ftb" | "local"
 
 export interface ActivityNotification {
@@ -20,7 +21,7 @@ export interface ActivityNotification {
   read: boolean
 }
 
-interface ActivityNotificationInput {
+export interface ActivityNotificationInput {
   kind: ActivityNotificationKind
   source: ActivityNotificationSource
   title: string
@@ -164,7 +165,8 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
       const next = prev.filter((item) => item.liveKey !== liveKey)
       const existing = prev[existingIndex]
       nextItem.id = existing.id
-      nextItem.read = isOpenRef.current ? true : existing.read
+      const shareFinished = input.source === "share" && existing.kind === "progress" && input.kind !== "progress"
+      nextItem.read = isOpenRef.current || (!shareFinished && existing.read)
       return [nextItem, ...next].slice(0, MAX_NOTIFICATIONS)
     })
   }, [])
@@ -173,13 +175,9 @@ export function ActivityCenterProvider({ children }: PropsWithChildren) {
     setNotifications((prev) => prev.filter((item) => item.liveKey !== liveKey))
   }, [])
   useEffect(() => window.electrobunAPI?.onShareProgress(event => {
-    if (!event.requestId || event.stage === "scan") return
-    const key = `share:${event.requestId}`
-    if (event.stage === "done" || event.stage === "error") {
-      removeLiveNotification(key)
-      pushNotification({ kind: event.stage === "done" ? "success" : "error", source: "install", title: i18n.t("share.title"), message: i18n.t(`share.flow.activity.${event.stage}`) })
-    } else upsertLiveNotification(key, { kind: "progress", source: "install", title: i18n.t("share.title"), message: i18n.t(`share.flow.stage.${event.stage}`, { defaultValue: i18n.t("share.flow.working") }), busy: true, progress: event.total ? event.done / event.total * 100 : null })
-  }), [removeLiveNotification, pushNotification, upsertLiveNotification])
+    const notification = createShareNotification(event, i18n.t.bind(i18n))
+    if (notification) upsertLiveNotification(`share:${event.requestId}`, notification)
+  }), [upsertLiveNotification])
 
   const beginContentInstall = useCallback((start: ContentInstallStart) => {
     contentInstallRef.current = {

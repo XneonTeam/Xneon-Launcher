@@ -1,11 +1,14 @@
 import { contentMetadataEvents } from "./content-metadata-events"
 import fs from "fs/promises"
 import { loadModsModule } from "./helpers"
-import { inspectJar, primeJarInspectionCache } from "./jar-inspector"
-import { logRuntime } from "../runtime"
+import { rememberLoaderRequirements, runScanWorker, type JarInspection } from "@xnlc/parser"
+import parserPackage from "../../../packages/xnlc-parser/package.json"
 import { dbHelpers } from "../../db"
 
+const parserVersion = `@xnlc/parser@${parserPackage.version}`
+
 export type ResolvedContentEntry = {
+  diagnostics?: import("@xnlc/parser").ParserDiagnostic[]
   sha1: string
   name: string
   description: string
@@ -22,6 +25,8 @@ export type ResolvedContentEntry = {
 type CfCandidate = {
   filePath: string
   sha1: string
+  size: number
+  mtimeMs: number
 }
 
 type CfMatch = {
@@ -39,27 +44,19 @@ async function resolveCurseforgeMatches(candidates: CfCandidate[]): Promise<{ ok
   const matches: Record<string, CfMatch> = {}
   if (candidates.length === 0) return { ok: true, matches }
 
-  // Отпечаток CurseForge считается по всему содержимому файла, поэтому чтение
-  // всех JAR-ов сразу — это сотни мегабайт в памяти одновременно. Держим ту же
-  // умеренную параллельность, что и у остальных проходов. Отпечаток приходит из
-  // общего кэша инспектора, если этот же файл уже разбирался на скане, — тогда
-  // диск не читается повторно.
+  // Отпечаток читается по тому же снимку файла, которому принадлежит SHA-1.
   const fingerprints = new Map<string, number>()
-  const FINGERPRINT_CHUNK = 4
-  for (let i = 0; i < candidates.length; i += FINGERPRINT_CHUNK) {
-    const chunk = candidates.slice(i, i + FINGERPRINT_CHUNK)
-    await Promise.all(chunk.map(async (candidate) => {
-      try {
-        const { curseforgeFingerprint } = await inspectJar(candidate.filePath, { curseforgeFingerprint: true })
-        if (typeof curseforgeFingerprint === "number") {
-          fingerprints.set(candidate.sha1, curseforgeFingerprint)
-        }
-      } catch {}
-    }))
-  }
+  const candidatesByPath = new Map(candidates.map(candidate => [candidate.filePath, candidate]))
+  try {
+    await runScanWorker(candidates, { curseforgeFingerprint: true }, result => {
+      const candidate = candidatesByPath.get(result.filePath)
+      const fingerprint = result.inspection?.curseforgeFingerprint
+      if (candidate && typeof fingerprint === "number") fingerprints.set(candidate.sha1, fingerprint)
+    })
+  } catch { return { ok: false, matches } }
 
   const values = [...new Set([...fingerprints.values()])].filter(n => Number.isFinite(n) && n > 0)
-  if (values.length === 0) return { ok: true, matches }
+  if (values.length === 0) return { ok: false, matches }
 
   try {
     const mods = await loadModsModule()
@@ -79,7 +76,7 @@ async function resolveCurseforgeMatches(candidates: CfCandidate[]): Promise<{ ok
     return { ok: false, matches }
   }
 
-  return { ok: true, matches }
+  return { ok: fingerprints.size === candidates.length, matches }
 }
 
 /**
@@ -131,7 +128,7 @@ function enrichWithModrinthInBackground(toParse: Array<{ filePath: string; sha1:
 
         // At this point the record has no conflicting source, so claiming
         // Modrinth is safe. Missing fields are filled from Modrinth data.
-        updates.push({
+        const updated = {
           sha1,
           name: existing?.name || "",
           description: existing?.description || "",
@@ -144,7 +141,8 @@ function enrichWithModrinthInBackground(toParse: Array<{ filePath: string; sha1:
           modId: existing?.modId ?? null,
           fileId: existing?.fileId ?? null,
           cfChecked: existing?.cfChecked ?? 0,
-        })
+        }
+        if (!existing || Object.entries(updated).some(([key, value]) => existing[key as keyof typeof existing] !== value)) updates.push(updated)
       }
       await dbHelpers.upsertResources(updates)
       if (updates.length) contentMetadataEvents.emit("updated", toParse.map(item => item.filePath))
@@ -154,9 +152,16 @@ function enrichWithModrinthInBackground(toParse: Array<{ filePath: string; sha1:
   })()
 }
 
-export async function resolveContentEntries(filePaths: string[], onProgress?: (processed: number, total: number) => void): Promise<Record<string, ResolvedContentEntry>> {
+export async function resolveContentEntries(filePaths: string[], onProgress?: (processed: number, total: number) => void, signal?: AbortSignal): Promise<Record<string, ResolvedContentEntry>> {
+  signal?.throwIfAborted()
   const result: Record<string, ResolvedContentEntry> = {}
   if (filePaths.length === 0) return result
+  const markUnreadable = (filePath: string, message: string) => {
+    result[filePath] = {
+      sha1: "", name: "", description: "", version: "local", source: "local",
+      diagnostics: [{ code: "SCAN_ERROR", message }],
+    }
+  }
 
   const report = (processed: number, total: number) => {
     try { onProgress?.(Math.max(0, Math.min(processed, total)), total) } catch {}
@@ -167,11 +172,14 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
     try {
       const stat = await fs.stat(filePath)
       return { filePath, stat }
-    } catch {
+    } catch (error) {
+      markUnreadable(filePath, String(error))
       return null
     }
   }))
   const valid = stats.filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+  const fileStats = new Map(valid.map(({ filePath, stat }) => [filePath, stat]))
+  signal?.throwIfAborted()
   const totalFiles = valid.length
   if (totalFiles === 0) return result
 
@@ -187,12 +195,32 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
     toHash.push({ filePath, size: stat.size, mtime: Math.round(stat.mtimeMs) })
   }
 
-  // Единый инспектор: sha1 считается за тот же проход, что и всё остальное,
-  // а результат кладётся в общий кэш по (path, size, mtime).
-  const hashed = (await Promise.all(toHash.map(async ({ filePath, size, mtime }) => {
-    const { sha1 } = await inspectJar(filePath, { sha1: true }, { size, mtimeMs: mtime })
-    return sha1 ? { filePath, sha1, size, mtime } : null
-  }))).filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+  // Новые файлы хэшируем и разбираем в одном задании worker.
+  const coldInspections = new Map<string, JarInspection>()
+  const hashed: Array<{ filePath: string; sha1: string; size: number; mtime: number }> = []
+  const hashFiles = new Map(toHash.map(file => [file.filePath, file]))
+  try {
+    await runScanWorker(toHash.map(file => ({ filePath: file.filePath, size: file.size, mtimeMs: file.mtime })), { sha1: true, metadata: true, loaderRequirements: true }, item => {
+      const file = hashFiles.get(item.filePath)
+      if (!file) return
+      hashFiles.delete(item.filePath)
+      const sha1 = item.inspection?.sha1
+      if (sha1 && item.inspection) {
+        hashed.push({ ...file, sha1 })
+        coldInspections.set(file.filePath, item.inspection)
+        const stat = fileStats.get(file.filePath)
+        if (stat) rememberLoaderRequirements(file.filePath, stat, item.inspection)
+      }
+      else markUnreadable(file.filePath, item.error ?? item.inspection?.diagnostics?.[0]?.message ?? "Cannot hash content file")
+      report(++processed, totalFiles)
+    }, signal)
+  } catch (error) {
+    signal?.throwIfAborted()
+    for (const file of hashFiles.values()) markUnreadable(file.filePath, String(error))
+    hashFiles.clear()
+  }
+  for (const file of hashFiles.values()) markUnreadable(file.filePath, "Scan worker did not return a result")
+  signal?.throwIfAborted()
   // Снапшоты пишем одной транзакцией: при `synchronous` каждый отдельный
   // коммит — это fsync, а холодный скан даёт снапшот на каждый новый файл.
   await dbHelpers.upsertFileSnapshots(
@@ -200,7 +228,7 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
   )
   const sha1ByPath = new Map<string, string>()
   for (const { filePath } of valid) {
-    sha1ByPath.set(filePath, snapshotByPath.get(filePath)?.sha1 ?? "")
+    sha1ByPath.set(filePath, result[filePath] ? "" : snapshotByPath.get(filePath)?.sha1 ?? "")
   }
   for (const { filePath, sha1 } of hashed) {
     sha1ByPath.set(filePath, sha1)
@@ -251,7 +279,8 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
     const sha1 = sha1ByPath.get(filePath)
     if (!sha1) continue
     const resource = resourceBySha1.get(sha1)
-    if (resource && resource.name) {
+    const staleLocalParser = resource?.source === "local" && resource.parserVersion !== parserVersion
+    if (resource && (resource.name || resource.source === "modrinth" || resource.source === "curseforge" || resource.parserVersion === parserVersion) && !staleLocalParser) {
       result[filePath] = {
         sha1,
         name: resource.name,
@@ -282,26 +311,26 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
   // Ресурсы кэшируем одной транзакцией после разбора всей пачки: коммит на
   // каждый файл превращался в fsync на каждый файл.
   const resourcesToCache: Array<Parameters<typeof dbHelpers.upsertResource>[0]> = []
-  /**
-   * Файлы, которые нужно разобрать в main. Заполняется либо полным списком
-   * (когда worker не используется), либо остатком после сбоя worker'а.
-   */
-  let toParseForLocalFallback: Array<{ filePath: string; sha1: string }> = []
-
   const entryFromMetadata = (
     sha1: string,
     metadata: { name?: string; description?: string; version?: string; icon_url?: string; author?: string },
+    cacheable = false,
   ): { entry: ResolvedContentEntry; cachePayload: Parameters<typeof dbHelpers.upsertResource>[0] | null } => {
+    const existing = resourceBySha1.get(sha1)
     const entry: ResolvedContentEntry = {
       sha1,
-      name: metadata.name || "",
-      description: metadata.description || "",
-      version: metadata.version || "local",
-      icon_url: metadata.icon_url,
-      author: metadata.author,
-      source: "local",
+      name: metadata.name || existing?.name || "",
+      description: metadata.description || existing?.description || "",
+      version: metadata.version || existing?.version || "local",
+      icon_url: metadata.icon_url || existing?.icon || undefined,
+      author: metadata.author || existing?.author || undefined,
+      source: (existing?.source as ResolvedContentEntry["source"]) ?? "local",
+      projectId: existing?.projectId ?? undefined,
+      versionId: existing?.versionId ?? undefined,
+      modId: existing?.modId ?? undefined,
+      fileId: existing?.fileId ?? undefined,
     }
-    const cachePayload = metadata.name
+    const cachePayload = cacheable
       ? {
           sha1,
           name: entry.name,
@@ -310,99 +339,53 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
           icon: entry.icon_url ?? "",
           author: entry.author ?? "",
           source: entry.source,
-          projectId: null,
-          versionId: null,
-          modId: null,
-          fileId: null,
-          cfChecked: 0,
+          projectId: existing?.projectId ?? null,
+          versionId: existing?.versionId ?? null,
+          modId: existing?.modId ?? null,
+          fileId: existing?.fileId ?? null,
+          cfChecked: existing?.cfChecked ?? 0,
+          parserVersion,
         }
       : null
     return { entry, cachePayload }
   }
 
-  /**
-   * Холодный скан пачки новых JAR: разбор уходит в worker-поток, чтобы не
-   * морозить main (на 163 модах это было ~4 секунды занятого event loop).
-   * Метаданные и отпечаток приходят готовыми, main только пишет их в БД.
-   * Если воркер упал или не уложился в таймаут, возвращаются файлы, которые
-   * он не успел обработать, — их разбирает локальный путь.
-   */
-  const parseViaWorker = async (files: Array<{ filePath: string; sha1: string }>): Promise<boolean> => {
-    const statByPath = new Map(valid.map(({ filePath, stat }) => [filePath, stat]))
-    const workerFiles = files
-      .map(({ filePath }) => {
-        const stat = statByPath.get(filePath)
-        return stat ? { filePath, size: stat.size, mtime: Math.round(stat.mtimeMs) } : null
-      })
-      .filter((file): file is { filePath: string; size: number; mtime: number } => file !== null)
-
-    if (workerFiles.length !== files.length) return false
-
-    const { runJarScanWorker } = await import("./scan-worker-client.js")
-    const outcome = await runJarScanWorker(workerFiles, ({ filePath, size, mtime, inspection }) => {
-      // Кладём результат в общий кэш main: иначе зависимости и требования
-      // загрузчика перечитают те же JAR повторно.
-      primeJarInspectionCache(filePath, { size, mtimeMs: mtime }, inspection)
-      const sha1 = inspection.sha1 ?? ""
-      if (!sha1) return
-      const { entry, cachePayload } = entryFromMetadata(sha1, inspection.metadata ?? {})
-      parsed.push({ filePath, entry })
-      if (cachePayload) resourcesToCache.push(cachePayload)
-    })
-
-    if (outcome.ok) {
-      processed += files.length
-      report(processed, totalFiles)
-      return true
-    }
-
-    // Воркер не справился: обработанные файлы пропускаем (иначе дубли),
-    // остаток разбирается в main локальным путём.
-    const processedPaths = new Set(outcome.processedPaths)
-    const remaining = files.filter(({ filePath }) => !processedPaths.has(filePath))
-    toParseForLocalFallback = remaining
-    logRuntime(`[Scan] Worker обработал ${processedPaths.size} из ${files.length} файлов, остаток — в main`)
-    processed += processedPaths.size
-    report(processed, totalFiles)
-    return remaining.length === 0
+  const acceptInspection = (file: typeof toParse[number], inspection?: JarInspection, error?: string, counted = false) => {
+    const { entry, cachePayload } = entryFromMetadata(file.sha1, inspection?.metadata ?? {}, !!inspection?.metadata && !inspection.diagnostics?.length)
+    const diagnostics = error ? [{ code: "SCAN_ERROR", message: error }] : inspection?.diagnostics
+    parsed.push({ filePath: file.filePath, entry: { ...entry, diagnostics } })
+    if (cachePayload) resourcesToCache.push(cachePayload)
+    if (!counted) report(++processed, totalFiles)
+    signal?.throwIfAborted()
   }
-
-  const WORKER_SCAN_THRESHOLD = 24
-  let handledByWorker = false
-  if (toParse.length >= WORKER_SCAN_THRESHOLD) {
-    try {
-      handledByWorker = await parseViaWorker(toParse)
-    } catch (error) {
-      logRuntime(`[Scan] Worker недоступен, сканирую в main: ${error instanceof Error ? error.message : String(error)}`)
-      toParseForLocalFallback = toParse
-      handledByWorker = false
-    }
-  } else {
-    toParseForLocalFallback = toParse
+  const parseFiles = new Map<string, typeof toParse[number]>()
+  for (const file of toParse) {
+    const inspection = coldInspections.get(file.filePath)
+    if (inspection) acceptInspection(file, inspection, undefined, true)
+    else parseFiles.set(file.filePath, file)
   }
-
-  if (!handledByWorker) {
-    const PARSE_CHUNK = 8
-    for (let i = 0; i < toParseForLocalFallback.length; i += PARSE_CHUNK) {
-      const chunk = toParseForLocalFallback.slice(i, i + PARSE_CHUNK)
-      const chunkResults = await Promise.all(chunk.map(async ({ filePath, sha1 }) => {
-        // Local resolve: метаданные из архива без сети. Отпечаток CurseForge
-        // считается в этом же проходе и позже берётся из кэша инспектора —
-        // раньше это было второе полное чтение файла и murmur по всем байтам.
-        const inspection = await inspectJar(filePath, { metadata: true, curseforgeFingerprint: true })
-        const { entry, cachePayload } = entryFromMetadata(sha1, inspection.metadata ?? {})
-        return { filePath, entry, cachePayload }
-      }))
-      for (const { filePath, entry, cachePayload } of chunkResults) {
-        parsed.push({ filePath, entry })
-        if (cachePayload) resourcesToCache.push(cachePayload)
-      }
-      processed += chunk.length
-      report(processed, totalFiles)
-    }
+  try {
+    await runScanWorker([...parseFiles.values()].map(file => {
+      const stat = fileStats.get(file.filePath)
+      return { ...file, size: stat?.size, mtimeMs: stat ? Math.round(stat.mtimeMs) : undefined }
+    }), { metadata: true, loaderRequirements: true }, item => {
+      const file = parseFiles.get(item.filePath)
+      if (!file) return
+      parseFiles.delete(item.filePath)
+      const stat = fileStats.get(file.filePath)
+      if (stat) rememberLoaderRequirements(file.filePath, stat, item.inspection)
+      acceptInspection(file, item.inspection, item.error)
+    }, signal)
+  } catch (error) {
+    signal?.throwIfAborted()
+    for (const file of parseFiles.values()) parsed.push({ filePath: file.filePath, entry: { ...entryFromMetadata(file.sha1, {}).entry, diagnostics: [{ code: "SCAN_ERROR", message: String(error) }] } })
+    parseFiles.clear()
   }
+  for (const file of parseFiles.values()) parsed.push({ filePath: file.filePath, entry: { ...entryFromMetadata(file.sha1, {}).entry, diagnostics: [{ code: "SCAN_ERROR", message: "Scan worker did not return a result" }] } })
 
+  signal?.throwIfAborted()
   await dbHelpers.upsertResources(resourcesToCache)
+  signal?.throwIfAborted()
 
   for (const { filePath, entry } of parsed) {
     result[filePath] = entry
@@ -419,7 +402,7 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
   // ещё неизвестно, есть ли они на CurseForge.
   enrichWithCurseforgeInBackground(
     valid
-      .map(({ filePath }) => ({ filePath, sha1: sha1ByPath.get(filePath) ?? "" }))
+      .map(({ filePath, stat }) => ({ filePath, sha1: sha1ByPath.get(filePath) ?? "", size: stat.size, mtimeMs: Math.round(stat.mtimeMs) }))
       .filter((candidate) => candidate.sha1 && needsCurseforgeCheck(candidate.sha1, resourceBySha1)),
   )
 
@@ -477,8 +460,18 @@ function enrichCachedIconsInBackground(
 }
 
 /** Background CurseForge match resolution (fingerprint -> modId/fileId). */
+const pendingFingerprints = new Set<string>()
+
 function enrichWithCurseforgeInBackground(candidates: CfCandidate[]): void {
-  const pending = candidates.filter(c => c.sha1)
+  const keys: string[] = []
+  const pending = candidates.filter(candidate => {
+    if (!candidate.sha1) return false
+    const key = JSON.stringify([candidate.filePath, candidate.sha1, candidate.size, candidate.mtimeMs])
+    if (pendingFingerprints.has(key)) return false
+    pendingFingerprints.add(key)
+    keys.push(key)
+    return true
+  })
   if (pending.length === 0) return
   void (async () => {
     try {
@@ -538,6 +531,8 @@ function enrichWithCurseforgeInBackground(candidates: CfCandidate[]): void {
       try { await dbHelpers.setResourcesCurseforge(cfMatches) } catch {}
       await dbHelpers.upsertResources(updates)
       if (updates.length) contentMetadataEvents.emit("updated", pending.map(item => item.filePath))
-    } catch {}
+    } catch {} finally {
+      for (const key of keys) pendingFingerprints.delete(key)
+    }
   })()
 }

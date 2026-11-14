@@ -1,4 +1,5 @@
-import { closeSync, existsSync, mkdirSync, openSync, readSync, renameSync, statSync, unlinkSync, writeFileSync } from "fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, statSync, unlinkSync, writeFileSync } from "fs";
+import { createHash } from "node:crypto";
 import path from "path";
 import { AuthManager } from "./auth/auth-manager.js";
 import { getAuthlibInjectorAllowedHosts } from "./config.js";
@@ -77,6 +78,9 @@ const DOWNLOAD_TIMEOUT_MS = 60_000;
 /** Таймаут запроса «последней версии» (latest.json / GitHub API), мс. */
 const VERSION_LOOKUP_TIMEOUT_MS = 10_000;
 
+const RETROAUTH_INJECTOR_VERSION = "1.0.4";
+const RETROAUTH_INJECTOR_SHA256 = "8653b24cf088b11630184e574d2258b6ca1d7c4ab89914a636d6785403fad4b0";
+
 /** Файл похож на ZIP/JAR: сигнатура "PK" и минимальный размер. */
 function looksLikeJar(filePath: string, size: number): boolean {
   if (size < MIN_JAR_BYTES) return false;
@@ -136,21 +140,20 @@ async function fetchWithTimeout(
  * оборванная загрузка больше не оставляет «половину» JAR на месте рабочего
  * файла. Сигнатуру ("PK") проверяем и у скачанного, и у уже лежащего файла —
  * раньше хватало size > 0, поэтому обрезанный JAR считался валидным навсегда.
+ * Для закреплённого релиза проверяем также SHA-256 кэша и загрузки. Прежний
+ * файл сохраняем до успешной проверки нового, но не возвращаем как актуальный.
  */
 async function ensureDownloadedFile(
   filePath: string,
   url: string,
   label: string,
   signal?: AbortSignal,
+  expectedSha256?: string,
 ): Promise<string> {
   if (existsSync(filePath)) {
-    if (looksLikeJar(filePath, statSync(filePath).size)) {
+    if (looksLikeJar(filePath, statSync(filePath).size)
+      && (!expectedSha256 || createHash("sha256").update(readFileSync(filePath)).digest("hex") === expectedSha256)) {
       return filePath;
-    }
-    try {
-      unlinkSync(filePath);
-    } catch {
-      // Не смогли удалить — перезапись через rename ниже всё равно исправит файл.
     }
   }
 
@@ -166,6 +169,9 @@ async function ensureDownloadedFile(
     const buffer = Buffer.from(await response.arrayBuffer());
     if (buffer.length < MIN_JAR_BYTES || buffer[0] !== 0x50 || buffer[1] !== 0x4b) {
       throw new Error(`${label} download returned an invalid archive (${buffer.length} bytes)`);
+    }
+    if (expectedSha256 && createHash("sha256").update(buffer).digest("hex") !== expectedSha256) {
+      throw new Error(`${label} download failed: SHA-256 mismatch`);
     }
 
     writeFileSync(tempPath, buffer);
@@ -242,7 +248,7 @@ export async function resolveLatestAuthlibInjectorUrl(): Promise<string> {
   try {
     const res = await fetchWithTimeout(
       "https://api.github.com/repos/yushijinhun/authlib-injector/releases/latest",
-      { headers: { "User-Agent": "XNLauncher" } },
+      { headers: { "User-Agent": "Xneon-Launcher/1.0.8" } },
       VERSION_LOOKUP_TIMEOUT_MS,
     );
     if (res.ok) {
@@ -276,9 +282,10 @@ export async function ensureAuthlibInjector(rootPath: string, signal?: AbortSign
 export async function ensureRetroAuthInjector(rootPath: string, signal?: AbortSignal): Promise<string> {
   return ensureDownloadedFile(
     path.join(rootPath, "retroauth-injector.jar"),
-    "https://github.com/MAINER4IK/RetroAuth-injector/releases/download/1.0.2/retroauth-injector-1.0.2.jar",
+    `https://github.com/MAINER4IK/RetroAuth-injector/releases/download/${RETROAUTH_INJECTOR_VERSION}/retroauth-injector-${RETROAUTH_INJECTOR_VERSION}.jar`,
     "retroauth-injector",
     signal,
+    RETROAUTH_INJECTOR_SHA256,
   );
 }
 

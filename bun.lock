@@ -12,6 +12,7 @@
         "@xnlc/core": "workspace:*",
         "@xnlc/mods": "workspace:*",
         "@xnlc/nbt": "workspace:*",
+        "@xnlc/parser": "workspace:*",
         "@xnlc/servers": "workspace:*",
         "@xnlc/share": "workspace:*",
         "@xnlc/skins": "workspace:*",
@@ -21,13 +22,13 @@
         "discord-rpc": "^4.0.1",
         "i18next": "^26.3.6",
         "iconv-lite": "^0.7.3",
+        "nativefiledialog-for-bun": "0.3.2",
         "pngjs": "^7.0.0",
         "prismjs": "^1.30.0",
         "react-simple-code-editor": "^0.14.1",
         "remark-gfm": "^4.0.1",
         "skinview3d": "^3.4.2",
         "three": "^0.185.1",
-        "toml": "^5.0.0",
         "webdav": "^5.10.0",
       },
       "devDependencies": {
@@ -91,6 +92,15 @@
       "devDependencies": {
         "@types/node": "^26.2.0",
         "typescript": "^7.0.2",
+      },
+    },
+    "packages/xnlc-parser": {
+      "name": "@xnlc/parser",
+      "version": "1.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.4",
+        "adm-zip": "^0.6.0",
+        "typescript": "7.0.2",
       },
     },
     "packages/xnlc-servers": {
@@ -448,6 +458,8 @@
     "@xnlc/mods": ["@xnlc/mods@workspace:packages/xnlc-mods"],
 
     "@xnlc/nbt": ["@xnlc/nbt@workspace:packages/xnlc-nbt"],
+
+    "@xnlc/parser": ["@xnlc/parser@workspace:packages/xnlc-parser"],
 
     "@xnlc/servers": ["@xnlc/servers@workspace:packages/xnlc-servers"],
 
@@ -880,6 +892,8 @@
     "ms": ["ms@2.1.3", "", {}, "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="],
 
     "nanoid": ["nanoid@3.3.18", "", { "bin": { "nanoid": "bin/nanoid.cjs" } }, "sha512-DTg4MJbGMWkfi6VZFdNt2/caMbQy4Ou+Op/hJQvGEWcnVfoA1QA+xzRKAzw9jD6+GVOOeYr/mIcuDSdug6F6+w=="],
+
+    "nativefiledialog-for-bun": ["nativefiledialog-for-bun@0.3.2", "", { "hasInstallScript": true }, "sha512-RITHu0I8XxYNHFYlBlS7Fmdg0q0zNsZM2AMm9ABVwOjUsGZmbdvGOrsxdY7oIewlmBIP6XnmNB37xenOZEQJSw=="],
 
     "negotiator": ["negotiator@1.1.0", "", { "dependencies": { "content-type": "2.1.0" } }, "sha512-NMPBRMJgiQHjbd8phG3Vebdx4kZ1H121rbl5IkMqeOsahptB9BKo/d7oJ3zTXqTgagn2bWlNSXkh0QUGM31RYg=="],
 
