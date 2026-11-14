@@ -47,7 +47,7 @@ export function registerThemeFiles() {
     if (result.canceled || !result.filePaths[0]) return null
     const file = result.filePaths[0]
     if (path.extname(file).toLowerCase() !== ".xntheme" || (await fs.stat(file)).size > 512 * 1024 * 1024) throw new Error("Unsupported or oversized theme archive")
-    return { kind: "bundle", theme: await restoreThemeBundle(await fs.readFile(file), directory()) }
+    return { kind: "bundle", theme: await restoreThemeBundle(file, directory()) }
   })
   rpcRegistry.handle("theme:local-export", async (_event, theme: Theme, format: "xntheme") => {
     if (!theme || typeof theme.name !== "string" || format !== "xntheme") throw new Error("Invalid theme export")
@@ -55,7 +55,7 @@ export function registerThemeFiles() {
     if (!win) return false
     const result = await dialog.showSaveDialog(win, { defaultPath: `${theme.name.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").slice(0, 80) || "theme"}.${format}`, filters: [{ name: "Xneon Theme", extensions: [format] }] })
     if (result.canceled || !result.filePath) return false
-    await fs.writeFile(result.filePath, await createThemeBundle(theme, directory()))
+    await createThemeBundle(theme, directory(), result.filePath)
     return true
   })
   void fs.mkdir(library.directory, { recursive: true }).then(() => {

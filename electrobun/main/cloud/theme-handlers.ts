@@ -6,9 +6,10 @@ import { dbHelpers } from "../../db"
 import { sendToRenderer } from "../runtime"
 import { opFailure } from "../errors"
 import { getProvider, type CloudProviderId } from "./registry"
+import type { Theme } from "@xnlc/types"
 import { createThemeBundle, restoreThemeBundle, readThemeBundlePreview } from "./theme-bundle"
 
-const previewCache = new Map<string, ReturnType<typeof readThemeBundlePreview>>()
+const previewCache = new Map<string, Theme>()
 
 /** Читаем только манифест, не устанавливая тему и не извлекая её медиа. */
 export async function cloudThemePreview(providerId: CloudProviderId, file: { path: string; size: number; modifiedAt?: string }) {
@@ -22,7 +23,7 @@ export async function cloudThemePreview(providerId: CloudProviderId, file: { pat
     const result = await getProvider(providerId).downloadFile(file.path, local)
     if (!result.success) throw new Error(result.error || "Theme preview download failed")
     if ((await fs.stat(local)).size > 512 * 1024 * 1024) throw new Error("Theme archive exceeds size limit")
-    const preview = readThemeBundlePreview(await fs.readFile(local))
+    const preview = await readThemeBundlePreview(local)
     if (previewCache.size >= 64) previewCache.delete(previewCache.keys().next().value!)
     previewCache.set(key, preview)
     return preview
@@ -52,12 +53,11 @@ export function registerCloudThemeHandlers() {
       const id = uploadId || randomUUID()
       const progress = (percent: number, stage: "zip" | "upload") => sendToRenderer("cloud:upload-progress", { id, percent, stage })
       progress(0, "zip")
-      const buffer = await createThemeBundle(theme, path.join(app.getPath("userData"), "theme-media"))
       const safeId = String(theme.id).replace(/[^a-z0-9_-]/gi, "_").slice(0, 100)
       const name = String(theme.name).replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").slice(0, 80)
       const fileName = `${name}-${safeId}.xntheme`
       const file = path.join(temporary, fileName)
-      await fs.writeFile(file, buffer)
+      await createThemeBundle(theme, path.join(app.getPath("userData"), "theme-media"), file)
       progress(100, "zip")
       await provider.ensureBaseFolder()
       const result = await provider.uploadFile(file, `themes/${fileName}`, percent => progress(percent, "upload"))
@@ -75,7 +75,7 @@ export function registerCloudThemeHandlers() {
       const result = await provider.downloadFile(remotePath, file)
       if (!result.success) return { success: false, error: result.error }
       if ((await fs.stat(file)).size > 512 * 1024 * 1024) throw new Error("Theme archive exceeds size limit")
-      const theme = await restoreThemeBundle(await fs.readFile(file), path.join(app.getPath("userData"), "theme-media"))
+      const theme = await restoreThemeBundle(file, path.join(app.getPath("userData"), "theme-media"))
       // Новая запись не перезаписывает одноимённую тему на другом устройстве.
       const imported = { ...theme, id: `custom-cloud-${randomUUID()}`, custom: true, createdAt: Date.now(), updatedAt: Date.now() }
       const save = importQueue.then(async () => {
