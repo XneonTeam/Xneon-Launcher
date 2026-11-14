@@ -2,18 +2,13 @@
 // XNLC — проверка требований модов к версии загрузчика
 // ============================================================
 //
-// Сам разбор метаданных живёт в builds/loader-requirements.ts, а чтение JAR
-// выполняет единый инспектор (builds/jar-inspector.ts): файл читается один раз
-// и кладётся в общий кэш по (path, size, mtime), поэтому проверка требований
-// после сканирования сборки диск не трогает.
+// Парсер возвращает требования JAR, а здесь формируется отчёт для сборки.
 
 import * as fs from "fs"
 import * as path from "path"
-import { inspectJar } from "./builds/jar-inspector"
-import { satisfiesLoaderRequirement } from "./builds/version-range"
-import { normalizeLoaderId, type ModArchiveRequirements } from "./builds/loader-requirements"
+import { cachedLoaderRequirements, inspectJar, rememberLoaderRequirements, runScanWorker, satisfiesLoaderRequirement, normalizeLoaderId, type ModArchiveRequirements } from "@xnlc/parser"
 
-export type { ModArchiveRequirements, DeclaredRequirement } from "./builds/loader-requirements"
+export type { ModArchiveRequirements, DeclaredRequirement } from "@xnlc/parser"
 
 export interface LoaderRequirementEntry {
   fileName: string
@@ -76,14 +71,13 @@ export async function checkLoaderRequirements(
   }
 
   // Один `stat` на файл — из него и подпись папки, и ключ кэша инспектора.
-  const entries: Array<{ fileName: string; filePath: string; size: number; mtimeMs: number }> = []
+  const entries: Array<{ fileName: string; filePath: string; size: number; mtimeMs: number; ctimeMs: number }> = []
   await Promise.all(files.map(async (fileName) => {
     const filePath = path.join(modsDir, fileName)
     try {
       const stat = await fs.promises.stat(filePath)
-      // Гигантские JAR-ы (шейдерпаки/сборки внутри мода) не читаем целиком.
-      if (stat.size > 80 * 1024 * 1024) return
-      entries.push({ fileName, filePath, size: stat.size, mtimeMs: Math.round(stat.mtimeMs) })
+      // XNLC читает отдельные entries, без полного чтения большого JAR.
+      entries.push({ fileName, filePath, size: stat.size, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs })
     } catch {
       // Файл исчез между readdir и stat — пропускаем.
     }
@@ -91,18 +85,36 @@ export async function checkLoaderRequirements(
   entries.sort((a, b) => (a.fileName < b.fileName ? -1 : a.fileName > b.fileName ? 1 : 0))
 
   const signature = `${loaderId}|${loaderVersion ?? ""}|` +
-    entries.map(entry => `${entry.fileName}:${entry.size}:${entry.mtimeMs}`).join("|")
+    entries.map(entry => `${entry.fileName}:${entry.size}:${entry.mtimeMs}:${entry.ctimeMs}`).join("|")
   const cachedReport = reportCache.get(modsDir)
   if (cachedReport && cachedReport.signature === signature) {
     return cachedReport.report
   }
 
+  const scanned = new Map<string, ModArchiveRequirements>()
+  const missing = new Map<string, typeof entries[number]>()
+  for (const entry of entries) {
+    const cached = cachedLoaderRequirements(entry.filePath, entry)
+    if (cached === undefined) missing.set(entry.filePath, entry)
+    else if (cached) scanned.set(entry.filePath, cached)
+  }
+  let complete = true
+  try {
+    await runScanWorker([...missing.values()], { loaderRequirements: true }, result => {
+      const entry = missing.get(result.filePath)
+      if (entry) rememberLoaderRequirements(result.filePath, entry, result.inspection)
+      if (result.inspection?.loaderRequirements === undefined) complete = false
+      if (result.inspection?.loaderRequirements) scanned.set(result.filePath, result.inspection.loaderRequirements)
+    })
+  } catch {
+    return report
+  }
   for (let i = 0; i < entries.length; i += READ_CHUNK) {
     const chunk = entries.slice(i, i + READ_CHUNK)
-    const results = await Promise.all(chunk.map(async ({ fileName, filePath }) => {
-      const requirements = await readModLoaderRequirements(filePath)
+    const results = chunk.map(({ fileName, filePath }) => {
+      const requirements = scanned.get(filePath)
       return requirements ? { fileName, requirements } : null
-    }))
+    })
 
     for (const result of results) {
       if (!result) continue
@@ -138,6 +150,7 @@ export async function checkLoaderRequirements(
     }
   }
 
+  if (!complete) return report
   if (reportCache.size >= REPORT_CACHE_LIMIT) {
     // Ключей немного (по одному на сборку), но при импорте их может стать много.
     reportCache.clear()

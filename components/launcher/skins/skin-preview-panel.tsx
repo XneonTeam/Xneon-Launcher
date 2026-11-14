@@ -1,8 +1,7 @@
 import { CONTENT_ENTER_DELAYED } from "../content-motion"
-import { useState } from "react"
+import { lazy, Suspense, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import { SkinViewer3D } from "@/components/ui/skin-viewer-3d"
 import { ElytraIcon } from "@/components/ui/elytra-icon"
 import { SkinAccountPicker } from "./account-picker"
 import { useViewerSize } from "./use-viewer-size"
@@ -12,6 +11,8 @@ import {
   IconLoader2, IconUser, IconCheck, IconShirt,
   IconPencil, IconRefresh,
 } from "@tabler/icons-react"
+
+const SkinViewer3D = lazy(() => import("@/components/ui/skin-viewer-3d").then(module => ({ default: module.SkinViewer3D })))
 
 interface SkinPreviewPanelProps {
   selectedSkin: SkinCardData | undefined
@@ -109,7 +110,7 @@ export function SkinPreviewPanel({
           {loading ? (
             <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
           ) : selectedSkin?.blobUrl ? (
-            <SkinViewer3D
+            <Suspense fallback={null}><SkinViewer3D
               skinUrl={selectedSkin.blobUrl}
               capeUrl={selectedCapeUrl}
               slim={selectedSkin.variant === "slim"}
@@ -117,7 +118,7 @@ export function SkinPreviewPanel({
               faceBack={showElytra && Boolean(selectedCapeUrl)}
               width={size.width}
               height={size.height}
-            />
+            /></Suspense>
           ) : (
             <div data-ui="skins-skin-preview-panel-div-5" className="flex flex-col items-center gap-2 text-muted-foreground/40">
               <IconUser className="h-12 w-12 opacity-30" strokeWidth={1} />

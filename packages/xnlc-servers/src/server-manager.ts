@@ -1,5 +1,4 @@
-import { ChildProcess, spawn, exec } from "child_process"
-import { promisify } from "util"
+import { ChildProcess, spawn } from "child_process"
 import path from "path"
 import fs from "fs"
 import os from "os"
@@ -7,7 +6,8 @@ import type { McServerInfo, McServerState, McServerMetrics } from "@xnlc/types" 
 import { createInterface } from "node:readline"
 import { EULA_PROMPT_PATTERN, isStartupDoneLine, isStoppingLine } from "./startup-detection.js"
 
-const execAsync = promisify(exec)
+export type ProcessMetricsSample = { cpuMilliseconds: number; workingSetBytes: number }
+export type ProcessMetricsReader = (pid: number) => ProcessMetricsSample | null | Promise<ProcessMetricsSample | null>
 
 /** Фаза процесса сервера. `running` ставится только по маркеру готовности. */
 type ServerPhase = "starting" | "running" | "stopping"
@@ -43,6 +43,8 @@ const KILL_TIMEOUT_MS = 5_000
 const STARTUP_FALLBACK_MS = 180_000
 
 export class ServerManager {
+  private processMetricsReader?: ProcessMetricsReader
+  setProcessMetricsReader(reader: ProcessMetricsReader): void { this.processMetricsReader = reader }
   private running = new Map<string, RunningServer>()
   /**
    * Консоль до старта процесса: установка ядра и компиляция BuildTools.
@@ -75,9 +77,8 @@ export class ServerManager {
   /**
    * Возвращает метрики немедленно, без обращения к ОС.
    *
-   * Сбор метрик на Windows — это spawn powershell (~150-250 мс), поэтому он не
-   * должен выполняться в пути запроса из renderer. Значения приходят из фонового
-   * сэмплера (см. startMetricsSampler), который обновляет кэш параллельно.
+   * Значения приходят из фонового сэмплера: renderer не ждёт обращения к ОС.
+   * Платформенный порт читает метрики средствами ОС; менеджер считает только дельты.
    */
   getMetricsSync(id: string): McServerMetrics {
     const r = this.running.get(id)
@@ -94,8 +95,7 @@ export class ServerManager {
    * Фоновый цикл сбора метрик для всех запущенных серверов.
    *
    * Один таймер на менеджер: каждый тик последовательно обновляет кэш для каждого
-   * живого сервера. Останавливается, когда запущенных серверов нет, — вхолостую
-   * спавнить powershell не нужно.
+   * живого сервера. Останавливается, когда запущенных серверов нет.
    */
   startMetricsSampler(intervalMs = 1000): void {
     if (this.samplerTimer !== null) return
@@ -106,7 +106,7 @@ export class ServerManager {
       }
       for (const [id, r] of this.running) {
         if (!r.process.pid) continue
-        // Последовательно, чтобы не поднимать несколько powershell одновременно.
+        // Последовательно обновляем снимки живых серверов.
         try { await this.getMetrics(id) } catch { /* процесс мог завершиться */ }
       }
     }
@@ -153,41 +153,18 @@ export class ServerManager {
     let cpuTicks: number | null = null
 
     try {
-      if (process.platform === "win32") {
-        // Get-Process заметно дешевле Get-CimInstance (нет запроса к WMI):
-        // ~250 мс против ~480 мс на замер. CPU здесь — суммарное время процесса
-        // в секундах, WorkingSet64 — рабочий набор в байтах.
-        const { stdout } = await execAsync(
-          `powershell -NoProfile -NonInteractive -Command "Get-Process -Id ${pid} -ErrorAction SilentlyContinue | Select-Object WorkingSet64,CPU | ConvertTo-Json"`,
-          { timeout: 2500, windowsHide: true, encoding: "utf-8" },
-        )
-        const trimmed = stdout.trim()
-        if (trimmed) {
-          const json = JSON.parse(trimmed)
-          memoryMb = Math.round(parseInt(json.WorkingSet64 || "0", 10) / 1024 / 1024)
-          const cpuSeconds = parseFloat(json.CPU || "0")
-          if (Number.isFinite(cpuSeconds)) cpuTicks = cpuSeconds * 1000
-        }
-      } else {
-        try {
-          const stat = await fs.promises.readFile(`/proc/${pid}/stat`, "utf-8")
-          // comm может содержать пробелы в скобках — режем по последней ')'.
-          const rest = stat.slice(stat.lastIndexOf(")") + 2).split(" ")
-          const utime = parseInt(rest[11], 10)
-          const stime = parseInt(rest[12], 10)
-          if (Number.isFinite(utime) && Number.isFinite(stime)) {
-            // Тики -> миллисекунды CPU-времени (USER_HZ обычно 100).
-            cpuTicks = ((utime + stime) / 100) * 1000
-          }
-        } catch {}
-
-        try {
-          const status = await fs.promises.readFile(`/proc/${pid}/status`, "utf-8")
-          const vmRSS = status.split("\n").find(l => l.startsWith("VmRSS:"))
-          if (vmRSS) memoryMb = Math.round(parseInt(vmRSS.split(/\s+/)[1], 10) / 1024)
-        } catch {}
+      const sample = await this.processMetricsReader?.(pid)
+      if (!sample || !Number.isFinite(sample.cpuMilliseconds) || sample.cpuMilliseconds < 0 ||
+          !Number.isFinite(sample.workingSetBytes) || sample.workingSetBytes < 0) {
+        this.cpuSamples.delete(id)
+        return { cpuPercent: 0, memoryMb: 0, uptimeSeconds: Math.floor((Date.now() - r.startTime) / 1000) }
       }
-    } catch {}
+      memoryMb = Math.round(sample.workingSetBytes / 1024 / 1024)
+      cpuTicks = sample.cpuMilliseconds
+    } catch {
+      this.cpuSamples.delete(id)
+      return { cpuPercent: 0, memoryMb: 0, uptimeSeconds: Math.floor((Date.now() - r.startTime) / 1000) }
+    }
 
     // CPU считаем по дельте между двумя замерами, а не от старта процесса:
     // деление накопленного CPU-времени на аптайм давало ложные 100% на старте
@@ -201,7 +178,7 @@ export class ServerManager {
         const deltaWallMs = now - prev.at
         const cores = Math.max(1, os.cpus().length)
         if (deltaCpuMs >= 0 && deltaWallMs > 0) {
-          // Нормализуем на число ядер, чтобы 100% означало «занято всё ядро».
+          // Нормализуем на число логических процессоров: 100% — загрузка всей машины.
           const raw = (deltaCpuMs / deltaWallMs) * 100 / cores
           cpuPercent = Math.max(0, Math.min(100, Math.round(raw)))
         }
@@ -332,8 +309,7 @@ export class ServerManager {
     }
     this.running.set(id, running)
 
-    // Метрики собираются в фоне, а не по запросу из renderer: спавн powershell
-    // занимает сотни миллисекунд, и держать его в пути запроса нельзя.
+    // Метрики собираются в фоне, а не по запросу из renderer.
     this.startMetricsSampler()
 
     onStateChange({ status: "starting", startTime: running.startTime })

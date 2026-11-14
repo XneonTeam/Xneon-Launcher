@@ -2,6 +2,7 @@ import type { IpcEventMap } from "@xnlc/types"
 import { opFailure } from "../errors"
 import path from "path"
 import fs from "fs/promises"
+import { randomUUID } from "node:crypto"
 /**
  * Отправка события в renderer без статической зависимости от `runtime`.
  *
@@ -20,6 +21,7 @@ import { prepareInstanceStorageSync } from "../shared-game-cache"
 import { fetchWithRetry } from "@xnlc/core/retry"
 import { getLauncherDataRoot } from "../paths"
 import { getCachedJarPath } from "../jar-cache"
+import { pauseScanFiles } from "@xnlc/parser"
 
 export function getBaseDataRoot(): string {
   return getLauncherDataRoot()
@@ -148,26 +150,69 @@ export function getContentDirectoryName(contentType: "mod" | "resourcepack" | "s
   return "mods"
 }
 
+/** Используем тот же каталог сборки, который сканируется и отслеживается UI. */
+export async function getContentIntentDir(buildName: string): Promise<string> {
+  const match = await dbHelpers.findBuildByName?.(buildName)
+  const build = match ? await dbHelpers.findBuildById?.(match.id) : null
+  if (build?.intentPath && path.isAbsolute(build.intentPath)) return build.intentPath
+  return ensureBuildIntentDir(buildName)
+}
+
+type ContentWrite = { invalidated: boolean; commit?: Promise<void> }
+const pendingContentWrites = new Map<string, Set<ContentWrite>>()
+
+function contentWriteKey(file: string): string {
+  const base = path.resolve(file).replace(/\.disabled$/i, "")
+  return process.platform === "win32" ? base.toLowerCase() : base
+}
+
+async function withContentWrite<T>(destination: string, run: (write: ContentWrite) => Promise<T>): Promise<T> {
+  const key = contentWriteKey(destination)
+  const writes = pendingContentWrites.get(key) ?? new Set<ContentWrite>()
+  pendingContentWrites.set(key, writes)
+  const write: ContentWrite = { invalidated: false }
+  writes.add(write)
+  try { return await run(write) } finally {
+    writes.delete(write)
+    if (!writes.size) pendingContentWrites.delete(key)
+  }
+}
+
+async function stageContent(intentPath: string, destination: string, write: (temporary: string) => Promise<void>, operation: ContentWrite, signal?: AbortSignal): Promise<void> {
+  const temporary = path.join(intentPath, `.xneon-content-${randomUUID()}.tmp`)
+  try {
+    await write(temporary)
+    signal?.throwIfAborted()
+    if (operation.invalidated) throw new Error("CONTENT_WRITE_SUPERSEDED")
+    operation.commit = fs.rename(temporary, destination)
+    await operation.commit
+    if (operation.invalidated) throw new Error("CONTENT_WRITE_SUPERSEDED")
+  } finally {
+    await fs.rm(temporary, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
 export async function saveRemoteContentToIntent(dirName: string, contentType: "mod" | "resourcepack" | "shader", url: string, fileName: string, signal?: AbortSignal, downloadId?: string): Promise<string | null> {
   try {
     signal?.throwIfAborted()
-    const intentPath = await ensureBuildIntentDir(dirName)
+    const intentPath = await getContentIntentDir(dirName)
     const targetDir = path.join(intentPath, getContentDirectoryName(contentType))
-    await fs.mkdir(targetDir, { recursive: true }).catch(() => {})
     const safeFileName = sanitizeFileName(fileName)
     const filePath = path.join(targetDir, safeFileName)
-    // Файл уже скачан, когда мы читали зависимости из его метаданных, — второй раз
-    // те же байты не тянем.
-    const cached = await getCachedJarPath(url)
-    if (cached) {
+    return await withContentWrite(filePath, async operation => {
+      await fs.mkdir(targetDir, { recursive: true }).catch(() => {})
+      // Если JAR уже скачан при чтении зависимостей, используем его копию.
+      const cached = await getCachedJarPath(url)
       signal?.throwIfAborted()
-      await fs.copyFile(cached, filePath)
+      if (operation.invalidated) return null
+      if (cached) {
+        await stageContent(intentPath, filePath, temporary => fs.copyFile(cached, temporary), operation, signal)
+      } else {
+        const bytes = await downloadBuffer(url, signal, safeFileName, downloadId)
+        await stageContent(intentPath, filePath, temporary => fs.writeFile(temporary, bytes), operation, signal)
+      }
       return filePath
-    }
-    const bytes = await downloadBuffer(url, signal, safeFileName, downloadId)
-    signal?.throwIfAborted()
-    await fs.writeFile(filePath, bytes)
-    return filePath
+    })
   } catch (error) {
     if (signal?.aborted) throw new Error("CONTENT_DOWNLOAD_CANCELLED")
     return null
@@ -176,19 +221,21 @@ export async function saveRemoteContentToIntent(dirName: string, contentType: "m
 
 export async function saveLocalContentToIntent(dirName: string, contentType: "mod" | "resourcepack" | "shader", localFilePath: string): Promise<string | null> {
   try {
-    const intentPath = await ensureBuildIntentDir(dirName)
+    const intentPath = await getContentIntentDir(dirName)
     const targetDir = path.join(intentPath, getContentDirectoryName(contentType))
-    await fs.mkdir(targetDir, { recursive: true }).catch(() => {})
     const destPath = path.join(targetDir, sanitizeFileName(path.basename(localFilePath)))
-    // Ресурспак или шейдер можно бросить распакованной папкой — тогда копируем
-    // папку целиком, Minecraft читает её так же, как архив.
-    const source = await fs.stat(localFilePath).catch(() => null)
-    if (!source) return null
-    try { await fs.access(destPath) } catch {
-      if (source.isDirectory()) await fs.cp(localFilePath, destPath, { recursive: true })
-      else await fs.copyFile(localFilePath, destPath)
-    }
-    return destPath
+    return await withContentWrite(destPath, async operation => {
+      await fs.mkdir(targetDir, { recursive: true }).catch(() => {})
+      // Ресурспак или шейдер можно установить распакованной папкой.
+      const source = await fs.stat(localFilePath).catch(() => null)
+      if (!source || operation.invalidated) return null
+      try { await fs.access(destPath) } catch {
+        await stageContent(intentPath, destPath, temporary => source.isDirectory()
+          ? fs.cp(localFilePath, temporary, { recursive: true })
+          : fs.copyFile(localFilePath, temporary), operation)
+      }
+      return operation.invalidated ? null : destPath
+    })
   } catch {
     return null
   }
@@ -198,15 +245,22 @@ export async function deleteContentFromIntent(dirName: string, contentType: "mod
   const normalizePath = (p: string) => path.resolve(p).toLowerCase()
 
   try {
-    const intentPath = await ensureBuildIntentDir(dirName)
+    const intentPath = await getContentIntentDir(dirName)
     const targetDir = path.join(intentPath, getContentDirectoryName(contentType))
     const relPath = sanitizeRelativeContentPath(fileName)
     const relBase = path.basename(relPath)
     const normalizedTargetDir = normalizePath(targetDir)
+    const exists = async (target: string): Promise<boolean> => {
+      try { await fs.lstat(target); return true } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code
+        if (code === "ENOENT" || code === "ENOTDIR") return false
+        throw error
+      }
+    }
 
     const isInside = (p: string) => {
       const n = normalizePath(p)
-      return n === normalizedTargetDir || n.startsWith(`${normalizedTargetDir}${path.sep}`)
+      return n.startsWith(`${normalizedTargetDir}${path.sep}`)
     }
 
     const candidates = new Set<string>()
@@ -223,7 +277,6 @@ export async function deleteContentFromIntent(dirName: string, contentType: "mod
       addTarget(path.join(targetDir, `${bare}.disabled`))
     }
     addVariants(relPath)
-    addVariants(relBase)
 
     // Иногда slug в БД не совпадает с реальным путём файла (например, мод лежит
     // в подпапке или имя файла отличается). Поэтому дополнительно ищем файл по
@@ -231,9 +284,13 @@ export async function deleteContentFromIntent(dirName: string, contentType: "mod
     const wantedRel = withoutDisabled(relPath.toLowerCase().replace(/\\/g, "/"))
     const wantedBase = withoutDisabled(relBase.toLowerCase())
     const walk = async (dir: string): Promise<void> => {
-      if (!isInside(dir)) return
+      if (normalizePath(dir) !== normalizedTargetDir && !isInside(dir)) return
       let entries
-      try { entries = await fs.readdir(dir, { withFileTypes: true }) } catch { return }
+      try { entries = await fs.readdir(dir, { withFileTypes: true }) } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code
+        if (code === "ENOENT" || code === "ENOTDIR") return
+        throw error
+      }
       for (const entry of entries) {
         const full = path.join(dir, entry.name)
         if (!isInside(full)) continue
@@ -251,32 +308,44 @@ export async function deleteContentFromIntent(dirName: string, contentType: "mod
         }
       }
     }
-    await walk(targetDir)
+    // В штатном случае slug уже содержит точный путь. Не обходим всю сборку
+    // и не удаляем одноимённые файлы в соседних каталогах.
+    const exactExists = (await Promise.all([...candidates].map(exists))).some(Boolean)
+    if (!exactExists) {
+      addVariants(relBase)
+      await walk(targetDir)
+    }
 
-    let removed = 0
+    // Завершаем только уже начатые rename. Скачивание и копирование в tmp
+    // не задерживают удаление и после него не могут вернуть старый файл.
+    const commits = new Set<Promise<void>>()
     for (const candidate of candidates) {
-      let existsHere = false
-      try { await fs.access(candidate); existsHere = true } catch {}
-      if (!existsHere) continue
-
-      let attempts = 0
-      for (;;) {
-        attempts++
-        try {
-          await fs.rm(candidate, { force: true, recursive: true })
-        } catch {}
-        let stillExists = false
-        try { await fs.access(candidate); stillExists = true } catch {}
-        if (!stillExists) {
-          removed++
-          break
-        }
-        if (attempts >= 3) {
-          return { success: false, error: `Не удалось удалить файл (возможно, он заблокирован): ${candidate}` }
-        }
-        await new Promise(r => setTimeout(r, 150 * attempts))
+      for (const write of pendingContentWrites.get(contentWriteKey(candidate)) ?? []) {
+        write.invalidated = true
+        if (write.commit) commits.add(write.commit)
       }
     }
+    await pauseScanFiles(candidates, async () => {
+      if (commits.size) await Promise.allSettled(commits)
+      await Promise.allSettled([...candidates].map(async candidate => {
+        // Для обычного файла работает unlink без предварительного обхода.
+        // Рекурсивное удаление требуется только распакованным пакам.
+        const info = await fs.lstat(candidate)
+        if (info.isDirectory()) await fs.rm(candidate, { force: true, recursive: true, maxRetries: 2, retryDelay: 40 })
+        else {
+          for (let attempt = 0; ; attempt++) {
+            try { await fs.unlink(candidate); break } catch (error) {
+              const code = (error as NodeJS.ErrnoException).code
+              if (code === "ENOENT") break
+              if (attempt >= 5 || !["EBUSY", "EPERM", "EACCES"].includes(code ?? "")) throw error
+              await new Promise(resolve => setTimeout(resolve, 40 * (attempt + 1)))
+            }
+          }
+        }
+      }))
+      const leftover = (await Promise.all([...candidates].map(async candidate => await exists(candidate) ? candidate : null))).find(Boolean)
+      if (leftover) throw new Error(`Не удалось удалить файл (возможно, он заблокирован): ${leftover}`)
+    })
 
     // Файла на диске уже нет (запись осталась в БД) — тоже считаем удаление
     // успешным, иначе такой мод нельзя будет убрать из списка.
@@ -294,7 +363,7 @@ export async function setContentEnabledInIntent(
   enabled: boolean,
 ): Promise<{ success: boolean; fileName?: string; error?: string }> {
   try {
-    const intentPath = await ensureBuildIntentDir(dirName)
+    const intentPath = await getContentIntentDir(dirName)
     const targetDir = path.resolve(intentPath, getContentDirectoryName(contentType))
     const relPath = sanitizeRelativeContentPath(fileName)
     const requested = path.resolve(targetDir, relPath)
@@ -504,10 +573,6 @@ export function formatDisplayNameFromFileName(fileName: string): string {
 import type { AdmZipType } from "./archive-utils"
 export {
   loadAdmZip,
-  loadToml,
-  readArchiveText,
-  readArchiveEntryAsDataUrl,
-  getArchiveMimeType,
   type AdmZipType,
   type AdmZipConstructor,
   type AdmZipToBuffer,
@@ -526,6 +591,7 @@ type ModsModule = typeof ModsApi
 export type { ModsModule }
 
 export type ImportModEntry = {
+  diagnostics?: import("@xnlc/parser").ParserDiagnostic[]
   id: string
   slug: string
   name: string

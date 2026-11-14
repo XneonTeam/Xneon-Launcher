@@ -1103,6 +1103,8 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                         <IconArchive className="h-4 w-4 flex-shrink-0 text-muted-foreground" strokeWidth={1.75} />
                         <div data-ui="instance-instance-worlds-tab-div-74" className="min-w-0 flex-1">
                           <div data-ui="instance-instance-worlds-tab-div-75" className="truncate text-sm text-foreground">{dp.name}</div>
+                          {dp.description && <div className="truncate text-xs text-muted-foreground">{dp.description}</div>}
+                          {dp.parseError && <div className="truncate text-xs text-muted-foreground">{t("worlds.errors.datapackInfo")}</div>}
                           <div data-ui="instance-instance-worlds-tab-div-76" className="text-[11px] text-muted-foreground">{formatBytes(dp.sizeBytes)}</div>
                         </div>
                         <button data-ui="instance-instance-worlds-tab-button-24"

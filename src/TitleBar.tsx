@@ -22,6 +22,7 @@ function formatRelativeTime(timestamp: number, locale: string, justNow: string):
 function formatSourceLabel(source: ActivityNotification["source"], t: (key: string) => string): string {
   if (source === "launch") return t("activity.source.launch")
   if (source === "install") return t("activity.source.install")
+  if (source === "share") return t("share.title")
   return t("activity.source.import")
 }
 

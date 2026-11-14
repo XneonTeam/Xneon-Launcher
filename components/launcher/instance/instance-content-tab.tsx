@@ -1,7 +1,6 @@
 import { useConfirmDialog } from "@/lib/use-confirm-dialog"
 import { isContentDownloadCancelled } from "@/lib/content-download"
 import { Checkbox } from "@/components/ui/checkbox"
-import { CONTENT_ENTER_DELAYED } from "../content-motion"
 import { memo, useEffect, useMemo, useRef, useState, useDeferredValue, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { useActivityCenter } from "@/src/ActivityCenterContext"
@@ -98,6 +97,7 @@ interface InstanceContentTabProps {
   addContentToBuild: (buildId: string, type: "resourcepacks" | "shaders", mod: ModSearchResult) => void | Promise<void>
   installContentToBuild: (mod: ModSearchResult, type: "resourcepacks" | "shaders", onPhase?: (phase: "resolving" | "confirm" | "downloading" | "deps" | null) => void) => void | Promise<void>
   removeContentFromBuild: (buildId: string, type: "mods" | "resourcepacks" | "shaders", item: Build["mods"][number]) => Promise<boolean>
+  beginContentMutation: (buildId: string) => () => void
   installModToBuild: (mod: ModSearchResult, onPhase?: (phase: "resolving" | "confirm" | "downloading" | "deps" | null) => void) => void | Promise<void>
   setBuilds: React.Dispatch<React.SetStateAction<Build[]>>
   toggleItemEnabled: (buildId: string, type: "mods" | "resourcepacks" | "shaders", itemId: string) => void | Promise<boolean>
@@ -135,6 +135,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   addContentToBuild,
   installContentToBuild,
   removeContentFromBuild,
+  beginContentMutation,
   installModToBuild,
   setBuilds,
   toggleItemEnabled,
@@ -172,6 +173,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
     if (isLocked && !await ask(t("buildDetail.lockedInstallConfirm", { name: projects.map(project => project.name).join(", ") }))) return
     batchRunning.current = true
     setBatchInstalling(true)
+    const finishMutation = beginContentMutation(activeBuild.id)
     const generation = batchGeneration.current
     try {
       for (const project of projects) {
@@ -189,6 +191,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
         }
       }
     } finally {
+      finishMutation()
       batchRunning.current = false
       setBatchInstalling(false)
       setInstallPhase(null)
@@ -219,6 +222,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
     setDeleteConfirmation([])
     removingBatch.current = true
     setBatchRemoving(true)
+    const finishMutation = beginContentMutation(activeBuild.id)
     try {
       for (const item of items) {
         setRemovingSlug(item.slug)
@@ -231,6 +235,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
         }
       }
     } finally {
+      finishMutation()
       removingBatch.current = false
       setBatchRemoving(false)
       setRemovingSlug(null)
@@ -244,6 +249,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
     if (!items.length) return
     removingBatch.current = true
     setBatchToggling(true)
+    const finishMutation = beginContentMutation(activeBuild.id)
     try {
       for (const item of items) {
         try {
@@ -254,6 +260,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
         }
       }
     } finally {
+      finishMutation()
       removingBatch.current = false
       setBatchToggling(false)
     }
@@ -396,9 +403,12 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   const [failedVersionIcon, setFailedVersionIcon] = useState<string | null>(null)
   const [loaderRequirementReport, setLoaderRequirementReport] = useState<BuildLoaderRequirementReport | null>(null)
   const [loaderWarningDismissed, setLoaderWarningDismissed] = useState(false)
+  const loaderFiles = useMemo(() => type === "mods"
+    ? JSON.stringify(activeBuild.mods.map(({ slug, enabled, id }) => [slug, enabled !== false, id]))
+    : "", [type, activeBuild.mods])
 
-  // Требование мода к версии загрузчика есть только внутри JAR, поэтому оно
-  // читается из файлов сборки и сравнивается с выбранной версией загрузчика.
+  // Проверку JAR запускаем после первого кадра вкладки, чтобы она не конкурировала
+  // с отрисовкой списка. При быстром уходе со вкладки запрос не запускается.
   useEffect(() => {
     if (type !== "mods" || !activeBuild.name || !activeBuild.loaderVersion) {
       setLoaderRequirementReport(null)
@@ -406,12 +416,25 @@ export const InstanceContentTab = memo(function InstanceContentTab({
     }
     setLoaderWarningDismissed(false)
     let cancelled = false
-    window.electrobunAPI
-      ?.checkBuildLoaderRequirements(activeBuild.name, activeBuild.modLoader, activeBuild.loaderVersion)
-      .then(report => { if (!cancelled) setLoaderRequirementReport(report) })
-      .catch(() => { if (!cancelled) setLoaderRequirementReport(null) })
-    return () => { cancelled = true }
-  }, [type, activeBuild.name, activeBuild.modLoader, activeBuild.loaderVersion, activeBuild.mods.length])
+    let idle: number | undefined
+    let timer: number | undefined
+    const run = () => {
+      void window.electrobunAPI
+        ?.checkBuildLoaderRequirements(activeBuild.name, activeBuild.modLoader, activeBuild.loaderVersion)
+        .then(report => { if (!cancelled) setLoaderRequirementReport(report) })
+        .catch(() => { if (!cancelled) setLoaderRequirementReport(null) })
+    }
+    const frame = window.requestAnimationFrame(() => {
+      if (window.requestIdleCallback) idle = window.requestIdleCallback(run, { timeout: 1000 })
+      else timer = window.setTimeout(run, 0)
+    })
+    return () => {
+      cancelled = true
+      window.cancelAnimationFrame(frame)
+      if (idle !== undefined) window.cancelIdleCallback(idle)
+      if (timer !== undefined) window.clearTimeout(timer)
+    }
+  }, [type, activeBuild.name, activeBuild.modLoader, activeBuild.loaderVersion, loaderFiles])
 
   const loaderIssues = useMemo(
     () => (loaderRequirementReport?.issues ?? []).filter(issue => !issue.satisfied),
@@ -483,7 +506,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   }, [updatingSlug, installingModSlug])
 
   return (
-    <div key={type} data-ui="instance-instance-content-tab-div-2" data-component="instance-content-tab" className={`flex-1 min-h-0 flex flex-col gap-4 ${CONTENT_ENTER_DELAYED}`}>
+    <div key={type} data-ui="instance-instance-content-tab-div-2" data-component="instance-content-tab" className="flex-1 min-h-0 flex flex-col gap-4">
       {isLocked && (
         <div data-ui="instance-instance-content-tab-div-3" className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl border border-warning/20 bg-warning/5 text-xs text-warning/90">
           <IconLock className="w-4 h-4 shrink-0" />
@@ -760,7 +783,9 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                         disabled={batchBusy || removingSlug !== null}
                         onClick={() => {
                           setRemovingSlug(item.slug)
-                          void removeContentFromBuild(activeBuild.id, type, item).finally(() => setRemovingSlug(null))
+                          void removeContentFromBuild(activeBuild.id, type, item).then(removed => {
+                            if (!removed) pushNotification({ kind: "error", source: "install", title: t("common.errorTitle"), message: t("addon.batch.deleteFailed", { name: item.name }) })
+                          }).finally(() => setRemovingSlug(null))
                         }}
                         className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-60"
                         aria-label={t("common.delete")}

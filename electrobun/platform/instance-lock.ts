@@ -1,10 +1,28 @@
 import { dlopen, ptr } from "bun:ffi"
 import { createHash } from "node:crypto"
+import path from "node:path"
+import { acquireUnixFileLock } from "./unix-file-lock"
 
 let release: (() => void) | undefined
+let ownedProfile: string | undefined
+const profileKey = (profile: string) => process.platform === "win32" ? path.resolve(profile).toLowerCase() : path.resolve(profile)
+
+export function hasLauncherProfileLock(profile: string): boolean {
+  return release !== undefined && ownedProfile === profileKey(profile)
+}
 
 export function lockLauncherProfile(profile: string): boolean {
-  if (process.platform !== "win32") return true
+  if (release) {
+    if (hasLauncherProfileLock(profile)) return true
+    throw new Error("This process already owns another launcher profile")
+  }
+  if (process.platform !== "win32") {
+    const unlock = acquireUnixFileLock(path.resolve(profile) + ".lock")
+    if (!unlock) return false
+    ownedProfile = profileKey(profile)
+    release = unlock
+    return true
+  }
   const { symbols } = dlopen("kernel32.dll", {
     CreateMutexW: { args: ["ptr", "bool", "ptr"], returns: "ptr" },
     GetLastError: { args: [], returns: "u32" },
@@ -20,10 +38,11 @@ export function lockLauncherProfile(profile: string): boolean {
     return false
   }
   release = () => { symbols.CloseHandle(handle) }
+  ownedProfile = profileKey(profile)
   return true
 }
 
 export function unlockLauncherProfile() {
-  release?.()
-  release = undefined
+  try { release?.() }
+  finally { release = undefined; ownedProfile = undefined }
 }

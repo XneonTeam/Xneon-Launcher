@@ -13,6 +13,7 @@ export type ResourceRow = {
   modId: number | null
   fileId: number | null
   cfChecked: number
+  parserVersion?: string
   updatedAt: number
 }
 
@@ -33,9 +34,9 @@ export function getResourceForSource(source: { provider: string; projectId: stri
 export async function upsertResource(resource: Omit<ResourceRow, "updatedAt">): Promise<void> {
   if (!isDbAvailable()) return
   run(`
-    INSERT OR REPLACE INTO resources (sha1, name, version, description, icon, author, source, projectId, versionId, modId, fileId, cfChecked, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [resource.sha1, resource.name, resource.version, resource.description, resource.icon, resource.author, resource.source, resource.projectId, resource.versionId, resource.modId, resource.fileId, resource.cfChecked ?? 0, Date.now()])
+    INSERT OR REPLACE INTO resources (sha1, name, version, description, icon, author, source, projectId, versionId, modId, fileId, cfChecked, parserVersion, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, (SELECT parserVersion FROM resources WHERE sha1 = ?), ''), ?)
+  `, [resource.sha1, resource.name, resource.version, resource.description, resource.icon, resource.author, resource.source, resource.projectId, resource.versionId, resource.modId, resource.fileId, resource.cfChecked ?? 0, resource.parserVersion ?? null, resource.sha1, Date.now()])
 }
 
 /**
@@ -49,9 +50,9 @@ export async function upsertResources(resources: Array<Omit<ResourceRow, "update
   transactionImmediate(() => {
     for (const resource of resources) {
       run(`
-        INSERT OR REPLACE INTO resources (sha1, name, version, description, icon, author, source, projectId, versionId, modId, fileId, cfChecked, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [resource.sha1, resource.name, resource.version, resource.description, resource.icon, resource.author, resource.source, resource.projectId, resource.versionId, resource.modId, resource.fileId, resource.cfChecked ?? 0, updatedAt])
+        INSERT OR REPLACE INTO resources (sha1, name, version, description, icon, author, source, projectId, versionId, modId, fileId, cfChecked, parserVersion, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, (SELECT parserVersion FROM resources WHERE sha1 = ?), ''), ?)
+      `, [resource.sha1, resource.name, resource.version, resource.description, resource.icon, resource.author, resource.source, resource.projectId, resource.versionId, resource.modId, resource.fileId, resource.cfChecked ?? 0, resource.parserVersion ?? null, resource.sha1, updatedAt])
     }
   })
 }

@@ -1,0 +1,11 @@
+{
+  "package": "nativefiledialog-for-bun",
+  "version": "0.3.2",
+  "release": "https://github.com/Catharacta/nativefiledialog-for-bun/releases/tag/v0.3.2",
+  "files": [
+    { "path": "win32-x64/nfd.dll", "asset": "nfd-win-x64.dll", "sha256": "1f8292959e58a8f0c9dfba6a4b713100b60b17a35b3b50089116bc5279beaab4" },
+    { "path": "darwin-arm64/libnfd.dylib", "asset": "nfd-mac-arm64.dylib", "sha256": "df6a15a0f31bd6ca5798857a833fb9675afaee11ba3c95bc36a6221837b53885" },
+    { "path": "darwin-x64/libnfd.dylib", "asset": "nfd-mac-x64.dylib", "sha256": "ecae0b74d1f87c0eba71d6eb8a95871c44cf473a2438a18dd274d256a641d761" },
+    { "path": "linux-x64/libnfd.so", "asset": "nfd-linux-x64.so", "sha256": "3a61bdafcf2af4792679dd8827dd7b6d58f07f697a48f77c640dd8d05ffa5d47" }
+  ]
+}

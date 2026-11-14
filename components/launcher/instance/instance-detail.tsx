@@ -98,7 +98,7 @@ interface InstanceDetailProps {
   addLocalModToBuild: (buildId: string, file: File) => void | Promise<void>
   addLocalContentToBuild: (buildId: string, type: "resourcepacks" | "shaders", file: File) => void | Promise<void>
   removeContentFromBuild: (buildId: string, type: "mods" | "resourcepacks" | "shaders", item: Build["mods"][number]) => Promise<boolean>
-  reloadBuilds: () => Promise<void>
+  beginContentMutation: (buildId: string) => () => void
   modLoading: boolean
   modTotalHits: number
   modTotalPages: number
@@ -150,7 +150,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     addLocalModToBuild,
     addLocalContentToBuild,
     removeContentFromBuild,
-    reloadBuilds,
+    beginContentMutation,
     modLoading,
     modTotalHits,
     modTotalPages,
@@ -275,6 +275,8 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
   ) => {
     const buildName = activeBuild.name
     if (!buildName) return
+    const finishMutation = beginContentMutation(activeBuild.id)
+    try {
     const saved = await window.electrobunAPI?.saveModToIntent(buildName, fileUrl, fileName)
     if (saved) {
       setBuilds(prev => prev.map(build => {
@@ -330,9 +332,9 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
           mods,
         }
       }))
-      await reloadBuilds()
     }
-  }, [activeBuild.id, activeBuild.name, reloadBuilds, setBuilds])
+    } finally { finishMutation() }
+  }, [activeBuild.id, activeBuild.name, beginContentMutation, setBuilds])
 
   /** Подбирает версию зависимости: сначала ту, что требует API, иначе совместимую. */
   const resolveDepVersion = useCallback(async (dep: ModDependency, source: string): Promise<ModVersion | undefined> => {
@@ -479,6 +481,8 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     if (source === "ftb") {
       return
     }
+    const finishMutation = beginContentMutation(activeBuild.id)
+    try {
     onPhase?.("downloading")
     const meta = {
       name: overrideMetadata?.name || selectedDetails?.name,
@@ -521,7 +525,8 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       await doDownloadDep(dep, source, depVersions?.get(dep.projectId))
     }
     onPhase?.(null)
-  }, [selectedDetails, doDownloadMod, doDownloadDep])
+    } finally { finishMutation() }
+  }, [activeBuild.id, beginContentMutation, selectedDetails, doDownloadMod, doDownloadDep])
 
   /**
    * Спрашиваем про зависимости и ждём ответа в том же промисе: пока окно открыто,
@@ -939,6 +944,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
           addContentToBuild={addContentToBuild}
           installContentToBuild={installContentToBuild}
           removeContentFromBuild={removeContentFromBuild}
+          beginContentMutation={beginContentMutation}
           installModToBuild={installModToBuild}
           setBuilds={setBuilds}
           toggleItemEnabled={toggleItemEnabled}
@@ -978,6 +984,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
           addContentToBuild={addContentToBuild}
           installContentToBuild={installContentToBuild}
           removeContentFromBuild={removeContentFromBuild}
+          beginContentMutation={beginContentMutation}
           installModToBuild={installModToBuild}
           setBuilds={setBuilds}
           toggleItemEnabled={toggleItemEnabled}
@@ -1017,6 +1024,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
           addContentToBuild={addContentToBuild}
           installContentToBuild={installContentToBuild}
           removeContentFromBuild={removeContentFromBuild}
+          beginContentMutation={beginContentMutation}
           installModToBuild={installModToBuild}
           setBuilds={setBuilds}
           toggleItemEnabled={toggleItemEnabled}

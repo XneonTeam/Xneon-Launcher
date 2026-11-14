@@ -1,14 +1,14 @@
-import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useState } from "react"
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import {
   IconTerminal2, IconPlayerPlay, IconPlayerStop, IconFolder, IconCopy,
-  IconDownload, IconTrash, IconX, IconMap, IconPuzzle,
+  IconDownload, IconTrash, IconMap, IconPuzzle,
   IconPlug, IconSettings, IconBug, IconCategoryPlus,
 } from "@tabler/icons-react"
 import { FloatingContextMenu } from "@/components/ui/floating-context-menu"
-import { Checkbox } from "@/components/ui/checkbox"
+import { ExportCategoriesDialog } from "../export-categories-dialog"
+import { InstanceExportModal } from "../instance/instance-export-modal"
 import type { McServerInfo } from "@xnlc/types"
 
 interface ServerContextMenuProps {
@@ -58,18 +58,21 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
 
   const handleExportZip = async () => {
     if (exporting) return
+    setExportDialogFor(false)
     setExporting(true)
     try {
-      await window.electrobunAPI?.mcServerExportZip(server.id, server.name, Array.from(exportCategories))
+      const result = await window.electrobunAPI?.mcServerExportZip(server.id, server.name, Array.from(exportCategories))
+      if (result && !result.success && result.error) console.warn("[Серверы] Экспорт zip не удался:", result.error)
     } finally {
       setExporting(false)
-      setExportDialogFor(false)
+      onClose()
     }
   }
 
   return createPortal(
     <>
-      <FloatingContextMenu position={position} onClose={onClose}>
+      {/* Пока открыт экспорт, outside-mousedown меню не должен размонтировать весь компонент. */}
+      {!exportDialogFor && !exporting && <FloatingContextMenu position={position} onClose={onClose}>
         <button data-ui="server-server-context-menu-button-1" type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
           onClick={() => { onConnect(); onClose() }}>
           <IconTerminal2 className="w-4 h-4 text-muted-foreground" />
@@ -94,7 +97,7 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
         </button>
         <button data-ui="server-server-context-menu-button-5" type="button"
           className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground"
-          onClick={() => setExportDialogFor(true)}>
+          onClick={() => { setExportCategories(new Set(["world", "mods", "plugins", "configs"])); setExportDialogFor(true) }}>
           <IconDownload className="w-4 h-4 text-muted-foreground" />
           {t("servers.contextExportZip")}
         </button>
@@ -113,70 +116,24 @@ export function ServerContextMenu({ server, position, isRunning, isBusy, onConne
           <IconTrash className="w-4 h-4" strokeWidth={1.75} />
           {t(server.remote ? "remoteServer.leave" : "servers.contextDelete")}
         </button>
-      </FloatingContextMenu>
+      </FloatingContextMenu>}
 
-      {/* Export dialog — same layout as the instance export dialog */}
-      {exportDialogFor && (
-        <div data-ui="server-server-context-menu-div-3" className="launcher-modal-overlay fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in-0"
-          onClick={() => setExportDialogFor(false)}>
-          <div data-ui="server-server-context-menu-div-4" className="w-[420px] rounded-2xl border border-border bg-card p-5 shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-            <div data-ui="server-server-context-menu-div-5" className="flex items-start justify-between gap-3">
-              <div data-ui="server-server-context-menu-div-6">
-                <p data-ui="server-server-context-menu-p-1" className="text-base font-semibold text-foreground">{t("servers.export.title")}</p>
-                <p data-ui="server-server-context-menu-p-2" className="mt-0.5 text-xs text-muted-foreground">
-                  {t("servers.export.desc", { name: server.name })}
-                </p>
-              </div>
-              <button data-modal-close data-ui="server-server-context-menu-button-8" type="button" onClick={() => setExportDialogFor(false)} className="p-1 rounded-md hover:bg-muted text-muted-foreground">
-                <IconX className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div data-ui="server-server-context-menu-div-7" className="mt-4 space-y-2">
-              {EXPORT_CATEGORIES.map(cat => (
-                <label data-ui="server-server-context-menu-label-1" key={cat.id} className="flex items-start gap-3 rounded-xl border border-border bg-muted/30 px-3 py-2.5 cursor-pointer transition-colors hover:border-primary/40">
-                  <span data-ui="server-server-context-menu-span-1" className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">{cat.icon}</span>
-                  <Checkbox
-                    checked={exportCategories.has(cat.id)}
-                    onCheckedChange={(checked) => {
-                      setExportCategories(prev => {
-                        const next = new Set(prev)
-                        if (checked) next.add(cat.id)
-                        else next.delete(cat.id)
-                        return next
-                      })
-                    }}
-                    className="mt-0.5"
-                  />
-                  <span data-ui="server-server-context-menu-span-2" className="min-w-0">
-                    <span data-ui="server-server-context-menu-span-3" className="block text-sm font-medium text-foreground">{cat.label}</span>
-                    <span data-ui="server-server-context-menu-span-4" className="block text-xs text-muted-foreground">{cat.description}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-
-            <div data-ui="server-server-context-menu-div-8" className="mt-5 flex items-center justify-between gap-2">
-              <button data-ui="server-server-context-menu-button-9" type="button" onClick={() => setExportCategories(new Set(EXPORT_CATEGORIES.map(c => c.id)))}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted">
-                {t("servers.export.selectAll")}
-              </button>
-              <div data-ui="server-server-context-menu-div-9" className="flex gap-2">
-                <button data-ui="server-server-context-menu-button-10" type="button" onClick={() => setExportDialogFor(false)}
-                  className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-muted text-muted-foreground">
-                  {<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("servers.cancel")}</span>}
-                </button>
-                <button data-ui="server-server-context-menu-button-11" type="button" disabled={exportCategories.size === 0 || exporting}
-                  onClick={() => { void handleExportZip() }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed">
-                  <IconDownload className={exporting ? "w-4 h-4 animate-pulse" : "w-4 h-4"} />
-                  {t("servers.export.action")}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {exportDialogFor && !exporting && (
+        <ExportCategoriesDialog
+          windowId="server-export-categories"
+          title={t("instanceList.exportZip")}
+          description={t("servers.export.desc", { name: server.name })}
+          categories={EXPORT_CATEGORIES}
+          selected={exportCategories}
+          onSelectedChange={setExportCategories}
+          onClose={onClose}
+          onExport={() => { void handleExportZip() }}
+          selectAllLabel={t("instanceList.selectAll")}
+          cancelLabel={t("common.cancel")}
+          exportLabel={t("instanceList.export")}
+        />
       )}
+      {exporting && <InstanceExportModal buildName={server.name} current={null} total={null} />}
     </>, document.body
   )
 }

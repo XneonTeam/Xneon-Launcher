@@ -1,4 +1,5 @@
 import type { Theme, LocalThemeFile, LocalThemeImport, LocalThemeSnapshot } from "./theme-types.js"
+import type { ShareProgress } from "./share-types.js"
 
 export interface ModpackContents {
   projectId: string
@@ -356,6 +357,7 @@ export interface IpcInvokeMap {
 
   // ── Settings ──
   "settings:get": { args: [key: string]; return: string | undefined }
+  "settings:get-many": { args: [keys: string[]]; return: Record<string, string | undefined> }
   "settings:set": { args: [key: string, value: string]; return: void }
 
   // ── Content ──
@@ -525,7 +527,7 @@ export interface IpcInvokeMap {
 
 export interface IpcEventMap {
   "startup:launch-pending": null
-  "share:progress": { stage: string; done: number; total: number; bytes: number; files?: { path: string; size: number; name?: string; iconUrl?: string; status: "queued" | "downloading" | "complete" | "error" }[]; requestId?: string; buildId?: string }
+  "share:progress": ShareProgress
   "share:installed": { buildId: string }
   "theme:local-changed": LocalThemeSnapshot
   "minecraft:java-progress": JavaProgress
@@ -571,7 +573,7 @@ export interface ElectrobunAPIExplicit {
   onMcServerRemoteSnapshot: (callback: (event: { id: string; logs: string[] }) => void) => CleanupFn
   onMcServerRemoteConnection: (callback: (event: { id: string; online: boolean; info: McServerInfo }) => void) => CleanupFn
   cancelShareInstall: (requestId: string) => Promise<boolean>
-  onShareProgress: (callback: (progress: { stage: string; done: number; total: number; bytes: number; files?: { path: string; size: number; name?: string; iconUrl?: string; status: "queued" | "downloading" | "complete" | "error" }[]; requestId?: string; buildId?: string }) => void) => CleanupFn
+  onShareProgress: (callback: (progress: ShareProgress) => void) => CleanupFn
   onShareInstalled: (callback: (event: { buildId: string }) => void) => CleanupFn
   listLocalThemes: () => Promise<LocalThemeSnapshot>
   importLocalTheme: () => Promise<LocalThemeImport | null>
@@ -678,6 +680,7 @@ export interface ElectrobunAPIExplicit {
   onMinecraftDownloadStatus: (callback: (progress: MinecraftProgress) => void) => CleanupFn
   onMinecraftClose: (callback: (info: MinecraftCloseInfo) => void) => CleanupFn
   getSetting: (key: string) => Promise<string | undefined>
+  getSettings: (keys: string[]) => Promise<Record<string, string | undefined>>
   setSetting: (key: string, value: string) => Promise<void>
   getBuildIntentPath: (buildId: string) => Promise<string>
   getDataMoveStatus: () => Promise<{ pendingRoot?: string; error?: string }>

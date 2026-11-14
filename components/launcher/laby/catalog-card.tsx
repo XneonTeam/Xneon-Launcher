@@ -49,6 +49,7 @@ export function CatalogCard({
       aria-pressed={selected}
       onClick={onSelect}
       onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault()
           onSelect()
@@ -76,7 +77,7 @@ export function CatalogCard({
       )}
 
       {/* Действия: избранное — переключатель, вторая кнопка надевает скин. */}
-      <div data-ui="laby-catalog-card-div-3" className="absolute inset-x-0 bottom-0 z-20 flex justify-end gap-1 p-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+      <div data-ui="laby-catalog-card-div-3" className="absolute inset-x-0 bottom-0 z-20 flex justify-end gap-1 p-1.5">
         <button data-ui="laby-catalog-card-button-1"
           type="button"
           disabled={busy !== null}
@@ -88,10 +89,10 @@ export function CatalogCard({
             else onSave()
           }}
           className={cn(
-            "grid size-7 place-items-center rounded-lg backdrop-blur-sm transition-colors disabled:opacity-60",
+            "grid size-7 place-items-center rounded-lg border border-border shadow-sm transition-colors disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             inFavorites
-              ? "bg-primary/85 text-primary-foreground hover:bg-primary"
-              : "bg-card/85 text-foreground hover:bg-muted/95",
+              ? "bg-primary text-primary-foreground hover:bg-primary/90"
+              : "bg-card text-foreground hover:bg-muted",
           )}
         >
           {busy === "save" || busy === "remove" ? (
@@ -111,7 +112,7 @@ export function CatalogCard({
             event.stopPropagation()
             onApply()
           }}
-          className="grid size-7 place-items-center rounded-lg bg-primary/85 text-primary-foreground backdrop-blur-sm transition-colors hover:bg-primary disabled:opacity-50"
+          className="grid size-7 place-items-center rounded-lg border border-primary bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {busy === "apply" ? <IconLoader2 className="h-3.5 w-3.5 animate-spin" /> : <IconShirt className="h-3.5 w-3.5" />}
         </button>

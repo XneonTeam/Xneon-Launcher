@@ -608,22 +608,22 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
                       <div data-ui="servers-page-div-21" className="flex-1" />
                       {groupKey !== "" && (
                         <div data-ui="servers-page-div-22"
-                          className="flex items-center gap-0.5 opacity-0 group-hover/head:opacity-100 transition-opacity"
+                          className="flex items-center gap-1"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button data-ui="servers-page-button-9" type="button" title={t("categoryMenu.icon")}
                             onClick={() => setIconPickerFor(groupKey)}
-                            className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
+                            className="p-1.5 rounded-md border border-border bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
                             <IconPhoto className="w-3.5 h-3.5" />
                           </button>
                           <button data-ui="servers-page-button-10" type="button" title={t("servers.renameGroup", "Переименовать категорию")}
                             onClick={() => { setRenameGroupFor(groupKey); setRenameGroupDraft(groupKey) }}
-                            className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
+                            className="p-1.5 rounded-md border border-border bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
                             <IconPencil className="w-3.5 h-3.5" />
                           </button>
                           <button data-ui="servers-page-button-11" type="button" title={t("servers.deleteGroup", "Удалить категорию")}
                             onClick={() => void deleteGroup(groupKey)}
-                            className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-destructive">
+                            className="p-1.5 rounded-md border border-border bg-muted/60 hover:bg-destructive/15 text-muted-foreground hover:text-destructive transition-colors">
                             <IconTrash className="w-3.5 h-3.5" />
                           </button>
                         </div>

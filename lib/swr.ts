@@ -91,14 +91,17 @@ class SwrCache {
     }
 
     if (existing) {
+      // На холодном ключе value ещё нет: все потребители ждут тот же запрос.
+      if (existing.value === undefined && existing.inflight) return existing.inflight
       const fresh = now - existing.fetchedAt < ttl
       if (fresh) {
         return Promise.resolve(existing.value)
       }
       // Устаревшие данные: отдаём немедленно и обновляем фоном.
       if (!existing.inflight) {
-        existing.inflight = Promise.resolve(fetcher())
+        existing.inflight = Promise.resolve().then(fetcher)
           .then(value => {
+            if (this.store.get(key) !== existing) return value ?? existing!.value
             if (value != null) existing!.value = value
             existing!.fetchedAt = Date.now()
             if (options.persist) savePersisted(key, existing!)
@@ -113,26 +116,32 @@ class SwrCache {
       return Promise.resolve(existing.value)
     }
 
-    const inflight = Promise.resolve(fetcher())
+    const entry: Entry<T> = { value: undefined as T, fetchedAt: 0 }
+    const inflight = Promise.resolve().then(fetcher)
       .then(value => {
-        if (value != null) {
-          const entry: Entry<T> = { value, fetchedAt: Date.now() }
-          this.store.set(key, entry as Entry<unknown>)
+        if (value != null && this.store.get(key) === entry) {
+          entry.value = value
+          entry.fetchedAt = Date.now()
           if (options.persist) savePersisted(key, entry)
+        } else if (value == null && this.store.get(key) === entry) {
+          this.store.delete(key)
         }
         return value
       })
       .catch(error => {
-        this.store.delete(key)
-        if (options.persist) removePersisted(key)
+        if (this.store.get(key) === entry) {
+          this.store.delete(key)
+          if (options.persist) removePersisted(key)
+        }
         throw error
       })
       .finally(() => {
         const current = this.store.get(key)
-        if (current) current.inflight = undefined
+        if (current === entry) current.inflight = undefined
       })
 
-    this.store.set(key, { value: undefined as unknown, fetchedAt: 0, inflight })
+    entry.inflight = inflight
+    this.store.set(key, entry as Entry<unknown>)
     return inflight
   }
 

@@ -1,4 +1,6 @@
-import { Suspense, lazy, useCallback, useEffect, useState } from "react"
+import { Activity, Suspense, lazy, startTransition, useCallback, useEffect, useRef, useState } from "react"
+import { pageLoaders, preloadPage, warmFrequentPages } from "./page-loaders"
+import { preloadedPage } from "./preloaded-page"
 import { useTranslation } from "react-i18next"
 import { HomePage } from "./home-page"
 import { ErrorBoundary } from "@/components/ui/error-boundary"
@@ -13,21 +15,21 @@ import type { McServerInfo } from "@xnlc/types"
 import type { SettingsTab } from "./settings/types"
 
 // На старте загружается только главная; остальные разделы — по открытию.
-const InstancePage = lazy(() => import("./instance").then((m) => ({ default: m.InstancePage })))
-const AgentPage = lazy(() => import("./agent/agent-page").then((m) => ({ default: m.AgentPage })))
+const InstancePage = preloadedPage(pageLoaders.builds)
+const AgentPage = preloadedPage(pageLoaders.agent)
 /**
- * Страница скинов тянет three.js (~505 КБ) и включает обе вкладки — «Избранное»
- * и «Библиотеку» каталога Laby, поэтому грузится лениво одним чанком.
+ * Скины загружаются по запросу. 3D-движок отдельно: каталог и пустое состояние
+ * не должны ожидать three.js, пока не понадобилось реальное превью.
  */
-const SkinsPage = lazy(() => import("./skins-page").then((m) => ({ default: m.SkinsPage })))
+const SkinsPage = preloadedPage(pageLoaders.skins)
 
-const LogsPage = lazy(() => import("./logs-page").then(m => ({ default: m.LogsPage })))
-const SettingsPage = lazy(() => import("./settings").then(m => ({ default: m.SettingsPage })))
-const AccountsPage = lazy(() => import("./accounts-page").then(m => ({ default: m.AccountsPage })))
-const CloudPage = lazy(() => import("./cloud").then(m => ({ default: m.CloudPage })))
-const ServersPage = lazy(() => import("./servers-page").then(m => ({ default: m.ServersPage })))
+const LogsPage = preloadedPage(pageLoaders.logs)
+const SettingsPage = preloadedPage(pageLoaders.settings)
+const AccountsPage = preloadedPage(pageLoaders.accounts)
+const CloudPage = preloadedPage(pageLoaders.cloud)
+const ServersPage = preloadedPage(pageLoaders.servers)
 const ServerDetailPage = lazy(() => import("./server-detail-page").then(m => ({ default: m.ServerDetailPage })))
-const StatsPage = lazy(() => import("./stats-page").then(m => ({ default: m.StatsPage })))
+const StatsPage = preloadedPage(pageLoaders.stats)
 const OnboardingModal = lazy(() => import("./onboarding-modal").then(m => ({ default: m.OnboardingModal })))
 
 /**
@@ -60,7 +62,28 @@ export function Launcher({ onReady }: LauncherProps) {
    * и useEffect про тему лаунчеру больше не нужны.
    */
   const registry = useThemeRegistry()
-  const [activeTab, setActiveTab] = useState<TabId>("home")
+  const [activeTab, updateActiveTab] = useState<TabId>("home")
+  const navigationRequest = useRef(0)
+  const setActiveTab = useCallback((tab: TabId) => {
+    const request = ++navigationRequest.current
+    // Старая страница остаётся интерактивной до готовности следующего модуля.
+    void preloadPage(tab).then(() => {
+      if (request === navigationRequest.current) startTransition(() => updateActiveTab(tab))
+    })
+  }, [])
+  // Две частые страницы сохраняют состояние. Activity снимает их эффекты в фоне:
+  // скрытые страницы не держат watchers/таймеры/подписки, тяжёлые экраны не удерживаем.
+  const [retained, setRetained] = useState<TabId[]>([])
+  const retainedPages = ["builds", "settings"].includes(activeTab) && !retained.includes(activeTab)
+    ? [...retained, activeTab] : retained
+  useEffect(() => { if (retainedPages !== retained) setRetained(retainedPages) }, [retainedPages, retained])
+  useEffect(() => {
+    let stop = () => {}
+    const warm = () => { stop(); stop = warmFrequentPages() }
+    if (!document.getElementById("splash")) warm()
+    window.addEventListener("app:hydrated", warm, { once: true })
+    return () => { stop(); window.removeEventListener("app:hydrated", warm) }
+  }, [])
   const [startupBuild, setStartupBuild] = useState<{ id: string; build: string } | null>(null)
   useEffect(() => {
     let active = true
@@ -94,7 +117,7 @@ export function Launcher({ onReady }: LauncherProps) {
    * пункту меню: страницы, у которых есть вложенный экран (карточка сборки,
    * файловый браузер облака), по нему возвращаются на свой список.
    */
-  const [sectionResetToken, setSectionResetToken] = useState(0)
+  const [sectionResetTokens, setSectionResetTokens] = useState({ builds: 0, servers: 0, cloud: 0 })
   const [pendingCloudThemeId, setPendingCloudThemeId] = useState<string | null>(null)
 
 
@@ -221,12 +244,14 @@ export function Launcher({ onReady }: LauncherProps) {
     // сборки в список сборок, из конкретного сервера в список серверов, из
     // файлового браузера облака к списку хранилищ.
     if (tab === activeTab) {
+      // Повторный клик также отменяет ещё не завершившийся переход на другую страницу.
+      navigationRequest.current++
       // «Серверы» сбрасывают и выбранный сервер, и внутреннюю вкладку страницы
       // (корзина, Modrinth, CurseForge) — за это отвечает sectionResetToken.
       if (tab === "servers") {
         setSelectedMcServer(null)
-        setSectionResetToken((token) => token + 1)
-      } else if (tab === "builds" || tab === "cloud") setSectionResetToken((token) => token + 1)
+        setSectionResetTokens(tokens => ({ ...tokens, servers: tokens.servers + 1 }))
+      } else if (tab === "builds" || tab === "cloud") setSectionResetTokens(tokens => ({ ...tokens, [tab]: tokens[tab] + 1 }))
       return
     }
 
@@ -239,21 +264,21 @@ export function Launcher({ onReady }: LauncherProps) {
     onReady?.()
   }, [onReady])
 
-  const renderPage = () => {
-    switch (activeTab) {
+  const renderPage = (tab: TabId) => {
+    switch (tab) {
       case "home": return <HomePage />
-      case "builds": return <InstancePage rootResetToken={sectionResetToken} startupBuild={startupBuild} />
+      case "builds": return <InstancePage rootResetToken={sectionResetTokens.builds} startupBuild={startupBuild} />
       case "logs": return <LogsPage focus={logsFocus} />
       case "agent": return <AgentPage />
       case "stats": return <StatsPage />
       case "settings": return <SettingsPage initialTab={settingsTab} />
       case "accounts": return <AccountsPage />
-      case "cloud": return <CloudPage rootResetToken={sectionResetToken} pendingThemeId={pendingCloudThemeId} onPendingThemeHandled={() => setPendingCloudThemeId(null)} />
+      case "cloud": return <CloudPage rootResetToken={sectionResetTokens.cloud} pendingThemeId={pendingCloudThemeId} onPendingThemeHandled={() => setPendingCloudThemeId(null)} />
       case "servers":
         if (selectedMcServer) {
           return <ServerDetailPage server={selectedMcServer} onBack={() => setSelectedMcServer(null)} onServerUpdated={setSelectedMcServer} />
         }
-        return <ServersPage onSelectServer={setSelectedMcServer} rootResetToken={sectionResetToken} />
+        return <ServersPage onSelectServer={setSelectedMcServer} rootResetToken={sectionResetTokens.servers} />
       case "skins": return <SkinsPage />
       default: return null
     }
@@ -274,11 +299,16 @@ export function Launcher({ onReady }: LauncherProps) {
               (чёрный) экран. resetKey = активная вкладка: сбой одной страницы
               не «залипает» при переходе на другую.
             */}
-            <ErrorBoundary resetKey={activeTab} label={`page:${activeTab}`}>
-              <Suspense fallback={<PageFallback />}>
-                {renderPage()}
-              </Suspense>
-            </ErrorBoundary>
+            {retainedPages.map(tab => (
+              <Activity key={tab} mode={activeTab === tab ? "visible" : "hidden"}>
+                <ErrorBoundary resetKey={tab} label={`page:${tab}`}>
+                  <Suspense fallback={<PageFallback />}>{renderPage(tab)}</Suspense>
+                </ErrorBoundary>
+              </Activity>
+            ))}
+            {!retainedPages.includes(activeTab) && <ErrorBoundary resetKey={activeTab} label={`page:${activeTab}`}>
+              <Suspense fallback={<PageFallback />}>{renderPage(activeTab)}</Suspense>
+            </ErrorBoundary>}
           </div>
         </div>
       </main>

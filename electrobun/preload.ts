@@ -2,6 +2,7 @@ import { installDesktopApi, desktopRpc, stageLocalFile } from './platform/render
 import type {
   IpcInvokeMap,
   IpcEventMap,
+  ShareProgress,
   AuthPayload,
   AuthSession,
   DeviceCodeStart,
@@ -93,7 +94,7 @@ installDesktopApi({
   onMcServerRemoteSnapshot: (callback: (payload: IpcEventMap['mc-server:remote-snapshot']) => void) => subscribe('mc-server:remote-snapshot', callback),
   onMcServerRemoteConnection: (callback: (payload: IpcEventMap['mc-server:remote-connection']) => void) => subscribe('mc-server:remote-connection', callback),
   cancelShareInstall: (requestId: string) => desktopRpc.invoke('share:cancel-install', requestId) as Promise<boolean>,
-  onShareProgress: (callback: (progress: { stage: string; done: number; total: number; bytes: number; files?: { path: string; size: number; name?: string; iconUrl?: string; status: "queued" | "downloading" | "complete" | "error" }[]; requestId?: string; buildId?: string }) => void) => subscribe('share:progress', callback),
+  onShareProgress: (callback: (progress: ShareProgress) => void) => subscribe('share:progress', callback),
   onShareInstalled: (callback: (event: { buildId: string }) => void) => subscribe('share:installed', callback),
   startupThemeSnapshot: window.xneonStartupTheme ?? null,
   startupReady: invoke('startup:ready'),
@@ -245,6 +246,7 @@ installDesktopApi({
 
   // ── Settings ───────────────────────────────────────────
   getSetting: (key: string) => desktopRpc.invoke('settings:get', key) as Promise<string | undefined>,
+  getSettings: (keys: string[]) => desktopRpc.invoke('settings:get-many', keys) as Promise<Record<string, string | undefined>>,
   setSetting: (key: string, value: string) => desktopRpc.invoke('settings:set', key, value) as Promise<void>,
   getTotalMemory: invoke('system:get-total-memory'),
 

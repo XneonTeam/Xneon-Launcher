@@ -10,7 +10,7 @@ import { invokeHandler, ViewSession } from "./ipc"
 import type { LauncherRPC } from "./schema"
 import { appendUpload, abortUpload, beginUpload } from "./staged-files"
 import packageJson from "../../package.json"
-import { enableWindowsWindowTransitions, saveFile, setWindowsAppUserModelId, setWindowsTaskbarIdentity, setWindowsWindowIcons } from "./windows-native"
+import { enableWindowsWindowTransitions, saveFile, setWindowsAppUserModelId, setWindowsTaskbarIdentity, setWindowsWindowClientWidth, setWindowsWindowIcons } from "./windows-native"
 import { launcherOperations } from "./operation-gate"
 
 export { rpcRegistry, type RpcContext } from "./ipc"
@@ -152,7 +152,7 @@ export class DesktopWindow extends EventEmitter {
     this.native = new NativeWindow({
       title,
       frame: { width: options.width, height: options.height },
-      renderer: "native",
+      renderer: process.platform === "linux" ? "cef" : "native",
       titleBarStyle: windowsLauncher ? "hiddenInset" : options.launcher ? "hidden" : "default",
       hidden: windowsLauncher || options.show === false,
       url: this.currentUrl,
@@ -237,7 +237,12 @@ export class DesktopWindow extends EventEmitter {
     if (!options.launcher) this.native.webview.on("will-navigate", event => forwardNavigation(event, "will-navigate"))
     this.native.webview.on("did-navigate", event => forwardNavigation(event, "did-navigate"))
     this.native.webview.on("did-navigate-in-page", event => forwardNavigation(event, "did-navigate-in-page"))
-    if (windowsLauncher && options.show !== false) this.native.show()
+    if (windowsLauncher) {
+      // SDK задаёт размер с рамкой. Выравниваем именно Client Width до показа окна.
+      if (windowHandle) setWindowsWindowClientWidth(windowHandle, options.width)
+      this.native.center()
+      if (options.show !== false) this.native.show()
+    }
   }
 
   static getAllWindows() { return [...windows.values()] }

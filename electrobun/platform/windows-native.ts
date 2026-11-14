@@ -1,8 +1,13 @@
-import { dlopen, linkSymbols, ptr, read, type Pointer } from "bun:ffi"
-import { execFile, spawnSync } from "node:child_process"
+import { dlopen, linkSymbols, ptr, read, toArrayBuffer, type Pointer } from "bun:ffi"
+import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import path from "node:path"
+import { existsSync } from "node:fs"
+import * as nfd from "nativefiledialog-for-bun"
 import { queryGpuAdapters } from "./gpu"
+import { nativeFileDialogLibraryPath } from "./resources"
+import { readWindowsProcessCommandLine } from "./windows-command-line"
+import { unixSafeStorage } from "./unix-safe-storage"
 
 const powershell = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
 const exec = promisify(execFile)
@@ -15,22 +20,45 @@ export function getGpuAdapters() {
     return stdout
   })
 }
-const dpapi = "[Console]::OutputEncoding = [Text.Encoding]::UTF8; Add-Type -AssemblyName System.Security; $bytes = [Convert]::FromBase64String([Console]::ReadLine()); $scope = [Security.Cryptography.DataProtectionScope]::CurrentUser;"
-
 function protect(value: Buffer, operation: "Protect" | "Unprotect") {
   if (process.platform !== "win32") throw new Error("OS secret storage is unavailable")
-  const command = dpapi + " [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::" + operation + "($bytes, $null, $scope))"
-  const result = spawnSync(powershell, [...startup, "-Command", command], {
-    input: value.toString("base64") + "\n", encoding: "utf8", windowsHide: true, timeout: 15000,
+  if (process.arch !== "x64" && process.arch !== "arm64") throw new Error("Unsupported DPAPI architecture")
+  const crypto = dlopen("crypt32.dll", {
+    CryptProtectData: { args: ["ptr", "ptr", "ptr", "ptr", "ptr", "u32", "ptr"], returns: "bool" },
+    CryptUnprotectData: { args: ["ptr", "ptr", "ptr", "ptr", "ptr", "u32", "ptr"], returns: "bool" },
   })
-  if (result.status !== 0 || !result.stdout?.trim()) throw new Error("Windows DPAPI operation failed")
-  return Buffer.from(result.stdout.trim(), "base64")
+  try {
+    const kernel = dlopen("kernel32.dll", {
+      LocalFree: { args: ["ptr"], returns: "ptr" },
+      GetLastError: { args: [], returns: "u32" },
+    })
+    // DATA_BLOB на 64-битных платформах: DWORD, padding, указатель.
+    const input = Buffer.alloc(16)
+    const output = Buffer.alloc(16)
+    const bytes = value.length ? value : Buffer.alloc(1)
+    input.writeUInt32LE(value.length)
+    input.writeBigUInt64LE(BigInt(ptr(bytes)), 8)
+    try {
+      const call = operation === "Protect" ? crypto.symbols.CryptProtectData : crypto.symbols.CryptUnprotectData
+      if (!call(ptr(input), null, null, null, null, 0, ptr(output))) {
+        throw new Error("Windows DPAPI operation failed: " + kernel.symbols.GetLastError())
+      }
+      const size = output.readUInt32LE(0)
+      const data = read.ptr(ptr(output), 8)
+      // Копируем память до LocalFree, включая корректный пустой результат.
+      return size ? Buffer.from(new Uint8Array(toArrayBuffer(data, 0, size))) : Buffer.alloc(0)
+    } finally {
+      const data = read.ptr(ptr(output), 8)
+      if (data) kernel.symbols.LocalFree(data as Pointer)
+      kernel.close()
+    }
+  } finally { crypto.close() }
 }
 
 export const safeStorage = {
-  isEncryptionAvailable: () => process.platform === "win32",
-  encryptString: (value: string) => protect(Buffer.from(value), "Protect"),
-  decryptString: (value: Buffer) => protect(value, "Unprotect").toString("utf8"),
+  isEncryptionAvailable: () => process.platform === "win32" || unixSafeStorage.isEncryptionAvailable(),
+  encryptString: (value: string) => process.platform === "win32" ? protect(Buffer.from(value), "Protect") : unixSafeStorage.encryptString(value),
+  decryptString: (value: Buffer) => process.platform === "win32" ? protect(value, "Unprotect").toString("utf8") : unixSafeStorage.decryptString(value),
   async encryptStringAsync(value: string) { return this.encryptString(value) },
   async decryptStringAsync(value: Buffer) { return { result: this.decryptString(value) } },
 }
@@ -72,6 +100,31 @@ export function enableWindowsWindowTransitions(window: Pointer): void {
     if (user.symbols.GetWindowLongW(window, GWL_STYLE) !== newStyle ||
         !user.symbols.SetWindowPos(window, null, 0, 0, 0, 0, SWP_KEEP_PLACEMENT | SWP_FRAMECHANGED)) {
       throw new Error("Could not apply Windows window transition styles")
+    }
+  } finally {
+    user.close()
+  }
+}
+
+/** Задаёт ширину клиентской области, измеряя рамку окна вместо прибавления константы. */
+export function setWindowsWindowClientWidth(window: Pointer, width: number): void {
+  if (process.platform !== "win32") return
+  const user = dlopen("user32.dll", {
+    GetWindowRect: { args: ["ptr", "ptr"], returns: "i32" },
+    GetClientRect: { args: ["ptr", "ptr"], returns: "i32" },
+    SetWindowPos: { args: ["ptr", "ptr", "i32", "i32", "i32", "i32", "u32"], returns: "i32" },
+  })
+  try {
+    const outer = new Int32Array(4)
+    const client = new Int32Array(4)
+    if (!user.symbols.GetWindowRect(window, outer) || !user.symbols.GetClientRect(window, client)) {
+      throw new Error("Could not measure Windows client width")
+    }
+    const delta = Math.round(width) - (client[2] - client[0])
+    if (delta === 0) return
+    // NOMOVE | NOZORDER | NOACTIVATE: меняем ширину, сохраняем высоту и состояние окна.
+    if (!user.symbols.SetWindowPos(window, null, 0, 0, outer[2] - outer[0] + delta, outer[3] - outer[1], 0x0016)) {
+      throw new Error("Could not set Windows client width")
     }
   } finally {
     user.close()
@@ -173,18 +226,11 @@ export async function readWindowsLauncherArgs(): Promise<string[]> {
   }
   if (!process.ppid) return []
   const launcher = path.join(path.dirname(process.execPath), "launcher.exe")
-  const command = [
-    "[Console]::OutputEncoding = [Text.Encoding]::UTF8",
-    `$parent = Get-CimInstance Win32_Process -Filter 'ProcessId = ${process.ppid}'`,
-    "if ($parent.ExecutablePath -ieq $env:XN_EXPECTED_LAUNCHER) { [Console]::Write($parent.CommandLine) }",
-  ].join("; ")
-  const { stdout } = await exec(powershell, [...startup, "-Command", command], {
-    windowsHide: true,
-    timeout: 5000,
-    env: { ...process.env, XN_EXPECTED_LAUNCHER: launcher },
-  })
-  if (!stdout.includes("--launch")) return []
-  const line = Buffer.from(stdout + "\0", "utf16le")
+  // Electrobun v2.0.6 launcher/main.zig:454 передаёт только runtime_path/main_script,
+  // исходный argv не экспортируется. Поэтому используем ограниченный NT-запрос.
+  const command = readWindowsProcessCommandLine(process.ppid, launcher)
+  if (!command?.includes("--launch")) return []
+  const line = Buffer.from(command + "\0", "utf16le")
   return splitWindowsCommandLine(ptr(line))
 }
 
@@ -221,24 +267,21 @@ function splitWindowsCommandLine(line: Pointer | bigint | null): string[] {
 
 type Filter = { name: string; extensions: string[] }
 export async function saveFile(defaultPath?: string, filters?: Filter[]) {
-  if (process.platform !== "win32") throw new Error("Save dialog is available on Windows")
-  const command = [
-    "[Console]::OutputEncoding = [Text.Encoding]::UTF8",
-    "Add-Type -AssemblyName System.Windows.Forms",
-    "$dialog = New-Object Windows.Forms.SaveFileDialog",
-    "$dialog.FileName = $env:XN_DIALOG_FILENAME",
-    "if ($env:XN_DIALOG_DIRECTORY) { $dialog.InitialDirectory = $env:XN_DIALOG_DIRECTORY }",
-    "if ($env:XN_DIALOG_FILTER) { $dialog.Filter = $env:XN_DIALOG_FILTER }",
-    "try { if ($dialog.ShowDialog() -eq 'OK') { [Console]::Write($dialog.FileName) } } finally { $dialog.Dispose() }",
-  ].join("; ")
-  const { stdout } = await exec(powershell, [...startup, "-STA", "-Command", command], {
-    windowsHide: true,
-    env: {
-      ...process.env,
-      XN_DIALOG_FILENAME: defaultPath && path.basename(defaultPath),
-      XN_DIALOG_DIRECTORY: defaultPath && path.isAbsolute(defaultPath) ? path.dirname(defaultPath) : undefined,
-      XN_DIALOG_FILTER: filters?.map(filter => filter.name + "|" + filter.extensions.map(ext => "*." + ext).join(";")).join("|"),
-    },
-  })
-  return { canceled: !stdout, filePath: stdout || undefined }
+  try {
+    const library = nativeFileDialogLibraryPath()
+    if (!existsSync(library)) throw new Error("Native file dialog library is missing: " + library)
+    nfd.setLibraryPath(path.dirname(library))
+    // Пакет молча выбирает скриптовый бэкенд при ошибке dlopen: запрещаем это до saveFile.
+    const backend = nfd.getBackendName()
+    if (backend !== "ffi") throw new Error(`Native file dialog FFI backend is unavailable: ${library} (backend: ${backend})`)
+    const filePath = await nfd.saveFile({
+      defaultName: defaultPath ? path.basename(defaultPath) : undefined,
+      defaultPath: defaultPath && path.isAbsolute(defaultPath) ? path.dirname(defaultPath) : undefined,
+      filters,
+    })
+    return { canceled: !filePath, filePath: filePath || undefined }
+  } catch (error) {
+    console.error("[Native file dialog] Save failed:", error)
+    throw error
+  }
 }

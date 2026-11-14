@@ -12,8 +12,8 @@ const stored = typeof window !== "undefined" ? localStorage.getItem("language") 
 const lang = stored || "ru"
 
 const localeMap: Record<string, () => Promise<Record<string, string>>> = {
-  ru: () => import("./locales/ru/translation.json").then(m => m.default || m),
-  en: () => import("./locales/en/translation.json").then(m => m.default || m),
+  ru: () => Promise.resolve(ruTranslation),
+  en: () => Promise.resolve(enTranslation),
   uk: () => import("./locales/uk/translation.json").then(m => m.default || m),
   de: () => import("./locales/de/translation.json").then(m => m.default || m),
   es: () => import("./locales/es/translation.json").then(m => m.default || m),

@@ -1,325 +1,42 @@
-import fs from "fs/promises"
-import path from "path"
-import { readArchiveText, readArchiveEntryAsDataUrl, loadAdmZip, loadToml, AdmZipType } from "./archive-utils"
+import fs from "node:fs/promises"
+import path from "node:path"
+import { analyzeDirectory, inspectJar, probeImage, type ContentMetadata } from "@xnlc/parser"
 
-export type ModMetadata = { name?: string; version?: string; description?: string; icon_url?: string; author?: string }
+export type ModMetadata = ContentMetadata
 
-function resolveFabricIconPath(icon: unknown): string | undefined {
-  if (typeof icon === "string") {
-    return icon
-  }
-
-  if (icon && typeof icon === "object") {
-    const sizedIcons = Object.entries(icon as Record<string, unknown>)
-      .map(([size, iconPath]) => ({ size: Number(size), iconPath }))
-      .filter((entry) => Number.isFinite(entry.size) && typeof entry.iconPath === "string")
-      .sort((a, b) => b.size - a.size)
-
-    const bestMatch = sizedIcons[0]
-    if (bestMatch && typeof bestMatch.iconPath === "string") {
-      return bestMatch.iconPath
-    }
-  }
-
-  return undefined
-}
-
-function extractAuthors(data: unknown): string | undefined {
-  if (!data) return undefined
-  if (typeof data === "string") return data.trim() || undefined
-  if (Array.isArray(data)) {
-    const names = data.map((a: unknown) => {
-      if (typeof a === "string") return a.trim()
-      if (a && typeof a === "object" && "name" in (a as Record<string, unknown>)) return String((a as Record<string, unknown>).name).trim()
-      return null
-    }).filter(Boolean) as string[]
-    return names.length > 0 ? names.join(", ") : undefined
-  }
-  return undefined
-}
-
-function extractTomlString(mod: Record<string, unknown>, key: string): string | undefined {
-  const v = mod[key]
-  return typeof v === "string" ? v.trim() || undefined : undefined
-}
-
-function extractTomlAuthors(mod: Record<string, unknown>): string | undefined {
-  const v = mod["authors"]
-  if (typeof v === "string") return v.trim() || undefined
-  return undefined
-}
-
-function parseManifestMf(zip: AdmZipType): { version?: string } | null {
-  const content = readArchiveText(zip, "META-INF/MANIFEST.MF")
-  if (!content) return null
-  const match = content.match(/^Implementation-Version:\s*(.+)$/m)
-  if (!match) return null
-  const v = match[1].trim()
-  return v ? { version: v } : null
-}
-
-function parseMcmodInfo(zip: AdmZipType): ModMetadata | null {
-  const content = readArchiveText(zip, "mcmod.info")
-  if (!content) return null
-  try {
-    const parsed = JSON.parse(content)
-    let list: Record<string, unknown>[]
-    if (Array.isArray(parsed)) {
-      list = parsed
-    } else if (parsed && typeof parsed === "object" && Array.isArray((parsed as Record<string, unknown>)["modlist"])) {
-      list = (parsed as Record<string, unknown>)["modlist"] as Record<string, unknown>[]
-    } else {
-      return null
-    }
-    const first = list[0]
-    if (!first) return null
-    const name = String(first["name"] ?? "").trim()
-    if (!name || name === "Example Mod") return null
-    const version = String(first["version"] ?? "").trim() || undefined
-    const description = String(first["description"] ?? "").trim() || undefined
-    const author = extractAuthors(first["authorList"] ?? first["authors"])
-    const logoFile = String(first["logoFile"] ?? "").trim() || undefined
-    return {
-      name,
-      version,
-      description,
-      icon_url: logoFile ? readArchiveEntryAsDataUrl(zip, logoFile) : undefined,
-      author,
-    }
-  } catch {
-    return null
-  }
-}
-
-function parseLiteModJson(zip: AdmZipType): ModMetadata | null {
-  const content = readArchiveText(zip, "litemod.json")
-  if (!content) return null
-  try {
-    const parsed = JSON.parse(content) as { name?: string; version?: string; revision?: number; author?: string; description?: string; mcversion?: string }
-    const name = parsed.name?.trim()
-    if (!name) return null
-    return {
-      name,
-      version: parsed.version?.trim() ?? (parsed.revision ? String(parsed.revision) : undefined),
-      description: parsed.description?.trim() || undefined,
-      author: parsed.author?.trim() || undefined,
-    }
-  } catch {
-    return null
-  }
-}
-
-function parseFabricModJson(zip: AdmZipType): ModMetadata | null {
-  const content = readArchiveText(zip, "fabric.mod.json")
-  if (!content) return null
-  try {
-    const parsed = JSON.parse(content) as { name?: string; version?: string; description?: string; icon?: unknown; authors?: unknown }
-    const name = parsed.name?.trim()
-    if (!name) return null
-    return {
-      name,
-      version: parsed.version?.trim(),
-      description: parsed.description?.trim(),
-      icon_url: readArchiveEntryAsDataUrl(zip, resolveFabricIconPath(parsed.icon)),
-      author: extractAuthors(parsed.authors),
-    }
-  } catch {
-    return null
-  }
-}
-
-function parseQuiltModJson(zip: AdmZipType): ModMetadata | null {
-  const content = readArchiveText(zip, "quilt.mod.json")
-  if (!content) return null
-  try {
-    const parsed = JSON.parse(content) as {
-      schema_version?: number
-      quilt_loader?: {
-        version?: string
-        metadata?: {
-          name?: string
-          description?: string
-          icon?: unknown
-        }
-        depends?: unknown
-      }
-      authors?: unknown
-    }
-    if (parsed.schema_version !== 1) return null
-    const meta = parsed.quilt_loader?.metadata
-    const name = meta?.name?.trim()
-    if (!name) return null
-    return {
-      name,
-      version: parsed.quilt_loader?.version?.trim(),
-      description: meta?.description?.trim(),
-      icon_url: readArchiveEntryAsDataUrl(zip, resolveFabricIconPath(meta?.icon)),
-      author: extractAuthors(parsed.authors),
-    }
-  } catch {
-    return null
-  }
-}
-
-async function parseModsToml(zip: AdmZipType, tomlPath: string): Promise<ModMetadata | null> {
-  const content = readArchiveText(zip, tomlPath)
-  if (!content) return null
-  try {
-    const toml = await loadToml()
-    const parsed = toml.parse(content) as { mods?: Record<string, unknown>[] }
-    const modsList = parsed.mods
-    if (!Array.isArray(modsList) || modsList.length === 0) return null
-    const first = modsList[0]
-    const name = extractTomlString(first, "displayName")
-    if (!name) return null
-    const modId = extractTomlString(first, "modId")
-    let version = extractTomlString(first, "version")
-    if (version === "${file.jarVersion}") {
-      const man = parseManifestMf(zip)
-      if (man?.version) version = man.version
-    }
-    return {
-      name,
-      version,
-      description: extractTomlString(first, "description"),
-      icon_url: (() => {
-        const logoFile = extractTomlString(first, "logoFile")
-        return logoFile ? readArchiveEntryAsDataUrl(zip, logoFile) : undefined
-      })(),
-      author: extractTomlAuthors(first),
-    }
-  } catch {
-    return null
-  }
-}
-
-async function parseNeoForgeModsToml(zip: AdmZipType): Promise<ModMetadata | null> {
-  return parseModsToml(zip, "META-INF/neoforge.mods.toml")
-}
-
-async function parseForgeModsToml(zip: AdmZipType): Promise<ModMetadata | null> {
-  return parseModsToml(zip, "META-INF/mods.toml")
-}
-
-function parsePackMcmeta(zip: AdmZipType): ModMetadata | null {
-  const content = readArchiveText(zip, "pack.mcmeta")
-  if (!content) return null
-  try {
-    const parsed = JSON.parse(content) as { pack?: { pack_format?: number; description?: string | { text?: string; translate?: string } } }
-    const pack = parsed.pack
-    if (!pack) return null
-    const descRaw = pack.description
-    let description: string | undefined
-    if (typeof descRaw === "string") {
-      description = descRaw
-    } else if (descRaw && typeof descRaw === "object") {
-      description = descRaw.text ?? descRaw.translate ?? undefined
-    }
-    const icon = readArchiveEntryAsDataUrl(zip, "pack.png")
-    return {
-      name: undefined,
-      version: pack.pack_format != null ? String(pack.pack_format) : undefined,
-      description,
-      icon_url: icon,
-      author: undefined,
-    }
-  } catch {
-    return null
-  }
-}
-
-function parseShaderProperties(zip: AdmZipType): ModMetadata | null {
-  const content = readArchiveText(zip, "shaders/shaders.properties")
-  if (!content) return null
-  return {
-    name: undefined,
-    version: undefined,
-    description: undefined,
-    icon_url: undefined,
-    author: undefined,
-  }
-}
-
-/**
- * Метаданные локального контента: файла-архива или папки. Minecraft читает
- * ресурспаки и шейдеры и распакованными, поэтому для папки смотрим pack.mcmeta,
- * pack.png и shaders/shaders.properties.
- */
-export async function readContentMetadataFromPath(target: string): Promise<ModMetadata> {
+/** Возвращает прежний формат metadata для локального файла или распакованного пака. */
+export async function readContentMetadataFromPath(target: string, signal?: AbortSignal): Promise<ModMetadata> {
+  signal?.throwIfAborted()
   const stat = await fs.stat(target).catch(() => null)
-  if (!stat) return {}
-  if (!stat.isDirectory()) return readModMetadataFromArchive(target)
-  return (await readFolderMetadata(target)) ?? {}
-}
-
-async function readFolderMetadata(dirPath: string): Promise<ModMetadata | null> {
-  const packMcmeta = await fs.readFile(path.join(dirPath, "pack.mcmeta"), "utf8").catch(() => null)
-  if (packMcmeta) {
-    try {
-      const parsed = JSON.parse(packMcmeta) as { pack?: { pack_format?: number; description?: string | { text?: string; translate?: string } } }
-      const pack = parsed.pack
-      if (pack) {
-        const descRaw = pack.description
-        const description = typeof descRaw === "string"
-          ? descRaw
-          : descRaw && typeof descRaw === "object"
-            ? descRaw.text ?? descRaw.translate ?? undefined
-            : undefined
-        return {
-          version: pack.pack_format != null ? String(pack.pack_format) : undefined,
-          description,
-          icon_url: await readFileAsDataUrl(path.join(dirPath, "pack.png")),
-        }
-      }
-    } catch {
-      // битый pack.mcmeta — просто нет метаданных
-    }
+  if (!stat) return { diagnostics: [{ code: "SCAN_ERROR", message: "Cannot stat content path" }] }
+  if (!stat.isDirectory()) {
+    const result = await inspectJar(target, { metadata: true, signal })
+    return { ...result.metadata, ...(result.diagnostics?.length ? { diagnostics: result.diagnostics } : {}) }
   }
-  const shadersDir = await fs.stat(path.join(dirPath, "shaders")).catch(() => null)
-  if (shadersDir?.isDirectory()) {
-    return { icon_url: await readFileAsDataUrl(path.join(dirPath, "shaders", "shaders.png")) }
-  }
-  return null
-}
-
-async function readFileAsDataUrl(filePath: string): Promise<string | undefined> {
-  const data = await fs.readFile(filePath).catch(() => null)
-  if (!data) return undefined
-  const ext = path.extname(filePath).toLowerCase()
-  const mime = ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : ext === ".webp" ? "image/webp" : "image/png"
-  return `data:${mime};base64,${data.toString("base64")}`
-}
-
-/**
- * Разбирает метаданные мода из уже открытого архива. Отделено от чтения файла,
- * чтобы единый инспектор JAR (jar-inspector.ts) мог переиспользовать один и тот
- * же прочитанный буфер для метаданных, зависимостей и отпечатка CurseForge.
- */
-export async function parseModMetadataFromZip(zip: AdmZipType): Promise<ModMetadata> {
-  const parsers = [
-    parseNeoForgeModsToml,
-    parseForgeModsToml,
-    parseMcmodInfo,
-    parseQuiltModJson,
-    parseFabricModJson,
-    parseLiteModJson,
-    parsePackMcmeta,
-    parseShaderProperties,
-  ]
-  for (const parser of parsers) {
-    const result = await parser(zip)
-    if (result) return result
-  }
-  return {}
-}
-
-export async function readModMetadataFromArchive(filePath: string): Promise<ModMetadata> {
   try {
-    const AdmZip = await loadAdmZip()
-    const data = await fs.readFile(filePath)
-    return await parseModMetadataFromZip(new AdmZip(data))
-  } catch {
-    // ignore unreadable archive
+    const result = await analyzeDirectory(target, { signal })
+    const pack = result.mods.find(item => ["resourcepack", "datapack", "hybridpack", "unknownpack", "shaderpack"].includes(item.loader))
+    const value = pack?.description
+    const description = typeof value === "string" ? value : value && typeof value === "object" ? String((value as { text?: unknown; translate?: unknown }).text ?? (value as { translate?: unknown }).translate ?? "") || undefined : undefined
+    const iconPath = pack?.iconPath
+    let icon_url: string | undefined
+    if (iconPath) {
+      try {
+        const handle = await fs.open(path.join(target, iconPath), "r")
+        try {
+          const info = await handle.stat()
+          if (!info.isFile() || info.size > 4 * 1024 * 1024) throw new Error("Icon size limit exceeded")
+          const bytes = Buffer.alloc(info.size)
+          const { bytesRead } = await handle.read(bytes)
+          const { mimeType } = probeImage(bytes.subarray(0, bytesRead))
+          icon_url = `data:${mimeType};base64,${bytes.subarray(0, bytesRead).toString("base64")}`
+        } finally { await handle.close() }
+      } catch (error) { result.diagnostics.push({ code: "INVALID_ICON", source: iconPath, message: String(error) }) }
+    }
+    signal?.throwIfAborted()
+    return { version: pack?.version, description, icon_url, ...(result.diagnostics.length ? { diagnostics: result.diagnostics } : {}) }
+  } catch (error) {
+    signal?.throwIfAborted()
+    return { diagnostics: [{ code: "SCAN_ERROR", message: String(error) }] }
   }
-  return {}
 }

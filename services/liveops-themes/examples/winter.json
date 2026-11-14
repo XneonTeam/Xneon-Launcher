@@ -1,0 +1,14 @@
+{
+  "format": "xneon-event-theme",
+  "version": 1,
+  "theme": {
+    "name": "Зимний ивент",
+    "description": "Временное зимнее оформление",
+    "primary": "#78bce8",
+    "accent": "#c3e7ff",
+    "palette": { "background": "#101923", "card": "#182736", "foreground": "#eff8ff" },
+    "glow": { "primary": { "color": "#78bce8", "alpha": 0.25 } },
+    "background": { "kind": "particles", "source": "", "particleStyle": "snow", "opacity": 0.35 }
+  },
+  "assets": []
+}

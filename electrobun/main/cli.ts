@@ -1,8 +1,12 @@
 import { createHash, randomUUID } from "node:crypto"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { chmodSync, constants } from "node:fs"
 import { createConnection, createServer, type Socket } from "node:net"
 import path from "node:path"
 import { launcherOperations } from "../platform/operation-gate"
+import { hasLauncherProfileLock } from "../platform/instance-lock"
+import { unixPrivateDirectory } from "../platform/unix-file-lock"
+import { removeStaleUnixSocket } from "../platform/unix-socket"
 
 const maxFrame = 4096
 const responseTimeout = 15 * 60 * 1000
@@ -100,9 +104,12 @@ export class CliQueue {
 
 export const cli = new CliQueue()
 
-function endpoint(profile: string) {
-  const hash = createHash("sha256").update(profile.toLowerCase()).digest("hex").slice(0, 32)
-  return { pipe: "\\\\.\\pipe\\XneonLauncher-" + hash, tokenPath: profile + ".cli" }
+export function launcherCliEndpoint(profile: string) {
+  const windows = process.platform === "win32"
+  const absolute = path.resolve(profile)
+  const hash = createHash("sha256").update(windows ? absolute.toLowerCase() : absolute).digest("hex").slice(0, 32)
+  const pipe = windows ? "\\\\.\\pipe\\XneonLauncher-" + hash : path.join(unixPrivateDirectory(), hash + ".sock")
+  return { pipe, tokenPath: profile + ".cli" }
 }
 
 function readFrame(socket: Socket, onFrame: (data: unknown) => void) {
@@ -123,10 +130,13 @@ function readFrame(socket: Socket, onFrame: (data: unknown) => void) {
 }
 
 export async function startCliListener(profile: string) {
-  const { pipe, tokenPath } = endpoint(profile)
+  const { pipe, tokenPath } = launcherCliEndpoint(profile)
+  const unix = process.platform !== "win32"
+  if (unix) removeStaleUnixSocket(pipe, hasLauncherProfileLock(profile))
   const token = randomUUID()
   await mkdir(path.dirname(tokenPath), { recursive: true })
-  await writeFile(tokenPath, token, { mode: 0o600 })
+  await writeFile(tokenPath, token, { mode: 0o600, flag: constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | (constants.O_NOFOLLOW ?? 0) })
+  if (unix) chmodSync(tokenPath, 0o600)
   const server = createServer(socket => {
     socket.on("error", () => socket.destroy())
     socket.setTimeout(5000, () => socket.destroy())
@@ -147,16 +157,19 @@ export async function startCliListener(profile: string) {
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject)
     server.listen(pipe, () => {
+      try { if (unix) chmodSync(pipe, 0o600) }
+      catch (error) { server.close(); reject(error); return }
       server.off("error", reject)
       server.on("error", error => cli.close(error.message))
       resolve()
     })
   })
   server.unref()
+  return server
 }
 
 export async function forwardCli(profile: string, build: string | null) {
-  const { pipe, tokenPath } = endpoint(profile)
+  const { pipe, tokenPath } = launcherCliEndpoint(profile)
   const deadline = Date.now() + 5000
   let delivered = false
   do {

@@ -10,6 +10,7 @@ import fs from "fs"
 import os from "os"
 import { dbHelpers, type McServerRow } from "../db"
 import { serverManager, ensureServerJar, analyzeServerJar } from "@xnlc/servers"
+import { readProcessMetrics } from "../platform/process-metrics"
 import type { DownloadProgress } from "@xnlc/servers"
 import { xnConnectManager } from "./xn-connect-manager"
 import {
@@ -282,6 +283,7 @@ function withServerFileLock<T>(id: string, task: () => Promise<T>): Promise<T> {
 }
 
 export function registerMcServerHandlers() {
+  serverManager.setProcessMetricsReader(readProcessMetrics)
   registerMcServerHandler("mc-server:list", async () => {
     const rows = await dbHelpers.listMcServers()
     return rows.map(rowToInfo)
@@ -1109,7 +1111,7 @@ export function registerMcServerHandlers() {
     try {
       const res = await fetch("https://api.modrinth.com/v2/version_files", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "User-Agent": "Xneon-Launcher/1.0 (launcher@xneon.fun)" },
+        headers: { "Content-Type": "application/json", "User-Agent": "Xneon-Launcher/1.0.8" },
         body: JSON.stringify({ hashes: sha1List, algorithm: "sha1" }),
       })
       if (!res.ok) return hashes.map(h => ({ name: h.name, sha1: h.sha1 }))

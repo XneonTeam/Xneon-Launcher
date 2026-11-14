@@ -83,7 +83,7 @@ export function InstancePage({ rootResetToken, startupBuild }: { rootResetToken?
     fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, restoreBuildFromTrash, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, addCategory, collapsedGroups, toggleGroupCollapse, groups, categoryIcons, setCategoryIcon,
     updateBuild, addModToBuild, addLocalModToBuild,
     addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds,
-    toggleItemEnabled, updateItemVersion,
+    toggleItemEnabled, updateItemVersion, beginContentMutation,
   } = useBuilds()
 
   const refreshUpdatesCount = useCallback(async () => {
@@ -447,7 +447,7 @@ export function InstancePage({ rootResetToken, startupBuild }: { rootResetToken?
         renameBuild={renameBuild}
         onTrash={trashBuildFromDetail}
         fileInputRef={fileInputRef}
-        reloadBuilds={reloadBuilds}
+        beginContentMutation={beginContentMutation}
         modSearch={modSearch}
         setModSearch={setModSearch}
         modSource={modSource}

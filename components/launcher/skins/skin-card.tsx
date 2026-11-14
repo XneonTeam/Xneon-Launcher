@@ -114,6 +114,7 @@ export function SkinCard({
       aria-pressed={isSelected}
       onClick={onSelect}
       onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault()
           onSelect()
@@ -146,17 +147,20 @@ export function SkinCard({
           )}
         </div>
 
-        {/* Delete button */}
+        {/* Удаление доступно без наведения и с клавиатуры. */}
         {!isEquipped && (
-          <span data-ui="skins-skin-card-span-1"
+          <button data-ui="skins-skin-card-span-1"
+            type="button"
+            title={t("common.delete")}
+            aria-label={t("common.delete")}
             onClick={(e) => {
               e.stopPropagation()
               onDelete()
             }}
-            className="absolute left-1.5 top-1.5 z-30 flex items-center justify-center size-6 rounded-lg bg-destructive/80 text-destructive-foreground cursor-pointer hover:bg-destructive transition-all duration-200 shadow-md opacity-0 group-hover:opacity-100"
+            className="absolute left-1.5 top-1.5 z-30 flex items-center justify-center size-7 rounded-lg border border-border bg-card text-muted-foreground hover:bg-destructive/15 hover:text-destructive transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <IconTrash className="w-3 h-3" />
-          </span>
+          </button>
         )}
 
         {/* Equipped badge */}
@@ -166,19 +170,20 @@ export function SkinCard({
           </span>
         )}
 
-        {/* Hover edit button */}
-        <div data-ui="skins-skin-card-div-4" className="absolute inset-x-0 bottom-0 z-30 flex justify-end p-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
-          <span data-ui="skins-skin-card-span-3"
+        {/* Постоянно видимая кнопка редактирования. */}
+        <div data-ui="skins-skin-card-div-4" className="absolute inset-x-0 bottom-0 z-30 flex justify-end p-1.5">
+          <button data-ui="skins-skin-card-span-3"
+            type="button"
             onClick={(e) => {
               e.stopPropagation()
               onEdit()
             }}
             title={t("skins.edit", "Изменить")}
             aria-label={t("skins.edit", "Изменить")}
-            className="grid size-7 place-items-center rounded-lg bg-card/85 text-foreground backdrop-blur-sm transition-colors hover:bg-muted/95"
+            className="grid size-7 place-items-center rounded-lg border border-border bg-card text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <IconPencil className="w-3.5 h-3.5" />
-          </span>
+          </button>
         </div>
       </div>
 

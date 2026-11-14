@@ -1,9 +1,7 @@
 import path from "path"
 import fs from "fs/promises"
-import { exec } from "child_process"
+import { execFile } from "child_process"
 import Database from "../../platform/sqlite"
-
-export type BufferEncoding = "utf-8" | "utf8" | "cp866" | "cp1251" | string
 
 /**
  * Общий скелет обхода инстансов другого лаунчера: пройти по каталогам, взять
@@ -31,15 +29,12 @@ export async function discoverInstancesFromDirs<T extends { name: string }>(
   return found.sort((a, b) => a.name.localeCompare(b.name, "ru"))
 }
 
-export function execAsync(cmd: string, options?: { timeout?: number; encoding?: BufferEncoding; maxBuffer?: number }): Promise<{ stdout: string; stderr: string }> {
-  const outputEncoding = options?.encoding
+/** Прямой запуск: аргументы не интерпретируются shell, оба потока читаются отдельно. */
+export function execFileAsync(file: string, args: string[], options: { timeout?: number; maxBuffer?: number } = {}): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    exec(cmd, { ...options, encoding: "buffer" } as import("child_process").ExecOptions, (error, stdout, stderr) => {
+    execFile(file, args, { ...options, encoding: "utf8", shell: false, windowsHide: true, maxBuffer: options.maxBuffer ?? 1024 * 1024 }, (error, stdout, stderr) => {
       if (error) reject(error)
-      else {
-        const decode = (buf: Buffer) => outputEncoding ? new TextDecoder(outputEncoding).decode(buf) : buf.toString("utf-8")
-        resolve({ stdout: decode(stdout as Buffer), stderr: decode(stderr as Buffer) })
-      }
+      else resolve({ stdout, stderr })
     })
   })
 }

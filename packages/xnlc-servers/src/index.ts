@@ -5,6 +5,7 @@
 
 // Server process management
 export { ServerManager, serverManager } from "./server-manager.js"
+export type { ProcessMetricsReader, ProcessMetricsSample } from "./server-manager.js"
 
 // Детект готовности сервера по маркеру в консоли (startup-детект)
 export {

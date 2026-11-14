@@ -33,6 +33,7 @@
     "@xnlc/core": "workspace:*",
     "@xnlc/mods": "workspace:*",
     "@xnlc/nbt": "workspace:*",
+    "@xnlc/parser": "workspace:*",
     "@xnlc/servers": "workspace:*",
     "@xnlc/share": "workspace:*",
     "@xnlc/skins": "workspace:*",
@@ -42,13 +43,13 @@
     "discord-rpc": "^4.0.1",
     "i18next": "^26.3.6",
     "iconv-lite": "^0.7.3",
+    "nativefiledialog-for-bun": "0.3.2",
     "pngjs": "^7.0.0",
     "prismjs": "^1.30.0",
     "react-simple-code-editor": "^0.14.1",
     "remark-gfm": "^4.0.1",
     "skinview3d": "^3.4.2",
     "three": "^0.185.1",
-    "toml": "^5.0.0",
     "webdav": "^5.10.0"
   },
   "scripts": {

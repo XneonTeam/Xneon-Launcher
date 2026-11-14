@@ -12,7 +12,7 @@
 // а повторный показ не требует ни WebGL, ни повторной загрузки текстуры.
 // ============================================================
 
-import { SkinViewer } from "skinview3d"
+import type { SkinViewer } from "skinview3d"
 
 /** Размер снимка: карточка в сетке — примерно 180×230 CSS-пикселя. */
 const PREVIEW_W = 216
@@ -63,9 +63,10 @@ export function clearSkinPreviews(): void {
   previewCache.clear()
 }
 
-function ensureViewer(): SkinViewer | null {
+async function ensureViewer(): Promise<SkinViewer | null> {
   if (viewer) return viewer
   if (typeof document === "undefined") return null
+  const { SkinViewer } = await import("skinview3d")
 
   const canvas = document.createElement("canvas")
   canvas.width = PREVIEW_W
@@ -78,7 +79,7 @@ function ensureViewer(): SkinViewer | null {
     viewer = null
   }, false)
 
-  const instance = new SkinViewer({ canvas, width: PREVIEW_W, height: PREVIEW_H })
+  const instance = new SkinViewer({ canvas, width: PREVIEW_W, height: PREVIEW_H, renderPaused: true })
   // Кадры снимаем вручную: постоянный rAF-цикл на скрытом канвасе не нужен.
   instance.animation = null
   instance.autoRotate = false
@@ -87,7 +88,7 @@ function ensureViewer(): SkinViewer | null {
 }
 
 async function renderPreview(job: SkinPreviewJob): Promise<string | null> {
-  const instance = ensureViewer()
+  const instance = await ensureViewer()
   if (!instance) return null
 
   await instance.loadSkin(job.skinUrl, { model: job.slim ? "slim" : "default" })

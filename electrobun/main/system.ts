@@ -10,7 +10,9 @@ import { fileURLToPath } from "url"
 import { dbHelpers, isUsingFallbackStorage } from "../db"
 import { getMainWindow, sendToRenderer } from "./runtime"
 import { discoverAllInstances, discoverGdLauncherInstances, discoverInstancesFromPath, getDiscoveredInstancesByIds, importLauncherInstance } from "./import"
-import { execAsync, fileExists } from "./import/helpers"
+import { execFileAsync, fileExists } from "./import/helpers"
+import { findExecutablesInPath } from "../platform/executable-path"
+import { readJavaHomesFromRegistry } from "../platform/java-registry"
 import {
   cleanupReplacedLoaderArtifacts,
   cleanupReplacedLoaderArtifactsForBuilds,
@@ -33,8 +35,8 @@ function resolveImageUrl(url: string | undefined): string | undefined {
 
 async function getJavaVersion(javaExe: string): Promise<string | null> {
   try {
-    const { stdout } = await execAsync(`"${javaExe}" -version 2>&1`, { timeout: 4000, encoding: process.platform === "win32" ? "cp866" : undefined })
-    const m = stdout.match(/version "([^"]+)"/)
+    const { stdout, stderr } = await execFileAsync(javaExe, ["-version"], { timeout: 4000 })
+    const m = (stderr + "\n" + stdout).match(/version "([^"]+)"/)
     return m ? m[1] : null
   } catch {
     return null
@@ -49,11 +51,10 @@ type JavaInfo = {
 }
 
 async function getJavaInstallationInfo(javaExe: string): Promise<JavaInfo | null> {
-  const enc = process.platform === "win32" ? "cp866" : undefined
   try {
-    const { stdout } = await execAsync(`"${javaExe}" -XshowSettings:properties -version 2>&1`, { timeout: 6000, encoding: enc })
+    const { stdout, stderr } = await execFileAsync(javaExe, ["-XshowSettings:properties", "-version"], { timeout: 6000 })
     const props: Record<string, string> = {}
-    for (const line of stdout.split("\n")) {
+    for (const line of (stderr + "\n" + stdout).split("\n")) {
       const idx = line.indexOf("=")
       if (idx === -1) continue
       const key = line.slice(0, idx).trim()
@@ -85,35 +86,7 @@ function makeJavaLabel(version: string): string {
 
 /** Scans Windows registry (both 64-bit and 32-bit views) for Java installations. */
 async function findJavaInWindowsRegistry(): Promise<string[]> {
-  const found: string[] = []
-  const seen = new Set<string>()
-  const keys = [
-    "HKLM\\SOFTWARE\\JavaSoft\\Java Runtime Environment",
-    "HKLM\\SOFTWARE\\JavaSoft\\Java Development Kit",
-    "HKLM\\SOFTWARE\\JavaSoft\\JRE",
-    "HKLM\\SOFTWARE\\JavaSoft\\JDK",
-    "HKLM\\SOFTWARE\\WOW6432Node\\JavaSoft\\Java Runtime Environment",
-    "HKLM\\SOFTWARE\\WOW6432Node\\JavaSoft\\Java Development Kit",
-    "HKLM\\SOFTWARE\\WOW6432Node\\JavaSoft\\JRE",
-    "HKLM\\SOFTWARE\\WOW6432Node\\JavaSoft\\JDK",
-  ]
-  for (const key of keys) {
-    try {
-      const { stdout } = await execAsync(`reg query "${key}" /s`, { timeout: 5000, encoding: "cp866" })
-      for (const line of stdout.split("\n")) {
-        const trimmed = line.trim()
-        const idx = trimmed.indexOf("\\JavaHome")
-        if (idx === -1) continue
-        const eq = trimmed.indexOf("REG_SZ", idx)
-        if (eq === -1) continue
-        const value = trimmed.slice(eq + "REG_SZ".length).trim()
-        if (!value || seen.has(value)) continue
-        seen.add(value)
-        found.push(value)
-      }
-    } catch {}
-  }
-  return found
+  return readJavaHomesFromRegistry()
 }
 
 type JavaDetectEntry = { path: string; version: string; label: string; fullVersion?: string; vendor?: string; arch?: string }
@@ -121,7 +94,7 @@ type JavaDetectEntry = { path: string; version: string; label: string; fullVersi
 /**
  * Кэш результата поиска установленных Java.
  *
- * Скан стоит дорого: 8 запросов в реестр, перебор каталогов и последовательный
+ * Скан стоит дорого: обход реестра, перебор каталогов и последовательный
  * запуск `java -XshowSettings:properties` (до 6 с таймаута) на каждый найденный
  * `java.exe` — на машине с несколькими JDK это 10–20 процессов и до 30 секунд.
  * Раньше он выполнялся заново на каждый вызов, а зовут его шесть компонентов
@@ -176,13 +149,7 @@ async function scanJavaInstallations(): Promise<JavaDetectEntry[]> {
       try { dirs = await fs.readdir(base) } catch { continue }
       for (const dir of dirs) await tryJava(path.join(base, dir, "bin", "java.exe"))
     }
-    try {
-      const { stdout } = await execAsync("where java 2>nul", { timeout: 3000, encoding: "cp866" })
-      for (const line of stdout.split("\n")) {
-        const p = line.trim()
-        if (p) await tryJava(p)
-      }
-    } catch {}
+    for (const candidate of findExecutablesInPath("java")) await tryJava(candidate)
   } else if (process.platform === "darwin") {
     const jvmBase = "/Library/Java/JavaVirtualMachines"
     if (await fileExists(jvmBase)) {
@@ -192,8 +159,11 @@ async function scanJavaInstallations(): Promise<JavaDetectEntry[]> {
     }
     for (const p of ["/opt/homebrew/opt/openjdk/bin/java", "/usr/local/opt/openjdk/bin/java"]) await tryJava(p)
     try {
-      const { stdout } = await execAsync("/usr/libexec/java_home -V 2>&1", { timeout: 3000 })
-      for (const m of stdout.matchAll(/^\s+(\/\S+)/gm)) await tryJava(path.join(m[1], "bin", "java"))
+      const { stdout, stderr } = await execFileAsync("/usr/libexec/java_home", ["-V"], { timeout: 3000 })
+      for (const line of (stderr + "\n" + stdout).split("\n")) {
+        const home = line.match(/(?:^|\s)(\/.*)$/)?.[1]?.trim()
+        if (home) await tryJava(path.join(home, "bin", "java"))
+      }
     } catch {}
   } else {
     const jvmBase = "/usr/lib/jvm"
@@ -203,10 +173,8 @@ async function scanJavaInstallations(): Promise<JavaDetectEntry[]> {
       for (const dir of dirs) await tryJava(path.join(jvmBase, dir, "bin", "java"))
     }
     for (const p of ["/usr/bin/java", "/usr/local/bin/java"]) await tryJava(p)
-    try {
-      const { stdout } = await execAsync("which java 2>/dev/null", { timeout: 3000 })
-      if (stdout.trim()) await tryJava(stdout.trim())
-    } catch {}
+    const onPath = Bun.which("java")
+    if (onPath) await tryJava(onPath)
   }
 
   return found
@@ -236,7 +204,7 @@ export async function detectJavaInstallations(force = false): Promise<JavaDetect
 
 /**
  * Быстрый поиск любого java-бинаря без запуска процесса: JAVA_HOME, типовые
- * каталоги установки, на Windows — ещё и PATH через `where`.
+ * каталоги установки, затем PATH через Bun.which.
  *
  * Единая реализация для всего main-процесса: раньше такая же функция жила ещё
  * и в `mc-server-handlers.ts`, и списки каталогов приходилось править дважды.
@@ -271,13 +239,6 @@ export function findJavaBinarySync(): string | null {
         }
       } catch {}
     }
-    // PATH: `where java` дешевле, чем запуск java -version.
-    try {
-      const { execFileSync } = require("child_process") as typeof import("child_process")
-      const output = execFileSync("where", ["java"], { encoding: "utf8", timeout: 3000, stdio: ["ignore", "pipe", "ignore"] })
-      const first = output.split(/\r?\n/).map((line) => line.trim()).find(Boolean)
-      if (first && fsSync.existsSync(first)) return first
-    } catch {}
   } else if (process.platform === "darwin") {
     const candidates = [
       "/Library/Java/JavaVirtualMachines",
@@ -309,7 +270,7 @@ export function findJavaBinarySync(): string | null {
     }
   }
 
-  return null
+  return Bun.which(javaExe)
 }
 
 function parseLauncherNewsItems(raw: unknown, sourceUrl: string): LauncherNewsEntry[] {
@@ -534,6 +495,11 @@ export function registerSystemHandlers() {
   rpcRegistry.handle("settings:get", async (_event, key: string) => {
     if (typeof key !== "string" || privateAiSettings.has(key)) return undefined
     return dbHelpers.getSetting(key)
+  })
+  rpcRegistry.handle("settings:get-many", async (_event, keys: string[]) => {
+    if (!Array.isArray(keys) || keys.length > 128) throw new Error("Invalid settings keys")
+    const allowed = [...new Set(keys)].filter(key => typeof key === "string" && !privateAiSettings.has(key))
+    return Object.fromEntries(await Promise.all(allowed.map(async key => [key, await dbHelpers.getSetting(key)])))
   })
   rpcRegistry.handle("settings:set", async (_event, key: string, value: string) => {
     if (typeof key !== "string" || privateAiSettings.has(key)) throw new Error("Use the AI settings API")

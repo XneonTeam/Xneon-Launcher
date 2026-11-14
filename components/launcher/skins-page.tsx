@@ -2,7 +2,8 @@ import { CONTENT_ENTER_DELAYED } from "./content-motion"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import { FavoritesTab } from "./skins"
+import { EmptySkinsState, FavoritesTab } from "./skins"
+import { useAccounts } from "@/src/AccountsContext"
 import { LabyLibraryTab } from "./laby"
 import { IconShirt, IconLayoutGrid, IconBookmarkFilled } from "@tabler/icons-react"
 
@@ -19,6 +20,8 @@ type SkinsTab = "favorites" | "library"
  */
 export function SkinsPage() {
   const { t } = useTranslation()
+  const { accounts } = useAccounts()
+  const hasSkinAccount = accounts.some(account => ["microsoft", "xnskins", "authlib-injector"].includes(account.type))
   const [tab, setTab] = useState<SkinsTab>("favorites")
 
   const tabs = [
@@ -63,7 +66,7 @@ export function SkinsPage() {
       </div>
 
       <div data-ui="skins-page-div-6" className="mt-4 flex min-h-0 flex-1 flex-col">
-        {tab === "favorites" ? <FavoritesTab /> : <LabyLibraryTab />}
+        {!hasSkinAccount ? <EmptySkinsState /> : tab === "favorites" ? <FavoritesTab /> : <LabyLibraryTab />}
       </div>
     </div>
   )

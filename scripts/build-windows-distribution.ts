@@ -152,11 +152,8 @@ function findMakensis(): string {
     assert.ok(existsSync(configured), "XNEON_MAKENSIS does not exist: " + configured)
     return configured
   }
-  const onPath = Bun.spawnSync(["where.exe", "makensis"], { stdout: "pipe", stderr: "pipe" })
-  if (onPath.exitCode === 0) {
-    const first = onPath.stdout.toString().split(/\r?\n/).map(line => line.trim()).find(Boolean)
-    if (first) return first
-  }
+  const onPath = Bun.which("makensis")
+  if (onPath) return onPath
   for (const candidate of [
     path.join(process.env.ProgramFiles ?? "C:\\Program Files", "NSIS", "makensis.exe"),
     path.join(process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)", "NSIS", "makensis.exe"),

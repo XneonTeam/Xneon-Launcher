@@ -14,6 +14,7 @@ let finishStartup: (error: string | null) => void
 const startupReady = new Promise<string | null>(resolve => { finishStartup = resolve })
 export function createWindow() {
   const win = new DesktopWindow({
+    // Ширина внутренней области интерфейса, без рамки Windows.
     width: 1280,
     height: 800,
     launcher: true,

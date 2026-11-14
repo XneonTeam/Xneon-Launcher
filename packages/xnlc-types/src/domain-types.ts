@@ -161,6 +161,11 @@ export type DatapackInfo = {
   sizeBytes: number
   lastModified: number
   path: string
+  description?: string
+  packFormat?: number
+  format?: "datapack" | "resourcepack" | "hybridpack" | "unknownpack"
+  namespaces?: string[]
+  parseError?: string
 }
 
 export type ScreenshotInfo = {

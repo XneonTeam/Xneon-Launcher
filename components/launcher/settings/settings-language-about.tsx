@@ -4,7 +4,7 @@ import { SettingsSwitch } from "./settings-switch"
 import { SETTINGS_CONTENT_ENTER_DELAYED } from "./settings-motion"
 import { cn } from "@/lib/utils"
 import { APP_NAME, APP_VERSION } from "@/lib/app-meta"
-import { IconCheck, IconBrandGithub, IconBrandDiscord, IconDeviceGamepad2, IconLanguage, IconWorld, IconBrandTelegram, IconArrowUpRight, IconRefresh } from "@tabler/icons-react"
+import { IconCheck, IconBrandGithub, IconBrandDiscord, IconDeviceGamepad2, IconLanguage, IconWorld, IconBrandTelegram, IconArrowUpRight, IconRotate } from "@tabler/icons-react"
 import type { Language } from "./types"
 
 const FLAG_RU = (
@@ -290,16 +290,21 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
         ))}
       </nav>
 
-      <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h4 className="text-sm font-medium text-foreground">{t("settings.about.onboarding.title")}</h4>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t("settings.about.onboarding.description")}</p>
+      <section data-component="settings-onboarding-reset">
+        <div data-settings-tone="amber" className="settings-color-panel flex flex-col gap-4 rounded-xl border border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 font-medium text-foreground">
+              <IconRotate className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.7} aria-hidden="true" />
+              {t("settings.about.onboarding.reset")}
+            </div>
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{t("settings.about.onboarding.description")}</p>
+          </div>
+          <button type="button" onClick={() => window.dispatchEvent(new Event("launcher:onboarding-reset"))}
+            className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary px-4 py-2.5 font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+            <IconRotate className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+            {t("settings.about.onboarding.button")}
+          </button>
         </div>
-        <button type="button" onClick={() => window.dispatchEvent(new Event("launcher:onboarding-reset"))}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-primary/5">
-          <IconRefresh className="h-4 w-4 text-primary" strokeWidth={1.75} aria-hidden="true" />
-          {t("settings.about.onboarding.button")}
-        </button>
       </section>
     </div>
   )

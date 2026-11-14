@@ -164,8 +164,8 @@ export function themeTitlebarColor(theme: Theme): string | undefined {
 }
 
 /**
- * Тёмная база лаунчера (`.dark` из `src/index.css`) в hex — с неё начинается
- * любая новая кастомная тема, поэтому «Создать тему» не меняет вид окна.
+ * Резервная тёмная палитра для недостающих цветов и создания темы без образца.
+ * Если передана базовая тема, новая тема получает палитру из неё.
  */
 export const DARK_PALETTE: Record<ThemeColorKey, string> = {
   background: "#010203",

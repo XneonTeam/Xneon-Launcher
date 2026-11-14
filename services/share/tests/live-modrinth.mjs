@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { ModrinthSource } from '../../../packages/xnlc-share/lib/index.js'
 import { hash } from '../../../packages/xnlc-share/tests/helpers.mjs'
-const response = await fetch('https://api.modrinth.com/v2/project/AANobbMI/version', { headers: { 'User-Agent': 'XneonLauncher/ShareIntegration (support@xneon.org)' }, signal: AbortSignal.timeout(30000) })
+const response = await fetch('https://api.modrinth.com/v2/project/AANobbMI/version', { headers: { 'User-Agent': 'Xneon-Launcher/1.0.8' }, signal: AbortSignal.timeout(30000) })
 assert.ok(response.ok)
 const versions = await response.json(), version = versions[0], file = version.files.find(f => f.primary) ?? version.files[0]
 const adapter = new ModrinthSource(fetch)

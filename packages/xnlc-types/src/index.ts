@@ -167,7 +167,7 @@ export type {
 
 export type { AiProtocol, AiModelConfig, AiConfig, AiConfigStatus, AiConfigUpdate, AiModelDiscovery } from "./agent-types.js"
 export type { AgentHardware } from "./agent-types.js"
-export type { ShareRequest, ShareResponse, ShareResult, ShareLink, ShareContentPresentation } from "./share-types.js"
+export type { ShareRequest, ShareResponse, ShareResult, ShareLink, ShareContentPresentation, ShareProgress } from "./share-types.js"
 export type { ServerHostSettingsCommand, ServerHostSettings, ServerPermissions, ServerPermission, RemoteServerMember, RemoteServerAccess, RemoteServerRequest, RemoteServerResponse } from "./remote-server-types.js"
 
 export type { Theme, ThemeColorKey, ThemeGlow, ThemeFont, ThemeBackground, ThemeAppearance } from "./theme-types.js"

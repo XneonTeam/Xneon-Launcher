@@ -34,6 +34,18 @@ export type ShareRequest = (
   | { action: "mergePreview"; buildId: string; source: string; target?: string; resolutions?: Record<string, "current" | "incoming">; pullRequest?: string }
   | { action: "merge"; buildId: string; source: string; target?: string; sourceHead?: string; expected: string; message: string; resolutions?: Record<string, "current" | "incoming">; pullRequest?: string }
 ) & { requestId?: string }
+export interface ShareProgress {
+  stage: string
+  done: number
+  total: number
+  bytes: number
+  files?: { path: string; size: number; name?: string; iconUrl?: string; status: "queued" | "downloading" | "complete" | "error" }[]
+  requestId?: string
+  buildId?: string
+  buildName?: string
+  action?: ShareRequest["action"]
+  errorCode?: string
+}
 export interface ShareResponse {
   detached?: boolean
   history?: { commitId: string; changes: import("@xnlc/share").DiffEntry[]; presentation: Record<string, ShareContentPresentation> }
