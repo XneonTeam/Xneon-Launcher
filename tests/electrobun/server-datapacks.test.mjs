@@ -5,14 +5,14 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
 const require = createRequire(import.meta.url)
-const AdmZip = require('adm-zip')
+import TestZip from '../helpers/zip.ts'
 const { serverDatapackDirectory, installServerDatapack, deleteServerDatapack, validateDatapack } = require('../../dist-electrobun-tests/main/server-datapacks.js')
 const fixture = async run => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'xnlc-datapacks-'))
   try { await run(root) } finally { await fs.rm(root, { recursive: true, force: true }) }
 }
 const pack = (prefix = '') => {
-  const zip = new AdmZip()
+  const zip = new TestZip()
   zip.addFile(prefix + 'pack.mcmeta', Buffer.from(JSON.stringify({ pack: { pack_format: 48, description: 'Test' } })))
   zip.addFile(prefix + 'data/test/function/main.mcfunction', Buffer.from('say test'))
   return zip.toBuffer()

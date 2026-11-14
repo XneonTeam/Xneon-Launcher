@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import AdmZip from "adm-zip"
+import TestZip from "../../../tests/helpers/zip"
 import { copyFile, mkdtemp, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -10,7 +10,7 @@ import { checkLoaderRequirements } from "../../../electrobun/main/mods-loader-re
 test("worker обрабатывает 220 архивов, не блокируя основной поток, и поддерживает отмену", async () => {
   const dir = await mkdtemp(join(tmpdir(), "xnlc-scan-worker-"))
   try {
-    const zip = new AdmZip()
+    const zip = new TestZip()
     zip.addFile("fabric.mod.json", Buffer.from('{"id":"demo","name":"Demo","version":"1","depends":{"fabricloader":">=0.15"}}'))
     const first = join(dir, "0.jar")
     await writeFile(first, zip.toBuffer())
@@ -53,7 +53,7 @@ test("worker обрабатывает 220 архивов, не блокируя 
 test("удаление блокирует повторное чтение JAR, остальные файлы продолжают сканироваться", async () => {
   const dir = await mkdtemp(join(tmpdir(), "xnlc-worker-delete-"))
   try {
-    const jar = new AdmZip()
+    const jar = new TestZip()
     jar.addFile("fabric.mod.json", Buffer.from('{"id":"demo","name":"Demo","version":"1"}'))
     const bytes = jar.toBuffer()
     const files = await Promise.all(Array.from({ length: 24 }, async (_, i) => {

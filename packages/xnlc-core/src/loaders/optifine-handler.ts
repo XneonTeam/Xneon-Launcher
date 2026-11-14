@@ -17,6 +17,7 @@ import { Downloader } from "../core/downloader.js";
 import { MetaClient } from "../core/meta-client.js";
 import { ensureDirSync, getLibraryDir, getVersionDir } from "../utils/index.js";
 import { URLS } from "../constants/urls.js";
+import { listArchiveEntries, readArchiveEntry, readArchiveEntryText } from "@xnlc/archives";
 import type { ILoaderHandler } from "./types.js";
 import { PROFILE_REVISION } from "../core/profile-builder.js";
 
@@ -294,9 +295,6 @@ export class OptifineHandler implements ILoaderHandler {
   }
 
   private async extractBundledLaunchwrapper(installerJar: string, launchWrapperVersion?: string): Promise<void> {
-    const AdmZip = (await import("adm-zip/adm-zip.js")).default;
-    const zip = new AdmZip(installerJar);
-
     const bundleVersion = launchWrapperVersion?.trim();
     const candidates = bundleVersion
       ? [
@@ -309,7 +307,11 @@ export class OptifineHandler implements ILoaderHandler {
       "optifine/launchwrapper-of.jar",
     );
 
-    const entryName = candidates.find((name) => zip.getEntry(name));
+    // Установщик OptiFine — обычный ZIP: каталог читается без распаковки.
+    const names = new Set(
+      (await listArchiveEntries(installerJar)).filter((entry) => !entry.directory).map((entry) => entry.name),
+    );
+    const entryName = candidates.find((name) => names.has(name));
     if (!entryName) {
       return;
     }
@@ -320,26 +322,28 @@ export class OptifineHandler implements ILoaderHandler {
       ? path.join(getLibraryDir(this.gameDir), "optifine", "launchwrapper", resolvedVersion, `launchwrapper-${resolvedVersion}.jar`)
       : path.join(getLibraryDir(this.gameDir), LAUNCHWRAPPER_PATH);
 
-    ensureDirSync(path.dirname(dest));
-    if (!fs.existsSync(dest)) {
-      fs.writeFileSync(dest, zip.getEntry(entryName)!.getData());
-    }
+    await fs.promises.mkdir(path.dirname(dest), { recursive: true });
+    if (await fs.promises.access(dest).then(() => true, () => false)) return;
+    const data = await readArchiveEntry(installerJar, entryName);
+    if (data) await fs.promises.writeFile(dest, data);
   }
 
   private async detectLaunchwrapperVersion(installerJar: string, fallback?: string): Promise<string | undefined> {
-    const AdmZip = (await import("adm-zip/adm-zip.js")).default;
-    const zip = new AdmZip(installerJar);
+    const names = (await listArchiveEntries(installerJar))
+      .filter((entry) => !entry.directory)
+      .map((entry) => entry.name);
 
-    const versionEntry = zip.getEntry("launchwrapper-of.txt") ?? zip.getEntry("optifine/launchwrapper-of.txt");
-    if (versionEntry) {
-      const version = zip.readAsText(versionEntry).trim();
+    const versionName = ["launchwrapper-of.txt", "optifine/launchwrapper-of.txt"]
+      .find((name) => names.includes(name));
+    if (versionName) {
+      const version = (await readArchiveEntryText(installerJar, versionName))?.trim();
       if (version) {
         return version;
       }
     }
 
-    const bundledJar = zip.getEntries().find((entry) => /(?:^|\/)launchwrapper-of-[^.]+\.jar$/.test(entry.entryName));
-    const versionFromEntry = bundledJar?.entryName.match(/launchwrapper-of-([^.]+)\.jar$/)?.[1]?.trim();
+    const bundledJar = names.find((name) => /(?:^|\/)launchwrapper-of-[^.]+\.jar$/.test(name));
+    const versionFromEntry = bundledJar?.match(/launchwrapper-of-([^.]+)\.jar$/)?.[1]?.trim();
     return versionFromEntry || fallback;
   }
 

@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import AdmZip from "adm-zip"
+import TestZip from "../../../tests/helpers/zip"
 import { ArchiveContext, ParserError } from "../src"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 function zip(files: Record<string, string>) {
-  const archive = new AdmZip()
+  const archive = new TestZip()
   for (const [name, contents] of Object.entries(files)) archive.addFile(name, Buffer.from(contents))
   return new Uint8Array(archive.toBuffer())
 }
@@ -178,7 +178,7 @@ describe("ArchiveContext", () => {
     end.writeUInt16LE(0xffff, 8); end.writeUInt16LE(0xffff, 10)
     end.writeUInt32LE(0xffffffff, 12); end.writeUInt32LE(0xffffffff, 16)
     const data = Buffer.concat([original.subarray(0, endOffset), zip64, locator, end])
-    expect(new AdmZip(data).readAsText("item")).toBe("value")
+    expect(new TestZip(data).readAsText("item")).toBe("value")
     await expect(ArchiveContext.open(data)).rejects.toMatchObject({ code: "UNSUPPORTED_ARCHIVE" })
   })
   test("rejects unknown compression methods", async () => {
@@ -200,7 +200,7 @@ describe("ArchiveContext", () => {
   test("читает deflate-запись, сжатые данные которой занимают несколько чанков", async () => {
     const random = new Uint8Array(160000)
     for (let offset = 0; offset < random.length; offset += 40000) crypto.getRandomValues(random.subarray(offset, Math.min(offset + 40000, random.length)))
-    const zip = new AdmZip()
+    const zip = new TestZip()
     zip.addFile("random.bin", Buffer.from(random))
     const archive = await ArchiveContext.open(new Uint8Array(zip.toBuffer()))
     expect(archive.get("random.bin")!.compressedSize).toBeGreaterThan(64 * 1024)
@@ -214,7 +214,7 @@ describe("ArchiveContext", () => {
   })
   test("вложенный архив разделяет бюджет распаковки с родителем", async () => {
     const inner = zip({ item: "12345" })
-    const outer = new AdmZip()
+    const outer = new TestZip()
     outer.addFile("inner.jar", Buffer.from(inner))
     const archive = await ArchiveContext.open(new Uint8Array(outer.toBuffer()), { limits: { maxTotalUncompressedSize: inner.length + 4 } })
     const child = await archive.openNested(await archive.read("inner.jar"))

@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from "node:crypto"
 import fs from "node:fs/promises"
-import AdmZip from "adm-zip"
-import { inspectExternalObject } from "@xnlc/share"
+import { inspectExternalObject, fflateArchiveReader } from "@xnlc/share"
 import { branchHistory, parseInvitation } from "@xnlc/share"
 import { ShareSystem, ShareApiClient, ModrinthSource, CurseForgeSource, ShareError, diff, validateManifest, type Manifest, type UpdatePreview, type ScanResult } from "@xnlc/share"
 import type { ShareRequest, ShareResponse, ShareLink, ShareContentPresentation } from "@xnlc/types"
@@ -119,7 +118,7 @@ export async function executeShare(input: ShareRequest, progress: (event: { stag
     let system = systems.get(build.id)?.directory === directory ? systems.get(build.id)!.system : undefined
     if (!system) {
       system = new ShareSystem({ files, hash, remote: new ShareApiClient(c.url, async () => (await config()).token, fetch), sources: [new ModrinthSource(fetch), new CurseForgeSource(fetch, process.env.CURSEFORGE_API_KEY || "", hash)], now: () => new Date().toISOString(), progress,
-        inspectExternal: bytes => inspectExternalObject(bytes, data => new AdmZip(Buffer.from(data)).getEntries().map((entry: { entryName: string; header: { size: number }; isDirectory: boolean; getData(): Buffer }) => ({ name: entry.entryName, size: entry.header.size, directory: entry.isDirectory, read: () => entry.getData() }))),
+        inspectExternal: bytes => inspectExternalObject(bytes, fflateArchiveReader),
         localSource: async (_file, hashes) => {
           const row = hashes.sha1 ? (await dbHelpers.getResources([hashes.sha1]))[0] : undefined
           if (row?.modId && row.fileId) return { provider: "curseforge", projectId: String(row.modId), versionId: String(row.fileId), fileId: String(row.fileId) }

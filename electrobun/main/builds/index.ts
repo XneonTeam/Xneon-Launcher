@@ -11,6 +11,9 @@ import { app, dialog, rpcRegistry } from "../../platform/desktop"
 import path from "path"
 import fs from "fs/promises"
 import { ArchiveContext } from "@xnlc/parser"
+import { collectDirectorySources } from "@xnlc/archives"
+import type { ArchiveServicePackSource } from "../archives/service"
+import { archiveService } from "../archives/service"
 import type {
   ModrinthVersionDetail,
   ModrinthManifestFile,
@@ -35,7 +38,6 @@ import {
   loadInstancesRoot,
   downloadBuffer,
   sanitizeFileName,
-  sanitizeRelativeContentPath,
   resolveSafeIntentFilePath,
   getContentDirectoryName,
   saveRemoteContentToIntent,
@@ -47,7 +49,6 @@ import {
   copyOverrideEntries,
   copyModrinthClientOverrides,
   cleanPackManagedContent,
-  loadAdmZip,
   loadModsModule,
   isImportCancelledError,
   throwIfImportCancelled,
@@ -70,8 +71,8 @@ import { pruneStaleLoaderProfiles, type LoaderPruneResult } from "./loader-profi
 
 export { ensureBuildIntentDir, getBuildIntentDirName, getBuildIntentPath, scanIntentDir }
 
-async function readPackIndexes(data: Uint8Array, signal: AbortSignal): Promise<{ modrinth?: string; curseforge?: string }> {
-  const archive = await ArchiveContext.open(data, { signal })
+async function readPackIndexes(input: string | Uint8Array, signal: AbortSignal): Promise<{ modrinth?: string; curseforge?: string }> {
+  const archive = await ArchiveContext.open(input, { signal })
   try {
     const read = async (name: string) => archive.get(name)
       ? Buffer.from(await archive.read(name, archive.limits.maxMetadataSize, signal)).toString("utf8")
@@ -252,11 +253,8 @@ async function guardAgainstOverwrite(
   return { success: false, conflict }
 }
 
-function entryTopName(filename: string, buildDirName: string): string {
-  const segments = filename.split("/").filter(Boolean)
-  const isSelf = segments[0] === buildDirName || segments[0] === path.basename(buildDirName)
-  const index = isSelf ? 1 : 0
-  return segments[index] ?? ""
+function entryTopName(relativePath: string): string {
+  return relativePath.split("/").filter(Boolean)[0] ?? ""
 }
 
 function entryCategory(topName: string): BuildExportCategory {
@@ -270,12 +268,6 @@ function entryCategory(topName: string): BuildExportCategory {
     return "logs"
   }
   return "data"
-}
-
-function matchExportCategory(filename: string, buildDirName: string, categories: BuildExportCategory[]): boolean {
-  const topName = entryTopName(filename, buildDirName)
-  if (!topName) return false
-  return categories.includes(entryCategory(topName))
 }
 
 type ImportResult = {
@@ -649,70 +641,48 @@ export function registerBuildHandlers() {
       })
       if (picked.canceled || !picked.filePath) return { success: false, error: "Экспорт отменён" }
 
-      const AdmZip = await loadAdmZip()
-      const zip = new AdmZip()
-
       // Prism Launcher excludes logs, crash-reports and caches when exporting (ExportInstanceDialog.cpp).
       const LOG_ENTRIES = new Set(["logs", "crash-reports", ".cache", ".fabric", ".quilt"])
       // Shared game files are reconstructed from the build's version metadata on
       // import — and they're junctions to a shared cache, so they must never be zipped.
       const SHARED_GAME_ENTRIES = new Set(["versions", "libraries", "assets"])
-      const includeLogs = categories == null || categories.includes("logs")
 
-      // `addLocalFolder` passes full zip paths like `<build>/<relative path>`; we need the
-      // top-level entry name (the first segment after the build folder) to decide inclusion.
       const buildDirName = path.basename(intentPath)
-      const filter = (filename: string) => {
-        const topName = entryTopName(filename, buildDirName)
+      const include = (relativePath: string) => {
+        const topName = entryTopName(relativePath)
         if (categories == null) {
           return !LOG_ENTRIES.has(topName) && !SHARED_GAME_ENTRIES.has(topName)
         }
-        return matchExportCategory(filename, buildDirName, categories) && !SHARED_GAME_ENTRIES.has(topName)
+        return categories.includes(entryCategory(topName)) && !SHARED_GAME_ENTRIES.has(topName)
       }
 
-      // Асинхронно: синхронные addLocalFolder/toBuffer морозили main-процесс на весь
-      // объём сборки (event loop не тикал вообще), и лаунчер выглядел зависшим.
-      // Вариант ...Async2 в adm-zip 0.6.0 сломан (дублирует путь), берём addLocalFolderAsync.
-      await new Promise<void>((resolve, reject) => {
-        zip.addLocalFolderAsync(
-          intentPath,
-          (_result, errorMessage) => errorMessage ? reject(new Error(errorMessage)) : resolve(),
-          buildDirName,
-          filter,
-        )
-      })
+      const sources: ArchiveServicePackSource[] = await collectDirectorySources(intentPath, { prefix: buildDirName, include })
 
       // Манифест в корне делает архив самодостаточным: при импорте из него
       // берутся версия, загрузчик и иконка сборки. Достаточно лёгких полей.
       const buildRow = (await dbHelpers.loadBuildsLight()).find((b) => b.name === dirName)
-      zip.addFile("xnlauncher.json", Buffer.from(JSON.stringify({
-        format: "xnlauncher-build",
-        formatVersion: 1,
-        name: buildNameLabel || dirName,
-        description: buildRow?.description ?? "",
-        minecraftVersion: buildRow?.version ?? "",
-        modLoader: buildRow?.modLoader ?? "vanilla",
-        loaderVersion: buildRow?.loaderVersion ?? "",
-        icon: buildRow?.icon ?? "",
-        exportedAt: new Date().toISOString(),
-        categories: categories ?? null,
-      }, null, 2), "utf-8"))
-
-      const totalEntries = zip.getEntries().length
-      let packed = 0
-      const buffer = await new Promise<Buffer>((resolve, reject) => {
-        zip.toBuffer(
-          (data: Buffer) => resolve(data),
-          (error: Error) => reject(error),
-          () => {
-            packed++
-            if (packed === 1 || packed % 5 === 0 || packed === totalEntries) {
-              sendToRenderer("build:export-progress", { current: packed, total: totalEntries })
-            }
-          },
-        )
+      sources.push({
+        kind: "data",
+        entryName: "xnlauncher.json",
+        data: Buffer.from(JSON.stringify({
+          format: "xnlauncher-build",
+          formatVersion: 1,
+          name: buildNameLabel || dirName,
+          description: buildRow?.description ?? "",
+          minecraftVersion: buildRow?.version ?? "",
+          modLoader: buildRow?.modLoader ?? "vanilla",
+          loaderVersion: buildRow?.loaderVersion ?? "",
+          icon: buildRow?.icon ?? "",
+          exportedAt: new Date().toISOString(),
+          categories: categories ?? null,
+        }, null, 2), "utf-8"),
       })
-      await fs.writeFile(picked.filePath, buffer)
+
+      await archiveService.pack(sources, picked.filePath, {
+        onProgress: ({ done, total }) => {
+          sendToRenderer("build:export-progress", { current: done, total })
+        },
+      })
       return { success: true, path: picked.filePath }
     } catch (error) {
       return opFailure(error)
@@ -830,12 +800,10 @@ export function registerBuildHandlers() {
 
       if (!mrpackFile?.url) throw new Error("URL для .mrpack файла не найден")
       sendImportProgress(0, 100, "Скачивание пакета...")
-      const AdmZip = await loadAdmZip()
       const data = await downloadBuffer(mrpackFile.url, signal, mrpackFile.filename || "modpack.mrpack")
       const indexes = await readPackIndexes(data, signal)
       if (!indexes.modrinth) throw new Error("modrinth.index.json не найден")
       const index = JSON.parse(indexes.modrinth)
-      const zip = new AdmZip(data)
       throwIfImportCancelled(signal)
 
       // Полностью убираем файлы предыдущей версии сборки, чтобы не было дублей
@@ -894,7 +862,7 @@ export function registerBuildHandlers() {
       await runConcurrent(withImportFileProgress(tasks, progressFiles, signal), 5, signal)
       throwIfImportCancelled(signal)
       sendImportProgress(92, 100, "Распаковка файлов сборки...")
-      await copyModrinthClientOverrides(zip, intentPath)
+      await copyModrinthClientOverrides(data, intentPath)
       await fetchMissingPackMods(intentPath, signal)
       const scanned = await scanIntentDir(intentPath, (done, total) => {
         const fraction = total > 0 ? done / total : 1
@@ -927,12 +895,10 @@ export function registerBuildHandlers() {
       if (!zipUrl) throw new Error("Ссылка на скачивание недоступна")
 
       sendImportProgress(0, 100, "Скачивание пакета...")
-      const AdmZip = await loadAdmZip()
       const data = await downloadBuffer(zipUrl, signal, "curseforge-modpack.zip")
       const indexes = await readPackIndexes(data, signal)
       if (!indexes.curseforge) throw new Error("manifest.json не найден")
       const manifest = JSON.parse(indexes.curseforge)
-      const zip = new AdmZip(data)
       throwIfImportCancelled(signal)
 
       const mcVersion: string = manifest.minecraft?.version ?? ""
@@ -1001,7 +967,7 @@ export function registerBuildHandlers() {
       await runConcurrent(withImportFileProgress(tasks, progressFiles, signal), 5, signal)
       throwIfImportCancelled(signal)
       sendImportProgress(92, 100, "Распаковка файлов сборки...")
-      await copyOverrideEntries(zip, intentPath)
+      await copyOverrideEntries(data, intentPath)
       const scanned = await scanIntentDir(intentPath, (done, total) => {
         const fraction = total > 0 ? done / total : 1
         sendImportProgress(Math.min(99, Math.round(92 + fraction * 7)), 100, `Сканирование сборки (${done}/${total})...`)
@@ -1136,10 +1102,7 @@ export function registerBuildHandlers() {
       // Файл выбран — только теперь показываем прогресс: до этого оверлей
       // затемнял лаунчер, пока пользователь ещё выбирал архив в системном окне.
       sendImportProgress(0, 100, "Чтение архива...", undefined, { operation: "archive", source: "local", title: path.basename(selectedFile) })
-      const AdmZip = await loadAdmZip()
-      const fileData = await fs.readFile(selectedFile)
-      const zip = new AdmZip(fileData)
-      const indexes = await readPackIndexes(fileData, signal)
+      const indexes = await readPackIndexes(selectedFile, signal)
       const mrpackIndex = indexes.modrinth
       const manifestEntry = indexes.curseforge
       if (format === "curseforge" && !manifestEntry) {
@@ -1147,12 +1110,12 @@ export function registerBuildHandlers() {
       }
 
       // Наш собственный экспорт сборки: в корне архива лежит xnlauncher.json.
-      const xnManifestEntry = zip.getEntry("xnlauncher.json")
+      const xnManifestEntry = await archiveService.readEntryBuffer(selectedFile, "xnlauncher.json", { signal })
       if (format === "xneon" && !xnManifestEntry) {
         return { success: false, error: "В этом ZIP нет xnlauncher.json. Выбери экспорт Xneon соответствующей кнопкой." }
       }
       if (xnManifestEntry) {
-        const manifest = JSON.parse(xnManifestEntry.getData().toString("utf-8")) as Record<string, unknown>
+        const manifest = JSON.parse(xnManifestEntry.toString("utf-8")) as Record<string, unknown>
         const str = (value: unknown, fallback = "") => (typeof value === "string" ? value : fallback)
         const buildName = nameOverride?.trim()
           || str(manifest.name).trim()
@@ -1172,26 +1135,27 @@ export function registerBuildHandlers() {
 
         // Архив собран как <папка сборки>/… — срезаем общий корень, чтобы файлы
         // легли прямо в intent-директорию.
-        const files = zip.getEntries().filter((entry) => !entry.isDirectory && entry.entryName !== "xnlauncher.json")
-        const roots = new Set(files.map((entry) => entry.entryName.split("/").filter(Boolean)[0] ?? ""))
+        const entries = await archiveService.list(selectedFile, { signal })
+        const files = entries.filter((entry) => !entry.directory && entry.name !== "xnlauncher.json")
+        const roots = new Set(files.map((entry) => entry.name.split("/").filter(Boolean)[0] ?? ""))
         const root = roots.size === 1 ? Array.from(roots)[0] : ""
-        const strip = root ? root.length + 1 : 0
 
         sendImportProgress(0, 100, "Распаковка сборки...", undefined, { title: buildName, iconUrl: str(manifest.icon), phase: "extracting" })
 
-        let unpacked = 0
-        for (const entry of files) {
-          throwIfImportCancelled(signal)
-          const archiveRelativePath = entry.entryName.slice(strip)
-          const rel = sanitizeRelativeContentPath(archiveRelativePath)
-          if (!rel || rel.split(/[\\/]/).includes("..")) continue
-          const dest = await resolveSafeIntentFilePath(intentPath, rel)
-          await fs.mkdir(path.dirname(dest), { recursive: true }).catch(() => {})
-          await fs.writeFile(dest, entry.getData())
-          unpacked++
-          if (unpacked % 10 === 0 || unpacked === files.length) {
-            sendImportProgress(Math.round(unpacked / Math.max(files.length, 1) * 90), 100, `Распаковка сборки (${unpacked}/${files.length})...`, rel)
-          }
+        const unpacked = await archiveService.extract(selectedFile, intentPath, {
+          signal,
+          stripPrefix: root || undefined,
+          sanitizeNames: true,
+          skipUnsafe: true,
+          progressIntervalMs: 100,
+          include: (entry) => entry.name !== "xnlauncher.json",
+          onProgress: ({ done, total, name }) => {
+            sendImportProgress(Math.round(done / Math.max(total, 1) * 90), 100, `Распаковка сборки (${done}/${total})...`, name)
+          },
+        })
+        throwIfImportCancelled(signal)
+        if (unpacked.skipped > 0) {
+          console.warn(`[Import] Пропущено записей архива: ${unpacked.skipped}`)
         }
 
         const scanned = await scanIntentDir(intentPath, (done, total) => {
@@ -1277,7 +1241,7 @@ export function registerBuildHandlers() {
         await runConcurrent(withImportFileProgress(tasks, progressFiles, signal), 5, signal)
         throwIfImportCancelled(signal)
         sendImportProgress(92, 100, "Распаковка файлов сборки...")
-        await copyModrinthClientOverrides(zip, intentPath)
+        await copyModrinthClientOverrides(selectedFile, intentPath)
         await fetchMissingPackMods(intentPath, signal)
         const scanned = await scanIntentDir(intentPath, (done, total) => {
           const fraction = total > 0 ? done / total : 1
@@ -1385,7 +1349,7 @@ export function registerBuildHandlers() {
         await runConcurrent(withImportFileProgress(tasks, progressFiles, signal), 5, signal)
         throwIfImportCancelled(signal)
         sendImportProgress(92, 100, "Распаковка файлов сборки...")
-        await copyOverrideEntries(zip, intentPath)
+        await copyOverrideEntries(selectedFile, intentPath)
         const scanned = await scanIntentDir(intentPath, (done, total) => {
           const fraction = total > 0 ? done / total : 1
           sendImportProgress(Math.min(99, Math.round(92 + fraction * 7)), 100, `Сканирование сборки (${done}/${total})...`)

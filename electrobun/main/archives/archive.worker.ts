@@ -33,6 +33,8 @@ async function runExtract(request: Extract<ArchiveWorkerRequest, { type: "extrac
       skipUnsafe: request.skipUnsafe,
       maxEntries: request.maxEntries,
       maxTotalSize: request.maxTotalSize,
+      symlinks: request.symlinks,
+      progressIntervalMs: request.progressIntervalMs,
       include: allowed ? (entry) => allowed.has(entry.name) : undefined,
       onProgress: progressHandler(request.id),
     })
@@ -48,14 +50,15 @@ async function runPack(request: Extract<ArchiveWorkerRequest, { type: "pack" }>)
   try {
     const sources: ArchivePackSource[] = request.sources.map((source) =>
       source.kind === "file"
-        ? { kind: "file", filePath: source.filePath, entryName: source.entryName, mtime: source.mtimeMs ? new Date(source.mtimeMs) : undefined }
-        : { kind: "data", data: source.data, entryName: source.entryName, mtime: source.mtimeMs ? new Date(source.mtimeMs) : undefined },
+        ? { kind: "file", filePath: source.filePath, entryName: source.entryName, mtime: source.mtimeMs !== undefined ? new Date(source.mtimeMs) : undefined }
+        : { kind: "data", data: source.data, entryName: source.entryName, mtime: source.mtimeMs !== undefined ? new Date(source.mtimeMs) : undefined },
     )
     let files = 0
     let bytes = 0
     await packArchive(sources, request.outputPath, {
       signal: controller.signal,
       level: request.level,
+      progressIntervalMs: request.progressIntervalMs,
       onProgress: (progress) => {
         files = progress.done
         bytes = progress.bytes

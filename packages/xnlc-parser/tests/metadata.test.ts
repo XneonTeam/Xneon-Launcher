@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test"
-import AdmZip from "adm-zip"
+import TestZip from "../../../tests/helpers/zip"
 import { analyze, analyzeBatch, analyzeOpen, ArchiveContext } from "../src"
 
 function archive(files: Record<string, string>): Uint8Array {
-  const zip = new AdmZip()
+  const zip = new TestZip()
   for (const [path, contents] of Object.entries(files)) zip.addFile(path, Buffer.from(contents))
   return new Uint8Array(zip.toBuffer())
 }
@@ -173,7 +173,7 @@ test("пакетная обработка сохраняет порядок и �
 
 test("находит объявленные вложенные JAR и разбирает metadata только по запросу", async () => {
   const child = archive({ "fabric.mod.json": '{"id":"inner","version":"1"}' })
-  const zip = new AdmZip()
+  const zip = new TestZip()
   zip.addFile("fabric.mod.json", Buffer.from(JSON.stringify({ id: "outer", depends: { inner: "1" }, jars: [{ file: "META-INF/jars/inner.jar" }, { file: "missing.jar" }] })))
   zip.addFile("META-INF/jars/inner.jar", Buffer.from(child))
   const data = new Uint8Array(zip.toBuffer())
@@ -191,7 +191,7 @@ test("находит объявленные вложенные JAR и разби
 
 test("совпадение ID вложенного мода не подтверждает диапазон версий", async () => {
   const child = archive({ "fabric.mod.json": '{"id":"inner","version":"1.2"}' })
-  const zip = new AdmZip()
+  const zip = new TestZip()
   zip.addFile("fabric.mod.json", Buffer.from(JSON.stringify({ id: "outer", depends: { inner: ">=2" }, jars: [{ file: "META-INF/jars/not-the-id.jar" }] })))
   zip.addFile("META-INF/jars/not-the-id.jar", Buffer.from(child))
   const result = await analyze(new Uint8Array(zip.toBuffer()), { nested: true })
@@ -200,7 +200,7 @@ test("совпадение ID вложенного мода не подтвер�
 })
 
 test("повреждённый вложенный JAR не скрывает metadata родителя", async () => {
-  const zip = new AdmZip()
+  const zip = new TestZip()
   zip.addFile("fabric.mod.json", Buffer.from('{"id":"parent","jars":[{"file":"META-INF/jars/broken.jar"}]}'))
   zip.addFile("META-INF/jars/broken.jar", Buffer.from("not a zip"))
   const result = await analyze(new Uint8Array(zip.toBuffer()), { nested: true })

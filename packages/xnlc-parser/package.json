@@ -13,5 +13,5 @@
     "test": "bun test tests/archive.test.ts tests/classfile.test.ts tests/datapack.test.ts tests/dependencies.test.ts tests/directory.test.ts tests/metadata.test.ts tests/parser-cache.test.ts tests/parser-worker.test.ts tests/utilities.test.ts",
     "test:live": "bun test tests/live-independent.test.ts"
   },
-  "devDependencies": { "@types/bun": "^1.4.4", "adm-zip": "^0.6.0", "typescript": "7.0.2" }
+  "devDependencies": { "@types/bun": "^1.4.4", "typescript": "7.0.2" }
 }

@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs"
+import { access } from "node:fs/promises"
 import {
   ArchiveError,
   extractArchive,
@@ -45,9 +45,10 @@ function workerInput(input: ArchiveInput): ArchiveExtractRequest["input"] {
   return typeof input === "string" ? { path: input } : { data: input }
 }
 
-function hasArchiveWorker(): boolean {
+async function hasArchiveWorker(): Promise<boolean> {
   try {
-    return existsSync(bundledWorker("archive-worker"))
+    await access(bundledWorker("archive-worker"))
+    return true
   } catch {
     return false
   }
@@ -115,7 +116,7 @@ export class ArchiveService {
     const { include, ...rest } = options
     const entries = include ? await listArchiveEntries(input, { signal: rest.signal }) : null
     const allowed = include ? entries!.filter((entry) => include(entry)).map((entry) => entry.name) : null
-    if (hasArchiveWorker()) {
+    if (await hasArchiveWorker()) {
       const request: ArchiveExtractRequest = {
         type: "extract",
         id: nextRequestId++,
@@ -128,6 +129,8 @@ export class ArchiveService {
         skipUnsafe: rest.skipUnsafe,
         maxEntries: rest.maxEntries,
         maxTotalSize: rest.maxTotalSize,
+        symlinks: rest.symlinks,
+        progressIntervalMs: rest.progressIntervalMs,
       }
       const result = await runInWorker(request, rest.signal, rest.onProgress)
       return { files: result.files, bytes: result.bytes, skipped: result.skipped }
@@ -136,7 +139,7 @@ export class ArchiveService {
   }
 
   async pack(sources: ArchiveServicePackSource[], outputPath: string, options: ArchiveServicePackOptions = {}): Promise<void> {
-    if (hasArchiveWorker()) {
+    if (await hasArchiveWorker()) {
       const workerSources: ArchiveWorkerPackSource[] = sources.map((source) =>
         "filePath" in source
           ? { kind: "file", filePath: source.filePath, entryName: source.entryName, mtimeMs: source.mtime?.getTime() }
@@ -148,6 +151,7 @@ export class ArchiveService {
         sources: workerSources,
         outputPath,
         level: options.level,
+        progressIntervalMs: options.progressIntervalMs,
       }
       await runInWorker(request, options.signal, options.onProgress)
       return

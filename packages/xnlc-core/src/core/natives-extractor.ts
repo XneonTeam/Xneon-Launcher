@@ -6,7 +6,7 @@
 
 import * as path from "path";
 import * as fs from "fs";
-import AdmZip from "adm-zip/adm-zip.js";
+import { assertSafeEntryName, extractArchive } from "@xnlc/archives";
 import { VersionJson, VersionJsonLibrary } from "../types/index.js";
 import { LibrariesManager } from "./libraries-manager.js";
 import { getNativesDir } from "../utils/index.js";
@@ -76,28 +76,32 @@ export class NativesExtractor {
         throw new Error(`Native jar missing for ${lib.name}: ${jarPath}`);
       }
 
+      const originalLib = versionJson.libraries.find(l => l.name === lib.name);
+      const extractedNames: string[] = [];
+
       try {
-        const zip = new AdmZip(jarPath);
-        const entries = zip.getEntries();
-        
-        // Find the original library in VersionJson to get exclusion rules
-        const originalLib = versionJson.libraries.find(l => l.name === lib.name);
-
-        for (const entry of entries) {
-          const entryName = entry.entryName;
-          if (entryName.endsWith("/") || entryName.startsWith("META-INF/")) continue;
-          
-          if (originalLib && !this.shouldExtractEntry(originalLib, entryName)) {
-            continue;
-          }
-
-          zip.extractEntryTo(entryName, nativesDir, true, true, false);
-          extractedFiles.add(entryName);
-          console.log(`[NativesExtractor] Extracted ${entryName} from ${lib.name}`);
-        }
+        // Нативы распаковываются потоково: в памяти живёт только текущий чанк,
+        // а пути записей сохраняются внутри каталога нативов.
+        await extractArchive(jarPath, nativesDir, {
+          overwrite: true,
+          include: (entry) => {
+            if (entry.directory || entry.name.startsWith("META-INF/")) return false;
+            if (originalLib && !this.shouldExtractEntry(originalLib, entry.name)) return false;
+            try {
+              assertSafeEntryName(entry.name);
+            } catch {
+              return false;
+            }
+            extractedNames.push(entry.name);
+            return true;
+          },
+        });
       } catch (e) {
         throw new Error(`Failed to extract native library ${jarPath}: ${e}`);
       }
+
+      for (const name of extractedNames) extractedFiles.add(name);
+      console.log(`[NativesExtractor] Extracted ${extractedNames.length} entries from ${lib.name}`);
     }
 
     try {
