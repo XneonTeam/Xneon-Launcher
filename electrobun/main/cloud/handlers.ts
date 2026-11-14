@@ -12,6 +12,7 @@ import { dbHelpers } from "../../db"
 import { sendToRenderer } from "../runtime"
 import { META_ICON_ENTRY, META_NAME_ENTRY } from "./archive-meta"
 import { BUILD_CATEGORY_DIRS, SERVER_CATEGORY_DIRS } from "./categories"
+import { archiveService } from "../archives/service"
 
 function sendUploadProgress(id: string, percent: number, stage: "zip" | "upload") {
   sendToRenderer("cloud:upload-progress", { id, percent, stage })
@@ -99,43 +100,43 @@ async function readServerProperties(serverDir: string): Promise<{ port: number; 
   }
 }
 
-/** Минимальная форма записи архива, нужная для фильтрации по категориям. */
-type ArchiveEntry = { entryName: string; isDirectory: boolean }
+async function extractCloudArchive(input: string | Uint8Array, destination: string): Promise<void> {
+  await archiveService.extract(input, destination, { sanitizeNames: true, skipUnsafe: true })
+}
 
 /** Извлекает из архива только файлы, чья верхняя папка входит в selectedCategories. */
-function extractSelectedCategories(
-  zip: {
-    getEntries: () => ArchiveEntry[]
-    extractEntryTo: (entry: ArchiveEntry, target: string, maintainEntryPath: boolean, overwrite: boolean) => void
-  },
+async function extractSelectedCategories(
+  input: string | Uint8Array,
   rootDir: string,
   categoryMap: Record<string, string[]>,
   selectedCategories: string[],
-): void {
+): Promise<void> {
   const catSet = new Set(selectedCategories)
   const knownDirs = new Set<string>()
   for (const dirs of Object.values(categoryMap)) {
     for (const dir of dirs) knownDirs.add(dir.toLowerCase())
   }
 
-  const entries = zip.getEntries()
-  const root = detectArchiveRoot(entries.map((e) => e.entryName), knownDirs)
+  const entries = await archiveService.list(input)
+  const root = detectArchiveRoot(entries.map((entry) => entry.name), knownDirs)
 
-  for (const entry of entries) {
-    if (entry.isDirectory) continue
-    const parts = entry.entryName.replace(/\\/g, "/").split("/").filter(Boolean)
-    // Отбрасываем корневой сегмент, если он есть в архиве.
-    const rel = root && parts[0] === root ? parts.slice(1) : parts
-    const topDir = (rel[0] ?? "").toLowerCase()
-    if (!topDir) continue
-
-    const matched = Object.entries(categoryMap).some(([cat, dirs]) =>
-      catSet.has(cat) && dirs.some((dir) => dir.toLowerCase() === topDir),
-    )
-    if (matched) {
-      zip.extractEntryTo(entry, rootDir, false, true)
-    }
-  }
+  await archiveService.extract(input, rootDir, {
+    include: (entry) => {
+      if (entry.directory) return false
+      const parts = entry.name.split("/").filter(Boolean)
+      // Отбрасываем корневой сегмент, если он есть в архиве.
+      const rel = root && parts[0] === root ? parts.slice(1) : parts
+      const topDir = (rel[0] ?? "").toLowerCase()
+      if (!topDir) return false
+      return Object.entries(categoryMap).some(([cat, dirs]) =>
+        catSet.has(cat) && dirs.some((dir) => dir.toLowerCase() === topDir),
+      )
+    },
+    // Пути записей сохраняются: файл из `mods/x.jar` остаётся в `mods/`.
+    stripPrefix: root ? `${root}/` : undefined,
+    sanitizeNames: true,
+    skipUnsafe: true,
+  })
 }
 
 async function createBuildZip(intentPath: string, archivePath: string, id: string, categories?: string[], icon?: string, name?: string): Promise<void> {
@@ -332,25 +333,21 @@ export function registerCloudHandlers() {
         const account = JSON.parse(text) as { id: string; type: string; username: string; uuid?: string }
         return { success: true, account }
       } else if (fileType === "instance") {
-        const AdmZip = (await import("adm-zip")).default
-        const buffer = await fs.readFile(localPath)
-        const zip = new AdmZip(buffer)
-
         // Настоящее имя сборки лежит в архиве метазаписью: имя файла в облаке
         // санитизировано (`:` -> `_`), и по нему сборка называлась бы неправильно.
         let buildName = fileName.replace(/\.zip$/i, "")
-        try {
-          const nameEntry = zip.getEntry(META_NAME_ENTRY)
-          const storedName = nameEntry?.getData().toString("utf-8").trim()
-          if (storedName) buildName = storedName
-        } catch { /* старые архивы без метазаписи — берём имя файла */ }
+        const meta = await archiveService
+          .readEntriesText(localPath, [META_NAME_ENTRY, META_ICON_ENTRY])
+          .catch(() => new Map<string, string>())
+        const storedName = meta.get(META_NAME_ENTRY)?.trim()
+        if (storedName) buildName = storedName
 
         const intentPath = await ensureBuildIntentDir(buildName)
 
         if (selectedCategories && selectedCategories.length > 0) {
-          extractSelectedCategories(zip, intentPath, BUILD_CATEGORY_DIRS, selectedCategories)
+          await extractSelectedCategories(localPath, intentPath, BUILD_CATEGORY_DIRS, selectedCategories)
         } else {
-          zip.extractAllTo(intentPath, true)
+          await extractCloudArchive(localPath, intentPath)
         }
 
         // Лёгкий список: тяжёлый контент существующих сборок сохранит сам
@@ -358,12 +355,7 @@ export function registerCloudHandlers() {
         const existingBuilds = await dbHelpers.loadBuildsLight()
 
         // Иконка восстанавливается из метазаписи архива (её писала загрузка сборки).
-        // Читаем напрямую из zip: выборочный импорт категорий эту запись не извлекает.
-        let restoredIcon = ""
-        try {
-          const iconEntry = zip.getEntry(META_ICON_ENTRY)
-          if (iconEntry) restoredIcon = iconEntry.getData().toString("utf-8").trim()
-        } catch { /* noop */ }
+        const restoredIcon = meta.get(META_ICON_ENTRY)?.trim() ?? ""
 
         existingBuilds.push({
           id: `cloud-${Date.now()}`,
@@ -386,17 +378,14 @@ export function registerCloudHandlers() {
         return { success: true }
       } else if (fileType === "server") {
         const serverName = fileName.replace(/\.zip$/i, "").replace(/^server-/i, "")
-        const AdmZip = (await import("adm-zip")).default
-        const buffer = await fs.readFile(localPath)
         const serverId = `server-${Date.now()}`
         const serverDir = getMcServerDir(serverId)
         await fs.mkdir(serverDir, { recursive: true })
-        const zip = new AdmZip(buffer)
 
         if (selectedCategories && selectedCategories.length > 0) {
-          extractSelectedCategories(zip, serverDir, SERVER_CATEGORY_DIRS, selectedCategories)
+          await extractSelectedCategories(localPath, serverDir, SERVER_CATEGORY_DIRS, selectedCategories)
         } else {
-          zip.extractAllTo(serverDir, true)
+          await extractCloudArchive(localPath, serverDir)
         }
 
         // В архиве уже есть server.properties — читаем из него реальные порт,
@@ -404,15 +393,10 @@ export function registerCloudHandlers() {
         const props = await readServerProperties(serverDir)
 
         // Иконка восстанавливается из метазаписи архива (её писала загрузка сервера).
-        // Читаем напрямую из zip: выборочный импорт категорий эту запись не извлекает.
-        let restoredIcon: string | null = null
-        try {
-          const iconEntry = zip.getEntry(META_ICON_ENTRY)
-          if (iconEntry) {
-            const text = iconEntry.getData().toString("utf-8").trim()
-            if (text) restoredIcon = text
-          }
-        } catch { /* noop */ }
+        const restoredIcon = (await archiveService
+          .readEntriesText(localPath, [META_ICON_ENTRY])
+          .catch(() => new Map<string, string>()))
+          .get(META_ICON_ENTRY)?.trim() || null
 
         await dbHelpers.createMcServer({
           id: serverId,

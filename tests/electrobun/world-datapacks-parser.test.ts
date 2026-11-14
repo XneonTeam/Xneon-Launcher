@@ -1,5 +1,5 @@
 import { expect, mock, test } from "bun:test"
-import AdmZip from "adm-zip"
+import TestZip from "../helpers/zip.ts"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -9,7 +9,7 @@ test("датапаки одиночного мира: ZIP, папка, спис�
   try {
     const saves = join(root, "saves", "world", "datapacks")
     await mkdir(saves, { recursive: true })
-    const archive = new AdmZip()
+    const archive = new TestZip()
     archive.addFile("pack.mcmeta", Buffer.from('{"pack":{"pack_format":48,"description":"Example"}}'))
     archive.addFile("data/demo/function/main.mcfunction", Buffer.from("say hi"))
     const source = join(root, "source.zip")

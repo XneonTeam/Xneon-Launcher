@@ -22,6 +22,8 @@ import { fetchWithRetry } from "@xnlc/core/retry"
 import { getLauncherDataRoot } from "../paths"
 import { getCachedJarPath } from "../jar-cache"
 import { pauseScanFiles } from "@xnlc/parser"
+import type { ArchiveInput } from "@xnlc/archives"
+import { archiveService } from "../archives/service"
 
 export function getBaseDataRoot(): string {
   return getLauncherDataRoot()
@@ -498,31 +500,22 @@ export async function resolveSafeIntentFilePath(intentPath: string, relativePath
   return destination
 }
 
-export async function copyOverrideEntries(zip: AdmZipType, intentPath: string) {
-  for (const entry of zip.getEntries()) {
-    const archivePath = entry.entryName.replace(/\\/g, "/")
-    if (archivePath.startsWith("overrides/") && !entry.isDirectory) {
-      const relPath = archivePath.slice("overrides/".length)
-      const destPath = await resolveSafeIntentFilePath(intentPath, relPath)
-      const destDir = path.dirname(destPath)
-      await fs.mkdir(destDir, { recursive: true }).catch(() => {})
-      await fs.writeFile(destPath, entry.getData())
-    }
-  }
+export async function copyOverrideEntries(input: ArchiveInput, intentPath: string, prefix = "overrides/") {
+  await archiveService.extract(input, intentPath, {
+    stripPrefix: prefix,
+    skipUnsafe: true,
+    sanitizeNames: true,
+  })
 }
 
 /** Copies the client layers of a Modrinth pack in spec order. */
-export async function copyModrinthClientOverrides(zip: AdmZipType, intentPath: string) {
-  const prefixes = ["overrides/", "client-overrides/"]
-  for (const prefix of prefixes) {
-    for (const entry of zip.getEntries()) {
-      const archivePath = entry.entryName.replace(/\\/g, "/")
-      if (!archivePath.startsWith(prefix) || entry.isDirectory) continue
-      const relPath = archivePath.slice(prefix.length)
-      const destPath = await resolveSafeIntentFilePath(intentPath, relPath)
-      await fs.mkdir(path.dirname(destPath), { recursive: true }).catch(() => {})
-      await fs.writeFile(destPath, entry.getData())
-    }
+export async function copyModrinthClientOverrides(input: ArchiveInput, intentPath: string) {
+  for (const prefix of ["overrides/", "client-overrides/"]) {
+    await archiveService.extract(input, intentPath, {
+      stripPrefix: prefix,
+      skipUnsafe: true,
+      sanitizeNames: true,
+    })
   }
 }
 
@@ -564,19 +557,6 @@ export async function cleanPackManagedContent(intentPath: string): Promise<void>
 export function formatDisplayNameFromFileName(fileName: string): string {
   return fileName.replace(/\.jar$|\.zip$|\.litemod$/i, "").replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase())
 }
-
-/**
- * ZIP/TOML-утилиты живут в `archive-utils.ts` (без electron и БД), чтобы их
- * могли использовать и worker-потоки. Здесь — реэкспорт для существующих
- * потребителей.
- */
-import type { AdmZipType } from "./archive-utils"
-export {
-  loadAdmZip,
-  type AdmZipType,
-  type AdmZipConstructor,
-  type AdmZipToBuffer,
-} from "./archive-utils"
 
 let modsModulePromise: Promise<ModsModule> | null = null
 export function loadModsModule(): Promise<ModsModule> {

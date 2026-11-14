@@ -2,6 +2,7 @@ import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
 import { spawnSync } from "child_process";
+import { extractArchive as extractZipArchive } from "@xnlc/archives";
 import { Downloader } from "./downloader.js";
 import { DownloadJob, DownloadTask } from "./downloader.js";
 import { URLS } from "../constants/urls.js";
@@ -396,7 +397,7 @@ export class JavaManager {
   }
 
   private async extractArchive(archivePath: string, destDir: string): Promise<void> {
-    fs.mkdirSync(destDir, { recursive: true });
+    await fs.promises.mkdir(destDir, { recursive: true });
 
     if (archivePath.endsWith(".tar.gz") || archivePath.endsWith(".tgz")) {
       const result = spawnSync("tar", ["-xzf", archivePath, "-C", destDir, "--strip-components=1"], {
@@ -407,17 +408,15 @@ export class JavaManager {
         throw new Error(`Failed to extract archive: ${archivePath}`);
       }
     } else if (archivePath.endsWith(".zip")) {
-      const AdmZip = (await import("adm-zip/adm-zip.js")).default;
-      const zip = new AdmZip(archivePath);
-      zip.extractAllTo(destDir, true);
-      const entries = fs.readdirSync(destDir);
-      if (entries.length === 1 && fs.statSync(path.join(destDir, entries[0]!)).isDirectory()) {
+      await extractZipArchive(archivePath, destDir, { overwrite: true });
+      const entries = await fs.promises.readdir(destDir);
+      if (entries.length === 1 && (await fs.promises.stat(path.join(destDir, entries[0]!))).isDirectory()) {
         const nestedDir = path.join(destDir, entries[0]!);
-        const nestedEntries = fs.readdirSync(nestedDir);
+        const nestedEntries = await fs.promises.readdir(nestedDir);
         for (const entry of nestedEntries) {
-          fs.renameSync(path.join(nestedDir, entry), path.join(destDir, entry));
+          await fs.promises.rename(path.join(nestedDir, entry), path.join(destDir, entry));
         }
-        fs.rmdirSync(nestedDir);
+        await fs.promises.rmdir(nestedDir);
       }
     } else {
       throw new Error(`Unsupported archive format: ${archivePath}`);

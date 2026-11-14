@@ -1,4 +1,4 @@
-import AdmZip from "adm-zip"
+import TestZip from "../helpers/zip.ts"
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import fs from "node:fs/promises"
@@ -38,7 +38,7 @@ test("архив сборки содержит выбранные категор
     onProgress: (_stage, percent) => progress.push(percent),
   })
 
-  const entries = new AdmZip(await fs.readFile(archivePath)).getEntries()
+  const entries = new TestZip(await fs.readFile(archivePath)).getEntries()
   const contents = new Map(entries.map((entry) => [entry.entryName, entry.getData().toString("utf8")]))
   assert.deepEqual([...contents.keys()].sort(), [
     META_ICON_ENTRY,
@@ -56,7 +56,7 @@ test("архив сборки содержит выбранные категор
 
   const fullArchive = path.join(base, "full.zip")
   await createArchive(intent, fullArchive)
-  const full = new AdmZip(await fs.readFile(fullArchive)).getEntries().map((entry) => entry.entryName).sort()
+  const full = new TestZip(await fs.readFile(fullArchive)).getEntries().map((entry) => entry.entryName).sort()
   assert.deepEqual(full, [
     "config/x.txt",
     "mods/a.jar",

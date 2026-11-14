@@ -48,7 +48,7 @@ Fingerprint CurseForge рассчитывает `@xnlc/parser`: MurmurHash2 с s
 
 | Возможность | M | X | L | Решение |
 |---|---|---|---|---|
-| ZIP | zipcrawl/zip, выборочная распаковка; новые списки при `entries` | system/unzip/yauzl, индекс записей | adm-zip, буфер всего файла | IMPROVE: общий контекст, лимиты, независимый reader |
+| ZIP | zipcrawl/zip, выборочная распаковка; новые списки при `entries` | system/unzip, индекс записей | `@xnlc/archives`, потоковая обработка на `fflate` | общий контекст, лимиты, независимый reader |
 | Fabric/Quilt | loader handlers, первый sentinel | JSON и типы, без разрешения графа | UI-поля; Quilt schema 1 | IMPROVE: хранить обе идентичности и raw |
 | Forge/NeoForge | TOML/legacy handlers | Forge TOML/JSON/ASM; NeoForge имя не вызывается автоматически | оба TOML, только первый mod | REIMPLEMENT: несколько mods, формат и raw отдельно |
 | LiteLoader | отдельный handler не найден | `readLiteloaderMod` | `parseLiteModJson` | TAKE: сохранить поддержку и исходные поля |

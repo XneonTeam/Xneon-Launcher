@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import AdmZip from "adm-zip"
+import TestZip from "../../../tests/helpers/zip"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -12,7 +12,7 @@ test("XNLC извлекает иконку шейдера из ZIP и из па�
   try {
     const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg=="
     const bytes = Buffer.from(png, "base64")
-    const zip = new AdmZip()
+    const zip = new TestZip()
     zip.addFile("shaders/shaders.png", bytes)
     await mkdir(join(dir, "shaders"))
     await writeFile(join(dir, "shaders", "shaders.png"), bytes)
@@ -23,7 +23,7 @@ test("XNLC извлекает иконку шейдера из ZIP и из па�
 })
 
 test("metadata, зависимости и требования Fabric сохраняют контракт", async () => {
-  const zip = new AdmZip()
+  const zip = new TestZip()
   zip.addFile("fabric.mod.json", Buffer.from(JSON.stringify({ id: "demo", name: "Demo", version: "1", depends: { fabricloader: ">=0.15" } })))
   const result = await inspectArchive(zip.toBuffer(), { metadata: true, dependencies: true, loaderRequirements: true })
   expect(result.metadata).toMatchObject({ name: "Demo", version: "1" })
@@ -32,11 +32,11 @@ test("metadata, зависимости и требования Fabric сохра
 })
 
 test("приоритет NeoForge, ресурспак и частичный результат", async () => {
-  const zip = new AdmZip()
+  const zip = new TestZip()
   zip.addFile("fabric.mod.json", Buffer.from('{"id":"fabric","name":"Fabric"}'))
   zip.addFile("META-INF/neoforge.mods.toml", Buffer.from('[[mods]]\nmodId="neo"\ndisplayName="Neo"\nversion="1"\n'))
   expect((await inspectArchive(zip.toBuffer(), { metadata: true })).metadata?.name).toBe("Neo")
-  const pack = new AdmZip()
+  const pack = new TestZip()
   pack.addFile("pack.mcmeta", Buffer.from('{"pack":{"pack_format":15,"description":{"text":"Pack"}}}'))
   expect((await inspectArchive(pack.toBuffer(), { metadata: true })).metadata).toMatchObject({ version: "15", description: "Pack" })
 })
@@ -44,7 +44,7 @@ test("приоритет NeoForge, ресурспак и частичный ре
 test("локальное чтение, хеши и повторное чтение после изменения файла", async () => {
   const dir = await mkdtemp(join(tmpdir(), "xnlc-inspection-")), file = join(dir, "mod.jar")
   try {
-    const make = (name: string) => { const zip = new AdmZip(); zip.addFile("fabric.mod.json", Buffer.from(JSON.stringify({ id: "demo", name }))); return zip.toBuffer() }
+    const make = (name: string) => { const zip = new TestZip(); zip.addFile("fabric.mod.json", Buffer.from(JSON.stringify({ id: "demo", name }))); return zip.toBuffer() }
     const bytes = make("First")
     await writeFile(file, bytes)
     const result = await inspectJar(file, { metadata: true, sha1: true, curseforgeFingerprint: true })
@@ -58,7 +58,7 @@ test("локальное чтение, хеши и повторное чтени
 })
 
 test("индекс Modrinth читается через XNLC и сохраняет идентификаторы", async () => {
-  const zip = new AdmZip(), hash = "a".repeat(40)
+  const zip = new TestZip(), hash = "a".repeat(40)
   zip.addFile("modrinth.index.json", Buffer.from(JSON.stringify({ game: "minecraft", dependencies: { minecraft: "1.21" }, files: [{ path: "mods/demo.jar", hashes: { sha1: hash } }] })))
   const data = zip.toBuffer(), previousFetch = globalThis.fetch
   const mods = {

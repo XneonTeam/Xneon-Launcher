@@ -4,11 +4,11 @@ import { createRequire } from "node:module"
 import { createHash } from "node:crypto"
 
 const require = createRequire(import.meta.url)
-const AdmZip = require("adm-zip")
+import TestZip from "../helpers/zip.ts"
 const { readModrinthPackContents } = require("../../dist-electrobun-tests/main/mods-pack-contents.js")
 
 test("чтение состава сборки без установки", async t => {
-  const zip = new AdmZip()
+  const zip = new TestZip()
   const sha1 = "a".repeat(40)
   zip.addFile("modrinth.index.json", Buffer.from(JSON.stringify({ game: "minecraft", dependencies: { minecraft: "1.21.1", "fabric-loader": "0.16.0" }, files: [
     { path: "mods/example.jar", hashes: { sha1 }, env: { client: "required", server: "unsupported" } },

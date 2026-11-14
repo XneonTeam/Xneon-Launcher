@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import AdmZip from "adm-zip"
+import TestZip from "../helpers/zip.ts"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -9,7 +9,7 @@ import { installServerDatapack } from "../../electrobun/main/server-datapacks"
 test("сервер устанавливает датапак после проверки XNLC", async () => {
   const dir = await mkdtemp(join(tmpdir(), "xnlc-server-datapack-"))
   try {
-    const zip = new AdmZip()
+    const zip = new TestZip()
     zip.addFile("pack.mcmeta", Buffer.from('{"pack":{"pack_format":48,"description":"Example"}}'))
     zip.addFile("data/example/test.json", Buffer.from("{}"))
     await installServerDatapack(dir, "example.zip", zip.toBuffer())

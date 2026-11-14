@@ -12,6 +12,7 @@ import fs from "fs/promises"
 import { runScanWorker, type DatapackMetadata } from "@xnlc/parser"
 import type { NBTCompound } from "@xnlc/nbt"
 import { ensureBuildIntentDir, downloadBuffer, sanitizeFileName } from "./builds/helpers"
+import { archiveService } from "./archives/service"
 import type { WorldInfo, DatapackInfo, ScreenshotInfo } from "@xnlc/types" with { "resolution-mode": "import" }
 
 type OpResult = { success: boolean; error?: string }
@@ -55,13 +56,6 @@ async function uniqueFolderPath(savesDir: string, baseName: string): Promise<str
     index++
   }
   return candidate
-}
-
-function resolveRelativeSafe(destRoot: string, relPath: string): string | null {
-  const target = path.resolve(destRoot, relPath)
-  const rootNorm = `${path.resolve(destRoot)}${path.sep}`
-  if (!target.startsWith(rootNorm)) return null
-  return target
 }
 
 async function updateLevelName(worldPath: string, newName: string): Promise<void> {
@@ -308,16 +302,14 @@ async function unpackWorldZip(
   newName?: string,
 ): Promise<OpResult & { folder?: string }> {
   try {
-    const AdmZip = (await import("adm-zip")).default
-    const zip = new AdmZip(zipBufferOrPath)
-    const entries: Array<{ entryName: string; isDirectory: boolean; getData: () => Buffer }> = zip.getEntries()
-    const levelEntry = entries.find(e => !e.isDirectory && e.entryName.replace(/\\/g, "/").split("/").pop() === "level.dat")
+    const entries = await archiveService.list(zipBufferOrPath)
+    const levelEntry = entries.find(e => !e.directory && e.name.split("/").pop() === "level.dat")
     if (!levelEntry) {
       return { success: false, error: "В архиве не найден мир Minecraft (level.dat)" }
     }
 
     // Определяем корневую папку мира внутри архива.
-    const levelPath = levelEntry.entryName.replace(/\\/g, "/")
+    const levelPath = levelEntry.name
     const slashIdx = levelPath.lastIndexOf("/")
     const levelDir = slashIdx === -1 ? "" : levelPath.slice(0, slashIdx)
     let prefix: string
@@ -336,16 +328,11 @@ async function unpackWorldZip(
     const destRoot = path.join(savesDir, destFolder)
     await fs.mkdir(destRoot, { recursive: true })
 
-    for (const entry of entries) {
-      if (entry.isDirectory) continue
-      const entryPath = entry.entryName.replace(/\\/g, "/")
-      if (prefix && !entryPath.startsWith(prefix)) continue
-      const rel = prefix ? entryPath.slice(prefix.length) : entryPath
-      const target = resolveRelativeSafe(destRoot, rel)
-      if (!target) continue
-      await fs.mkdir(path.dirname(target), { recursive: true })
-      await fs.writeFile(target, entry.getData())
-    }
+    await archiveService.extract(zipBufferOrPath, destRoot, {
+      stripPrefix: prefix || undefined,
+      sanitizeNames: true,
+      skipUnsafe: true,
+    })
 
     if (trimmedName) await updateLevelName(destRoot, trimmedName)
     return { success: true, folder: destFolder }

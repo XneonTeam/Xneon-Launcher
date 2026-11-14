@@ -6,13 +6,16 @@ import { packArchiveSync, readArchiveEntry } from "../../packages/xnlc-archives/
 import { bundledWorker } from "../../electrobun/platform/resources"
 import type { ArchiveWorkerRequest, ArchiveWorkerResponse } from "../../electrobun/main/archives/protocol"
 
-async function runWorker(request: ArchiveWorkerRequest): Promise<ArchiveWorkerResponse> {
+async function runWorker(request: ArchiveWorkerRequest, cancelOnProgress = false): Promise<ArchiveWorkerResponse> {
   const worker = new Worker(new URL("../../electrobun/main/archives/archive.worker.ts", import.meta.url).href, { smol: true })
   try {
     return await new Promise<ArchiveWorkerResponse>((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error("Archive worker response timeout")), 5000)
       worker.onmessage = (event: MessageEvent<ArchiveWorkerResponse>) => {
-        if (event.data.type === "progress") return
+        if (event.data.type === "progress") {
+          if (cancelOnProgress) worker.postMessage({ type: "abort", id: request.id })
+          return
+        }
         clearTimeout(timeout)
         resolve(event.data)
       }
@@ -30,6 +33,23 @@ async function runWorker(request: ArchiveWorkerRequest): Promise<ArchiveWorkerRe
 test("имя упакованного archive worker совпадает с путём фасада", () => {
   // Сборщик использует --entry-naming=[name].js и исходник archive.worker.ts.
   expect(path.basename(bundledWorker("archive-worker"))).toBe("archive.worker.js")
+})
+
+test("smol-воркер обрабатывает AbortController и сохраняет прежний файл", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "xnlc-worker-abort-"))
+  try {
+    const outputPath = path.join(root, "archive.zip")
+    const { writeFile, readdir } = await import("node:fs/promises")
+    await writeFile(outputPath, "previous archive")
+    const response = await runWorker({ type: "pack", id: 3, outputPath,
+      sources: Array.from({ length: 1000 }, (_, index) => ({ kind: "data", entryName: `entry-${index}`, data: Buffer.alloc(4096, index % 256) })),
+    }, true)
+    expect(response).toMatchObject({ type: "error", code: "ABORTED" })
+    expect(await readFile(outputPath, "utf8")).toBe("previous archive")
+    expect(await readdir(root)).toEqual(["archive.zip"])
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
 })
 
 test("smol-воркер упаковывает архив и возвращает result", async () => {

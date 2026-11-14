@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import AdmZip from "adm-zip"
+import TestZip from "../../../tests/helpers/zip"
 import { ArchiveContext, forgeModAnnotations, parseClassFile, scanArchiveClasses } from "../src"
 
 const fixture = Buffer.from((await Bun.file(new URL("./fixtures/classfile/Example.class.base64", import.meta.url)).text()).trim(), "base64")
@@ -32,7 +32,7 @@ describe("анализ Java class", () => {
   })
 
   test("ограничивает сканирование и сообщает об ошибках отдельных классов", async () => {
-    const zip = new AdmZip()
+    const zip = new TestZip()
     zip.addFile("Example.class", fixture)
     zip.addFile("broken.class", Buffer.from([0, 1, 2]))
     const archive = await ArchiveContext.open(new Uint8Array(zip.toBuffer()))

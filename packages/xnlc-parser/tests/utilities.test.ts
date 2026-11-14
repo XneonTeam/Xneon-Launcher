@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import AdmZip from "adm-zip"
+import TestZip from "../../../tests/helpers/zip"
 import { ArchiveContext, curseforgeFingerprint, curseforgeFingerprintFile, extractIcon, sha1, sha1File } from "../src"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -33,7 +33,7 @@ test("потоковый SHA-1 учитывает лимит и отмену", a
 })
 
 test("иконка возвращается как бинарные данные, некорректная сигнатура отклоняется", async () => {
-  const zip = new AdmZip()
+  const zip = new TestZip()
   zip.addFile("icon.png", Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg==", "base64"))
   zip.addFile("header.png", Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
   zip.addFile("bad.png", Buffer.from("bad"))

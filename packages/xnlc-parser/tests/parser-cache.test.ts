@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import AdmZip from "adm-zip"
+import TestZip from "../../../tests/helpers/zip"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
@@ -8,7 +8,7 @@ import { ParserCache } from "../src"
 test("одновременные запросы объединяются, а отмена одного подписчика изолирована", async () => {
   const dir = await mkdtemp(join(tmpdir(), "xnlc-flight-")), path = join(dir, "mod.jar")
   try {
-    const zip = new AdmZip()
+    const zip = new TestZip()
     zip.addFile("fabric.mod.json", Buffer.from('{"id":"demo","version":"1"}'))
     await writeFile(path, zip.toBuffer())
     const cache = new ParserCache(2, 0), controller = new AbortController()
@@ -27,7 +27,7 @@ test("одновременные запросы объединяются, а о�
 
 test("кэш ограничен, защищён от изменения результата и инвалидируется при изменении файла", async () => {
   const dir = await mkdtemp(join(tmpdir(), "xnlc-cache-independent-")), path = join(dir, "mod.jar")
-  const write = async (version: string) => { const zip = new AdmZip(); zip.addFile("fabric.mod.json", Buffer.from(JSON.stringify({ id: "demo", version }))); await writeFile(path, zip.toBuffer()) }
+  const write = async (version: string) => { const zip = new TestZip(); zip.addFile("fabric.mod.json", Buffer.from(JSON.stringify({ id: "demo", version }))); await writeFile(path, zip.toBuffer()) }
   try {
     const cache = new ParserCache(1)
     await write("1")
@@ -56,7 +56,7 @@ test("кэш ограничен, защищён от изменения резу
 test("кэш отделяет параметры анализа и допускает полное отключение", async () => {
   const dir = await mkdtemp(join(tmpdir(), "xnlc-cache-limits-")), path = join(dir, "mod.jar")
   try {
-    const zip = new AdmZip(); zip.addFile("fabric.mod.json", Buffer.from('{"id":"demo","version":"1"}')); await writeFile(path, zip.toBuffer())
+    const zip = new TestZip(); zip.addFile("fabric.mod.json", Buffer.from('{"id":"demo","version":"1"}')); await writeFile(path, zip.toBuffer())
     const cache = new ParserCache(2)
     await cache.analyze(path)
     const options = { limits: { maxMetadataSize: 2 } }

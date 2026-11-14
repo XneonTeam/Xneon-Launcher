@@ -1,10 +1,9 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
-import AdmZip from 'adm-zip'
 import { createAuth } from './auth.mjs'
 import { createRemoteServers } from './remote-servers.mjs'
 import { inspectExternalObject } from '../../packages/xnlc-share/lib/index.js'
 import { branchHistory, mergeBase } from '../../packages/xnlc-share/lib/index.js'
-import { emptyRepository, mutateRepository, createCommit, validateManifest, validateExternal, stable, MAX_FILE_BYTES, ShareError } from '../../packages/xnlc-share/lib/index.js'
+import { fflateArchiveReader, emptyRepository, mutateRepository, createCommit, validateManifest, validateExternal, stable, MAX_FILE_BYTES, ShareError } from '../../packages/xnlc-share/lib/index.js'
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex')
 const hash = { digest: async bytes => digest(bytes) }
@@ -97,7 +96,7 @@ export function createShareService({ db, objectStore, schema, bootstrap = [], cl
     return Buffer.concat(chunks)
   }
   function validateObject(bytes) {
-    inspectExternalObject(bytes, data => new AdmZip(Buffer.from(data)).getEntries().map(entry => ({ name: entry.entryName, size: entry.header.size, directory: entry.isDirectory, read: () => entry.getData() })))
+    inspectExternalObject(bytes, fflateArchiveReader)
   }
   async function validateCommand(command, id, user) {
     if (!command || typeof command !== 'object' || typeof command.action !== 'string') error('COMMAND', 'Invalid command')

@@ -9,6 +9,7 @@
         "@modelcontextprotocol/sdk": "^1.32.2",
         "@types/prismjs": "^1.26.6",
         "@xnlc/agent": "workspace:*",
+        "@xnlc/archives": "workspace:*",
         "@xnlc/core": "workspace:*",
         "@xnlc/mods": "workspace:*",
         "@xnlc/nbt": "workspace:*",
@@ -17,9 +18,9 @@
         "@xnlc/share": "workspace:*",
         "@xnlc/skins": "workspace:*",
         "@xnlc/types": "workspace:*",
-        "adm-zip": "^0.6.0",
         "axios": "^1.18.1",
         "discord-rpc": "^4.0.1",
+        "fflate": "^0.8.3",
         "i18next": "^26.3.6",
         "iconv-lite": "^0.7.3",
         "nativefiledialog-for-bun": "0.3.2",
@@ -73,12 +74,23 @@
         "@xnlc/types": "workspace:*",
       },
     },
+    "packages/xnlc-archives": {
+      "name": "@xnlc/archives",
+      "version": "1.0.0",
+      "dependencies": {
+        "fflate": "^0.8.3",
+      },
+      "devDependencies": {
+        "@types/node": "^26.2.0",
+        "typescript": "7.0.2",
+      },
+    },
     "packages/xnlc-core": {
       "name": "@xnlc/core",
       "version": "1.0.7",
       "dependencies": {
+        "@xnlc/archives": "workspace:*",
         "@xnlc/types": "workspace:*",
-        "adm-zip": "^0.6.0",
         "iconv-lite": "^0.7.3",
       },
     },
@@ -99,7 +111,6 @@
       "version": "1.0.0",
       "devDependencies": {
         "@types/bun": "^1.4.4",
-        "adm-zip": "^0.6.0",
         "typescript": "7.0.2",
       },
     },
@@ -107,8 +118,8 @@
       "name": "@xnlc/servers",
       "version": "1.0.1",
       "dependencies": {
+        "@xnlc/archives": "workspace:*",
         "@xnlc/types": "workspace:*",
-        "adm-zip": "^0.6.0",
         "iconv-lite": "^0.7.3",
         "toml": "^5.0.0",
       },
@@ -116,6 +127,9 @@
     "packages/xnlc-share": {
       "name": "@xnlc/share",
       "version": "0.1.0",
+      "dependencies": {
+        "fflate": "^0.8.3",
+      },
     },
     "packages/xnlc-skins": {
       "name": "@xnlc/skins",
@@ -139,9 +153,6 @@
   "overrides": {
     "@tailwindcss/node": {
       "source-map-js": "1.2.2",
-    },
-    "@xnlc/core": {
-      "adm-zip": "^0.6.0",
     },
     "ajv": {
       "fast-uri": "3.1.9",
@@ -453,6 +464,8 @@
 
     "@xnlc/agent": ["@xnlc/agent@workspace:packages/xnlc-agent"],
 
+    "@xnlc/archives": ["@xnlc/archives@workspace:packages/xnlc-archives"],
+
     "@xnlc/core": ["@xnlc/core@workspace:packages/xnlc-core"],
 
     "@xnlc/mods": ["@xnlc/mods@workspace:packages/xnlc-mods"],
@@ -470,8 +483,6 @@
     "@xnlc/types": ["@xnlc/types@workspace:packages/xnlc-types"],
 
     "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "3.0.2", "negotiator": "1.1.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
-
-    "adm-zip": ["adm-zip@0.6.1", "", {}, "sha512-Xwrja8nx9e5o2N1my4DsKCeKpdrnACyr1wtbPxBDgGzKzKyE9kRtBFA8mWldI+RVlD7CBZNWY/wQ2+ydwOR6kQ=="],
 
     "agent-base": ["agent-base@6.0.2", "", { "dependencies": { "debug": "4.4.3" } }, "sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ=="],
 

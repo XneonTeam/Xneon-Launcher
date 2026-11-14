@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import AdmZip from "adm-zip"
+import TestZip from "../../../tests/helpers/zip"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
@@ -19,7 +19,7 @@ test("worker сообщает об ошибке отсутствующего ф�
 
 test("самостоятельный worker обрабатывает файлы, ограничивает очередь и закрывается", async () => {
   const dir = await mkdtemp(join(tmpdir(), "xnlc-package-worker-")), path = join(dir, "mod.jar")
-  const zip = new AdmZip(); zip.addFile("fabric.mod.json", Buffer.from('{"id":"demo","version":"1"}')); await writeFile(path, zip.toBuffer())
+  const zip = new TestZip(); zip.addFile("fabric.mod.json", Buffer.from('{"id":"demo","version":"1"}')); await writeFile(path, zip.toBuffer())
   const worker = new ParserWorker(1)
   try {
     const first = worker.analyze(path)
@@ -34,7 +34,7 @@ test("самостоятельный worker обрабатывает файлы,
 
 test("отмена ожидающей задачи не отменяет соседнюю", async () => {
   const dir = await mkdtemp(join(tmpdir(), "xnlc-package-worker-")), path = join(dir, "mod.jar")
-  const zip = new AdmZip(); zip.addFile("fabric.mod.json", Buffer.from('{"id":"demo","version":"1"}')); await writeFile(path, zip.toBuffer())
+  const zip = new TestZip(); zip.addFile("fabric.mod.json", Buffer.from('{"id":"demo","version":"1"}')); await writeFile(path, zip.toBuffer())
   const worker = new ParserWorker(2), controller = new AbortController()
   try {
     const first = worker.analyze(path), second = worker.analyze(path, { signal: controller.signal })
@@ -58,7 +58,7 @@ test("активная отмена и закрытие отклоняют ож�
 
 test("worker фиксирует лимиты в момент постановки задачи", async () => {
   const dir = await mkdtemp(join(tmpdir(), "xnlc-worker-options-")), path = join(dir, "mod.jar")
-  const zip = new AdmZip(); zip.addFile("fabric.mod.json", Buffer.from('{"id":"demo","version":"1"}')); await writeFile(path, zip.toBuffer())
+  const zip = new TestZip(); zip.addFile("fabric.mod.json", Buffer.from('{"id":"demo","version":"1"}')); await writeFile(path, zip.toBuffer())
   const worker = new ParserWorker(), options = { limits: { maxMetadataSize: 2 } }
   try {
     const pending = worker.analyze(path, options)

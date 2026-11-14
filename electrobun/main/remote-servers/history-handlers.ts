@@ -9,7 +9,7 @@ import { registerMcServerHandler, executeLocalServerOperation, serverHistoryLock
 import { ServerHistory } from "./history"
 import fs from "node:fs/promises"
 import { inspectJar } from "@xnlc/parser"
-import { loadAdmZip } from "../builds/archive-utils"
+import { archiveService } from "../archives/service"
 import { ShareWorktree } from "../share/worktree"
 import { enrichServerContent } from "./content-presentation"
 
@@ -78,9 +78,13 @@ export function registerServerHistoryHandlers() {
               const cached = inspected.sha1 ? (await dbHelpers.getResources([inspected.sha1]))[0] : undefined
               let name = cached?.name || inspected.metadata?.name, version = cached?.version || inspected.metadata?.version, author = cached?.author || inspected.metadata?.author
               if (!name && entry.path.startsWith("plugins/")) {
-                const AdmZip = await loadAdmZip(), zip = new AdmZip(await fs.readFile(archive)), plugin = (zip.getEntry("plugin.yml") ?? zip.getEntry("paper-plugin.yml") ?? zip.getEntry("bungee.yml")) as { header?: { size: number }; getData(): Buffer } | null
-                if (plugin && plugin.header && plugin.header.size < 65536) {
-                  const text = plugin.getData().toString("utf8")
+                const descriptors = await archiveService.readEntriesText(
+                  archive,
+                  ["plugin.yml", "paper-plugin.yml", "bungee.yml"],
+                  { maxEntrySize: 65536 },
+                )
+                const text = descriptors.get("plugin.yml") ?? descriptors.get("paper-plugin.yml") ?? descriptors.get("bungee.yml")
+                if (text) {
                   const value = (key: string) => new RegExp(`^${key}:\\s*([^\\r\\n#]+)`, "m").exec(text)?.[1]?.trim().replace(/^["']|["']$/g, "")
                   name = value("name"); version = value("version"); author = value("author") ?? value("authors")
                 }

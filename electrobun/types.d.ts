@@ -1,4 +1,3 @@
-declare module "adm-zip"
 declare module "discord-rpc" {
   export class Client {
     constructor(options: { transport: "ipc" | "websocket"; transportOptions?: Record<string, unknown> })

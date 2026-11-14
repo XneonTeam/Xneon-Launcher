@@ -3,8 +3,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import AdmZip from 'adm-zip'
-import { inspectExternalObject, ShareError, MAX_FILE_BYTES } from '../../../packages/xnlc-share/lib/index.js'
+import TestZip from '../../../tests/helpers/zip.ts'
+import { inspectExternalObject, fflateArchiveReader, ShareError, MAX_FILE_BYTES } from '../../../packages/xnlc-share/lib/index.js'
 import { createShareServer } from '../server.mjs'
 import { ShareApiClient, ShareSystem, createCommit, merge, diff } from '../../../packages/xnlc-share/lib/index.js'
 import { hash, text, metadata, MemoryFiles, external, manifest } from '../../../packages/xnlc-share/tests/helpers.mjs'
@@ -352,11 +352,11 @@ test('rollback: preview changes nothing, confirmation restores local files and b
 
 test('publication: preview blocks nested native archives and excludes runtime artifacts', async t => {
   const env = await environment(t), remote = env.client('alice')
-  const inner = new AdmZip()
+  const inner = new TestZip()
   inner.addFile('gpu-detect-jni.dll', Buffer.from([0x4d, 0x5a, 0, 0]))
-  const outer = new AdmZip()
+  const outer = new TestZip()
   outer.addFile('META-INF/jarjar/app.jar', inner.toBuffer())
-  const safe = new AdmZip()
+  const safe = new TestZip()
   safe.addFile('pack.mcmeta', Buffer.from('{"pack":{"pack_format":15}}'))
   const files = new MemoryFiles({
     'local/crash_assistant/app.jar': outer.toBuffer(),
@@ -365,7 +365,7 @@ test('publication: preview blocks nested native archives and excludes runtime ar
     'config/options.json': '{}',
     'resourcepacks/test.zip': safe.toBuffer(),
   })
-  const inspectExternal = bytes => inspectExternalObject(bytes, data => new AdmZip(Buffer.from(data)).getEntries().map(entry => ({ name: entry.entryName, size: entry.header.size, directory: entry.isDirectory, read: () => entry.getData() })))
+  const inspectExternal = bytes => inspectExternalObject(bytes, fflateArchiveReader)
   const s = new ShareSystem({ files, remote, hash, sources: [], inspectExternal, now: () => new Date().toISOString() })
   const scan = await s.scan(metadata)
   assert.deepEqual(scan.blocked, ['config/tool.jar'])

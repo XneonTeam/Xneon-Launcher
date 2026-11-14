@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import AdmZip from "adm-zip"
+import TestZip from "../../../tests/helpers/zip"
 import { copyFile, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -7,11 +7,11 @@ import { join } from "node:path"
 test("устаревшие локальные metadata обновляются без потери внешних идентификаторов", async () => {
   const dir = await mkdtemp(join(tmpdir(), "xnlc-cache-"))
   try {
-    const zip = new AdmZip()
+    const zip = new TestZip()
     zip.addFile("fabric.mod.json", Buffer.from('{"id":"demo","name":"Updated","version":"2","depends":{"fabricloader":">=0.15"}}'))
     const file = join(dir, "demo.jar")
     await writeFile(file, zip.toBuffer())
-    const missingName = new AdmZip()
+    const missingName = new TestZip()
     missingName.addFile("fabric.mod.json", Buffer.from('{"id":"unnamed"}'))
     const unnamed = join(dir, "unnamed.jar")
     await writeFile(unnamed, missingName.toBuffer())

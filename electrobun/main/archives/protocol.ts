@@ -13,6 +13,8 @@ export interface ArchiveExtractRequest {
   skipUnsafe?: boolean
   maxEntries?: number
   maxTotalSize?: number
+  symlinks?: "skip" | "error"
+  progressIntervalMs?: number
 }
 
 export type ArchiveWorkerPackSource =
@@ -25,6 +27,7 @@ export interface ArchivePackRequest {
   sources: ArchiveWorkerPackSource[]
   outputPath: string
   level?: number
+  progressIntervalMs?: number
 }
 
 export interface ArchiveAbortRequest {
