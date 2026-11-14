@@ -11,7 +11,7 @@ import * as os from "os";
 import * as path from "path";
 import { pathToFileURL } from "node:url";
 import { StringDecoder } from "node:string_decoder";
-import AdmZip from "adm-zip/adm-zip.js";
+import { packArchiveSync } from "@xnlc/archives";
 import { LaunchResult } from "../types/index.js";
 import { getLogsDir, cleanEnvForGame } from "../utils/index.js";
 
@@ -77,13 +77,13 @@ export const OTHER_PLATFORM_COMMAND_LIMIT = 120_000;
  * процесса. Вынесено из `launch` отдельной функцией, чтобы это можно было
  * проверить тестом без запуска java.
  */
-export function writeJavaArgFileIfTooLong(
+export async function writeJavaArgFileIfTooLong(
   javaArgs: string[],
   totalLength: number,
   limit: number,
   javaMajorVersion = 9,
   javaPath?: string,
-): { args: string[]; cleanupPath: string | null } {
+): Promise<{ args: string[]; cleanupPath: string | null }> {
   if (javaArgs.length === 0 || totalLength <= limit) {
     return { args: javaArgs, cleanupPath: null };
   }
@@ -93,10 +93,11 @@ export function writeJavaArgFileIfTooLong(
     const cpIndex = javaArgs.findIndex(arg => arg === "-cp" || arg === "-classpath");
     if (cpIndex < 0 || !javaArgs[cpIndex + 1]) throw new Error("Command line is too long and has no classpath to compact");
     const classpath = javaArgs[cpIndex + 1];
-    const urls = classpath.split(path.delimiter).map(file => {
+    const urls = await Promise.all(classpath.split(path.delimiter).map(async file => {
       const url = pathToFileURL(path.resolve(file)).href;
-      return fs.existsSync(file) && fs.statSync(file).isDirectory() ? `${url}/` : url;
-    });
+      const directory = await fs.promises.stat(file).then(stat => stat.isDirectory(), () => false);
+      return directory ? `${url}/` : url;
+    }));
     const manifestLine = `Class-Path: ${urls.join(" ")}`;
     const lines: string[] = [];
     let remaining = manifestLine;
@@ -109,9 +110,12 @@ export function writeJavaArgFileIfTooLong(
     const compacted = [...javaArgs];
     compacted[cpIndex + 1] = file;
     if (totalLength - classpath.length + file.length > limit) throw new Error("Command line is too long even with a compact classpath");
-    const zip = new AdmZip();
-    zip.addFile("META-INF/MANIFEST.MF", Buffer.from(`Manifest-Version: 1.0\r\n${lines.join("\r\n")}\r\n\r\n`, "utf8"));
-    zip.writeZip(file);
+    // Манифест — единственная запись, поэтому синхронная упаковка в память
+    // дешевле запуска воркера: JAR нужен до старта Java.
+    await fs.promises.writeFile(
+      file,
+      packArchiveSync({ "META-INF/MANIFEST.MF": Buffer.from(`Manifest-Version: 1.0\r\n${lines.join("\r\n")}\r\n\r\n`, "utf8") }),
+    );
     return { args: compacted, cleanupPath: file };
   }
   try {
@@ -129,7 +133,7 @@ export function writeJavaArgFileIfTooLong(
     }
     const bytes = iconv.encode(content, encoding);
     if (iconv.decode(bytes, encoding) !== content) throw new Error(`Java argument file encoding ${encoding} cannot represent the launch paths`);
-    fs.writeFileSync(argFile, bytes);
+    await fs.promises.writeFile(argFile, bytes);
     return { args: [`@${argFile}`], cleanupPath: argFile };
   } catch (error) {
     // Не смогли записать файл — пробуем запустить как есть.
@@ -137,7 +141,7 @@ export function writeJavaArgFileIfTooLong(
   }
 }
 
-function resolveSpawnTarget(program: string, args: string[], javaMajorVersion = 9): { cmd: string; args: string[]; shell?: boolean; cleanupPath?: string } {
+async function resolveSpawnTarget(program: string, args: string[], javaMajorVersion = 9): Promise<{ cmd: string; args: string[]; shell?: boolean; cleanupPath?: string }> {
   if (!isBatchFile(program)) {
     return { cmd: program, args };
   }
@@ -151,7 +155,7 @@ function resolveSpawnTarget(program: string, args: string[], javaMajorVersion = 
   if (inner.length > 6000) {
     const [javaPath, ...javaArgs] = args;
     if (javaPath) {
-      const prepared = writeJavaArgFileIfTooLong(javaArgs, inner.length, 6000, javaMajorVersion, program);
+      const prepared = await writeJavaArgFileIfTooLong(javaArgs, inner.length, 6000, javaMajorVersion, program);
       return { cmd: program, args: [javaPath, ...prepared.args], shell: true, cleanupPath: prepared.cleanupPath ?? undefined };
     }
   }
@@ -169,7 +173,7 @@ export class JavaRunner {
     this.pipeOutputToConsole = enabled;
   }
 
-  launch(
+  async launch(
     fullCommand: string[],
     gameDir: string,
     options?: {
@@ -178,7 +182,7 @@ export class JavaRunner {
       javaMajorVersion?: number;
       cwd?: string;
     },
-  ): LaunchResult {
+  ): Promise<LaunchResult> {
     const javaPath = fullCommand[0];
     const allArgs = fullCommand.slice(1);
     const wrapperCommand = options?.wrapperCommand?.trim();
@@ -253,7 +257,7 @@ export class JavaRunner {
     let argFileCleanup: string | null = null;
     let spawnArgs = programArgs;
     if (!wrapperCommand) {
-      const prepared = writeJavaArgFileIfTooLong(programArgs, commandParts.join(" ").length, commandLimit, options?.javaMajorVersion, javaPath);
+      const prepared = await writeJavaArgFileIfTooLong(programArgs, commandParts.join(" ").length, commandLimit, options?.javaMajorVersion, javaPath);
       spawnArgs = prepared.args;
       argFileCleanup = prepared.cleanupPath;
       if (argFileCleanup) {
@@ -261,7 +265,7 @@ export class JavaRunner {
       }
     }
 
-    const target = resolveSpawnTarget(program, spawnArgs, options?.javaMajorVersion);
+    const target = await resolveSpawnTarget(program, spawnArgs, options?.javaMajorVersion);
     const cleanupPath = target.cleanupPath ?? argFileCleanup;
     const child = spawn(target.cmd, target.args, {
       cwd: options?.cwd ?? gameDir,

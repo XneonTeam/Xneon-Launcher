@@ -1,10 +1,9 @@
-import { bundledWorker } from "../../platform/resources"
 import { registerCloudThemeHandlers, cloudThemePreview } from "./theme-handlers"
+import { createArchive } from "./archive-builder"
 import { opFailure } from "../errors"
 import { rpcRegistry, shell, app } from "../../platform/desktop"
 import path from "path"
 import fs from "fs/promises"
-import { Worker } from "worker_threads"
 import { getProvider, listProviders, type CloudProviderId } from "./registry"
 import { ensureBuildIntentDir } from "../builds"
 import { sanitizeFileName } from "../builds/helpers"
@@ -34,7 +33,7 @@ async function uploadWithProgress<T>(
  *
  * Архивы приходят в двух видах:
  *   1) с общей корневой папкой:  `MyBuild/mods/foo.jar`   (zip.addLocalFolder)
- *   2) без неё:                  `mods/foo.jar`           (upload-worker)
+ *   2) без неё:                  `mods/foo.jar`           (archive-builder)
  *
  * Раньше код всегда брал `parts[1]`, из-за чего для архивов без корня категория
  * определялась по ИМЕНИ ФАЙЛА и при выборочном импорте не извлекалось ничего.
@@ -139,23 +138,12 @@ function extractSelectedCategories(
   }
 }
 
-async function createBuildZipInWorker(intentPath: string, archivePath: string, id: string, categories?: string[], icon?: string, name?: string): Promise<void> {
-  const workerPath = bundledWorker("upload-worker")
-  const worker = new Worker(workerPath, { workerData: { intentPath, archivePath, categories, icon, name } })
-  return new Promise((resolve, reject) => {
-    worker.on("message", (msg) => {
-      if (msg?.type === "zip-progress") {
-        sendUploadProgress(id, msg.percent, "zip")
-      } else if (msg?.type === "zip-done") {
-        if (msg.result?.ok) resolve()
-        else reject(new Error(msg.result?.error ?? "Zip failed"))
-      }
-    })
-    worker.on("error", reject)
-    worker.on("exit", (code) => {
-      if (code !== 0) reject(new Error(`Zip worker exited with code ${code}`))
-      else resolve()
-    })
+async function createBuildZip(intentPath: string, archivePath: string, id: string, categories?: string[], icon?: string, name?: string): Promise<void> {
+  await createArchive(intentPath, archivePath, {
+    categories,
+    icon,
+    name,
+    onProgress: (_stage, percent) => sendUploadProgress(id, percent, "zip"),
   })
 }
 
@@ -263,7 +251,7 @@ export function registerCloudHandlers() {
         return candidate === target || candidate.includes(target) || target.includes(candidate)
       })?.icon ?? ""
 
-      await uploadWithProgress(id, "zip", () => createBuildZipInWorker(intentPath, archivePath, id, categories, buildIcon, buildName))
+      await uploadWithProgress(id, "zip", () => createBuildZip(intentPath, archivePath, id, categories, buildIcon, buildName))
 
       const provider = getProvider(providerId)
       const result = await uploadWithProgress(id, "upload", () =>
@@ -295,7 +283,7 @@ export function registerCloudHandlers() {
       // кладём в архив метазаписью, чтобы при восстановлении она не терялась.
       const serverRow = await dbHelpers.getMcServer(serverId).catch(() => null)
 
-      await uploadWithProgress(id, "zip", () => createBuildZipInWorker(serverDir, archivePath, id, categories, serverRow?.icon ?? "", serverName))
+      await uploadWithProgress(id, "zip", () => createBuildZip(serverDir, archivePath, id, categories, serverRow?.icon ?? "", serverName))
 
       const provider = getProvider(providerId)
       const result = await uploadWithProgress(id, "upload", () =>

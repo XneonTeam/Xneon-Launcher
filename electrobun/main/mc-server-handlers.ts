@@ -17,12 +17,13 @@ import {
   downloadBuffer,
   sanitizeFileName,
   sanitizeRelativeContentPath,
-  loadAdmZip,
   copyOverrideEntries,
   getLoaderSelectionFromModrinthDeps,
   getLoaderSelectionFromCurseManifest,
   loadModsModule,
 } from "./builds/helpers"
+import { collectDirectorySources, type ArchiveInput } from "@xnlc/archives"
+import { archiveService } from "./archives/service"
 import type { ModrinthVersionDetail, ModrinthManifestFile, CurseForgeManifestFile } from "@xnlc/mods" with { "resolution-mode": "import" }
 import type { McServerInfo, McServerState, McServerMetrics, McPlayerEntry, XnConnectState } from "@xnlc/types" with { "resolution-mode": "import" }
 import { logRuntime, sendToRenderer } from "./runtime"
@@ -337,9 +338,9 @@ export function registerMcServerHandlers() {
   registerMcServerHandler("mc-server:analyze-jar", async (_event, jarPath: string) => {
     if (!jarPath) return { minecraftVersion: null, loaderId: null, loaderLabel: null, modId: null, mainClass: null, error: "Путь не указан" }
     try {
-      return analyzeServerJar(jarPath)
-    } catch (err: any) {
-      return { minecraftVersion: null, loaderId: null, loaderLabel: null, modId: null, mainClass: null, error: err?.message ?? String(err) }
+      return await analyzeServerJar(jarPath)
+    } catch (err: unknown) {
+      return { minecraftVersion: null, loaderId: null, loaderLabel: null, modId: null, mainClass: null, error: err instanceof Error ? err.message : String(err) }
     }
   })
 
@@ -416,21 +417,22 @@ export function registerMcServerHandlers() {
       const DEFAULT_EXCLUDED = new Set(["logs", "crash-reports", "cache", ".cache", "jars"])
       const includeLogs = !categories || categories.includes("logs")
 
-      const AdmZip = await loadAdmZip()
-      const zip = new AdmZip()
-      zip.addLocalFolder(serverDir, path.basename(picked.filePath, ".zip"), (filename: string) => {
-        const top = filename.split(/[\\/]/)[1]
+      // Категории считаются по верхнему сегменту относительно папки сервера.
+      const include = (relativePath: string) => {
+        const top = relativePath.split("/").filter(Boolean)[0] ?? ""
         if (categories == null) return !DEFAULT_EXCLUDED.has(top)
-        // Root-level loose files (server.properties etc.) live in configs;
-        // `top` is undefined only for the folder itself — always included.
-        if (top === undefined) return true
         for (const [catId, entries] of Object.entries(CATEGORY_ENTRIES)) {
           if (catId === "logs") continue
           if (categories.includes(catId) && entries.has(top)) return true
         }
         return includeLogs && CATEGORY_ENTRIES.logs.has(top)
+      }
+
+      const sources = await collectDirectorySources(serverDir, {
+        prefix: path.basename(picked.filePath, ".zip"),
+        include,
       })
-      await fs.promises.writeFile(picked.filePath, zip.toBuffer())
+      await archiveService.pack(sources, picked.filePath)
       return { success: true, path: picked.filePath }
     } catch (error) {
       return opFailure(error)
@@ -1178,8 +1180,6 @@ export function registerMcServerHandlers() {
       })
       const buff = await downloadBuffer(zipUrl, undefined, "modpack.zip")
       zipBuffer = buff
-      const AdmZip = await loadAdmZip()
-      const zip = new AdmZip(buff)
 
       let gameVersion = ""
       let modLoader = "vanilla"
@@ -1187,11 +1187,13 @@ export function registerMcServerHandlers() {
       let modrinthFiles: ModrinthManifestFile[] = []
       let cfFiles: CurseForgeManifestFile[] = []
 
-      const mrIndexEntry = zip.getEntry("modrinth.index.json")
-      const cfManifestEntry = zip.getEntry("manifest.json")
+      // Читаем только манифесты: содержимое пака распаковывается отдельно.
+      const manifests = await archiveService.readEntriesText(buff, ["modrinth.index.json", "manifest.json"])
+      const mrIndex = manifests.get("modrinth.index.json")
+      const cfManifest = manifests.get("manifest.json")
 
-      if (mrIndexEntry) {
-        const index = JSON.parse(mrIndexEntry.getData().toString("utf-8"))
+      if (mrIndex) {
+        const index = JSON.parse(mrIndex)
         gameVersion = index.dependencies?.minecraft ?? ""
         const deps = index.dependencies ?? {}
         const sel = getLoaderSelectionFromModrinthDeps(deps)
@@ -1209,8 +1211,8 @@ export function registerMcServerHandlers() {
         }
         modrinthFiles = ((index.files as ModrinthManifestFile[] | undefined) ?? []).filter((f) => f.env?.server !== "unsupported")
         if (!packName) packName = index.name ?? index.slug ?? "Серверный модпак"
-      } else if (cfManifestEntry) {
-        const manifest = JSON.parse(cfManifestEntry.getData().toString("utf-8"))
+      } else if (cfManifest) {
+        const manifest = JSON.parse(cfManifest)
         gameVersion = manifest.minecraft?.version ?? ""
         const loaderRaw = manifest.minecraft?.modLoaders?.find((m: any) => m.primary)?.id ?? ""
         const sel = getLoaderSelectionFromCurseManifest(loaderRaw)
@@ -1292,8 +1294,8 @@ export function registerMcServerHandlers() {
           sendPackProgress(`${downloaded}/${total} файлов`, downloaded, total)
         }
         sendPackProgress("Распаковка overrides...", total, total)
-        await copyOverrideEntries(zip, serverDir)
-        await applyServerOverrides(zip, serverDir)
+        await copyOverrideEntries(buff, serverDir)
+        await applyServerOverrides(buff, serverDir)
       } else {
         const total = cfFiles.length
         let downloaded = 0
@@ -1336,7 +1338,7 @@ export function registerMcServerHandlers() {
           sendPackProgress(`${downloaded}/${total} модов`, downloaded, total)
         }
         sendPackProgress("Распаковка overrides...", total, total)
-        await copyOverrideEntries(zip, serverDir)
+        await copyOverrideEntries(buff, serverDir)
       }
 
       sendToRenderer("mc-server:download-progress", {
@@ -1355,23 +1357,13 @@ export function registerMcServerHandlers() {
 
 }
 
-async function applyServerOverrides(zip: {
-  getEntries(): { entryName: string; isDirectory: boolean; getData(): Buffer }[]
-}, serverDir: string) {
-  for (const entry of zip.getEntries()) {
-    if (entry.entryName.startsWith("server-overrides/") && !entry.isDirectory) {
-      const relPath = entry.entryName.replace(/^server-overrides\//, "")
-      let destPath: string
-      try {
-        destPath = resolveInsideServer(serverDir, relPath)
-      } catch {
-        // Запись за пределами папки сервера — пропускаем.
-        continue
-      }
-      fs.mkdirSync(path.dirname(destPath), { recursive: true })
-      fs.writeFileSync(destPath, entry.getData())
-    }
-  }
+async function applyServerOverrides(input: ArchiveInput, serverDir: string) {
+  // `server-overrides/` ставится поверх `overrides/`: порядок задан спецификацией пакета.
+  await archiveService.extract(input, serverDir, {
+    stripPrefix: "server-overrides/",
+    skipUnsafe: true,
+    sanitizeNames: true,
+  })
 }
 
 /** Требования и компонент runtime берутся из JSON версии Mojang. */

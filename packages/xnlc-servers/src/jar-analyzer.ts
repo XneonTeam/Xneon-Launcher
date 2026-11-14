@@ -1,5 +1,4 @@
-import fs from "fs"
-import AdmZip from "adm-zip"
+import { listArchiveEntries, readArchiveEntries, type ArchiveEntryInfo } from "@xnlc/archives"
 import * as toml from "toml"
 
 export interface JarAnalysisResult {
@@ -22,6 +21,15 @@ const MODLOADER_IDS = [
   "paper", "spigot", "bukkit", "purpur", "folia",
   "sponge", "bungeecord", "velocity", "waterfall",
 ]
+
+/** Метаданные JAR читаются целиком: всё, что больше, заведомо не манифест. */
+const MAX_METADATA_ENTRY_SIZE = 2_000_000
+const METADATA_EXTENSIONS = [".json", ".toml", ".properties", ".mf", ".txt", ".cfg"]
+
+function isMetadataName(name: string): boolean {
+  const lower = name.toLowerCase()
+  return lower === "meta-inf/manifest.mf" || METADATA_EXTENSIONS.some((extension) => lower.endsWith(extension))
+}
 
 function findMcVersionInText(text: string): string | null {
   const match = MC_VERSION_PATTERN.exec(text)
@@ -48,7 +56,7 @@ function normalizeLoader(label: string | null): { loaderId: string | null; loade
   return { loaderId: null, loaderLabel: label }
 }
 
-export function analyzeServerJar(jarPath: string): JarAnalysisResult {
+export async function analyzeServerJar(jarPath: string): Promise<JarAnalysisResult> {
   const result: JarAnalysisResult = {
     minecraftVersion: null,
     loaderId: null,
@@ -57,34 +65,38 @@ export function analyzeServerJar(jarPath: string): JarAnalysisResult {
     mainClass: null,
   }
 
-  if (!jarPath || !fs.existsSync(jarPath)) {
+  if (!jarPath) {
     result.error = "Файл не найден"
     return result
   }
 
-  let zip: any
+  let infos: ArchiveEntryInfo[]
   try {
-    zip = new AdmZip(jarPath)
-  } catch {
-    result.error = "Не является корректным JAR/ZIP файлом"
+    infos = await listArchiveEntries(jarPath)
+  } catch (error) {
+    result.error = error instanceof Error && "code" in error && error.code === "IO_ERROR"
+      ? "Файл не найден" : "Не является корректным JAR/ZIP файлом"
     return result
   }
 
-  const entries: any[] = zip.getEntries()
-  const names: string[] = entries.map((e: any) => e.entryName)
-  const readText = (entryName: string): string | null => {
-    const entry = entries.find((e: any) => e.entryName === entryName)
-    if (!entry) return null
-    if (entry.header.size > 2_000_000) return null
+  const names: string[] = infos.map((file) => file.name)
+  const metadata = infos.filter((file) => !file.directory && !file.symlink && file.size <= MAX_METADATA_ENTRY_SIZE && isMetadataName(file.name))
+  const wanted = new Set(metadata.map((file) => file.name))
+  let contents = new Map<string, Buffer>()
+  if (wanted.size > 0) {
     try {
-      return entry.getData().toString("utf8")
+      contents = await readArchiveEntries(jarPath, [...wanted], {
+        maxEntrySize: MAX_METADATA_ENTRY_SIZE,
+        maxTotalSize: 32 * 1024 * 1024,
+      })
     } catch {
-      try {
-        return entry.getData().toString("latin1")
-      } catch {
-        return null
-      }
+      result.error = "Не удалось прочитать метаданные JAR"
+      return result
     }
+  }
+
+  const readText = (entryName: string): string | null => {
+    return contents.get(entryName)?.toString("utf8") ?? null
   }
 
   // ---------- 1. MANIFEST.MF ----------
