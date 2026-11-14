@@ -1,0 +1,34 @@
+{
+  "name": "@xnlc/archives",
+  "version": "1.0.0",
+  "description": "XNLC archive toolkit — streaming ZIP extraction and packing on fflate",
+  "type": "module",
+  "author": "MAINER4IK",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "dependencies": {
+    "fflate": "^0.8.3"
+  },
+  "scripts": {
+    "build": "bun -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\" && bun --bun run tsc -p tsconfig.json",
+    "clean": "bun -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\"",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "7.0.2"
+  },
+  "publishConfig": {
+    "registry": "https://git.xneon.org/api/packages/MAINER4IK/npm/"
+  }
+}

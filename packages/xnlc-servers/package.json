@@ -17,8 +17,8 @@
     "lib"
   ],
   "dependencies": {
+    "@xnlc/archives": "workspace:*",
     "@xnlc/types": "workspace:*",
-    "adm-zip": "^0.6.0",
     "iconv-lite": "^0.7.3",
     "toml": "^5.0.0"
   },

@@ -1,7 +1,8 @@
-import * as fs from "node:fs";
+import { createReadStream } from "node:fs";
+import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { createHash } from "node:crypto";
-import AdmZip from "adm-zip/adm-zip.js";
+import { listArchiveEntries, packArchive, type ArchiveEntrySource } from "@xnlc/archives";
 import type { DownloadProgressCallback, VersionJson } from "../types/index.js";
 import { Downloader } from "./downloader.js";
 import { URLS } from "../constants/urls.js";
@@ -46,7 +47,7 @@ export class LegacyPreparation {
       for (const [filename, sha1] of legacyFmlLibraries(base)) {
         const dest = path.join(this.gameDir, "lib", filename);
         // FML сам проверяет SHA-1: повреждённый кэш необходимо восстановить до запуска.
-        if (fs.existsSync(dest) && this.hash(fs.readFileSync(dest)) === sha1) continue;
+        if (await this.hashFile(dest).catch(() => "") === sha1) continue;
         await this.downloader.download({
           url: `${URLS.official.loader.fmlLibraries}/${filename}`,
           dest, sha1, skipIfExists: false, onProgress,
@@ -57,8 +58,8 @@ export class LegacyPreparation {
     for (const mod of version.mods ?? []) {
       const source = path.join(getLibraryDir(this.resourceDir), mod.downloads?.artifact?.path ?? libraryNameToPath(mod.name));
       const destination = path.join(this.gameDir, "mods", path.basename(source));
-      fs.mkdirSync(path.dirname(destination), { recursive: true });
-      fs.copyFileSync(source, destination);
+      await fs.mkdir(path.dirname(destination), { recursive: true });
+      await fs.copyFile(source, destination);
     }
 
     if (!version.jarMods?.length) return undefined;
@@ -67,37 +68,43 @@ export class LegacyPreparation {
     const inputs = [source, ...version.jarMods.map(mod =>
       path.join(getLibraryDir(this.resourceDir), mod.downloads?.artifact?.path ?? libraryNameToPath(mod.name)))];
     // Хэш включает содержимое и порядок патчей; ванильный JAR остаётся неизменным.
-    const contents = inputs.map(file => fs.readFileSync(file));
-    const fingerprint = this.hash(Buffer.from(contents.map(data => this.hash(data)).join(":")));
+    const hashes: string[] = [];
+    for (const file of inputs) hashes.push(await this.hashFile(file));
+    const fingerprint = createHash("sha1").update(hashes.join(":")).digest("hex");
     const destination = path.join(this.gameDir, ".xnlc", "patched", `${fingerprint}.jar`);
-    if (fs.existsSync(destination)) {
-      try {
-        new AdmZip(destination).getEntries();
-        return destination;
-      } catch {
-        // Незавершённый или повреждённый кэш пересобирается из исходных архивов.
-      }
+    try {
+      await listArchiveEntries(destination);
+      return destination;
+    } catch {
+      // Отсутствующий или повреждённый кэш пересобирается из исходных архивов.
     }
 
-    const merged = new AdmZip();
-    for (const data of contents) {
-      for (const entry of new AdmZip(data).getEntries()) {
-        if (entry.isDirectory || /^META-INF\//i.test(entry.entryName)) continue;
-        merged.addFile(entry.entryName, entry.getData());
+    // В памяти остаётся только индекс; байты классов идут из исходных JAR
+    // прямо в writer. Последний патч замещает запись с тем же именем.
+    const merged = new Map<string, ArchiveEntrySource>();
+    for (const archivePath of inputs) {
+      for (const entry of await listArchiveEntries(archivePath)) {
+        if (entry.directory || entry.symlink || /^META-INF\//i.test(entry.name)) continue;
+        merged.set(entry.name, { kind: "entry", archivePath, entry });
       }
     }
-    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    await fs.mkdir(path.dirname(destination), { recursive: true });
     const temporary = `${destination}.${process.pid}-${Math.random().toString(36).slice(2)}.tmp`;
     try {
-      merged.writeZip(temporary);
-      fs.renameSync(temporary, destination);
+      await packArchive(
+        [...merged.values()],
+        temporary,
+      );
+      await fs.rename(temporary, destination);
     } finally {
-      fs.rmSync(temporary, { force: true });
+      await fs.rm(temporary, { force: true });
     }
     return destination;
   }
 
-  private hash(data: Buffer): string {
-    return createHash("sha1").update(data).digest("hex");
+  private async hashFile(file: string): Promise<string> {
+    const hash = createHash("sha1");
+    for await (const chunk of createReadStream(file)) hash.update(chunk);
+    return hash.digest("hex");
   }
 }
