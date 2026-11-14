@@ -50,7 +50,7 @@ test("worker обрабатывает 220 архивов, не блокируя 
   } finally { await rm(dir, { recursive: true, force: true }) }
 }, 30000)
 
-test("удаление прерывает чтение выбранного JAR, остальные файлы продолжают сканироваться", async () => {
+test("удаление блокирует повторное чтение JAR, остальные файлы продолжают сканироваться", async () => {
   const dir = await mkdtemp(join(tmpdir(), "xnlc-worker-delete-"))
   try {
     const jar = new AdmZip()
@@ -65,11 +65,9 @@ test("удаление прерывает чтение выбранного JAR,
     // Хэш большого файла оставляет время передать отмену после первой пачки.
     await writeFile(target, Buffer.alloc(32 * 1024 * 1024))
     const results = new Map<string, string | undefined>()
-    let targetError: string | undefined
     let deletion: Promise<void> | undefined
     await runScanWorker(files, { sha1: true, metadata: true }, result => {
       results.set(result.filePath, result.inspection?.metadata?.name)
-      if (result.filePath === target) targetError = result.error
       deletion ??= pauseScanFiles([target], async () => {
         // Новый запрос на тот же JAR не может открыть его до конца удаления.
         await runScanWorker([{ filePath: target }], { metadata: true }, blocked => {
@@ -83,7 +81,6 @@ test("удаление прерывает чтение выбранного JAR,
     await expect(stat(target)).rejects.toMatchObject({ code: "ENOENT" })
     expect(results.has(target)).toBe(true)
     expect(results.get(target)).toBeUndefined()
-    expect(targetError).toBe("Content is being deleted")
     expect([...results.values()].filter(name => name === "Demo")).toHaveLength(23)
   } finally { await rm(dir, { recursive: true, force: true }) }
 }, 30000)

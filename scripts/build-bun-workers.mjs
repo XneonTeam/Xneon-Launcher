@@ -4,7 +4,6 @@ import { spawnSync } from "node:child_process"
 await mkdir("dist-workers", { recursive: true })
 const sources = [
   "./electrobun/main/minecraft-launch-worker.ts",
-  "./packages/xnlc-parser/src/scan-worker.ts",
   "./electrobun/main/cloud/upload-worker.ts",
 ]
 const { status, error } = spawnSync(process.execPath, ["build", ...sources, "--target=bun", "--format=cjs", "--outdir=dist-workers", "--entry-naming=[name].js"], {

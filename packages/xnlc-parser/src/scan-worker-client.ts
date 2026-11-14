@@ -1,6 +1,8 @@
 import { Worker } from "node:worker_threads"
 import { availableParallelism } from "node:os"
 import path from "node:path"
+import { inspectJar } from "./jar-inspector.js"
+import { analyzeDatapack } from "./datapack.js"
 import type { ScanFile, ScanRequest, ScanResult, ScanWorkerCommand, ScanWorkerData, ScanWorkerMessage } from "./scan-worker-protocol.js"
 
 let bundledEntry: string | URL | undefined
@@ -78,11 +80,43 @@ function queueShard(workerData: ScanWorkerData, onResult: (result: ScanResult) =
   })
 }
 
+/** Скан в текущем потоке: библиотека используется напрямую, без отдельного файла worker. */
+async function runScanInline(
+  files: ScanFile[],
+  request: ScanRequest,
+  onResult: (result: ScanResult) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  for (let i = 0; i < files.length; i += 8) {
+    signal?.throwIfAborted()
+    const chunk = files.slice(i, i + 8)
+    const results = await Promise.all(chunk.map(async (file): Promise<ScanResult> => {
+      const snapshot = { filePath: file.filePath, size: file.size, mtimeMs: file.mtimeMs }
+      if (blockedFiles.has(fileKey(file.filePath))) return { ...snapshot, error: "Content is being deleted" }
+      try {
+        if (request.datapack) return { ...snapshot, datapack: await analyzeDatapack(file.bytes ?? file.filePath, { signal }) }
+        const stat = file.size !== undefined && file.mtimeMs !== undefined ? { size: file.size, mtimeMs: file.mtimeMs } : undefined
+        return { ...snapshot, inspection: await inspectJar(file.filePath, { ...request, signal }, stat) }
+      } catch (error) {
+        return { ...snapshot, error: error instanceof Error ? error.message : String(error) }
+      }
+    }))
+    signal?.throwIfAborted()
+    for (const result of results) {
+      if (blockedFiles.has(fileKey(result.filePath))) onResult({ filePath: result.filePath, error: "Content is being deleted" })
+      else onResult(result)
+    }
+    // Уступаем event loop между пачками: основной поток успевает обслужить IPC.
+    await new Promise<void>(resolve => setImmediate(resolve))
+  }
+}
+
 /** SQLite и обработка результатов остаются в main; большие списки делим между потоками. */
 export async function runScanWorker(files: ScanFile[], request: ScanRequest, onResult: (result: ScanResult) => void, signal?: AbortSignal): Promise<void> {
   signal?.throwIfAborted()
   if (!files.length) return
   const unique = [...new Map(files.map(file => [file.filePath, file])).values()]
+  if (!bundledEntry) return runScanInline(unique, request, onResult, signal)
   const controller = new AbortController()
   const taskSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
   const count = Math.max(1, Math.min(workerLimit, Math.floor(unique.length / 24)))

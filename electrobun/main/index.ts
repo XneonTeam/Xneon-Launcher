@@ -1,8 +1,4 @@
 import { registerStagedFileCleanup } from "../platform/staged-files"
-import { existsSync } from "node:fs"
-import path from "node:path"
-import { setScanWorkerEntry } from "@xnlc/parser"
-import { bundledWorker } from "../platform/resources"
 try { require("dotenv/config") } catch {}
 import { app } from "../platform/desktop"
 import { registerThemeFiles } from "./theme-files.js"
@@ -31,8 +27,6 @@ import { xnConnectManager } from "./xn-connect-manager"
 import { registerXnConnectHandlers } from "./xn-connect-handlers"
 import { registerAuthlibHandlers } from "./authlib"
 
-const scanWorker = bundledWorker("scan-worker")
-setScanWorkerEntry(existsSync(scanWorker) ? scanWorker : path.resolve("dist-workers/scan-worker.js"))
 registerStagedFileCleanup()
 registerThemeFiles()
 registerWindowLifecycle()
