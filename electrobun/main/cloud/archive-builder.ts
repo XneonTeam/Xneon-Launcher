@@ -27,6 +27,7 @@ export async function createArchive(rootDir: string, archivePath: string, option
     signal,
     include: (relativePath) => {
       const top = relativePath.split("/")[0]
+      if (top.toLowerCase() === ".xnlc-modpack") return false
       if (SHARED_GAME_ENTRIES.has(top)) return false // junctions в общий кэш игр не пакуем
       if (!filter) return true
       return categoriesOf(relativePath, EXPORT_CATEGORY_DIRS).some(category => filter.has(category))

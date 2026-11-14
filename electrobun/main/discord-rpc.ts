@@ -1,6 +1,7 @@
 import fs from "fs/promises"
 import path from "path"
 import { app } from "../platform/desktop"
+import { registerShutdownTask, SHUTDOWN_PRIORITY } from "../platform/shutdown"
 import { presenceSmallImage, type DiscordActivity } from "./discord-presence"
 
 const CLIENT_ID = "1279183673660538972"
@@ -243,7 +244,7 @@ setTimeout(() => {
  * с IPC-соединением и слушателями) и снимает retry-таймер, чтобы после
  * `before-quit` не оставалось живых подписок и повторных попыток подключения.
  */
-export function shutdownDiscordRpc(): void {
+export async function shutdownDiscordRpc(): Promise<void> {
   shuttingDown = true
   if (retryTimer) {
     clearTimeout(retryTimer)
@@ -254,10 +255,8 @@ export function shutdownDiscordRpc(): void {
   connected = false
   pendingActivity = null
   if (client) {
-    try { void client.destroy() } catch { /* клиент мог быть уже уничтожен */ }
+    try { await client.destroy() } catch { /* клиент мог быть уже уничтожен */ }
   }
 }
 
-app.on("before-quit", () => {
-  shutdownDiscordRpc()
-})
+registerShutdownTask("discord-rpc", shutdownDiscordRpc, { priority: SHUTDOWN_PRIORITY.network, timeoutMs: 1500 })

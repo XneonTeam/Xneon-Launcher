@@ -1,4 +1,4 @@
-import { app } from "../platform/desktop"
+import { registerShutdownTask, SHUTDOWN_PRIORITY } from "../platform/shutdown"
 import { initDatabaseCore, flushDatabase, flushDatabaseSync, closeDatabase, isDbFallbackMode, getLauncherDirectory } from "./core"
 import { initializeSchema, SCHEMA_VERSION } from "./migrations"
 import { ensureInMemorySettingsDefaults } from "./settings"
@@ -111,9 +111,9 @@ export const dbHelpers = {
 
 process.once("beforeExit", flushDatabase)
 process.once("exit", flushDatabaseSync)
-app.on("will-quit", () => {
+registerShutdownTask("sqlite", () => {
   // Чекпойнт WAL в основной файл и закрытие соединения — данные на диске
   // в согласованном виде даже без graceful shutdown.
   flushDatabaseSync()
   closeDatabase()
-})
+}, { priority: SHUTDOWN_PRIORITY.database })

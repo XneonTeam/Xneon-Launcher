@@ -1,9 +1,11 @@
 import fs from "node:fs/promises"
 import path from "node:path"
+import { recoverModpackInstall } from "./modpack-install"
 
 /** Копия становится доступной только после завершения переноса всех файлов. */
 export async function copyInstanceDirectory(source: string, destination: string): Promise<void> {
   const from = await fs.realpath(source)
+  await recoverModpackInstall(from)
   // realpath разворачивает и junction, и короткие Windows-пути вида MAINER~1.
   const segments: string[] = []
   let ancestor = path.resolve(destination)

@@ -12,6 +12,7 @@ import { appendUpload, abortUpload, beginUpload } from "./staged-files"
 import packageJson from "../../package.json"
 import { enableWindowsWindowTransitions, saveFile, setWindowsAppUserModelId, setWindowsTaskbarIdentity, setWindowsWindowClientWidth, setWindowsWindowIcons } from "./windows-native"
 import { launcherOperations } from "./operation-gate"
+import { launcherShutdown, registerShutdownTask, SHUTDOWN_PRIORITY } from "./shutdown"
 
 export { rpcRegistry, type RpcContext } from "./ipc"
 export { net, protocol } from "./assets"
@@ -44,6 +45,14 @@ export const app = Object.assign(events, {
     events.emit("before-quit", { preventDefault() { cancelled = true } })
     if (cancelled) return
     quitting = true
+    launcherOperations.blocked = true
+    void launcherShutdown.run(restartPending ? "restart" : "quit")
+  },
+  exit: (status = 0) => process.exit(status),
+  relaunch() { restartPending = true },
+})
+registerShutdownTask("active-operations", () => launcherOperations.drain(4000), { priority: SHUTDOWN_PRIORITY.notice, timeoutMs: 4500 })
+launcherShutdown.onExit(() => {
     events.emit("will-quit")
     if (restartPending) {
       unlockLauncherProfile()
@@ -53,9 +62,6 @@ export const app = Object.assign(events, {
       child.unref()
     }
     Utils.quit()
-  },
-  exit: (status = 0) => process.exit(status),
-  relaunch() { restartPending = true },
 })
 Electrobun.events.on("reopen", () => app.emit("reopen"))
 

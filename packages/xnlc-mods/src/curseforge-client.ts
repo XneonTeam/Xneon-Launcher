@@ -466,6 +466,7 @@ export interface CurseForgeFileInfo {
   fileName: string;
   downloadUrl: string;
   fileLength?: number;
+  sha1?: string;
 }
 
 /**
@@ -513,6 +514,7 @@ export async function curseforgeGetFiles(fileIds: number[]): Promise<Record<numb
               fileName,
               downloadUrl,
               fileLength: file.fileLength,
+              sha1: Array.isArray(file.hashes) ? file.hashes.find((hash: { algo?: number }) => hash.algo === 1)?.value : undefined,
             };
           }
         }

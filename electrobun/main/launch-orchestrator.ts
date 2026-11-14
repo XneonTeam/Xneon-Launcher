@@ -21,6 +21,7 @@ import { recordGameSession } from "./stats"
 import { setActiveGameSession } from "./session-tracker"
 import { detectMinecraftCrash } from "./crash-detect"
 import { syncMinecraftLanguage } from "./mc-language"
+import { recoverModpackInstall } from "./builds/modpack-install"
 
 type LaunchAccountPayload = {
   type: "elyby" | "xnskins" | "microsoft" | "offline" | "authlib-injector"
@@ -194,6 +195,7 @@ export class LaunchOrchestrator {
       }
     }
     if (!gameDir) gameDir = getMinecraftResourceRoot()
+    await recoverModpackInstall(gameDir)
     this.activeGameDir = path.resolve(gameDir)
 
     // Профили старых загрузчиков в папке сборки удаляются прямо перед запуском:

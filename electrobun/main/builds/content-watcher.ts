@@ -1,14 +1,19 @@
 import path from "node:path"
 import { contentMetadataEvents } from "./content-metadata-events"
 import { watch, realpathSync } from "node:fs"
+import { isModpackApplying } from "./modpack-install"
 
 /** Объединяем изменения файлов в один перескан после завершения копирования. */
 export function watchBuildContent(directory: string, onChange: () => void, delay = 700): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined
   const root = realpathSync.native(directory)
+  const notify = () => {
+    if (isModpackApplying(root)) { timer = setTimeout(notify, delay); return }
+    onChange()
+  }
   const schedule = () => {
     clearTimeout(timer)
-    timer = setTimeout(onChange, delay)
+    timer = setTimeout(notify, delay)
   }
   const metadataChanged = (files: string[]) => {
     if (files.some(file => {
