@@ -1,6 +1,8 @@
 import fs from "node:fs"
 import path from "node:path"
-import { downloadBuffer } from "./helpers"
+import { randomUUID } from "node:crypto"
+import { downloadBuffer, resolveSafeIntentFilePath } from "./helpers"
+import { createModpackPathClaims, writeModpackDownload } from "./modpack-install"
 
 /**
  * Модпаки вроде Better MC кладут в сборку мод Missing Mods Checker: он на старте
@@ -40,12 +42,25 @@ function destinationDir(entry: MissingModEntry): "mods" | "resourcepacks" {
   return entry.destination === "resourcepacks" ? "resourcepacks" : "mods"
 }
 
+function entryPath(entry: MissingModEntry): string {
+  const relative = `${destinationDir(entry)}/${entry.pattern ?? ""}`
+  try { createModpackPathClaims()(relative) } catch { throw new Error("Invalid missing mod path") }
+  return relative
+}
+
 /** Файлы из конфига, которых нет в папках сборки. */
 export function collectMissingFiles(intentPath: string, entries: MissingModEntry[]): MissingModEntry[] {
   const missing: MissingModEntry[] = []
   for (const entry of entries) {
     if (!entry?.pattern) continue
-    const target = path.join(intentPath, destinationDir(entry), entry.pattern)
+    const relative = entryPath(entry)
+    // Даже проверка существования не должна переходить по пользовательской ссылке.
+    let target = intentPath
+    for (const segment of relative.split("/")) {
+      target = path.join(target, segment)
+      try { if (fs.lstatSync(target).isSymbolicLink()) throw new Error("Missing mod path contains a link") }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error }
+    }
     if (!fs.existsSync(target)) missing.push(entry)
   }
   return missing
@@ -70,16 +85,19 @@ export async function downloadMissingModFiles(
     signal?: AbortSignal
     onProgress?: (done: number, total: number, current: string) => void
     loadModsModule?: () => Promise<{
-      curseforgeGetFiles: (fileIds: number[]) => Promise<Record<number, { fileName?: string; downloadUrl?: string }>>
+      curseforgeGetFiles: (fileIds: number[]) => Promise<Record<number, { fileName?: string; downloadUrl?: string; sha1?: string; fileLength?: number }>>
     }>
   },
 ): Promise<MissingModsResult> {
   const total = entries.length
+  options?.signal?.throwIfAborted()
+  const claim = createModpackPathClaims()
+  for (const entry of entries) if (entry?.pattern) claim(entryPath(entry))
   const result: MissingModsResult = { total, missing: total, downloaded: 0, failed: 0, failedNames: [] }
   if (total === 0) return result
 
   const loadMods = options?.loadModsModule
-  let fileInfos: Record<number, { fileName?: string; downloadUrl?: string }> = {}
+  let fileInfos: Record<number, { fileName?: string; downloadUrl?: string; sha1?: string; fileLength?: number }> = {}
   if (loadMods) {
     try {
       const mods = await loadMods()
@@ -92,10 +110,13 @@ export async function downloadMissingModFiles(
 
   let done = 0
   for (const entry of entries) {
+    options?.signal?.throwIfAborted()
     const fileName = entry.pattern
     if (!fileName) continue
-    const dir = path.join(intentPath, destinationDir(entry))
-    const target = path.join(dir, fileName)
+    const relative = entryPath(entry)
+    const target = await resolveSafeIntentFilePath(intentPath, relative)
+    const dir = path.dirname(target)
+    const temporary = path.join(dir, `.${randomUUID()}.missing-mod-part`)
     try {
       options?.onProgress?.(done, total, fileName)
       if (fs.existsSync(target)) {
@@ -112,13 +133,21 @@ export async function downloadMissingModFiles(
         done++
         continue
       }
-      fs.mkdirSync(dir, { recursive: true })
+      await fs.promises.mkdir(dir, { recursive: true })
       const buffer = await downloadBuffer(url, options?.signal, fileName)
-      fs.writeFileSync(target, buffer)
+      options?.signal?.throwIfAborted()
+      await writeModpackDownload(temporary, buffer, { sha1: info?.sha1, size: info?.fileLength })
+      await resolveSafeIntentFilePath(intentPath, relative)
+      options?.signal?.throwIfAborted()
+      // link атомарно публикует новый файл без замены появившегося пользовательского.
+      await fs.promises.link(temporary, target)
       result.downloaded++
     } catch {
+      options?.signal?.throwIfAborted()
       result.failed++
       result.failedNames.push(entry.displayName || fileName)
+    } finally {
+      await fs.promises.rm(temporary, { force: true })
     }
     done++
     options?.onProgress?.(done, total, fileName)
