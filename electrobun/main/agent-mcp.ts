@@ -1,4 +1,5 @@
 import { app, rpcRegistry, safeStorage } from "../platform/desktop"
+import { registerShutdownTask, SHUTDOWN_PRIORITY } from "../platform/shutdown"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
@@ -278,11 +279,5 @@ export function registerAgentMcpHandlers(): void {
     }
     return (await states(true)).map(({ name, url, connected, tools, error }) => ({ name, transport: url ? "http" as const : "stdio" as const, connected, tools, ...(error ? { error } : {}) }))
   }))
-  let quittingForMcp = false
-  app.on("before-quit", event => {
-    if (quittingForMcp || clients.size === 0) return
-    event.preventDefault()
-    quittingForMcp = true
-    void stopMcpConnections().finally(() => app.quit())
-  })
+  registerShutdownTask("mcp-connections", () => stopMcpConnections(), { priority: SHUTDOWN_PRIORITY.network, timeoutMs: 2500 })
 }

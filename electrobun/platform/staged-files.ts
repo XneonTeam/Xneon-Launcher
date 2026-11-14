@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { app } from "./desktop"
+import { registerShutdownTask, SHUTDOWN_PRIORITY } from "./shutdown"
 
 /*
  * Файлы из renderer переносятся в main чанками: у Electron был
@@ -92,12 +92,15 @@ export async function abortUpload(id: string) {
 }
 
 export function registerStagedFileCleanup() {
-  app.on("before-quit", event => {
-    if (directories.size === 0) return
-    event.preventDefault()
+  registerShutdownTask("staged-files", async () => {
     const pending = [...directories]
-    directories.clear()
     uploads.clear()
-    void Promise.allSettled(pending.map(directory => rm(directory, { recursive: true, force: true }))).then(() => app.quit())
-  })
+    const results = await Promise.allSettled(pending.map(async directory => {
+      await rm(directory, { recursive: true, force: true })
+      directories.delete(directory)
+    }))
+    const failed = results.find((result): result is PromiseRejectedResult => result.status === "rejected")
+    if (failed) throw failed.reason
+    stagedBytes = 0
+  }, { priority: SHUTDOWN_PRIORITY.files, timeoutMs: 3000 })
 }

@@ -101,7 +101,10 @@ async function readServerProperties(serverDir: string): Promise<{ port: number; 
 }
 
 async function extractCloudArchive(input: string | Uint8Array, destination: string): Promise<void> {
-  await archiveService.extract(input, destination, { sanitizeNames: true, skipUnsafe: true })
+  await archiveService.extract(input, destination, {
+    sanitizeNames: true, skipUnsafe: true,
+    include: entry => !entry.name.split("/").some(part => part.toLowerCase() === ".xnlc-modpack"),
+  })
 }
 
 /** Извлекает из архива только файлы, чья верхняя папка входит в selectedCategories. */
@@ -127,6 +130,7 @@ async function extractSelectedCategories(
       // Отбрасываем корневой сегмент, если он есть в архиве.
       const rel = root && parts[0] === root ? parts.slice(1) : parts
       const topDir = (rel[0] ?? "").toLowerCase()
+      if (topDir === ".xnlc-modpack") return false
       if (!topDir) return false
       return Object.entries(categoryMap).some(([cat, dirs]) =>
         catSet.has(cat) && dirs.some((dir) => dir.toLowerCase() === topDir),

@@ -24,6 +24,7 @@ import { getCachedJarPath } from "../jar-cache"
 import { pauseScanFiles } from "@xnlc/parser"
 import type { ArchiveInput } from "@xnlc/archives"
 import { archiveService } from "../archives/service"
+import { isModpackApplying } from "./modpack-install"
 
 export function getBaseDataRoot(): string {
   return getLauncherDataRoot()
@@ -156,8 +157,9 @@ export function getContentDirectoryName(contentType: "mod" | "resourcepack" | "s
 export async function getContentIntentDir(buildName: string): Promise<string> {
   const match = await dbHelpers.findBuildByName?.(buildName)
   const build = match ? await dbHelpers.findBuildById?.(match.id) : null
-  if (build?.intentPath && path.isAbsolute(build.intentPath)) return build.intentPath
-  return ensureBuildIntentDir(buildName)
+  const directory = build?.intentPath && path.isAbsolute(build.intentPath) ? build.intentPath : await ensureBuildIntentDir(buildName)
+  if (isModpackApplying(directory)) throw new Error("Modpack installation is being applied")
+  return directory
 }
 
 type ContentWrite = { invalidated: boolean; commit?: Promise<void> }
@@ -186,6 +188,7 @@ async function stageContent(intentPath: string, destination: string, write: (tem
     await write(temporary)
     signal?.throwIfAborted()
     if (operation.invalidated) throw new Error("CONTENT_WRITE_SUPERSEDED")
+    if (isModpackApplying(intentPath)) throw new Error("Modpack installation is being applied")
     operation.commit = fs.rename(temporary, destination)
     await operation.commit
     if (operation.invalidated) throw new Error("CONTENT_WRITE_SUPERSEDED")
@@ -456,8 +459,12 @@ export function sendImportProgress(current: number, total: number, message: stri
 export async function runConcurrent<T>(tasks: (() => Promise<T>)[], concurrency: number, signal?: AbortSignal): Promise<T[]> {
   const results: T[] = []
   for (let i = 0; i < tasks.length; i += concurrency) {
-    const batch = tasks.slice(i, i + concurrency).map(fn => fn())
-    results.push(...await Promise.all(batch))
+    signal?.throwIfAborted()
+    const batch = await Promise.allSettled(tasks.slice(i, i + concurrency).map(fn => Promise.resolve().then(fn)))
+    // Ошибка одной загрузки не должна освобождать staging, пока соседние ещё пишут.
+    const failed = batch.find((item): item is PromiseRejectedResult => item.status === "rejected")
+    if (failed) throw failed.reason
+    results.push(...batch.map(item => (item as PromiseFulfilledResult<T>).value))
   }
   return results
 }

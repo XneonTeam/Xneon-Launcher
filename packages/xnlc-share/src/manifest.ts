@@ -3,7 +3,7 @@ import { validateLaunchSettings } from "./launch-settings.js"
 
 export const MAX_FILE_BYTES = 32 * 1024 * 1024
 export const MAX_TOTAL_BYTES = 8 * 1024 * 1024 * 1024
-export const DEFAULT_EXCLUSIONS = ["logs", "crash-reports", "cache", "local", "natives", "screenshots", "assets", "libraries", "versions", "runtime", ".xnlc-share", "launcher_accounts.json"]
+export const DEFAULT_EXCLUSIONS = ["logs", "crash-reports", "cache", "local", "natives", "screenshots", "assets", "libraries", "versions", "runtime", ".xnlc-share", ".xnlc-modpack", "launcher_accounts.json"]
 const hashPattern = /^[a-f0-9]{64}$/
 export function fail(code: string, message: string): never { throw new ShareError(code, message) }
 export function normalizePath(value: string): string {

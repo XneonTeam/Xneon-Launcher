@@ -48,7 +48,6 @@ import {
   runConcurrent,
   copyOverrideEntries,
   copyModrinthClientOverrides,
-  cleanPackManagedContent,
   loadModsModule,
   isImportCancelledError,
   throwIfImportCancelled,
@@ -68,6 +67,7 @@ import { readTrashSnapshot } from "./trash-meta"
 import { collectMissingFiles, downloadMissingModFiles, readMissingModsConfig } from "./missing-mods"
 import { checkContentUpdates, dismissContentUpdate, readUpdatesCache, readUpdatesCounts } from "./update-checker"
 import { pruneStaleLoaderProfiles, type LoaderPruneResult } from "./loader-profiles"
+import { isModpackApplying, stageModpackInstall, writeModpackDownload } from "./modpack-install"
 
 export { ensureBuildIntentDir, getBuildIntentDirName, getBuildIntentPath, scanIntentDir }
 
@@ -87,6 +87,14 @@ function activeBuildImportFailure(buildName: string): ImportResult | null {
   return isGameDirActive(getBuildIntentPath(buildName))
     ? { success: false, error: "Нельзя устанавливать или обновлять сборку, пока Minecraft запущен" }
     : null
+}
+
+async function prepareModpackInstall(intentPath: string, signal: AbortSignal) {
+  const assertIdle = () => {
+    if (isGameDirActive(intentPath)) throw new Error("Нельзя устанавливать или обновлять сборку, пока Minecraft запущен")
+  }
+  assertIdle()
+  return stageModpackInstall(intentPath, signal, assertIdle)
 }
 
 /**
@@ -650,6 +658,7 @@ export function registerBuildHandlers() {
       const buildDirName = path.basename(intentPath)
       const include = (relativePath: string) => {
         const topName = entryTopName(relativePath)
+        if (topName.toLowerCase() === ".xnlc-modpack") return false
         if (categories == null) {
           return !LOG_ENTRIES.has(topName) && !SHARED_GAME_ENTRIES.has(topName)
         }
@@ -765,6 +774,7 @@ export function registerBuildHandlers() {
     const intentPath = path.isAbsolute(dirNameOrPath)
       ? dirNameOrPath
       : await getContentIntentDir(dirNameOrPath)
+    if (isModpackApplying(intentPath)) throw new Error("Modpack installation is being applied")
     return scanIntentDir(intentPath)
   })
 
@@ -781,12 +791,15 @@ export function registerBuildHandlers() {
 
   rpcRegistry.handle("build:import-modrinth", async (_event, buildName: string, projectSlug: string, versionId?: string, targetBuildId?: string): Promise<ImportResult> => {
     const signal = startImportSession()
+    let installation: Awaited<ReturnType<typeof stageModpackInstall>> | undefined
     try {
       const activeFailure = activeBuildImportFailure(buildName)
       if (activeFailure) return activeFailure
       const conflict = await guardAgainstOverwrite(buildName, { source: "modrinth", projectSlug }, targetBuildId)
       if (conflict) return conflict
-      const intentPath = await ensureBuildIntentDir(buildName)
+      const installedPath = await getContentIntentDir(buildName)
+      installation = await prepareModpackInstall(installedPath, signal)
+      const intentPath = installation.directory
       sendImportProgress(0, 100, "Получение версий...", undefined, { operation: targetBuildId ? "update" : "modpack", source: "modrinth", title: buildName })
       const mods = await loadModsModule()
       const versions = await mods.modrinthGetRawVersions(projectSlug)
@@ -805,10 +818,6 @@ export function registerBuildHandlers() {
       if (!indexes.modrinth) throw new Error("modrinth.index.json не найден")
       const index = JSON.parse(indexes.modrinth)
       throwIfImportCancelled(signal)
-
-      // Полностью убираем файлы предыдущей версии сборки, чтобы не было дублей
-      sendImportProgress(0, 100, "Очистка файлов предыдущей версии...")
-      await cleanPackManagedContent(intentPath)
 
       const files: ModrinthManifestFile[] = (index.files as ModrinthManifestFile[] ?? []).filter((f) => f.env?.client !== "unsupported")
       const gameVersion: string = index.dependencies?.minecraft ?? version.game_versions?.[0] ?? ""
@@ -845,7 +854,7 @@ export function registerBuildHandlers() {
           try { await fs.access(filePath) } catch {
             const url = f.downloads?.[0]
             if (!url) throw new Error(`Не найдена ссылка для ${currentFileName}`)
-            await fs.writeFile(filePath, await downloadBuffer(url, signal, currentFileName))
+            await writeModpackDownload(filePath, await downloadBuffer(url, signal, currentFileName), f.hashes)
           }
         } catch (error) {
           if (isImportCancelledError(error)) {
@@ -864,10 +873,10 @@ export function registerBuildHandlers() {
       sendImportProgress(92, 100, "Распаковка файлов сборки...")
       await copyModrinthClientOverrides(data, intentPath)
       await fetchMissingPackMods(intentPath, signal)
-      const scanned = await scanIntentDir(intentPath, (done, total) => {
+      const scanned = await installation.apply(() => scanIntentDir(installedPath, (done, total) => {
         const fraction = total > 0 ? done / total : 1
         sendImportProgress(Math.min(99, Math.round(92 + fraction * 7)), 100, `Сканирование сборки (${done}/${total})...`)
-      }, signal)
+      }, signal))
       sendImportProgress(100, 100, "Готово!")
       return { success: true, version: gameVersion, modLoader, loaderVersion, modpackVersion: version.name ?? version.version_number ?? version.id, modpackVersionId: version.id, ...scanned }
     } catch (e) {
@@ -876,18 +885,21 @@ export function registerBuildHandlers() {
       }
       return opFailure(e)
     } finally {
-      finishImportSession(signal)
+      try { await installation?.close() } finally { finishImportSession(signal) }
     }
   })
 
   rpcRegistry.handle("build:import-curseforge", async (_event, buildName: string, modId: number, fileId: number, targetBuildId?: string): Promise<ImportResult> => {
     const signal = startImportSession()
+    let installation: Awaited<ReturnType<typeof stageModpackInstall>> | undefined
     try {
       const activeFailure = activeBuildImportFailure(buildName)
       if (activeFailure) return activeFailure
       const conflict = await guardAgainstOverwrite(buildName, { source: "curseforge", modId }, targetBuildId)
       if (conflict) return conflict
-      const intentPath = await ensureBuildIntentDir(buildName)
+      const installedPath = await getContentIntentDir(buildName)
+      installation = await prepareModpackInstall(installedPath, signal)
+      const intentPath = installation.directory
       sendImportProgress(0, 100, "Получение ссылки...", undefined, { operation: targetBuildId ? "update" : "modpack", source: "curseforge", title: buildName })
       const mods = await loadModsModule()
       const zipUrl = await mods.curseforgeGetDownloadUrl(modId, fileId)
@@ -912,10 +924,6 @@ export function registerBuildHandlers() {
         sendImportProgress(0, 100, "Установка Quilt...")
       }
 
-      // Полностью убираем файлы предыдущей версии сборки, чтобы не было дублей
-      sendImportProgress(0, 100, "Очистка файлов предыдущей версии...")
-      await cleanPackManagedContent(intentPath)
-
       const modsDir = path.join(intentPath, "mods")
       await fs.mkdir(modsDir, { recursive: true }).catch(() => {})
       const files: { projectID: number; fileID: number }[] = manifest.files ?? []
@@ -926,7 +934,7 @@ export function registerBuildHandlers() {
 
       // Пакетное получение ссылок на скачивание всех файлов сборки (POST /v1/mods/files)
       const fileIds = files.map((f) => f.fileID).filter(Boolean)
-      let filesBatch: Record<number, { downloadUrl: string; fileName: string }> = {}
+      let filesBatch: Record<number, { downloadUrl: string; fileName: string; fileLength?: number; sha1?: string }> = {}
       try {
         filesBatch = await mods.curseforgeGetFiles(fileIds)
       } catch (err) {
@@ -949,9 +957,9 @@ export function registerBuildHandlers() {
           }
           if (!fileUrl) throw new Error(`Не получена ссылка для ${fileName}`)
 
-          const filePath = path.join(modsDir, fileName)
+          const filePath = await resolveSafeIntentFilePath(intentPath, `mods/${sanitizeFileName(fileName)}`)
           try { await fs.access(filePath) } catch {
-            await fs.writeFile(filePath, await downloadBuffer(fileUrl, signal, fileName))
+            await writeModpackDownload(filePath, await downloadBuffer(fileUrl, signal, fileName), { sha1: batchInfo?.sha1, size: batchInfo?.fileLength })
           }
         } catch (error) {
           if (isImportCancelledError(error)) {
@@ -968,10 +976,10 @@ export function registerBuildHandlers() {
       throwIfImportCancelled(signal)
       sendImportProgress(92, 100, "Распаковка файлов сборки...")
       await copyOverrideEntries(data, intentPath)
-      const scanned = await scanIntentDir(intentPath, (done, total) => {
+      const scanned = await installation.apply(() => scanIntentDir(installedPath, (done, total) => {
         const fraction = total > 0 ? done / total : 1
         sendImportProgress(Math.min(99, Math.round(92 + fraction * 7)), 100, `Сканирование сборки (${done}/${total})...`)
-      }, signal)
+      }, signal))
       sendImportProgress(100, 100, "Готово!")
       return { success: true, version: mcVersion, modLoader, loaderVersion, ...scanned }
     } catch (e) {
@@ -980,18 +988,21 @@ export function registerBuildHandlers() {
       }
       return opFailure(e)
     } finally {
-      finishImportSession(signal)
+      try { await installation?.close() } finally { finishImportSession(signal) }
     }
   })
 
   rpcRegistry.handle("build:import-ftb", async (_event, buildName: string, modpackId: number, versionId: number, targetBuildId?: string): Promise<ImportResult> => {
     const signal = startImportSession()
+    let installation: Awaited<ReturnType<typeof stageModpackInstall>> | undefined
     try {
       const activeFailure = activeBuildImportFailure(buildName)
       if (activeFailure) return activeFailure
       const conflict = await guardAgainstOverwrite(buildName, { source: "ftb", modId: modpackId }, targetBuildId)
       if (conflict) return conflict
-      const intentPath = await ensureBuildIntentDir(buildName)
+      const installedPath = await getContentIntentDir(buildName)
+      installation = await prepareModpackInstall(installedPath, signal)
+      const intentPath = installation.directory
       sendImportProgress(0, 100, "Получение манифеста версии...", undefined, { operation: targetBuildId ? "update" : "modpack", source: "ftb", title: buildName })
       const mods = await loadModsModule()
       const manifest = await mods.ftbGetModpackVersion(modpackId, versionId) as FTBModpackVersionManifest | null
@@ -1017,10 +1028,6 @@ export function registerBuildHandlers() {
         }
       }
 
-      // Полностью убираем файлы предыдущей версии сборки, чтобы не было дублей
-      sendImportProgress(0, 100, "Очистка файлов предыдущей версии...")
-      await cleanPackManagedContent(intentPath)
-
       const files = (manifest.files ?? []).filter((f: FTBFile) => !f.serveronly)
       const totalFiles = files.length
       let downloaded = 0
@@ -1031,7 +1038,7 @@ export function registerBuildHandlers() {
         const fileName = filePath.split("/").pop() ?? "file"
         try {
           throwIfImportCancelled(signal)
-          const targetPath = path.join(intentPath, filePath)
+          const targetPath = await resolveSafeIntentFilePath(intentPath, filePath)
           try { await fs.access(targetPath) } catch {
             let url = f.url ?? ""
             if (!url && f.curseforge) {
@@ -1041,7 +1048,7 @@ export function registerBuildHandlers() {
               throw new Error(`FTB download URL not found: ${filePath}`)
             }
             await fs.mkdir(path.dirname(targetPath), { recursive: true }).catch(() => {})
-            await fs.writeFile(targetPath, await downloadBuffer(url, signal, fileName))
+            await writeModpackDownload(targetPath, await downloadBuffer(url, signal, fileName), { sha1: f.sha1 })
           }
         } catch (error) {
           if (isImportCancelledError(error)) {
@@ -1058,10 +1065,10 @@ export function registerBuildHandlers() {
       await runConcurrent(withImportFileProgress(tasks, progressFiles, signal), 5, signal)
       throwIfImportCancelled(signal)
       sendImportProgress(92, 100, "Распаковка файлов сборки...")
-      const scanned = await scanIntentDir(intentPath, (done, total) => {
+      const scanned = await installation.apply(() => scanIntentDir(installedPath, (done, total) => {
         const fraction = total > 0 ? done / total : 1
         sendImportProgress(Math.min(99, Math.round(92 + fraction * 7)), 100, `Сканирование сборки (${done}/${total})...`)
-      }, signal)
+      }, signal))
       sendImportProgress(100, 100, "Готово!")
       return { success: true, version, modLoader, loaderVersion, ...scanned }
     } catch (e) {
@@ -1070,7 +1077,7 @@ export function registerBuildHandlers() {
       }
       return opFailure(e)
     } finally {
-      finishImportSession(signal)
+      try { await installation?.close() } finally { finishImportSession(signal) }
     }
   })
 
@@ -1079,6 +1086,7 @@ export function registerBuildHandlers() {
       return { success: false, error: "Неизвестный формат модпака" }
     }
     const signal = startImportSession()
+    let installation: Awaited<ReturnType<typeof stageModpackInstall>> | undefined
     try {
       const win = getMainWindow()
       if (!win) return { success: false, error: "Окно недоступно" }
@@ -1148,7 +1156,7 @@ export function registerBuildHandlers() {
           sanitizeNames: true,
           skipUnsafe: true,
           progressIntervalMs: 100,
-          include: (entry) => entry.name !== "xnlauncher.json",
+          include: (entry) => entry.name !== "xnlauncher.json" && !entry.name.split("/").some(part => part.toLowerCase() === ".xnlc-modpack"),
           onProgress: ({ done, total, name }) => {
             sendImportProgress(Math.round(done / Math.max(total, 1) * 90), 100, `Распаковка сборки (${done}/${total})...`, name)
           },
@@ -1196,7 +1204,8 @@ export function registerBuildHandlers() {
         pendingLocalImport = null
         sendImportProgress(0, 100, "Подготовка сборки...", undefined, { operation: "modpack", source: "modrinth", title: buildName })
         const intentPath = await ensureBuildIntentDir(buildName)
-        await cleanPackManagedContent(intentPath)
+        installation = await prepareModpackInstall(intentPath, signal)
+        const stagingPath = installation.directory
         const files: ModrinthManifestFile[] = (index.files as ModrinthManifestFile[] ?? []).filter((f) => f.env?.client !== "unsupported")
         const deps: Record<string, string> = index.dependencies ?? {}
         const version = deps.minecraft ?? ""
@@ -1218,13 +1227,13 @@ export function registerBuildHandlers() {
         const tasks = files.map((f: ModrinthManifestFile) => async () => {
           const currentFileName = path.basename(f.path ?? "")
           try {
-            const filePath = await resolveSafeIntentFilePath(intentPath, f.path ?? "")
+            const filePath = await resolveSafeIntentFilePath(stagingPath, f.path ?? "")
             const fileDir = path.dirname(filePath)
             await fs.mkdir(fileDir, { recursive: true }).catch(() => {})
             try { await fs.access(filePath) } catch {
               const url = f.downloads?.[0]
               if (!url) throw new Error(`Не найдена ссылка для ${currentFileName}`)
-              await fs.writeFile(filePath, await downloadBuffer(url, signal, currentFileName))
+              await writeModpackDownload(filePath, await downloadBuffer(url, signal, currentFileName), f.hashes)
             }
           } catch (error) {
             if (isImportCancelledError(error)) {
@@ -1241,12 +1250,12 @@ export function registerBuildHandlers() {
         await runConcurrent(withImportFileProgress(tasks, progressFiles, signal), 5, signal)
         throwIfImportCancelled(signal)
         sendImportProgress(92, 100, "Распаковка файлов сборки...")
-        await copyModrinthClientOverrides(selectedFile, intentPath)
-        await fetchMissingPackMods(intentPath, signal)
-        const scanned = await scanIntentDir(intentPath, (done, total) => {
+        await copyModrinthClientOverrides(selectedFile, stagingPath)
+        await fetchMissingPackMods(stagingPath, signal)
+        const scanned = await installation.apply(() => scanIntentDir(intentPath, (done, total) => {
           const fraction = total > 0 ? done / total : 1
           sendImportProgress(Math.min(99, Math.round(92 + fraction * 7)), 100, `Сканирование сборки (${done}/${total})...`)
-        }, signal)
+        }, signal))
 
         let mrIcon = ""
         try {
@@ -1282,7 +1291,8 @@ export function registerBuildHandlers() {
         pendingLocalImport = null
         sendImportProgress(0, 100, "Подготовка сборки...", undefined, { operation: "modpack", source: "curseforge", title: buildName })
         const intentPath = await ensureBuildIntentDir(buildName)
-        await cleanPackManagedContent(intentPath)
+        installation = await prepareModpackInstall(intentPath, signal)
+        const stagingPath = installation.directory
         const version: string = manifest.minecraft?.version ?? ""
         const loaderRaw: string = manifest.minecraft?.modLoaders?.find((m: CurseForgeManifestFile) => m.primary)?.id ?? ""
         const loaderSelection = getLoaderSelectionFromCurseManifest(loaderRaw)
@@ -1296,7 +1306,7 @@ export function registerBuildHandlers() {
           sendImportProgress(0, 100, "Установка Quilt...")
         }
 
-        const modsDir = path.join(intentPath, "mods")
+        const modsDir = path.join(stagingPath, "mods")
         await fs.mkdir(modsDir, { recursive: true }).catch(() => {})
 
         const files: { projectID: number; fileID: number }[] = manifest.files ?? []
@@ -1307,7 +1317,7 @@ export function registerBuildHandlers() {
 
         // Пакетное получение ссылок на скачивание всех файлов сборки (POST /v1/mods/files)
         const fileIds = files.map((f) => f.fileID).filter(Boolean)
-        let filesBatch: Record<number, { downloadUrl: string; fileName: string }> = {}
+        let filesBatch: Record<number, { downloadUrl: string; fileName: string; fileLength?: number; sha1?: string }> = {}
         try {
           const mods = await loadModsModule()
           filesBatch = await mods.curseforgeGetFiles(fileIds)
@@ -1331,9 +1341,9 @@ export function registerBuildHandlers() {
             }
             if (!fileUrl) throw new Error(`Не получена ссылка для ${fileName}`)
 
-            const filePath = path.join(modsDir, fileName)
+            const filePath = await resolveSafeIntentFilePath(stagingPath, `mods/${sanitizeFileName(fileName)}`)
             try { await fs.access(filePath) } catch {
-              await fs.writeFile(filePath, await downloadBuffer(fileUrl, signal, fileName))
+              await writeModpackDownload(filePath, await downloadBuffer(fileUrl, signal, fileName), { sha1: batchInfo?.sha1, size: batchInfo?.fileLength })
             }
           } catch (error) {
             if (isImportCancelledError(error)) {
@@ -1349,11 +1359,11 @@ export function registerBuildHandlers() {
         await runConcurrent(withImportFileProgress(tasks, progressFiles, signal), 5, signal)
         throwIfImportCancelled(signal)
         sendImportProgress(92, 100, "Распаковка файлов сборки...")
-        await copyOverrideEntries(selectedFile, intentPath)
-        const scanned = await scanIntentDir(intentPath, (done, total) => {
+        await copyOverrideEntries(selectedFile, stagingPath)
+        const scanned = await installation.apply(() => scanIntentDir(intentPath, (done, total) => {
           const fraction = total > 0 ? done / total : 1
           sendImportProgress(Math.min(99, Math.round(92 + fraction * 7)), 100, `Сканирование сборки (${done}/${total})...`)
-        }, signal)
+        }, signal))
 
         let cfIcon = ""
         try {
@@ -1384,7 +1394,7 @@ export function registerBuildHandlers() {
       }
       return opFailure(e)
     } finally {
-      finishImportSession(signal)
+      try { await installation?.close() } finally { finishImportSession(signal) }
     }
   })
 }
