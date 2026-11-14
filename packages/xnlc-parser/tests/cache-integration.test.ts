@@ -24,7 +24,6 @@ test("устаревшие локальные metadata обновляются б
       import { mock } from "bun:test"
       import assert from "node:assert/strict"
       import { stat } from "node:fs/promises"
-      import { resolve } from "node:path"
       let row = { sha1:"unused", name:"Old", version:"1", description:"kept", icon:"", author:"", source:"local", projectId:"project", versionId:"version", modId:42, fileId:43, cfChecked:1, parserVersion:"old", updatedAt:1 }
       let writes = 0
       mock.module("./electrobun/db/index.ts", () => ({ dbHelpers: {
@@ -35,8 +34,7 @@ test("устаревшие локальные metadata обновляются б
       } }))
       mock.module("./electrobun/main/builds/helpers.ts", () => ({ loadModsModule: async () => { throw new Error("offline") } }))
       mock.module("./electrobun/main/runtime.ts", () => ({ logRuntime: () => {} }))
-      const { cachedLoaderRequirements, setScanWorkerEntry } = await import("@xnlc/parser")
-      setScanWorkerEntry(resolve("dist-workers/scan-worker.js"))
+      const { cachedLoaderRequirements } = await import("@xnlc/parser")
       const { resolveContentEntries } = await import("./electrobun/main/builds/content-resolver.ts")
       const first = await resolveContentEntries([process.env.XNLC_TEST_FILE])
       assert.equal(first[process.env.XNLC_TEST_FILE].name, "Updated")
