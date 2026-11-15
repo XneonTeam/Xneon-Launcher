@@ -3,9 +3,11 @@ import { readStartupTheme } from "./startup-theme"
 import { setMainWindow, logRuntime, initRuntimePaths, sendToRenderer } from "./runtime"
 import { applyPendingInstancesMove } from "./paths"
 import { initDatabase } from "../db"
+import { clearSettingsCache } from "../db/settings"
 import { refreshAuthServersInBackground } from "./authlib"
 import { cleanupOrphanGameSessions } from "./stats"
 import { loadInstancesRoot } from "./builds/helpers"
+import { recoverManagedModpackInstalls } from "./builds/modpack-persistence"
 import { migrateIntentDirNames } from "./builds/dir-migration"
 import { launcherOperations } from "../platform/operation-gate"
 import { cli } from "./cli"
@@ -61,8 +63,14 @@ async function startLauncher() {
   // Один документ: HTML показывает splash, renderer ждёт startup:ready.
   createWindow()
   await initDatabase()
-  applyPendingInstancesMove()
   await initRuntimePaths()
+  await loadInstancesRoot()
+  await recoverManagedModpackInstalls()
+  // Backup привязан к прежнему real root: сначала восстановление, потом перенос.
+  applyPendingInstancesMove()
+  // Перенос обновляет instancesPath отдельным SQLite-соединением.
+  clearSettingsCache()
+  await loadInstancesRoot()
   logRuntime("[App] database initialized")
   void import("./remote-servers/index.js").then(({ startRemoteServerHosts }) => {
     const refresh = () => {
@@ -78,7 +86,6 @@ async function startLauncher() {
 
   // Каталог инстансов нужен миграции: она переименовывает папки сборок,
   // созданные старым (слишком строгим) правилом санитайзера имён.
-  await loadInstancesRoot().catch(() => {})
   const renamedIntentDirs = await migrateIntentDirNames().catch(() => 0)
   if (renamedIntentDirs > 0) {
     logRuntime(`[App] intent dirs migrated: ${renamedIntentDirs}`)
