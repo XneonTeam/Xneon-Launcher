@@ -40,6 +40,16 @@ const STATEMENT_CACHE_LIMIT = 200
 export const inMemoryAccounts = new Map<string, unknown>()
 export const inMemoryBuilds = new Map<string, unknown>()
 export const inMemorySettings = new Map<string, string>()
+let testStorageEnabled = false
+
+/** Только явный порт unit-тестов. Production никогда не сохраняет «в никуда». */
+export function enableDatabaseTestStorage(): void {
+  if (process.env.NODE_ENV !== "test" || database) throw new Error("Test storage is only available before initialization in tests")
+  testStorageEnabled = true
+}
+export function requireTestDatabaseStorage(): void {
+  if (!testStorageEnabled || process.env.NODE_ENV !== "test") throw new Error("Database is not initialized")
+}
 
 export function isDbAvailable(): boolean {
   return database !== null
@@ -60,6 +70,7 @@ const warnedFallbackOperations = new Set<string>()
  * чтобы не заливать консоль при каждом вызове.
  */
 export function warnDbUnavailable(operation: string): void {
+  requireTestDatabaseStorage()
   if (warnedFallbackOperations.has(operation)) return
   warnedFallbackOperations.add(operation)
   console.error(`[DB] Хранилище недоступно (fallback-режим): операция «${operation}» пропущена — данные не сохраняются`)
@@ -305,7 +316,7 @@ export function closeDatabase(): void {
   try {
     flushDatabase()
     clearStatementCache()
-    database.close()
+    database.close(true)
   } catch (error) {
     console.error("[DB] close failed:", error)
   } finally {
@@ -318,7 +329,7 @@ export function closeDatabaseForUpdate(): void {
   const result = database.pragma("wal_checkpoint(TRUNCATE)") as Array<{ busy: number }>
   if (result[0]?.busy !== 0) throw new Error("Database WAL checkpoint is busy.")
   clearStatementCache()
-  database.close()
+  database.close(true)
   database = null
   dbInitialized = false
 }

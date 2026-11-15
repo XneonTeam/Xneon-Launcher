@@ -1,4 +1,4 @@
-import { queryAll, run, prepare, transactionImmediate, isDbAvailable, inMemoryBuilds } from "./core"
+import { queryAll, run, prepare, transactionImmediate, isDbAvailable, inMemoryBuilds, requireTestDatabaseStorage } from "./core"
 import { logRuntime } from "../main/runtime"
 
 export type BuildJson = {
@@ -150,6 +150,7 @@ function rowToBuild(row: BuildRow): BuildJson {
 
 export async function loadBuilds(): Promise<BuildJson[]> {
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     return Array.from(inMemoryBuilds.values()).sort((a, b) => (b as BuildJson).createdAt.localeCompare((a as BuildJson).createdAt)) as BuildJson[]
   }
 
@@ -182,6 +183,7 @@ const LIGHT_COLUMNS = `id, name, description, version, modLoader, loaderVersion,
 
 export async function loadBuildsLight(): Promise<BuildLightJson[]> {
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     return Array.from(inMemoryBuilds.values())
       .sort((a, b) => (b as BuildJson).createdAt.localeCompare((a as BuildJson).createdAt))
       .map(build => {
@@ -226,6 +228,7 @@ export async function loadBuildsLight(): Promise<BuildLightJson[]> {
 export async function findBuildByName(name: string): Promise<{ id: string; name: string } | null> {
   if (!name) return null
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     for (const build of inMemoryBuilds.values()) {
       const candidate = build as BuildJson
       if (candidate.name === name) return { id: candidate.id, name: candidate.name }
@@ -241,6 +244,7 @@ export async function findBuildByName(name: string): Promise<{ id: string; name:
 export async function findBuildById(buildId: string): Promise<BuildLightJson | null> {
   if (!buildId) return null
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     const build = inMemoryBuilds.get(buildId) as BuildJson | undefined
     if (!build) return null
     return {
@@ -282,6 +286,7 @@ export async function loadBuildContent(buildId: string): Promise<{
   installedMods: Record<string, string>
 } | null> {
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     const build = inMemoryBuilds.get(buildId) as BuildJson | undefined
     if (!build) return null
     return {
@@ -317,6 +322,7 @@ function safeParse<T>(value: string | null | undefined, fallback: T): T {
 
 export async function saveAllBuilds(builds: Array<BuildJson | BuildLightJson>): Promise<void> {
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     for (const build of builds) {
       inMemoryBuilds.set(build.id, build)
     }
@@ -374,11 +380,11 @@ const INSERT_BUILD_SQL = `
 `
 
 /** Ленивое подготовленное выражение: `prepare` требует инициализированной БД. */
-let insertBuildStatement: ReturnType<typeof prepare> | null = null
 const INSERT_BUILD_STATEMENT = {
   run(...params: unknown[]): unknown {
-    if (!insertBuildStatement) insertBuildStatement = prepare(INSERT_BUILD_SQL)
-    return insertBuildStatement.run(...params as import('bun:sqlite').SQLQueryBindings[])
+    // Connection-scoped cache принадлежит core: после update/reopen нельзя
+    // повторно использовать statement, подготовленный закрытым соединением.
+    return prepare(INSERT_BUILD_SQL).run(...params as import('bun:sqlite').SQLQueryBindings[])
   },
 }
 
@@ -477,6 +483,7 @@ function buildInsertParams(
 export async function insertBuild(build: BuildJson): Promise<void> {
   if (!build?.id) return
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     inMemoryBuilds.set(build.id, build)
     return
   }
@@ -517,6 +524,7 @@ export async function insertBuild(build: BuildJson): Promise<void> {
 export async function deleteBuild(buildId: string): Promise<void> {
   if (!buildId) return
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     inMemoryBuilds.delete(buildId)
     return
   }
@@ -526,6 +534,7 @@ export async function deleteBuild(buildId: string): Promise<void> {
 
 export async function updateBuildPlaytime(buildId: string, seconds: number): Promise<void> {
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     const build = inMemoryBuilds.get(buildId) as BuildJson | undefined
     if (build) {
       build.playtime = (build.playtime ?? 0) + seconds
@@ -569,6 +578,7 @@ const NOT_NULL_TEXT_COLUMNS = new Set([
  */
 export async function updateBuildFields(buildId: string, fields: Partial<BuildJson>): Promise<void> {
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     const build = inMemoryBuilds.get(buildId) as BuildJson | undefined
     if (build) Object.assign(build, fields)
     return
