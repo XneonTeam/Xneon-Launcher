@@ -1,4 +1,4 @@
-import type { Theme, LocalThemeFile, LocalThemeImport, LocalThemeSnapshot } from "./theme-types.js"
+import type { Theme, LocalThemeFile, LocalThemeImport, LocalThemeSnapshot, LiveopsStatus, LiveopsThemeRef } from "./theme-types.js"
 import type { ShareProgress } from "./share-types.js"
 
 export interface ModpackContents {
@@ -16,6 +16,7 @@ export interface ModpackContents {
 
 import type {
   DbAccount,
+  PublicAccount,
   DbBuild,
   DbBuildLight,
   DbBuildMod,
@@ -189,8 +190,10 @@ export interface IpcInvokeMap {
   "fetch:launcher-news": { args: [url?: string]; return: LauncherNewsEntry[] }
 
   // ── Database ──
-  "db:load-accounts": { args: []; return: DbAccount[] }
-  "db:save-account": { args: [account: DbAccount]; return: void }
+  "db:load-accounts": { args: []; return: PublicAccount[] }
+  "db:save-account": { args: [account: PublicAccount]; return: void }
+  "db:set-active-account": { args: [id: string]; return: void }
+  "db:import-legacy-accounts": { args: [accounts: DbAccount[]]; return: void }
   "db:remove-account": { args: [id: string]; return: void }
   "db:load-builds-light": { args: []; return: DbBuildLight[] }
   "db:load-build-content": { args: [buildId: string]; return: { mods: unknown[]; resourcepacks: unknown[]; shaders: unknown[]; installedMods: Record<string, string> } | null }
@@ -219,6 +222,11 @@ export interface IpcInvokeMap {
   "theme:local-delete": { args: [fileName: string]; return: void }
   "theme:local-export": { args: [theme: Theme, format: "xntheme"]; return: boolean }
   "theme:open-directory": { args: []; return: string }
+  // ── LiveOps (событийные темы) ──
+  // Контроллер живёт в main: renderer только спрашивает состояние и просит
+  // выбрать тему, чтобы авто-ивент не возвращался на следующем тике.
+  "liveops:status": { args: []; return: LiveopsStatus }
+  "liveops:select": { args: [ref: LiveopsThemeRef]; return: LiveopsStatus }
   "build:set-instances-root": { args: [newRoot: string]; return: { success: boolean; root?: string; requiresRestart?: boolean; error?: string } }
   "content:cancel-download": { args: [downloadId: string]; return: boolean }
   "build:save-mod-to-intent": { args: [buildId: string, url: string, fileName: string]; return: string | null }
@@ -229,13 +237,14 @@ export interface IpcInvokeMap {
   "build:save-local-content-to-intent": { args: [buildId: string, contentType: "mod" | "resourcepack" | "shader", localFilePath: string]; return: string | null }
   "build:delete-content-from-intent": { args: [buildId: string, contentType: "mod" | "resourcepack" | "shader", fileName: string]; return: { success: boolean; error?: string } }
   "build:set-content-enabled": { args: [buildId: string, contentType: "mod" | "resourcepack" | "shader", fileName: string, enabled: boolean]; return: { success: boolean; fileName?: string; error?: string } }
-  "build:set-intent-path": { args: [buildId: string, intentPath: string]; return: void }
+  /** Legacy ensure-directory; сохранение пути выполняется через insertBuild/updateBuildFields. */
+  "build:set-intent-path": { args: [dirName: string, expectedPath: string]; return: void }
   "build:prune-loader-profiles": { args: [buildName: string, modLoader?: string, loaderVersion?: string]; return: { removed: string[]; kept: string[] } }
   "build:delete-intent": { args: [buildName: string]; return: { success: boolean; error?: string } }
   "build:import-modrinth": { args: [buildName: string, projectSlug: string, versionId?: string, targetBuildId?: string]; return: ModpackImportResult }
   "build:import-curseforge": { args: [buildName: string, modId: number, fileId: number, targetBuildId?: string]; return: ModpackImportResult }
   "build:import-ftb": { args: [buildName: string, modpackId: number, versionId: number, targetBuildId?: string]; return: ModpackImportResult }
-  "build:open-and-import": { args: [format?: "modpack" | "curseforge" | "xneon", nameOverride?: string]; return: ModpackImportResult & { name?: string; description?: string; icon?: string; source?: "modrinth" | "curseforge"; intentPath?: string } }
+  "build:open-and-import": { args: [format?: "modpack" | "curseforge" | "xneon", nameOverride?: string]; return: ModpackImportResult & { name?: string; description?: string; icon?: string; source?: "modrinth" | "curseforge" | "local"; intentPath?: string } }
   "build:cancel-import": { args: []; return: { success: boolean } }
   "build:copy": { args: [buildName: string, newName: string]; return: { success: boolean; intentPath?: string; error?: string } }
   "build:rename-intent": { args: [oldName: string, newName: string]; return: { success: boolean; intentPath?: string; error?: string } }
@@ -443,7 +452,7 @@ export interface IpcInvokeMap {
   "cloud:connect": { args: [providerId: string, authData?: Record<string, string>]; return: { success: boolean; provider?: string; error?: string } }
   "cloud:is-connected": { args: [providerId: string]; return: boolean }
   "cloud:disconnect": { args: [providerId: string]; return: { success: boolean; error?: string } }
-  "cloud:list-files": { args: [providerId: string, folderPath?: string]; return: { success: boolean; files?: Array<{ id: string; name: string; size: number; modifiedAt?: string; path: string; isDir: boolean; category?: string; themePreview?: Theme }>; error?: string } }
+  "cloud:list-files": { args: [providerId: string, folderPath?: string]; return: { success: boolean; files?: Array<{ id: string; name: string; size: number; modifiedAt?: string; path: string; isDir: boolean; category?: string; themePreview?: Theme; accountPreview?: import("./domain-types.js").CloudAccountPreview }>; error?: string } }
   "cloud:download-file": { args: [providerId: string, remotePath: string, localPath: string]; return: { success: boolean; localPath?: string; error?: string } }
   "cloud:delete-file": { args: [providerId: string, remotePath: string]; return: { success: boolean; error?: string } }
   "cloud:get-quota": { args: [providerId: string]; return: { used: number; total: number } | null }
@@ -465,7 +474,7 @@ export interface IpcInvokeMap {
   "mc-server:list": { args: []; return: McServerInfo[] }
   "mc-server:get": { args: [id: string]; return: McServerInfo | null }
   "mc-server:host-settings": { args: [id: string, command: import("./remote-server-types.js").ServerHostSettingsCommand]; return: import("./remote-server-types.js").ServerHostSettings }
-  "mc-server:create": { args: [data: { name: string; description?: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }]; return: McServerInfo }
+  "mc-server:create": { args: [data: { name: string; description?: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string; extraJavaArgs?: string }]; return: McServerInfo }
   "mc-server:analyze-jar": { args: [jarPath: string]; return: { minecraftVersion: string | null; loaderId: string | null; loaderLabel: string | null; modId: string | null; mainClass: string | null; error?: string } }
   "mc-server:update": { args: [id: string, update: Record<string, unknown>]; return: void }
   "mc-server:delete": { args: [id: string]; return: void }
@@ -555,6 +564,8 @@ export interface IpcEventMap {
   "ai:stream-done": { requestId: string; fullText: string }
   "ai:stream-error": { requestId: string; error: string }
   "stats:updated": {}
+  // Только сигнал обновления: переменные и заголовки MCP не рассылаются событием.
+  "ai:mcp-updated": {}
   // Фаза логина authlib-injector: «проверка сервера» → «вход» → «профили».
   "authlib:login-progress": AuthlibLoginProgress
   // Настройка записана в БД (из «Настроек» или агентом) — рендерер применяет
@@ -582,6 +593,10 @@ export interface ElectrobunAPIExplicit {
   exportLocalTheme: (theme: Theme, format: "xntheme") => Promise<boolean>
   openThemesDirectory: () => Promise<string>
   onLocalThemesChanged: (callback: (snapshot: LocalThemeSnapshot) => void) => CleanupFn
+  /** Состояние событийных тем LiveOps (сервис задан через XNLC_LIVEOPS_URL). */
+  liveopsStatus: () => Promise<LiveopsStatus>
+  /** Ручной выбор темы: контроллер запоминает его и не возвращает авто-ивент. */
+  liveopsSelect: (ref: LiveopsThemeRef) => Promise<LiveopsStatus>
   startupThemeSnapshot: string | null
   startupReady: () => Promise<IpcInvokeMap["startup:ready"]["return"]>
   startupLaunchBuild: (...args: IpcInvokeMap["startup:launch-build"]["args"]) => Promise<IpcInvokeMap["startup:launch-build"]["return"]>
@@ -613,8 +628,10 @@ export interface ElectrobunAPIExplicit {
   authlibGetProfileTextures: (serverId: string, uuid: string) => Promise<YggdrasilProfileWithTextures | null>
   fetchMinecraftNews: () => Promise<MinecraftNewsEntry[]>
   fetchLauncherNews: (url?: string) => Promise<LauncherNewsEntry[]>
-  loadAccounts: () => Promise<DbAccount[]>
-  saveAccount: (account: DbAccount) => Promise<void>
+  loadAccounts: () => Promise<PublicAccount[]>
+  saveAccount: (account: PublicAccount) => Promise<void>
+  setActiveAccount: (id: string) => Promise<void>
+  importLegacyAccounts: (accounts: DbAccount[]) => Promise<void>
   removeAccount: (id: string) => Promise<void>
   loadBuildsLight: () => Promise<DbBuildLight[]>
   loadBuildContent: (buildId: string) => Promise<{ mods: unknown[]; resourcepacks: unknown[]; shaders: unknown[]; installedMods: Record<string, string> } | null>
@@ -706,7 +723,7 @@ export interface ElectrobunAPIExplicit {
   importModrinthModpack: (buildName: string, projectSlug: string, versionId?: string, targetBuildId?: string) => Promise<ModpackImportResult>
   importCurseforgeModpack: (buildName: string, modId: number, fileId: number, targetBuildId?: string) => Promise<ModpackImportResult>
   importFtbModpack: (buildName: string, modpackId: number, versionId: number, targetBuildId?: string) => Promise<ModpackImportResult>
-  openAndImportModpack: (format?: "modpack" | "curseforge" | "xneon", nameOverride?: string) => Promise<ModpackImportResult & { name?: string; description?: string; icon?: string; source?: "modrinth" | "curseforge"; intentPath?: string }>
+  openAndImportModpack: (...args: IpcInvokeMap["build:open-and-import"]["args"]) => Promise<IpcInvokeMap["build:open-and-import"]["return"]>
   cancelImportModpack: () => Promise<{ success: boolean }>
   onImportProgress: (callback: (progress: ImportProgress) => void) => CleanupFn
   onBuildExportProgress: (callback: (progress: { current: number; total: number }) => void) => CleanupFn
@@ -777,6 +794,7 @@ export interface ElectrobunAPIExtra {
   getAiConfig: () => Promise<import("./agent-types.js").AiConfigStatus>
   saveAiConfig: (config: import("./agent-types.js").AiConfigUpdate) => Promise<void>
   getAiMcpServers: (...args: IpcInvokeMap["ai:mcp-list"]["args"]) => Promise<IpcInvokeMap["ai:mcp-list"]["return"]>
+  onAiMcpServersUpdated: (callback: () => void) => CleanupFn
   saveAiMcpServers: (...args: IpcInvokeMap["ai:mcp-save"]["args"]) => Promise<IpcInvokeMap["ai:mcp-save"]["return"]>
   connectAiMcpServer: (...args: IpcInvokeMap["ai:mcp-connect"]["args"]) => Promise<IpcInvokeMap["ai:mcp-connect"]["return"]>
   disconnectAiMcpServer: (...args: IpcInvokeMap["ai:mcp-disconnect"]["args"]) => Promise<IpcInvokeMap["ai:mcp-disconnect"]["return"]>
@@ -800,7 +818,7 @@ export interface ElectrobunAPIExtra {
   cloudConnect: (providerId: string, authData?: Record<string, string>) => Promise<{ success: boolean; provider?: string; error?: string }>
   cloudIsConnected: (providerId: string) => Promise<boolean>
   cloudDisconnect: (providerId: string) => Promise<{ success: boolean; error?: string }>
-  cloudListFiles: (providerId: string, folderPath?: string) => Promise<{ success: boolean; files?: Array<{ id: string; name: string; size: number; modifiedAt?: string; path: string; isDir: boolean; category?: string; themePreview?: Theme }>; error?: string }>
+  cloudListFiles: (providerId: string, folderPath?: string) => Promise<{ success: boolean; files?: Array<{ id: string; name: string; size: number; modifiedAt?: string; path: string; isDir: boolean; category?: string; themePreview?: Theme; accountPreview?: import("./domain-types.js").CloudAccountPreview }>; error?: string }>
   cloudDownloadFile: (providerId: string, remotePath: string, localPath: string) => Promise<{ success: boolean; localPath?: string; error?: string }>
   cloudDeleteFile: (providerId: string, remotePath: string) => Promise<{ success: boolean; error?: string }>
   cloudGetQuota: (providerId: string) => Promise<{ used: number; total: number } | null>
@@ -868,7 +886,7 @@ export interface ElectrobunAPIExtra {
   mcServerList: () => Promise<McServerInfo[]>
   mcServerGet: (id: string) => Promise<McServerInfo | null>
   mcServerHostSettings: (id: string, command: import("./remote-server-types.js").ServerHostSettingsCommand) => Promise<import("./remote-server-types.js").ServerHostSettings>
-  mcServerCreate: (data: { name: string; description?: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string }) => Promise<McServerInfo>
+  mcServerCreate: (data: { name: string; description?: string; gameVersion: string; modloader?: string; modloaderVersion?: string; port?: number; javaPath?: string; relayEnabled?: boolean; xmx?: number; xms?: number; onlineMode?: boolean; maxPlayers?: number; customJarPath?: string; icon?: string; extraJavaArgs?: string }) => Promise<McServerInfo>
   mcServerInstallPack: (params: { source: "modrinth" | "curseforge"; projectSlug?: string; versionId?: string; modId?: number; fileId?: number; name?: string; icon?: string; port?: number; xmx?: number; xms?: number; extraJavaArgs?: string; javaPath?: string; relayEnabled?: boolean; onlineMode?: boolean; maxPlayers?: number }) => Promise<McServerInfo>
   mcServerAnalyzeJar: (jarPath: string) => Promise<{ minecraftVersion: string | null; loaderId: string | null; loaderLabel: string | null; modId: string | null; mainClass: string | null; error?: string }>
   mcServerUpdate: (id: string, update: Record<string, unknown>) => Promise<void>

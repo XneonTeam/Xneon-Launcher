@@ -31,6 +31,8 @@ export function readMissingModsConfig(intentPath: string): MissingModEntry[] {
   try {
     const configPath = path.join(intentPath, "config", "missing_mods_checker.json")
     if (!fs.existsSync(configPath)) return []
+    const stat = fs.lstatSync(configPath)
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 2 * 1024 * 1024) throw new Error("Invalid missing mods config")
     const parsed = JSON.parse(fs.readFileSync(configPath, "utf-8")) as unknown
     return Array.isArray(parsed) ? (parsed as MissingModEntry[]) : []
   } catch {

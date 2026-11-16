@@ -32,7 +32,7 @@ export function ShareModal({ open, onClose, title, description, children, footer
   open: boolean
   onClose(): void
   title: string
-  description: string
+  description?: string
   children: ReactNode
   footer?: ReactNode
   titleIcon?: ReactNode
@@ -58,6 +58,7 @@ export function ShareModal({ open, onClose, title, description, children, footer
   return (
     <Dialog open={open} onOpenChange={value => { if (!value) onClose() }}>
       <DialogContent
+        {...(!description ? { "aria-describedby": undefined } : {})}
         className={cn("flex max-w-lg flex-col gap-0 overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-2xl", wide && "max-w-4xl", expanded && "max-w-6xl", fixedHeight && "h-[min(660px,calc(100dvh-4rem))]")}
         style={area ? {
           left: area.x + area.width / 2,
@@ -72,7 +73,7 @@ export function ShareModal({ open, onClose, title, description, children, footer
             <ModalTitleIcon>{titleIcon ?? <IconShare className="h-4 w-4 text-primary" strokeWidth={1.75} />}</ModalTitleIcon>
             {title}
           </DialogTitle>
-          <DialogDescription className="text-xs leading-relaxed">{description}</DialogDescription>
+          {description && <DialogDescription className="text-xs leading-relaxed">{description}</DialogDescription>}
         </DialogHeader>
         <div className={cn("min-h-0 overflow-y-auto px-6 pb-6", expanded && "px-4 pb-4", fixedHeight && "flex-1 overflow-hidden")}>{children}</div>
         {footer && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 px-6 pb-6">{footer}</div>}

@@ -131,7 +131,14 @@ export function emptyRepository(id: string, owner: string): Repository {
 }
 function name(value: string): void { if (typeof value !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,79}$/.test(value) || ["__proto__", "constructor", "prototype"].includes(value)) fail("NAME", "Invalid name") }
 export function mutateRepository(input: Repository, user: string, command: RepositoryCommand, now: string): Repository {
-  const r: Repository = structuredClone(input)
+  // Коммиты/снимки неизменяемы. Копируем только изменяемые индексы и данные PR,
+  // а не все исторические манифесты при каждом изменении роли или ветки.
+  const r: Repository = {
+    ...input, members: { ...input.members }, commits: { ...input.commits },
+    branches: Object.fromEntries(Object.entries(input.branches).map(([name, branch]) => [name, { ...branch }])),
+    stashes: { ...input.stashes }, releases: { ...input.releases },
+    pullRequests: Object.fromEntries(Object.entries(input.pullRequests).map(([id, pr]) => [id, { ...pr, comments: [...pr.comments] }])),
+  }
   const role: Role | undefined = Object.hasOwn(r.members, user) ? r.members[user] : undefined
   if (!role) fail("FORBIDDEN", "Repository membership required")
   const manager = role === "owner" || role === "editor"

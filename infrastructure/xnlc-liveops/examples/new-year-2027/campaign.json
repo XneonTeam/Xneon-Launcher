@@ -1,0 +1,11 @@
+{
+  "campaignId": "new-year-2027-test-xmas-gold",
+  "themeId": "new-year-2027",
+  "name": "New Year 2027",
+  "category": "Seasonal / New Year",
+  "timezone": "Asia/Yekaterinburg",
+  "startsAt": "2026-11-15T18:30:48+05:00",
+  "endsAt": "2026-11-15T19:30:00+05:00",
+  "enabled": true,
+  "testOnly": true
+}

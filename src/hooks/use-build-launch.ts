@@ -206,7 +206,7 @@ export function useBuildLaunch({ account: activeAccount }: { account?: Account }
       modLoader: build.modLoader as import("@xnlc/types").MinecraftLaunchParams["modLoader"],
       ...(build.loaderVersion ? { loaderVersion: build.loaderVersion } : {}),
       ...(build.customVersionPath ? { customVersionPath: build.customVersionPath } : {}),
-      account: { type: account.type, username: account.username, uuid: account.uuid, accessToken: account.accessToken },
+      account: { id: account.id, type: account.type, username: account.username, uuid: account.uuid },
       memory: { min: memoryMin, max: memoryMax },
       width,
       height,

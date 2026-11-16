@@ -52,47 +52,35 @@ export type RawHandlerDef<TResult> = {
 /**
  * Union of all handler definition types.
  */
-export type IpcHandlerDef =
-  | { type: "context"; def: ContextHandlerDef<unknown> }
-  | { type: "raw"; def: RawHandlerDef<unknown> }
+export type IpcHandlerDef = { register(): void }
 
 /**
  * Register an array of declarative IPC handlers.
  */
 export function registerIpcHandlers(handlers: IpcHandlerDef[]): void {
-  for (const entry of handlers) {
-    if (entry.type === "context") {
-      const { channel, label, fallback, handler } = entry.def
-      rpcRegistry.handle(channel, async (_event, ...args: unknown[]) =>
-        callHandler(label, fallback, (ctx) => handler(ctx, ...args)),
-      )
-    } else {
-      const { channel, handler } = entry.def
-      rpcRegistry.handle(channel, async (_event, ...args: unknown[]) =>
-        handler(...args),
-      )
-    }
-  }
+  for (const entry of handlers) entry.register()
 }
 
 /**
  * Helper to create a context handler definition.
  */
-export function ctxHandler<TResult>(
-  channel: keyof IpcInvokeMap,
+export function ctxHandler<C extends keyof IpcInvokeMap>(
+  channel: C,
   label: string,
-  fallback: TResult,
-  handler: (ctx: XnlcHandler, ...args: unknown[]) => Promise<TResult>,
+  fallback: NoInfer<IpcInvokeMap[C]["return"]>,
+  handler: NoInfer<(ctx: XnlcHandler, ...args: IpcInvokeMap[C]["args"]) => Promise<IpcInvokeMap[C]["return"]>>,
 ): IpcHandlerDef {
-  return { type: "context", def: { channel, label, fallback, handler } }
+  return { register() {
+    rpcRegistry.handle(channel, (_event, ...args) => callHandler(label, fallback, ctx => handler(ctx, ...args)))
+  } }
 }
 
 /**
  * Helper to create a raw handler definition (no XnlcHandler context).
  */
-export function rawHandler<TResult>(
-  channel: keyof IpcInvokeMap,
-  handler: (...args: unknown[]) => Promise<TResult>,
+export function rawHandler<C extends keyof IpcInvokeMap>(
+  channel: C,
+  handler: NoInfer<(...args: IpcInvokeMap[C]["args"]) => Promise<IpcInvokeMap[C]["return"]>>,
 ): IpcHandlerDef {
-  return { type: "raw", def: { channel, handler } }
+  return { register() { rpcRegistry.handle(channel, (_event, ...args) => handler(...args)) } }
 }

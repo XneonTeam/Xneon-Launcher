@@ -6,7 +6,7 @@
 // ============================================================
 
 import type { AuthlibInjectorServer, AuthlibInjectorServerSummary } from "@xnlc/types" with { "resolution-mode": "import" }
-import { queryAll, run, isDbAvailable, warnDbUnavailable } from "./core"
+import { queryAll, run, isDbAvailable, warnDbUnavailable, requireTestDatabaseStorage } from "./core"
 
 type AuthServerRow = {
   id: string
@@ -58,6 +58,7 @@ export { toSummary as authServerToSummary }
 /** Все сохранённые серверы. */
 export function loadAuthServers(): AuthlibInjectorServer[] {
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     return Array.from(inMemoryServers.values())
   }
   const rows = queryAll<AuthServerRow>("SELECT * FROM authlib_servers ORDER BY name ASC")
@@ -67,6 +68,7 @@ export function loadAuthServers(): AuthlibInjectorServer[] {
 
 export function getAuthServer(id: string): AuthlibInjectorServer | null {
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     return inMemoryServers.get(id) ?? null
   }
   const rows = queryAll<AuthServerRow>("SELECT * FROM authlib_servers WHERE id = ?", [id])
@@ -77,6 +79,7 @@ export function getAuthServer(id: string): AuthlibInjectorServer | null {
 /** Вставка/обновление сервера по id. */
 export function saveAuthServer(server: AuthlibInjectorServer): void {
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     warnDbUnavailable("saveAuthServer")
     inMemoryServers.set(server.id, server)
     return
@@ -97,6 +100,7 @@ export function saveAuthServer(server: AuthlibInjectorServer): void {
 
 export function deleteAuthServer(id: string): void {
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     inMemoryServers.delete(id)
     return
   }

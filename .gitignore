@@ -36,8 +36,12 @@ electrobun/main/cloud/credentials.generated.ts
 .xneonlauncher/
 *.tsbuildinfo
 tsconfig.tsbuildinfo
-# Инструменты linux-таргетов (nfpm, appimagetool) — scripts/package-linux-targets.sh
+# Локальные результаты сборок и измерений
 /.cache/
+/.local-research/
+# Ручные резервные архивы исходников/тестов — не production inputs
+/scripts/*.rar
+/tests/*.rar
 
 # Logs
 *.log
@@ -115,6 +119,7 @@ ssh-check.js
 test-*.js
 test-*.mjs
 !/scripts/test-channel-artifacts.mjs
+!/scripts/test-parser.mjs
 # Скачанные артефакты (authlib-injector.jar и прочие) в репозиторий не кладём.
 *.jar
 update-*.js
@@ -130,6 +135,14 @@ electron-dedup-audit.md
 .dsh-*
 launcher-screenshot.png
 
+# Локальные артефакты аудитов и прогонов: вывод регенерируется, не версионируется
+/test-audit-cleanup/
+/test-value-audit/
+/test-results/
+/coverage/
+coverage.out
+*.junit.xml
+
 # Локальное окружение сервера новостей и Python-кэш
 .venv/
 __pycache__/
@@ -138,9 +151,9 @@ __pycache__/
 # Локальные отчёты и журналы QA-аудита
 /qa-reports/
 /.share-data/
-/services/share/.env
+/infrastructure/xnlc-share/.env
 /.wrangler/
-/services/share/.wrangler/
+/infrastructure/xnlc-share/.wrangler/
 
 # Electrobun
 /.hutch/

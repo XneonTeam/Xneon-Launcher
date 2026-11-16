@@ -50,7 +50,7 @@ export function withImportFileProgress<T>(tasks: Array<() => Promise<T>>, files:
   let complete = 0
   const emit = (file?: ImportProgressFile) => {
     if (signal.aborted) return
-    sendImportProgress(Math.round(complete / Math.max(files.length, 1) * 90), 100, `${complete}/${files.length} файлов`, undefined, {
+    sendImportProgress(Math.round(complete / Math.max(files.length, 1) * 90), 100, "import.phase.files", undefined, {
       phase: "files", fileCount: files.length, completedFiles: complete, ...(file ? { file } : { files }),
     })
   }

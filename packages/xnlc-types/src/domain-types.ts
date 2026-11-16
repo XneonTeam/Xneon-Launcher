@@ -52,6 +52,12 @@ export type DbAccount = {
   profiles?: string
 }
 
+/** Публичный снимок: сессионные данные принадлежат только main. */
+export type PublicAccount = Pick<DbAccount, "id" | "type" | "username" | "isActive" | "uuid" | "skinUrl" | "sortOrder" | "serverId" | "serverUrl" | "serverName" | "expiresAt">
+
+/** Только отображение облачной копии, без сессий и токенов. */
+export type CloudAccountPreview = Pick<PublicAccount, "type" | "username" | "uuid" | "skinUrl">
+
 export type DbBuildMod = {
   id: string
   slug: string
@@ -181,9 +187,7 @@ export type ScreenshotInfo = {
 export type AuthPayload = {
   id: string
   username: string
-  uuid: string
-  accessToken: string
-  refreshToken: string
+  uuid?: string
   skinUrl?: string
 }
 
@@ -197,8 +201,7 @@ export type MicrosoftPayload = AuthPayload
 export type AuthSession = {
   uuid: string
   username: string
-  accessToken: string
-  profileId: string
+  profileId?: string
   profileName?: string
 }
 
@@ -390,6 +393,8 @@ export type ImportProgressFile = {
 }
 
 export type ImportProgress = {
+  messageKey?: string
+  messageParams?: Record<string, string | number>
   operation?: "modpack" | "archive" | "launcher" | "update"
   phase?: "preparing" | "package" | "files" | "extracting" | "copying" | "scanning" | "complete" | "cancelling"
   source?: "modrinth" | "curseforge" | "ftb" | "local"

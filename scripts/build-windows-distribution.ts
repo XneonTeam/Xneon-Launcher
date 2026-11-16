@@ -5,23 +5,19 @@ import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promi
 import path from "node:path"
 import packageJson from "../package.json"
 import { appIdentifier } from "../electrobun/main/app-identity"
-import { writeBlockMap, writeLatestFile } from "./release-metadata"
-import { windowsX64 } from "./windows-candidate-validation"
+import { windowsProductIdentity, windowsX64 } from "./windows-candidate-validation"
 
 /**
- * Собирает Windows-артефакты, как electron-builder в Electron-сборке:
+ * Добавляет NSIS-установщик к стандартным артефактам Electrobun:
  *
  *   xneon-launcher-<version>-win-x64.exe  — NSIS-установщик (per-user,
  *     %LOCALAPPDATA%\Programs\xneon-launcher, ярлыки, «Установленные приложения»,
- *     тихая установка через /S, свой деинсталлятор);
- *   xneon-launcher-<version>-win-x64.zip  — распакованное приложение
- *     (unpacked, как zip-таргет electron-builder): разархивировал и запускаешь
- *     bin\launcher.exe, без установки.
+ *     тихая установка через /S, свой деинсталлятор).
  *
  * Полезная нагрузка берётся из уже собранного канала Electrobun
  * (build-electrobun/<channel>-win-x64): архив <hash>.tar.zst распаковывается
- * в staging, откуда build/installer.nsi забирает бандл app\, а zip собирается
- * из того же staging без обёртки установщика.
+ * в staging, откуда build/installer.nsi забирает неизменённый бандл app\.
+ * Штатные Setup ZIP, tar.zst и update manifests SDK не преобразуются.
  */
 
 const channel = Bun.argv[2] ?? "stable"
@@ -33,14 +29,15 @@ assert.equal(Bun.version, "1.4.4", "Windows packaging requires Bun 1.4.4")
 const root = path.resolve(import.meta.dir, "..")
 const version = packageJson.version
 const channelBuild = path.join(root, "build-electrobun", `${channel}-win-x64`)
-const metadataPath = path.join(channelBuild, "XneonLauncher", "Resources", "metadata.json")
+const bundleName = "XneonLauncher" + (channel === "stable" ? "" : "-" + channel)
+const metadataPath = path.join(channelBuild, bundleName, "Resources", "metadata.json")
 assert.ok(existsSync(metadataPath), "Сначала соберите канал: bun run build (" + metadataPath + ")")
 const metadata = JSON.parse(await readFile(metadataPath, "utf8")) as { identifier?: string; channel?: string; hash?: string; name?: string }
 assert.equal(metadata.identifier, appIdentifier, "Unexpected installer identity")
 assert.equal(metadata.channel, channel, "Unexpected build channel")
 assert.ok(/^[a-z0-9]+$/.test(metadata.hash ?? ""), "Unexpected build hash")
 
-const archivePath = path.join(channelBuild, "XneonLauncher", "Resources", `${metadata.hash}.tar.zst`)
+const archivePath = path.join(channelBuild, bundleName, "Resources", `${metadata.hash}.tar.zst`)
 assert.ok(existsSync(archivePath), "Missing application archive: " + archivePath)
 
 const staging = path.join(root, "build-electrobun", "windows-staging")
@@ -99,52 +96,13 @@ const installerInfo = await stat(installer)
 assert.ok(installerInfo.isFile() && installerInfo.size > 1024 ** 2, "Installer was not produced")
 const installerBytes = await readFile(installer)
 assert.ok(installerBytes.includes("NullsoftInst"), "Installer is not an NSIS package")
+windowsProductIdentity(installer, version)
 
-// ---------------------------------------------------------------------------
-// Распакованное приложение: содержимое бандла лежит в корне архива
-// (bin\ + Resources\), как zip-таргет electron-builder. Установка не нужна,
-// данные — в обычном %APPDATA%\xneonlauncher.
-// ---------------------------------------------------------------------------
-const unpacked = path.join(releaseRoot, `xneon-launcher-${version}-win-x64.zip`)
-await rm(unpacked, { force: true })
-const zip = Bun.spawnSync(["tar.exe", "-a", "-cf", unpacked, "-C", app, "bin", "Resources"], { stderr: "inherit" })
-assert.equal(zip.exitCode, 0, "Failed to create the unpacked archive")
-
-const entries = listZip(unpacked)
-assert.deepEqual([...new Set(entries)].sort(), entries, "Duplicate entries in unpacked archive")
-for (const entry of entries) {
-  assert.ok(
-    (entry === "bin/" || entry === "Resources/" || entry.startsWith("bin/") || entry.startsWith("Resources/")) &&
-      !/(?:^|\/)\.\.(?:\/|$)|[\\:\u0000-\u001f]/.test(entry) &&
-      !/(?:^|\/)(?:\.env(?:[./]|$)|\.npmrc$|node_modules(?:\/|$)|credentials(?:\.generated)?\.(?:ts|json)$)|\.(?:db(?:-wal|-shm)?|sqlite3?|pdb|map|log|tmp|bak)$/i.test(entry),
-    "Unexpected member in unpacked archive: " + entry,
-  )
-}
-assert.ok(entries.includes("bin/launcher.exe"), "Unpacked archive has no launcher")
-assert.ok(entries.includes("Resources/version.json"), "Unpacked archive has no version.json")
 windowsX64(await readFile(path.join(app, "bin", "launcher.exe")))
 windowsX64(await readFile(path.join(app, "bin", "bun.exe")))
-
-const unpackedBytes = await readFile(unpacked)
-assert.ok(unpackedBytes.length > 1024 ** 2, "Unpacked archive was not produced")
-
 const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex")
-const installerArtifact = writeBlockMap(installer)
-const unpackedArtifact = writeBlockMap(unpacked)
-const latest = writeLatestFile(releaseRoot, "win", version, [installerArtifact, unpackedArtifact], path.basename(installer))
 console.log("NSIS installer:      " + installer)
 console.log("  SHA-256:           " + sha256(installerBytes))
-console.log("Unpacked app:        " + unpacked)
-console.log("  SHA-256:           " + sha256(unpackedBytes))
-console.log("Block maps:          " + installerArtifact.blockMapSize + " / " + unpackedArtifact.blockMapSize + " bytes")
-console.log("Update metadata:     " + latest)
-
-/** Список записей zip через bsdtar (он же tar.exe в Windows). */
-function listZip(file: string): string[] {
-  const listing = Bun.spawnSync(["tar.exe", "-tf", file], { stdout: "pipe", stderr: "pipe" })
-  assert.equal(listing.exitCode, 0, "Failed to inspect the unpacked archive")
-  return listing.stdout.toString().split(/\r?\n/).map(line => line.trim()).filter(Boolean).sort()
-}
 
 function findMakensis(): string {
   const configured = process.env.XNEON_MAKENSIS

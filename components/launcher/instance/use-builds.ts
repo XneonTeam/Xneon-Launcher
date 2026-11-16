@@ -1,5 +1,7 @@
 import { isContentDownloadCancelled } from "@/lib/content-download"
-import { beginContentMutationGuard, buildContentPatch, CONTENT_PATCH_FIELDS, createContentRefreshQueue, filterStaleContentPatch } from "@/lib/build-content-patch"
+import { acknowledgeBuildEdits, buildWrites, filterStaleBuildPatch, isBuildWriteConflict } from "@/lib/build-write-queue"
+import { BoundedCache, estimateCacheBytes } from "@/lib/bounded-cache"
+import { beginContentMutationGuard, buildContentPatch, CONTENT_PATCH_FIELDS, PACK_METADATA_FIELDS, createContentRefreshQueue, filterStaleContentPatch } from "@/lib/build-content-patch"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { MOD_LOADERS } from "./constants"
 import { loadBuilds, pickCompatibleVersion } from "./utils"
@@ -37,12 +39,29 @@ const BUILDS_CACHE_TTL_MS = 5 * 60_000
  * это десятки мегабайт — грузим по требованию (для открытой сборки) и держим
  * в памяти, чтобы переключение вкладок не читало их заново.
  */
-const buildContentCache = new Map<string, {
+const buildContentCache = new BoundedCache<string, {
   mods: BuildMod[]
   resourcepacks: BuildMod[]
   shaders: BuildMod[]
   installedMods: Record<string, string>
-}>()
+}>({ capacity: 8, maxWeight: 64 * 1024 * 1024, weight: estimateCacheBytes })
+
+/** Лёгкий snapshot не удерживает тяжёлые массивы в обход LRU. */
+function lightSnapshot(build: Build): BuildWithCounts {
+  const counts = build as BuildWithCounts
+  const loaded = buildContentCache.has(build.id)
+  return { ...build, mods: [], resourcepacks: [], shaders: [], installedMods: {},
+    modsCount: loaded ? build.mods.length : counts.modsCount ?? build.mods.length,
+    resourcepacksCount: loaded ? build.resourcepacks.length : counts.resourcepacksCount ?? build.resourcepacks.length,
+    shadersCount: loaded ? build.shaders.length : counts.shadersCount ?? build.shaders.length }
+}
+
+function cachedSnapshots(builds: Build[]): Build[] {
+  return builds.map(build => {
+    const content = buildContentCache.get(build.id)
+    return content ? { ...build, ...content } : build
+  })
+}
 
 // Инструменты агента могут менять БД, пока раздел сборок размонтирован.
 if (typeof window !== "undefined") window.addEventListener("launcher:agent-updated", () => {
@@ -55,6 +74,10 @@ export function getCachedBuildsLight(): Build[] | null {
   return buildsLightCache
 }
 
+export function getBuildContentCacheStats(): { entries: number; estimatedBytes: number } {
+  return { entries: buildContentCache.size, estimatedBytes: buildContentCache.weight }
+}
+
 export function updateCachedBuildContent(buildId: string, content: {
   mods: BuildMod[]
   resourcepacks: BuildMod[]
@@ -63,7 +86,9 @@ export function updateCachedBuildContent(buildId: string, content: {
 }) {
   buildContentCache.set(buildId, content)
   if (buildsLightCache) {
-    buildsLightCache = buildsLightCache.map(build => build.id === buildId ? { ...build, ...content } : build)
+    buildsLightCache = buildsLightCache.map(build => build.id === buildId ? {
+      ...build, modsCount: content.mods.length, resourcepacksCount: content.resourcepacks.length, shadersCount: content.shaders.length,
+    } : build)
   }
 }
 
@@ -95,7 +120,7 @@ export function useBuilds() {
   const {
     declaredCategories, addCategory, renameCategory: renameDeclaredCategory, dropCategory: dropDeclaredCategory,
   } = useCategoryList("builds")
-  const [buildsState, setBuildsState] = useState<Build[]>(() => buildsLightCache ?? [])
+  const [buildsState, setBuildsState] = useState<Build[]>(() => buildsLightCache ? cachedSnapshots(buildsLightCache) : [])
   const [activeBuildId, setActiveBuildId] = useState<string | null>(null)
   const activeBuildIdRef = useRef<string | null>(null)
   const [buildsHydrated, setBuildsHydrated] = useState(false)
@@ -143,7 +168,7 @@ export function useBuilds() {
         // та «воскресала» в UI, а flush-сейв `reloadBuilds` возвращал её в БД.
         // При нескольких сборках guard не срабатывал, поэтому баг был виден
         // только когда оставалась одна сборка.
-        buildsLightCache = next
+        buildsLightCache = next.map(lightSnapshot)
       }
       return next
     })
@@ -152,7 +177,9 @@ export function useBuilds() {
   const builds = buildsState
 
   const currentPatchFields = useCallback((patch: { id: string; fields: Record<string, unknown>; contentSeq: number }) => {
-    return filterStaleContentPatch(patch.fields, patch.contentSeq, contentScanSeqRef.current.get(patch.id) ?? 0, contentMutationsRef.current.has(patch.id))
+    const fields = filterStaleBuildPatch(patch.fields, buildsRef.current.find(build => build.id === patch.id),
+      patch.contentSeq !== (contentScanSeqRef.current.get(patch.id) ?? 0))
+    return filterStaleContentPatch(fields, patch.contentSeq, contentScanSeqRef.current.get(patch.id) ?? 0, contentMutationsRef.current.has(patch.id))
   }, [])
 
   const beginContentMutation = useCallback((buildId: string) => {
@@ -265,13 +292,8 @@ export function useBuilds() {
         shaders: Array.isArray(content.shaders) ? content.shaders as BuildMod[] : [],
         installedMods: content.installedMods ?? {},
       }
-      const [mods, resourcepacks, shaders] = await Promise.all([
-        enrichBuildModNames(parsed.mods),
-        enrichBuildModNames(parsed.resourcepacks),
-        enrichBuildModNames(parsed.shaders),
-      ])
       if ((contentScanSeqRef.current.get(buildId) ?? 0) !== contentSeq || contentMutationsRef.current.has(buildId)) return true
-      const enriched = { ...parsed, mods, resourcepacks, shaders }
+      const enriched = parsed
       displayedContentRef.current.add(buildId)
       updateCachedBuildContent(buildId, enriched)
       savedContentRef.current.set(buildId, enriched)
@@ -284,20 +306,44 @@ export function useBuilds() {
     }
   }, [setBuilds])
 
+  const releaseColdContent = useCallback(() => {
+    const dirtyContent = new Set(pendingPatchesRef.current.filter(patch => Object.keys(patch.fields).some(key => CONTENT_PATCH_FIELDS.has(key))).map(patch => patch.id))
+    const cold = new Set(buildsRef.current.filter(build => build.id !== activeBuildIdRef.current
+      && displayedContentRef.current.has(build.id) && !buildContentCache.has(build.id)
+      && !contentMutationsRef.current.has(build.id) && !pendingEditsRef.current.has(build.id) && !dirtyContent.has(build.id)
+      && !Object.keys(buildWrites.getPending(build.id)).some(key => CONTENT_PATCH_FIELDS.has(key))).map(build => build.id))
+    if (!cold.size) return
+    for (const id of cold) { displayedContentRef.current.delete(id); savedContentRef.current.delete(id) }
+    setBuilds(previous => previous.map(build => cold.has(build.id) && build.id !== activeBuildIdRef.current
+      && !buildContentCache.has(build.id) && !contentMutationsRef.current.has(build.id) ? lightSnapshot(build) : build))
+  }, [setBuilds])
+
   // Открыли сборку — подгружаем её контент и обновляем счётчики из скана папки.
   useEffect(() => {
     activeBuildIdRef.current = activeBuildId
-    if (!activeBuildId) return
+    if (!activeBuildId) { releaseColdContent(); return }
     let cancelled = false
     void (async () => {
       await ensureBuildContent(activeBuildId)
       if (cancelled) return
+      releaseColdContent()
       void contentRefreshRef.current(activeBuildId)
     })()
     return () => { cancelled = true }
-  }, [activeBuildId, ensureBuildContent])
+  }, [activeBuildId, ensureBuildContent, releaseColdContent])
 
-  const reloadBuilds = useCallback(async () => {
+  const reloadBuilds = useCallback(async (committedBuildId?: string) => {
+    if (committedBuildId) {
+      // Main уже атомарно сохранил metadata вместе с файлами. Старый UI — не
+      // новый пользовательский intent; его pending/version/content не повторяем.
+      buildWrites.discardPackMetadata(committedBuildId)
+      contentScanSeqRef.current.set(committedBuildId, (contentScanSeqRef.current.get(committedBuildId) ?? 0) + 1)
+      const pending = pendingEditsRef.current.get(committedBuildId)
+      if (pending) pendingEditsRef.current.set(committedBuildId, Object.fromEntries(Object.entries(pending)
+        .filter(([key]) => !PACK_METADATA_FIELDS.some(field => field === key))))
+      buildContentCache.delete(committedBuildId)
+      displayedContentRef.current.delete(committedBuildId)
+    }
     // Flush pending save before reloading so in-memory changes aren't lost.
     if (saveTimeoutRef.current !== null) {
       window.clearTimeout(saveTimeoutRef.current)
@@ -307,18 +353,28 @@ export function useBuilds() {
       for (const patch of pending) {
         try {
           const fields = currentPatchFields(patch)
-          if (Object.keys(fields).length) await window.electrobunAPI?.updateBuildFields?.(patch.id, fields as never)
+          if (Object.keys(fields).length) await buildWrites.write(patch.id, fields, key => Object.hasOwn(currentPatchFields(patch), key))
         }
         catch (error) { console.error("[Builds] Failed to flush pending changes", patch.id, error) }
       }
     }
 
+    try { await buildWrites.flush() } catch (error) { console.error("[Builds] Pending writes retained", error) }
     isReloadingRef.current = true
     const seq = ++reloadSeqRef.current
     try {
+      let committedContent: { mods: BuildMod[]; resourcepacks: BuildMod[]; shaders: BuildMod[]; installedMods: Record<string, string> } | undefined
+      if (committedBuildId) {
+        const content = await window.electrobunAPI?.loadBuildContent(committedBuildId)
+        if (seq !== reloadSeqRef.current) return
+        if (!content) throw new Error("Committed build content is unavailable")
+        committedContent = content as typeof committedContent
+        updateCachedBuildContent(committedBuildId, committedContent!)
+      }
       // Лёгкий список: контент сборок приходит из buildContentCache или уже
       // загруженного состояния, а не из этого запроса.
       const rawBuilds = await window.electrobunAPI?.loadBuildsLight()
+      if (seq !== reloadSeqRef.current) return
       const dbBuilds = (Array.isArray(rawBuilds) ? rawBuilds : []) as BuildWithCounts[]
 
       // Пустой ответ — это либо «сборок действительно нет», либо сбой IPC /
@@ -343,7 +399,7 @@ export function useBuilds() {
         const inMemoryBuild = previousById.get(build.id) ?? previousByName.get(build.name)
         // Тяжёлый контент из памяти/кэша: приходит не из лёгкого запроса, а из
         // buildContentCache (или из уже загруженного состояния).
-        const cached = contentMutationsRef.current.has(build.id) && inMemoryBuild
+        const cached = build.id === committedBuildId ? committedContent : contentMutationsRef.current.has(build.id) && inMemoryBuild
           ? { mods: inMemoryBuild.mods, resourcepacks: inMemoryBuild.resourcepacks, shaders: inMemoryBuild.shaders, installedMods: inMemoryBuild.installedMods ?? {} }
           : buildContentCache.get(build.id)
         const mods = cached?.mods ?? (Array.isArray(b.mods) ? b.mods : inMemoryBuild?.mods ?? [])
@@ -364,7 +420,7 @@ export function useBuilds() {
         // Правки пользователя, ещё не доехавшие до БД, должны победить снапшот БД —
         // иначе отвязка модпака и прочие изменения откатываются. Применяем по ключам,
         // чтобы осознанные `undefined` (сброс поля) тоже сработали.
-        const pending = pendingEditsRef.current.get(normalized.id)
+        const pending = { ...buildWrites.getPending(normalized.id), ...pendingEditsRef.current.get(normalized.id) }
         if (pending) {
           for (const key of Object.keys(pending) as (keyof Build)[]) {
             if (!CONTENT_PATCH_FIELDS.has(key)) (normalized as Record<string, unknown>)[key] = pending[key]
@@ -376,7 +432,7 @@ export function useBuilds() {
 
       // Лёгкий список кэшируем на уровне модуля: следующий вход во вкладку
       // отрисуется мгновенно, без обращения к БД.
-      buildsLightCache = processed
+      buildsLightCache = processed.map(lightSnapshot)
       buildsLightCacheAt = performance.now()
 
       // Устанавливаем сборки сразу — UI отрисовывается без ожидания сканирования
@@ -384,7 +440,7 @@ export function useBuilds() {
         const byId = new Map(prev.map(build => [build.id, build as BuildWithCounts]))
         return processed.map(build => {
           const current = byId.get(build.id)
-          if (!current || (!displayedContentRef.current.has(build.id) && !contentMutationsRef.current.has(build.id))) return build
+          if (build.id === committedBuildId || !current || (!displayedContentRef.current.has(build.id) && !contentMutationsRef.current.has(build.id))) return build
           // Лёгкий ответ БД не должен заменять уже показанный список.
           return { ...build, mods: current.mods, resourcepacks: current.resourcepacks, shaders: current.shaders,
             installedMods: current.installedMods, modsCount: current.mods.length,
@@ -414,48 +470,14 @@ export function useBuilds() {
       setBuildsHydrated(true)
       window.dispatchEvent(new Event("app:hydrated"))
 
-      // Enrich Modrinth names/authors in the background — don't block the
-      // initial render with network requests. Results are cached module-wide
-      // and batched, so repeat reloads are cheap or hit the cache entirely.
-      void (async () => {
-        const enriched = await Promise.all(processed.map(async build => {
-          const [mods, rp, sh] = await Promise.all([
-            enrichBuildModNames(build.mods),
-            enrichBuildModNames(build.resourcepacks),
-            enrichBuildModNames(build.shaders),
-          ])
-          return { ...build, mods, resourcepacks: rp, shaders: sh }
-        }))
-
-        if (seq !== reloadSeqRef.current) return
-
-        const enrichedById = new Map(enriched.map(build => [build.id, build]))
-        setBuilds(prev => prev.map(current => {
-          const rich = enrichedById.get(current.id)
-          if (!rich) return current
-          const patchList = (list: BuildMod[], richList: BuildMod[]) => {
-            const richBySlug = new Map(richList.map(item => [item.slug.toLowerCase(), item]))
-            return list.map(item => {
-              const enrichedItem = richBySlug.get(item.slug.toLowerCase())
-              return enrichedItem
-                ? { ...item, name: enrichedItem.name || item.name, author: enrichedItem.author || item.author }
-                : item
-            })
-          }
-          return {
-            ...current,
-            mods: patchList(current.mods, rich.mods),
-            resourcepacks: patchList(current.resourcepacks, rich.resourcepacks),
-            shaders: patchList(current.shaders, rich.shaders),
-          }
-        }))
-      })()
+      // Main/content-resolver владеет именами и авторами. UI не дублирует
+      // обогащение всех списков; ниже остаётся fallback авторов паков без локальных метаданных.
     } catch (error) {
       // Сбой IPC или БД: оставляем уже показанный список как есть. Раньше
       // исключение уходило наружу (unhandled rejection), а список мог очиститься.
       console.error("[Builds] Не удалось обновить список сборок:", error)
     } finally {
-      isReloadingRef.current = false
+      if (seq === reloadSeqRef.current) isReloadingRef.current = false
     }
   }, [currentPatchFields, ensureBuildContent])
 
@@ -483,9 +505,9 @@ export function useBuilds() {
       }
       const counts = { modsCount: content.mods.length, resourcepacksCount: content.resourcepacks.length, shadersCount: content.shaders.length }
       // Результат скана после удаления, включая пустую папку, сохраняем явно.
-      await window.electrobunAPI?.updateBuildFields?.(buildId, {
+      await buildWrites.write(buildId, {
         ...content, ...counts,
-      } as never)
+      }, () => contentScanSeqRef.current.get(buildId) === scanSeq && !contentMutationsRef.current.has(buildId))
       if (contentScanSeqRef.current.get(buildId) !== scanSeq) return
       displayedContentRef.current.add(buildId)
       updateCachedBuildContent(buildId, content)
@@ -520,40 +542,45 @@ export function useBuilds() {
 
   const activeBuild = useMemo(() => builds.find(b => b.id === activeBuildId) ?? null, [builds, activeBuildId])
 
-  // Установленные ресурспаки могут не содержать автора в pack.mcmeta.
+  // Ресурспаки и шейдеры часто не содержат автора в локальных метаданных.
+  // У Modrinth он доступен через владельца команды проекта, а не /projects.
   useEffect(() => {
     if (!activeBuild) return
-    if (!activeBuild.resourcepacks.some(item => item.source === "modrinth" && item.projectId && !item.author)) return
+    const packs = [...activeBuild.resourcepacks, ...activeBuild.shaders]
+    if (!packs.some(item => item.source === "modrinth" && item.projectId && !item.author)) return
     let cancelled = false
     const buildId = activeBuild.id
-    void enrichBuildModNames(activeBuild.resourcepacks, { includeOwners: true }).then(enriched => {
+    void enrichBuildModNames(packs, { includeOwners: true }).then(enriched => {
       if (cancelled) return
       setBuilds(previous => previous.map(build => {
         if (build.id !== buildId) return build
         let changed = false
         const authors = new Map(enriched.filter(item => item.projectId && item.author).map(item => [item.projectId!, item.author!]))
-        const resourcepacks = build.resourcepacks.map(item => {
+        const addAuthor = (item: BuildMod): BuildMod => {
           const author = item.source === "modrinth" && !item.author && item.projectId ? authors.get(item.projectId) : undefined
           if (!author) return item
           changed = true
           return { ...item, author }
-        })
+        }
+        const resourcepacks = build.resourcepacks.map(addAuthor)
+        const shaders = build.shaders.map(addAuthor)
         if (!changed) return build
-        updateCachedBuildContent(buildId, { mods: build.mods, resourcepacks, shaders: build.shaders, installedMods: build.installedMods ?? {} })
-        return { ...build, resourcepacks }
+        updateCachedBuildContent(buildId, { mods: build.mods, resourcepacks, shaders, installedMods: build.installedMods ?? {} })
+        return { ...build, resourcepacks, shaders }
       }))
     }).catch(() => {})
     return () => { cancelled = true }
-  }, [activeBuild?.id, activeBuild?.resourcepacks, setBuilds])
+  }, [activeBuild?.id, activeBuild?.resourcepacks, activeBuild?.shaders, setBuilds])
 
   useEffect(() => {
     // Кэш показываем сразу и в любом случае: список не должен «выгружаться» на
     // время обновления. Раньше при протухшем кэше (TTL был 3 с) сначала шёл
     // запрос в БД, и до его ответа на экране не было данных.
     if (buildsLightCache) {
-      savedLightFieldsRef.current = new Map(buildsLightCache.map(build => [build.id, Object.fromEntries(LIGHT_BUILD_FIELDS.map(key => [key, (build as unknown as Record<string, unknown>)[key]]))]))
-      savedContentRef.current = new Map(buildsLightCache.filter(build => buildContentCache.has(build.id)).map(build => [build.id, { mods: build.mods, resourcepacks: build.resourcepacks, shaders: build.shaders, installedMods: build.installedMods ?? {} }]))
-      setBuilds(buildsLightCache)
+      const snapshots = cachedSnapshots(buildsLightCache)
+      savedLightFieldsRef.current = new Map(snapshots.map(build => [build.id, Object.fromEntries(LIGHT_BUILD_FIELDS.map(key => [key, (build as unknown as Record<string, unknown>)[key]]))]))
+      savedContentRef.current = new Map(snapshots.filter(build => buildContentCache.has(build.id)).map(build => [build.id, { mods: build.mods, resourcepacks: build.resourcepacks, shaders: build.shaders, installedMods: build.installedMods ?? {} }]))
+      setBuilds(snapshots)
       setBuildsHydrated(true)
       window.dispatchEvent(new Event("app:hydrated"))
       // Устаревшие данные обновляем в фоне — уже показанный список при этом
@@ -578,11 +605,17 @@ export function useBuilds() {
     window.addEventListener("launcher:agent-updated", agentHandler)
     const shareHandler = () => { buildsLightCache = null; buildContentCache.clear(); void reloadBuilds() }
     window.addEventListener("launcher:share-updated", shareHandler)
+    const modpackHandler = (event: Event) => {
+      const buildId: unknown = (event as CustomEvent).detail?.buildId
+      if (typeof buildId === "string" && buildId) void reloadBuilds(buildId)
+    }
+    window.addEventListener("launcher:modpack-updated", modpackHandler)
     const offShare = window.electrobunAPI?.onShareInstalled(shareHandler)
     return () => {
       window.removeEventListener("cloud:imported", handler)
       window.removeEventListener("launcher:agent-updated", agentHandler)
       window.removeEventListener("launcher:share-updated", shareHandler)
+      window.removeEventListener("launcher:modpack-updated", modpackHandler)
       offShare?.()
     }
   }, [reloadBuilds])
@@ -624,7 +657,7 @@ export function useBuilds() {
           try {
             const fields = currentPatchFields(patch)
             if (!Object.keys(fields).length) continue
-            await window.electrobunAPI?.updateBuildFields?.(patch.id, fields as never)
+            await buildWrites.write(patch.id, fields, key => Object.hasOwn(currentPatchFields(patch), key))
             const light = savedLightFieldsRef.current.get(patch.id) ?? {}
             for (const key of Object.keys(fields)) light[key] = fields[key]
             savedLightFieldsRef.current.set(patch.id, light)
@@ -634,7 +667,9 @@ export function useBuilds() {
               shaders: patch.build.shaders,
               installedMods: patch.build.installedMods ?? {},
             })
-            pendingEditsRef.current.delete(patch.id)
+            const remaining = acknowledgeBuildEdits(pendingEditsRef.current.get(patch.id), fields)
+            if (Object.keys(remaining).length) pendingEditsRef.current.set(patch.id, remaining)
+            else pendingEditsRef.current.delete(patch.id)
           } catch (error) {
             console.error("[Builds] Debounced save failed for build", patch.id, error)
           }
@@ -652,8 +687,7 @@ export function useBuilds() {
     }
     for (const patch of pendingPatchesRef.current) {
       const fields = currentPatchFields(patch)
-      if (Object.keys(fields).length) void window.electrobunAPI?.updateBuildFields?.(patch.id, fields as never)
-      pendingEditsRef.current.delete(patch.id)
+      if (Object.keys(fields).length) void buildWrites.write(patch.id, fields, key => Object.hasOwn(currentPatchFields(patch), key)).catch(error => console.error("[Builds] Unmount save retained", error))
     }
     pendingPatchesRef.current = []
   }, [currentPatchFields])
@@ -797,22 +831,12 @@ export function useBuilds() {
 
       const restored = result.build as Build | undefined
       if (restored) {
-        // Возвращаем сборку в память и следом в БД, чтобы она сразу появилась в списке
-        // и пережила следующий reloadBuilds (иначе тот откатил бы её как отсутствующую).
+        // Main уже восстановил файлы и запись БД. UI не возвращает старые снимки
+        // соседних сборок обратно через saveBuilds.
         setBuilds(prev => {
           if (prev.some(b => b.id === restored.id)) return prev
           return [restored, ...prev]
         })
-        try {
-          // Лёгкий список: контент остальных сборок сохранит saveAllBuilds.
-          const existing = await window.electrobunAPI?.loadBuildsLight() ?? []
-          if (!existing.some(b => b.id === restored.id)) {
-            await window.electrobunAPI?.saveBuilds([
-              restored,
-              ...existing,
-            ] as unknown as Parameters<NonNullable<Window["electrobunAPI"]>["saveBuilds"]>[0])
-          }
-        } catch { /* память уже обновлена; следующий автосейв добьёт состояние */ }
       }
 
       // Перечитываем состояние, чтобы подтянуть актуальный контент из восстановленной папки.
@@ -899,7 +923,7 @@ export function useBuilds() {
       const result = await window.electrobunAPI?.renameBuildIntent?.(build.name, target)
       if (result?.success) {
         // Название должно попасть в следующий скан Share сразу после переименования.
-        await window.electrobunAPI?.updateBuildFields?.(id, { name: target, intentPath: result.intentPath ?? build.intentPath })
+        await buildWrites.write(id, { name: target, intentPath: result.intentPath ?? build.intentPath })
         setBuilds(prev => prev.map(b => b.id === id
           ? { ...b, name: target, intentPath: result.intentPath ?? b.intentPath }
           : b))
@@ -924,19 +948,25 @@ export function useBuilds() {
     // только после подтверждённой записи — и лишь для тех ключей, что записали.
     void (async () => {
       try {
-        await window.electrobunAPI?.updateBuildFields?.(id, fields as unknown as Parameters<NonNullable<Window["electrobunAPI"]>["updateBuildFields"]>[1])
+        await buildWrites.write(id, fields)
         const buffered = pendingEditsRef.current.get(id)
         if (buffered) {
-          const rest: Partial<Build> = { ...buffered }
-          for (const key of Object.keys(fields)) delete (rest as Record<string, unknown>)[key]
+          const rest = acknowledgeBuildEdits(buffered, fields)
           if (Object.keys(rest).length > 0) pendingEditsRef.current.set(id, rest)
           else pendingEditsRef.current.delete(id)
         }
       } catch (error) {
         console.error("[Builds] Immediate field update failed:", error)
+        if (isBuildWriteConflict(error)) {
+          const rejected = Object.fromEntries(Object.entries(fields).filter(([key]) => PACK_METADATA_FIELDS.some(field => field === key)))
+          const remaining = acknowledgeBuildEdits(pendingEditsRef.current.get(id), rejected)
+          if (Object.keys(remaining).length) pendingEditsRef.current.set(id, remaining)
+          else pendingEditsRef.current.delete(id)
+          void reloadBuilds()
+        }
       }
     })()
-  }, [])
+  }, [reloadBuilds])
 
   const setBuildGroup = useCallback((id: string, group: string) => {
     setBuilds(prev => prev.map(b => b.id === id ? { ...b, group: group || undefined } : b))
@@ -1181,7 +1211,7 @@ export function useBuilds() {
         shaders: updated.shaders,
         installedMods: updated.installedMods ?? {},
       }
-      await window.electrobunAPI?.updateBuildFields?.(buildId, { ...content, modsCount: content.mods.length, resourcepacksCount: content.resourcepacks.length, shadersCount: content.shaders.length } as never)
+      await buildWrites.write(buildId, { ...content, modsCount: content.mods.length, resourcepacksCount: content.resourcepacks.length, shadersCount: content.shaders.length })
       if (buildsRef.current.find(build => build.id === buildId) !== current) return buildsRef.current
       const next = buildsRef.current.map(build => (build.id === buildId ? updated : build))
       // Память держим в согласии с записанным: помечаем контент и снапшот

@@ -11,7 +11,8 @@ Code, function names, API, terminal commands, and error messages — keep in the
 Xneon Launcher — Electrobun + React 19 Minecraft launcher.
 - **Renderer** (React): `components/`, `src/`, `lib/`
 - **Electrobun main**: `electrobun/main/`, `electrobun/preload.ts`
-- **Local packages** (`packages/`): `@xnlc/core`, `@xnlc/mods`, `@xnlc/types`, `@xnlc/nbt`, `@xnlc/servers`, `@xnlc/skins` — linked via Bun workspace (`workspace:*` in `package.json`). Registry fallback at `https://git.xneon.org/api/packages/MAINER4IK/npm/`
+- **Local packages** (`packages/`): `@xnlc/core`, `@xnlc/mods`, `@xnlc/types`, `@xnlc/nbt`, `@xnlc/servers`, `@xnlc/skins`, `@xnlc/archives`, `@xnlc/parser`, `@xnlc/share`, `@xnlc/agent` — Bun workspace (`workspace:*`). Registry fallback: `https://git.xneon.org/api/packages/MAINER4IK/npm/`
+- **Server apps** (`infrastructure/`): `xnlc-share` (Bun/SQLite + Cloudflare Worker/R2) и `xnlc-liveops` (Go + клиентский контроллер). Не входят в Bun workspace; карта путей, запуск и деплой — `infrastructure/README.md`
 - **IPC contracts**: `packages/xnlc-types/src/ipc-contracts.ts` — single source of truth for channel signatures
 - **Launch params**: `packages/xnlc-types/src/launch-types.ts` — `MinecraftLaunchParams`
 
@@ -21,15 +22,28 @@ Xneon Launcher — Electrobun + React 19 Minecraft launcher.
 bun run dev          # Vite + Electrobun dev
 bun run build        # production build (vite + tsc)
 bun run package      # Hutch → release-electrobun/
-bun run typecheck    # tsc --noEmit (renderer tsconfig)
+bun run typecheck    # tsc --noEmit: renderer + main
 bun run test:desktop # desktop-тесты под Bun 1.4.4
+bun run test:offline # desktop + parser + archives + security/agent + Share
 ```
 
 Отдельной команды lint нет. Основная проверка — `bun run build`.
 
+Актуальное руководство: [docs/integration-guide.md](docs/integration-guide.md).
+`prepare:desktop` генерирует credentials/catalog до единственной сборки workspaces.
+Batch scan по умолчанию inline (меньше CPU/RSS по локальному benchmark).
+`XNLC_SCAN_WORKER=1` явно включает проверенный `setScanWorkerEntry`; entry
+упаковывается в `bun/workers/scan-worker.js`. Это opt-in, не гарантия более низкой памяти.
+Актуальные benchmarks: `benchmarks/README.md`, `bun run benchmark:scan` и
+`bun run benchmark:archives`. Результаты/внутренние аудиты — в игнорируемой
+`.local-research/`, не в public docs и не в package publish files.
+UI получает только `PublicAccount`, сессиями владеет main. Для cleanup используйте
+`registerShutdownTask`, а не собственный рекурсивный before-quit.
+
 ## Environment variables
 
 - `XNLC_NEWS_URL` — адрес ленты новостей лаунчера (`fetch:launcher-news`). По умолчанию `https://launcher.xneon.org/news.json`.
+- `XNLC_LIVEOPS_URL` — origin сервиса событийных тем (HTTPS, HTTP только для localhost); без переменной сеть LiveOps выключена. Контроллер — `electrobun/main/liveops.ts`, кэш — `<userData>/event-theme-cache`, настройка `eventTheme` отдельна от `customThemes`. Ручной выбор через `liveops:select`/`settings:set("theme")` проходит через main.
 
 ## Build pipeline
 
@@ -38,12 +52,15 @@ bun run test:desktop # desktop-тесты под Bun 1.4.4
 `build:renderer` = `vite build` → `dist/`
 `build:workers` = Bun → `dist-workers/`
 
-**Windows-установщик — NSIS** (`build/installer.nsi` + `scripts/build-windows-distribution.ts`), как в Electron-сборке: per-user (`RequestExecutionLevel user`), без страницы выбора каталога, тихая установка `/S`, свой деинсталлятор `%LOCALAPPDATA%\Programs\xneon-launcher\Uninstall Xneon Launcher.exe`. `bun run build` вызывает его последним шагом (`scripts/electrobun.mjs`) и получает в `release-electrobun/<channel>/` два артефакта: `xneon-launcher-<version>-win-x64.exe` (установщик) и `xneon-launcher-<version>-win-x64.zip` (распакованное приложение, как zip-таргет electron-builder: корень архива — `bin\` + `Resources\`, запуск без установки); рядом пишутся их карты блоков и `latest.yml` (см. «Метафайлы релиза» ниже). Нужен `makensis` (NSIS 3): ищется через `XNEON_MAKENSIS`, PATH, `Program Files\NSIS` и кэш electron-builder. Установщик ставит бандл в `$INSTDIR\app\{bin,Resources}` и создаёт junction `%LOCALAPPDATA%\org.xneon.launcher\<channel>` → `$INSTDIR`; ярлыки запускают `…\org.xneon.launcher\<channel>\app\bin\launcher.exe`, иначе SDK-обновления отказывают («outside its managed update directory»). Идентификатор приложения — `org.xneon.launcher` (`electrobun/main/app-identity.ts`, portable — `org.xneon.launcher.portable`); прежний `com.xneonlauncher.app` установщик вычищает вместе с его каталогом обновлений и ключом в «Установленные приложения». Установщик же закрывает запущенный лаунчер, снимает прежнюю установку Electrobun (`uninstall.exe --uninstall --quiet`), чистит ключи Electron NSIS и `HKCU\Software\Classes\xneon`. Апгрейд со старого Electron-клиента: `ClearLegacyInstallRoot` удаляет из `$INSTDIR` файлы прежней раскладки (`xneon-launcher.exe`, `resources\`, `locales\` и dll), сохраняя `app\`, `WebView2\` и деинсталлятор; обработчик схемы `xneon://` (`shell\open\command` → лаунчер через junction) установщик пишет заново (`WriteSchemeRegistry`) и удаляет при удалении. electron-updater вызывает `quitAndInstall(false, true)` → аргументы `--updated --force-run /D=… --package-file=…`: `RunLauncherIfRequested` запускает лаунчер после тихой установки, остальные аргументы игнорируются. Данные `%APPDATA%\xneonlauncher` не затрагиваются ни при установке, ни при удалении. Профиль встроенного браузера (`$INSTDIR\WebView2`) переустановка и обновление сохраняют — удаляется только бандл `app\`, поэтому куки WebView2 теряются лишь при полном удалении.
+**Windows-установщик — NSIS** (`build/installer.nsi` + `scripts/build-windows-distribution.ts`): per-user (`RequestExecutionLevel user`), без страницы выбора каталога, тихая установка `/S`, свой деинсталлятор `%LOCALAPPDATA%\Programs\xneon-launcher\Uninstall Xneon Launcher.exe`.
+`bun run build` сохраняет штатные артефакты Electrobun и последним шагом добавляет `xneon-launcher-<version>-win-x64.exe`. Обычные unpacked ZIP, blockmap и latest-метафайлы прежней упаковки больше не создаются. Portable ZIP — отдельная сборка с `PortableProfile`, не копия обычного релиза.
+Нужен `makensis` (NSIS 3): ищется через `XNEON_MAKENSIS`, PATH, `Program Files\NSIS` и кэш electron-builder. Установщик ставит неизменённый SDK payload в `$INSTDIR\app\{bin,Resources}` и создаёт junction `%LOCALAPPDATA%\org.xneon.launcher\<channel>` → `$INSTDIR`; ярлыки запускают `…\org.xneon.launcher\<channel>\app\bin\launcher.exe`, иначе SDK-обновления отказывают («outside its managed update directory»).
+Идентификатор приложения — `org.xneon.launcher` (`electrobun/main/app-identity.ts`, portable — `org.xneon.launcher.portable`). Миграция старого `com.xneonlauncher.app` и Electron-установок сохранена: `ClearLegacyInstallRoot`, очистка старых ключей, обработчик `xneon://`, параметры `--updated --force-run /D=… --package-file=…` и `RunLauncherIfRequested` не являются лишней упаковкой. Данные `%APPDATA%\xneonlauncher` не удаляются. Обновление/переустановка сохраняют `$INSTDIR\WebView2`; удаляется только бандл `app\`.
 
 ## Key architecture notes
 
-- **Метафайлы релиза как в electron-builder** — `scripts/release-metadata.ts` пишет `<артефакт>.blockmap` и `latest*.yml` (для Windows их делает `scripts/build-windows-distribution.ts`, для unix — `scripts/package-unix-candidate.sh`). Лаунчер эти файлы **не читает** (обновления идут подписанным `<channel>-win-x64-update-v2.json` + `tar.zst`), они нужны только чтобы набор файлов релиза совпадал с прежней Electron-сборкой. `.blockmap` — формат v2: `gzip(JSON)` с `version`, `files[].checksums` (BLAKE2b, 18 байт, base64) и `files[].sizes`; границы блоков — content-defined chunking Rabin (poly `0xbfe6b8a5bf378d83`, окно 64, min 8 КиБ, avg 16 КиБ, max 32 КиБ), JSON побайтно совпадает с выводом `app-builder` 4.2.0. `latest.yml`/`latest-mac.yml`/`latest-linux.yml` содержат `version`, `files[]` (url/sha512/size/blockMapSize), `path`/`sha512` основного артефакта и `releaseDate`; карта блоков пишется только для exe/zip/dmg/AppImage, у deb/rpm/pacman её нет.
-- **Артефакты unix носят имена Electron** (`scripts/package-unix-candidate.sh`): mac — `xneon-launcher-<v>-mac-arm64.dmg`/`.zip` + две карты блоков и `latest-mac.yml` (основной — zip, именно его качает electron-updater), linux — `xneon-launcher-<v>-x64.tar.xz` плюс `-amd64.deb`, `-x86_64.rpm`, `-x86_64.pacman`, `-x86_64.AppImage` (+карта блоков, `latest-linux.yml`). Сами пакеты собирает `scripts/package-linux-targets.sh` поверх бандла Electrobun: приложение ставится в `/opt/Xneon Launcher` (`bin/` + `Resources/`), симлинк `/usr/bin/xneon-launcher`, `.desktop` и иконка в hicolor; AppImage — AppDir с `AppRun`, вызывающим `bin/launcher`. Нужны `nfpm` и `appimagetool` — версии закреплены со сверкой SHA-256, кэш в `.cache/linux-targets`, свои бинарники можно передать через `XNEON_NFPM`/`XNEON_APPIMAGETOOL`.
+- **Релизы — штатные артефакты Electrobun**: `<channel>-<platform>-<arch>-update.json`, `-update-v2.json`, `.tar.zst` и SDK-установщик. Stable Windows: `win-x64-XneonLauncher-Setup.zip` + отдельный NSIS; macOS arm64: `macos-arm64-XneonLauncher.dmg`; Linux x64: `linux-x64-XneonLauncher-Setup.tar.gz`. Конвертация в прежние deb/rpm/pacman/AppImage, обычный unpacked ZIP и electron-builder metadata удалена.
+- **CI validation без переупаковки** — `scripts/electrobun-artifacts.ts` проверяет identity, version/channel/arch, tar integrity, executable headers и отсутствие credentials/служебных файлов; staging копирует байты/имена без изменений и добавляет `SHA256SUMS.txt`. `validate-pre-release.ts` требует NSIS дополнительно к штатному Windows набору. `package-windows-portable.ts <new-output>` проверяет самостоятельный portable профиль; не зависит от обычного NSIS/ZIP/metadata.
 - **Vite `base: './'`** — all asset paths in HTML must be relative (`./path`), not absolute (`/path`). В пакете Electrobun HTML загружается по views://launcher/index.html.
 - **`@/*` alias** resolves to project root: `@/src` → `src/`, `@/components` → `components/`.
 - **IPC**: preload exposes `window.electrobunAPI` methods. Types in `src/electrobun.d.ts`. Adding a new IPC channel requires updating: handler in `electrobun/main/`, preload bridge in `electrobun/preload.ts`, type in `src/electrobun.d.ts`, and contract in `packages/xnlc-types/src/ipc-contracts.ts`.

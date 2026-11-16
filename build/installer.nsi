@@ -10,7 +10,7 @@
 ; через этот junction. Так путь установки остаётся «как в Electron», а
 ; встроенные обновления продолжают работать.
 ;
-; Параметры передаются из scripts/build-windows-nsis.ts:
+; Параметры передаются из scripts/build-windows-distribution.ts:
 ;   /DOUTFILE=... /DSTAGING=... /DAPP_ICON=... /DAPP_VERSION=... /DAPP_FILE_VERSION=...
 
 Unicode true
@@ -54,7 +54,7 @@ ShowUninstDetails nevershow
 
 ; Значения по умолчанию совпадают с Electron-сборкой; переопределяются только
 ; на время локальной проверки установщика (/DPRODUCT_NAME=..., /DINSTALL_DIR=...),
-; штатная сборка из scripts/build-windows-nsis.ts их не передаёт.
+; штатная сборка из scripts/build-windows-distribution.ts их не передаёт.
 !ifndef PRODUCT_NAME
   !define PRODUCT_NAME "Xneon Launcher"
 !endif

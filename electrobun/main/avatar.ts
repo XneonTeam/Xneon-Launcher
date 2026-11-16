@@ -1,19 +1,10 @@
 import { launcherViewAssets } from "../platform/resources"
 import { protocol, rpcRegistry } from "../platform/desktop"
-import axios from "axios"
+import { avatarJson, avatarBuffer } from "./avatar-http"
 import { PNG } from "pngjs"
 import path from "path"
 import fs from "fs"
 import { logRuntime } from "./runtime"
-
-const USER_AGENT = "Xneon-Launcher/1.0.8"
-
-const http = axios.create({
-  timeout: 5000,
-  headers: {
-    "User-Agent": USER_AGENT,
-  },
-})
 
 export interface TexturesData {
   SKIN?: { url: string }
@@ -210,12 +201,12 @@ export async function getXnSkinsTextures(username: string, uuid?: string | null)
 
   if (!resolvedUuid && cleanName) {
     try {
-      const res = await http.post<Array<{ id: string; name: string }>>(
+      const profiles = await avatarJson<Array<{ id: string; name: string }>>(
         "https://skins.xneon.org/api/profiles/minecraft",
-        [cleanName]
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify([cleanName]) }
       )
-      if (Array.isArray(res.data) && res.data.length > 0 && res.data[0]?.id) {
-        resolvedUuid = res.data[0].id
+      if (Array.isArray(profiles) && profiles.length > 0 && profiles[0]?.id) {
+        resolvedUuid = profiles[0].id
       }
     } catch {}
   }
@@ -223,13 +214,13 @@ export async function getXnSkinsTextures(username: string, uuid?: string | null)
   if (!resolvedUuid) return null
 
   try {
-    const res = await http.get<{
+    const profile = await avatarJson<{
       id: string
       name: string
       properties?: Array<{ name: string; value: string }>
     }>(`https://skins.xneon.org/sessionserver/session/minecraft/profile/${resolvedUuid}`)
 
-    const texturesProp = res.data?.properties?.find((p) => p.name === "textures")
+    const texturesProp = profile?.properties?.find((p) => p.name === "textures")
     if (!texturesProp?.value) return null
 
     const decoded = JSON.parse(Buffer.from(texturesProp.value, "base64").toString("utf8")) as {
@@ -259,11 +250,11 @@ export async function getMojangTextures(username: string, uuid?: string | null):
 
   if (!resolvedUuid && cleanName) {
     try {
-      const res = await http.get<{ id: string; name: string }>(
+      const profile = await avatarJson<{ id: string; name: string }>(
         `https://api.mojang.com/users/profiles/minecraft/${encodeURIComponent(cleanName)}`
       )
-      if (res.data?.id) {
-        resolvedUuid = res.data.id
+      if (profile?.id) {
+        resolvedUuid = profile.id
       }
     } catch {}
   }
@@ -272,13 +263,13 @@ export async function getMojangTextures(username: string, uuid?: string | null):
 
   // Официальный Mojang session server
   try {
-    const res = await http.get<{
+    const profile = await avatarJson<{
       id: string
       name: string
       properties?: Array<{ name: string; value: string }>
     }>(`https://sessionserver.mojang.com/session/minecraft/profile/${resolvedUuid}?unsigned=false`)
 
-    const texturesProp = res.data?.properties?.find((p) => p.name === "textures")
+    const texturesProp = profile?.properties?.find((p) => p.name === "textures")
     if (texturesProp?.value) {
       const decoded = JSON.parse(Buffer.from(texturesProp.value, "base64").toString("utf8")) as {
         textures?: {
@@ -306,9 +297,9 @@ export async function getElyByTextures(username: string): Promise<TexturesData |
   const cleanName = (username || "").trim()
   if (!cleanName) return null
   try {
-    const res = await http.get<TexturesData>(`https://skinsystem.ely.by/textures/${encodeURIComponent(cleanName)}`)
-    if (res.data && (res.data.SKIN || res.data.CAPE)) {
-      return res.data
+    const textures = await avatarJson<TexturesData>(`https://skinsystem.ely.by/textures/${encodeURIComponent(cleanName)}`)
+    if (textures && (textures.SKIN || textures.CAPE)) {
+      return textures
     }
   } catch {}
   return null
@@ -557,8 +548,7 @@ export async function getHeadBuffer(
   try {
     let skinBuffer: Buffer
     if (textures.SKIN.url.startsWith("http://") || textures.SKIN.url.startsWith("https://")) {
-      const skinRes = await http.get<ArrayBuffer>(textures.SKIN.url, { responseType: "arraybuffer" })
-      skinBuffer = Buffer.from(skinRes.data)
+      skinBuffer = await avatarBuffer(textures.SKIN.url)
     } else {
       skinBuffer = await fs.promises.readFile(textures.SKIN.url)
     }
@@ -605,8 +595,7 @@ export async function getSkinBuffer(
   }
 
   try {
-    const skinRes = await http.get<ArrayBuffer>(textures.SKIN.url, { responseType: "arraybuffer" })
-    const skinBuffer = Buffer.from(skinRes.data)
+    const skinBuffer = await avatarBuffer(textures.SKIN.url)
     skinCache.set(cacheKey, skinBuffer, 3600)
     return skinBuffer
   } catch {
@@ -634,8 +623,7 @@ export async function getCapeBuffer(
   if (!textures?.CAPE?.url) return null
 
   try {
-    const capeRes = await http.get<ArrayBuffer>(textures.CAPE.url, { responseType: "arraybuffer" })
-    const capeBuffer = Buffer.from(capeRes.data)
+    const capeBuffer = await avatarBuffer(textures.CAPE.url)
     capeCache.set(cacheKey, capeBuffer, 3600)
     return capeBuffer
   } catch {

@@ -1,5 +1,5 @@
-import { constants } from "node:fs"
-import { lstat, mkdir, open, rm, type FileHandle } from "node:fs/promises"
+import { randomUUID } from "node:crypto"
+import { link, lstat, mkdir, open, rename, rm, utimes, type FileHandle } from "node:fs/promises"
 import path from "node:path"
 import { crc32 } from "node:zlib"
 import { ArchiveError, throwIfAborted, toArchiveIoError } from "./errors.js"
@@ -38,6 +38,8 @@ export interface ArchiveExtractOptions {
   /** Что делать со ссылками: пропустить (по умолчанию) или прервать распаковку. */
   symlinks?: "skip" | "error"
   maxEntries?: number
+  maxEntrySize?: number
+  maxCompressionRatio?: number
   maxTotalSize?: number
   progressIntervalMs?: number
   onProgress?: (progress: ArchiveExtractProgress) => void
@@ -116,6 +118,10 @@ async function prepareDirectory(root: string, target: string, verified: Set<stri
         await mkdir(current)
       } catch (mkdirError) {
         if ((mkdirError as NodeJS.ErrnoException).code !== "EEXIST") throw mkdirError
+        const stat = await lstat(current)
+        if (!stat.isDirectory() || stat.isSymbolicLink()) {
+          throw new ArchiveError("UNSAFE_ENTRY", `Unsafe destination directory: ${current}`)
+        }
       }
     }
     verified.add(current)
@@ -138,6 +144,8 @@ async function writeEntry(
   options: ArchiveExtractOptions,
 ): Promise<number> {
   const { entry, target, relative } = file
+  const temporary = path.join(path.dirname(target), `.xnlc-${randomUUID()}.partial`)
+  let owned = false
   let handle: FileHandle | undefined
   let written = 0
   let checksum = 0
@@ -147,10 +155,10 @@ async function writeEntry(
       return undefined
     })
     if (existing?.isSymbolicLink()) throw new ArchiveError("UNSAFE_ENTRY", `Destination file is a symlink: ${target}`, entry.name)
-    const flags = constants.O_WRONLY | constants.O_CREAT | (constants.O_NOFOLLOW ?? 0)
-      | (options.overwrite === false ? constants.O_EXCL : constants.O_TRUNC)
-    handle = await open(target, flags)
-    for await (const chunk of readEntryChunks(reader, entry, { signal: options.signal })) {
+    if (existing && options.overwrite === false) throw new ArchiveError("IO_ERROR", `Destination exists: ${target}`, entry.name)
+    handle = await open(temporary, "wx")
+    owned = true
+    for await (const chunk of readEntryChunks(reader, entry, { signal: options.signal, maxCompressionRatio: options.maxCompressionRatio })) {
       throwIfAborted(options.signal)
       written += chunk.length
       if (written > entry.size) {
@@ -167,18 +175,21 @@ async function writeEntry(
     if ((checksum >>> 0) !== (entry.crc >>> 0)) {
       throw new ArchiveError("INVALID_ARCHIVE", `Checksum mismatch for ${entry.name}`, entry.name)
     }
+    if (entry.mtime) await handle.utimes(entry.mtime, entry.mtime)
+    await handle.close()
+    handle = undefined
+    throwIfAborted(options.signal)
+    if (options.overwrite === false) await link(temporary, target)
+    else {
+      await rename(temporary, target)
+      owned = false
+    }
     return written
   } catch (error) {
-    // При отказе открытия чужой файл не трогаем; частичный файл удаляем
-    // только после закрытия дескриптора, что важно для Windows.
-    if (handle) {
-      await handle.close().catch(() => {})
-      handle = undefined
-      await rm(target, { force: true }).catch(() => {})
-    }
     throw toArchiveIoError(error, relative)
   } finally {
-    await handle?.close()
+    await handle?.close().catch(() => {})
+    if (owned) await rm(temporary, { force: true }).catch(() => {})
   }
 }
 
@@ -212,11 +223,12 @@ export async function extractArchive(
   try {
     const entries = await readZipDirectory(reader, { signal: options.signal })
     const pending: PendingFile[] = []
+    const directories: PendingFile[] = []
+    const targets = new Set<string>()
     let declaredSize = 0
 
     for (const entry of entries) {
       throwIfAborted(options.signal)
-      if (entry.directory) continue
       if (entry.symlink) {
         if (options.symlinks === "error") {
           throw new ArchiveError("UNSAFE_ENTRY", `Archive entry is a symlink: ${entry.name}`, entry.name)
@@ -234,18 +246,27 @@ export async function extractArchive(
       }
       try {
         assertSafeEntryName(relative)
+        if (process.platform === "win32" && relative.split("/").some(part =>
+          /[. ]$/.test(part) || /^(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\.|$)/i.test(part))) {
+          throw new ArchiveError("UNSAFE_ENTRY", `Unsafe Windows path: ${relative}`, entry.name)
+        }
       } catch (error) {
         if (!options.skipUnsafe) throw error
         skipped++
         continue
       }
       const target = resolveTarget(root, relative)
+      const key = process.platform === "win32" ? target.toLowerCase() : target
+      if (targets.has(key)) throw new ArchiveError("INVALID_ARCHIVE", `Duplicate destination: ${relative}`, entry.name)
+      targets.add(key)
+      if (entry.directory) { directories.push({ entry, relative, target }); continue }
+      if (entry.size > (options.maxEntrySize ?? MAX_TOTAL_SIZE)) throw new ArchiveError("LIMIT_EXCEEDED", `Entry too large: ${entry.name}`, entry.name)
       pending.push({ entry, relative, target })
       declaredSize += entry.size
     }
 
-    const maxEntries = options.maxEntries ?? Number.POSITIVE_INFINITY
-    if (pending.length > maxEntries) {
+    const maxEntries = options.maxEntries ?? 500_000
+    if (pending.length + directories.length > maxEntries) {
       throw new ArchiveError("LIMIT_EXCEEDED", `Archive extracts ${pending.length} files, limit is ${maxEntries}`)
     }
     const maxTotalSize = options.maxTotalSize ?? MAX_TOTAL_SIZE
@@ -265,6 +286,13 @@ export async function extractArchive(
         lastProgress = now
         options.onProgress({ done: files, total, bytes, name: file.relative })
       }
+    }
+    for (const { target } of directories) {
+      throwIfAborted(options.signal)
+      await prepareDirectory(root, target, verifiedDirectories)
+    }
+    for (const { entry, target } of directories.sort((a, b) => b.target.length - a.target.length)) {
+      if (entry.mtime) await utimes(target, entry.mtime, entry.mtime)
     }
     if (options.onProgress && total === 0 && Date.now() - started >= 0) {
       options.onProgress({ done: 0, total: 0, bytes: 0, name: "" })

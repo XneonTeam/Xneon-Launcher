@@ -15,19 +15,21 @@ import { getMainWindow, sendToRenderer, logRuntime, logRuntimeDebug } from "./ru
 import { dbHelpers, type DbAccount } from "../db"
 import { resetGameStartTimestamp, setDiscordActivity } from "./discord-rpc"
 import { minecraftPresence } from "./discord-presence"
-import { getBuildIntentPath } from "./builds"
+import { getBuildIntentPath } from "./builds/helpers"
 import { pruneStaleLoaderProfiles } from "./builds/loader-profiles"
 import { recordGameSession } from "./stats"
 import { setActiveGameSession } from "./session-tracker"
 import { detectMinecraftCrash } from "./crash-detect"
 import { syncMinecraftLanguage } from "./mc-language"
+import { prepareOptionsCompatibility } from "./options-compatibility"
 import { recoverModpackInstall } from "./builds/modpack-install"
+import { getMainTranslator } from "./i18n"
 
 type LaunchAccountPayload = {
+  id?: string
   type: "elyby" | "xnskins" | "microsoft" | "offline" | "authlib-injector"
   username: string
   uuid?: string
-  accessToken?: string
 }
 
 type LaunchResultPayload = {
@@ -141,13 +143,16 @@ export class LaunchOrchestrator {
     const accounts = await dbHelpers.loadAccounts()
 
     if (requestAccount?.username) {
-      return accounts.find((account) => account.type === requestAccount.type && account.username === requestAccount.username) ?? {
+      const stored = requestAccount.id ? accounts.find(account => account.id === requestAccount.id)
+        : accounts.find(account => account.type === requestAccount.type && account.username === requestAccount.username)
+      if (stored) return stored
+      if (requestAccount.type !== "offline") return undefined
+      return {
         id: requestAccount.uuid ?? `${requestAccount.type}:${requestAccount.username}`,
         type: requestAccount.type,
         username: requestAccount.username,
         isActive: true,
         uuid: requestAccount.uuid,
-        accessToken: requestAccount.accessToken,
       }
     }
 
@@ -170,6 +175,7 @@ export class LaunchOrchestrator {
     const launchController = new AbortController()
     this.launchAbort = launchController
     const signal = launchController.signal
+    let optionsTransaction: Awaited<ReturnType<typeof prepareOptionsCompatibility>> | undefined
 
     /** Подготовка сорвалась/отменена — освобождаем флаг и возвращаем ошибку. */
     const failPending = (message: string): LaunchResultPayload => {
@@ -219,7 +225,6 @@ export class LaunchOrchestrator {
 
     // Тумблер «язык Minecraft по языку лаунчера»: дописываем lang в options.txt
     // до старта игры. Внутри тумблер читается сам, ошибки не прерывают запуск.
-    await syncMinecraftLanguage(gameDir, request.mcVersion)
     if (signal.aborted) return failPending("Launch cancelled")
 
     const retroauthEnabled = (launchAccount.type === "xnskins" || launchAccount.type === "elyby")
@@ -293,6 +298,14 @@ export class LaunchOrchestrator {
       this.stopWorker()
     }
 
+    const sharedRoot = path.resolve(getMinecraftResourceRoot())
+    const sameRoot = process.platform === "win32" ? path.resolve(gameDir).toLowerCase() === sharedRoot.toLowerCase() : path.resolve(gameDir) === sharedRoot
+    optionsTransaction = await prepareOptionsCompatibility(gameDir, request.mcVersion, !request.buildName && !request.buildId && sameRoot)
+    await syncMinecraftLanguage(gameDir, request.mcVersion)
+    if (signal.aborted) {
+      await optionsTransaction.rollback()
+      return failPending("Launch cancelled")
+    }
     const worker = fork(workerPath, [], {
       stdio: ["pipe", "pipe", "pipe", "ipc"],
       env: process.env,
@@ -322,9 +335,19 @@ export class LaunchOrchestrator {
         if (!result.success) {
           stopReadiness()
           if (presencePublished) { this.setPresenceMenu(); presencePublished = false }
-          this.clearState()
         }
-        resolve(result)
+        if (!result.success && optionsTransaction) {
+          void optionsTransaction.rollback().then(() => {
+            this.clearState()
+            resolve(result)
+          }, error => {
+            this.clearState()
+            resolve({ success: false, error: result.error + "; options rollback failed: " + toErrorMessage(error) })
+          })
+        } else {
+          if (!result.success) this.clearState()
+          resolve(result)
+        }
       }
 
       worker.on("message", (raw: unknown) => {
@@ -344,6 +367,9 @@ export class LaunchOrchestrator {
             this.emitToRenderer("minecraft:java-progress", payload.progress)
             return
           case "started":
+            void optionsTransaction?.commit().catch(error => {
+              logRuntime("[Minecraft] Failed to commit options transaction: " + toErrorMessage(error))
+            })
             this.minecraftPid = typeof payload.pid === "number" ? payload.pid : null
             readiness.start()
             logRuntime(`[Minecraft] Worker reported started pid=${this.minecraftPid ?? 0}`)
@@ -502,6 +528,7 @@ export class LaunchOrchestrator {
       }
     })
     } catch (error) {
+      if (optionsTransaction) await optionsTransaction.rollback()
       return failPending(toErrorMessage(error))
     }
   }
@@ -524,16 +551,21 @@ export class LaunchOrchestrator {
   }
 
   private setPresencePlaying(mcVersion: string, loaderType: LoaderType, build?: { name: string; icon?: string }): void {
-    setDiscordActivity(minecraftPresence(mcVersion, loaderType, build))
+    const revision = ++this.presenceRevision
+    void getMainTranslator().then(t => {
+      if (revision === this.presenceRevision) setDiscordActivity(minecraftPresence(mcVersion, loaderType, build, t))
+    }).catch(error => logRuntime(`[Presence] ${String(error)}`))
   }
 
   private setPresenceMenu(): void {
     // A finished game must not leave its elapsed timer running in the menu.
     resetGameStartTimestamp()
-    setDiscordActivity({
-      state: "В меню",
-    })
+    const revision = ++this.presenceRevision
+    void getMainTranslator().then(t => {
+      if (revision === this.presenceRevision) setDiscordActivity({ state: t("runtime.presence.menu") })
+    }).catch(error => logRuntime(`[Presence] ${String(error)}`))
   }
+  private presenceRevision = 0
 }
 
 // ---------- Module-level helpers ----------

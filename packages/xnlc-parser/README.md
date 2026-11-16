@@ -1,12 +1,19 @@
 # @xnlc/parser
 
-Текущий статус: [готовность к эксплуатации](PRODUCTION_READINESS.md), [изменения API](CHANGELOG.md) и [поддержка форматов](SUPPORTED_FORMATS.md).
+Публичный API версии 1.0.0: [руководство интеграции](INTEGRATION_GUIDE.md),
+[поддерживаемые форматы](SUPPORTED_FORMATS.md), [ограничения](LIMITATIONS.md)
+и [изменения API](CHANGELOG.md).
 
 Версия 1.0.0 — библиотека для анализа архивов Minecraft.
 
-Runtime — Bun 1.4.4 или новее; использование непосредственно из Node.js/Electron main не поддерживается. Пакет предоставляет основные `ParserWorker`, `ParserCache` и консервативный `assessDependency`. Установка, отмена, управление ресурсами и ограничения описаны в [руководстве по интеграции](INTEGRATION_GUIDE.md); приоритеты аудита — в [AUDIT.md](AUDIT.md).
+Runtime — Bun 1.4.4 или новее; непосредственный запуск в Node.js не поддерживается.
+В Xneon пакет используется в main Electrobun и scan worker. Доступны `ParserWorker`,
+`ParserCache` и консервативный `assessDependency`. API не требует Electron и не
+должен импортироваться в browser renderer. В workspace соберите зависимости через
+`bun run prepare:desktop`; для другого Bun-проекта используйте `bun add @xnlc/parser`
+с настроенным registry для scope `@xnlc`.
 
-`ArchiveContext.open(pathOrBytes, options)` индексирует ZIP, `entries()` и `get()` возвращают записи, `read(name, maxSize)` выборочно читает stored/deflate с проверкой CRC, `close()` закрывает контекст. Поддерживаются настраиваемые ограничения и `AbortSignal`. ZIP64, шифрование и другие методы сжатия отклоняются. Для DEFLATE используется потоковый совместимый API `node:zlib` в Bun с чанками 16 КиБ и проверкой лимита в процессе чтения; это не требует Node.js runtime. Набор проверок архивных бомб пока не исчерпывающий.
+`ArchiveContext.open(pathOrBytes, options)` индексирует ZIP через `@xnlc/archives`, `entries()` и `get()` возвращают записи, `read(name, maxSize)` выборочно читает stored/deflate с проверкой CRC, `close()` закрывает контекст. Поддерживаются ограничения и `AbortSignal`, single-disk ZIP64 в safe integer и настроенных бюджетах. Шифрование, multi-disk и методы кроме stored/deflate отклоняются. DEFLATE читается потоково через `node:zlib` в Bun; это не требует отдельного Node.js runtime. Набор проверок архивных бомб не исчерпывающий.
 
 `identify` возвращает обнаруженные признаки форматов; `analyze` и `analyzeBatch` дают частичный разбор Fabric, Quilt, Forge/NeoForge TOML, `mcmod.info`/`cccmod.info`/`neimod.info`, LiteLoader, Velocity, Bukkit/Paper/Bungee и ресурспаков. Для YAML используются встроенные возможности Bun, anchors и aliases пока отклоняются. Сырые данные и Quilt-условия сохраняются; полное разрешение зависимостей не реализовано. `extractIcon` проверяет структуру и размеры PNG/JPEG/GIF/WebP без декодирования пикселей. `sha1` и `curseforgeFingerprint` принимают байты, не изменяя их; `sha1File` и `curseforgeFingerprintFile` читают файл потоком и поддерживают ограничение размера и отмену. Для fingerprint требуются два прохода по файлу.
 
@@ -63,5 +70,10 @@ console.log(pack.format, pack.namespaces, pack.packFormat, pack.minFormat, pack.
 
 Необязательные `parseClassFile` и `scanArchiveClasses` читают имена классов, интерфейсы и аннотации уровня класса, включая невидимые во время выполнения. `forgeModAnnotations` выделяет известные аннотации Forge. Сканирование имеет отдельные пределы числа и размера классов и сложности аннотаций; повреждённые классы возвращаются в `diagnostics`, а `complete` показывает полноту сканирования. Анализ инструкций и автоматическое извлечение metadata из классов пока не реализованы. Формат class-файла описан в [спецификации JVM](https://docs.oracle.com/javase/specs/jvms/se17/html/jvms-4.html).
 
-Ещё не реализовано полное разрешение зависимостей. Предварительные измерения в исходном репозитории не доказывают преимущество над XMCL во всех сценариях. YAML metadata плагинов проверены только на одном реальном Paper JAR. Текущая версия проверена на Windows и Bun 1.4.4.
+Полное разрешение графа зависимостей не входит в контракт: неизвестные условия
+возвращаются явно, без ложного подтверждения совместимости. Реальные fixtures,
+архивные лимиты и worker lifecycle проверяются отдельными наборами тестов.
+Кроссплатформенная приёмка требует фактических OS-прогонов; успешный Windows-тест
+не объявляется подтверждением macOS/Linux. Актуальные измерения — в корневом
+`benchmarks/`, а не в составе опубликованного пакета.
 

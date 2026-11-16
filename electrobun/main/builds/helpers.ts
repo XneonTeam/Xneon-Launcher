@@ -24,7 +24,7 @@ import { getCachedJarPath } from "../jar-cache"
 import { pauseScanFiles } from "@xnlc/parser"
 import type { ArchiveInput } from "@xnlc/archives"
 import { archiveService } from "../archives/service"
-import { isModpackApplying } from "./modpack-install"
+import { isModpackInstalling } from "./modpack-install"
 
 export function getBaseDataRoot(): string {
   return getLauncherDataRoot()
@@ -158,7 +158,7 @@ export async function getContentIntentDir(buildName: string): Promise<string> {
   const match = await dbHelpers.findBuildByName?.(buildName)
   const build = match ? await dbHelpers.findBuildById?.(match.id) : null
   const directory = build?.intentPath && path.isAbsolute(build.intentPath) ? build.intentPath : await ensureBuildIntentDir(buildName)
-  if (isModpackApplying(directory)) throw new Error("Modpack installation is being applied")
+  if (isModpackInstalling(directory)) throw new Error("Modpack installation owns this directory")
   return directory
 }
 
@@ -188,7 +188,7 @@ async function stageContent(intentPath: string, destination: string, write: (tem
     await write(temporary)
     signal?.throwIfAborted()
     if (operation.invalidated) throw new Error("CONTENT_WRITE_SUPERSEDED")
-    if (isModpackApplying(intentPath)) throw new Error("Modpack installation is being applied")
+    if (isModpackInstalling(intentPath)) throw new Error("Modpack installation owns this directory")
     operation.commit = fs.rename(temporary, destination)
     await operation.commit
     if (operation.invalidated) throw new Error("CONTENT_WRITE_SUPERSEDED")
@@ -409,6 +409,9 @@ export async function setContentEnabledInIntent(
 }
 
 export type ImportProgressPayload = import("@xnlc/types").ImportProgress
+const progressStageKeys: Record<string, ImportProgressPayload["phase"]> = Object.fromEntries(
+  ["preparing", "package", "files", "extracting", "copying", "scanning", "complete", "cancelling"].map(phase => [`import.phase.${phase}`, phase]),
+) as Record<string, ImportProgressPayload["phase"]>
 let importProgressContext: Pick<ImportProgressPayload, "operation" | "source" | "title" | "iconUrl"> = {}
 
 /**
@@ -439,7 +442,7 @@ export function sendImportProgress(current: number, total: number, message: stri
     if (details[key] !== undefined) Object.assign(importProgressContext, { [key]: details[key] })
   }
   // Старые отправители сохраняют совместимость; новые могут задать этап явно.
-  const phase = details.phase ?? (/отмен/i.test(message) ? "cancelling"
+  const phase = details.phase ?? progressStageKeys[message] ?? (/отмен/i.test(message) ? "cancelling"
     : /готово/i.test(message) ? "complete" : /сканир|провер/i.test(message) ? "scanning"
     : /распаков/i.test(message) ? "extracting" : /копирован/i.test(message) ? "copying"
     : /пакета|архива/i.test(message) && /скачив/i.test(message) ? "package"
@@ -450,7 +453,8 @@ export function sendImportProgress(current: number, total: number, message: stri
     phase,
     current: safeCurrent,
     total: safeTotal,
-    message: clampCountersInMessage(message),
+    message: progressStageKeys[message] ? "" : clampCountersInMessage(message),
+    messageKey: progressStageKeys[message] ? message : undefined,
   }
   if (itemName) payload.itemName = itemName
   emitToRenderer("import:progress", payload)
@@ -648,7 +652,7 @@ export function cancelImport(): boolean {
     return false
   }
   activeImportController.abort()
-  sendImportProgress(0, 1, "Отмена импорта...")
+  sendImportProgress(0, 1, "import.phase.cancelling")
   return true
 }
 

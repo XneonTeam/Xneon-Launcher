@@ -1,5 +1,5 @@
 import { useContentEnter, CONTENT_ENTER_DELAYED } from "./content-motion"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { IconRefresh, IconClock, IconDeviceGamepad2, IconHistory, IconChartBar, IconColorSwatch, IconServer, IconLoader2 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
@@ -8,6 +8,7 @@ import type { StatsOverview } from "@xnlc/types"
 import { StatsRangePicker, type StatsRange } from "@/components/launcher/stats/stats-range-picker"
 import { EntityIcon } from "@/components/launcher/instance/entity-icon"
 import { isBuiltinLogo } from "@/components/launcher/instance/builtin-logos"
+import { Pagination } from "./instance/pagination"
 
 const DAY_MS = 86_400_000
 
@@ -50,58 +51,63 @@ function EntryIcon({ icon, fallback }: { icon?: string; fallback: React.ReactNod
   )
 }
 
-function DailyChart({ data }: { data: Array<{ date: string; seconds: number }> }) {  const { t } = useTranslation()
-  const max = Math.max(1, ...data.map((d) => d.seconds))
+function DailyChart({ data }: { data: Array<{ date: string; seconds: number }> }) {
+  const { t, i18n } = useTranslation()
+  const gradientId = `stats-area-${useId().replace(/:/g, "")}`
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+  const peak = Math.max(0, ...data.map(day => day.seconds))
+  const total = data.reduce((sum, day) => sum + day.seconds, 0)
+  const activeDays = data.filter(day => day.seconds > 0).length
+  const unit = peak >= 4 * 86400 ? 86400 : peak >= 4 * 3600 ? 3600 : peak >= 4 * 60 ? 60 : 1
+  const step = Math.max(unit, Math.ceil(peak / 4 / unit) * unit)
+  const ceiling = step * 4
+  const points = data.map((day, index) => ({
+    x: data.length === 1 ? 500 : index / (data.length - 1) * 1000,
+    y: 232 - day.seconds / ceiling * 224,
+  }))
+  const line = points.map(point => `${point.x},${point.y}`).join(" ")
+  const area = points.length === 1 ? `M480 232V${points[0].y}H520V232Z`
+    : points.length ? `M0 232 ${points.map(point => `L${point.x} ${point.y}`).join(" ")} L1000 232Z` : ""
+  const selectedDay = hoveredIndex === null ? undefined : data[hoveredIndex]
+  const selectedPoint = hoveredIndex === null ? undefined : points[hoveredIndex]
+  const dateFormatter = useMemo(() => new Intl.DateTimeFormat(i18n.resolvedLanguage, { day: "numeric", month: "short" }), [i18n.resolvedLanguage])
+  const dateLabel = (date?: string) => date ? dateFormatter.format(new Date(date + "T12:00:00")) : "—"
 
   return (
-    <div data-ui="stats-page-div-6" data-component="daily-chart" className="relative">
-      {hoveredIndex !== null && data[hoveredIndex] && (
-        <div data-ui="stats-page-div-7" className="pointer-events-none absolute -top-9 left-1/2 z-10 -translate-x-1/2 rounded-lg border border-border bg-popover px-3 py-1.5 text-xs font-medium text-popover-foreground shadow-lg whitespace-nowrap">
-          {new Date(data[hoveredIndex].date + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" })}
-          {" — "}
-          {data[hoveredIndex].seconds > 0 ? formatPlaytime(data[hoveredIndex].seconds) : t("stats.noPlaytime")}
+    <div data-ui="stats-page-div-6" data-component="daily-chart" className="relative flex min-h-0 flex-1 flex-col">
+      <div className="mb-5 flex min-h-12 flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="mb-1 text-xs text-muted-foreground">{selectedDay ? dateLabel(selectedDay.date) : t("stats.periodTotal")}</p>
+          <p className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">{formatPlaytime(selectedDay?.seconds ?? total)}</p>
         </div>
-      )}
-      <div data-ui="stats-page-div-8" className="flex h-36 items-end gap-[3px]">
-        {data.map((day, index) => {
-          const height = day.seconds > 0 ? Math.max(4, (day.seconds / max) * 100) : 2
-          const isHovered = hoveredIndex === index
-          return (
-            <button data-ui="stats-page-button-1"
-              key={day.date}
-              type="button"
-              onMouseEnter={() => setHoveredIndex(index)}
-              onMouseLeave={() => setHoveredIndex(null)}
-              onFocus={() => setHoveredIndex(index)}
-              onBlur={() => setHoveredIndex(null)}
-              className="group relative flex-1 min-w-0"
-              style={{ height: "100%" }}
-              aria-label={`${day.date}: ${formatPlaytime(day.seconds)}`}
-            >
-              <div data-ui="stats-page-div-9" className="absolute bottom-0 left-0 right-0 flex items-end" style={{ height: "100%" }}>
-                <div data-ui="stats-page-div-10"
-                  className={cn(
-                    "w-full rounded-t transition-all duration-150",
-                    day.seconds > 0
-                      ? isHovered ? "bg-primary" : "bg-primary/60"
-                      : "bg-muted-foreground/15",
-                  )}
-                  style={{ height: `${height}%` }}
-                />
-              </div>
-            </button>
-          )
-        })}
+        <p className="pb-1 text-xs tabular-nums text-muted-foreground">{t("stats.activeDays", { count: activeDays, total: data.length })}</p>
       </div>
-      <div data-ui="stats-page-div-11" className="mt-1.5 flex justify-between text-[10px] text-muted-foreground">
-        <span data-ui="stats-page-span-1">{new Date(data[0]?.date + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
-        <span data-ui="stats-page-span-2">
-          {data.length > 0
-            ? `${data.length} ${data.length === 1 ? "day" : "days"}`
-            : t("stats.last30days")}
-        </span>
-        <span data-ui="stats-page-span-3">{new Date(data[data.length - 1]?.date + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
+      <div data-ui="stats-page-div-8" className="relative min-h-48 flex-1">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-14">
+          {[4, 3, 2, 1, 0].map(tick => <span key={tick} className="absolute left-0 -translate-y-1/2 whitespace-nowrap text-[10px] tabular-nums text-muted-foreground/70"
+            style={{ top: `${(232 - tick / 4 * 224) / 240 * 100}%` }}>{peak > 0 || tick === 0 ? formatPlaytime(tick * step) : ""}</span>)}
+        </div>
+        <div className="absolute inset-y-0 left-16 right-0" onPointerLeave={() => setHoveredIndex(null)}>
+          <svg viewBox="0 0 1000 240" preserveAspectRatio="none" role="img" aria-label={t("stats.activityChart")} className="absolute inset-0 h-full w-full overflow-visible">
+            <defs><linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="var(--primary)" stopOpacity="0.28" /><stop offset="100%" stopColor="var(--primary)" stopOpacity="0.02" /></linearGradient></defs>
+            {[4, 3, 2, 1, 0].map(tick => <line key={tick} x1="0" x2="1000" y1={232 - tick / 4 * 224} y2={232 - tick / 4 * 224}
+              stroke="var(--border)" strokeOpacity={tick === 0 ? 0.8 : 0.45} strokeDasharray={tick === 0 ? undefined : "3 5"} vectorEffect="non-scaling-stroke" />)}
+            {peak > 0 && <><path d={area} fill={`url(#${gradientId})`} /><polyline points={line} fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" /></>}
+            {selectedPoint && <line x1={selectedPoint.x} x2={selectedPoint.x} y1="8" y2="232" stroke="var(--primary)" strokeOpacity="0.4" strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />}
+          </svg>
+          {selectedPoint && <span aria-hidden="true" className="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-primary bg-card"
+            style={{ left: `${selectedPoint.x / 10}%`, top: `${selectedPoint.y / 240 * 100}%` }} />}
+          {peak === 0 && <p className="pointer-events-none absolute inset-0 flex items-center justify-center px-3 text-center text-xs text-muted-foreground">{t("stats.noActivity")}</p>}
+          <div className="absolute inset-0 flex">{data.map((day, index) => <button data-ui="stats-page-button-1" key={day.date} type="button"
+            aria-label={`${dateLabel(day.date)}: ${formatPlaytime(day.seconds)}`}
+            className="min-w-0 flex-1 border-0 bg-transparent p-0 outline-none focus-visible:bg-primary/5"
+            onPointerEnter={() => setHoveredIndex(index)} onClick={() => setHoveredIndex(index)} onFocus={() => setHoveredIndex(index)} onBlur={() => setHoveredIndex(null)} />)}</div>
+        </div>
+      </div>
+      <div data-ui="stats-page-div-11" className="ml-16 mt-3 flex justify-between gap-2 text-[10px] tabular-nums text-muted-foreground">
+        <span data-ui="stats-page-span-1">{dateLabel(data[0]?.date)}</span>
+        {data.length > 3 && <span>{dateLabel(data[Math.floor((data.length - 1) / 2)]?.date)}</span>}
+        <span data-ui="stats-page-span-3">{dateLabel(data[data.length - 1]?.date)}</span>
       </div>
     </div>
   )
@@ -115,16 +121,25 @@ type RankingEntry = {
   sessions: number
 }
 
-function RankingList({ entries, emptyKey, maxSeconds }: { entries: RankingEntry[]; emptyKey: string; maxSeconds: number }) {
+function RankingList({ entries, emptyKey, maxSeconds, pageSize, rowHeight, rowGap }: {
+  entries: RankingEntry[]; emptyKey: string; maxSeconds: number; pageSize: number; rowHeight: number; rowGap: number
+}) {
   const { t } = useTranslation()
+  // При resize сохраняем страницу, содержащую прежнюю первую запись.
+  const [firstItem, setFirstItem] = useState(0)
+  const pageCount = Math.max(1, Math.ceil(entries.length / pageSize))
+  const page = Math.min(Math.floor(firstItem / pageSize), pageCount - 1)
+  const start = page * pageSize
+  const slots = Math.min(entries.length, pageSize)
   if (entries.length === 0) {
     return <p data-ui="stats-page-p-1" data-component="ranking-list" className="py-8 text-center text-sm text-muted-foreground">{t(emptyKey)}</p>
   }
   return (
-    <div data-ui="stats-page-div-12" data-component="ranking-list" className="space-y-3">
-      {entries.map((entry, index) => (
-        <div data-ui="stats-page-div-13" key={entry.id} className="flex items-center gap-3 rounded-xl border border-border bg-card p-2.5">
-          <span data-ui="stats-page-span-4" className="w-5 shrink-0 text-center text-sm font-bold text-muted-foreground">{index + 1}</span>
+    <div data-ui="stats-page-div-12" data-component="ranking-list" className="flex min-h-0 flex-1 flex-col">
+      <div className="space-y-3" style={{ minHeight: slots * rowHeight + Math.max(0, slots - 1) * rowGap }}>
+      {entries.slice(start, start + pageSize).map((entry, index) => (
+        <div data-ui="stats-page-div-13" data-component="ranking-entry" key={entry.id} className="flex items-center gap-3 rounded-xl border border-border bg-card p-2.5">
+          <span data-ui="stats-page-span-4" className="w-5 shrink-0 text-center text-sm font-bold text-muted-foreground">{start + index + 1}</span>
           <EntryIcon icon={entry.icon} fallback={<IconColorSwatch className="h-4 w-4" strokeWidth={1.75} />} />
           <div data-ui="stats-page-div-14" className="min-w-0 flex-1">
             <div data-ui="stats-page-div-15" className="flex items-baseline justify-between gap-2">
@@ -142,6 +157,79 @@ function RankingList({ entries, emptyKey, maxSeconds }: { entries: RankingEntry[
           </div>
         </div>
       ))}
+      </div>
+      {pageCount > 1 && <nav data-component="ranking-pagination" aria-label={t("stats.rankingPagination")} className="mt-4 shrink-0">
+        <Pagination currentPage={page} totalPages={pageCount} onPageChange={next => setFirstItem(next * pageSize)} className="flex-wrap py-0" />
+      </nav>}
+    </div>
+  )
+}
+
+/** Размер одной страницы задаёт высоту пары карточек, а не весь рейтинг. */
+function StatsRankingPanels({ activityTitle, rankingTitle, activity, entries, emptyKey, maxSeconds, serverTotal }: {
+  activityTitle: string; rankingTitle: string; activity: Array<{ date: string; seconds: number }>
+  entries: RankingEntry[]; emptyKey: string; maxSeconds: number; serverTotal?: string
+}) {
+  const gridRef = useRef<HTMLDivElement>(null)
+  const rankingRef = useRef<HTMLElement>(null)
+  const [layout, setLayout] = useState({ pageSize: 5, rowHeight: 58, rowGap: 12 })
+  const isServer = serverTotal !== undefined
+
+  useEffect(() => {
+    const grid = gridRef.current
+    const ranking = rankingRef.current
+    const viewport = grid?.closest<HTMLElement>("[data-stats-scroll]")
+    const heading = ranking?.querySelector<HTMLElement>("[data-ranking-heading]")
+    if (!grid || !ranking || !viewport || !heading) return
+    let frame = 0
+    const measure = () => {
+      frame = 0
+      // Скрытые страницы Activity могут временно иметь нулевые размеры.
+      if (viewport.clientHeight === 0 || grid.clientWidth === 0) return
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+      const rowHeight = ranking.querySelector<HTMLElement>("[data-component='ranking-entry']")?.getBoundingClientRect().height || 3.625 * rem
+      const rowGap = 0.75 * rem
+      const style = getComputedStyle(ranking)
+      const headingStyle = getComputedStyle(heading)
+      const chrome = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
+        + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth)
+        + heading.getBoundingClientRect().height + parseFloat(headingStyle.marginBottom) + 3 * rem
+      // Родитель relative: offsetTop не зависит от прокрутки/анимации входа.
+      const stacked = getComputedStyle(grid).gridTemplateColumns.split(/\s+/).length === 1
+      const chartHeight = stacked ? grid.children[0].getBoundingClientRect().height + 1.25 * rem : 0
+      const available = viewport.clientHeight - grid.offsetTop - chartHeight - 0.5 * rem
+      const pageSize = Math.max(2, Math.floor((available - chrome + rowGap) / (rowHeight + rowGap)))
+      setLayout(current => current.pageSize === pageSize && current.rowHeight === rowHeight && current.rowGap === rowGap
+        ? current : { pageSize, rowHeight, rowGap })
+    }
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(measure) }
+    const observer = new ResizeObserver(schedule)
+    observer.observe(viewport)
+    observer.observe(heading)
+    window.addEventListener("resize", schedule)
+    schedule()
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener("resize", schedule) }
+  }, [entries.length])
+
+  return (
+    <div ref={gridRef} data-ui={isServer ? "stats-page-div-32" : "stats-page-div-29"} data-component="stats-ranking-panels" className="grid items-stretch gap-5 lg:grid-cols-2">
+      <section data-ui={isServer ? "stats-page-section-3" : "stats-page-section-1"} className="flex min-w-0 flex-col rounded-2xl border border-border bg-card p-5">
+        <h2 data-ui={isServer ? "stats-page-h2-3" : "stats-page-h2-1"} className="mb-4 flex min-h-6 shrink-0 items-center gap-2 text-base font-semibold text-foreground">
+          <IconChartBar className="h-5 w-5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
+          <span>{activityTitle}</span>
+        </h2>
+        <DailyChart data={activity} />
+      </section>
+      <section ref={rankingRef} data-ui={isServer ? "stats-page-section-4" : "stats-page-section-2"} className="flex min-w-0 flex-col rounded-2xl border border-border bg-card p-5">
+        <div data-ranking-heading data-ui={isServer ? "stats-page-div-33" : undefined} className="mb-4 flex min-h-6 shrink-0 items-center gap-2">
+          {isServer
+            ? <IconServer className="h-5 w-5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
+            : <IconColorSwatch className="h-5 w-5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />}
+          <h2 data-ui={isServer ? "stats-page-h2-4" : "stats-page-h2-2"} className="text-base font-semibold text-foreground">{rankingTitle}</h2>
+          {serverTotal && <span data-ui="stats-page-span-7" className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">{serverTotal}</span>}
+        </div>
+        <RankingList entries={entries} emptyKey={emptyKey} maxSeconds={maxSeconds} {...layout} />
+      </section>
     </div>
   )
 }
@@ -258,7 +346,7 @@ export function StatsPage() {
         </div>
       </div>
 
-      <div key={activeTab} data-ui="stats-page-div-25" className={cn("min-h-0 flex-1 overflow-y-auto pr-2", contentEnter)}>
+      <div key={activeTab} data-ui="stats-page-div-25" data-stats-scroll className={cn("relative min-h-0 flex-1 overflow-y-auto pr-2", contentEnter)}>
         {!stats ? (
           <div data-ui="stats-page-div-26" className="flex min-h-full items-center justify-center">
             <IconLoader2 className="h-6 w-6 text-primary animate-spin" strokeWidth={1.75} />
@@ -291,21 +379,11 @@ export function StatsPage() {
               />
             </div>
 
-            <div data-ui="stats-page-div-29" className="grid gap-5 lg:grid-cols-2">
-              <section data-ui="stats-page-section-1" className="rounded-2xl border border-border bg-card p-5">
-                <h2 data-ui="stats-page-h2-1" className="mb-4 text-base font-semibold text-foreground">{t("stats.activityTitle")}</h2>
-                <DailyChart data={stats.dailyPlaytime} />
-              </section>
-
-              <section data-ui="stats-page-section-2" className="rounded-2xl border border-border bg-card p-5">
-                <h2 data-ui="stats-page-h2-2" className="mb-4 text-base font-semibold text-foreground">{t("stats.topBuilds")}</h2>
-                <RankingList
-                  entries={stats.topBuilds.map((b) => ({ id: b.buildId, name: b.name, icon: b.icon, seconds: b.seconds, sessions: b.sessions }))}
-                  emptyKey="stats.noSessionsYet"
-                  maxSeconds={maxTopSeconds}
-                />
-              </section>
-            </div>
+            <StatsRankingPanels key={`${range.from}:${range.to}`}
+              activityTitle={t("stats.activityTitle", { count: stats.dailyPlaytime.length })}
+              rankingTitle={t("stats.topBuilds")} activity={stats.dailyPlaytime}
+              entries={stats.topBuilds.map(b => ({ id: b.buildId, name: b.name, icon: b.icon, seconds: b.seconds, sessions: b.sessions }))}
+              emptyKey="stats.noSessionsYet" maxSeconds={maxTopSeconds} />
           </div>
         ) : (
           <div data-ui="stats-page-div-30" className="space-y-5">
@@ -335,29 +413,12 @@ export function StatsPage() {
               />
             </div>
 
-            <div data-ui="stats-page-div-32" className="grid gap-5 lg:grid-cols-2">
-              <section data-ui="stats-page-section-3" className="rounded-2xl border border-border bg-card p-5">
-                <h2 data-ui="stats-page-h2-3" className="mb-4 text-base font-semibold text-foreground">{t("stats.serverActivityTitle", { range: serverActivityRange })}</h2>
-                <DailyChart data={stats.dailyServerUptime ?? []} />
-              </section>
-
-              <section data-ui="stats-page-section-4" className="rounded-2xl border border-border bg-card p-5">
-                <div data-ui="stats-page-div-33" className="mb-4 flex items-center gap-2">
-                  <IconServer className="h-5 w-5 text-primary" strokeWidth={1.75} />
-                  <h2 data-ui="stats-page-h2-4" className="text-base font-semibold text-foreground">{t("stats.topServers")}</h2>
-                  {stats.serverTotalUptime > 0 && (
-                    <span data-ui="stats-page-span-7" className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                      {formatPlaytime(stats.serverTotalUptime)}
-                    </span>
-                  )}
-                </div>
-                <RankingList
-                  entries={stats.topServers.map((s) => ({ id: s.serverId, name: s.name, icon: s.icon, seconds: s.seconds, sessions: s.sessions }))}
-                  emptyKey="stats.noServersYet"
-                  maxSeconds={maxServerSeconds}
-                />
-              </section>
-            </div>
+            <StatsRankingPanels key={`${range.from}:${range.to}`}
+              activityTitle={t("stats.serverActivityTitle", { range: serverActivityRange })}
+              rankingTitle={t("stats.topServers")} activity={stats.dailyServerUptime ?? []}
+              entries={stats.topServers.map(s => ({ id: s.serverId, name: s.name, icon: s.icon, seconds: s.seconds, sessions: s.sessions }))}
+              emptyKey="stats.noServersYet" maxSeconds={maxServerSeconds}
+              serverTotal={stats.serverTotalUptime > 0 ? formatPlaytime(stats.serverTotalUptime) : ""} />
           </div>
         )}
       </div>

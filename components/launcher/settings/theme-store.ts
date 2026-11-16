@@ -2,6 +2,8 @@ import { createContext, createElement, useContext, useCallback, useEffect, useLa
 import type { Theme } from "./types"
 import { mergeLocalThemes, themeFromLocalFile } from "./theme-local"
 import { presetThemes } from "./data"
+import { EVENT_THEME_SETTING, SELECTED_THEME_SETTING, LIVEOPS_AUTO_APPLY_SETTING, parseEventTheme, refFromThemeId } from "@/lib/liveops-theme-refs"
+export { SELECTED_THEME_SETTING } from "@/lib/liveops-theme-refs"
 import {
   applyTheme,
   createCustomTheme,
@@ -23,8 +25,8 @@ import {
  */
 
 export const CUSTOM_THEMES_SETTING = "customThemes"
-export const SELECTED_THEME_SETTING = "theme"
 export const DEFAULT_THEME_ID = presetThemes[0]?.id ?? "orange"
+const THEME_SETTINGS = [SELECTED_THEME_SETTING, EVENT_THEME_SETTING, LIVEOPS_AUTO_APPLY_SETTING]
 
 /** Старые варианты Core объединены в один пресет с основой Deep. */
 function normalizePresetId(id: string): string {
@@ -35,6 +37,8 @@ function normalizePresetId(id: string): string {
 // которая была прочитана и применена до первого рендера приложения.
 let cachedCustomThemes: Theme[] | undefined
 let cachedSelectedTheme: string | undefined
+let cachedEventTheme: Theme | null = null
+let cachedAutoApplyLiveops = true
 let initialized = false
 let cachedLocalSnapshot: import("@xnlc/types").LocalThemeSnapshot | undefined
 const pendingThemeWrites = new Set<string>()
@@ -101,31 +105,39 @@ export function persistCustomThemes(themes: Theme[]): void {
   }
 }
 
-export function persistSelectedTheme(id: string): void {
+export async function persistSelectedTheme(id: string): Promise<void> {
   id = normalizePresetId(id)
+  const ref = refFromThemeId(id)
+  if (!ref) throw new Error("Invalid theme reference")
+  const api = window.electrobunAPI
+  if (api?.liveopsSelect) id = (await api.liveopsSelect(ref)).selected ?? id
+  else if (api) await api.setSetting(SELECTED_THEME_SETTING, id)
   cachedSelectedTheme = id
   try {
     window.localStorage.setItem(SELECTED_THEME_SETTING, id)
   } catch {
     /* см. выше */
   }
-  void window.electrobunAPI?.setSetting(SELECTED_THEME_SETTING, id)
 }
 
 /** Пресеты вместе с кастомными темами; кастомная тема с тем же id перекрывает пресет. */
-export function allThemes(custom: Theme[]): Theme[] {
-  return mergeThemes(presetThemes, custom)
+export function allThemes(custom: Theme[], eventTheme: Theme | null = cachedEventTheme): Theme[] {
+  return mergeThemes(mergeThemes(presetThemes, custom), eventTheme ? [eventTheme] : [])
 }
 
 /** БД — источник истины; тема и её CSS применяются до монтирования React. */
 export async function initializeTheme(): Promise<void> {
-  const [customThemes, storedId] = await Promise.all([
+  const [customThemes, settings] = await Promise.all([
     loadCustomThemes(),
-    window.electrobunAPI?.getSetting(SELECTED_THEME_SETTING).catch(() => undefined),
+    window.electrobunAPI?.getSettings(THEME_SETTINGS).catch(() => undefined),
   ])
+  const storedId = settings?.[SELECTED_THEME_SETTING]
+  cachedEventTheme = parseEventTheme(settings?.[EVENT_THEME_SETTING])
+  cachedAutoApplyLiveops = settings?.[LIVEOPS_AUTO_APPLY_SETTING] !== "false"
   cachedCustomThemes = customThemes
   cachedSelectedTheme = normalizePresetId(storedId ?? readLocalSelectedTheme())
-  if (storedId && storedId !== cachedSelectedTheme) persistSelectedTheme(cachedSelectedTheme)
+  // Совместимость старого ID — только локальное отображение, не ручной выбор.
+  // Запись через liveopsSelect здесь могла бы отклонить уже пришедший в фоне ивент.
   try {
     localStorage.setItem(CUSTOM_THEMES_SETTING, serializeThemes(customThemes))
     localStorage.setItem(SELECTED_THEME_SETTING, cachedSelectedTheme)
@@ -141,10 +153,12 @@ export interface ThemeRegistry {
   customThemes: Theme[]
   selectedThemeId: string
   selectedTheme: Theme
+  autoApplyLiveops: boolean
+  setAutoApplyLiveops: (enabled: boolean) => Promise<void>
   /** Кастомные темы прочитаны из хранилища (иначе список может мигнуть пустым). */
   ready: boolean
   localErrors: string[]
-  selectTheme: (id: string) => void
+  selectTheme: (id: string) => Promise<void>
   /** Создать или обновить свою тему (по id). */
   saveTheme: (theme: Theme) => Promise<void>
   deleteTheme: (id: string) => Promise<void>
@@ -161,10 +175,12 @@ export interface ThemeRegistry {
 function useThemeRegistryState(): ThemeRegistry {
   const [customThemes, setCustomThemes] = useState<Theme[]>(() => readLocalCustomThemes())
   const [selectedThemeId, setSelectedThemeId] = useState<string>(() => readLocalSelectedTheme())
+  const [eventTheme, setEventTheme] = useState<Theme | null>(() => cachedEventTheme)
+  const [autoApplyLiveops, setAutoApplyLiveopsState] = useState(() => cachedAutoApplyLiveops)
   const [ready, setReady] = useState(initialized)
   const [localErrors, setLocalErrors] = useState<string[]>([])
 
-  const themes = useMemo(() => allThemes(customThemes), [customThemes])
+  const themes = useMemo(() => allThemes(customThemes, eventTheme), [customThemes, eventTheme])
   const selectedTheme = useMemo(
     () => findTheme(themes, selectedThemeId) ?? findTheme(themes, DEFAULT_THEME_ID) ?? presetThemes[0],
     [themes, selectedThemeId]
@@ -175,11 +191,16 @@ function useThemeRegistryState(): ThemeRegistry {
     if (initialized) return
     let cancelled = false
     void (async () => {
-      const [storedThemes, storedTheme] = await Promise.all([
+      const [storedThemes, settings] = await Promise.all([
         loadCustomThemes(),
-        window.electrobunAPI?.getSetting(SELECTED_THEME_SETTING).catch(() => undefined),
+        window.electrobunAPI?.getSettings(THEME_SETTINGS).catch(() => undefined),
       ])
       if (cancelled) return
+      const storedTheme = settings?.[SELECTED_THEME_SETTING]
+      cachedEventTheme = parseEventTheme(settings?.[EVENT_THEME_SETTING])
+      cachedAutoApplyLiveops = settings?.[LIVEOPS_AUTO_APPLY_SETTING] !== "false"
+      setAutoApplyLiveopsState(cachedAutoApplyLiveops)
+      setEventTheme(cachedEventTheme)
       cachedCustomThemes = storedThemes
       if (storedTheme !== undefined) cachedSelectedTheme = normalizePresetId(storedTheme)
       setCustomThemes(storedThemes)
@@ -220,11 +241,19 @@ function useThemeRegistryState(): ThemeRegistry {
 
   // Изменения из main: тема и список своих тем (например, их правит агент).
   useEffect(() => {
+    let revision = 0
     const off = window.electrobunAPI?.onSettingsUpdated?.(({ key, value }) => {
+      if (THEME_SETTINGS.includes(key)) revision++
       if (key === SELECTED_THEME_SETTING) {
-        cachedSelectedTheme = value
-        try { window.localStorage.setItem(SELECTED_THEME_SETTING, value) } catch { /* БД остаётся источником правды. */ }
-        setSelectedThemeId(value)
+        cachedSelectedTheme = normalizePresetId(value)
+        try { window.localStorage.setItem(SELECTED_THEME_SETTING, cachedSelectedTheme) } catch { /* БД остаётся источником правды. */ }
+        setSelectedThemeId(cachedSelectedTheme)
+      } else if (key === EVENT_THEME_SETTING) {
+        cachedEventTheme = parseEventTheme(value)
+        setEventTheme(cachedEventTheme)
+      } else if (key === LIVEOPS_AUTO_APPLY_SETTING) {
+        cachedAutoApplyLiveops = value !== "false"
+        setAutoApplyLiveopsState(cachedAutoApplyLiveops)
       } else if (key === CUSTOM_THEMES_SETTING) {
         const pendingWrite = pendingThemeWrites.has(value)
         if (pendingWrite && serializeThemes(cachedCustomThemes ?? []) !== value) return
@@ -242,12 +271,30 @@ function useThemeRegistryState(): ThemeRegistry {
         })
       }
     })
-    return () => off?.()
+    // Закрываем окно между initializeTheme и установкой push-подписки.
+    let alive = true
+    const initialRevision = revision
+    void window.electrobunAPI?.getSettings(THEME_SETTINGS).then(settings => {
+      if (!alive || revision !== initialRevision) return
+      cachedEventTheme = parseEventTheme(settings[EVENT_THEME_SETTING])
+      setEventTheme(cachedEventTheme)
+      cachedAutoApplyLiveops = settings[LIVEOPS_AUTO_APPLY_SETTING] !== "false"
+      setAutoApplyLiveopsState(cachedAutoApplyLiveops)
+      const id = settings[SELECTED_THEME_SETTING]
+      if (id) { cachedSelectedTheme = normalizePresetId(id); setSelectedThemeId(cachedSelectedTheme) }
+    }).catch(() => {})
+    return () => { alive = false; off?.() }
   }, [])
 
-  const selectTheme = useCallback((id: string) => {
-    setSelectedThemeId(id)
-    persistSelectedTheme(id)
+  const selectTheme = useCallback(async (id: string) => {
+    await persistSelectedTheme(id)
+    setSelectedThemeId(readLocalSelectedTheme())
+  }, [])
+
+  const setAutoApplyLiveops = useCallback(async (enabled: boolean) => {
+    await window.electrobunAPI?.setSetting(LIVEOPS_AUTO_APPLY_SETTING, String(enabled))
+    cachedAutoApplyLiveops = enabled
+    setAutoApplyLiveopsState(enabled)
   }, [])
 
   const saveTheme = useCallback(async (theme: Theme) => {
@@ -263,6 +310,7 @@ function useThemeRegistryState(): ThemeRegistry {
   }, [])
 
   const deleteTheme = useCallback(async (id: string) => {
+    if (selectedThemeId === id) await selectTheme(DEFAULT_THEME_ID)
     const theme = customThemes.find(item => item.id === id)
     if (theme?.localFile) await window.electrobunAPI?.deleteLocalTheme?.(theme.localFile)
     setCustomThemes((current) => {
@@ -270,12 +318,7 @@ function useThemeRegistryState(): ThemeRegistry {
       persistCustomThemes(next)
       return next
     })
-    setSelectedThemeId((current) => {
-      if (current !== id) return current
-      persistSelectedTheme(DEFAULT_THEME_ID)
-      return DEFAULT_THEME_ID
-    })
-  }, [customThemes])
+  }, [customThemes, selectedThemeId, selectTheme])
 
   const makeTheme = useCallback(
     (name: string, base?: Theme | null) =>
@@ -307,6 +350,8 @@ function useThemeRegistryState(): ThemeRegistry {
     customThemes,
     selectedThemeId,
     selectedTheme,
+    autoApplyLiveops,
+    setAutoApplyLiveops,
     ready,
     localErrors,
     selectTheme,

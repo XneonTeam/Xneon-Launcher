@@ -2,7 +2,10 @@
 export class BoundedCache<K, V> {
   private readonly entries = new Map<K, { value: V; weight: number; expires: number }>()
   private totalWeight = 0
-  constructor(private readonly options: { capacity: number; maxWeight?: number; weight?: (value: V) => number; ttlMs?: number; now?: () => number }) {}
+  constructor(private readonly options: { capacity: number; maxWeight?: number; weight?: (value: V) => number; ttlMs?: number; now?: () => number }) {
+    if (!Number.isSafeInteger(options.capacity) || options.capacity < 1) throw new Error("Invalid cache capacity")
+    if (options.maxWeight !== undefined && (Number.isNaN(options.maxWeight) || options.maxWeight < 0)) throw new Error("Invalid cache budget")
+  }
   get size(): number { return this.entries.size }
   get weight(): number { return this.totalWeight }
   private now() { return this.options.now?.() ?? Date.now() }
@@ -21,6 +24,7 @@ export class BoundedCache<K, V> {
     return true
   }
   set(key: K, value: V, ttlMs = this.options.ttlMs ?? Infinity): this {
+    if (Number.isNaN(ttlMs) || ttlMs < 0) throw new Error("Invalid cache TTL")
     this.delete(key)
     const weight = this.options.weight?.(value) ?? 1
     if (!Number.isFinite(weight) || weight < 0) throw new Error("Invalid cache weight")

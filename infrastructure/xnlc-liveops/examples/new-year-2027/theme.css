@@ -1,0 +1,228 @@
+
+:root {
+  --theme-titlebar: #101d2c;
+  --destructive: #ef8a95;
+  --destructive-foreground: #19121b;
+  --warning: #e9bf70;
+  --success: #89d0ad;
+  --info: #91c8e8;
+  --ring: #d7ad55;
+  --sidebar-ring: #d7ad55;
+  --xnl-ny27-gold: #d7ad55;
+  --xnl-ny27-ice: #91c8e8;
+}
+
+/* Неподвижная сцена: она остаётся и при reduced motion. */
+#theme-background {
+  background: #0b1220;
+  background-image: radial-gradient(ellipse at 88% 8%, #91c8e80d, transparent 44%),
+    radial-gradient(ellipse at 12% 84%, #2d665e20, transparent 48%);
+}
+#theme-background::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201440%20520%22%20fill%3D%22none%22%3E%0A%3Cdefs%3E%3ClinearGradient%20id%3D%22night%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%230B1220%22%20stop-opacity%3D%220%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23152B42%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22pine%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23244C49%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23102B32%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%0A%3Cpath%20fill%3D%22url(%23night)%22%20d%3D%22M0%200h1440v520H0z%22%2F%3E%0A%3Ccircle%20cx%3D%221165%22%20cy%3D%2292%22%20r%3D%2230%22%20fill%3D%22%23B9D6E4%22%20opacity%3D%22.18%22%2F%3E%0A%3Cpath%20d%3D%22M0%20374L180%20320%20310%20353%20465%20297%20614%20348%20804%20285%20970%20330%201110%20273%201260%20316%201440%20257v263H0z%22%20fill%3D%22%231B3548%22%20opacity%3D%22.6%22%2F%3E%0A%3Cg%20fill%3D%22%23142A3D%22%20stroke%3D%22%23466075%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22M74%20404V294l60-36%2061%2036v110M260%20404V253h72v151M405%20404V284l44-30%2046%2030v120M601%20404V235h81v169M775%20404V272l70-37%2069%2037v132M1037%20404V247h87v157M1226%20404V281l63-33%2064%2033v123%22%2F%3E%3C%2Fg%3E%0A%3Cg%20stroke%3D%22%23ADBDC7%22%20stroke-opacity%3D%22.55%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M68%20293l67-38%2065%2038M256%20252h80M401%20284l48-33%2049%2033M597%20234h88M771%20272l74-40%2074%2040M1033%20246h94M1222%20280l67-35%2068%2035%22%2F%3E%3C%2Fg%3E%0A%3Cg%20fill%3D%22%23D7AD55%22%20opacity%3D%22.46%22%3E%3Cpath%20d%3D%22M100%20318h10v17h-10zM153%20318h10v17h-10zM100%20356h10v17h-10zM280%20277h12v20h-12zM306%20316h12v20h-12zM433%20304h10v16h-10zM460%20341h10v16h-10zM622%20262h12v19h-12zM651%20300h12v19h-12zM622%20344h12v19h-12zM803%20300h12v19h-12zM873%20300h12v19h-12zM837%20346h12v19h-12zM1058%20272h12v19h-12zM1089%20316h12v19h-12zM1252%20307h12v19h-12zM1307%20349h12v19h-12z%22%2F%3E%3C%2Fg%3E%0A%3Cpath%20d%3D%22M0%20426Q180%20395%20350%20427T680%20420T1020%20431T1440%20416v104H0z%22%20fill%3D%22%23203B4B%22%2F%3E%0A%3Cpath%20d%3D%22M0%20425Q180%20394%20350%20426T680%20419T1020%20430T1440%20415%22%20stroke%3D%22%23B4CFDA%22%20stroke-opacity%3D%22.34%22%20stroke-width%3D%223%22%2F%3E%0A%3Cg%20fill%3D%22url(%23pine)%22%3E%3Cpath%20d%3D%22M185%20442h150l-36-51h25l-38-54h22l-48-75-48%2075h22l-38%2054h25zM917%20455h185l-43-62h28l-45-65h25l-58-89-58%2089h25l-45%2065h29zM1312%20459h108l-26-37h18l-28-39h16l-34-54-35%2054h16l-28%2039h18z%22%2F%3E%3C%2Fg%3E%0A%3Cg%20stroke%3D%22%23B1CAD3%22%20stroke-opacity%3D%22.45%22%20stroke-linecap%3D%22round%22%20stroke-width%3D%223%22%3E%3Cpath%20d%3D%22M233%20334l27-42%2027%2042M221%20389h78M973%20325l36-57%2036%2057M958%20392h102%22%2F%3E%3C%2Fg%3E%0A%3Cg%20fill%3D%22%23D7AD55%22%20opacity%3D%22.65%22%3E%3Ccircle%20cx%3D%22248%22%20cy%3D%22367%22%20r%3D%223%22%2F%3E%3Ccircle%20cx%3D%22278%22%20cy%3D%22399%22%20r%3D%223%22%2F%3E%3Ccircle%20cx%3D%22997%22%20cy%3D%22357%22%20r%3D%223%22%2F%3E%3Ccircle%20cx%3D%221035%22%20cy%3D%22392%22%20r%3D%223%22%2F%3E%3Ccircle%20cx%3D%22982%22%20cy%3D%22425%22%20r%3D%223%22%2F%3E%3C%2Fg%3E%0A%3Cpath%20d%3D%22M0%20493Q220%20458%20479%20492T920%20486T1440%20487v33H0z%22%20fill%3D%22%23395164%22%20opacity%3D%22.5%22%2F%3E%0A%3C%2Fsvg%3E") right bottom / max(100%, 1150px) auto no-repeat;
+  opacity: .66;
+}
+/* Штатный halo уступает место локальной иллюстрации; canvas не запускается. */
+#theme-background .theme-halo { display: none; }
+
+/* Два снежных плана вместо десятков элементов/JS-цикла. Только transform. */
+#theme-background::after,
+#launcher-root::before {
+  content: "";
+  position: absolute;
+  inset: -240px -40px 0;
+  pointer-events: none;
+  background-repeat: repeat;
+  animation: xnl-ny27-snow 32s linear infinite;
+  will-change: auto;
+}
+#theme-background::after {
+  background-image: radial-gradient(circle at 23px 27px, #dcebf3ad 0 1px, transparent 1.6px),
+    radial-gradient(circle at 133px 89px, #dcebf388 0 1.6px, transparent 2px),
+    radial-gradient(circle at 74px 159px, #dcebf370 0 .8px, transparent 1.4px);
+  background-size: 219px 240px;
+  opacity: .38;
+}
+#launcher-root { position: relative; isolation: isolate; }
+#launcher-root::before {
+  z-index: 2;
+  background-image: radial-gradient(circle at 79px 63px, #eef7ff 0 2px, transparent 2.7px),
+    radial-gradient(circle at 269px 173px, #eef7ff88 0 1px, transparent 1.8px);
+  background-size: 383px 240px;
+  opacity: .12;
+  animation-duration: 21s;
+  animation-delay: -11s;
+}
+@keyframes xnl-ny27-snow { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(24px, 240px, 0); } }
+
+/* Хвойная навигация. Геометрия и hit area не меняются. */
+#launcher-sidebar {
+  background: linear-gradient(180deg, #123039, #0e2329 40%, #0c2027);
+  border-right-color: #44605a;
+  box-shadow: inset -1px 0 #d7ad550d;
+}
+.sidebar-item-btn[data-active="true"] {
+  color: #efce86;
+  background: linear-gradient(135deg, #d7ad552b, #d7ad550c);
+  box-shadow: inset 0 0 0 1px #d7ad5540;
+}
+.sidebar-tooltip { border-color: #736646; }
+
+/* Гирлянда — одна статичная текстура, без мигания и новых DOM-узлов. */
+.launcher-page-header {
+  position: relative;
+  border-color: #44566b;
+  background: linear-gradient(120deg, #183045, #142337);
+  background-image: radial-gradient(circle at 18px 0, #d7ad5570 0 2px, transparent 3px),
+    radial-gradient(circle at 68px 0, #91c8e860 0 2px, transparent 3px),
+    radial-gradient(circle at 118px 0, #c83f4f70 0 2px, transparent 3px), linear-gradient(120deg, #183045, #142337);
+  background-size: 150px 12px, 150px 12px, 150px 12px, 100% 100%;
+  background-repeat: repeat-x, repeat-x, repeat-x, no-repeat;
+  box-shadow: inset 0 1px #d7ad5530;
+}
+
+/* Иней на карточках: без opacity/filter над текстом и без layout shift. */
+:is([data-component="build-card"], [data-component="news-card"], [data-component="account-card"],
+  [data-component="skin-card"], [data-component="stat-card"], [data-component="quick-play-section"],
+  [data-component="setting-group"], [data-component="theme-card"], [data-component="cloud-provider-card"],
+  [data-component="share-instance-card"]) {
+  border-color: #34495e;
+  box-shadow: inset 0 1px #d8eaf312, 0 6px 18px #030b1418;
+}
+:is([data-component="build-card"], [data-component="news-card"], [data-component="skin-card"],
+  [data-component="theme-card"]):hover { border-color: #97815a; }
+[data-component="addon-row"] { border-color: #34495e; }
+[data-component="theme-card"][data-selected="true"] {
+  border-color: #d7ad55;
+  box-shadow: inset 0 1px #f9e7bd30, 0 0 0 1px #d7ad551a;
+}
+
+/* Золото — только главные кнопки; красный/нейтральный смысл сохраняется. */
+button:is([class~="bg-primary"], [class~="agent-primary"]):not(:disabled):not([aria-disabled="true"]) {
+  color: #191c16;
+  background-color: #d7ad55;
+  background-image: linear-gradient(115deg, #ecd192, #d7ad55 60%, #c69a45);
+  box-shadow: inset 0 1px #fff0cb80, 0 3px 12px #d7ad551c;
+}
+button:is([class~="bg-primary"], [class~="agent-primary"]):not(:disabled):hover {
+  background-image: linear-gradient(115deg, #f2dca7, #e4be6c 60%, #d0a24b);
+  box-shadow: inset 0 1px #fff0cba0, 0 4px 16px #d7ad5530;
+}
+button:is([class~="bg-primary"], [class~="agent-primary"]):not(:disabled):active { box-shadow: inset 0 2px 5px #47371a36; }
+button[class~="bg-accent"] { color: #fff; background-color: #c83f4f; }
+button[class~="bg-destructive"] { color: #19121b; background: #ef8a95; }
+button:has(> svg.icon-tabler-trash):not(.bg-primary) { color: #ef8a95; border-color: #ef8a9550; background-color: #ef8a9510; }
+button:disabled, [aria-disabled="true"] { box-shadow: none; }
+
+/* Формы, раскрывающиеся панели и keyboard focus. Никаких новых размеров. */
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), textarea, select,
+[data-slot="select-trigger"] { background-color: #101e30; border-color: #40556b; color: #f3f6fa; }
+:is(input, textarea)::placeholder { color: #9db2c8; opacity: 1; }
+/* Фокус рисуют сами компоненты: без второй общей outline поверх их рамки. */
+:is(input, textarea)[aria-invalid="true"] { border-color: #ef8a95; }
+input[type="range"], input[type="checkbox"], input[type="radio"] { accent-color: #d7ad55; }
+[data-slot="checkbox"][data-state="checked"], .settings-switch[aria-checked="true"] { background-color: #d7ad55; color: #191c16; border-color: #d7ad55; }
+.settings-switch[aria-checked="true"] .settings-switch-thumb { background: #19252d; }
+[role="tab"][aria-selected="true"], [data-state="active"][role="tab"] { color: #f1ce89; border-color: #d7ad55; }
+[data-slot="select-item"][data-highlighted], [role="menuitem"]:focus { background: #243e50; color: #f3f6fa; }
+
+/* Portals остаются непрозрачными; нет дорогого full-window backdrop blur. */
+[data-slot="dialog-content"], [data-slot="select-content"], [data-slot="floating-context-menu"],
+[data-slot="popover-content"], [data-component="instance-trash-toast"], [data-component="theme-editor"] {
+  border-color: #667062;
+  background-color: #142337;
+  box-shadow: inset 0 1px #e8d7a62b, 0 18px 50px #02071080;
+}
+[data-slot="dialog-overlay"] { background-color: #040b16b8; }
+[data-component="stat-card"] { font-variant-numeric: tabular-nums; }
+[data-component="category-badge"], [data-component="platform-badge"] { border-color: #52637a; }
+[role="progressbar"], progress { accent-color: #d7ad55; }
+::selection { background: #d7ad554d; color: #fff8e9; }
+* { scrollbar-color: #6c7e8c #0e1c2c; }
+::-webkit-scrollbar-thumb { background: #60778a; border: 3px solid #0e1c2c; border-radius: 20px; }
+::-webkit-scrollbar-track { background: #0e1c2c; }
+
+/* Пауза декора при скрытом/неактивном окне; UI-прогресс не затрагивается. */
+html:not(:focus-within) #theme-background::after,
+html:not(:focus-within) #launcher-root::before { animation-play-state: paused; }
+@media (max-width: 760px) {
+  #theme-background::before { opacity: .42; background-position: 75% bottom; }
+  #launcher-root::before { opacity: .07; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #theme-background::after, #launcher-root::before { animation: none; transform: none; }
+  :is(button, input, textarea, [data-component$="-card"]) { transition-duration: 0s; }
+}
+
+/* Christmas Eve: только декор, базовая палитра и размеры компонентов прежние. */
+#theme-background {
+  background-image: radial-gradient(ellipse at 76% 88%, #f5d58a12, transparent 48%),
+    radial-gradient(ellipse at 18% 78%, #d7ad550a, transparent 42%),
+    radial-gradient(ellipse at 88% 8%, #91c8e80d, transparent 44%),
+    radial-gradient(ellipse at 12% 84%, #244c4924, transparent 48%);
+}
+
+/* Прежний halo-узел используется как неподвижный слой украшений над пейзажем.
+   Города и ели в ::before не заменяются; canvas/DOM/JS не добавляются.
+   !important требуется лишь для штатного inline background градиента halo. */
+#theme-background .theme-halo {
+  display: block;
+  background: url("./christmas-ornaments.svg") right bottom / max(100%, 1150px) auto no-repeat !important;
+  animation: none;
+  pointer-events: none;
+}
+
+/* Узкая гирлянда занимает существующий верхний 16px отступ контента.
+   Она не заходит в строки заголовков, поля ввода и кнопки. */
+#launcher-root::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 72px;
+  height: 16px;
+  z-index: 3;
+  pointer-events: none;
+  user-select: none;
+  background: url("./christmas-garland.svg") center top / 480px 16px repeat-x;
+  opacity: .9;
+  animation: xnl-xmas27-lights 8s ease-in-out infinite;
+}
+
+/* Бант располагается в верхнем отступе sidebar, выше первой иконки навигации. */
+#launcher-sidebar::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 6px;
+  width: 60px;
+  height: 20px;
+  pointer-events: none;
+  user-select: none;
+  background: url("./christmas-bow.svg") center / contain no-repeat;
+}
+
+.launcher-page-header {
+  box-shadow: inset 0 1px #f5d58a38, 0 3px 15px #d7ad5508;
+}
+
+/* Единственная новая анимация: небольшой диапазон opacity, без filter/blur. */
+@keyframes xnl-xmas27-lights {
+  0%, 100% { opacity: .83; }
+  50% { opacity: 1; }
+}
+
+html:not(:focus-within) #launcher-root::after { animation-play-state: paused; }
+
+@media (max-width: 760px) {
+  #theme-background .theme-halo { background-position: 75% bottom !important; }
+  #launcher-root::after { opacity: .8; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #launcher-root::after { animation: none; opacity: .9; }
+}

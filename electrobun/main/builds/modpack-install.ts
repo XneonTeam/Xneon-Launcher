@@ -14,6 +14,7 @@ type Change = { path: string; before: string | null; after: string | null; sourc
 type Journal = { version: 1; committed: boolean; changes: Change[]; metadata?: { token: string } }
 
 export interface ModpackPersistencePort {
+  verify?(root: string, token: string, committed: boolean): Promise<void>
   begin(root: string, buildId: string): Promise<string>
   write(root: string, token: string, fields: Record<string, unknown>): Promise<void>
   rollback(root: string, token: string): Promise<void>
@@ -113,6 +114,7 @@ async function inBatches<T>(items: T[], run: (item: T, index: number) => Promise
 
 async function rollback(root: string, transaction: string, journal: Journal): Promise<void> {
   if (journal.metadata && !persistence) throw new Error("Modpack metadata recovery is unavailable")
+  if (journal.metadata) await persistence!.verify?.(root, journal.metadata.token, false)
   for (let index = journal.changes.length - 1; index >= 0; index--) {
     const change = journal.changes[index]
     const target = await safe(root, change.path, change.path === MANIFEST)
@@ -132,14 +134,22 @@ async function rollback(root: string, transaction: string, journal: Journal): Pr
   if (journal.metadata) await persistence!.rollback(root, journal.metadata.token)
 }
 
+/** После commit старые file backups больше не нужны и освобождают место для SQL cleanup. */
+async function cleanCommittedFiles(transaction: string): Promise<void> {
+  for (const entry of await fs.readdir(transaction)) {
+    if (entry !== "journal.json") await fs.rm(path.join(transaction, entry), { recursive: true, force: true })
+  }
+}
+
 /** Восстановление незавершённой установки до следующего импорта или запуска. */
 export async function recoverModpackInstall(directory: string): Promise<void> {
   const exists = await fs.lstat(directory).catch(error => { if (absent(error)) return null; throw error })
   if (!exists) return
   const root = await rootPath(directory)
-  if (active.has(key(root))) throw new Error("Modpack installation is already running")
+  if (active.has(key(root)) || active.has(key(directory))) throw new Error("Modpack installation is already running")
   active.add(key(root))
-  try { await recoverAtRoot(root) } finally { active.delete(key(root)) }
+  active.add(key(directory))
+  try { await recoverAtRoot(root) } finally { active.delete(key(root)); active.delete(key(directory)) }
 }
 
 async function recoverAtRoot(root: string): Promise<void> {
@@ -152,6 +162,7 @@ async function recoverAtRoot(root: string): Promise<void> {
     if (parsed.version !== 1 || typeof parsed.committed !== "boolean" || !Array.isArray(parsed.changes) || parsed.changes.length > 100000) throw new Error("Invalid modpack journal")
     if (parsed.metadata && (typeof parsed.metadata.token !== "string" || !/^[a-zA-Z0-9_-]{1,128}$/.test(parsed.metadata.token))) throw new Error("Invalid modpack metadata token")
     if (parsed.metadata && !persistence) throw new Error("Modpack metadata recovery is unavailable")
+    if (parsed.metadata) await persistence!.verify?.(root, parsed.metadata.token, parsed.committed)
     const seen = new Set<string>()
     for (const change of parsed.changes) {
       if (!change || typeof change.path !== "string" || change.before !== null && !isHash(change.before)
@@ -163,10 +174,14 @@ async function recoverAtRoot(root: string): Promise<void> {
       await safe(root, change.path, change.path === MANIFEST)
     }
     if (!parsed.committed) await rollback(root, transaction, parsed)
-    else if (parsed.metadata) await persistence!.finalize(root, parsed.metadata.token)
+    else if (parsed.metadata) {
+      await cleanCommittedFiles(transaction)
+      await persistence!.finalize(root, parsed.metadata.token)
+    }
   }
   // Без журнала stage ещё не изменял установленное содержимое.
   await fs.rm(transaction, { recursive: true, force: true })
+  if (parsed?.metadata && !parsed.committed) await persistence!.finalize(root, parsed.metadata.token)
 }
 
 /** Проверка опубликованных хешей до записи в staging, без изменения клиентов API. */
@@ -184,17 +199,19 @@ export async function writeModpackDownload(file: string, bytes: Buffer, hashes: 
 export async function stageModpackInstall(directory: string, signal?: AbortSignal, beforeApply?: () => void) {
   await fs.mkdir(directory, { recursive: true })
   const root = await rootPath(directory)
-  if (active.has(key(root))) throw new Error("Modpack installation is already running")
+  if (active.has(key(root)) || active.has(key(directory))) throw new Error("Modpack installation is already running")
   active.add(key(root))
+  active.add(key(directory))
   const transaction = path.join(root, STATE, "transaction")
   const stage = path.join(transaction, "stage")
   let retain = false
   let closed = false
   let applied = false
+  let abortedMetadataToken: string | undefined
   try {
     await recoverAtRoot(root)
     await fs.mkdir(stage, { recursive: true })
-  } catch (error) { active.delete(key(root)); throw error }
+  } catch (error) { active.delete(key(root)); active.delete(key(directory)); throw error }
   return {
     directory: stage,
     claimFile: createModpackPathClaims(),
@@ -365,7 +382,7 @@ export async function stageModpackInstall(directory: string, signal?: AbortSigna
       try { await writeJson(path.join(transaction, "journal.json"), journal) }
       catch (error) {
         if (journal.metadata) {
-          try { await persistence!.rollback(root, journal.metadata.token) }
+          try { await persistence!.rollback(root, journal.metadata.token); abortedMetadataToken = journal.metadata.token }
           catch (rollbackError) { retain = true; throw new AggregateError([error, rollbackError], "Metadata preparation rollback failed; backup retained") }
         }
         throw error
@@ -399,12 +416,16 @@ export async function stageModpackInstall(directory: string, signal?: AbortSigna
         // Marker — точка commit обоих хранилищ. Ошибка очистки backup после него
         // не откатывает успешное обновление; startup recovery повторит finalize.
         try {
-          if (journal.metadata) await persistence!.finalize(root, journal.metadata.token)
+          if (journal.metadata) {
+            await cleanCommittedFiles(transaction)
+            await persistence!.finalize(root, journal.metadata.token)
+          }
           retain = false
         } catch (error) { console.warn("[Modpack] Committed metadata cleanup deferred:", error) }
         return result
       } catch (error) {
         await rollback(root, transaction, journal)
+        abortedMetadataToken = journal.metadata?.token
         retain = false
         throw error
       } finally { applying.delete(key(root)); applying.delete(key(directory)) }
@@ -413,8 +434,14 @@ export async function stageModpackInstall(directory: string, signal?: AbortSigna
       if (closed) return
       closed = true
       try {
-        if (!retain) await fs.rm(transaction, { recursive: true, force: true })
-      } finally { active.delete(key(root)) }
+        if (!retain) {
+          await fs.rm(transaction, { recursive: true, force: true })
+          if (abortedMetadataToken) {
+            try { await persistence!.finalize(root, abortedMetadataToken) }
+            catch (error) { console.warn("[Modpack] Aborted metadata cleanup deferred:", error) }
+          }
+        }
+      } finally { active.delete(key(root)); active.delete(key(directory)) }
     },
   }
 }

@@ -32,6 +32,8 @@ export interface AgentMcpToolInfo {
 }
 export interface AgentMcpServerState extends AgentMcpServerConfig {
   connected: boolean
+  /** Подключение выполняется в фоне; список и управление сервером уже доступны. */
+  connecting?: boolean
   tools: string[]
   error?: string
 }

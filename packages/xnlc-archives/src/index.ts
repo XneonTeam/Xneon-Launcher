@@ -2,6 +2,7 @@ export { ArchiveError, isArchiveAbort, throwIfAborted, type ArchiveErrorCode } f
 export { assertSafeEntryName, isDirectoryEntry, normalizeEntryName, resolveEntryPath } from "./paths.js"
 export {
   listArchiveEntries,
+  withArchiveEntries,
   readArchiveEntries,
   readArchiveEntriesText,
   readArchiveEntry,
@@ -30,3 +31,4 @@ export {
   type CollectDirectoryOptions,
 } from "./pack.js"
 export type { ArchiveEntryInfo, ArchiveInput } from "./zip.js"
+export { openArchiveReader, readZipDirectory, readEntryChunks, type ArchiveReader } from "./zip.js"

@@ -1,18 +1,18 @@
-import { writeStartupTheme } from "./startup-theme"
+import { registerSettingsHandlers } from "./settings-handlers"
+import { registerAccountHandlers } from "./account-service"
+import { assertBuildMetadataIdle } from "./builds/modpack-persistence"
 import { openExternalLink } from "./external-links"
 import { opFailure } from "./errors"
 import { app, dialog, rpcRegistry, shell } from "../platform/desktop"
 import os from "os"
 import path from "path"
 import fs from "fs/promises"
-import fsSync from "fs"
 import { fileURLToPath } from "url"
 import { dbHelpers, isUsingFallbackStorage } from "../db"
 import { getMainWindow, sendToRenderer } from "./runtime"
 import { discoverAllInstances, discoverGdLauncherInstances, discoverInstancesFromPath, getDiscoveredInstancesByIds, importLauncherInstance } from "./import"
-import { execFileAsync, fileExists } from "./import/helpers"
-import { findExecutablesInPath } from "../platform/executable-path"
-import { readJavaHomesFromRegistry } from "../platform/java-registry"
+import { detectJavaInstallations, type JavaDetectEntry } from "./java-discovery"
+export { detectJavaInstallations, findJavaBinarySync } from "./java-discovery"
 import {
   cleanupReplacedLoaderArtifacts,
   cleanupReplacedLoaderArtifactsForBuilds,
@@ -31,246 +31,6 @@ function resolveImageUrl(url: string | undefined): string | undefined {
   if (!url) return undefined
   if (url.startsWith("http://") || url.startsWith("https://")) return url
   return `${MOJANG_BASE}${url.startsWith("/") ? "" : "/"}${url}`
-}
-
-async function getJavaVersion(javaExe: string): Promise<string | null> {
-  try {
-    const { stdout, stderr } = await execFileAsync(javaExe, ["-version"], { timeout: 4000 })
-    const m = (stderr + "\n" + stdout).match(/version "([^"]+)"/)
-    return m ? m[1] : null
-  } catch {
-    return null
-  }
-}
-
-type JavaInfo = {
-  version: string
-  fullVersion?: string
-  vendor?: string
-  arch?: string
-}
-
-async function getJavaInstallationInfo(javaExe: string): Promise<JavaInfo | null> {
-  try {
-    const { stdout, stderr } = await execFileAsync(javaExe, ["-XshowSettings:properties", "-version"], { timeout: 6000 })
-    const props: Record<string, string> = {}
-    for (const line of (stderr + "\n" + stdout).split("\n")) {
-      const idx = line.indexOf("=")
-      if (idx === -1) continue
-      const key = line.slice(0, idx).trim()
-      const value = line.slice(idx + 1).trim()
-      if (key && value) props[key] = value
-    }
-    const version = props["java.version"]
-    if (!version) {
-      const fallback = await getJavaVersion(javaExe)
-      return fallback ? { version: fallback } : null
-    }
-    return {
-      version,
-      fullVersion: props["java.runtime.version"] || props["java.fullversion"] || version,
-      vendor: props["java.vendor"] || props["java.vm.vendor"],
-      arch: props["sun.arch.data.model"] || undefined,
-    }
-  } catch {
-    const fallback = await getJavaVersion(javaExe)
-    return fallback ? { version: fallback } : null
-  }
-}
-
-function makeJavaLabel(version: string): string {
-  const parts = version.split(".")
-  const major = parts[0] === "1" ? parseInt(parts[1]) : parseInt(parts[0])
-  return `Java ${major} (${version})`
-}
-
-/** Scans Windows registry (both 64-bit and 32-bit views) for Java installations. */
-async function findJavaInWindowsRegistry(): Promise<string[]> {
-  return readJavaHomesFromRegistry()
-}
-
-type JavaDetectEntry = { path: string; version: string; label: string; fullVersion?: string; vendor?: string; arch?: string }
-
-/**
- * Кэш результата поиска установленных Java.
- *
- * Скан стоит дорого: обход реестра, перебор каталогов и последовательный
- * запуск `java -XshowSettings:properties` (до 6 с таймаута) на каждый найденный
- * `java.exe` — на машине с несколькими JDK это 10–20 процессов и до 30 секунд.
- * Раньше он выполнялся заново на каждый вызов, а зовут его шесть компонентов
- * (настройки лаунчера, настройки инстанса, диалоги создания сервера и установки
- * пака, вкладка сервера — местами дважды подряд).
- */
-const JAVA_DETECT_TTL_MS = 5 * 60_000
-let javaDetectCache: { at: number; value: JavaDetectEntry[] } | null = null
-let javaDetectInFlight: Promise<JavaDetectEntry[]> | null = null
-
-/** Полный скан без кэша — сюда попадает только первый вызов или явное обновление. */
-async function scanJavaInstallations(): Promise<JavaDetectEntry[]> {
-  const found: JavaDetectEntry[] = []
-  const visited = new Set<string>()
-  const tryJava = async (javaExe: string) => {
-    const normalized = path.normalize(javaExe)
-    if (visited.has(normalized)) return
-    visited.add(normalized)
-    if (!(await fileExists(normalized))) return
-    const info = await getJavaInstallationInfo(normalized)
-    if (!info) return
-    const labelParts = [makeJavaLabel(info.version)]
-    if (info.arch) labelParts.push(`${info.arch}-бит`)
-    if (info.vendor) labelParts.push(info.vendor)
-    found.push({
-      path: normalized,
-      version: info.version,
-      label: labelParts.join(" · "),
-      fullVersion: info.fullVersion,
-      vendor: info.vendor,
-      arch: info.arch,
-    })
-  }
-
-  if (process.platform === "win32") {
-    for (const home of await findJavaInWindowsRegistry()) {
-      await tryJava(path.join(home, "bin", "java.exe"))
-      await tryJava(path.join(home, "bin", "javaw.exe"))
-    }
-    const bases = [
-      "C:\\Program Files\\Java",
-      "C:\\Program Files\\Eclipse Adoptium",
-      "C:\\Program Files\\Microsoft",
-      "C:\\Program Files\\Zulu",
-      "C:\\Program Files\\BellSoft",
-      "C:\\Program Files\\Amazon Corretto",
-      "C:\\Program Files\\OpenJDK",
-    ]
-    for (const base of bases) {
-      if (!(await fileExists(base))) continue
-      let dirs: string[] = []
-      try { dirs = await fs.readdir(base) } catch { continue }
-      for (const dir of dirs) await tryJava(path.join(base, dir, "bin", "java.exe"))
-    }
-    for (const candidate of findExecutablesInPath("java")) await tryJava(candidate)
-  } else if (process.platform === "darwin") {
-    const jvmBase = "/Library/Java/JavaVirtualMachines"
-    if (await fileExists(jvmBase)) {
-      let dirs: string[] = []
-      try { dirs = await fs.readdir(jvmBase) } catch { dirs = [] }
-      for (const dir of dirs) await tryJava(path.join(jvmBase, dir, "Contents", "Home", "bin", "java"))
-    }
-    for (const p of ["/opt/homebrew/opt/openjdk/bin/java", "/usr/local/opt/openjdk/bin/java"]) await tryJava(p)
-    try {
-      const { stdout, stderr } = await execFileAsync("/usr/libexec/java_home", ["-V"], { timeout: 3000 })
-      for (const line of (stderr + "\n" + stdout).split("\n")) {
-        const home = line.match(/(?:^|\s)(\/.*)$/)?.[1]?.trim()
-        if (home) await tryJava(path.join(home, "bin", "java"))
-      }
-    } catch {}
-  } else {
-    const jvmBase = "/usr/lib/jvm"
-    if (await fileExists(jvmBase)) {
-      let dirs: string[] = []
-      try { dirs = await fs.readdir(jvmBase) } catch { dirs = [] }
-      for (const dir of dirs) await tryJava(path.join(jvmBase, dir, "bin", "java"))
-    }
-    for (const p of ["/usr/bin/java", "/usr/local/bin/java"]) await tryJava(p)
-    const onPath = Bun.which("java")
-    if (onPath) await tryJava(onPath)
-  }
-
-  return found
-}
-
-/**
- * Отдаёт закэшированный результат; параллельные вызовы разделяют один скан
- * (in-flight), а `force` заставляет перечитать список (кнопка «Обновить» —
- * например, после установки новой Java).
- */
-export async function detectJavaInstallations(force = false): Promise<JavaDetectEntry[]> {
-  if (!force && javaDetectCache && Date.now() - javaDetectCache.at < JAVA_DETECT_TTL_MS) {
-    return javaDetectCache.value
-  }
-  if (javaDetectInFlight) return javaDetectInFlight
-
-  const run = scanJavaInstallations().then((value) => {
-    javaDetectCache = { at: Date.now(), value }
-    return value
-  })
-  const tracked = run.finally(() => {
-    if (javaDetectInFlight === tracked) javaDetectInFlight = null
-  })
-  javaDetectInFlight = tracked
-  return tracked
-}
-
-/**
- * Быстрый поиск любого java-бинаря без запуска процесса: JAVA_HOME, типовые
- * каталоги установки, затем PATH через Bun.which.
- *
- * Единая реализация для всего main-процесса: раньше такая же функция жила ещё
- * и в `mc-server-handlers.ts`, и списки каталогов приходилось править дважды.
- * Для полного списка с версиями используйте {@link detectJavaInstallations}.
- */
-export function findJavaBinarySync(): string | null {
-  const isWin = process.platform === "win32"
-  const javaExe = isWin ? "java.exe" : "java"
-
-  const javaHome = process.env.JAVA_HOME
-  if (javaHome) {
-    const candidate = path.join(javaHome, "bin", javaExe)
-    if (fsSync.existsSync(candidate)) return candidate
-  }
-
-  if (isWin) {
-    const bases = [
-      "C:\\Program Files\\Java",
-      "C:\\Program Files\\Eclipse Adoptium",
-      "C:\\Program Files\\Microsoft",
-      "C:\\Program Files\\Zulu",
-      "C:\\Program Files\\BellSoft",
-      "C:\\Program Files\\Amazon Corretto",
-      "C:\\Program Files\\OpenJDK",
-    ]
-    for (const base of bases) {
-      if (!fsSync.existsSync(base)) continue
-      try {
-        for (const dir of fsSync.readdirSync(base)) {
-          const candidate = path.join(base, dir, "bin", javaExe)
-          if (fsSync.existsSync(candidate)) return candidate
-        }
-      } catch {}
-    }
-  } else if (process.platform === "darwin") {
-    const candidates = [
-      "/Library/Java/JavaVirtualMachines",
-      "/opt/homebrew/opt/openjdk/bin/java",
-      "/usr/local/opt/openjdk/bin/java",
-    ]
-    for (const candidate of candidates) {
-      if (candidate.endsWith("java")) {
-        if (fsSync.existsSync(candidate)) return candidate
-      } else if (fsSync.existsSync(candidate)) {
-        try {
-          for (const dir of fsSync.readdirSync(candidate)) {
-            const binary = path.join(candidate, dir, "Contents", "Home", "bin", "java")
-            if (fsSync.existsSync(binary)) return binary
-          }
-        } catch {}
-      }
-    }
-  } else {
-    const bases = ["/usr/lib/jvm", "/usr/local/sdkman/candidates/java/current"]
-    for (const base of bases) {
-      if (!fsSync.existsSync(base)) continue
-      try {
-        for (const dir of fsSync.readdirSync(base)) {
-          const candidate = path.join(base, dir, "bin", "java")
-          if (fsSync.existsSync(candidate)) return candidate
-        }
-      } catch {}
-    }
-  }
-
-  return Bun.which(javaExe)
 }
 
 function parseLauncherNewsItems(raw: unknown, sourceUrl: string): LauncherNewsEntry[] {
@@ -344,10 +104,11 @@ export function registerSystemHandlers() {
       const res = await fetchWithRetry(`${MOJANG_BASE}/v2/news.json`, undefined, { retries: 2 })
       const data = await res.json() as { entries?: Record<string, unknown>[] }
       const entries = data.entries ?? []
-      return entries.map(e => ({
+      return entries.filter(e => typeof e.id === "string" && typeof e.title === "string" && typeof e.date === "string").map(e => ({
         ...e,
-        playPageImage: e.playPageImage ? { ...(e.playPageImage as Record<string, unknown>), url: resolveImageUrl((e.playPageImage as { url?: string }).url) } : e.playPageImage,
-        newsPageImage: e.newsPageImage ? { ...(e.newsPageImage as Record<string, unknown>), url: resolveImageUrl((e.newsPageImage as { url?: string }).url) } : e.newsPageImage,
+        id: String(e.id), title: String(e.title), date: String(e.date),
+        playPageImage: e.playPageImage ? { url: resolveImageUrl((e.playPageImage as { url?: string }).url) } : undefined,
+        newsPageImage: e.newsPageImage ? { url: resolveImageUrl((e.newsPageImage as { url?: string }).url) } : undefined,
       }))
     } catch {
       return []
@@ -374,18 +135,17 @@ export function registerSystemHandlers() {
     }
   })
 
-  rpcRegistry.handle("db:load-accounts", async () => dbHelpers.loadAccounts())
-  rpcRegistry.handle("db:save-account", async (_event, account) => dbHelpers.saveAccount(account))
-  rpcRegistry.handle("db:remove-account", async (_event, id: string) => dbHelpers.removeAccount(id))
-  rpcRegistry.handle("db:reorder-accounts", async (_event, ids: string[]) => dbHelpers.reorderAccounts(ids))
+  registerAccountHandlers()
   // Лёгкий список для интерфейса: без тяжёлых mods/shaders (они грузятся по сборке).
   rpcRegistry.handle("db:load-builds-light", async () => dbHelpers.loadBuildsLight())
   rpcRegistry.handle("db:load-build-content", async (_event, buildId: string) => dbHelpers.loadBuildContent(buildId))
   rpcRegistry.handle("db:save-builds", async (_event, builds) => {
     const incoming = Array.isArray(builds) ? builds : []
+    for (const build of incoming) assertBuildMetadataIdle(build.id, build)
     // Снапшот для сверки профилей загрузчика — только лёгкие поля: тяжёлый
     // контент при массовом сохранении не нужен (его сохраняет сам saveAllBuilds).
     const previousBuilds = await dbHelpers.loadBuildsLight()
+    for (const build of incoming) assertBuildMetadataIdle(build.id, build)
     await dbHelpers.saveAllBuilds(incoming)
     // Массовое сохранение — вторая (подстраховывающая) точка, где может
     // проехать смена версии загрузчика: импорт/восстановление модпака и т.п.
@@ -397,12 +157,15 @@ export function registerSystemHandlers() {
   // перезапуска, хотя папка интента уже была создана.
   rpcRegistry.handle("db:insert-build", async (_event, build) => {
     if (!build || typeof build !== "object") return
+    assertBuildMetadataIdle(build.id, build)
     await dbHelpers.insertBuild(build as Parameters<typeof dbHelpers.insertBuild>[0])
   })
   // Мгновенная точечная запись полей одной сборки (без debounce на стороне UI):
   // нужна для правок вроде отвязки/привязки модпака, которые не должны теряться
   // при быстром переключении вкладок инстанса.
   rpcRegistry.handle("db:update-build-fields", async (_event, buildId: string, fields: Record<string, unknown>) => {
+    if (!fields || typeof fields !== "object" || Array.isArray(fields)) throw new Error("Invalid build fields")
+    assertBuildMetadataIdle(buildId, fields)
     // Смена версии загрузчика / типа загрузчика / версии Minecraft меняет имя
     // профиля в `versions/` — старый профиль остаётся на диске и его нужно
     // убрать, иначе в папке игры копятся «мёртвые» лоадеры. Снапшот до правки
@@ -412,6 +175,7 @@ export function registerSystemHandlers() {
     const previous = selectionChange
       ? await dbHelpers.findBuildById(buildId)
       : null
+    assertBuildMetadataIdle(buildId, fields)
     await dbHelpers.updateBuildFields(buildId, fields as Parameters<typeof dbHelpers.updateBuildFields>[1])
 
     if (previous) {
@@ -445,15 +209,15 @@ export function registerSystemHandlers() {
     const sourceInstances = (await discoverGdLauncherInstances()).filter((entry) => selectedIds.has(entry.id))
     if (sourceInstances.length === 0) return { success: true, imported: 0 }
 
-    // Лёгкий список: нужны только имена, а saveAllBuilds сам сохранит тяжёлый
-    // контент уже существующих сборок из БД.
+    // Снимок используется только для проверки имён, обратно записываются
+    // исключительно новые сборки, без устаревших полей соседних строк.
     const existingBuilds = await dbHelpers.loadBuildsLight()
     const existingNames = new Set(existingBuilds.map((build) => build.name.trim().toLowerCase()))
 
     const importedBuilds: NonNullable<Awaited<ReturnType<typeof importLauncherInstance>>>[] = []
     for (const entry of sourceInstances) {
       if (existingNames.has(entry.name.trim().toLowerCase())) continue
-      sendImportProgress(0, 100, `Импорт «${entry.name}»...`, entry.name)
+      sendImportProgress(0, 100, "import.phase.preparing", entry.name)
       const result = await importLauncherInstance(entry)
       if (result) importedBuilds.push(result)
     }
@@ -462,7 +226,7 @@ export function registerSystemHandlers() {
       return { success: true, imported: 0 }
     }
 
-    await dbHelpers.saveAllBuilds([...importedBuilds, ...existingBuilds])
+    await dbHelpers.saveAllBuilds(importedBuilds)
     return { success: true, imported: importedBuilds.length }
   })
   rpcRegistry.handle("launcher:import-instances", async (_event, ids: string[]) => {
@@ -478,37 +242,20 @@ export function registerSystemHandlers() {
     for (const entry of allInstances) {
       current++
       if (existingNames.has(entry.name.trim().toLowerCase())) continue
-      sendImportProgress(current, allInstances.length, `Импорт «${entry.name}»...`, entry.name)
+      sendImportProgress(current, allInstances.length, "import.phase.preparing", entry.name)
       const result = await importLauncherInstance(entry)
       if (result) importedBuilds.push(result)
-      sendImportProgress(current, allInstances.length, `Импортировано ${current} из ${allInstances.length}`, entry.name)
+      sendImportProgress(current, allInstances.length, "import.phase.preparing", entry.name)
     }
 
     if (importedBuilds.length === 0) {
       return { success: true, imported: 0 }
     }
 
-    await dbHelpers.saveAllBuilds([...importedBuilds, ...existingBuilds])
+    await dbHelpers.saveAllBuilds(importedBuilds)
     return { success: true, imported: importedBuilds.length }
   })
-  const privateAiSettings = new Set(["aiApiKey", "aiEndpoint", "aiModel", "aiProtocol", "aiModels"])
-  rpcRegistry.handle("settings:get", async (_event, key: string) => {
-    if (typeof key !== "string" || privateAiSettings.has(key)) return undefined
-    return dbHelpers.getSetting(key)
-  })
-  rpcRegistry.handle("settings:get-many", async (_event, keys: string[]) => {
-    if (!Array.isArray(keys) || keys.length > 128) throw new Error("Invalid settings keys")
-    const allowed = [...new Set(keys)].filter(key => typeof key === "string" && !privateAiSettings.has(key))
-    return Object.fromEntries(await Promise.all(allowed.map(async key => [key, await dbHelpers.getSetting(key)])))
-  })
-  rpcRegistry.handle("settings:set", async (_event, key: string, value: string) => {
-    if (typeof key !== "string" || privateAiSettings.has(key)) throw new Error("Use the AI settings API")
-    if (key === "_startupThemeSnapshot") { writeStartupTheme(value); return }
-    await dbHelpers.setSetting(key, value)
-    // Пушим изменение в рендерер: язык и тема применяются мгновенно, без
-    // перезапуска (см. подписку в launcher.tsx).
-    sendToRenderer("settings:updated", { key, value })
-  })
+  registerSettingsHandlers()
 
   rpcRegistry.handle("shell:open-external", (_event, url: string) => openExternalLink(url))
   rpcRegistry.handle("shell:open-launcher-folder", async (): Promise<void> => {

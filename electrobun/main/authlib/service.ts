@@ -150,7 +150,7 @@ async function loginWithServer(
   }
 
   // Много профилей и явный выбор не задан — UI показывает список.
-  // Токены возвращаем (UI их пока не сохраняет), аккаунт в БД не пишем.
+  // Сессионные токены не возвращаем в renderer; выбор повторяет вход с profileId.
   if (!selected) {
     log(`Account has ${profiles.length} profiles — selection required`)
     return {
@@ -158,8 +158,6 @@ async function loginWithServer(
       id: "",
       username,
       uuid: "",
-      accessToken: session.accessToken,
-      clientToken: session.clientToken,
       serverId: server.id,
       serverUrl: server.url,
       serverName: server.name,
@@ -202,8 +200,6 @@ async function loginWithServer(
     id: accountId,
     username: selected.name,
     uuid: account.uuid!,
-    accessToken: session.accessToken,
-    clientToken: session.clientToken,
     serverId: server.id,
     serverUrl: server.url,
     serverName: server.name,

@@ -5,7 +5,7 @@ import os from "node:os"
 import fs from "node:fs/promises"
 import path from "node:path"
 import type { AgentBuildFileRequest, AgentChat, AgentChatSummary, AgentTurnRequest, AgentTurnResult } from "@xnlc/types" with { "resolution-mode": "import" }
-import { queryAll, run, isDbAvailable } from "../db/core"
+import { queryAll, run, isDbAvailable, requireTestDatabaseStorage } from "../db/core"
 import { dbHelpers } from "../db"
 import { getBuildIntentPath } from "./builds/helpers"
 import { aiFailure, assertAiResponse } from "./ai-errors"
@@ -107,12 +107,12 @@ export function registerAgentWorkspace(getConfig: () => Promise<ApiConfig | null
   })
 
   rpcRegistry.handle("agent:list-chats", (): AgentChatSummary[] => {
-    if (!isDbAvailable()) return [...fallbackChats.values()].map(({ id, title, updatedAt, archived }) => ({ id, title, updatedAt, archived: !!archived })).sort((a, b) => b.updatedAt - a.updatedAt)
+    if (!isDbAvailable()) { requireTestDatabaseStorage(); return [...fallbackChats.values()].map(({ id, title, updatedAt, archived }) => ({ id, title, updatedAt, archived: !!archived })).sort((a, b) => b.updatedAt - a.updatedAt) }
     return queryAll<AgentChatSummary>("SELECT id, title, updatedAt, archived FROM agent_chats ORDER BY updatedAt DESC").map(chat => ({ ...chat, archived: !!chat.archived }))
   })
   rpcRegistry.handle("agent:get-chat", (_event, id: string): AgentChat | null => {
     chatId(id)
-    if (!isDbAvailable()) return fallbackChats.get(id) ?? null
+    if (!isDbAvailable()) { requireTestDatabaseStorage(); return fallbackChats.get(id) ?? null }
     const row = queryAll<{ data: string }>("SELECT data FROM agent_chats WHERE id = ?", [id])[0]
     return row ? JSON.parse(row.data) as AgentChat : null
   })
@@ -122,13 +122,14 @@ export function registerAgentWorkspace(getConfig: () => Promise<ApiConfig | null
     if (typeof chat.title !== "string" || !Number.isFinite(chat.updatedAt) || !Array.isArray(chat.messages) || !Array.isArray(chat.timeline) || !Array.isArray(chat.attachments) || typeof chat.draft !== "string" || !["questions", "confirm", "auto"].includes(chat.mode)) throw new Error("Invalid chat")
     const data = JSON.stringify(chat)
     if (Buffer.byteLength(data) > 64_000_000) throw new Error("Chat is too large. Start a new chat.")
-    if (!isDbAvailable()) { fallbackChats.set(chat.id, structuredClone(chat)); return }
+    if (!isDbAvailable()) { requireTestDatabaseStorage(); fallbackChats.set(chat.id, structuredClone(chat)); return }
     run("INSERT INTO agent_chats (id, title, updatedAt, data, archived) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title = excluded.title, updatedAt = excluded.updatedAt, data = excluded.data, archived = excluded.archived", [chat.id, chat.title.slice(0, 160), chat.updatedAt, data, chat.archived ? 1 : 0])
   })
   rpcRegistry.handle("agent:set-archived", (_event, id: string, archived: boolean) => {
     chatId(id)
     if (typeof archived !== "boolean") throw new Error("Invalid archived state")
     if (!isDbAvailable()) {
+      requireTestDatabaseStorage()
       const chat = fallbackChats.get(id)
       if (!chat) throw new Error("Chat not found")
       fallbackChats.set(id, { ...chat, archived })
@@ -137,7 +138,11 @@ export function registerAgentWorkspace(getConfig: () => Promise<ApiConfig | null
     const result = run("UPDATE agent_chats SET archived = ?, data = json_set(data, '$.archived', json(?)) WHERE id = ?", [archived ? 1 : 0, JSON.stringify(archived), id])
     if (!result.changes) throw new Error("Chat not found")
   })
-  rpcRegistry.handle("agent:delete-chat", (_event, id: string) => { chatId(id); fallbackChats.delete(id); if (isDbAvailable()) run("DELETE FROM agent_chats WHERE id = ?", [id]) })
+  rpcRegistry.handle("agent:delete-chat", (_event, id: string) => {
+    chatId(id)
+    if (!isDbAvailable()) { requireTestDatabaseStorage(); fallbackChats.delete(id); return }
+    run("DELETE FROM agent_chats WHERE id = ?", [id])
+  })
   rpcRegistry.handle("agent:build-file", (_event, request: AgentBuildFileRequest) => buildFile(request))
   rpcRegistry.handle("agent:build-destination", async (_event, name: string, excludeBuildId?: string) => {
     if (typeof name !== "string" || !name.trim() || name.length > 150 || /[<>:"/\\|?*\u0000-\u001f]/.test(name) || /^\./.test(name.trim())) throw new Error("Invalid build name")

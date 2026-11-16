@@ -28,12 +28,13 @@ export function presenceSmallImage(activity: DiscordActivity): { key?: string; t
   return { key, text: key ? activity.smallImageText || loaderNames[loader] : undefined }
 }
 
-export function minecraftPresence(mcVersion: string, loader: string, build?: { name: string; icon?: string }): DiscordActivity {
+export function minecraftPresence(mcVersion: string, loader: string, build?: { name: string; icon?: string }, t: RuntimeTranslator = key => key): DiscordActivity {
   return {
-    state: build ? `Играет в ${build.name}` : `Играет в Minecraft ${mcVersion}`,
+    state: build ? t("runtime.presence.build", { name: build.name }) : t("runtime.presence.minecraft", { version: mcVersion }),
     loader: loader !== "vanilla" ? loader : undefined,
     smallImageKey: build ? discordImageUrl(build.icon) || (loaderIcons[loader.toLowerCase()] ? undefined : "logo") : undefined,
     smallImageText: build?.name,
     startTimestamp: Math.floor(Date.now() / 1000),
   }
 }
+import type { RuntimeTranslator } from "./i18n"

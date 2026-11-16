@@ -7,6 +7,7 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
 import type { AgentMcpServerConfig, AgentMcpServerState, AgentMcpToolInfo } from "@xnlc/types"
 import { dbHelpers } from "../db"
 import { redactAgentText } from "./agent-protocol"
+import { sendToRenderer } from "./runtime"
 
 const SETTING_KEY = "agent.mcpServers"
 const ENCRYPTED_PREFIX = "encrypted:"
@@ -14,9 +15,23 @@ const MAX_SERVERS = 24
 const MAX_TOOLS_PER_SERVER = 64
 const MAX_TOOLS_TOTAL = 64
 const MAX_TOOL_SCHEMA_BYTES = 4000
-const clients = new Map<string, { client: Client; transport: Transport; tools: AgentMcpToolInfo[]; error?: string }>()
+const CONNECT_TIMEOUT_MS = 15_000
+type McpConnection = {
+  client: Client; transport: Transport; config: AgentMcpServerConfig; fingerprint: string
+  tools: AgentMcpToolInfo[]; ready: boolean; abort: AbortController
+  pending?: Promise<McpConnection>; closing?: Promise<void>; error?: string
+}
+const clients = new Map<string, McpConnection>()
+const configured = new Map<string, AgentMcpServerConfig>()
+const closing = new Set<Promise<void>>()
+const closingByName = new Map<string, Set<Promise<void>>>()
+let stopping = false
+let shuttingDown = false
+let notificationPending = false
 let operationQueue: Promise<void> = Promise.resolve()
+let configCache: { raw: string; configs: AgentMcpServerConfig[] } | undefined
 
+// Только локальное чтение/изменение конфигурации. Сеть и вызовы инструментов — вне очереди.
 function queue<T>(operation: () => Promise<T>): Promise<T> {
   const current = operationQueue.then(operation)
   operationQueue = current.then(() => {}, () => {})
@@ -112,15 +127,77 @@ function normalizeConfigs(value: unknown): AgentMcpServerConfig[] {
 
 async function readConfigs(): Promise<AgentMcpServerConfig[]> {
   const raw = await dbHelpers.getSetting(SETTING_KEY)
-  if (!raw) return []
+  if (!raw) { configCache = undefined; rememberConfigs([]); return [] }
+  if (configCache?.raw === raw) {
+    const configs = structuredClone(configCache.configs)
+    rememberConfigs(configs)
+    return configs
+  }
   const configs = normalizeConfigs(decodeStored(raw))
   if (!raw.startsWith(ENCRYPTED_PREFIX)) await writeConfigs(configs)
+  else { rememberConfigs(configs); configCache = { raw, configs: structuredClone(configs) } }
   return configs
 }
 
 async function writeConfigs(configs: AgentMcpServerConfig[]): Promise<void> {
   const value = JSON.stringify(configs)
-  await dbHelpers.setSetting(SETTING_KEY, encodeStored(value))
+  const raw = encodeStored(value)
+  await dbHelpers.setSetting(SETTING_KEY, raw)
+  configCache = { raw, configs: structuredClone(configs) }
+  rememberConfigs(configs)
+}
+
+function rememberConfigs(configs: AgentMcpServerConfig[]): void {
+  configured.clear()
+  for (const config of configs) configured.set(config.name, config)
+}
+
+function fingerprint(config: AgentMcpServerConfig): string {
+  return JSON.stringify({ ...config,
+    env: Object.entries(config.env ?? {}).sort(([a], [b]) => a.localeCompare(b)),
+    headers: Object.entries(config.headers ?? {}).sort(([a], [b]) => a.localeCompare(b)),
+  })
+}
+
+function notifyMcpUpdated(): void {
+  if (stopping || notificationPending) return
+  notificationPending = true
+  queueMicrotask(() => {
+    notificationPending = false
+    if (!stopping) { try { sendToRenderer("ai:mcp-updated", {}) } catch { /* Окно уже закрыто. */ } }
+  })
+}
+
+function dispose(connection: McpConnection): Promise<void> {
+  if (connection.closing) return connection.closing
+  connection.abort.abort(new Error("Подключение MCP отменено"))
+  const job = Promise.resolve().then(() => connection.transport.close())
+  connection.closing = job
+  closing.add(job)
+  const named = closingByName.get(connection.config.name) ?? new Set<Promise<void>>()
+  named.add(job)
+  closingByName.set(connection.config.name, named)
+  const finished = () => {
+    closing.delete(job); named.delete(job)
+    if (named.size === 0 && closingByName.get(connection.config.name) === named) closingByName.delete(connection.config.name)
+  }
+  // Обработка отказа обязательна и для фонового удаления; strict-stop проверяет сам job.
+  void job.then(finished, finished)
+  return job
+}
+
+function close(name: string): Promise<void> {
+  const connection = clients.get(name)
+  clients.delete(name)
+  if (!connection) return Promise.resolve()
+  notifyMcpUpdated()
+  return dispose(connection)
+}
+
+function stillCurrent(connection: McpConnection): boolean {
+  const current = configured.get(connection.config.name)
+  return !stopping && !connection.abort.signal.aborted && clients.get(connection.config.name) === connection
+    && current?.enabled === true && fingerprint(current) === connection.fingerprint
 }
 
 function scrubSecrets(text: string, config: AgentMcpServerConfig): string {
@@ -131,78 +208,126 @@ function scrubSecrets(text: string, config: AgentMcpServerConfig): string {
 }
 
 async function connect(config: AgentMcpServerConfig) {
+  const current = configured.get(config.name)
+  if (stopping || !current?.enabled || fingerprint(current) !== fingerprint(config)) throw new Error(`MCP-сервер «${config.name}» выключен или изменён`)
   const existing = clients.get(config.name)
-  if (existing) return existing
-  if (!config.enabled) throw new Error(`MCP-сервер «${config.name}» выключен. Сначала подключите его в настройках AI.`)
+  if (existing && existing.fingerprint === fingerprint(config)) {
+    if (existing.ready) return existing
+    if (existing.pending) return existing.pending
+    if (existing.error) throw new Error(existing.error)
+  }
+  if (existing) void close(config.name)
+  // Новый локальный процесс запускается только после завершения старого с тем же именем.
+  const previousClosures = [...(closingByName.get(config.name) ?? [])]
+  const abort = new AbortController()
   let transport: Transport
   if (config.command) {
     transport = new StdioClientTransport({ command: config.command, args: config.args, env: config.env, stderr: "ignore" })
   } else if (config.url) {
-    transport = new StreamableHTTPClientTransport(new URL(config.url), { requestInit: { headers: config.headers, redirect: "error" } })
+    transport = new StreamableHTTPClientTransport(new URL(config.url), {
+      requestInit: { headers: config.headers, redirect: "error" },
+      fetch: (input, init) => fetch(input, { ...init, redirect: "error", signal: init?.signal ? AbortSignal.any([init.signal, abort.signal]) : abort.signal }),
+    })
   } else throw new Error(`У MCP-сервера «${config.name}» не задан транспорт`)
   const client = new Client({ name: "xneon-launcher", version: app.getVersion() })
-  const connection = { client, transport, tools: [] as AgentMcpToolInfo[] }
+  const connection: McpConnection = { client, transport, config, fingerprint: fingerprint(config), tools: [], ready: false, abort }
   clients.set(config.name, connection)
-  try {
+  client.onclose = () => {
+    if (clients.get(config.name) !== connection || abort.signal.aborted) return
+    connection.ready = false
+    connection.tools = []
+    connection.error = connection.error ?? "Соединение MCP закрыто"
+    notifyMcpUpdated()
+  }
+  connection.pending = (async () => {
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
     try {
-      const timeout = new Promise<never>((_, reject) => { timeoutHandle = setTimeout(() => reject(new Error("Истекло время подключения к MCP-серверу (15 сек.)")), 15_000) })
-      await Promise.race([client.connect(transport), timeout])
-    } finally { if (timeoutHandle) clearTimeout(timeoutHandle) }
-    const listed = await client.listTools(undefined, { timeout: 15_000 })
-    if (listed.tools.length > MAX_TOOLS_PER_SERVER) throw new Error(`Сервер вернул слишком много инструментов (лимит ${MAX_TOOLS_PER_SERVER})`)
-    connection.tools = listed.tools.filter(tool => typeof tool.name === "string" && tool.name.length > 0 && tool.name.length <= 200 && !/[\0-\x1f]/.test(tool.name) && Buffer.byteLength(JSON.stringify(tool.inputSchema ?? {})) <= MAX_TOOL_SCHEMA_BYTES).map(tool => ({
-      server: config.name,
-      name: tool.name,
-      description: scrubSecrets(tool.description || "", config).slice(0, 1500),
-      inputSchema: JSON.parse(scrubSecrets(JSON.stringify(tool.inputSchema ?? {}), config)) as Record<string, unknown>,
-    }))
-    return connection
-  } catch (error) {
-    clients.delete(config.name)
-    await client.close().catch(() => {})
-    throw new Error(scrubSecrets(error instanceof Error ? error.message : String(error), config))
-  }
-}
-
-async function close(name: string, strict = false) {
-  const connection = clients.get(name)
-  clients.delete(name)
-  if (connection) {
-    try { await connection.client.close() }
-    catch (error) { if (strict) throw error }
-  }
+      if (previousClosures.length) await Promise.allSettled(previousClosures)
+      if (!stillCurrent(connection)) throw new Error("Подключение MCP отменено")
+      const timeout = new Promise<never>((_, reject) => { timeoutHandle = setTimeout(() => {
+        const error = new Error("Истекло время подключения к MCP-серверу (15 сек.)")
+        abort.abort(error)
+        reject(error)
+      }, CONNECT_TIMEOUT_MS) })
+      const listed = await Promise.race([(async () => {
+        await client.connect(transport, { signal: abort.signal, timeout: CONNECT_TIMEOUT_MS })
+        return client.listTools(undefined, { signal: abort.signal, timeout: CONNECT_TIMEOUT_MS })
+      })(), timeout])
+      if (!stillCurrent(connection)) throw new Error("Подключение MCP отменено")
+      if (listed.tools.length > MAX_TOOLS_PER_SERVER) throw new Error(`Сервер вернул слишком много инструментов (лимит ${MAX_TOOLS_PER_SERVER})`)
+      connection.tools = listed.tools.filter(tool => typeof tool.name === "string" && tool.name.length > 0 && tool.name.length <= 200 && !/[\0-\x1f]/.test(tool.name) && Buffer.byteLength(JSON.stringify(tool.inputSchema ?? {})) <= MAX_TOOL_SCHEMA_BYTES).map(tool => ({
+        server: config.name,
+        name: tool.name,
+        description: scrubSecrets(tool.description || "", config).slice(0, 1500),
+        inputSchema: JSON.parse(scrubSecrets(JSON.stringify(tool.inputSchema ?? {}), config)) as Record<string, unknown>,
+      }))
+      connection.ready = true
+      connection.error = undefined
+      return connection
+    } catch (error) {
+      connection.ready = false
+      connection.tools = []
+      connection.error = scrubSecrets(error instanceof Error ? error.message : String(error), config)
+      void dispose(connection)
+      throw new Error(connection.error)
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle)
+      connection.pending = undefined
+      notifyMcpUpdated()
+    }
+  })()
+  notifyMcpUpdated()
+  return connection.pending
 }
 
 export async function stopMcpConnections(strict = false): Promise<void> {
-  await operationQueue
-  const results = await Promise.allSettled([...clients.keys()].map(name => close(name, strict)))
-  for (const result of results) if (result.status === "rejected") throw result.reason
+  stopping = true
+  try {
+    await operationQueue
+    const pending = [...clients.values()].flatMap(connection => connection.pending ? [connection.pending] : [])
+    const jobs = [...closing, ...[...clients.keys()].map(name => close(name))]
+    const results = await Promise.allSettled(jobs)
+    await Promise.allSettled(pending)
+    // Handshake, прерванный закрытием, мог добавить cleanup после первого снимка.
+    const remaining = await Promise.allSettled([...closing])
+    if (strict) for (const result of [...results, ...remaining]) if (result.status === "rejected") throw result.reason
+  } finally { if (!shuttingDown) stopping = false }
 }
 
-async function states(connectEnabled = false): Promise<AgentMcpServerState[]> {
-  const configs = await readConfigs()
-  return Promise.all(configs.map(async config => {
-    let error = clients.get(config.name)?.error
-    if (connectEnabled && config.enabled && !clients.has(config.name)) {
-      try { await connect(config) } catch (value) { error = value instanceof Error ? value.message : String(value) }
-    }
+function states(configs: AgentMcpServerConfig[]): AgentMcpServerState[] {
+  return configs.map(config => {
     const connection = clients.get(config.name)
-    return { ...config, connected: !!connection, tools: connection?.tools.map(tool => tool.name) ?? [], ...(error ? { error } : {}) }
-  }))
+    const matching = connection?.fingerprint === fingerprint(config) ? connection : undefined
+    return { ...config, connected: matching?.ready === true, ...(matching?.pending ? { connecting: true } : {}),
+      tools: matching?.ready ? matching.tools.map(tool => tool.name) : [], ...(matching?.error ? { error: matching.error } : {}) }
+  })
+}
+
+function connectInBackground(configs: AgentMcpServerConfig[]): void {
+  if (stopping) return
+  for (const config of configs) {
+    if (config.enabled && !clients.has(config.name)) void connect(config).catch(() => {})
+  }
+}
+
+function reconcileConnections(next: AgentMcpServerConfig[]): void {
+  const nextByName = new Map(next.map(config => [config.name, config]))
+  for (const [name, connection] of clients) {
+    const config = nextByName.get(name)
+    if (!config?.enabled || fingerprint(config) !== connection.fingerprint) void close(name)
+  }
+  connectInBackground(next)
+  notifyMcpUpdated()
 }
 
 async function listTools(): Promise<AgentMcpToolInfo[]> {
-  const configs = await readConfigs()
+  const configs = await queue(readConfigs)
   const result: AgentMcpToolInfo[] = []
-  for (const config of configs) {
-    if (!config.enabled) continue
-    try {
-      const remaining = MAX_TOOLS_TOTAL - result.length
-      if (remaining <= 0) break
-      result.push(...(await connect(config)).tools.slice(0, remaining))
-    }
-    catch { /* The read-only listing reports only servers that connected successfully. */ }
+  const connections = await Promise.all(configs.filter(config => config.enabled).map(config => connect(config).catch(() => null)))
+  for (const connection of connections) {
+    const remaining = MAX_TOOLS_TOTAL - result.length
+    if (remaining <= 0) break
+    if (connection && stillCurrent(connection) && connection.ready) result.push(...connection.tools.slice(0, remaining))
   }
   return result
 }
@@ -218,12 +343,13 @@ function boundedJson(value: unknown): string {
 
 async function callTool(serverName: string, toolName: string, args: Record<string, unknown>) {
   if (typeof serverName !== "string" || typeof toolName !== "string" || !serverName || !toolName || Buffer.byteLength(JSON.stringify(args)) > 128_000) throw new Error("Некорректный вызов MCP-инструмента")
-  const config = (await readConfigs()).find(item => item.name === serverName)
+  const config = (await queue(readConfigs)).find(item => item.name === serverName)
   if (!config) throw new Error(`MCP-сервер «${serverName}» не найден`)
   const connection = await connect(config)
+  if (!stillCurrent(connection) || !connection.ready) throw new Error("MCP-сервер выключен или удалён")
   if (!connection.tools.some(tool => tool.name === toolName)) throw new Error(`Инструмент «${toolName}» не найден на сервере «${serverName}»`)
   try {
-    const result = await connection.client.callTool({ name: toolName, arguments: args }, undefined, { timeout: 60_000 })
+    const result = await connection.client.callTool({ name: toolName, arguments: args }, undefined, { timeout: 60_000, signal: connection.abort.signal })
     const output = scrubSecrets(boundedJson(result), config)
     if (result.isError) throw new Error(output)
     return output
@@ -233,13 +359,16 @@ async function callTool(serverName: string, toolName: string, args: Record<strin
 }
 
 export function registerAgentMcpHandlers(): void {
-  rpcRegistry.handle("ai:mcp-list", () => queue(() => states(true)))
+  rpcRegistry.handle("ai:mcp-list", () => queue(async () => {
+    const configs = await readConfigs()
+    connectInBackground(configs)
+    return states(configs)
+  }))
   rpcRegistry.handle("ai:mcp-save", (_event, input: unknown) => queue(async () => {
     const next = normalizeConfigs(input)
-    const previous = await readConfigs()
     await writeConfigs(next)
-    for (const config of previous) await close(config.name)
-    return states(true)
+    reconcileConnections(next)
+    return states(next)
   }))
   rpcRegistry.handle("ai:mcp-connect", (_event, name: string) => queue(async () => {
     if (typeof name !== "string") throw new Error("Некорректное имя MCP-сервера")
@@ -248,36 +377,42 @@ export function registerAgentMcpHandlers(): void {
     if (index < 0) throw new Error("MCP-сервер не найден")
     configs[index] = { ...configs[index], enabled: true }
     await writeConfigs(configs)
-    try { await connect(configs[index]) }
-    catch (error) { return { ...configs[index], connected: false, tools: [], error: error instanceof Error ? error.message : String(error) } }
-    return (await states()).find(config => config.name === name)!
+    // Явное включение повторяет ошибку, но не блокирует удаление до конца handshake.
+    const existing = clients.get(name)
+    if (existing?.error) void close(name)
+    void connect(configs[index]).catch(() => {})
+    notifyMcpUpdated()
+    return states(configs).find(item => item.name === name)!
   }))
   rpcRegistry.handle("ai:mcp-disconnect", (_event, name: string) => queue(async () => {
     if (typeof name !== "string") throw new Error("Некорректное имя MCP-сервера")
     const configs = await readConfigs()
     const index = configs.findIndex(config => config.name === name)
     if (index < 0) throw new Error("MCP-сервер не найден")
-    await close(name)
     configs[index] = { ...configs[index], enabled: false }
     await writeConfigs(configs)
+    void close(name)
+    notifyMcpUpdated()
     return { ...configs[index], connected: false, tools: [] }
   }))
-  rpcRegistry.handle("agent:mcp-tools", () => queue(() => listTools()))
-  rpcRegistry.handle("agent:mcp-call", (_event, server: string, tool: string, args: Record<string, unknown>) => queue(() => callTool(server, tool, args)))
-  rpcRegistry.handle("agent:mcp-install", (_event, configJson: string) => queue(async () => {
-    if (typeof configJson !== "string" || Buffer.byteLength(configJson) > 64_000) throw new Error("Некорректная MCP-конфигурация")
-    const incoming = normalizeConfigs(configJson).map(config => ({ ...config, enabled: true }))
-    const current = await readConfigs()
-    const merged = new Map(current.map(config => [config.name.toLocaleLowerCase(), config]))
-    for (const config of incoming) merged.set(config.name.toLocaleLowerCase(), config)
-    const next = [...merged.values()]
-    if (next.length > MAX_SERVERS) throw new Error(`Можно подключить не больше ${MAX_SERVERS} MCP-серверов`)
-    await writeConfigs(next)
-    for (const config of incoming) {
-      const replaced = current.find(item => item.name.toLocaleLowerCase() === config.name.toLocaleLowerCase())
-      if (replaced) await close(replaced.name)
-    }
-    return (await states(true)).map(({ name, url, connected, tools, error }) => ({ name, transport: url ? "http" as const : "stdio" as const, connected, tools, ...(error ? { error } : {}) }))
-  }))
-  registerShutdownTask("mcp-connections", () => stopMcpConnections(), { priority: SHUTDOWN_PRIORITY.network, timeoutMs: 2500 })
+  rpcRegistry.handle("agent:mcp-tools", () => listTools())
+  rpcRegistry.handle("agent:mcp-call", (_event, server: string, tool: string, args: Record<string, unknown>) => callTool(server, tool, args))
+  rpcRegistry.handle("agent:mcp-install", async (_event, configJson: string) => {
+    const next = await queue(async () => {
+      if (typeof configJson !== "string" || Buffer.byteLength(configJson) > 64_000) throw new Error("Некорректная MCP-конфигурация")
+      const incoming = normalizeConfigs(configJson).map(config => ({ ...config, enabled: true }))
+      const current = await readConfigs()
+      const merged = new Map(current.map(config => [config.name.toLocaleLowerCase(), config]))
+      for (const config of incoming) merged.set(config.name.toLocaleLowerCase(), config)
+      const configs = [...merged.values()]
+      if (configs.length > MAX_SERVERS) throw new Error(`Можно подключить не больше ${MAX_SERVERS} MCP-серверов`)
+      await writeConfigs(configs)
+      reconcileConnections(configs)
+      return configs
+    })
+    // Установка агентом по-прежнему возвращает итог подключения, но не блокирует настройки.
+    await Promise.allSettled(next.filter(config => config.enabled).map(config => connect(config)))
+    return queue(async () => states(await readConfigs()).map(({ name, url, connected, tools, error }) => ({ name, transport: url ? "http" as const : "stdio" as const, connected, tools, ...(error ? { error } : {}) })))
+  })
+  registerShutdownTask("mcp-connections", () => { shuttingDown = true; return stopMcpConnections() }, { priority: SHUTDOWN_PRIORITY.network, timeoutMs: 2500 })
 }

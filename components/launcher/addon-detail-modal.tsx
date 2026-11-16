@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeRaw from "rehype-raw"
 import rehypeSanitize from "rehype-sanitize"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
@@ -36,6 +36,10 @@ import { isInstalledVersion, matchesBuildLoader } from "./instance/utils"
 import { GameVersionChips, LoaderBadges } from "./instance/version-chips"
 import { VersionInstallProgress, type InstallState } from "./instance/version-install-progress"
 import type { Build, ModDetails, ModalTab, ModVersion } from "./instance/types"
+import type { ModDependency } from "@xnlc/types"
+
+const dependencyKey = (dependency: ModDependency) => dependency.projectId || dependency.versionId || dependency.fileName || ""
+const dependencyPreviews = new Map<string, { dependency: ModDependency; expires: number }>()
 
 function loaderLabel(loaderId: string): string {
   return MOD_LOADERS.find(item => item.id === loaderId)?.name ?? loaderId
@@ -134,6 +138,52 @@ export function AddonDetailModal({
   const [install, setInstall] = useState<InstallState | null>(null)
   const [cfChangelogs, setCfChangelogs] = useState<Record<string, string>>({})
   const [loadingChangelog, setLoadingChangelog] = useState(false)
+  const [dependencyDetails, setDependencyDetails] = useState<Record<string, ModDependency>>({})
+  const dependencySource = selectedDetails?.source
+  const visibleDependencies = useMemo(() => {
+    const unique = new Map<string, ModDependency>()
+    if (projectKind === "modpack") return []
+    for (const version of displayedModalVersions) for (const dependency of version.dependencies ?? []) {
+      if (dependency.dependencyType !== "required" && dependency.dependencyType !== "optional") continue
+      const key = dependencyKey(dependency)
+      if (key && !unique.has(key)) unique.set(key, dependency)
+    }
+    return [...unique.values()]
+  }, [displayedModalVersions, projectKind])
+  useEffect(() => {
+    if (modalTab !== "versions" || (dependencySource !== "modrinth" && dependencySource !== "curseforge")) return
+    const api = window.electrobunAPI
+    const template = displayedModalVersions[0]
+    if (!api || !template || !visibleDependencies.length) return
+    let cancelled = false
+    const updates: Record<string, ModDependency> = {}
+    const missing: ModDependency[] = []
+    for (const dependency of visibleDependencies) {
+      const key = `${dependencySource}:${dependencyKey(dependency)}`
+      const cached = dependencyPreviews.get(key)
+      if (dependency.name && dependency.iconUrl) updates[key] = dependency
+      else if (cached && cached.expires > Date.now()) updates[key] = cached.dependency
+      else missing.push(dependency)
+    }
+    setDependencyDetails(updates)
+    // Повторяющаяся зависимость десятков версий запрашивается один раз.
+    // Небольшие пакеты не задерживают открытие списка и не перегружают API.
+    void (async () => {
+      for (let index = 0; index < missing.length && !cancelled; index += 4) {
+        const resolved = await api.modsResolveDependencies({ ...template, dependencies: missing.slice(index, index + 4) }, dependencySource).catch(() => [])
+        if (cancelled) return
+        const batch: Record<string, ModDependency> = {}
+        for (const dependency of resolved) {
+          const key = `${dependencySource}:${dependencyKey(dependency)}`
+          if (dependencyPreviews.size >= 256) dependencyPreviews.delete(dependencyPreviews.keys().next().value!)
+          dependencyPreviews.set(key, { dependency, expires: Date.now() + 10 * 60_000 })
+          batch[key] = dependency
+        }
+        setDependencyDetails(current => ({ ...current, ...batch }))
+      }
+    })()
+    return () => { cancelled = true }
+  }, [modalTab, dependencySource, visibleDependencies, displayedModalVersions])
   const installVersionRef = useRef<string | null>(null)
   const installStateRef = useRef<InstallState | null>(null)
   const doneTimerRef = useRef<number | null>(null)
@@ -555,14 +605,19 @@ export function AddonDetailModal({
                       </button>}
                     </div>
 
-                    {!!ver.dependencies?.length && (
+                    {projectKind !== "modpack" && ver.dependencies?.some(dependency => dependency.dependencyType === "required" || dependency.dependencyType === "optional") && (
                       <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-3 text-xs">
                         <span className="mr-1 text-muted-foreground">{t("addon.versions.dependencies")}:</span>
-                        {(["required", "optional", "incompatible", "embedded"] as const).map((type) => {
-                          const dependencies = ver.dependencies?.filter((dependency) => dependency.dependencyType === type) ?? []
-                          if (!dependencies.length) return null
-                          const names = dependencies.map((dependency) => dependency.name || dependency.slug || dependency.fileName || dependency.projectId || dependency.versionId).filter(Boolean).join(", ")
-                          return <span key={type} title={names || undefined} className="rounded-md bg-muted px-2 py-1 text-muted-foreground">{t(`addon.versions.dependencyType.${type}`)}: {dependencies.length}</span>
+                        {ver.dependencies.filter(dependency => dependency.dependencyType === "required" || dependency.dependencyType === "optional").map((dependency, index) => {
+                          const details = dependencyDetails[`${dependencySource}:${dependencyKey(dependency)}`] ?? dependency
+                          const name = details.name || details.slug || details.fileName || dependency.projectId || dependency.versionId
+                          return <span key={`${dependencyKey(dependency)}:${index}`} title={t(`addon.versions.dependencyType.${dependency.dependencyType}`)}
+                            className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-2 py-1.5 text-foreground">
+                            {details.iconUrl ? <img src={details.iconUrl} alt="" loading="lazy" decoding="async" className="h-5 w-5 shrink-0 rounded object-cover" onError={event => { event.currentTarget.style.display = "none" }} />
+                              : <IconPackage className="h-5 w-5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />}
+                            <span className="truncate">{name}</span>
+                            {dependency.dependencyType === "optional" && <span className="text-[10px] text-muted-foreground">{t("addon.versions.dependencyType.optional")}</span>}
+                          </span>
                         })}
                       </div>
                     )}

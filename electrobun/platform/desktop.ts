@@ -64,6 +64,12 @@ launcherShutdown.onExit(() => {
     Utils.quit()
 })
 Electrobun.events.on("reopen", () => app.emit("reopen"))
+Electrobun.events.on("before-quit", event => {
+  if (launcherShutdown.finished) return
+  // Установщик отдельно разрешает SDK approval только после prepare("update").
+  event.response = { allow: false }
+  if (!launcherOperations.blocked) app.quit()
+})
 
 const windows = new Map<number, DesktopWindow>()
 type WindowOptions = { width: number; height: number; show?: boolean; launcher?: boolean; startupTheme?: string | null }

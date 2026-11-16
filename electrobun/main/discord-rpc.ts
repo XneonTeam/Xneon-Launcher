@@ -2,6 +2,7 @@ import fs from "fs/promises"
 import path from "path"
 import { app } from "../platform/desktop"
 import { registerShutdownTask, SHUTDOWN_PRIORITY } from "../platform/shutdown"
+import { getMainTranslator } from "./i18n"
 import { presenceSmallImage, type DiscordActivity } from "./discord-presence"
 
 const CLIENT_ID = "1279183673660538972"
@@ -11,6 +12,8 @@ let connected = false
 let connecting = false
 let retryTimer: NodeJS.Timeout | null = null
 let shuttingDown = false
+let rpcGeneration = 0
+const rpcClients = new Set<{ destroy(): Promise<unknown>; removeAllListeners(): unknown }>()
 let pendingActivity: DiscordActivity | null = null
 let lastActivity: DiscordActivity | null = null
 let gameStartTimestamp: number | undefined = undefined
@@ -65,17 +68,23 @@ async function hasDiscordIpcSocket(runtimeDir: string): Promise<boolean> {
 }
 
 async function loginWithRuntimeDir(runtimeDir?: string): Promise<any> {
+  const generation = rpcGeneration
   const { Client } = await import("discord-rpc")
+  if (shuttingDown || generation !== rpcGeneration) throw new Error("Discord RPC is shutting down")
   const previousRuntimeDir = process.env.XDG_RUNTIME_DIR
   const client = new Client({ transport: "ipc" })
+  rpcClients.add(client)
 
   client.on("disconnected", () => {
+    rpcClients.delete(client)
+    if (shuttingDown || generation !== rpcGeneration) return
     connected = false
     rpc = null
     scheduleRetry()
   })
 
   client.on("error", (err: { code: number }) => {
+    if (shuttingDown || generation !== rpcGeneration) return
     if (err.code !== 1000) {
       console.error("Discord RPC error:", err)
     }
@@ -85,6 +94,7 @@ async function loginWithRuntimeDir(runtimeDir?: string): Promise<any> {
   })
 
   client.on("ready", () => {
+    if (shuttingDown || generation !== rpcGeneration) return
     connected = true
     flushPendingActivity()
   })
@@ -94,6 +104,7 @@ async function loginWithRuntimeDir(runtimeDir?: string): Promise<any> {
       process.env.XDG_RUNTIME_DIR = runtimeDir
     }
     await client.login({ clientId: CLIENT_ID })
+    if (shuttingDown || generation !== rpcGeneration) throw new Error("Discord RPC connection superseded")
     // discord-rpc resolves login() once the READY frame arrived, so a pending
     // activity must be flushed here even if the "ready" event raced us.
     connected = true
@@ -103,6 +114,7 @@ async function loginWithRuntimeDir(runtimeDir?: string): Promise<any> {
     // destroy() каждая неудачная попытка утекала, а retry раз в 15 секунд
     // создавал новый клиент.
     try { await client.destroy() } catch { /* клиент мог не успеть создать соединение */ }
+    rpcClients.delete(client)
     throw error
   } finally {
     if (previousRuntimeDir === undefined) {
@@ -236,7 +248,7 @@ function applyActivity(activity: DiscordActivity): void {
 // Launcher just started — publish the "in menu" presence right away instead of
 // waiting for the first game launch to set any activity.
 setTimeout(() => {
-  setDiscordActivity({ state: "В меню" })
+  void getMainTranslator().then(t => setDiscordActivity({ state: t("runtime.presence.menu") })).catch(() => {})
 }, 1500)
 
 /**
@@ -246,17 +258,21 @@ setTimeout(() => {
  */
 export async function shutdownDiscordRpc(): Promise<void> {
   shuttingDown = true
+  rpcGeneration++
   if (retryTimer) {
     clearTimeout(retryTimer)
     retryTimer = null
   }
-  const client = rpc
   rpc = null
   connected = false
   pendingActivity = null
-  if (client) {
-    try { await client.destroy() } catch { /* клиент мог быть уже уничтожен */ }
-  }
+  const clients = [...rpcClients]
+  rpcClients.clear()
+  await Promise.allSettled(clients.map(async client => {
+    client.removeAllListeners()
+    await client.destroy()
+  }))
 }
 
 registerShutdownTask("discord-rpc", shutdownDiscordRpc, { priority: SHUTDOWN_PRIORITY.network, timeoutMs: 1500 })
+app.on("reopen", () => { shuttingDown = false; void initDiscordRpc() })

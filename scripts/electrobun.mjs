@@ -15,8 +15,8 @@ if (result.error) throw result.error
 process.exitCode = result.status ?? 1
 
 if (process.exitCode === 0 && process.platform === "win32" && args[0] === "build" && channel === "stable") {
-  // NSIS-установщик и распакованный zip как в Electron-сборке.
-  const installer = spawnSync("bun", ["scripts/build-windows-distribution.ts", channel], { stdio: "inherit" })
+  // Только необходимый NSIS; штатные артефакты SDK остаются без преобразований.
+  const installer = spawnSync(process.execPath, ["scripts/build-windows-distribution.ts", channel], { stdio: "inherit" })
   if (installer.error) throw installer.error
   process.exitCode = installer.status ?? 1
 }

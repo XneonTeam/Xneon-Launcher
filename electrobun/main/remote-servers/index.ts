@@ -252,7 +252,22 @@ export async function manageRemoteServer(input: RemoteServerRequest): Promise<Re
 export function registerRemoteServerHandlers(): void {
   configureRemoteServerProxy(invokeRemote, listRemoteServers)
   rpcRegistry.handle("mc-server:remote", (_event, request: RemoteServerRequest) => manageRemoteServer(request))
-  app.on("before-quit", () => { shuttingDown = true; for (const id of connections.keys()) closeConnection(id) })
+  registerShutdownTask("remote-server-connections", async () => {
+    shuttingDown = true
+    const closed = [...connections.values()].map(connection => new Promise<void>(resolve => {
+      if (connection.socket.readyState === WebSocket.CLOSED) { resolve(); return }
+      const timer = setTimeout(done, 1500)
+      function done() {
+        clearTimeout(timer)
+        connection.socket.removeEventListener("close", done)
+        resolve()
+      }
+      connection.socket.addEventListener("close", done, { once: true })
+    }))
+    for (const id of connections.keys()) closeConnection(id)
+    await Promise.all(closed)
+  }, { priority: SHUTDOWN_PRIORITY.network, timeoutMs: 2000 })
+  app.on("reopen", () => { shuttingDown = false; void startRemoteServerHosts() })
 }
 export async function startRemoteServerHosts(): Promise<void> {
   if (starting || shuttingDown) return
@@ -278,3 +293,4 @@ export async function startRemoteServerHosts(): Promise<void> {
   } catch (error) { logRuntime(`[Remote servers] ${(error as Error).message}`) }
   finally { starting = false }
 }
+import { registerShutdownTask, SHUTDOWN_PRIORITY } from "../../platform/shutdown"

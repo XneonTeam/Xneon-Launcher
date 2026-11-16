@@ -134,7 +134,7 @@ describe("ArchiveContext", () => {
     expect(archive.get("vector")?.crc32).toBe(0xcbf43926)
     expect(new TextDecoder().decode(await archive.read("vector"))).toBe("123456789")
   })
-  test("rejects duplicate entries and ZIP64 markers", async () => {
+  test("rejects duplicate entries and ZIP64 without a locator", async () => {
     const bytes = zip({ "a": "one", "b": "two" })
     const locations: number[] = []
     for (let i = 0; i < bytes.length - 4; i++) if ([0x50, 0x4b, 0x01, 0x02].every((b, j) => bytes[i + j] === b)) locations.push(i)
@@ -144,7 +144,7 @@ describe("ArchiveContext", () => {
     const end = zip64.length - 22
     zip64[end + 10] = 255; zip64[end + 11] = 255
     zip64[end + 8] = 255; zip64[end + 9] = 255
-    await expect(ArchiveContext.open(zip64)).rejects.toMatchObject({ code: "UNSUPPORTED_ARCHIVE" })
+    await expect(ArchiveContext.open(zip64)).rejects.toMatchObject({ code: "CORRUPTED_ARCHIVE" })
   })
   test("отклоняет перекрытие локальных записей по центральному каталогу", async () => {
     const bytes = zip({ "first": "1234567890", "second": "another" })
@@ -164,7 +164,7 @@ describe("ArchiveContext", () => {
     await expect(archive.read("first")).rejects.toMatchObject({ code: "CORRUPTED_ARCHIVE" })
     archive.close()
   })
-  test("явно отклоняет архив с ZIP64 EOCD и locator", async () => {
+  test("читает архив с ZIP64 EOCD и locator", async () => {
     const original = Buffer.from(zip({ item: "value" }))
     const endOffset = original.length - 22
     const end = Buffer.from(original.subarray(endOffset))
@@ -179,7 +179,8 @@ describe("ArchiveContext", () => {
     end.writeUInt32LE(0xffffffff, 12); end.writeUInt32LE(0xffffffff, 16)
     const data = Buffer.concat([original.subarray(0, endOffset), zip64, locator, end])
     expect(new TestZip(data).readAsText("item")).toBe("value")
-    await expect(ArchiveContext.open(data)).rejects.toMatchObject({ code: "UNSUPPORTED_ARCHIVE" })
+    const archive = await ArchiveContext.open(data)
+    try { expect(new TextDecoder().decode(await archive.read("item"))).toBe("value") } finally { archive.close() }
   })
   test("rejects unknown compression methods", async () => {
     const bytes = zip({ a: "one" })

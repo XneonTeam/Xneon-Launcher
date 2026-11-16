@@ -1,6 +1,9 @@
 import { registerStagedFileCleanup } from "../platform/staged-files"
+import { configureLauncherScan } from "./scan-mode"
 try { require("dotenv/config") } catch {}
-import { app } from "../platform/desktop"
+import { app, safeStorage } from "../platform/desktop"
+import { configureAccountSecrets } from "../db/account-secrets"
+import { registerShutdownTask, SHUTDOWN_PRIORITY } from "../platform/shutdown"
 import { registerThemeFiles } from "./theme-files.js"
 import "./auth"
 
@@ -26,7 +29,11 @@ import { registerStorageHandlers } from "./storage"
 import { xnConnectManager } from "./xn-connect-manager"
 import { registerXnConnectHandlers } from "./xn-connect-handlers"
 import { registerAuthlibHandlers } from "./authlib"
+import { registerLiveopsHandlers } from "./liveops"
 
+configureLauncherScan()
+
+configureAccountSecrets(safeStorage)
 registerStagedFileCleanup()
 registerThemeFiles()
 registerWindowLifecycle()
@@ -52,6 +59,7 @@ registerStorageHandlers()
 // XN-Connect: каналы в своём модуле (раньше жили внутри mc-server-handlers).
 registerXnConnectHandlers()
 registerAuthlibHandlers()
+registerLiveopsHandlers()
 
 import("@xnlc/mods").catch(() => {})
 import("./discord-rpc.js").catch(() => {})
@@ -60,7 +68,5 @@ import("./discord-rpc.js").catch(() => {})
  * При выходе закрываем туннели XN-Connect: метод существовал, но не вызывался,
  * и relay-сессии оставались висеть после закрытия лаунчера.
  */
-app.on("before-quit", () => {
-  void xnConnectManager.stopAll().catch(() => {})
-})
+registerShutdownTask("xn-connect", () => xnConnectManager.stopAll(), { priority: SHUTDOWN_PRIORITY.network, timeoutMs: 2500 })
 

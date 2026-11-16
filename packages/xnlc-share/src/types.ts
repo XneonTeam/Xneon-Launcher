@@ -75,7 +75,7 @@ export interface SharePorts {
   files: Worktree; hash: HashPort; sources: ContentSourceAdapter[]
   remote: ShareTransport; now(): string
   localSource?(file: FileInfo, hashes: Hashes): Promise<SourceReference | undefined>
-  inspectExternal?(bytes: Uint8Array): void
+  inspectExternal?(bytes: Uint8Array): void | Promise<void>
   progress?(event: { stage: string; done: number; total: number; bytes: number; files?: { path: string; size: number; name?: string; iconUrl?: string; status: "queued" | "downloading" | "complete" | "error" }[] }): void
 }
 export interface ShareTransport {

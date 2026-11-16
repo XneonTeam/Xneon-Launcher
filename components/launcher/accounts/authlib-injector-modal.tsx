@@ -173,16 +173,10 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
         type: "authlib-injector",
         username: result.username,
         uuid: result.uuid,
-        accessToken: result.accessToken,
-        yggClientToken: result.clientToken,
         serverId: result.serverId,
         serverUrl: result.serverUrl,
         serverName: result.serverName,
         skinUrl: result.skinUrl,
-        profiles: JSON.stringify({
-          selected: result.selectedProfile,
-          available: result.availableProfiles,
-        }),
         isActive: true,
       })
       closeModal()

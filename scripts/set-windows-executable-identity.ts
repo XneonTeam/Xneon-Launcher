@@ -1,4 +1,6 @@
 import path from "node:path"
+import packageJson from "../package.json"
+import { setWindowsExecutableVersion } from "./windows-version-resource"
 
 async function setWindowsExecutableIdentity() {
   if (process.platform !== "win32") return
@@ -11,11 +13,9 @@ async function setWindowsExecutableIdentity() {
     throw new Error("Electrobun wrapper is outside the project")
   }
   if (!await Bun.file(path.join(wrapper, "bin", "bun.exe")).exists()) throw new Error("Packaged Bun executable is missing")
-  const result = Bun.spawnSync([
-    "powershell.exe", "-NoProfile", "-NonInteractive", "-File",
-    path.join(import.meta.dir, "set-windows-executable-identity.ps1"), path.resolve(wrapper),
-  ], { stdout: "inherit", stderr: "inherit" })
-  if (result.exitCode !== 0) throw new Error("Could not set Windows executable identity")
+  for (const file of ["bun.exe", "launcher.exe"]) {
+    await setWindowsExecutableVersion(path.resolve(wrapper, "bin", file), packageJson.version)
+  }
   console.log("Set Xneon Launcher executable identity")
 }
 

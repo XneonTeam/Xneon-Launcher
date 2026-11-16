@@ -1,5 +1,8 @@
 type Content = { mods: unknown[]; resourcepacks: unknown[]; shaders: unknown[]; installedMods?: Record<string, string> }
 export const CONTENT_PATCH_FIELDS = new Set(["mods", "resourcepacks", "shaders", "installedMods", "modsCount", "resourcepacksCount", "shadersCount"])
+/** Общая политика владения Main/Renderer; пользовательские настройки сюда не входят. */
+export const PACK_METADATA_FIELDS = ["version", "modLoader", "loaderVersion", "customVersionPath", "source", "projectSlug", "modId", "fileId", "modpackVersion", "modpackVersionId",
+  "mods", "resourcepacks", "shaders", "installedMods", "modsCount", "resourcepacksCount", "shadersCount"] as const
 
 /** Устаревшее сохранение не должно возвращать контент во время файловой операции. */
 export function filterStaleContentPatch(fields: Record<string, unknown>, patchRevision: number, currentRevision: number, mutating: boolean): Record<string, unknown> {

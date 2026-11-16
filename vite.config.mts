@@ -2,10 +2,12 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import packageJson from './package.json' with { type: 'json' }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
+  define: { XNLC_APPLICATION_USER_AGENT: JSON.stringify(`Xneon-Launcher/${packageJson.version}`) },
   plugins: [
     {
       name: 'tabler-direct-imports',

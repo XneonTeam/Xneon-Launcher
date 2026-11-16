@@ -15,7 +15,8 @@ import { PropertiesTab } from "./server/properties-tab"
 import { FilesTab } from "./server/files-tab"
 import { AddonsTab } from "./server/addons-tab"
 import { ServerEulaModal } from "./server-eula-modal"
-import { RemoteAccessDialog, remoteServerError } from "./server/remote-access-dialog"
+import { RemoteAccessDialog } from "./server/remote-access-dialog"
+import { remoteServerError } from "./server/remote-error"
 
 type ServerTab = "console" | "datapacks" | "addons" | "properties" | "players" | "settings" | "files"
 

@@ -1,11 +1,23 @@
-import { expect, test } from "bun:test"
+import { afterAll, beforeAll, expect, test } from "bun:test"
 import TestZip from "../../../tests/helpers/zip"
 import { copyFile, mkdtemp, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
-import { pauseScanFiles, runScanWorker } from "@xnlc/parser"
+import { join, resolve } from "node:path"
+import { pauseScanFiles, runScanWorker, setScanWorkerEntry } from "@xnlc/parser"
 import { curseforgeFingerprint } from "../src"
 import { checkLoaderRequirements } from "../../../electrobun/main/mods-loader-requirements"
+
+let workerDirectory: string
+beforeAll(async () => {
+  workerDirectory = await mkdtemp(join(tmpdir(), "xnlc-scan-entry-"))
+  const result = await Bun.build({
+    entrypoints: [resolve(import.meta.dir, "../src/scan-worker.ts")],
+    target: "bun", format: "cjs", outdir: workerDirectory, naming: "[name].js",
+  })
+  expect(result.success).toBe(true)
+  setScanWorkerEntry(join(workerDirectory, "scan-worker.js"))
+})
+afterAll(async () => { setScanWorkerEntry(); if (workerDirectory) await rm(workerDirectory, { recursive: true, force: true }) })
 
 test("worker обрабатывает 220 архивов, не блокируя основной поток, и поддерживает отмену", async () => {
   const dir = await mkdtemp(join(tmpdir(), "xnlc-scan-worker-"))

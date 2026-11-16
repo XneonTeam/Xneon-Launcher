@@ -8,6 +8,7 @@ import { getMainWindow, sendToRenderer } from "./runtime.js"
 import { ThemeLibrary, THEME_MEDIA_TYPES } from "./theme-library.js"
 import { createThemeBundle, restoreThemeBundle } from "./cloud/theme-bundle.js"
 import type { Theme } from "@xnlc/types"
+import { registerShutdownTask, SHUTDOWN_PRIORITY } from "../platform/shutdown"
 
 const MAX_ASSET = 128 * 1024 * 1024
 const mediaTypes: Record<string, string> = {
@@ -25,6 +26,7 @@ export function registerThemeFiles() {
   let watcher: FSWatcher | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
   let disposed = false
+  let watcherGeneration = 0
   const refresh = () => {
     if (timer) clearTimeout(timer)
     timer = setTimeout(() => {
@@ -47,7 +49,7 @@ export function registerThemeFiles() {
     if (result.canceled || !result.filePaths[0]) return null
     const file = result.filePaths[0]
     if (path.extname(file).toLowerCase() !== ".xntheme" || (await fs.stat(file)).size > 512 * 1024 * 1024) throw new Error("Unsupported or oversized theme archive")
-    return { kind: "bundle", theme: await restoreThemeBundle(file, directory()) }
+    return { kind: "bundle" as const, theme: await restoreThemeBundle(file, directory()) }
   })
   rpcRegistry.handle("theme:local-export", async (_event, theme: Theme, format: "xntheme") => {
     if (!theme || typeof theme.name !== "string" || format !== "xntheme") throw new Error("Invalid theme export")
@@ -58,12 +60,24 @@ export function registerThemeFiles() {
     await createThemeBundle(theme, directory(), result.filePath)
     return true
   })
-  void fs.mkdir(library.directory, { recursive: true }).then(() => {
-    if (disposed) return
-    watcher = watch(library.directory, { recursive: true }, refresh)
-    watcher.on("error", error => console.error("[Themes] Watch failed", error))
-  }).catch(error => console.error("[Themes] Watch startup failed", error))
-  app.on("before-quit", () => { disposed = true; watcher?.close(); if (timer) clearTimeout(timer) })
+  const startWatcher = () => {
+    const generation = ++watcherGeneration
+    void fs.mkdir(library.directory, { recursive: true }).then(() => {
+      if (disposed || generation !== watcherGeneration) return
+      watcher?.close()
+      watcher = watch(library.directory, { recursive: true }, refresh)
+      watcher.on("error", error => console.error("[Themes] Watch failed", error))
+    }).catch(error => console.error("[Themes] Watch startup failed", error))
+  }
+  startWatcher()
+  registerShutdownTask("theme-watcher", () => {
+    disposed = true
+    watcherGeneration++
+    watcher?.close()
+    watcher = undefined
+    if (timer) clearTimeout(timer)
+  }, { priority: SHUTDOWN_PRIORITY.watchers })
+  app.on("reopen", () => { if (disposed) { disposed = false; startWatcher() } })
   protocol.handle("xnl-theme", async (request) => {
     const url = new URL(request.url)
     const name = url.pathname.slice(1)

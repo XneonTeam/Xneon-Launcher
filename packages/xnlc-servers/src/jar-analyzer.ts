@@ -1,4 +1,4 @@
-import { listArchiveEntries, readArchiveEntries, type ArchiveEntryInfo } from "@xnlc/archives"
+import { withArchiveEntries } from "@xnlc/archives"
 import * as toml from "toml"
 
 export interface JarAnalysisResult {
@@ -24,12 +24,7 @@ const MODLOADER_IDS = [
 
 /** Метаданные JAR читаются целиком: всё, что больше, заведомо не манифест. */
 const MAX_METADATA_ENTRY_SIZE = 2_000_000
-const METADATA_EXTENSIONS = [".json", ".toml", ".properties", ".mf", ".txt", ".cfg"]
-
-function isMetadataName(name: string): boolean {
-  const lower = name.toLowerCase()
-  return lower === "meta-inf/manifest.mf" || METADATA_EXTENSIONS.some((extension) => lower.endsWith(extension))
-}
+const METADATA_NAMES = new Set(["meta-inf/manifest.mf", "version.json", "meta-inf/version.json", "fabric.mod.json", "meta-inf/mods.toml", "meta-inf/neoforge.mods.toml", "meta-inf/installer.json"])
 
 function findMcVersionInText(text: string): string | null {
   const match = MC_VERSION_PATTERN.exec(text)
@@ -70,33 +65,26 @@ export async function analyzeServerJar(jarPath: string): Promise<JarAnalysisResu
     return result
   }
 
-  let infos: ArchiveEntryInfo[]
+  let names: string[] = []
+  const contents = new Map<string, Buffer>()
   try {
-    infos = await listArchiveEntries(jarPath)
+    await withArchiveEntries(jarPath, async (infos, read) => {
+      names = infos.map(file => file.name)
+      for (const file of infos) {
+        const name = file.name.toLowerCase()
+        if (!file.directory && !file.symlink && METADATA_NAMES.has(name) && !contents.has(name)) {
+          contents.set(name, await read(file))
+        }
+      }
+    }, { maxEntrySize: MAX_METADATA_ENTRY_SIZE, maxTotalSize: 16 * 1024 * 1024 })
   } catch (error) {
     result.error = error instanceof Error && "code" in error && error.code === "IO_ERROR"
-      ? "Файл не найден" : "Не является корректным JAR/ZIP файлом"
+      ? "Файл не найден" : "Не удалось прочитать метаданные JAR"
     return result
   }
 
-  const names: string[] = infos.map((file) => file.name)
-  const metadata = infos.filter((file) => !file.directory && !file.symlink && file.size <= MAX_METADATA_ENTRY_SIZE && isMetadataName(file.name))
-  const wanted = new Set(metadata.map((file) => file.name))
-  let contents = new Map<string, Buffer>()
-  if (wanted.size > 0) {
-    try {
-      contents = await readArchiveEntries(jarPath, [...wanted], {
-        maxEntrySize: MAX_METADATA_ENTRY_SIZE,
-        maxTotalSize: 32 * 1024 * 1024,
-      })
-    } catch {
-      result.error = "Не удалось прочитать метаданные JAR"
-      return result
-    }
-  }
-
   const readText = (entryName: string): string | null => {
-    return contents.get(entryName)?.toString("utf8") ?? null
+    return contents.get(entryName.toLowerCase())?.toString("utf8") ?? null
   }
 
   // ---------- 1. MANIFEST.MF ----------
@@ -145,7 +133,7 @@ export async function analyzeServerJar(jarPath: string): Promise<JarAnalysisResu
 
   // ---------- 3. fabric.mod.json ----------
   for (const name of names) {
-    if (name.endsWith("fabric.mod.json")) {
+    if (name.toLowerCase() === "fabric.mod.json") {
       if (!result.loaderId) {
         result.loaderId = "fabric"
         result.loaderLabel = "Fabric"
@@ -154,7 +142,7 @@ export async function analyzeServerJar(jarPath: string): Promise<JarAnalysisResu
       if (text != null) {
         try {
           const data = JSON.parse(text)
-          result.modId = data.id ?? null
+          result.modId = typeof data.id === "string" && data.id.length ? data.id : null
           if (!result.minecraftVersion && data.depends?.minecraft) {
             const version = findMcVersionInText(String(data.depends.minecraft))
             if (version) result.minecraftVersion = version
@@ -166,20 +154,22 @@ export async function analyzeServerJar(jarPath: string): Promise<JarAnalysisResu
   }
 
   // ---------- 4. Forge/NeoForge mods.toml ----------
-  for (const name of names) {
-    if (name.endsWith("mods.toml")) {
+  for (const name of ["META-INF/neoforge.mods.toml", "META-INF/mods.toml"]) {
+    if (names.some(candidate => candidate.toLowerCase() === name.toLowerCase())) {
       if (!result.loaderId) {
-        result.loaderId = "forge"
-        result.loaderLabel = "Forge"
+        const neo = name.includes("neoforge")
+        result.loaderId = neo ? "neoforge" : "forge"
+        result.loaderLabel = neo ? "NeoForge" : "Forge"
       }
       const text = readText(name)
       if (text != null) {
         try {
           const data = toml.parse(text)
           const mods = Array.isArray(data.mods) ? data.mods : []
-          if (mods[0]?.modId) result.modId = mods[0].modId
+          if (typeof mods[0]?.modId === "string" && mods[0].modId.length) result.modId = mods[0].modId
           if (!result.minecraftVersion) {
-            const raw = data.minecraft_version ?? data.minecraft ?? ""
+            const dependencies = Object.values(data.dependencies ?? {}).flat() as Array<{ modId?: string; versionRange?: string }>
+            const raw = dependencies.find(item => item?.modId === "minecraft")?.versionRange ?? data.minecraft_version ?? data.minecraft ?? ""
             const version = findMcVersionInText(String(raw))
             if (version) result.minecraftVersion = version
           }
@@ -231,25 +221,6 @@ export async function analyzeServerJar(jarPath: string): Promise<JarAnalysisResu
     } else if (names.some((p: string) => p.startsWith("net/fabricmc/"))) {
       result.loaderId = "fabric"
       result.loaderLabel = "Fabric"
-    }
-  }
-
-  // ---------- 7. Fallback: полный скан текстовых метаданных ----------
-  if (!result.minecraftVersion) {
-    const metaExt = [".json", ".toml", ".properties", ".mf", ".txt", ".cfg"]
-    const found: string[] = []
-    for (const name of names) {
-      const lower = name.toLowerCase()
-      if (!metaExt.some(ext => lower.endsWith(ext))) continue
-      const text = readText(name)
-      if (!text) continue
-      const matches = text.match(new RegExp(MC_VERSION_PATTERN.source, "gi")) || []
-      for (const v of matches) {
-        if (!found.includes(v)) found.push(v)
-      }
-    }
-    if (found.length > 0) {
-      result.minecraftVersion = found[0]
     }
   }
 

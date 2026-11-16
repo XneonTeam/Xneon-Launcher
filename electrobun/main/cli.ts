@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto"
-import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { mkdir, readFile, writeFile, unlink } from "node:fs/promises"
 import { chmodSync, constants } from "node:fs"
 import { createConnection, createServer, type Socket } from "node:net"
 import path from "node:path"
@@ -7,6 +7,7 @@ import { launcherOperations } from "../platform/operation-gate"
 import { hasLauncherProfileLock } from "../platform/instance-lock"
 import { unixPrivateDirectory } from "../platform/unix-file-lock"
 import { removeStaleUnixSocket } from "../platform/unix-socket"
+import { registerShutdownTask, SHUTDOWN_PRIORITY } from "../platform/shutdown"
 
 const maxFrame = 4096
 const responseTimeout = 15 * 60 * 1000
@@ -137,7 +138,10 @@ export async function startCliListener(profile: string) {
   await mkdir(path.dirname(tokenPath), { recursive: true })
   await writeFile(tokenPath, token, { mode: 0o600, flag: constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | (constants.O_NOFOLLOW ?? 0) })
   if (unix) chmodSync(tokenPath, 0o600)
+  const sockets = new Set<Socket>()
   const server = createServer(socket => {
+    sockets.add(socket)
+    socket.once("close", () => sockets.delete(socket))
     socket.on("error", () => socket.destroy())
     socket.setTimeout(5000, () => socket.destroy())
     readFrame(socket, data => {
@@ -165,6 +169,18 @@ export async function startCliListener(profile: string) {
     })
   })
   server.unref()
+  registerShutdownTask("launcher-cli", async reason => {
+    // SDK update ещё может быть отменён: listener остаётся под gate до нативного
+    // handoff и закрывается вместе с процессом. При обычном quit закрываем явно.
+    if (reason === "update") return
+    cli.close("Primary launcher is closing.")
+    const timer = setTimeout(() => { for (const socket of sockets) socket.destroy() }, 500)
+    try {
+      if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+      const current = await readFile(tokenPath, "utf8").catch(error => { if (error.code === "ENOENT") return ""; throw error })
+      if (current === token) await unlink(tokenPath)
+    } finally { clearTimeout(timer) }
+  }, { priority: SHUTDOWN_PRIORITY.network, timeoutMs: 1500 })
   return server
 }
 

@@ -33,6 +33,8 @@ async function runExtract(request: Extract<ArchiveWorkerRequest, { type: "extrac
       skipUnsafe: request.skipUnsafe,
       maxEntries: request.maxEntries,
       maxTotalSize: request.maxTotalSize,
+      maxEntrySize: request.maxEntrySize,
+      maxCompressionRatio: request.maxCompressionRatio,
       symlinks: request.symlinks,
       progressIntervalMs: request.progressIntervalMs,
       include: allowed ? (entry) => allowed.has(entry.name) : undefined,

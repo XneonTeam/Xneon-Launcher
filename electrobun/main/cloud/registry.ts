@@ -15,10 +15,9 @@ const providers: Record<CloudProviderId, CloudProvider> = {
   "s3": new S3Provider(),
 }
 
-export function getProvider(id: CloudProviderId): CloudProvider {
-  const p = providers[id]
-  if (!p) throw new Error(`Unknown provider: ${id}`)
-  return p
+export function getProvider(id: string): CloudProvider {
+  if (typeof id !== "string" || !Object.hasOwn(providers, id)) throw new Error(`Unknown provider: ${id}`)
+  return providers[id as CloudProviderId]
 }
 
 export function listProviders(): { id: CloudProviderId; name: string }[] {

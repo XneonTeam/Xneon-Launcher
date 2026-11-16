@@ -1,7 +1,7 @@
 # Конфигурация git-cliff для Xneon Launcher.
 #
 # Локально:  git-cliff --latest --strip all
-# В CI:      .github/workflows/release.yml — ченджлог уходит в release notes релиза.
+# В CI:      .github/workflows/ci.yml — git-cliff формирует release notes по текущему tag.
 # Формат:    Conventional Commits (type(scope): описание), описание — на русском.
 
 [changelog]

@@ -8,7 +8,7 @@ import type { ScanFile, ScanRequest, ScanResult, ScanWorkerCommand, ScanWorkerDa
 let bundledEntry: string | URL | undefined
 
 /** Упакованные приложения могут передать путь к своему собранному worker. */
-export function setScanWorkerEntry(entry: string | URL): void {
+export function setScanWorkerEntry(entry?: string | URL): void {
   bundledEntry = entry
 }
 
@@ -87,28 +87,49 @@ async function runScanInline(
   onResult: (result: ScanResult) => void,
   signal?: AbortSignal,
 ): Promise<void> {
+  const skipped = new Set<string>()
+  const reading = new Map<string, { abort: AbortController; closed: Promise<void> }>()
+  const paths = new Map<string, string[]>()
+  for (const file of files) {
+    const key = fileKey(file.filePath)
+    paths.set(key, [...(paths.get(key) ?? []), file.filePath])
+  }
+  const stop: StopReading = async selected => {
+    for (const file of selected) { skipped.add(file); reading.get(file)?.abort.abort() }
+    await Promise.all(selected.map(file => reading.get(file)?.closed))
+  }
+  readers.set(stop, paths)
+  try {
   for (let i = 0; i < files.length; i += 8) {
     signal?.throwIfAborted()
     const chunk = files.slice(i, i + 8)
     const results = await Promise.all(chunk.map(async (file): Promise<ScanResult> => {
       const snapshot = { filePath: file.filePath, size: file.size, mtimeMs: file.mtimeMs }
-      if (blockedFiles.has(fileKey(file.filePath))) return { ...snapshot, error: "Content is being deleted" }
+      if (skipped.has(file.filePath) || blockedFiles.has(fileKey(file.filePath))) return { ...snapshot, error: "Content is being deleted" }
+      const abort = new AbortController()
+      const closed = Promise.withResolvers<void>()
+      const fileSignal = signal ? AbortSignal.any([signal, abort.signal]) : abort.signal
+      reading.set(file.filePath, { abort, closed: closed.promise })
       try {
-        if (request.datapack) return { ...snapshot, datapack: await analyzeDatapack(file.bytes ?? file.filePath, { signal }) }
+        if (request.datapack) return { ...snapshot, datapack: await analyzeDatapack(file.bytes ?? file.filePath, { signal: fileSignal }) }
         const stat = file.size !== undefined && file.mtimeMs !== undefined ? { size: file.size, mtimeMs: file.mtimeMs } : undefined
-        return { ...snapshot, inspection: await inspectJar(file.filePath, { ...request, signal }, stat) }
+        return { ...snapshot, inspection: await inspectJar(file.filePath, { ...request, signal: fileSignal }, stat) }
       } catch (error) {
         return { ...snapshot, error: error instanceof Error ? error.message : String(error) }
+      } finally {
+        reading.delete(file.filePath)
+        closed.resolve()
       }
     }))
     signal?.throwIfAborted()
     for (const result of results) {
-      if (blockedFiles.has(fileKey(result.filePath))) onResult({ filePath: result.filePath, error: "Content is being deleted" })
+      if (skipped.has(result.filePath) || blockedFiles.has(fileKey(result.filePath))) onResult({ filePath: result.filePath, error: "Content is being deleted" })
       else onResult(result)
     }
     // Уступаем event loop между пачками: основной поток успевает обслужить IPC.
     await new Promise<void>(resolve => setImmediate(resolve))
   }
+  } finally { readers.delete(stop) }
 }
 
 /** SQLite и обработка результатов остаются в main; большие списки делим между потоками. */

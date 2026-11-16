@@ -64,7 +64,7 @@ export class ShareSystem {
           try {
             const bytes = await this.ports.files.read(file.path)
             validateExternal(file.path, bytes)
-            this.ports.inspectExternal?.(bytes)
+            await this.ports.inspectExternal?.(bytes)
           }
           catch (e) { if ((e as { code?: string }).code !== "FILE_POLICY") throw e; this.externalValidationCache.delete(file.path); block(file, "format"); continue }
           if (this.externalValidationCache.size >= 10000) this.externalValidationCache.delete(this.externalValidationCache.keys().next().value!)
@@ -122,7 +122,7 @@ export class ShareSystem {
       const bytes = await this.ports.files.read(e.path)
       try {
         validateExternal(e.path, bytes)
-        this.ports.inspectExternal?.(bytes)
+        await this.ports.inspectExternal?.(bytes)
       } catch (error) {
         if (error instanceof ShareError) throw new ShareError(error.code, error.message, e.path)
         throw error

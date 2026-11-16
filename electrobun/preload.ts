@@ -1,4 +1,6 @@
 import { installDesktopApi, desktopRpc, stageLocalFile } from './platform/renderer'
+import i18n from 'i18next'
+import { localizeImportProgress } from '../lib/import-progress-text'
 import type {
   IpcInvokeMap,
   IpcEventMap,
@@ -12,6 +14,7 @@ import type {
   MinecraftNewsEntry,
   LauncherNewsEntry,
   DbAccount,
+  PublicAccount,
   DbBuild,
   DbBuildLight,
   DbBuildMod,
@@ -141,7 +144,9 @@ installDesktopApi({
 
   // ── Database ───────────────────────────────────────────
   loadAccounts: invoke('db:load-accounts'),
-  saveAccount: (account: DbAccount) => desktopRpc.invoke('db:save-account', account) as Promise<void>,
+  saveAccount: invoke('db:save-account'),
+  setActiveAccount: invoke('db:set-active-account'),
+  importLegacyAccounts: invoke('db:import-legacy-accounts'),
   removeAccount: (id: string) => desktopRpc.invoke('db:remove-account', id) as Promise<void>,
   loadBuildsLight: invoke('db:load-builds-light'),
   loadBuildContent: (buildId: string) => desktopRpc.invoke('db:load-build-content', buildId) as Promise<{ mods: unknown[]; resourcepacks: unknown[]; shaders: unknown[]; installedMods: Record<string, string> } | null>,
@@ -265,6 +270,8 @@ installDesktopApi({
   readThemeMedia: (source: string, maxBytes?: number) => desktopRpc.invoke('theme:read-media', source, maxBytes) as Promise<string | null>,
   pickThemeMedia: (kind: 'image' | 'video' | 'font') => desktopRpc.invoke('theme:pick-media', kind),
   listLocalThemes: () => desktopRpc.invoke('theme:local-list'),
+  liveopsStatus: () => desktopRpc.invoke('liveops:status'),
+  liveopsSelect: (ref: import('@xnlc/types').LiveopsThemeRef) => desktopRpc.invoke('liveops:select', ref),
   importLocalTheme: () => desktopRpc.invoke('theme:local-import'),
   saveLocalTheme: (theme: import('@xnlc/types').Theme, css: string) => desktopRpc.invoke('theme:local-save', theme, css),
   deleteLocalTheme: (fileName: string) => desktopRpc.invoke('theme:local-delete', fileName),
@@ -292,7 +299,7 @@ installDesktopApi({
   importFtbModpack: (buildName: string, modpackId: number, versionId: number, targetBuildId?: string) => desktopRpc.invoke('build:import-ftb', buildName, modpackId, versionId, targetBuildId) as Promise<ModpackImportResult>,
   openAndImportModpack: (format?: 'modpack' | 'curseforge' | 'xneon', nameOverride?: string) => invoke('build:open-and-import')(format, nameOverride),
   cancelImportModpack: invoke('build:cancel-import'),
-  onImportProgress: (callback: (progress: ImportProgress) => void) => subscribe('import:progress', callback),
+  onImportProgress: (callback: (progress: ImportProgress) => void) => subscribe('import:progress', progress => callback(localizeImportProgress(progress, (key, params) => String(i18n.t(key, params))))),
   onBuildExportProgress: (callback: (progress: { current: number; total: number }) => void) => subscribe('build:export-progress', callback),
   onContentDownloadProgress: (callback: (progress: ContentDownloadProgress) => void) => subscribe('content:download-progress', callback),
 
@@ -348,6 +355,7 @@ installDesktopApi({
   getAiConfig: invoke('ai:get-config'),
   saveAiConfig: (config: import("@xnlc/types").AiConfigUpdate) => desktopRpc.invoke('ai:save-config', config) as Promise<void>,
   getAiMcpServers: invoke('ai:mcp-list'),
+  onAiMcpServersUpdated: (callback: () => void) => subscribe('ai:mcp-updated', callback),
   saveAiMcpServers: invoke('ai:mcp-save'),
   connectAiMcpServer: invoke('ai:mcp-connect'),
   disconnectAiMcpServer: invoke('ai:mcp-disconnect'),

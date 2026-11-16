@@ -107,13 +107,13 @@
 
 ## Быстрый старт
 
-Добавьте **Bun 1.4.4** и **Hutch 0.29.0** в PATH. Для сборки установщика Windows x64 нужны Windows PowerShell и 64-битный компилятор C# из .NET Framework 4.x. Приложение использует WebView2.
+Добавьте **Bun 1.4.4** и **Hutch 0.29.0** в PATH. Для стандартной Windows-сборки Electrobun нужны Windows PowerShell и 64-битный компилятор C# из .NET Framework 4.x; для дополнительного Windows-установщика — **NSIS 3** (`makensis` или `XNEON_MAKENSIS`). Приложение использует WebView2.
 
 ```bash
 # Установка зависимостей
 bun install --frozen-lockfile
 
-# Запуск в режиме разработки (Vite + Electrobun)
+# Сборка dev и запуск Electrobun
 bun run dev
 
 # Проверка типов
@@ -155,6 +155,12 @@ Xneon автоматически обнаружит установленные �
 
 ## Разработка
 
+Актуальные команды, IPC, Workers, владение сессиями и тестовые entrypoints:
+[руководство по интеграции](docs/integration-guide.md).
+Поддержка платформ и команды native runners: [platform builds](docs/platform-builds.md).
+Текущие performance-сценарии: [benchmarks](benchmarks/README.md).
+Проверки и границы offline/live: [testing](docs/testing.md).
+
 Документация для разработчиков и авторов тем: [docs.xneon.org](https://docs.xneon.org).
 
 ### Архитектура
@@ -169,6 +175,12 @@ Xneon автоматически обнаружит установленные �
   - `@xnlc/agent` — AI-провайдеры, потоковые ответы, инструменты, контекст и чаты помощника
   - `@xnlc/nbt` — чтение и запись NBT (`level.dat`, `servers.dat`)
   - `@xnlc/types` — общие типы и IPC-контракты
+  - `@xnlc/archives` — общий потоковый ZIP слой
+  - `@xnlc/parser` — метаданные, требования загрузчиков и batch scan-worker
+  - `@xnlc/share` — манифесты, ветки, слияние и файловые транзакции Share
+- **Серверные приложения** (`infrastructure/`) — самостоятельные сервисы вне клиента, подробности в [infrastructure/README.md](infrastructure/README.md):
+  - `xnlc-share` — сервис общих сборок: Bun + SQLite локально, Cloudflare Worker с Durable Object и R2 в production
+  - `xnlc-liveops` — Go-сервис ивентовых тем, JSON-каталог и клиентский контроллер
 
 ### Команды
 
@@ -176,9 +188,11 @@ Xneon автоматически обнаружит установленные �
 bun run dev           # сборка интерфейса и воркеров, запуск через Electrobun
 bun run build         # typecheck + сборка renderer и main
 bun run package       # Stable → release-electrobun/stable/
-bun run typecheck     # tsc --noEmit
+bun run typecheck     # renderer + main tsconfig
 bun run test:desktop  # desktop-тесты под Bun 1.4.4
+bun run test:offline  # воспроизводимый offline gate, без внешних сервисов
 bun run share:test    # тесты пакета Share и локального сервиса
+bun run liveops:test  # go test ивентовых тем (нужен Go)
 ```
 
 После сборки Windows x64 можно проверить изоляцию каналов через
@@ -186,6 +200,11 @@ bun run share:test    # тесты пакета Share и локального с
 
 Переменные окружения: `XNLC_NEWS_URL` — адрес ленты новостей лаунчера (по умолчанию
 `https://launcher.xneon.org/news.json`).
+
+`XNLC_LIVEOPS_URL` подключает сервис событийных тем (HTTPS origin, HTTP только
+для localhost). Без переменной сеть LiveOps выключена. Ивент показывается рядом
+с готовыми темами, не попадает в «Мои темы» и по окончании возвращает прежнюю тему.
+Подключение и локальный запуск — [infrastructure/README.md](infrastructure/README.md#liveops-в-лаунчере).
 
 ### Структура
 
@@ -195,6 +214,7 @@ electrobun/main/         # Backend Electrobun: RPC, БД, сборки, серв
 electrobun/preload.ts    # API интерфейса поверх Electrobun RPC
 lib/                   # Общие утилиты renderer (кэш, форматирование, ссылки)
 packages/              # Локальные пакеты @xnlc/*
+infrastructure/        # Серверные приложения: xnlc-share, xnlc-liveops
 src/                   # Точка входа renderer, i18n, контексты, хуки
 public/                # Статические файлы и иконки лаунчеров
 docs/screenshots/      # Скриншоты для README и релизов

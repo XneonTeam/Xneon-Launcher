@@ -1,3 +1,5 @@
+declare const XNLC_APPLICATION_USER_AGENT: string | undefined
+const XNLC_USER_AGENT = typeof XNLC_APPLICATION_USER_AGENT === "string" ? XNLC_APPLICATION_USER_AGENT : "xnlc-share"
 import type { ContentSourceAdapter, Hashes, SourceReference, ResolvedFile, HashPort } from "./types.js"
 import { fail } from "./manifest.js"
 
@@ -20,7 +22,7 @@ interface MRVersion { id: string; project_id: string; files: { filename: string;
 export class ModrinthSource implements ContentSourceAdapter {
   readonly id = "modrinth"
   private identityCache = new Map<string, { value: ResolvedFile | null; expires: number }>()
-  constructor(private fetcher: FetchPort, private userAgent = "Xneon-Launcher/1.0.8") {}
+  constructor(private fetcher: FetchPort, private userAgent = XNLC_USER_AGENT) {}
   private map(version: MRVersion, file: MRVersion["files"][number]): ResolvedFile {
     return { source: { provider: this.id, projectId: version.project_id, versionId: version.id, fileId: file.hashes.sha512 }, sha512: file.hashes.sha512, size: file.size, url: checkDownloadUrl(file.url, this.id), dependencies: version.dependencies.map(d => d.version_id).filter((v): v is string => !!v) }
   }

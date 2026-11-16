@@ -17,7 +17,7 @@ function checkHistoryLock(channel: string, id: unknown) {
 let proxy: ((channel: string, id: string, args: unknown[]) => Promise<unknown>) | undefined
 let listRemote: (() => Promise<unknown[]>) | undefined
 export function configureRemoteServerProxy(invoke: NonNullable<typeof proxy>, list: NonNullable<typeof listRemote>) { proxy = invoke; listRemote = list }
-export function registerMcServerHandler<C extends keyof IpcInvokeMap>(channel: C, handler: (context: RpcContext, ...args: IpcInvokeMap[C]["args"]) => any): void {
+export function registerMcServerHandler<C extends keyof IpcInvokeMap>(channel: C, handler: NoInfer<(context: RpcContext, ...args: IpcInvokeMap[C]["args"]) => IpcInvokeMap[C]["return"] | Promise<IpcInvokeMap[C]["return"]>>): void {
   localHandlers.set(channel, handler as Handler)
   rpcRegistry.handle(channel, async (event, ...args) => {
     if (typeof args[0] === "string" && args[0].startsWith("remote:")) {
@@ -25,8 +25,11 @@ export function registerMcServerHandler<C extends keyof IpcInvokeMap>(channel: C
       return proxy(channel, args[0], args.slice(1))
     }
     checkHistoryLock(channel, args[0])
-    const result = mutatesServer(channel) && typeof args[0] === "string" ? await runServerMutation(args[0], () => handler(event, ...args)) : await handler(event, ...args)
-    if (channel === "mc-server:list" && listRemote) return [...result, ...await listRemote()]
+    const result = mutatesServer(channel) && typeof args[0] === "string" ? await runServerMutation(args[0], async () => handler(event, ...args)) : await handler(event, ...args)
+    if (channel === "mc-server:list" && listRemote) {
+      if (!Array.isArray(result)) throw new Error("Invalid server list result")
+      return [...result, ...await listRemote()]
+    }
     return result
   })
 }

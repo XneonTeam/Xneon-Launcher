@@ -5,6 +5,7 @@ declare module "discord-rpc" {
     setActivity(activity: Record<string, unknown>): Promise<void>
     clearActivity(): Promise<void>
     destroy(): Promise<void>
+    removeAllListeners(event?: string | symbol): this
     on(event: "ready", listener: () => void): this
     on(event: "error", listener: (err: { code: number }) => void): this
     on(event: "disconnected", listener: () => void): this
