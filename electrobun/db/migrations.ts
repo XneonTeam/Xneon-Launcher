@@ -18,6 +18,11 @@ const DEFAULT_SETTINGS: Record<string, string> = {
 }
 
 function createTables() {
+  run(`CREATE TABLE IF NOT EXISTS modpack_metadata_backups (
+    token TEXT PRIMARY KEY, build_id TEXT NOT NULL, root TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN ('prepared','applied','rolled-back')),
+    data TEXT NOT NULL
+  )`)
   run(`CREATE TABLE IF NOT EXISTS shared_instances (
     build_id TEXT PRIMARY KEY REFERENCES builds(id) ON DELETE CASCADE,
     repository_id TEXT NOT NULL, branch TEXT NOT NULL, applied_commit TEXT NOT NULL DEFAULT '',
@@ -360,7 +365,7 @@ export { DEFAULT_SETTINGS }
  * сама делает PRAGMA table_info), повышение версии — для журнала.
 
  */
-export const SCHEMA_VERSION = 13
+export const SCHEMA_VERSION = 14
 
 function readUserVersion(): number {
   const rows = queryAll<{ user_version?: number }>("PRAGMA user_version")

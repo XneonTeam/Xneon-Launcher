@@ -1,59 +1,39 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react'
+import type { PublicAccount, DbAccount } from '@xnlc/types'
 
-export interface Account {
-  id: string
-  type: 'elyby' | 'xnskins' | 'microsoft' | 'offline' | 'authlib-injector'
-  username: string
-  isActive: boolean
-  uuid?: string
-  accessToken?: string
-  refreshToken?: string
-  clientId?: string
-  skinUrl?: string
-  sortOrder?: number
-  serverId?: string
-  serverUrl?: string
-  serverName?: string
-  yggClientToken?: string
-  expiresAt?: number
-  profiles?: string
-}
-
+export type Account = PublicAccount
 const FALLBACK: Account[] = [{ id: '1', type: 'offline', username: 'Player', isActive: true }]
 
-async function fetchAccounts(): Promise<Account[]> {
-  const validAccountTypes = ['elyby', 'xnskins', 'microsoft', 'offline', 'authlib-injector'] as const
-  const isValidType = (t: string): t is typeof validAccountTypes[number] =>
-    validAccountTypes.includes(t as typeof validAccountTypes[number])
-
-  try {
-    if (window.electrobunAPI) {
-      const dbAccounts = await window.electrobunAPI.loadAccounts()
-      const validAccounts = dbAccounts.filter(a => isValidType(a.type))
-      if (validAccounts.length > 0) {
-        if (validAccounts.length !== dbAccounts.length) {
-          // Раньше «лишние» типы удалялись прямо здесь. Чтение не должно
-          // удалять данные: если в новой версии появится ещё один тип аккаунта
-          // (или строку оставит старая), записи пропадали безвозвратно.
-          // Теперь просто не показываем их — строки остаются в БД.
-          console.warn(`[Accounts] Пропущено записей с неизвестным типом: ${dbAccounts.length - validAccounts.length}`)
-        }
-        return validAccounts.map(a => ({ ...a, isActive: a.isActive ?? false }))
-      }
+export async function fetchAccounts(): Promise<Account[]> {
+  const api = window.electrobunAPI
+  if (!api) return FALLBACK
+  const accounts = await api.loadAccounts()
+  const raw = localStorage.getItem('xneon-launcher:accounts')
+  if (raw) {
+    // Main импортирует только отсутствующие ID и не принимает обратные снимки сессий.
+    let legacy: unknown
+    try { legacy = JSON.parse(raw) } catch { return accounts.length ? accounts : FALLBACK }
+    if (!Array.isArray(legacy)) return accounts.length ? accounts : FALLBACK
+    const supported = new Set(['offline', 'microsoft', 'elyby', 'xnskins', 'authlib-injector'])
+    const entries: unknown[] = legacy
+    const known = entries.filter((account): account is DbAccount => !!account && typeof account === 'object'
+      && 'type' in account && typeof account.type === 'string' && supported.has(account.type))
+    try { if (known.length) await api.importLegacyAccounts(known) }
+    catch (error) {
+      console.warn('[Accounts] Legacy migration retained for retry:', error)
+      return accounts.length ? accounts : FALLBACK
     }
-  } catch {}
-  try {
-    const raw = localStorage.getItem('xneon-launcher:accounts')
-    if (raw) {
-      const parsed = JSON.parse(raw) as Account[]
-      const validAccounts = parsed.filter(a => isValidType(a.type))
-      for (const a of validAccounts) {
-        await window.electrobunAPI?.saveAccount(a)
-      }
-      if (validAccounts.length > 0) return validAccounts
-    }
-  } catch {}
-  return FALLBACK
+    const migrated = await api.loadAccounts()
+    const persisted = new Set(migrated.map(account => `${account.type}:${account.id}`))
+    // Удаляем только действительно перенесённые записи; будущие/неподдерживаемые
+    // и не принятые main данные остаются восстановимыми, а не теряются молча.
+    const remaining = entries.filter(account => !account || typeof account !== 'object' || !('type' in account) || !('id' in account)
+      || !persisted.has(`${String(account.type)}:${String(account.id)}`))
+    if (remaining.length) localStorage.setItem('xneon-launcher:accounts', JSON.stringify(remaining))
+    else localStorage.removeItem('xneon-launcher:accounts')
+    return migrated.length ? migrated : FALLBACK
+  }
+  return accounts.length ? accounts : FALLBACK
 }
 
 interface AccountsContextValue {
@@ -66,7 +46,6 @@ interface AccountsContextValue {
   accountsHydrated: boolean
   avatarVersion: number
   bumpAvatarVersion: () => void
-  /** Перечитывает аккаунты из БД: main мог обновить ссылку на активный скин. */
   reloadAccounts: () => Promise<void>
 }
 
@@ -75,169 +54,89 @@ const AccountsContext = createContext<AccountsContextValue | null>(null)
 export function AccountsProvider({ children }: PropsWithChildren) {
   const [accountsHydrated, setAccountsHydrated] = useState(false)
   const [accounts, setAccounts] = useState<Account[]>(FALLBACK)
-  const [avatarVersion, setAvatarVersion] = useState<number>(() => Date.now())
-  const accountsLoadedRef = useRef(false)
-  const syncTimeoutRef = useRef<number | null>(null)
-  /** Актуальный список для побочных эффектов вне setState (StrictMode). */
-  const accountsRef = useRef<Account[]>([])
+  const [avatarVersion, setAvatarVersion] = useState(() => Date.now())
+  const accountsRef = useRef(accounts)
+  const writesRef = useRef<Promise<unknown>>(Promise.resolve())
+  const loadRevision = useRef(0)
 
-  useEffect(() => {
-    accountsRef.current = accounts
-  }, [accounts])
-
-  const bumpAvatarVersion = useCallback(() => {
-    setAvatarVersion(Date.now())
+  const replace = useCallback((next: Account[]) => {
+    accountsRef.current = next
+    setAccounts(next)
   }, [])
-
   const reloadAccounts = useCallback(async () => {
+    const revision = ++loadRevision.current
     const loaded = await fetchAccounts()
-    accountsRef.current = loaded
-    setAccounts(loaded)
-  }, [])
-
-  useEffect(() => {
-    void fetchAccounts().then((loadedAccounts) => {
-      accountsLoadedRef.current = true
-      setAccounts(loadedAccounts)
-      setAccountsHydrated(true)
+    if (revision === loadRevision.current) replace(loaded)
+  }, [replace])
+  const persist = useCallback((operation: () => Promise<unknown>) => {
+    ++loadRevision.current
+    writesRef.current = writesRef.current.then(operation).then(() => reloadAccounts()).catch(error => {
+      console.warn('[Accounts] Persistence failed:', error)
+      return reloadAccounts().catch(reloadError => console.warn('[Accounts] Reload failed:', reloadError))
     })
-  }, [])
-
-  useEffect(() => { const refresh = () => { void reloadAccounts() }; window.addEventListener("launcher:agent-accounts-updated", refresh); return () => window.removeEventListener("launcher:agent-accounts-updated", refresh) }, [reloadAccounts])
+  }, [reloadAccounts])
 
   useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail
-      if (detail?.type === "account") {
-        void fetchAccounts().then(setAccounts)
-      }
-    }
-    window.addEventListener("cloud:imported", handler)
-    return () => window.removeEventListener("cloud:imported", handler)
-  }, [])
-
+    void reloadAccounts().catch(error => console.warn('[Accounts] Hydration failed:', error)).finally(() => setAccountsHydrated(true))
+  }, [reloadAccounts])
   useEffect(() => {
-    if (!accountsLoadedRef.current) return
-    if (syncTimeoutRef.current !== null) {
-      window.clearTimeout(syncTimeoutRef.current)
+    const refresh = () => { void writesRef.current.then(reloadAccounts).catch(error => console.warn('[Accounts] Reload failed:', error)) }
+    const cloud = (event: Event) => { if ((event as CustomEvent).detail?.type === 'account') refresh() }
+    window.addEventListener('launcher:agent-accounts-updated', refresh)
+    window.addEventListener('cloud:imported', cloud)
+    return () => {
+      window.removeEventListener('launcher:agent-accounts-updated', refresh)
+      window.removeEventListener('cloud:imported', cloud)
     }
-    syncTimeoutRef.current = window.setTimeout(() => {
-      syncTimeoutRef.current = null
-      accounts.forEach((account) => {
-        // Ссылка на активную текстуру (`skinUrl`) у аккаунтов с сервером
-        // текур (Microsoft, Ely.by, XN Skins, Authlib-Injector) принадлежит
-        // серверу: main обновляет её после смены скина. Если писать сюда
-        // renderer'овскую копию, она затрёт свежую ссылку устаревшей.
-        // Поэтому для таких аккаунтов поле не отправляется — `saveAccount`
-        // сохранит прежнее значение из БД. У оффлайн-аккаунта ссылка указывает
-        // на локальный файл, там её задаёт сам renderer.
-        const serverOwnsSkin = account.type !== "offline"
-        void window.electrobunAPI?.saveAccount(
-          serverOwnsSkin ? { ...account, skinUrl: undefined } : account
-        )
-      })
-    }, 150)
-  }, [accounts])
-
-  useEffect(() => () => {
-    if (syncTimeoutRef.current !== null) {
-      window.clearTimeout(syncTimeoutRef.current)
-    }
-  }, [])
+  }, [reloadAccounts])
 
   const addAccount = useCallback((account: Account) => {
-    setAccounts(prev => {
-      const existing = prev.find(a => a.id === account.id)
-      if (existing) {
-        const shouldBeActive = account.isActive || existing.isActive
-        const updated = prev.map(a => a.id === account.id
-          ? { ...a, ...account, isActive: shouldBeActive }
-          : { ...a, isActive: shouldBeActive ? false : a.isActive })
-        return updated
-      }
-
-      const updated = [...prev, { ...account, isActive: prev.length === 0 || account.isActive }]
-      if (account.isActive && prev.length > 0) {
-        return updated.map(a => ({ ...a, isActive: a.id === account.id }))
-      }
-
-      return updated
-    })
-  }, [])
+    const previous = accountsRef.current
+    const active = account.isActive || previous.length === 0
+    const next = previous.some(item => item.id === account.id)
+      ? previous.map(item => item.id === account.id ? { ...item, ...account } : item)
+      : [...previous, account]
+    replace(active ? next.map(item => ({ ...item, isActive: item.id === account.id })) : next)
+    persist(async () => { await window.electrobunAPI?.saveAccount(account) })
+  }, [persist, replace])
 
   const removeAccount = useCallback((id: string) => {
-    // Authlib-аккаунт: сначала отзываем токен на сервере (Yggdrasil invalidate).
-    // Сервер может быть недоступен — локальное удаление всё равно происходит,
-    // поэтому ошибку только логируем. Раньше канал authlib:invalidate вообще
-    // не вызывался и токен оставался живым.
-    const target = accountsRef.current.find(a => a.id === id)
-    if (target?.type === "authlib-injector") {
-      try {
-        void window.electrobunAPI?.authlibInvalidate(id).catch((err: unknown) => {
-          console.warn("[Accounts] authlib invalidate failed:", err)
-        })
-      } catch (err) {
-        console.warn("[Accounts] authlib invalidate failed:", err)
-      }
-    }
-
-    setAccounts(prev => {
-      const remaining = prev.filter(a => a.id !== id)
-      const wasActive = prev.find(a => a.id === id)?.isActive
-      if (wasActive && remaining.length > 0) {
-        const updated = remaining.map((a, i) => ({ ...a, isActive: i === 0 }))
-        void window.electrobunAPI?.removeAccount(id)
-        return updated
-      }
-      void window.electrobunAPI?.removeAccount(id)
-      return remaining
+    const target = accountsRef.current.find(item => item.id === id)
+    const remaining = accountsRef.current.filter(item => item.id !== id)
+    replace(target?.isActive ? remaining.map((item, index) => ({ ...item, isActive: index === 0 })) : remaining)
+    persist(async () => {
+      const api = window.electrobunAPI
+      if (target?.type === 'authlib-injector') await api?.authlibInvalidate(id).catch(error => console.warn('[Accounts] Invalidate failed:', error))
+      await api?.removeAccount(id)
+      if (target?.isActive && remaining[0]) await api?.setActiveAccount(remaining[0].id)
     })
-  }, [])
+  }, [persist, replace])
 
   const setActiveAccount = useCallback((id: string) => {
-    setAccounts(prev => {
-      if (prev.some(a => a.id === id && a.isActive)) return prev
-      return prev.map(a => ({ ...a, isActive: a.id === id }))
-    })
-  }, [])
+    replace(accountsRef.current.map(item => ({ ...item, isActive: item.id === id })))
+    persist(async () => { await window.electrobunAPI?.setActiveAccount(id) })
+  }, [persist, replace])
 
   const moveAccount = useCallback((id: string, direction: -1 | 1) => {
-    setAccounts(prev => {
-      const index = prev.findIndex(a => a.id === id)
-      const target = index + direction
-      if (index === -1 || target < 0 || target >= prev.length) return prev
-      const next = [...prev]
-      const [moved] = next.splice(index, 1)
-      next.splice(target, 0, moved)
-      const ordered = next.map((a, i) => ({ ...a, sortOrder: i }))
-      void window.electrobunAPI?.reorderAccounts(ordered.map(a => a.id))
-      return ordered
-    })
-  }, [])
+    const next = [...accountsRef.current]
+    const index = next.findIndex(item => item.id === id), target = index + direction
+    if (index < 0 || target < 0 || target >= next.length) return
+    const [moved] = next.splice(index, 1)
+    next.splice(target, 0, moved)
+    const ordered = next.map((item, sortOrder) => ({ ...item, sortOrder }))
+    replace(ordered)
+    persist(async () => { await window.electrobunAPI?.reorderAccounts(ordered.map(item => item.id)) })
+  }, [persist, replace])
 
-  const activeAccount = useMemo(() => accounts.find(a => a.isActive) ?? accounts[0] ?? null, [accounts])
-  const value = useMemo<AccountsContextValue>(() => ({
-    accountsHydrated,
-    accounts,
-    addAccount,
-    removeAccount,
-    setActiveAccount,
-    moveAccount,
-    activeAccount,
-    avatarVersion,
-    bumpAvatarVersion,
-    reloadAccounts,
-  }), [accountsHydrated, accounts, addAccount, removeAccount, setActiveAccount, moveAccount, activeAccount, avatarVersion, bumpAvatarVersion, reloadAccounts])
-
-  return (
-    <AccountsContext.Provider value={value}>
-      {children}
-    </AccountsContext.Provider>
-  )
+  const bumpAvatarVersion = useCallback(() => setAvatarVersion(Date.now()), [])
+  const activeAccount = accounts.find(item => item.isActive) ?? accounts[0] ?? null
+  const value = useMemo(() => ({ accounts, activeAccount, accountsHydrated, addAccount, removeAccount, setActiveAccount, moveAccount, avatarVersion, bumpAvatarVersion, reloadAccounts }),
+    [accounts, activeAccount, accountsHydrated, addAccount, removeAccount, setActiveAccount, moveAccount, avatarVersion, bumpAvatarVersion, reloadAccounts])
+  return <AccountsContext.Provider value={value}>{children}</AccountsContext.Provider>
 }
 
 export function useAccounts() {
-  const ctx = useContext(AccountsContext)
-  if (!ctx) throw new Error('useAccounts must be used inside AccountsProvider')
-  return ctx
+  const context = useContext(AccountsContext)
+  if (!context) throw new Error('useAccounts must be used inside AccountsProvider')
+  return context
 }

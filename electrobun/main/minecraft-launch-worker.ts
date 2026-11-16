@@ -1,3 +1,5 @@
+import { createServer } from "node:http"
+import { once } from "node:events"
 import { toErrorMessage } from "./errors"
 import fs from "fs"
 import path from "path"
@@ -504,6 +506,10 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
 
   const extraJvmArgs = parseExtraJvmArgs((payload.options as { javaArgs?: string }).javaArgs)
   debug(`Extra JVM args (${extraJvmArgs.length}): ${extraJvmArgs.join(" ")}`)
+  if (launchAccount.type === "offline" && auth.mode === "offline" && payload.options.mcVersion === "1.16.5"
+    && !payload.options.customVersionPath && !payload.options.authlibInjector && !payload.options.retroauthEnabled) {
+    extraJvmArgs.push(...await startOffline1165Privileges())
+  }
 
   const launchVarContext: LaunchVarContext = {
     instName: payload.options.buildName ?? payload.options.mcVersion,
@@ -657,6 +663,38 @@ async function launchMinecraft(payload: WorkerLaunchPayload): Promise<void> {
     debug(`Minecraft process error: ${errorMessage}`)
     send({ type: "error", error: errorMessage })
   })
+}
+
+/** Authlib 2.1.28 запрашивает /privileges даже с офлайн-сессией. */
+async function startOffline1165Privileges() {
+  const server = createServer((request, response) => {
+    if (request.method !== "GET" || request.url !== "/privileges" || request.headers.authorization !== "Bearer 0") {
+      response.writeHead(404).end()
+      return
+    }
+    response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
+      privileges: {
+        onlineChat: { enabled: true },
+        multiplayerServer: { enabled: true },
+        multiplayerRealms: { enabled: false },
+      },
+    }))
+  })
+  const ready = once(server, "listening")
+  server.listen(0, "127.0.0.1")
+  await ready
+  server.unref()
+  const address = server.address()
+  if (!address || typeof address === "string") {
+    server.close()
+    throw new Error("Offline privileges server has no TCP address")
+  }
+  return [
+    "-Dminecraft.api.auth.host=https://authserver.mojang.com",
+    "-Dminecraft.api.account.host=https://api.mojang.com",
+    "-Dminecraft.api.session.host=https://sessionserver.mojang.com",
+    `-Dminecraft.api.services.host=http://127.0.0.1:${address.port}`,
+  ]
 }
 
 process.on("message", async (msg: unknown) => {

@@ -13,6 +13,8 @@ export interface ArchiveExtractRequest {
   skipUnsafe?: boolean
   maxEntries?: number
   maxTotalSize?: number
+  maxEntrySize?: number
+  maxCompressionRatio?: number
   symlinks?: "skip" | "error"
   progressIntervalMs?: number
 }

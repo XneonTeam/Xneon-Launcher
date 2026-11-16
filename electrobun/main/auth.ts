@@ -5,6 +5,8 @@ import { getMainWindow } from "./runtime"
 import { ensureRuntimeTempDir } from "./runtime"
 import { getMicrosoftClientId, getMicrosoftDeviceClientId, getElyClientId, getElyDeviceClientId } from "./config"
 import { fetchWithRetry } from "@xnlc/core/retry"
+import type { AuthPayload } from "@xnlc/types"
+import { saveAuthenticatedAccount } from "./account-service"
 
 const MICROSOFT_DEVICE_CODE_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode"
 const MICROSOFT_DEVICE_TOKEN_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
@@ -201,7 +203,7 @@ async function makeOAuthWindow() {
   return authWindow
 }
 
-rpcRegistry.handle("auth:elyby-login", async (): Promise<ElyByAccountPayload> => {
+rpcRegistry.handle("auth:elyby-login", async (): Promise<AuthPayload> => {
   const clientId = await getElyClientId()
   const state = crypto.randomBytes(16).toString("hex")
   const authUrl = new URL("https://account.ely.by/oauth2/v1")
@@ -220,14 +222,14 @@ rpcRegistry.handle("auth:elyby-login", async (): Promise<ElyByAccountPayload> =>
     authWindow.loadURL(authUrl.toString())
   })
 
-  return exchangeElyByCode(code)
+  return saveAuthenticatedAccount("elyby", await exchangeElyByCode(code))
 })
 
 function toBase64Url(buf: Buffer): string {
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")
 }
 
-rpcRegistry.handle("auth:xnskins-login", async (): Promise<XnSkinsAccountPayload> => {
+rpcRegistry.handle("auth:xnskins-login", async (): Promise<AuthPayload> => {
   const state = crypto.randomBytes(12).toString("hex")
   const clientId = XN_CLIENT_ID
 
@@ -262,10 +264,10 @@ rpcRegistry.handle("auth:xnskins-login", async (): Promise<XnSkinsAccountPayload
     authWindow.loadURL(loginUrlStr)
   })
 
-  return exchangeXnSkinsCode(code, verifier)
+  return saveAuthenticatedAccount("xnskins", await exchangeXnSkinsCode(code, verifier))
 })
 
-rpcRegistry.handle("auth:microsoft-login", async (): Promise<MicrosoftAccountPayload> => {
+rpcRegistry.handle("auth:microsoft-login", async (): Promise<AuthPayload> => {
   const microsoft = await loadMicrosoftModule()
   const redirectUri = microsoft.getMicrosoftRedirectUri()
   const authUrl = microsoft.createMicrosoftAuthUrl()
@@ -279,7 +281,7 @@ rpcRegistry.handle("auth:microsoft-login", async (): Promise<MicrosoftAccountPay
     authWindow.loadURL(authUrl)
   })
 
-  return microsoft.exchangeMicrosoftCode(code)
+  return saveAuthenticatedAccount("microsoft", await microsoft.exchangeMicrosoftCode(code))
 })
 
 async function exchangeElyByCode(code: string): Promise<ElyByAccountPayload> {
@@ -663,7 +665,7 @@ rpcRegistry.handle("auth:microsoft-device-poll", async (_event, deviceCode: stri
 
   try {
     const account = await exchangeDeviceMsaForMinecraft(result.accessToken, result.refreshToken ?? "")
-    return { status: "complete" as const, account }
+    return { status: "complete" as const, account: await saveAuthenticatedAccount("microsoft", account) }
   } catch (err) {
     return {
       status: "error" as const,
@@ -719,7 +721,7 @@ rpcRegistry.handle("auth:elyby-device-poll", async (_event, deviceCode: string) 
 
   try {
     const account = await exchangeElyDeviceAccessToken(result.accessToken, result.refreshToken ?? "")
-    return { status: "complete" as const, account }
+    return { status: "complete" as const, account: await saveAuthenticatedAccount("elyby", account) }
   } catch (err) {
     return {
       status: "error" as const,
@@ -765,7 +767,7 @@ rpcRegistry.handle("auth:xnskins-device-poll", async (_event, deviceCode: string
 
   try {
     const account = await exchangeXnDeviceAccessToken(result.accessToken, result.refreshToken ?? "")
-    return { status: "complete" as const, account }
+    return { status: "complete" as const, account: await saveAuthenticatedAccount("xnskins", account) }
   } catch (err) {
     return {
       status: "error" as const,
@@ -774,4 +776,3 @@ rpcRegistry.handle("auth:xnskins-device-poll", async (_event, deviceCode: string
     }
   }
 })
-

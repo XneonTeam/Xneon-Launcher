@@ -6,6 +6,7 @@ import { Readable, Transform, Writable } from "node:stream"
 import { pipeline } from "node:stream/promises"
 import zlib from "node:zlib"
 import { zipSync } from "fflate"
+import { assertSafeEntryName, normalizeEntryName } from "./paths.js"
 import { ArchiveError, throwIfAborted } from "./errors.js"
 import {
   openArchiveReader,
@@ -53,15 +54,34 @@ const FLAGS = 0x0808
 const METHOD_DEFLATE = 8
 /** Ниже этого размера сжатие гарантированно укладывается в 32 бита. */
 const ZIP64_THRESHOLD = 0xf0000000
+const SMALL_FILE_SIZE = 32 * 1024
+const FILE_PREFETCH = 2
 
 interface ZipOutput {
   write(chunk: Uint8Array): Promise<void>
 }
 
 class FileZipOutput implements ZipOutput {
+  private readonly buffer = Buffer.allocUnsafe(256 * 1024)
+  private used = 0
+
   constructor(private readonly handle: Awaited<ReturnType<typeof open>>) {}
 
   async write(chunk: Uint8Array): Promise<void> {
+    if (chunk.length > this.buffer.length - this.used) await this.flush()
+    if (chunk.length <= this.buffer.length) {
+      this.buffer.set(chunk, this.used)
+      this.used += chunk.length
+    } else await this.writeDirect(chunk)
+  }
+
+  async flush(): Promise<void> {
+    if (!this.used) return
+    await this.writeDirect(this.buffer.subarray(0, this.used))
+    this.used = 0
+  }
+
+  private async writeDirect(chunk: Uint8Array): Promise<void> {
     let offset = 0
     while (offset < chunk.length) {
       const { bytesWritten } = await this.handle.write(chunk, offset, chunk.length - offset)
@@ -122,7 +142,7 @@ class CrcCounter extends Transform {
 }
 
 function dosDateTime(date: Date): { time: number; date: number } {
-  const year = Math.max(1980, date.getFullYear())
+  const year = Math.min(2107, Math.max(1980, date.getFullYear()))
   return {
     time: (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2),
     date: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate(),
@@ -139,8 +159,8 @@ function localHeader(name: Buffer, time: number, date: number, zip64: boolean): 
   header.writeUInt16LE(time, 10)
   header.writeUInt16LE(date, 12)
   header.writeUInt32LE(0, 14)
-  header.writeUInt32LE(0, 18)
-  header.writeUInt32LE(0, 22)
+  header.writeUInt32LE(zip64 ? 0xffffffff : 0, 18)
+  header.writeUInt32LE(zip64 ? 0xffffffff : 0, 22)
   header.writeUInt16LE(name.length, 26)
   header.writeUInt16LE(zip64 ? 20 : 0, 28)
   name.copy(header, 30)
@@ -167,8 +187,10 @@ interface CentralEntry {
 }
 
 function centralHeader(entry: CentralEntry): Buffer {
-  const needsExtra = entry.zip64 || entry.compressed >= 0xffffffff || entry.uncompressed >= 0xffffffff || entry.offset >= 0xffffffff
-  const extra = needsExtra ? 24 : 0
+  const sizes64 = entry.zip64 || entry.compressed >= 0xffffffff || entry.uncompressed >= 0xffffffff
+  const offset64 = entry.offset >= 0xffffffff
+  const needsExtra = sizes64 || offset64
+  const extra = needsExtra ? 4 + (sizes64 ? 16 : 0) + (offset64 ? 8 : 0) : 0
   const header = Buffer.alloc(46 + entry.name.length + extra)
   header.writeUInt32LE(SIG_CENTRAL, 0)
   header.writeUInt16LE(needsExtra ? 45 : 20, 4)
@@ -178,23 +200,25 @@ function centralHeader(entry: CentralEntry): Buffer {
   header.writeUInt16LE(entry.time, 12)
   header.writeUInt16LE(entry.date, 14)
   header.writeUInt32LE(entry.crc, 16)
-  header.writeUInt32LE(needsExtra ? 0xffffffff : entry.compressed, 20)
-  header.writeUInt32LE(needsExtra ? 0xffffffff : entry.uncompressed, 24)
+  header.writeUInt32LE(sizes64 ? 0xffffffff : entry.compressed, 20)
+  header.writeUInt32LE(sizes64 ? 0xffffffff : entry.uncompressed, 24)
   header.writeUInt16LE(entry.name.length, 28)
   header.writeUInt16LE(extra, 30)
   header.writeUInt16LE(0, 32)
   header.writeUInt16LE(0, 34)
   header.writeUInt16LE(0, 36)
-  header.writeUInt32LE(0, 38)
-  header.writeUInt32LE(needsExtra ? 0xffffffff : entry.offset, 42)
+  header.writeUInt32LE(entry.name.at(-1) === 47 ? 0x10 : 0, 38)
+  header.writeUInt32LE(offset64 ? 0xffffffff : entry.offset, 42)
   entry.name.copy(header, 46)
   if (needsExtra) {
     const offset = 46 + entry.name.length
     header.writeUInt16LE(0x0001, offset)
-    header.writeUInt16LE(24, offset + 2)
-    header.writeBigUInt64LE(BigInt(entry.uncompressed), offset + 4)
-    header.writeBigUInt64LE(BigInt(entry.compressed), offset + 12)
-    header.writeBigUInt64LE(BigInt(entry.offset), offset + 20)
+    header.writeUInt16LE(extra - 4, offset + 2)
+    if (sizes64) {
+      header.writeBigUInt64LE(BigInt(entry.uncompressed), offset + 4)
+      header.writeBigUInt64LE(BigInt(entry.compressed), offset + 12)
+    }
+    if (offset64) header.writeBigUInt64LE(BigInt(entry.offset), offset + 4 + (sizes64 ? 16 : 0))
   }
   return header
 }
@@ -203,6 +227,7 @@ interface SourceInfo {
   entryName: string
   size: number
   mtime: Date
+  small?: () => Promise<Uint8Array>
   open: (signal?: AbortSignal) => Readable
 }
 
@@ -212,11 +237,12 @@ async function describeSource(
   signal?: AbortSignal,
 ): Promise<SourceInfo> {
   if ("data" in source) {
-    const data = Buffer.from(source.data)
+    const data = source.data
     return {
       entryName: source.entryName,
       size: data.length,
       mtime: source.mtime ?? new Date(),
+      small: async () => data,
       open: () => Readable.from([data]),
     }
   }
@@ -224,7 +250,21 @@ async function describeSource(
     const stat = await fs.promises.stat(source.filePath)
     return {
       entryName: source.entryName,
-      size: stat.size,
+      size: stat.isDirectory() ? 0 : stat.size,
+      small: stat.isDirectory() ? async () => Buffer.alloc(0) : stat.size <= SMALL_FILE_SIZE ? async () => {
+        const handle = await open(source.filePath, "r")
+        try {
+          const data = Buffer.allocUnsafe(stat.size + 1)
+          let length = 0
+          while (length < data.length) {
+            const { bytesRead } = await handle.read(data, length, data.length - length, length)
+            if (!bytesRead) break
+            length += bytesRead
+          }
+          if (length !== stat.size) throw new ArchiveError("IO_ERROR", `File changed while packing: ${source.filePath}`)
+          return data.subarray(0, length)
+        } finally { await handle.close() }
+      } : undefined,
       mtime: source.mtime ?? stat.mtime,
       open: (streamSignal) => fs.createReadStream(source.filePath, streamSignal ? { signal: streamSignal } : {}),
     }
@@ -249,22 +289,36 @@ async function describeSource(
   return {
     entryName: source.entryName ?? entry.name,
     size: entry.size,
-    mtime: source.mtime ?? new Date(),
+    mtime: source.mtime ?? entry.mtime ?? new Date(),
     open: (streamSignal) => Readable.from(readEntryChunks(reader, entry, { signal: streamSignal })),
   }
 }
 
 async function writeEntry(output: ZipOutput, source: SourceInfo, offset: number, options: ArchivePackOptions): Promise<CentralEntry> {
-  const name = Buffer.from(source.entryName.replace(/\\/g, "/"), "utf8")
-  if (!name.length) throw new ArchiveError("INVALID_ARCHIVE", "Archive entry has an empty name")
+  const name = Buffer.from(source.entryName, "utf8")
+  if (!name.length || name.length > 0xffff) throw new ArchiveError("INVALID_ARCHIVE", "Archive entry has an empty name")
   const { time, date } = dosDateTime(source.mtime)
   const zip64 = source.size >= ZIP64_THRESHOLD
-  await output.write(localHeader(name, time, date, zip64))
+  const header = localHeader(name, time, date, zip64)
+  if (source.small && source.size <= SMALL_FILE_SIZE) {
+    const data = await source.small()
+    const compressed = zlib.deflateRawSync(data, { level: options.level ?? 6 })
+    const crc = zlib.crc32(data)
+    const descriptor = Buffer.alloc(16)
+    descriptor.writeUInt32LE(SIG_DESCRIPTOR, 0)
+    descriptor.writeUInt32LE(crc, 4)
+    descriptor.writeUInt32LE(compressed.length, 8)
+    descriptor.writeUInt32LE(data.length, 12)
+    await output.write(Buffer.concat([header, compressed, descriptor]))
+    return { name, time, date, crc, compressed: compressed.length, uncompressed: data.length, offset, zip64 }
+  }
+  await output.write(header)
 
   const counter = new CrcCounter()
   const sink = new OutputSink(output)
   const input = source.open(options.signal)
   await pipeline(input, new AbortGate(options.signal), counter, zlib.createDeflateRaw({ level: options.level ?? 6 }), sink)
+  if (counter.size !== source.size) throw new ArchiveError("IO_ERROR", `Source size changed while packing: ${source.entryName}`)
 
   const descriptor = Buffer.alloc(zip64 ? 24 : 16)
   descriptor.writeUInt32LE(SIG_DESCRIPTOR, 0)
@@ -292,6 +346,14 @@ async function writeEntry(output: ZipOutput, source: SourceInfo, offset: number,
 
 async function writeZip(sources: ArchivePackSource[], output: ZipOutput, options: ArchivePackOptions): Promise<void> {
   const readers = new Map<string, Promise<{ reader: ArchiveReader; entries: ArchiveEntryInfo[] }>>()
+  const names = new Set<string>()
+  const canonical = sources.map(source => {
+    const name = packedName(source.entryName ?? (source.kind === "entry" ? source.entry.name : ""))
+    const key = name.replace(/\/$/, "").toLowerCase()
+    if (names.has(key)) throw new ArchiveError("INVALID_ARCHIVE", `Duplicate ZIP entry: ${name}`, name)
+    names.add(key)
+    return { ...source, entryName: name }
+  })
   const total = sources.length
   const interval = options.progressIntervalMs ?? 100
   let lastProgress = 0
@@ -299,9 +361,33 @@ async function writeZip(sources: ArchivePackSource[], output: ZipOutput, options
   try {
     const entries: CentralEntry[] = []
     let offset = 0
+    let prefetched: SourceInfo[] = []
+    let batchStart = 0
     for (let index = 0; index < total; index++) {
       throwIfAborted(options.signal)
-      const info = await describeSource(sources[index], readers, options.signal)
+      if (index >= batchStart + prefetched.length) {
+        batchStart = index
+        let end = index + 1
+        if (canonical[index].kind === "file") {
+          while (end < total && end - index < FILE_PREFETCH && canonical[end].kind === "file") end++
+          // Держим не более двух небольших файлов; большие по-прежнему идут потоком.
+          const batch = await Promise.allSettled(canonical.slice(index, end).map(async source => {
+            const info = await describeSource(source, readers, options.signal)
+            throwIfAborted(options.signal)
+            if (!info.small) return info
+            const data = await info.small()
+            return { ...info, small: async () => data }
+          }))
+          prefetched = batch.map(result => {
+            if (result.status === "rejected") throw result.reason
+            return result.value
+          })
+        } else {
+          prefetched = [await describeSource(canonical[index], readers, options.signal)]
+        }
+        throwIfAborted(options.signal)
+      }
+      const info = prefetched[index - batchStart]
       const entry = await writeEntry(output, info, offset, options)
       offset += 30 + entry.name.length + (entry.zip64 ? 20 : 0) + entry.compressed + (entry.zip64 ? 24 : 16)
       entries.push(entry)
@@ -323,7 +409,7 @@ async function writeZip(sources: ArchivePackSource[], output: ZipOutput, options
     const directoryOffset = offset
     if (directory.length) await output.write(Buffer.concat(directory))
 
-    const needsZip64 = entries.length > 0xffff || directoryOffset > 0xffffffff || directorySize > 0xffffffff
+    const needsZip64 = entries.length >= 0xffff || directoryOffset >= 0xffffffff || directorySize >= 0xffffffff || entries.some(entry => entry.zip64)
     if (needsZip64) {
       const eocd64 = Buffer.alloc(56)
       eocd64.writeUInt32LE(SIG_EOCD64, 0)
@@ -366,10 +452,14 @@ export async function packArchive(sources: ArchivePackSource[], outputPath: stri
   throwIfAborted(options.signal)
   await mkdir(path.dirname(outputPath), { recursive: true })
   const temporary = `${outputPath}.${randomUUID()}.partial`
+  let owned = false
   try {
     const handle = await open(temporary, "wx")
+    owned = true
     try {
-      await writeZip(sources, new FileZipOutput(handle), options)
+      const output = new FileZipOutput(handle)
+      await writeZip(sources, output, options)
+      await output.flush()
     } finally {
       await handle.close()
     }
@@ -379,7 +469,7 @@ export async function packArchive(sources: ArchivePackSource[], outputPath: stri
     throwIfAborted(options.signal)
     throw error
   } finally {
-    await rm(temporary, { force: true })
+    if (owned) await rm(temporary, { force: true })
   }
 }
 
@@ -392,7 +482,28 @@ export async function packArchiveBuffer(sources: ArchivePackSource[], options: A
 
 /** Синхронная упаковка маленьких архивов (например, classpath-JAR). */
 export function packArchiveSync(entries: Record<string, Uint8Array>, level: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 = 6): Buffer {
-  return Buffer.from(zipSync(entries, { level }))
+  const names = new Set<string>()
+  const normalized = Object.create(null) as Record<string, Uint8Array>
+  for (const [raw, data] of Object.entries(entries)) {
+    const name = packedName(raw)
+    const key = name.replace(/\/$/, "").toLowerCase()
+    if (names.has(key)) throw new ArchiveError("INVALID_ARCHIVE", `Duplicate ZIP entry: ${name}`, name)
+    names.add(key)
+    normalized[name] = data
+  }
+  if (names.size >= 0xffff) throw new ArchiveError("LIMIT_EXCEEDED", "Use asynchronous packing for ZIP64")
+  return Buffer.from(zipSync(normalized, { level }))
+}
+
+function packedName(raw: string): string {
+  const name = normalizeEntryName(raw)
+  assertSafeEntryName(name)
+  const components = name.split("/").filter(part => part && part !== ".")
+  if (!components.length) throw new ArchiveError("UNSAFE_ENTRY", `Empty ZIP entry: ${raw}`, raw)
+  return components.map(part => {
+    if (/[. ]$/.test(part) || /^(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\.|$)/i.test(part)) throw new ArchiveError("UNSAFE_ENTRY", `Unsafe ZIP entry: ${raw}`, raw)
+    return part
+  }).join("/") + (name.endsWith("/") ? "/" : "")
 }
 
 function joinEntryName(prefix: string, relativePath: string): string {
@@ -414,6 +525,7 @@ export async function collectDirectorySources(rootDir: string, options: CollectD
       const fullPath = path.join(directory, entry.name)
       if (entry.isSymbolicLink()) continue
       if (entry.isDirectory()) {
+        if (!options.include || options.include(nextRelative)) sources.push({ kind: "file", filePath: fullPath, entryName: joinEntryName(options.prefix ?? "", nextRelative) + "/" })
         await walk(fullPath, nextRelative)
         continue
       }

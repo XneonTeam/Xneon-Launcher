@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events"
 import type { IpcInvokeMap } from "@xnlc/types"
 import type { LauncherEvent } from "./schema"
 import { launcherOperations } from "./operation-gate"
+import { validateInvokeArgs, validateInvokeResult } from "./ipc-validation"
 
 export class ViewSession extends EventEmitter {
   constructor(readonly id: number, private readonly deliver: (event: LauncherEvent) => void) {
@@ -27,10 +28,15 @@ const handlers = new Map<string, Handler>()
 export const rpcRegistry = {
   handle<C extends keyof IpcInvokeMap>(
     channel: C,
-    handler: (context: RpcContext, ...args: IpcInvokeMap[C]["args"]) => unknown,
+    handler: NoInfer<(context: RpcContext, ...args: IpcInvokeMap[C]["args"]) => IpcInvokeMap[C]["return"] | Promise<IpcInvokeMap[C]["return"]>>,
   ) {
     if (handlers.has(channel)) throw new Error("Duplicate IPC handler: " + channel)
-    handlers.set(channel, (context, args) => handler(context, ...args as IpcInvokeMap[C]["args"]))
+    handlers.set(channel, (context, args) => {
+      validateInvokeArgs(channel, args)
+      const checked = (value: unknown) => { validateInvokeResult(channel, value); return value }
+      const result = handler(context, ...args as IpcInvokeMap[C]["args"])
+      return result && typeof (result as { then?: unknown }).then === "function" ? Promise.resolve(result).then(checked) : checked(result)
+    })
   },
 }
 

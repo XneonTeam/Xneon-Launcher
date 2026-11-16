@@ -418,7 +418,7 @@ export function ServersPage({ onSelectServer, rootResetToken }: ServersPageProps
             <IconServer className="w-3.5 h-3.5" strokeWidth={1.75} />
             {t("servers.title")}
           </button>
-          <button data-ui="servers-page-button-2" key="trash" type="button" onClick={() => setView("trash")}
+          <button data-ui="servers-page-button-2" data-action="open-trash" key="trash" type="button" onClick={() => setView("trash")}
             className={cn("flex items-center justify-center gap-1.5 px-3 py-1 rounded-lg text-[13px] font-medium transition-all duration-200",
               view === "trash" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80")}>
             <IconTrash className="w-3.5 h-3.5 text-current" strokeWidth={1.75} />

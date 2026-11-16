@@ -13,7 +13,7 @@ import { useAccounts, type Account } from "@/src/AccountsContext"
 import { CachedAvatar } from "@/components/ui/cached-avatar"
 import { LoaderIcon } from "@/components/launcher/instance/loader-icon"
 import { getAvatarUrl, getAccountTypeInfo, type AccountType } from "../accounts-page"
-import type { CloudUploadCategory } from "@xnlc/types"
+import type { CloudUploadCategory, CloudAccountPreview } from "@xnlc/types"
 import { useAlertDialog } from "@/lib/use-alert-dialog"
 import { ActionConfirmDialog } from "@/components/launcher/instance/action-confirm-dialog"
 import { ModalLayer } from "@/components/ui/modal-layer"
@@ -24,6 +24,7 @@ import type { Theme } from "../settings/types"
 
 const FALLBACK_AVATAR = "avatar://head/Steve"
 const cloudSectionIcons = { accounts: IconUser, builds: IconColorSwatch, servers: IconServer, themes: IconPalette }
+const uploadButtonClass = "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
 
 function CloudFileIcon({ icon, name }: { icon?: string; name: string }) {
   const retryCount = useRef(0)
@@ -65,9 +66,9 @@ function FileIcon({ file, currentPath, localBuilds, localServers }: {
   }
   if (file.name.endsWith(".xntheme")) return <IconColorSwatch className="h-5 w-5 text-primary" />
 
-  if (currentPath === "accounts" && file.name.endsWith(".json")) {
-    const username = file.name.replace(/\.json$/i, "")
-    return <CloudFileIcon icon={`avatar://head/${encodeURIComponent(username)}`} name={username} />
+  if ((currentPath === "accounts" || file.category === "accounts" || file.accountPreview) && file.name.endsWith(".json")) {
+    if (!file.accountPreview) return <IconUser className="h-5 w-5 text-primary/70" strokeWidth={1.75} />
+    return <CachedAvatar src={getAvatarUrl(file.accountPreview, file.accountPreview.username)} className="h-full w-full rounded object-cover" />
   }
 
   if (currentPath === "builds" && file.name.endsWith(".zip")) {
@@ -109,6 +110,7 @@ type CloudFile = {
   isDir: boolean
   category?: string
   themePreview?: Theme
+  accountPreview?: CloudAccountPreview
 }
 
 type Props = {
@@ -621,7 +623,7 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
   return (
     <ModalLayer windowId="cloud-cloud-file-browser-window-1" onClose={onClose} className="animate-in fade-in-0">
       <div data-ui="cloud-cloud-file-browser-div-24" data-component="upload-choice-modal" className="relative w-full max-w-md mx-4 rounded-2xl bg-card border border-border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 overflow-hidden">
-          <ModalCloseButton className="absolute right-3 top-3 z-10" onClick={onClose} />
+          <ModalCloseButton className="absolute right-3 top-1.5 z-10" onClick={onClose} />
         <div data-ui="cloud-cloud-file-browser-div-25" className="pr-14 flex border-b border-border">
           <button type="button" onClick={() => setTab("themes")} className={cn("flex-1 px-3 py-3 text-sm font-medium transition-colors", tab === "themes" ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>{t("themeCloud.folder")}</button>
           <button data-ui="cloud-cloud-file-browser-button-9" onClick={() => setTab("builds")}
@@ -679,8 +681,8 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
                         )}
                       </div>
                       <button data-ui="cloud-cloud-file-browser-button-12" onClick={() => onPickBuild(b.id, b.name)} disabled={isUploading}
-                        className="px-3 py-2 rounded-lg bg-muted/50 hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors text-sm flex-shrink-0 disabled:opacity-50">
-                        {isUploading ? <IconLoader2 className="w-4 h-4 animate-spin" /> : t("upload.choose")}
+                        className={uploadButtonClass}>
+                        {isUploading ? <IconLoader2 className="h-3.5 w-3.5 animate-spin" /> : <><IconUpload className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />{t("upload.choose")}</>}
                       </button>
                     </div>
                   )
@@ -729,8 +731,8 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
                         )}
                       </div>
                       <button data-ui="cloud-cloud-file-browser-button-13" onClick={() => onPickServer(s.id, s.name)} disabled={isUploading}
-                        className="px-3 py-2 rounded-lg bg-muted/50 hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors text-sm flex-shrink-0 disabled:opacity-50">
-                        {isUploading ? <IconLoader2 className="w-4 h-4 animate-spin" /> : t("upload.choose")}
+                        className={uploadButtonClass}>
+                        {isUploading ? <IconLoader2 className="h-3.5 w-3.5 animate-spin" /> : <><IconUpload className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />{t("upload.choose")}</>}
                       </button>
                     </div>
                   )
@@ -748,7 +750,7 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
                   <div className="flex items-center gap-3">
                     <div className="w-40 shrink-0"><ThemeCompactPreview theme={theme} /></div>
                     <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{theme.name}</span>
-                    <button type="button" disabled={!!uploading || isUploaded} onClick={() => onPickTheme(theme)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/50 text-primary transition-colors hover:bg-primary/15 disabled:cursor-default disabled:opacity-60" aria-label={t(isUploaded ? "themeCloud.done" : "cloud.upload")}>
+                    <button type="button" disabled={!!uploading || isUploaded} onClick={() => onPickTheme(theme)} className={uploadButtonClass} aria-label={t(isUploaded ? "themeCloud.done" : "cloud.upload")}>
                       {isUploading ? <IconLoader2 size={18} className="animate-spin" /> : isUploaded ? <IconCheck size={18} /> : <IconUpload size={18} />}
                     </button>
                   </div>
@@ -783,8 +785,8 @@ function UploadChoiceModal({ providerId, onClose, onPickBuild, onPickServer, onU
                         )}
                       </div>
                       <button data-ui="cloud-cloud-file-browser-button-14" onClick={() => onUploadAccount(a)} disabled={isUploading}
-                        className="px-3 py-2 rounded-lg bg-muted/50 hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors text-sm flex-shrink-0 disabled:opacity-50">
-                        {isUploading ? <IconLoader2 className="w-4 h-4 animate-spin" /> : t("cloud.upload")}
+                        className={uploadButtonClass}>
+                        {isUploading ? <IconLoader2 className="h-3.5 w-3.5 animate-spin" /> : <><IconUpload className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />{t("cloud.upload")}</>}
                       </button>
                     </div>
                   )

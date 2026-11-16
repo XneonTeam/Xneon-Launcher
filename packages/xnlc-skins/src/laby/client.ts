@@ -12,7 +12,8 @@
 import { fetchWithRetry } from "@xnlc/core/retry"
 import type { LabyApiError } from "@xnlc/types"
 
-const USER_AGENT = "Xneon-Launcher/1.0.8"
+declare const XNLC_APPLICATION_USER_AGENT: string | undefined
+const USER_AGENT = typeof XNLC_APPLICATION_USER_AGENT === "string" ? XNLC_APPLICATION_USER_AGENT : "xnlc-skins"
 
 const ATTEMPTS = 3
 const RETRY_DELAY_MS = 800

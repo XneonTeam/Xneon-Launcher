@@ -102,10 +102,10 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
     }
   }, [])
 
-  const finishDeviceLogin = useCallback((provider: ProviderId, result: { id: string; username: string; uuid?: string; accessToken: string; refreshToken?: string }) => {
+  const finishDeviceLogin = useCallback((provider: ProviderId, result: { id: string; username: string; uuid?: string }) => {
     const { addAccount } = {} as any
     window.dispatchEvent(new CustomEvent("onboarding:add-account", {
-      detail: { id: result.id, type: provider, username: result.username, uuid: result.uuid, accessToken: result.accessToken, refreshToken: result.refreshToken },
+      detail: { id: result.id, type: provider, username: result.username, uuid: result.uuid },
     }))
     setDeviceStatus("done")
     setDevicePolling(false)

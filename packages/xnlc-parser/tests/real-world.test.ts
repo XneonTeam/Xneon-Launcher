@@ -38,7 +38,7 @@ live("внешний LiteLoader fixture: metadata и SHA-1", async () => {
   expect(sha1(bytes)).toBe("9dbd2d690ba2dd7c60469124f3bc1bae972c33ef")
   const result = await analyze(bytes)
   expect(result.formats).toContain("liteloader")
-  expect(result.mods[0]).toMatchObject({ name: "ArmorsHUDRevived", version: "1.2.0", authors: ["Shadow_Hawk"], minecraftVersions: ["1.12.r2"] })
+  expect(result.mods[0]).toMatchObject({ loader: "liteloader", name: "ArmorsHUDRevived", version: "1.2.0", authors: ["Shadow_Hawk"], minecraftVersions: ["1.12.r2"] })
 }, 30000)
 
 for (const item of cases) live(`реальный ${item.loader}: metadata и SHA-1`, async () => {

@@ -1,3 +1,4 @@
+import { APP_USER_AGENT } from "../../lib/app-meta"
 import type { IpcInvokeMap } from "@xnlc/types"
 import { serverDatapackDirectory, installServerDatapack, deleteServerDatapack, downloadDatapack } from "./server-datapacks"
 import { registerMcServerHandler } from "./remote-servers/handlers"
@@ -31,6 +32,11 @@ import { loadXnlcModule } from "./minecraft-core"
 import { getMcServerDir } from "./paths"
 import { recordServerSession } from "./stats"
 import { upsertActiveServerSession, takeActiveServerSession } from "./session-tracker"
+import { copyCustomServerJar, createServerWithFiles, duplicateServerWithFiles } from "./mc-server-creation"
+import { getMainTranslator } from "./i18n"
+import { prepareServerRuntime } from "./mc-server-start"
+import { createModpackPathClaims, validateModpackPaths, writeModpackDownload } from "./builds/modpack-install"
+import { resolveSafeIntentFilePath } from "./builds/helpers"
 
 // ── Push-метрики серверов ──────────────────────────────────────────────
 // Renderer раньше опрашивал getMetrics каждые 2 секунды из каждого компонента
@@ -320,23 +326,15 @@ export function registerMcServerHandlers() {
       customJar: data.customJarPath ? "custom-server.jar" : null,
       source: "local",
     }
-    await dbHelpers.createMcServer(server)
-
-    // Create server directory
-    const serverDir = getServerDir(id)
-    fs.mkdirSync(serverDir, { recursive: true })
-
-    // Copy custom JAR if provided
-    if (data.customJarPath && fs.existsSync(data.customJarPath)) {
-      const jarDest = path.join(serverDir, "custom-server.jar")
-      fs.copyFileSync(data.customJarPath, jarDest)
-    }
-
-    return rowToInfo(server)
+    const saved = await createServerWithFiles(server, { store: dbHelpers, directory: getServerDir }, async stage => {
+      if (!data.customJarPath) return
+      await copyCustomServerJar(data.customJarPath, stage)
+    })
+    return rowToInfo(saved)
   })
 
   registerMcServerHandler("mc-server:analyze-jar", async (_event, jarPath: string) => {
-    if (!jarPath) return { minecraftVersion: null, loaderId: null, loaderLabel: null, modId: null, mainClass: null, error: "Путь не указан" }
+    if (!jarPath) return { minecraftVersion: null, loaderId: null, loaderLabel: null, modId: null, mainClass: null, error: (await getMainTranslator())("runtime.server.pathRequired") }
     try {
       return await analyzeServerJar(jarPath)
     } catch (err: unknown) {
@@ -392,19 +390,20 @@ export function registerMcServerHandlers() {
 
   // ── Export server to zip (like instance export, with category filter) ───
   registerMcServerHandler("mc-server:export-zip", async (_event, id: string, serverName: string, categories?: string[]): Promise<{ success: boolean; path?: string; error?: string }> => {
+    const t = await getMainTranslator()
     try {
       const win = DesktopWindow.getAllWindows().find(w => !w.isDestroyed())
-      if (!win) return { success: false, error: "Окно недоступно" }
+      if (!win) return { success: false, error: t("runtime.server.windowUnavailable") }
       const serverDir = getServerDir(id)
       try { await fs.promises.access(serverDir) } catch {
-        return { success: false, error: "Папка сервера пуста" }
+        return { success: false, error: t("runtime.server.empty") }
       }
       const picked = await dialog.showSaveDialog(win, {
-        title: "Экспорт сервера",
+        title: t("servers.export.title"),
         defaultPath: `${sanitizeFileName(serverName || id)}.zip`,
-        filters: [{ name: "Zip архив", extensions: ["zip"] }],
+        filters: [{ name: "ZIP", extensions: ["zip"] }],
       })
-      if (picked.canceled || !picked.filePath) return { success: false, error: "Экспорт отменён" }
+      if (picked.canceled || !picked.filePath) return { success: false, error: t("runtime.server.exportCancelled") }
 
       // Category → top-level entries of a server directory (Prism-style filter).
       const CATEGORY_ENTRIES: Record<string, Set<string>> = {
@@ -441,45 +440,8 @@ export function registerMcServerHandlers() {
 
   // ── Duplicate server: copy DB row and files under a new name ────────────
   registerMcServerHandler("mc-server:duplicate", async (_event, id: string): Promise<McServerInfo | null> => {
-    const row = await dbHelpers.getMcServer(id)
-    if (!row) return null
-
-    const newId = randomUUID()
-    const now = new Date().toISOString()
-    // Find a free "Name (copy)" suffix
-    const existing = await dbHelpers.listMcServers()
-    let name = `${row.name} (копия)`
-    let n = 2
-    while (existing.some(s => s.name === name)) {
-      name = `${row.name} (копия ${n})`
-      n++
-    }
-
-    await dbHelpers.createMcServer({
-      ...row,
-      id: newId,
-      name,
-      // Pick a free port so the copy can run alongside the original
-      port: (() => {
-        const taken = new Set(existing.map(s => s.port))
-        let p = row.port
-        while (taken.has(p) && p < 65535) p++
-        return p
-      })(),
-      createdAt: now,
-      trashedAt: null,
-    })
-
-    // Copy server files (world, configs, mods...) when the source dir exists
-    const srcDir = getServerDir(id)
-    try {
-      await fs.promises.access(srcDir)
-      const destDir = getServerDir(newId)
-      await fs.promises.mkdir(destDir, { recursive: true })
-      await fs.promises.cp(srcDir, destDir, { recursive: true, verbatimSymlinks: true })
-    } catch { /* fresh server without files is fine */ }
-
-    return rowToInfo({ ...row, id: newId, name, createdAt: now, trashedAt: null })
+    const saved = await duplicateServerWithFiles(id, { store: dbHelpers, directory: getServerDir })
+    return saved ? rowToInfo(saved) : null
   })
 
   registerMcServerHandler("mc-server:list-trash", async () => {
@@ -528,6 +490,7 @@ export function registerMcServerHandlers() {
   })
 
   async function startMcServer(id: string, token: { cancelled: boolean }): Promise<void> {
+    const t = await getMainTranslator()
     const currentRow = await dbHelpers.getMcServer(id)
     if (!currentRow) throw new Error("Server not found")
 
@@ -578,45 +541,11 @@ export function registerMcServerHandlers() {
       sendToRenderer("mc-server:log", { id, line })
     }
 
-    // Требование Java берём из метаданных Minecraft, включая snapshots.
-    const storedJava = row.javaPath && row.javaPath !== "auto" ? row.javaPath : null
-    const preferredJava = storedJava ?? (await dbHelpers.getSetting("javaPath")) ?? undefined
-    let javaPath: string
-    try {
-      sendProgress({ phase: "downloading", message: "Проверка Java по метаданным Minecraft...", percent: 0 })
-      const runtime = await ensureServerJava(serverInfo.gameVersion, (percent, required) => {
-        sendProgress({ phase: "downloading", message: `Подготовка Java ${required}...`, percent })
-      }, preferredJava)
-      javaPath = runtime.path
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (cancelledByStop()) return finishCancelled()
-      sendProgress({ phase: "error", message: `Не удалось подготовить Java для сервера: ${message}` })
-      throw new Error(`Не удалось подготовить Java для сервера: ${message}`)
-    }
-
-    if (cancelledByStop()) return finishCancelled()
-
-    // Ensure server JAR exists — download if needed
-    let resolvedJarPath: string
-    try {
-      resolvedJarPath = await ensureServerJar(
-        serverDir,
-        serverInfo.modloader,
-        serverInfo.gameVersion,
-        serverInfo.modloaderVersion,
-        javaPath,
-        sendProgress,
-        row.customJar,
-        sendConsoleLine,
-      )
-    } catch (err: any) {
-      if (cancelledByStop()) return finishCancelled()
-      sendProgress({ phase: "error", message: `Ошибка загрузки: ${err.message}` })
-      throw new Error(`Failed to download server JAR: ${err.message}`)
-    }
-
-    if (cancelledByStop()) return finishCancelled()
+    const runtime = await prepareServerRuntime({ info: serverInfo, row, directory: serverDir, token, t,
+      progress: sendProgress, console: sendConsoleLine, cancelled: finishCancelled,
+      globalJava: () => dbHelpers.getSetting("javaPath"), java: ensureServerJava, jar: ensureServerJar })
+    if (!runtime) return
+    const { javaPath, jarPath: resolvedJarPath } = runtime
 
     // Accept EULA if needed — check eula.txt on disk
     const eulaPath = path.join(serverDir, "eula.txt")
@@ -967,7 +896,7 @@ export function registerMcServerHandlers() {
     return {
       local: `${localIp}:${port}`,
       public: publicIp ? `${publicIp}:${port}` : null,
-      custom: relayAddress,
+      custom: relayAddress ?? "",
     }
   })
 
@@ -1036,7 +965,7 @@ export function registerMcServerHandlers() {
     const filePath = resolveInsideServer(getServerDir(id), relativePath)
     if (!fs.existsSync(filePath)) return null
     const stat = fs.statSync(filePath)
-    if (stat.size > 2 * 1024 * 1024) return { error: "File too large (>2MB)" }
+    if (stat.size > 2 * 1024 * 1024) throw new Error("File too large (>2MB)")
     return fs.readFileSync(filePath, "utf-8")
   })
 
@@ -1113,7 +1042,7 @@ export function registerMcServerHandlers() {
     try {
       const res = await fetch("https://api.modrinth.com/v2/version_files", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "User-Agent": "Xneon-Launcher/1.0.8" },
+        headers: { "Content-Type": "application/json", "User-Agent": APP_USER_AGENT },
         body: JSON.stringify({ hashes: sha1List, algorithm: "sha1" }),
       })
       if (!res.ok) return hashes.map(h => ({ name: h.name, sha1: h.sha1 }))
@@ -1148,9 +1077,8 @@ export function registerMcServerHandlers() {
     onlineMode?: boolean
     maxPlayers?: number
   }): Promise<McServerInfo> => {
+    const t = await getMainTranslator()
     const mods = await loadModsModule()
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "xneon-pack-"))
-    let zipBuffer: Buffer | null = null
     try {
       const modType = params.source
       let packName = params.name
@@ -1158,28 +1086,27 @@ export function registerMcServerHandlers() {
       let zipUrl: string
 
       if (modType === "modrinth") {
-        if (!params.projectSlug) throw new Error("Slug проекта не указан")
+        if (!params.projectSlug) throw new Error(t("runtime.import.missingFile", { file: "Modrinth project slug" }))
         const versions = await mods.modrinthGetRawVersions(params.projectSlug) as ModrinthVersionDetail[]
         const version = params.versionId ? versions.find((v) => v.id === params.versionId) : versions[0]
-        if (!version) throw new Error("Версии не найдены")
+        if (!version) throw new Error(t("runtime.import.noVersions"))
         const mrpackFile = version.files?.find((f) => f.filename?.endsWith(".mrpack"))
-        if (!mrpackFile?.url) throw new Error(".mrpack файл не найден")
+        if (!mrpackFile?.url) throw new Error(t("runtime.import.missingFile", { file: ".mrpack" }))
         zipUrl = mrpackFile.url
         if (!packName) packName = version.name ?? version.version_number ?? params.projectSlug
       } else {
-        if (!params.modId || !params.fileId) throw new Error("Модификация CurseForge не указана")
+        if (!params.modId || !params.fileId) throw new Error(t("runtime.import.missingFile", { file: "CurseForge project/file ID" }))
         const url = await mods.curseforgeGetDownloadUrl(params.modId, params.fileId)
-        if (!url) throw new Error("Ссылка на скачивание недоступна")
+        if (!url) throw new Error(t("runtime.import.noUrl", { file: "CurseForge" }))
         zipUrl = url
-        if (!packName) packName = `CurseForge модпак #${params.modId}`
+        if (!packName) packName = `CurseForge #${params.modId}`
       }
 
       sendToRenderer("mc-server:download-progress", {
         id: "install",
-        progress: { phase: "installing-pack", message: "Скачивание модпака..." },
+        progress: { phase: "installing-pack", message: t("import.phase.package") },
       })
       const buff = await downloadBuffer(zipUrl, undefined, "modpack.zip")
-      zipBuffer = buff
 
       let gameVersion = ""
       let modLoader = "vanilla"
@@ -1210,7 +1137,7 @@ export function registerMcServerHandlers() {
           modLoader = "neoforge"
         }
         modrinthFiles = ((index.files as ModrinthManifestFile[] | undefined) ?? []).filter((f) => f.env?.server !== "unsupported")
-        if (!packName) packName = index.name ?? index.slug ?? "Серверный модпак"
+        if (!packName) packName = index.name ?? index.slug ?? t("import.modpack")
       } else if (cfManifest) {
         const manifest = JSON.parse(cfManifest)
         gameVersion = manifest.minecraft?.version ?? ""
@@ -1224,11 +1151,11 @@ export function registerMcServerHandlers() {
         else if (loaderRaw.startsWith("forge")) modLoader = "forge"
         cfFiles = ((manifest.files as CurseForgeManifestFile[] | undefined) ?? []).filter((f) => f.projectID && f.fileID)
       } else {
-        throw new Error("Манифест модпака не найден (нет modrinth.index.json или manifest.json)")
+        throw new Error(t("runtime.import.missingFile", { file: "modrinth.index.json / manifest.json" }))
       }
 
-      if (!gameVersion) throw new Error("Не удалось определить версию Minecraft")
-      if (!packName) packName = "Серверный модпак"
+      if (!gameVersion) throw new Error(t("runtime.import.noVersions"))
+      if (!packName) packName = t("import.modpack")
 
       const id = randomUUID()
       const now = new Date().toISOString()
@@ -1253,9 +1180,7 @@ export function registerMcServerHandlers() {
         customJar: null,
         source: params.source,
       }
-      await dbHelpers.createMcServer(server)
-      const serverDir = getServerDir(id)
-      fs.mkdirSync(serverDir, { recursive: true })
+      const saved = await createServerWithFiles(server, { store: dbHelpers, directory: getServerDir }, async serverDir => {
 
       const sendPackProgress = (message: string, current?: number, total?: number) => {
         sendToRenderer("mc-server:download-progress", {
@@ -1269,42 +1194,35 @@ export function registerMcServerHandlers() {
       }
 
       if (modType === "modrinth") {
+        validateModpackPaths(modrinthFiles.map(file => file.path ?? ""))
         const total = modrinthFiles.length
         let downloaded = 0
         for (const f of modrinthFiles) {
           const rel = f.path ?? ""
           const url = f.downloads?.[0]
-          if (!rel || !url) continue
-          const safeRel = sanitizeRelativeContentPath(rel)
-          let targetPath: string
-          try {
-            targetPath = resolveInsideServer(serverDir, safeRel)
-          } catch {
-            // Запись за пределами папки сервера — пропускаем такой файл.
-            continue
-          }
-          const fileName = path.basename(safeRel)
-          fs.mkdirSync(path.dirname(targetPath), { recursive: true })
-          sendPackProgress(`${downloaded}/${total} файлов`, downloaded, total)
-          try { await fs.promises.access(targetPath) } catch {
-            const buffer = await downloadBuffer(url, undefined, fileName)
-            await fs.promises.writeFile(targetPath, buffer)
-          }
+          if (!rel || !url) throw new Error(t("runtime.import.noUrl", { file: rel || ".mrpack" }))
+          const targetPath = await resolveSafeIntentFilePath(serverDir, rel)
+          const fileName = path.basename(rel)
+          await fs.promises.mkdir(path.dirname(targetPath), { recursive: true })
+          sendPackProgress(t("import.filesCount", { current: downloaded, total }), downloaded, total)
+          const buffer = await downloadBuffer(url, undefined, fileName)
+          await writeModpackDownload(targetPath, buffer, f.hashes)
           downloaded++
-          sendPackProgress(`${downloaded}/${total} файлов`, downloaded, total)
+          sendPackProgress(t("import.filesCount", { current: downloaded, total }), downloaded, total)
         }
-        sendPackProgress("Распаковка overrides...", total, total)
+        sendPackProgress(t("import.phase.extracting"), total, total)
         await copyOverrideEntries(buff, serverDir)
         await applyServerOverrides(buff, serverDir)
       } else {
         const total = cfFiles.length
         let downloaded = 0
         const modsDir = path.join(serverDir, "mods")
-        fs.mkdirSync(modsDir, { recursive: true })
+        await fs.promises.mkdir(modsDir, { recursive: true })
+        const claim = createModpackPathClaims()
 
         // Пакетный запрос информации о всех файлах сборки (POST /v1/mods/files)
         const fileIds = cfFiles.map((f) => f.fileID).filter((id): id is number => typeof id === "number" && id > 0)
-        let filesBatch: Record<number, { downloadUrl: string; fileName: string }> = {}
+        let filesBatch: Record<number, { downloadUrl: string; fileName: string; sha1?: string; fileLength?: number }> = {}
         try {
           filesBatch = await mods.curseforgeGetFiles(fileIds)
         } catch (err) {
@@ -1321,37 +1239,35 @@ export function registerMcServerHandlers() {
             if (!fileUrl) {
               fileUrl = await mods.curseforgeGetDownloadUrl(f.projectID, f.fileID)
             }
-            if (!fileUrl) continue
+            if (!fileUrl) throw new Error(t("runtime.import.noUrl", { file: `CurseForge #${f.fileID}` }))
 
             const extractedName = fileUrl.split("/").pop()?.split("?")[0]
             fileName = sanitizeFileName(fileName || (extractedName ?? `mod-${f.fileID}.jar`))
-            const targetPath = path.join(modsDir, fileName)
-            sendPackProgress(`${downloaded}/${total} модов`, downloaded, total)
-            try { await fs.promises.access(targetPath) } catch {
-              const buffer = await downloadBuffer(fileUrl, undefined, fileName)
-              await fs.promises.writeFile(targetPath, buffer)
-            }
+            claim(`mods/${fileName}`)
+            const targetPath = await resolveSafeIntentFilePath(serverDir, `mods/${fileName}`)
+            sendPackProgress(t("import.filesCount", { current: downloaded, total }), downloaded, total)
+            const buffer = await downloadBuffer(fileUrl, undefined, fileName)
+            await writeModpackDownload(targetPath, buffer, { sha1: batchInfo?.sha1, size: batchInfo?.fileLength })
           } catch (err) {
             console.error("[mc-server] Pack mod download failed:", err)
+            throw err
           }
           downloaded++
-          sendPackProgress(`${downloaded}/${total} модов`, downloaded, total)
+          sendPackProgress(t("import.filesCount", { current: downloaded, total }), downloaded, total)
         }
-        sendPackProgress("Распаковка overrides...", total, total)
+        sendPackProgress(t("import.phase.extracting"), total, total)
         await copyOverrideEntries(buff, serverDir)
       }
+      })
 
       sendToRenderer("mc-server:download-progress", {
         id,
-        progress: { phase: "done", percent: 100, message: "Модпак установлен" },
+        progress: { phase: "done", percent: 100, message: t("import.result.modpack") },
       })
-      return rowToInfo(server)
+      return rowToInfo(saved)
     } catch (err: any) {
       console.error("[mc-server] Install pack error:", err)
       throw err
-    } finally {
-      if (zipBuffer) zipBuffer = null
-      fs.rmSync(tmpDir, { recursive: true, force: true })
     }
   })
 

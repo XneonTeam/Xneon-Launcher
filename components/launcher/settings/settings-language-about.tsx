@@ -276,8 +276,8 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
 
       <nav aria-label={t("settings.about.social")} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {links.map(({ name, detail, href, Icon }) => (
-          <a key={href} href={href} target="_blank" rel="noopener noreferrer"
-            className="group flex min-w-0 items-center gap-3 rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+          <button key={href} type="button" onClick={() => window.open(href, "_blank", "noopener,noreferrer")}
+            className="group flex min-w-0 items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
               <Icon className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
             </span>
@@ -286,26 +286,30 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
               <span className="mt-0.5 block break-words text-xs text-muted-foreground">{detail}</span>
             </span>
             <IconArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-primary" aria-hidden="true" />
-          </a>
+          </button>
         ))}
       </nav>
 
-      <section data-component="settings-onboarding-reset">
-        <div data-settings-tone="amber" className="settings-color-panel flex flex-col gap-4 rounded-xl border border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 font-medium text-foreground">
-              <IconRotate className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.7} aria-hidden="true" />
-              {t("settings.about.onboarding.reset")}
-            </div>
-            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{t("settings.about.onboarding.description")}</p>
-          </div>
-          <button type="button" onClick={() => window.dispatchEvent(new Event("launcher:onboarding-reset"))}
-            className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary px-4 py-2.5 font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-            <IconRotate className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-            {t("settings.about.onboarding.button")}
-          </button>
-        </div>
-      </section>
+      <OnboardingResetCard t={t} />
     </div>
   )
+}
+
+export function OnboardingResetCard({ t }: { t: (key: string) => string }) {
+  return <section data-component="settings-onboarding-reset">
+    <div data-settings-tone="amber" className="settings-color-panel flex flex-col gap-4 rounded-xl border border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 font-medium text-foreground">
+          <IconRotate className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.7} aria-hidden="true" />
+          {t("settings.about.onboarding.reset")}
+        </div>
+        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{t("settings.about.onboarding.description")}</p>
+      </div>
+      <button type="button" onClick={() => window.dispatchEvent(new Event("launcher:onboarding-reset"))}
+        className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary px-4 py-2.5 font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+        <IconRotate className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+        {t("settings.about.onboarding.button")}
+      </button>
+    </div>
+  </section>
 }

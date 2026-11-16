@@ -107,7 +107,6 @@ export function Launcher({ onReady }: LauncherProps) {
     return () => { delete document.body.dataset.launcherPage }
   }, [activeTab])
   const [showOnboarding, setShowOnboarding] = useState(false)
-  const [showDbFallbackBanner, setShowDbFallbackBanner] = useState(false)
   const [selectedMcServer, setSelectedMcServer] = useState<McServerInfo | null>(null)
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("game")
   // Подсказка для страницы логов: открыта из-за краша игры.
@@ -146,20 +145,6 @@ export function Launcher({ onReady }: LauncherProps) {
 
     void loadOnboardingState()
     return () => { cancelled = true }
-  }, [])
-
-  useEffect(() => {
-    const checkDbFallback = async () => {
-      try {
-        const result = await window.electrobunAPI?.dbIsFallbackStorage()
-        if (result?.isFallback) {
-          setShowDbFallbackBanner(true)
-        }
-      } catch {
-        // ignore
-      }
-    }
-    void checkDbFallback()
   }, [])
 
   useEffect(() => {
@@ -344,22 +329,6 @@ export function Launcher({ onReady }: LauncherProps) {
         /></Suspense>
       )}
 
-      {showDbFallbackBanner && (
-        <div data-ui="launcher-div-8" className="fixed top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border border-warning/30 bg-warning/10 backdrop-blur-sm">
-          <svg data-ui="launcher-svg-1" data-icon="launcher-svg-1" className="w-5 h-5 text-warning flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path data-ui="launcher-path-1" strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M12 3l9.5 16.5H2.5L12 3z" />
-          </svg>
-          <span data-ui="launcher-span-1" className="text-sm text-warning">
-            {t("launcher.dbFallbackWarning")}
-          </span>
-          <button data-ui="launcher-button-1"
-            onClick={() => setShowDbFallbackBanner(false)}
-            className="ml-2 text-warning hover:text-warning flex-shrink-0"
-          >
-            ✕
-          </button>
-        </div>
-      )}
     </div>
   )
 }

@@ -9,22 +9,43 @@
 @source '../index.html';
 
 
-/* Кнопки корзины во всех разделах используют акцент выбранной темы. */
-:where(button, [role="menuitem"]):has(> svg.icon-tabler-trash):not(.bg-primary) {
+/* Удаление во всех разделах: тот же акцентный фон, что в корзине.
+   Переход в корзину — навигация, а не удаление: его оформление задают табы.
+   Пункты меню сохраняют свою геометрию и области нажатия. */
+:where(button, [role="menuitem"]):not([data-action="open-trash"]):has(> svg:is(.icon-tabler-trash, .tabler-icon-trash)):not(.bg-primary) {
   color: var(--primary);
-  background-color: color-mix(in srgb, var(--primary) 8%, var(--card));
-  border-color: color-mix(in srgb, var(--primary) 24%, var(--border));
+  background-color: color-mix(in srgb, var(--primary) 10%, var(--card));
+  border-color: transparent;
 }
-:where(button, [role="menuitem"]):has(> svg.icon-tabler-trash):not(.bg-primary):not(:disabled):hover {
+:where(button):not([data-action="open-trash"]):has(> svg:is(.icon-tabler-trash, .tabler-icon-trash)):not(.bg-primary):not([role="menuitem"]) {
+  border-radius: var(--radius-lg);
+  border-width: 0;
+  width: auto;
+  height: auto;
+  min-height: 1.75rem;
+  padding: 0.375rem 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+:where(button, [role="menuitem"]):not([data-action="open-trash"]):has(> svg:is(.icon-tabler-trash, .tabler-icon-trash)):not(.bg-primary):not(:disabled):hover {
   color: var(--primary);
-  background-color: color-mix(in srgb, var(--primary) 16%, var(--card));
+  background-color: color-mix(in srgb, var(--primary) 20%, var(--card));
 }
-:where(button, [role="menuitem"]):has(> svg.icon-tabler-trash):focus-visible {
+:where(button, [role="menuitem"]):not([data-action="open-trash"]):has(> svg:is(.icon-tabler-trash, .tabler-icon-trash)):focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
-:where(button, [role="menuitem"]):has(> svg.icon-tabler-trash) > svg.icon-tabler-trash {
+:where(button, [role="menuitem"]):not([data-action="open-trash"]):has(> svg:is(.icon-tabler-trash, .tabler-icon-trash)) > svg:is(.icon-tabler-trash, .tabler-icon-trash) {
   color: inherit;
+}
+:where(button):not([data-action="open-trash"]):not([role="menuitem"]):has(> svg:is(.icon-tabler-trash, .tabler-icon-trash)) > svg:is(.icon-tabler-trash, .tabler-icon-trash) {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
 }
 
 /* Элементы без собственного оформления фокуса используют цвет активной темы. */

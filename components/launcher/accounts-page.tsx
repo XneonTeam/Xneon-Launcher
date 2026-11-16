@@ -82,7 +82,6 @@ export function AccountsPage() {
           type: "elyby",
           username: result.username,
           uuid: result.uuid,
-          accessToken: result.accessToken,
           isActive: accounts.length === 0,
         })
         setSelectedAccountType(null)
@@ -124,14 +123,12 @@ export function AccountsPage() {
     }
   }, [t])
 
-  const finishElyDeviceLogin = useCallback((result: { id: string; username: string; uuid?: string; accessToken: string; refreshToken?: string }) => {
+  const finishElyDeviceLogin = useCallback((result: { id: string; username: string; uuid?: string }) => {
     addAccount({
       id: result.id,
       type: "elyby",
       username: result.username,
       uuid: result.uuid,
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
       isActive: accounts.length === 0,
     })
     setDeviceStatus("done")
@@ -153,8 +150,6 @@ export function AccountsPage() {
           type: "xnskins",
           username: result.username,
           uuid: result.uuid,
-          accessToken: result.accessToken,
-          refreshToken: result.refreshToken,
           isActive: accounts.length === 0,
         })
         setSelectedAccountType(null)
@@ -196,14 +191,12 @@ export function AccountsPage() {
     }
   }, [t])
 
-  const finishXnSkinsDeviceLogin = useCallback((result: { id: string; username: string; uuid?: string; accessToken: string; refreshToken?: string }) => {
+  const finishXnSkinsDeviceLogin = useCallback((result: { id: string; username: string; uuid?: string }) => {
     addAccount({
       id: result.id,
       type: "xnskins",
       username: result.username,
       uuid: result.uuid,
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
       isActive: accounts.length === 0,
     })
     setDeviceStatus("done")
@@ -225,8 +218,6 @@ export function AccountsPage() {
           type: "microsoft",
           username: result.username,
           uuid: result.uuid,
-          accessToken: result.accessToken,
-          refreshToken: result.refreshToken,
           skinUrl: result.skinUrl,
           isActive: accounts.length === 0,
         })
@@ -269,14 +260,12 @@ export function AccountsPage() {
     }
   }, [t])
 
-  const finishDeviceLogin = useCallback((result: { id: string; username: string; uuid?: string; accessToken: string; refreshToken?: string; skinUrl?: string }) => {
+  const finishDeviceLogin = useCallback((result: { id: string; username: string; uuid?: string; skinUrl?: string }) => {
     addAccount({
       id: result.id,
       type: "microsoft",
       username: result.username,
       uuid: result.uuid,
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
       skinUrl: result.skinUrl,
       isActive: accounts.length === 0,
     })

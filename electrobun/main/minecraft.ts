@@ -84,13 +84,13 @@ const versionHandlers: IpcHandlerDef[] = [
 
   // Fabric / LiteLoader / Quilt / NeoForge / Forge / OptiFine version queries (with mcVersion arg)
   ctxHandler("minecraft:get-fabric-versions", "get Fabric versions", [],
-    (handler, mcVersion) => handler.getFabricVersions(mcVersion as string)),
+    async (handler, mcVersion) => (await handler.getFabricVersions(mcVersion)).map(item => ({ ...item, stable: item.stable === true }))),
 
   ctxHandler("minecraft:get-liteloader-versions", "get LiteLoader versions", [],
-    (handler, mcVersion) => handler.getLiteLoaderVersions(mcVersion as string)),
+    async (handler, mcVersion) => (await handler.getLiteLoaderVersions(mcVersion)).map(item => ({ ...item, stable: item.stable === true }))),
 
   ctxHandler("minecraft:get-quilt-versions", "get Quilt versions", [],
-    (handler, mcVersion) => handler.getQuiltVersions(mcVersion as string)),
+    async (handler, mcVersion) => (await handler.getQuiltVersions(mcVersion)).map(item => ({ ...item, stable: item.stable === true }))),
 
   ctxHandler("minecraft:get-neoforge-versions", "get NeoForge versions", [], async (handler, mcVersion) => {
     const versions = await handler.getNeoForgeVersions(mcVersion as string)
@@ -216,11 +216,15 @@ const versionHandlers: IpcHandlerDef[] = [
   ctxHandler("minecraft:set-offline-auth", "set offline auth", null,
     async (handler, username) => {
       handler.setOfflineAuth(username as string)
-      return handler.getAuth()
+      const auth = handler.getAuth()
+      return auth ? { uuid: auth.uuid, username: auth.username, profileId: auth.profileId, profileName: auth.profileName } : null
     }),
 
   ctxHandler("minecraft:get-auth", "get auth", null,
-    async (handler) => handler.getAuth()),
+    async (handler) => {
+      const auth = handler.getAuth()
+      return auth ? { uuid: auth.uuid, username: auth.username, profileId: auth.profileId, profileName: auth.profileName } : null
+    }),
 ]
 
 // ---------- Launch Handlers ----------

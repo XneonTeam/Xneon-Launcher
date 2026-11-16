@@ -6,12 +6,14 @@
   "engines": { "bun": ">=1.4.4" },
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
-  "files": ["lib", "README.md", "INTEGRATION_GUIDE.md", "AUDIT.md", "LIMITATIONS.md", "CHANGELOG.md", "SECURITY.md", "SUPPORTED_FORMATS.md", "PRODUCTION_READINESS.md", "IMPLEMENTATION_PROGRESS.md", "BENCHMARK.md", "LICENSE", "LICENSES.md"],
+  "files": ["lib", "README.md", "INTEGRATION_GUIDE.md", "LIMITATIONS.md", "CHANGELOG.md", "SECURITY.md", "SUPPORTED_FORMATS.md", "LICENSE", "LICENSES.md"],
   "exports": { ".": { "types": "./lib/index.d.ts", "default": "./lib/index.js" } },
   "scripts": {
     "build": "bun --bun run tsc -p tsconfig.json",
-    "test": "bun test tests/archive.test.ts tests/classfile.test.ts tests/datapack.test.ts tests/dependencies.test.ts tests/directory.test.ts tests/metadata.test.ts tests/parser-cache.test.ts tests/parser-worker.test.ts tests/utilities.test.ts",
-    "test:live": "bun test tests/live-independent.test.ts"
+    "test": "bun ../../scripts/test-parser.mjs offline",
+    "test:integration": "bun ../../scripts/test-parser.mjs integration",
+    "test:live": "bun ../../scripts/test-parser.mjs live"
   },
+  "dependencies": { "@xnlc/archives": "workspace:*" },
   "devDependencies": { "@types/bun": "^1.4.4", "typescript": "7.0.2" }
 }

@@ -12,7 +12,7 @@ import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { useMemoryOptions } from "@/src/hooks/use-memory-options"
 import { useMcServerState } from "@/src/hooks/use-mc-servers"
 import { XnConnectLogo } from "./xn-connect-logo"
-import { remoteServerError } from "./remote-access-dialog"
+import { remoteServerError } from "./remote-error"
 import { getSnapPoints } from "@/lib/memory"
 import { SettingsSwitch } from "../settings/settings-switch"
 

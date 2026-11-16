@@ -1,3 +1,5 @@
+declare const XNLC_APPLICATION_USER_AGENT: string | undefined
+const XNLC_USER_AGENT = typeof XNLC_APPLICATION_USER_AGENT === "string" ? XNLC_APPLICATION_USER_AGENT : "xnlc-core"
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, statSync, unlinkSync, writeFileSync } from "fs";
 import { createHash } from "node:crypto";
 import path from "path";
@@ -248,7 +250,7 @@ export async function resolveLatestAuthlibInjectorUrl(): Promise<string> {
   try {
     const res = await fetchWithTimeout(
       "https://api.github.com/repos/yushijinhun/authlib-injector/releases/latest",
-      { headers: { "User-Agent": "Xneon-Launcher/1.0.8" } },
+      { headers: { "User-Agent": XNLC_USER_AGENT } },
       VERSION_LOOKUP_TIMEOUT_MS,
     );
     if (res.ok) {

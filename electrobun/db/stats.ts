@@ -1,4 +1,4 @@
-import { queryAll, run, isDbAvailable } from "./core"
+import { queryAll, run, isDbAvailable, requireTestDatabaseStorage } from "./core"
 
 export type GameSessionRow = {
   id: string
@@ -26,6 +26,7 @@ const inMemoryServerSessions: ServerSessionRow[] = []
 
 export async function addGameSession(session: GameSessionRow): Promise<void> {
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     inMemorySessions.push(session)
     return
   }
@@ -37,6 +38,7 @@ export async function addGameSession(session: GameSessionRow): Promise<void> {
 
 export async function listGameSessions(): Promise<GameSessionRow[]> {
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     return [...inMemorySessions].sort((a, b) => b.startedAt - a.startedAt)
   }
   return queryAll<GameSessionRow>(
@@ -51,6 +53,7 @@ export async function listGameSessions(): Promise<GameSessionRow[]> {
  */
 export async function listGameSessionsInRange(from: number, to: number): Promise<GameSessionRow[]> {
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     return inMemorySessions
       .filter((s) => s.startedAt >= from && s.startedAt <= to)
       .sort((a, b) => b.startedAt - a.startedAt)
@@ -67,6 +70,7 @@ export async function deleteGameSessionsForDeletedBuild(criteria: { ids?: string
   if (ids.length === 0 && names.length === 0) return
 
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     const idSet = new Set(ids)
     const nameSet = new Set(names)
     for (let i = inMemorySessions.length - 1; i >= 0; i--) {
@@ -145,6 +149,7 @@ export async function deleteOrphanGameSessions(protect?: { ids?: string[]; names
 
 export async function addServerSession(session: ServerSessionRow): Promise<void> {
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     inMemoryServerSessions.push(session)
     return
   }
@@ -156,6 +161,7 @@ export async function addServerSession(session: ServerSessionRow): Promise<void>
 
 export async function listServerSessions(): Promise<ServerSessionRow[]> {
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     return [...inMemoryServerSessions].sort((a, b) => b.startedAt - a.startedAt)
   }
   return queryAll<ServerSessionRow>(
@@ -166,6 +172,7 @@ export async function listServerSessions(): Promise<ServerSessionRow[]> {
 /** То же для аптайм-сессий серверов: только диапазон [from, to]. */
 export async function listServerSessionsInRange(from: number, to: number): Promise<ServerSessionRow[]> {
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     return inMemoryServerSessions
       .filter((s) => s.startedAt >= from && s.startedAt <= to)
       .sort((a, b) => b.startedAt - a.startedAt)
@@ -191,6 +198,7 @@ export async function deleteServerSessionsForDeletedServer(criteria: { ids?: str
   if (ids.length === 0 && names.length === 0) return
 
   if (!isDbAvailable()) {
+    requireTestDatabaseStorage()
     const idSet = new Set(ids)
     const nameSet = new Set(names)
     for (let i = inMemoryServerSessions.length - 1; i >= 0; i--) {

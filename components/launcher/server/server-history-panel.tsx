@@ -13,7 +13,7 @@ import { SharePullRequestsView } from "../instance/shared/share-pull-requests-vi
 import { ShareContentChanges } from "../instance/shared/share-content-changes"
 import { ShareVersionNavigation, type ShareVersionTab } from "../instance/shared/share-version-navigation"
 import { useMcServerState } from "@/src/hooks/use-mc-servers"
-import { remoteServerError } from "./remote-access-dialog"
+import { remoteServerError } from "./remote-error"
 import { serverChanges, serverPresentation, serverContentCategories } from "./server-history-adapter"
 
 const ProjectDetailsModal = lazy(() => import("../agent/project-details-modal"))

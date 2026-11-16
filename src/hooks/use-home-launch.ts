@@ -49,7 +49,7 @@ export function useHomeLaunch({ account, selectedVersion, selectedModLoader, sel
       version: selectedVersion,
       modLoader: selectedModLoader as import("@xnlc/types").MinecraftLaunchParams["modLoader"],
       ...(selectedLoaderVersion ? { loaderVersion: selectedLoaderVersion } : {}),
-      account: { type: account.type, username: account.username, uuid: account.uuid, accessToken: account.accessToken },
+      account: { id: account.id, type: account.type, username: account.username, uuid: account.uuid },
       memory: { min: settings.savedMemoryMin || "512M", max: settings.savedMemoryMax || "4G" },
       width,
       height,

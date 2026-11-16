@@ -1,14 +1,13 @@
 import assert from "node:assert/strict"
-import { createHash } from "node:crypto"
-import { existsSync } from "node:fs"
-import { copyFile, cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises"
+import { cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 import packageJson from "../package.json"
 import { portableAppIdentifier } from "../electrobun/main/app-identity"
-import { validateBundleCredentials, windowsInstaller, windowsX64 } from "./windows-candidate-validation"
+import { validateBundleCredentials, windowsProductIdentity, windowsX64 } from "./windows-candidate-validation"
+import { checksumText } from "./artifact-checksums"
 
-const [installer, destination] = Bun.argv.slice(2)
-assert.ok(installer && destination && process.platform === "win32" && process.arch === "x64")
+const [destination] = Bun.argv.slice(2)
+assert.ok(destination && Bun.argv.length === 3 && process.platform === "win32" && process.arch === "x64", "Usage: package-windows-portable <new-output>")
 assert.equal(Bun.version, "1.4.4")
 const output = path.resolve(destination)
 const root = path.resolve("build-electrobun/portable/dev-win-x64/XneonLauncher-dev")
@@ -67,36 +66,15 @@ assert.equal(build.runtime.appUserModelId, identity.identifier)
 assert.equal(build.electrobunVersion, "2.0.6")
 assert.equal(build.runtimeVersions.bun, "1.4.4")
 for (const file of files.filter(file => /\.(?:exe|dll)$/i.test(file))) windowsX64(readEntry(file))
-for (const file of [installer, ...["bin/launcher.exe", "bin/bun.exe"].map(file => path.join(staging, file))]) {
-  const result = Bun.spawnSync(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
-    "(Get-Item -LiteralPath $env:XNEON_PE_PATH).VersionInfo | Select-Object ProductName,ProductVersion | ConvertTo-Json -Compress"],
-    { env: { ...process.env, XNEON_PE_PATH: path.resolve(file) } })
-  assert.equal(result.exitCode, 0)
-  assert.deepEqual(JSON.parse(result.stdout.toString()), { ProductName: "Xneon Launcher", ProductVersion: version })
+for (const file of ["bin/launcher.exe", "bin/bun.exe"].map(file => path.join(staging, file))) {
+  windowsProductIdentity(file, version)
 }
 const bundle = readEntry("Resources/app/bun/index.js").toString()
 assert.ok(bundle.includes("PortableProfile must be a local directory") && bundle.includes("Portable builds require manual updates."), "Portable runtime guards are missing")
 validateBundleCredentials(bundle)
 
-const exe = path.join(output, name + ".exe")
-const installerBytes = await readFile(installer)
-windowsInstaller(installerBytes)
-await copyFile(installer, exe)
-// Распакованное приложение и метафайлы electron-builder (.blockmap, latest.yml)
-// готовит scripts/build-windows-distribution.ts, проверяет
-// scripts/validate-pre-release.ts — здесь только переносим в выдачу.
-const candidateDir = path.dirname(path.resolve(installer))
-const unpackedSource = path.join(candidateDir, name + ".zip")
-assert.ok(existsSync(unpackedSource), "Unpacked Windows archive is missing: " + unpackedSource)
-const unpacked = path.join(output, name + ".zip")
-await copyFile(unpackedSource, unpacked)
-const metadata = [name + ".exe.blockmap", name + ".zip.blockmap", "latest.yml"].map(file => {
-  const source = path.join(candidateDir, file)
-  assert.ok(existsSync(source), "Release metadata is missing: " + source)
-  return { source, file: path.join(output, file) }
-})
-for (const entry of metadata) await copyFile(entry.source, entry.file)
-const hashes = await Promise.all([exe, unpacked, zip, ...metadata.map(entry => entry.file)].map(async file =>
-  createHash("sha256").update(await readFile(file)).digest("hex") + "  " + path.basename(file)))
-await writeFile(path.join(output, "SHA256SUMS.txt"), hashes.join("\n") + "\n", { flag: "wx" })
-console.log(hashes.join("\n"))
+// PortableProfile — отдельная функция приложения, а не переупаковка обычного релиза.
+// NSIS и штатные артефакты SDK проверяются/публикуются независимо.
+const hashes = await checksumText(output, [path.basename(zip)])
+await writeFile(path.join(output, "SHA256SUMS.txt"), hashes, { flag: "wx" })
+console.log(hashes.trimEnd())

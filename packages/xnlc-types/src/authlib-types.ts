@@ -106,15 +106,13 @@ export interface AuthlibInjectorAccountData {
   userProperties?: string
 }
 
-/** Результат IPC `authlib:login` — аккаунт готов к сохранению. */
+/** Результат IPC `authlib:login` — main уже сохранил выбранную сессию. */
 export interface AuthlibInjectorLoginResult {
   type: "authlib-injector"
   /** Пустой, пока requiresProfileSelection === true (аккаунт ещё не выбран) */
   id: string
   username: string
   uuid: string
-  accessToken: string
-  clientToken: string
   serverId: string
   serverUrl: string
   serverName?: string

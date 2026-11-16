@@ -14,6 +14,7 @@ import { ServerHistoryPanel, ServerPublishDialog, useServerHistory } from "./ser
 import { ShareManagementView } from "../instance/shared/share-management-view"
 import { useMcServerState } from "@/src/hooks/use-mc-servers"
 import { SettingsSwitch } from "../settings/settings-switch"
+import { remoteServerError } from "./remote-error"
 
 export function PermissionEditor({ value, onChange, allowed = serverPermissions(true), disabled = false }: { value: ServerPermissions; onChange(value: ServerPermissions): void; allowed?: ServerPermissions; disabled?: boolean }) {
   const { t } = useTranslation()
@@ -23,14 +24,6 @@ export function PermissionEditor({ value, onChange, allowed = serverPermissions(
     <div className="min-w-0 flex-1"><p className="text-xs font-medium">{t(`remoteServer.permission.${key}`)}</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t(`remoteServer.permissionHint.${key}`)}</p></div>
     <SettingsSwitch label={t(`remoteServer.permission.${key}`)} checked={value[key]} disabled={disabled || !allowed[key]} onCheckedChange={checked => onChange({ ...value, [key]: checked })} />
   </div> })}</div>
-}
-export function remoteServerError(error: unknown, t: (key: string) => string): string {
-  const message = error instanceof Error ? error.message : String(error)
-  if (/ACCOUNT_REQUIRED|non-offline/i.test(message)) return t("remoteServer.error.account")
-  if (/OFFLINE|TIMEOUT|fetch failed|WebSocket|network/i.test(message)) return t("remoteServer.error.offline")
-  if (/FORBIDDEN|permission|membership/i.test(message)) return t("remoteServer.error.permission")
-  if (/INVITE|invitation|code/i.test(message)) return t("remoteServer.error.invite")
-  return t("remoteServer.error.generic")
 }
 
 export function RemoteAccessDialog({ open, onClose, server, onAccessChange }: { open: boolean; onClose(): void; server: McServerInfo; onAccessChange?(enabled: boolean): void }) {

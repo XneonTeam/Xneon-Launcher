@@ -103,24 +103,24 @@ export async function importLauncherInstance(instance: LauncherInstance) {
     const srcRoot = await resolveMcDir(instance.path)
     if (path.normalize(srcRoot) !== path.normalize(intentPath)) {
       // Copy the entire minecraft directory contents into the intent (like Ctrl+C / Ctrl+V).
-      sendImportProgress(0, 100, "Копирование файлов...", instance.name, { operation: "launcher", source: "local", title: instance.name, phase: "copying" })
+      sendImportProgress(0, 100, "import.phase.copying", instance.name, { operation: "launcher", source: "local", title: instance.name, phase: "copying" })
       await copyDirContents([srcRoot], intentPath, (copied, total) => {
         const percent = total > 0 ? Math.round((copied / total) * 85) : 90
-        sendImportProgress(percent, 100, `Копирование файлов (${copied}/${total})...`, instance.name)
+        sendImportProgress(percent, 100, "import.phase.copying", instance.name)
       })
     }
     const importedVersion = await importInstanceVersions(instance, srcRoot, intentPath)
     if (importedVersion.versionId) {
-      sendImportProgress(90, 100, `Профиль версии ${importedVersion.versionId} импортирован`, instance.name)
+      sendImportProgress(90, 100, "import.phase.preparing", instance.name)
     }
-    sendImportProgress(90, 100, "Сканирование сборки...", instance.name)
+    sendImportProgress(90, 100, "import.phase.scanning", instance.name)
     const scanned = await scanIntentDir(intentPath, (done, total) => {
       const fraction = total > 0 ? done / total : 0
       const percent = Math.round(90 + fraction * 10)
-      sendImportProgress(percent, 100, `Сканирование сборки (${done}/${total})...`, instance.name)
+      sendImportProgress(percent, 100, "import.phase.scanning", instance.name)
     })
 
-    sendImportProgress(100, 100, "Готово!", instance.name)
+    sendImportProgress(100, 100, "import.phase.complete", instance.name)
 
     // Read icon
     const iconDataUrl = await readIconAsDataUrl(instance.icon)

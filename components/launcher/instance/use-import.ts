@@ -20,11 +20,9 @@ type PendingInstall =
   | { source: "local"; format: LocalZipImportFormat }
 
 async function persistImportedBuild(build: Build) {
-  // Лёгкий список достаточен: тяжёлый контент уже существующих сборок
-  // сохраняет saveAllBuilds (пустые значения означают «не загружено»).
-  const existing = await window.electrobunAPI?.loadBuildsLight() ?? []
-  const next = [build, ...existing.filter(item => item.id !== build.id && item.name !== build.name)]
-  await window.electrobunAPI?.saveBuilds(next as Parameters<NonNullable<Window["electrobunAPI"]>["saveBuilds"]>[0])
+  // saveBuilds — upsert. Снимок соседних строк не возвращаем в main: за время
+  // импорта их мог обновить агент, Share или другой IPC-запрос.
+  await window.electrobunAPI?.saveBuilds([build] as Parameters<NonNullable<Window["electrobunAPI"]>["saveBuilds"]>[0])
 }
 
 function getImportSourceLabel(t: (key: string) => string, source: ImportProgressState["source"]): string {

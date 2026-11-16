@@ -13,6 +13,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
+import { isEventThemeId } from "@/lib/liveops-theme-refs"
 import { ActionConfirmDialog } from "@/components/launcher/instance/action-confirm-dialog"
 import type { Theme } from "./types"
 import { applyTheme, themePreviewColors, THEME_CSS_VARS } from "./theme-model"
@@ -21,6 +22,7 @@ import { ThemeEditor } from "./theme-editor"
 import { ThemeCompactPreview } from "./theme-preview"
 import { sanitizeTheme, duplicateTheme } from "./theme-model"
 import { useAlertDialog } from "@/lib/use-alert-dialog"
+import { SettingsSwitch } from "./settings-switch"
 
 interface SettingsThemesProps {
   registry: ThemeRegistry
@@ -113,6 +115,11 @@ function ThemeCard({
                 {t("settings.themes.customBadge")}
               </span>
             )}
+            {isEventThemeId(theme.id) && (
+              <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                {t("settings.themes.eventBadge")}
+              </span>
+            )}
             {selected && (
               <span data-ui="settings-settings-themes-span-4" className="flex h-5 w-5 items-center justify-center rounded-full bg-primary">
                 <IconCheck className="h-3.5 w-3.5 text-primary-foreground" strokeWidth={2.5} />
@@ -202,7 +209,7 @@ export function SettingsThemes({ registry }: SettingsThemesProps) {
 
   const handleSave = (theme: Theme) => { void run(async () => {
     await registry.saveTheme(theme)
-    registry.selectTheme(theme.id)
+    await registry.selectTheme(theme.id)
     setEditing(null)
   }) }
 
@@ -214,7 +221,7 @@ export function SettingsThemes({ registry }: SettingsThemesProps) {
 
   const handleDuplicate = (theme: Theme) => { void run(async () => {
     const copy = await registry.copyTheme(theme.id, t("settings.themes.duplicatedName", { name: theme.name }))
-    if (copy) registry.selectTheme(copy.id)
+    if (copy) await registry.selectTheme(copy.id)
   }) }
 
   const confirmDelete = () => { void run(async () => {
@@ -230,7 +237,7 @@ export function SettingsThemes({ registry }: SettingsThemesProps) {
     const theme = source ? duplicateTheme(source, source.name, registry.themes.map(item => item.id)) : null
     if (!theme) throw new Error(t("themeEditor.css.invalid"))
     await registry.saveTheme(theme)
-    registry.selectTheme(theme.id)
+    await registry.selectTheme(theme.id)
   }) }
 
   return (
@@ -246,7 +253,7 @@ export function SettingsThemes({ registry }: SettingsThemesProps) {
               key={theme.id}
               theme={theme}
               selected={registry.selectedThemeId === theme.id}
-              onSelect={() => registry.selectTheme(theme.id)}
+              onSelect={() => { void run(() => registry.selectTheme(theme.id)) }}
             />
           ))}
         </div>
@@ -272,7 +279,7 @@ export function SettingsThemes({ registry }: SettingsThemesProps) {
                 key={theme.id}
                 theme={theme}
                 selected={registry.selectedThemeId === theme.id}
-                onSelect={() => registry.selectTheme(theme.id)}
+                onSelect={() => { void run(() => registry.selectTheme(theme.id)) }}
                 onEdit={() => setEditing({ theme, isNew: false })}
                 onDuplicate={() => handleDuplicate(theme)}
                 onDelete={() => setPendingDelete(theme)}
@@ -292,6 +299,19 @@ export function SettingsThemes({ registry }: SettingsThemesProps) {
             <div data-ui="settings-settings-themes-div-12" className="h-28 animate-pulse rounded-2xl border border-border bg-muted/20" />
           </div>
         )}
+      </section>
+
+      <section data-component="theme-liveops-preferences" className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <IconSparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">{t("settings.themes.liveopsAutoApply")}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("settings.themes.liveopsAutoApplyHint")}</p>
+          </div>
+        </div>
+        <SettingsSwitch checked={registry.autoApplyLiveops} disabled={!registry.ready || busy}
+          label={t("settings.themes.liveopsAutoApply")}
+          onCheckedChange={enabled => { void run(() => registry.setAutoApplyLiveops(enabled)) }} />
       </section>
 
       {editing && (

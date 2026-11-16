@@ -1,4 +1,5 @@
 import { access } from "node:fs/promises"
+import { archiveOperationBudget } from "./operation-budget"
 import {
   ArchiveError,
   extractArchive,
@@ -66,23 +67,38 @@ async function runInWorker(
   signal: AbortSignal | undefined,
   onProgress?: (progress: ArchiveExtractProgress) => void,
 ): Promise<ArchiveWorkerResult> {
+  signal?.throwIfAborted()
   const worker = new Worker(bundledWorker("archive-worker"), { smol: true })
-  const abort = () => worker.postMessage({ type: "abort", id: request.id })
-  signal?.addEventListener("abort", abort, { once: true })
+  let deadlineTimer: ReturnType<typeof setTimeout> | undefined
+  let cancelTimer: ReturnType<typeof setTimeout> | undefined
+  let detach = () => {}
   try {
     return await new Promise<ArchiveWorkerResult>((resolve, reject) => {
+      const abort = () => {
+        try { worker.postMessage({ type: "abort", id: request.id }) } catch { /* finally завершит worker. */ }
+        cancelTimer = setTimeout(() => reject(new ArchiveError("ABORTED", "Archive cancellation timed out")), 5000)
+      }
+      signal?.addEventListener("abort", abort, { once: true })
+      detach = () => signal?.removeEventListener("abort", abort)
+      // Прогресс идёт по записям: большой одиночный файл может долго не давать
+      // событий. Не считаем отсутствие progress ошибкой; ограничиваем всю задачу.
+      deadlineTimer = setTimeout(() => reject(new ArchiveError("IO_ERROR", "Archive operation exceeded its deadline")), 30 * 60_000)
       worker.onmessage = (event: MessageEvent<ArchiveWorkerResponse>) => {
         const response = event.data
         if (!response || response.id !== request.id) return
-        if (response.type === "progress") {
-          onProgress?.({ done: response.done, total: response.total, bytes: response.bytes, name: response.name })
-          return
+        try {
+          if (response.type === "progress") {
+            if (![response.done, response.total, response.bytes].every(value => Number.isFinite(value) && value >= 0) || typeof response.name !== "string") throw new Error("Invalid archive progress")
+            onProgress?.({ done: response.done, total: response.total, bytes: response.bytes, name: response.name })
+            return
+          }
+          if (response.type === "error") { reject(toWorkerError(response)); return }
+          signal?.throwIfAborted()
+          if (response.type !== "result" || ![response.files, response.bytes, response.skipped].every(value => Number.isSafeInteger(value) && value >= 0)) throw new Error("Invalid archive result")
+          resolve(response)
+        } catch (error) {
+          reject(error)
         }
-        if (response.type === "error") {
-          reject(toWorkerError(response))
-          return
-        }
-        resolve(response)
       }
       worker.onerror = (event: ErrorEvent) => {
         reject(new ArchiveError("IO_ERROR", event.message || "Archive worker failed"))
@@ -94,7 +110,11 @@ async function runInWorker(
       worker.postMessage(request)
     })
   } finally {
-    signal?.removeEventListener("abort", abort)
+    detach()
+    clearTimeout(deadlineTimer)
+    clearTimeout(cancelTimer)
+    worker.onmessage = null
+    worker.onerror = null
     await Promise.resolve(worker.terminate())
   }
 }
@@ -113,6 +133,7 @@ export class ArchiveService {
   }
 
   async extract(input: ArchiveInput, destination: string, options: ArchiveServiceExtractOptions = {}): Promise<ArchiveExtractResult> {
+    return archiveOperationBudget.run(async () => {
     const { include, ...rest } = options
     const entries = include ? await listArchiveEntries(input, { signal: rest.signal }) : null
     const allowed = include ? entries!.filter((entry) => include(entry)).map((entry) => entry.name) : null
@@ -129,6 +150,8 @@ export class ArchiveService {
         skipUnsafe: rest.skipUnsafe,
         maxEntries: rest.maxEntries,
         maxTotalSize: rest.maxTotalSize,
+        maxEntrySize: rest.maxEntrySize,
+        maxCompressionRatio: rest.maxCompressionRatio,
         symlinks: rest.symlinks,
         progressIntervalMs: rest.progressIntervalMs,
       }
@@ -136,9 +159,11 @@ export class ArchiveService {
       return { files: result.files, bytes: result.bytes, skipped: result.skipped }
     }
     return extractArchive(input, destination, options)
+    }, options.signal)
   }
 
   async pack(sources: ArchiveServicePackSource[], outputPath: string, options: ArchiveServicePackOptions = {}): Promise<void> {
+    return archiveOperationBudget.run(async () => {
     if (await hasArchiveWorker()) {
       const workerSources: ArchiveWorkerPackSource[] = sources.map((source) =>
         "filePath" in source
@@ -157,6 +182,7 @@ export class ArchiveService {
       return
     }
     await packArchive(sources, outputPath, options)
+    }, options.signal)
   }
 
   async readEntriesText(input: ArchiveInput, names: string[], options: ArchiveTextOptions = {}): Promise<Map<string, string>> {

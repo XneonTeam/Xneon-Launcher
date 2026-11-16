@@ -1,6 +1,8 @@
+import { Readable } from "node:stream"
+import { createInflateRaw } from "node:zlib"
 import { open } from "node:fs/promises"
 import type { FileHandle } from "node:fs/promises"
-import { Inflate } from "fflate"
+import { inflateSync } from "fflate"
 import { ArchiveError, throwIfAborted } from "./errors.js"
 import { normalizeEntryName } from "./paths.js"
 
@@ -14,6 +16,10 @@ export interface ArchiveEntryInfo {
   method: number
   flags: number
   crc: number
+  mtime?: Date
+  rawName?: string
+  zip64Sizes?: boolean
+  boundary?: number
   /** Размер сжатых данных. */
   compressedSize: number
   /** Размер распакованных данных. */
@@ -28,6 +34,7 @@ export interface ArchiveDirectoryOptions {
   maxEntries?: number
   /** Максимальный размер центрального каталога. */
   maxDirectorySize?: number
+  strict?: boolean
 }
 
 export interface ArchiveReader {
@@ -126,11 +133,13 @@ class FileArchiveReader implements ArchiveReader {
 
 export async function openArchiveReader(input: ArchiveInput): Promise<ArchiveReader> {
   if (typeof input !== "string") return new BufferArchiveReader(input)
+  let handle: FileHandle | undefined
   try {
-    const handle = await open(input, "r")
+    handle = await open(input, "r")
     const stat = await handle.stat()
     return new FileArchiveReader(handle, stat.size)
   } catch (error) {
+    await handle?.close().catch(() => {})
     if (error instanceof ArchiveError) throw error
     const message = error instanceof Error ? error.message : String(error)
     throw new ArchiveError("IO_ERROR", `Cannot open archive ${input}: ${message}`)
@@ -161,6 +170,7 @@ interface EndOfCentralDirectory {
   entries: number
   directorySize: number
   directoryOffset: number
+  endOffset: number
 }
 
 async function readEndOfCentralDirectory(reader: ArchiveReader): Promise<EndOfCentralDirectory> {
@@ -172,29 +182,33 @@ async function readEndOfCentralDirectory(reader: ArchiveReader): Promise<EndOfCe
   for (let index = tail.length - 22; index >= 0; index--) {
     if (u32(tail, index) !== SIG_EOCD) continue
     const commentLength = u16(tail, index + 20)
-    if (index + 22 + commentLength > tail.length) continue
+    if (index + 22 + commentLength !== tail.length) continue
     eocd = index
     break
   }
   if (eocd < 0) throw new ArchiveError("INVALID_ARCHIVE", "ZIP end of central directory was not found")
 
+  if (u16(tail, eocd + 4) || u16(tail, eocd + 6) || u16(tail, eocd + 8) !== u16(tail, eocd + 10)) throw new ArchiveError("UNSUPPORTED_METHOD", "Multi-disk ZIP is unsupported")
+  const endOffset = tailStart + eocd
   let entries = u16(tail, eocd + 10)
   let directorySize = u32(tail, eocd + 12)
   let directoryOffset = u32(tail, eocd + 16)
   const zip64 = entries === 0xffff || directorySize === 0xffffffff || directoryOffset === 0xffffffff
-  if (!zip64) return { entries, directorySize, directoryOffset }
+  if (!zip64) return { entries, directorySize, directoryOffset, endOffset }
 
   const absoluteEocd = tailStart + eocd
-  if (absoluteEocd < 20) throw new ArchiveError("INVALID_ARCHIVE", "ZIP64 locator is missing")
+  if (absoluteEocd < 20) throw new ArchiveError("UNSUPPORTED_METHOD", "ZIP64 locator is missing")
   const locator = await reader.readAt(absoluteEocd - 20, 20)
   if (u32(locator, 0) !== SIG_LOCATOR64) throw new ArchiveError("INVALID_ARCHIVE", "ZIP64 locator is missing")
+  if (u32(locator, 4) || u32(locator, 16) !== 1) throw new ArchiveError("UNSUPPORTED_METHOD", "Multi-disk ZIP64 is unsupported")
   const eocd64Offset = u64(locator, 8)
   const eocd64 = await reader.readAt(eocd64Offset, 56)
   if (u32(eocd64, 0) !== SIG_EOCD64) throw new ArchiveError("INVALID_ARCHIVE", "ZIP64 end of central directory is missing")
+  if (u64(eocd64, 4) < 44 || u32(eocd64, 16) || u32(eocd64, 20) || u64(eocd64, 24) !== u64(eocd64, 32) || eocd64Offset + 12 + u64(eocd64, 4) !== absoluteEocd - 20) throw new ArchiveError("INVALID_ARCHIVE", "Invalid ZIP64 end record")
   entries = u64(eocd64, 32)
   directorySize = u64(eocd64, 40)
   directoryOffset = u64(eocd64, 48)
-  return { entries, directorySize, directoryOffset }
+  return { entries, directorySize, directoryOffset, endOffset: eocd64Offset }
 }
 
 interface Zip64Values {
@@ -215,6 +229,7 @@ function parseZip64Extra(extra: Uint8Array, needs: { size: boolean; compressedSi
       const values: Zip64Values = {}
       let cursor = dataStart
       const readNext = (): number => {
+        if (cursor + 8 > dataStart + length) throw new ArchiveError("INVALID_ARCHIVE", "Truncated ZIP64 extra field")
         const value = u64(extra, cursor)
         cursor += 8
         return value
@@ -226,7 +241,7 @@ function parseZip64Extra(extra: Uint8Array, needs: { size: boolean; compressedSi
     }
     position = dataStart + length
   }
-  return {}
+  throw new ArchiveError("INVALID_ARCHIVE", "Missing ZIP64 extra field")
 }
 
 function isSymlinkEntry(externalAttributes: number): boolean {
@@ -246,7 +261,7 @@ export async function readZipDirectory(reader: ArchiveReader, options: ArchiveDi
   if (eocd.directorySize > maxDirectorySize) {
     throw new ArchiveError("LIMIT_EXCEEDED", `Archive central directory is ${eocd.directorySize} bytes`)
   }
-  if (eocd.directoryOffset + eocd.directorySize > reader.size) {
+  if (eocd.directoryOffset + eocd.directorySize > eocd.endOffset) {
     throw new ArchiveError("INVALID_ARCHIVE", "ZIP central directory is out of bounds")
   }
 
@@ -258,6 +273,7 @@ export async function readZipDirectory(reader: ArchiveReader, options: ArchiveDi
     if (position + 46 > directory.length) throw new ArchiveError("INVALID_ARCHIVE", "Truncated ZIP central directory")
     if (u32(directory, position) !== SIG_CENTRAL) throw new ArchiveError("INVALID_ARCHIVE", "Invalid ZIP central directory entry")
     const flags = u16(directory, position + 8)
+    if (u16(directory, position + 34) || options.strict && flags & (1 | 0x40 | 0x2000)) throw new ArchiveError("UNSUPPORTED_METHOD", "Encrypted or multi-disk ZIP entry")
     const method = u16(directory, position + 10)
     const crc = u32(directory, position + 16)
     const rawCompressedSize = u32(directory, position + 20)
@@ -278,19 +294,35 @@ export async function readZipDirectory(reader: ArchiveReader, options: ArchiveDi
       localOffset: rawLocalOffset === 0xffffffff,
     })
     const rawName = decodeName(directory.subarray(nameStart, nameStart + nameLength), (flags & FLAG_UTF8) !== 0)
-    const directoryEntry = rawName.endsWith("/")
+    const directoryEntry = /[\\/]$/.test(rawName)
+    const time = u16(directory, position + 12)
+    const date = u16(directory, position + 14)
+    const month = (date >> 5) & 15
+    const day = date & 31
+    const mtime = month >= 1 && month <= 12 && day > 0 ? new Date(1980 + (date >> 9), month - 1, day, time >> 11, (time >> 5) & 63, (time & 31) * 2) : undefined
     entries.push({
       name: normalizeEntryName(directoryEntry ? rawName.slice(0, -1) : rawName),
+      rawName,
+      zip64Sizes: rawSize === 0xffffffff || rawCompressedSize === 0xffffffff,
       directory: directoryEntry,
       symlink: isSymlinkEntry(externalAttributes),
       method,
       flags,
       crc,
+      mtime,
       compressedSize: zip64.compressedSize ?? rawCompressedSize,
       size: zip64.size ?? rawSize,
       localOffset: zip64.localOffset ?? rawLocalOffset,
     })
     position = next
+  }
+  if (options.strict && position !== directory.length) throw new ArchiveError("INVALID_ARCHIVE", "Unexpected central directory data")
+  const sorted = [...entries].sort((a, b) => a.localOffset - b.localOffset)
+  for (let i = 0; i < sorted.length; i++) {
+    const entry = sorted[i]
+    const end = sorted[i + 1]?.localOffset ?? eocd.directoryOffset
+    if (entry.localOffset + 30 + entry.compressedSize > end) throw new ArchiveError("INVALID_ARCHIVE", "Overlapping entry ranges")
+    entry.boundary = end
   }
   return entries
 }
@@ -298,6 +330,8 @@ export async function readZipDirectory(reader: ArchiveReader, options: ArchiveDi
 export interface ReadEntryOptions {
   signal?: AbortSignal
   chunkSize?: number
+  strict?: boolean
+  maxCompressionRatio?: number
 }
 
 /** Потоково распаковывает одну запись архива, не загружая её целиком в память. */
@@ -308,13 +342,40 @@ export async function* readEntryChunks(
 ): AsyncGenerator<Uint8Array> {
   const chunkSize = Math.max(4 * 1024, options.chunkSize ?? READ_CHUNK)
   throwIfAborted(options.signal)
-  if ((entry.flags & 1) !== 0) throw new ArchiveError("INVALID_ARCHIVE", `Encrypted archive entry: ${entry.name}`, entry.name)
+  if ((entry.flags & (1 | 0x40 | 0x2000)) !== 0) throw new ArchiveError("INVALID_ARCHIVE", `Encrypted archive entry: ${entry.name}`, entry.name)
+  const ratio = options.maxCompressionRatio ?? 1500
+  if (entry.method === METHOD_DEFLATE && entry.size > 16 * 1024 * 1024 && entry.size > entry.compressedSize * ratio) {
+    throw new ArchiveError("LIMIT_EXCEEDED", `Compression ratio exceeds limit: ${entry.name}`, entry.name)
+  }
   const local = await reader.readAt(entry.localOffset, 30)
   if (u32(local, 0) !== SIG_LOCAL) throw new ArchiveError("INVALID_ARCHIVE", `Invalid local header for ${entry.name}`, entry.name)
   const nameLength = u16(local, 26)
   const extraLength = u16(local, 28)
   let position = entry.localOffset + 30 + nameLength + extraLength
-  let remaining = entry.method === METHOD_STORE && entry.compressedSize === 0 ? entry.size : entry.compressedSize
+  const boundary = entry.boundary ?? reader.size
+  if (position + entry.compressedSize > boundary || u16(local, 6) !== entry.flags || u16(local, 8) !== entry.method) throw new ArchiveError("INVALID_ARCHIVE", "Local header mismatch", entry.name)
+  if (options.strict) {
+    const bytes = await reader.readAt(entry.localOffset + 30, nameLength + extraLength)
+    if (decodeName(bytes.subarray(0, nameLength), (entry.flags & FLAG_UTF8) !== 0) !== entry.rawName) throw new ArchiveError("INVALID_ARCHIVE", "Local entry name mismatch", entry.name)
+    if (!(entry.flags & 8)) {
+      const size = u32(local, 22), compressed = u32(local, 18)
+      const extra = parseZip64Extra(bytes.subarray(nameLength), { size: size === 0xffffffff, compressedSize: compressed === 0xffffffff, localOffset: false })
+      if (u32(local, 14) !== entry.crc || (extra.size ?? size) !== entry.size || (extra.compressedSize ?? compressed) !== entry.compressedSize) throw new ArchiveError("INVALID_ARCHIVE", "Local sizes or CRC mismatch", entry.name)
+    } else {
+      const start = position + entry.compressedSize
+      // Например, Python force_zip64 пишет 64-битный descriptor даже для маленькой записи.
+      const sizes64 = u32(local, 18) === 0xffffffff || u32(local, 22) === 0xffffffff || entry.zip64Sizes
+      const width = sizes64 ? 20 : 12
+      const length = Math.min(boundary - start, width + 4)
+      if (length < width) throw new ArchiveError("INVALID_ARCHIVE", "Missing data descriptor", entry.name)
+      const d = await reader.readAt(start, length)
+      const matches = (off: number) => length >= off + width && u32(d, off) === entry.crc
+        && (sizes64 ? u64(d, off + 4) : u32(d, off + 4)) === entry.compressedSize
+        && (sizes64 ? u64(d, off + 12) : u32(d, off + 8)) === entry.size
+      if (!matches(0) && !(u32(d, 0) === 0x08074b50 && matches(4))) throw new ArchiveError("INVALID_ARCHIVE", "Data descriptor mismatch", entry.name)
+    }
+  }
+  let remaining = entry.compressedSize
   let expanded = 0
   const checkSize = (length: number) => {
     expanded += length
@@ -342,28 +403,52 @@ export async function* readEntryChunks(
     throw new ArchiveError("UNSUPPORTED_METHOD", `Unsupported compression method ${entry.method} for ${entry.name}`, entry.name)
   }
 
-  const pending: Uint8Array[] = []
-  const inflate = new Inflate((data) => {
-    if (data.length) pending.push(data)
-  })
-
-  do {
-    throwIfAborted(options.signal)
-    const length = Math.min(chunkSize, remaining)
-    const chunk = length > 0 ? await reader.readAt(position, length) : new Uint8Array(0)
-    position += length
-    remaining -= length
+  if (!options.strict && entry.size <= 32 * 1024 && remaining <= 64 * 1024) {
+    const compressed = await reader.readAt(position, remaining)
+    // Дополнительный байт позволяет обнаружить поток длиннее заявленного размера.
+    let data: Uint8Array
     try {
-      inflate.push(chunk, remaining === 0)
+      data = inflateSync(compressed, { out: new Uint8Array(entry.size + 1) })
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      throw new ArchiveError("INVALID_ARCHIVE", `Cannot inflate ${entry.name}: ${message}`, entry.name)
+      throw new ArchiveError("INVALID_ARCHIVE", `Cannot inflate ${entry.name}: ${String(error)}`, entry.name)
     }
-    while (pending.length > 0) {
-      const data = pending.shift()!
-      checkSize(data.length)
-      yield data
+    checkSize(data.length)
+    checkEnd()
+    if (data.length) yield data
+    return
+  }
+
+  {
+    const compressed = Readable.from((async function* () {
+      while (remaining > 0) {
+        throwIfAborted(options.signal)
+        const length = Math.min(256 * 1024, remaining)
+        yield await reader.readAt(position, length)
+        position += length
+        remaining -= length
+      }
+    })())
+    const inflate = createInflateRaw({ chunkSize: 128 * 1024 })
+    const abort = () => inflate.destroy(new ArchiveError("ABORTED", "Archive operation cancelled"))
+    compressed.on("error", error => inflate.destroy(error))
+    options.signal?.addEventListener("abort", abort, { once: true })
+    try {
+      compressed.pipe(inflate)
+      for await (const chunk of inflate) {
+        throwIfAborted(options.signal)
+        checkSize(chunk.length)
+        yield chunk
+      }
+      if (inflate.bytesWritten !== entry.compressedSize) throw new ArchiveError("INVALID_ARCHIVE", "Trailing compressed data", entry.name)
+      checkEnd()
+    } catch (error) {
+      if (error instanceof ArchiveError) throw error
+      throw new ArchiveError("INVALID_ARCHIVE", `Cannot inflate ${entry.name}: ${String(error)}`, entry.name)
+    } finally {
+      options.signal?.removeEventListener("abort", abort)
+      compressed.destroy()
+      inflate.destroy()
     }
-  } while (remaining > 0)
-  checkEnd()
+    return
+  }
 }

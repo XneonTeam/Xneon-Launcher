@@ -5,12 +5,11 @@
 // ============================================================
 
 import { spawn, spawnSync } from "child_process";
-import iconv from "iconv-lite";
+import { encodeJavaArgFile } from "./java-encoding.js";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { pathToFileURL } from "node:url";
-import { StringDecoder } from "node:string_decoder";
 import { packArchiveSync } from "@xnlc/archives";
 import { LaunchResult } from "../types/index.js";
 import { getLogsDir, cleanEnvForGame } from "../utils/index.js";
@@ -126,13 +125,12 @@ export async function writeJavaArgFileIfTooLong(
       if (!javaPath) throw new Error("Java path is required to determine argument file encoding");
       const result = spawnSync(javaPath, ["-XshowSettings:properties", "-version"], { encoding: "utf8", timeout: 10000, windowsHide: true });
       const nativeEncoding = (result.stderr ?? "").match(/^\s*native\.encoding\s*=\s*(\S+)/m)?.[1];
-      if (result.error || result.status !== 0 || !nativeEncoding || !iconv.encodingExists(nativeEncoding)) {
+      if (result.error || result.status !== 0 || !nativeEncoding) {
         throw new Error("Cannot determine Java native encoding for argument file");
       }
       encoding = nativeEncoding;
     }
-    const bytes = iconv.encode(content, encoding);
-    if (iconv.decode(bytes, encoding) !== content) throw new Error(`Java argument file encoding ${encoding} cannot represent the launch paths`);
+    const bytes = await encodeJavaArgFile(content, encoding);
     await fs.promises.writeFile(argFile, bytes);
     return { args: [`@${argFile}`], cleanupPath: argFile };
   } catch (error) {
@@ -287,11 +285,12 @@ export class JavaRunner {
     const logFile = path.join(logsDir, "xnlc-launch.log");
     const logStream = fs.createWriteStream(logFile, { flags: "w" });
 
-    const stdoutDecoder = new StringDecoder("utf8");
-    const stderrDecoder = new StringDecoder("utf8");
+    // StringDecoder сохранял BOM в логах; ignoreBOM:true сохраняет ту же семантику.
+    const stdoutDecoder = new TextDecoder("utf-8", { ignoreBOM: true });
+    const stderrDecoder = new TextDecoder("utf-8", { ignoreBOM: true });
 
     child.stdout?.on("data", (data: Buffer) => {
-      const text = stdoutDecoder.write(data);
+      const text = stdoutDecoder.decode(data, { stream: true });
       if (this.pipeOutputToConsole) {
         process.stdout.write(text);
       }
@@ -299,7 +298,7 @@ export class JavaRunner {
     });
 
     child.stderr?.on("data", (data: Buffer) => {
-      const text = stderrDecoder.write(data);
+      const text = stderrDecoder.decode(data, { stream: true });
       if (this.pipeOutputToConsole) {
         process.stderr.write(text);
       }
@@ -308,8 +307,8 @@ export class JavaRunner {
 
     child.on("close", (code) => {
       this.currentProcess = null;
-      const stdoutTail = stdoutDecoder.end();
-      const stderrTail = stderrDecoder.end();
+      const stdoutTail = stdoutDecoder.decode();
+      const stderrTail = stderrDecoder.decode();
       if (this.pipeOutputToConsole) {
         process.stdout.write(stdoutTail);
         process.stderr.write(stderrTail);

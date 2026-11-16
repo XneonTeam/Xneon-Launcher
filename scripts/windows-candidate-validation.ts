@@ -1,4 +1,6 @@
 import assert from "node:assert/strict"
+import { spawnSync } from "node:child_process"
+import path from "node:path"
 
 function peHeader(bytes: Buffer): number {
   assert.ok(bytes.length > 64 && bytes.toString("ascii", 0, 2) === "MZ", "Invalid PE file")
@@ -21,6 +23,15 @@ export function windowsX64(bytes: Buffer): void {
 export function windowsInstaller(bytes: Buffer): void {
   peHeader(bytes)
   assert.ok(bytes.includes("NullsoftInst"), "Installer is not an NSIS package")
+}
+
+/** ProductName/ProductVersion проверяются и для NSIS, и для portable executables. */
+export function windowsProductIdentity(file: string, version: string): void {
+  const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
+    "(Get-Item -LiteralPath $env:XNEON_PE_PATH).VersionInfo | Select-Object ProductName,ProductVersion | ConvertTo-Json -Compress"],
+    { env: { ...process.env, XNEON_PE_PATH: path.resolve(file) }, encoding: "utf8", windowsHide: true })
+  assert.equal(result.status, 0, "Cannot inspect Windows product identity")
+  assert.deepEqual(JSON.parse(result.stdout), { ProductName: "Xneon Launcher", ProductVersion: version })
 }
 
 export function validateBundleCredentials(bundle: string): void {

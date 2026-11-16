@@ -7,6 +7,8 @@
 export type { AgentToolCall, AgentWireMessage, AgentToolSpec, AgentTurnRequest, AgentTurnResult, AgentAttachment, AgentTimelineItem, AgentChatSummary, AgentChat, AgentBuildFileRequest, AgentMcpServerConfig, AgentMcpServerState, AgentMcpServerSummary, AgentMcpToolInfo } from "./agent-types.js"
 export type {
   DbAccount,
+  PublicAccount,
+  CloudAccountPreview,
   DbBuild,
   DbBuildLight,
   DbBuildMod,
@@ -172,3 +174,4 @@ export type { ServerHostSettingsCommand, ServerHostSettings, ServerPermissions, 
 
 export type { Theme, ThemeColorKey, ThemeGlow, ThemeFont, ThemeBackground, ThemeAppearance } from "./theme-types.js"
 export type { LocalThemeFile, LocalThemeSnapshot, LocalThemeImport } from "./theme-types.js"
+export type { LiveopsThemeRef, LiveopsStatus } from "./theme-types.js"

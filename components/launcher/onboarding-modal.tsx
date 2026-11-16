@@ -160,7 +160,7 @@ export function OnboardingModal({ selectedTheme, themes, onSelectTheme, onFinish
     loadingSetters[provider](true)
     try {
       const result = await (window.electrobunAPI as any)?.[loginFns[provider]]()
-      if (result) addAccount({ id: result.id, type: provider, username: result.username, uuid: result.uuid, accessToken: result.accessToken, refreshToken: result.refreshToken, skinUrl: result.skinUrl, isActive: accounts.length === 0 })
+      if (result) addAccount({ id: result.id, type: provider, username: result.username, uuid: result.uuid, skinUrl: result.skinUrl, isActive: accounts.length === 0 })
     } catch (e) { setError(e instanceof Error ? e.message : copy.errors.loginFailed) }
     finally { loadingSetters[provider](false) }
   }

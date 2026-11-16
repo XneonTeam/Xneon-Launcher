@@ -181,7 +181,6 @@ export async function buildOverview(range?: StatsRange): Promise<StatsOverview> 
   const topBuilds = [...byBuild.entries()]
     .map(([buildId, entry]) => ({ buildId, name: entry.name, icon: entry.icon, seconds: entry.seconds, sessions: entry.sessions }))
     .sort((a, b) => b.seconds - a.seconds)
-    .slice(0, 5)
 
   // Launcher-hosted MC servers: aggregate uptime sessions (including
   // servers that are still running right now) inside the selected range.
@@ -251,7 +250,6 @@ export async function buildOverview(range?: StatsRange): Promise<StatsOverview> 
   const topServers = [...serverMap.entries()]
     .map(([serverId, entry]) => ({ serverId, name: entry.name, icon: entry.icon, seconds: entry.seconds, sessions: entry.sessions }))
     .sort((a, b) => b.seconds - a.seconds)
-    .slice(0, 5)
 
   return {
     totalPlaytime,

@@ -12,6 +12,7 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
     "types": [
       "node",
       "bun"
@@ -31,7 +32,8 @@
   },
   "include": [
     "electrobun/**/*.ts",
-    "electrobun/**/*.d.ts"
+    "electrobun/**/*.d.ts",
+    "scripts/**/*.ts"
   ],
   "exclude": [
     "node_modules"

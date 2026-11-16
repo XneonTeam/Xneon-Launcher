@@ -63,6 +63,8 @@ async function startLauncher() {
   // Один документ: HTML показывает splash, renderer ждёт startup:ready.
   createWindow()
   await initDatabase()
+  // Только диск-кэш до первого рендера; сеть обновляет ивент в фоне.
+  await import("./liveops").then(({ startLiveops }) => startLiveops()).catch(error => logRuntime(`[LiveOps] ${String(error)}`))
   await initRuntimePaths()
   await loadInstancesRoot()
   await recoverManagedModpackInstalls()

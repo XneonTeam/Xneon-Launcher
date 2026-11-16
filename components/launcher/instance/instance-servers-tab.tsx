@@ -54,6 +54,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
   const { activeAccount, accounts } = useAccounts()
   const [servers, setServers] = useState<ServerEntry[]>([])
   const [searchQuery, setSearchQuery] = useState("")
+  const [collapsed, setCollapsed] = useState({ online: false, offline: false })
   const [showAddModal, setShowAddModal] = useState(false)
   const [newName, setNewName] = useState("")
   const [newIp, setNewIp] = useState("")
@@ -222,7 +223,7 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
         modLoader: (build.customVersionPath ? "custom" : build.modLoader) as import("@xnlc/types").MinecraftLaunchParams["modLoader"],
         ...(build.loaderVersion ? { loaderVersion: build.loaderVersion } : {}),
         ...(build.customVersionPath ? { customVersionPath: build.customVersionPath } : {}),
-        account: { type: launchAccount.type, username: launchAccount.username, uuid: launchAccount.uuid, accessToken: launchAccount.accessToken },
+        account: { type: launchAccount.type, username: launchAccount.username, uuid: launchAccount.uuid },
         memory: { min: build.javaOverride && build.memoryMin ? build.memoryMin : (settings.savedMemoryMin || "512M"), max: build.javaOverride && build.memoryMax ? build.memoryMax : (settings.savedMemoryMax || "4G") },
         javaPath: build.javaOverride ? build.javaPath : undefined,
         javaArgs: build.javaOverride ? build.javaArgs : undefined,
@@ -459,24 +460,27 @@ export function InstanceServersTab({ build, updateBuild }: InstanceServersTabPro
                     <div data-ui="instance-instance-servers-tab-div-23" className="space-y-2 mt-2">{favoriteServers.map((server, index) => renderServer(server, index))}</div>
                   </div>
                 )}
-                {onlineServers.filter((s) => s.loading || s.error || s.status?.online).length > 0 && (
-                  <div data-ui="instance-instance-servers-tab-div-24">
-                    <h3 data-ui="instance-instance-servers-tab-h3-2" className="text-sm font-medium text-success flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
-                      <span data-ui="instance-instance-servers-tab-span-7" className="w-2 h-2 rounded-full bg-success" />
-                      {t("servers.online")} ({onlineServers.length})
-                    </h3>
-                    <div data-ui="instance-instance-servers-tab-div-25" className="space-y-2 mt-2">{onlineServers.map((server, index) => renderServer(server, index))}</div>
-                  </div>
-                )}
-                {offlineServers.length > 0 && (
-                  <div data-ui="instance-instance-servers-tab-div-26">
-                    <h3 data-ui="instance-instance-servers-tab-h3-3" className="text-sm font-medium text-muted-foreground flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
-                      <span data-ui="instance-instance-servers-tab-span-8" className="w-2 h-2 rounded-full bg-destructive" />
-                      {t("servers.offline")} ({offlineServers.length})
-                    </h3>
-                    <div data-ui="instance-instance-servers-tab-div-27" className="space-y-2 mt-2">{offlineServers.map((server, index) => renderServer(server, index))}</div>
-                  </div>
-                )}
+                {(["online", "offline"] as const).map(group => {
+                  const entries = group === "online" ? onlineServers : offlineServers
+                  if (entries.length === 0) return null
+                  return (
+                    <div key={group}>
+                      <h3>
+                        <button
+                          type="button"
+                          aria-expanded={!collapsed[group]}
+                          onClick={() => setCollapsed(current => ({ ...current, [group]: !current[group] }))}
+                          className={cn("flex w-full items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", group === "online" ? "text-success" : "text-muted-foreground")}
+                        >
+                          <span aria-hidden="true" className={cn("size-2 rounded-full", group === "online" ? "bg-success" : "bg-destructive")} />
+                          {t(group === "online" ? "servers.online" : "servers.offline")} ({entries.length})
+                          <IconChevronDown aria-hidden="true" size={16} className={cn("ml-auto text-muted-foreground motion-safe:transition-transform", collapsed[group] && "-rotate-90")} />
+                        </button>
+                      </h3>
+                      {!collapsed[group] && <div className="mt-2 space-y-2">{entries.map((server, index) => renderServer(server, index))}</div>}
+                    </div>
+                  )
+                })}
               </>
             )}
           </div>

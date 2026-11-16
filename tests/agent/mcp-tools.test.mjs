@@ -13,7 +13,10 @@ function mcpApi() {
   const handlers = new Map()
   const settings = new Map()
   const calls = []
-  class Transport { constructor(options) { this.options = options } }
+  class Transport {
+    constructor(options) { this.options = options }
+    async close() { calls.push({ action: "transport-close" }) }
+  }
   class Client {
     async connect(transport) { calls.push({ action: "connect", options: transport.options }) }
     async listTools() { return { tools: [{ name: "echo", description: "Echo input", inputSchema: { type: "object" } }] } }
@@ -32,8 +35,11 @@ function mcpApi() {
     "@modelcontextprotocol/sdk/client/streamableHttp.js": { StreamableHTTPClientTransport: class extends Transport { constructor(url, options) { super({ url: url.toString(), ...options }) } } },
     "../db": { dbHelpers: { getSetting: async key => settings.get(key), setSetting: async (key, value) => { settings.set(key, value) } } },
     "./agent-protocol": { redactAgentText: value => value },
+    // Хостовые порты не должны загружать native FFI в unit-процессе.
+    "../platform/shutdown": { registerShutdownTask() {}, SHUTDOWN_PRIORITY: { network: 1 } },
+    "./runtime": { sendToRenderer() {} },
   }
-  vm.runInNewContext(code, { module, exports: module.exports, Buffer, URL, setTimeout, clearTimeout, require: name => mocks[name] ?? require(name) })
+  vm.runInNewContext(code, { module, exports: module.exports, Buffer, URL, AbortController, AbortSignal, structuredClone, queueMicrotask, fetch, setTimeout, clearTimeout, require: name => mocks[name] ?? require(name) })
   module.exports.registerAgentMcpHandlers()
   return { settings, calls, invoke: (name, ...args) => handlers.get(name)({}, ...args) }
 }
@@ -97,4 +103,3 @@ test("MCP: инструменты агента вызывают IPC без об�
   await assert.rejects(call.run(api, { server: "remote", tool: "echo", argumentsJson: "[]" }), /JSON-объектом/)
   assert.equal(requests.length, 3)
 })
-

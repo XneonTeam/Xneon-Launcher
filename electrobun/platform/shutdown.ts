@@ -70,7 +70,7 @@ export type ShutdownCoordinatorOptions = {
 
 type ShutdownTask = {
   name: string
-  run: () => unknown
+  run: (reason: string) => unknown
   priority: number
   timeoutMs: number
   order: number
@@ -88,6 +88,7 @@ export class ShutdownCoordinator {
   private exitHandler?: (outcome: ShutdownOutcome) => void
   private outcome?: ShutdownOutcome
   private pending?: Promise<ShutdownOutcome>
+  private running?: Promise<ShutdownOutcome>
 
   constructor(options: ShutdownCoordinatorOptions = {}) {
     this.deadlineMs = options.deadlineMs ?? DEFAULT_SHUTDOWN_DEADLINE_MS
@@ -105,6 +106,7 @@ export class ShutdownCoordinator {
   get finished(): boolean {
     return this.outcome !== undefined
   }
+  get exiting(): boolean { return this.running !== undefined }
 
   /** Вызывается ровно один раз после cleanup — здесь нативный выход. */
   onExit(handler: (outcome: ShutdownOutcome) => void): void {
@@ -116,7 +118,7 @@ export class ShutdownCoordinator {
    * Задача, зарегистрированная после начала shutdown, не выполняется: вызывать
    * `run` из неё уже поздно, а молчаливое добавление ломало бы дедлайн.
    */
-  register(name: string, run: () => unknown, options: ShutdownTaskOptions = {}): () => void {
+  register(name: string, run: (reason: string) => unknown, options: ShutdownTaskOptions = {}): () => void {
     if (!name || typeof run !== "function") throw new TypeError("Shutdown task needs a name and a function")
     if (this.started) {
       this.log(`task "${name}" registered after shutdown started; ignored`)
@@ -143,8 +145,23 @@ export class ShutdownCoordinator {
    * перезапускает задачи.
    */
   run(reason = "quit"): Promise<ShutdownOutcome> {
+    if (!this.running) this.running = this.prepare(reason).then(outcome => {
+      this.exitHandler?.(outcome)
+      return outcome
+    })
+    return this.running
+  }
+
+  /** SDK update сначала готовит ресурсы, а нативный выход выполняет после approval. */
+  prepare(reason = "update"): Promise<ShutdownOutcome> {
     if (!this.pending) this.pending = this.execute(reason)
     return this.pending
+  }
+
+  resetAfterCancelledUpdate(): void {
+    if (this.running || this.pending && !this.outcome) throw new Error("Shutdown cannot be reset while running")
+    this.pending = undefined
+    this.outcome = undefined
   }
 
   private async execute(reason: string): Promise<ShutdownOutcome> {
@@ -176,7 +193,7 @@ export class ShutdownCoordinator {
           continue
         }
         await Promise.race([
-          Promise.all(group.map(task => this.runTask(task, failed, timedOut))),
+          Promise.all(group.map(task => this.runTask(task, reason, failed, timedOut))),
           deadlineSignal,
         ])
       }
@@ -197,17 +214,12 @@ export class ShutdownCoordinator {
     if (outcome.status === "deadline") this.log(`cleanup deadline of ${this.deadlineMs} ms reached; forcing exit`)
     else if (failed.length || timedOut.length) this.log(`cleanup finished with ${failed.length} failure(s) and ${timedOut.length} timeout(s)`)
 
-    try {
-      this.exitHandler?.(outcome)
-    } catch (error) {
-      this.log(`exit handler failed: ${error instanceof Error ? error.message : String(error)}`)
-    }
     return outcome
   }
 
   /** Ошибка или зависание одной задачи не мешает остальным и не отменяет выход. */
-  private async runTask(task: ShutdownTask, failed: ShutdownFailure[], timedOut: string[]): Promise<void> {
-    const work = Promise.resolve().then(task.run)
+  private async runTask(task: ShutdownTask, reason: string, failed: ShutdownFailure[], timedOut: string[]): Promise<void> {
+    const work = Promise.resolve().then(() => task.run(reason))
     // Задача, завершившаяся после дедлайна, не должна ронять процесс
     // необработанным отказом: результат уже никого не интересует.
     work.catch(() => {})
@@ -241,6 +253,6 @@ export const launcherShutdown = new ShutdownCoordinator()
  * Регистрирует задачу завершения приложения. Выполняется после `app.quit()`
  * и до нативного выхода; ошибки и таймауты не отменяют остальные задачи.
  */
-export function registerShutdownTask(name: string, run: () => unknown, options: ShutdownTaskOptions = {}): () => void {
+export function registerShutdownTask(name: string, run: (reason: string) => unknown, options: ShutdownTaskOptions = {}): () => void {
   return launcherShutdown.register(name, run, options)
 }

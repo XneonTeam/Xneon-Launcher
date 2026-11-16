@@ -13,7 +13,7 @@ export type MinecraftLaunchParams = {
     type: string
     username: string
     uuid?: string
-    accessToken?: string
+    id?: string
     /** Authlib-Injector: id authorization server (для разрешения в serverUrl при запуске) */
     serverId?: string
   }

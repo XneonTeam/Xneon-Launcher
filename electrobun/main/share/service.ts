@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto"
 import fs from "node:fs/promises"
-import { inspectExternalObject, fflateArchiveReader } from "@xnlc/share"
+import { inspectExternalObject } from "@xnlc/share"
 import { branchHistory, parseInvitation } from "@xnlc/share"
 import { ShareSystem, ShareApiClient, ModrinthSource, CurseForgeSource, ShareError, diff, validateManifest, type Manifest, type UpdatePreview, type ScanResult } from "@xnlc/share"
 import type { ShareRequest, ShareResponse, ShareLink, ShareContentPresentation } from "@xnlc/types"
@@ -15,7 +15,7 @@ import { scanIntentDir } from "../builds/scanner"
 import { sendToRenderer } from "../runtime"
 import { describeIncomingShareContent, describeShareContent, describeShareHistory } from "./content-presentation"
 import { serializeLaunchSettings, resolveLaunchSettings } from "./launch-settings"
-import { detectJavaInstallations } from "../system"
+import { detectJavaInstallations } from "../java-discovery"
 import { prepareSharedRename } from "./instance-name"
 
 type PreviewState = { scan?: ScanResult; update?: UpdatePreview; observed?: Manifest; branch?: string; origin?: { branch: string; applied: string }; restore?: { expected: string; target: string } }
@@ -118,7 +118,7 @@ export async function executeShare(input: ShareRequest, progress: (event: { stag
     let system = systems.get(build.id)?.directory === directory ? systems.get(build.id)!.system : undefined
     if (!system) {
       system = new ShareSystem({ files, hash, remote: new ShareApiClient(c.url, async () => (await config()).token, fetch), sources: [new ModrinthSource(fetch), new CurseForgeSource(fetch, process.env.CURSEFORGE_API_KEY || "", hash)], now: () => new Date().toISOString(), progress,
-        inspectExternal: bytes => inspectExternalObject(bytes, fflateArchiveReader),
+        inspectExternal: inspectExternalObject,
         localSource: async (_file, hashes) => {
           const row = hashes.sha1 ? (await dbHelpers.getResources([hashes.sha1]))[0] : undefined
           if (row?.modId && row.fileId) return { provider: "curseforge", projectId: String(row.modId), versionId: String(row.fileId), fileId: String(row.fileId) }

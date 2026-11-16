@@ -2,6 +2,8 @@ import { rpcRegistry } from "../../platform/desktop"
 import type { ShareRequest, ShareResult, ShareProgress } from "@xnlc/types"
 import { dbHelpers } from "../../db"
 import { executeShare } from "./service"
+import { getBuildIntentPath } from "../builds/helpers"
+import { isModpackInstalling } from "../builds/modpack-install"
 
 export function registerShareHandlers() {
   const installations = new Map<string, { cancelled: boolean; canCancel: boolean; abort?: AbortController }>()
@@ -29,6 +31,11 @@ export function registerShareHandlers() {
     }
     const tracked = ["publish", "push", "apply", "restoreApply", "installInvite"].includes(input.action)
     try {
+      if (buildId && !["status", "checkLaunch", "history"].includes(input.action)) {
+        const build = await dbHelpers.findBuildById(buildId)
+        if (build && isModpackInstalling(build.intentPath || getBuildIntentPath(build.name))) throw Object.assign(new Error("Modpack installation owns this build"), { code: "MODPACK_BUSY" })
+      }
+      if (input.action === "installInvite" && isModpackInstalling(getBuildIntentPath(input.name))) throw Object.assign(new Error("Modpack installation owns this directory"), { code: "MODPACK_BUSY" })
       if (tracked) {
         await readBuildName()
         notify({ stage: "start", done: 0, total: 1, bytes: 0 })

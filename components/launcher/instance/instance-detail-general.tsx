@@ -94,12 +94,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
           activeBuild.id
         )
         if (res?.success) {
-          updateBuild(activeBuild.id, {
-            version: res.version || activeBuild.version,
-            modLoader: res.modLoader || activeBuild.modLoader,
-            loaderVersion: res.loaderVersion || activeBuild.loaderVersion,
-            mods: res.mods ?? activeBuild.mods,
-          })
+          window.dispatchEvent(new CustomEvent("launcher:modpack-updated", { detail: { buildId: activeBuild.id } }))
           setRepairDone(true)
           setTimeout(() => setRepairDone(false), 3000)
         } else {
@@ -116,12 +111,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
           activeBuild.id
         )
         if (res?.success) {
-          updateBuild(activeBuild.id, {
-            version: res.version || activeBuild.version,
-            modLoader: res.modLoader || activeBuild.modLoader,
-            loaderVersion: res.loaderVersion || activeBuild.loaderVersion,
-            mods: res.mods ?? activeBuild.mods,
-          })
+          window.dispatchEvent(new CustomEvent("launcher:modpack-updated", { detail: { buildId: activeBuild.id } }))
           setRepairDone(true)
           setTimeout(() => setRepairDone(false), 3000)
         } else {
@@ -471,18 +461,7 @@ export function InstanceDetailGeneral({ activeBuild, updateBuild, renameBuild, o
         open={showChangeVersionDialog}
         onClose={() => setShowChangeVersionDialog(false)}
         build={activeBuild}
-        onVersionChanged={(info) => {
-          updateBuild(activeBuild.id, {
-            modpackVersion: info.modpackVersion,
-            modpackVersionId: info.modpackVersionId,
-            version: info.version,
-            modLoader: info.modLoader,
-            loaderVersion: info.loaderVersion,
-            mods: info.mods ?? activeBuild.mods,
-            resourcepacks: info.resourcepacks ?? activeBuild.resourcepacks,
-            shaders: info.shaders ?? activeBuild.shaders,
-          })
-        }}
+        onVersionChanged={() => window.dispatchEvent(new CustomEvent("launcher:modpack-updated", { detail: { buildId: activeBuild.id } }))}
       />
 
       <ActionConfirmDialog

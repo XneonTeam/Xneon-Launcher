@@ -1,10 +1,10 @@
 import { registerShutdownTask, SHUTDOWN_PRIORITY } from "../platform/shutdown"
+import { app } from "../platform/desktop"
 import { initDatabaseCore, flushDatabase, flushDatabaseSync, closeDatabase, isDbFallbackMode, getLauncherDirectory } from "./core"
 import { initializeSchema, SCHEMA_VERSION } from "./migrations"
-import { ensureInMemorySettingsDefaults } from "./settings"
 import { loadAccounts, saveAccount, removeAccount, reorderAccounts, type DbAccount } from "./accounts"
 import { loadBuilds, loadBuildsLight, loadBuildContent, saveAllBuilds, insertBuild, updateBuildPlaytime, updateBuildFields, deleteBuild, findBuildByName, findBuildById, type BuildJson, type BuildLightJson } from "./builds"
-import { getSetting, setSetting } from "./settings"
+import { clearSettingsCache, getSetting, setSetting } from "./settings"
 import { getCloudConfig, setCloudConfig, removeCloudConfig } from "./cloud"
 import { getResources, upsertResource, upsertResources, setResourceCurseforge, setResourcesCurseforge, markResourcesCurseforgeChecked, type ResourceRow } from "./resources"
 import { getFileSnapshots, upsertFileSnapshot, upsertFileSnapshots, type FileSnapshotRow } from "./snapshots"
@@ -22,10 +22,10 @@ export function isUsingFallbackStorage(): boolean {
 }
 
 export async function initDatabase(): Promise<void> {
-  ensureInMemorySettingsDefaults()
   await initDatabaseCore(SCHEMA_VERSION)
   try {
     initializeSchema()
+    clearSettingsCache()
   } catch (error) {
     closeDatabase()
     throw error
@@ -111,9 +111,15 @@ export const dbHelpers = {
 
 process.once("beforeExit", flushDatabase)
 process.once("exit", flushDatabaseSync)
-registerShutdownTask("sqlite", () => {
+registerShutdownTask("sqlite", reason => {
+  // Update использует строгий checkpoint/close с возможностью reopen при отказе SDK.
+  if (reason === "update") return
   // Чекпойнт WAL в основной файл и закрытие соединения — данные на диске
   // в согласованном виде даже без graceful shutdown.
   flushDatabaseSync()
   closeDatabase()
 }, { priority: SHUTDOWN_PRIORITY.database })
+
+// Последняя синхронная страховка при истечении общего deadline: не запускает
+// второй shutdown и не предотвращает выход, закрытие соединения идемпотентно.
+app.on("will-quit", closeDatabase)

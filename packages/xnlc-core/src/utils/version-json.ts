@@ -1,7 +1,5 @@
-import * as path from "path";
-import * as fsSync from "fs";
 import type { OSInfo, VersionJson } from "../types/index.js";
-import { flattenVersionJsonArguments, getLaunchArgumentValues, tokenizeCommandLine, hasLaunchArgument, countLaunchArgument, getVersionDir } from "./index.js";
+import { flattenVersionJsonArguments, getLaunchArgumentValues, hasLaunchArgument, countLaunchArgument } from "./primitives.js";
 
 const JAVA16_UPGRADE_POINT = Date.parse("2021-05-12T11:19:15Z");
 
