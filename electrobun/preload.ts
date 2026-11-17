@@ -193,7 +193,6 @@ installDesktopApi({
   // Зависимости из метаданных jar: у новых файлов CurseForge/Modrinth список пустой,
   // а сам мод требует fabric-api и падает без него.
   modsInspectJarDependencies: (url: string, source: "modrinth" | "curseforge") => desktopRpc.invoke('mods:inspect-jar-dependencies', url, source) as Promise<JarDependencyInspection>,
-  checkBuildLoaderRequirements: (buildName: string, modLoader?: string, loaderVersion?: string) => desktopRpc.invoke('mods:check-loader-requirements', buildName, modLoader, loaderVersion) as Promise<{ loaderId: string; loaderVersion?: string; checked: number; issues: Array<{ fileName: string; modName?: string; modId?: string; loaderId: string; requirement: string; buildLoaderVersion?: string; satisfied: boolean; reason?: string }> }>,
   modsFtbSearch: (query: string, page?: number, options?: { sortBy?: ModSort; categories?: string[]; gameVersion?: string; loader?: string }) => desktopRpc.invoke('mods:ftb-search', query, page, options) as Promise<ModSearchResponse>,
   modsFtbCatalogFacets: () => desktopRpc.invoke('mods:ftb-catalog-facets') as Promise<{ categories: string[]; gameVersions: string[]; loaders: string[] }>,
   modsFtbDetails: (id: number) => desktopRpc.invoke('mods:ftb-details', id) as Promise<ModDetails | null>,

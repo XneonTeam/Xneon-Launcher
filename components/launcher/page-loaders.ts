@@ -1,9 +1,13 @@
 import { createPageLoader } from "@/lib/page-loader"
 
+export const serverDetailLoader = createPageLoader(() => import("./server-detail-page").then(m => ({ default: m.ServerDetailPage })))
+
 export const pageLoaders = {
   builds: createPageLoader(() => import("./instance").then(m => ({ default: m.InstancePage }))),
   settings: createPageLoader(() => import("./settings").then(m => ({ default: m.SettingsPage }))),
-  servers: createPageLoader(() => import("./servers-page").then(m => ({ default: m.ServersPage }))),
+  // Как у сборок: код карточки готов до появления доступного для клика списка.
+  // Прогрев загружает только модули, без запросов данных и монтирования страницы.
+  servers: createPageLoader(() => Promise.all([import("./servers-page"), serverDetailLoader()]).then(([m]) => ({ default: m.ServersPage }))),
   accounts: createPageLoader(() => import("./accounts-page").then(m => ({ default: m.AccountsPage }))),
   logs: createPageLoader(() => import("./logs-page").then(m => ({ default: m.LogsPage }))),
   stats: createPageLoader(() => import("./stats-page").then(m => ({ default: m.StatsPage }))),

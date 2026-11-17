@@ -26,8 +26,7 @@ export {}
 // Выбор медиафайлов темы: pickThemeMedia — из того же контракта.
 // Облачные архивы тем: cloudUploadTheme/cloudImportTheme — из @xnlc/types.
 // Локальная папка тем, импорт/экспорт и наблюдение: LocalTheme* — из @xnlc/types.
-// Отдельного шима больше нет: pruneLoaderProfiles и
-// checkBuildLoaderRequirements объявлены в самом пакете.
+// Отдельного шима больше нет: pruneLoaderProfiles объявлен в самом пакете.
 
 export type LauncherCloudFile = {
   id: string
@@ -49,8 +48,6 @@ declare global {
   // Components should migrate to importing from @xnlc/types directly
   type ImportableLauncherInstance = import('@xnlc/types').ImportableLauncherInstance
   type LauncherNewsEntry = import('@xnlc/types').LauncherNewsEntry
-  type BuildLoaderRequirementIssue = import('@xnlc/types').BuildLoaderRequirementIssue
-  type BuildLoaderRequirementReport = import('@xnlc/types').BuildLoaderRequirementReport
 }
 
 // Серверные датапаки: mcServerDatapacksList/Install/Delete описаны в общем ElectrobunAPI.

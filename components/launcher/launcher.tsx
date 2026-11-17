@@ -1,5 +1,5 @@
 import { Activity, Suspense, lazy, startTransition, useCallback, useEffect, useRef, useState } from "react"
-import { pageLoaders, preloadPage, warmFrequentPages } from "./page-loaders"
+import { pageLoaders, preloadPage, serverDetailLoader, warmFrequentPages } from "./page-loaders"
 import { preloadedPage } from "./preloaded-page"
 import { useTranslation } from "react-i18next"
 import { HomePage } from "./home-page"
@@ -28,7 +28,7 @@ const SettingsPage = preloadedPage(pageLoaders.settings)
 const AccountsPage = preloadedPage(pageLoaders.accounts)
 const CloudPage = preloadedPage(pageLoaders.cloud)
 const ServersPage = preloadedPage(pageLoaders.servers)
-const ServerDetailPage = lazy(() => import("./server-detail-page").then(m => ({ default: m.ServerDetailPage })))
+const ServerDetailPage = preloadedPage(serverDetailLoader)
 const StatsPage = preloadedPage(pageLoaders.stats)
 const OnboardingModal = lazy(() => import("./onboarding-modal").then(m => ({ default: m.OnboardingModal })))
 

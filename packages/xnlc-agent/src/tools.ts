@@ -315,7 +315,6 @@ add("toggle_content", "Включить или отключить установ
   return result
 })
 add("check_updates", "Проверить обновления модов, ресурсов и шейдеров сборки.", "read", buildId, async (api, input) => api.checkBuildContentUpdates((await build(api, input)).id))
-add("check_loader_requirements", "Проверить требования установленных модов к загрузчику.", "read", buildId, async (api, input) => { const target = await build(api, input); return api.checkBuildLoaderRequirements(target.name, target.modLoader, target.loaderVersion) })
 add("install_modpack", "Установить модпак отдельной новой сборкой. ID проекта и версии сначала получи из каталога.", "write", { ...projectFields, name: str, versionId: str }, async (api, input) => {
   const name = text(input, "name").trim()
   const project = await getAgentProject(api, text(input, "source"), text(input, "projectId"))
@@ -454,7 +453,7 @@ const coreGroups: Record<string, string[]> = {
   builds: ["list_builds", "get_build", "create_build", "copy_build", "rename_build", "set_build_version", "trash_build", "set_build_memory", "set_build_options", "launch_build", "stop_game", "game_status", "unlock_build", "lock_build"],
   launcher_ipc: ["list_launcher_capabilities", "get_launcher_capability"],
   versions: ["list_minecraft_versions", "recommend_minecraft_versions", "list_loader_versions"],
-  content: ["search_projects", "get_project", "get_project_versions", "get_modpack_contents", "install_content", "remove_content", "toggle_content", "check_updates", "check_loader_requirements", "install_modpack"],
+  content: ["search_projects", "get_project", "get_project_versions", "get_modpack_contents", "install_content", "remove_content", "toggle_content", "check_updates", "install_modpack"],
   build_files: ["read_build_file", "list_build_files", "write_build_config"],
   worlds: ["list_worlds", "copy_world", "rename_world", "delete_world"],
   settings: ["read_settings", "set_setting", "list_languages", "set_language", "recommend_launcher_settings"],
