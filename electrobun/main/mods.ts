@@ -9,7 +9,6 @@ import path from "path"
 import { readModrinthPackContents } from "./mods-pack-contents"
 import { getContentIntentDir } from "./builds/helpers"
 import { getLauncherDataRoot } from "./paths"
-import { checkLoaderRequirements, type LoaderRequirementReport } from "./mods-loader-requirements"
 import { inspectJarDependencies, type JarDependencyInspection } from "./mods-jar-deps"
 import type {
   ContentType,
@@ -274,20 +273,6 @@ export function registerModsHandlers(): void {
       } catch (err) {
         console.error("Dependency resolution error:", err)
         return []
-      }
-    },
-  )
-
-  // ── Требования модов сборки к версии загрузчика ───────────
-  rpcRegistry.handle(
-    "mods:check-loader-requirements",
-    async (_event, buildName: string, modLoader?: string, loaderVersion?: string): Promise<LoaderRequirementReport> => {
-      try {
-        const modsDir = path.join(await getContentIntentDir(buildName), "mods")
-        return await checkLoaderRequirements(modsDir, modLoader, loaderVersion)
-      } catch (err) {
-        console.error("Loader requirement check error:", err)
-        return { loaderId: modLoader ?? "", loaderVersion, checked: 0, issues: [] }
       }
     },
   )

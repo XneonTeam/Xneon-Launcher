@@ -1,7 +1,7 @@
 import { contentMetadataEvents } from "./content-metadata-events"
 import fs from "fs/promises"
 import { loadModsModule } from "./helpers"
-import { rememberLoaderRequirements, runScanWorker, type JarInspection } from "@xnlc/parser"
+import { runScanWorker, type JarInspection } from "@xnlc/parser"
 import parserPackage from "../../../packages/xnlc-parser/package.json"
 import { dbHelpers } from "../../db"
 
@@ -200,7 +200,7 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
   const hashed: Array<{ filePath: string; sha1: string; size: number; mtime: number }> = []
   const hashFiles = new Map(toHash.map(file => [file.filePath, file]))
   try {
-    await runScanWorker(toHash.map(file => ({ filePath: file.filePath, size: file.size, mtimeMs: file.mtime })), { sha1: true, metadata: true, loaderRequirements: true }, item => {
+    await runScanWorker(toHash.map(file => ({ filePath: file.filePath, size: file.size, mtimeMs: file.mtime })), { sha1: true, metadata: true }, item => {
       const file = hashFiles.get(item.filePath)
       if (!file) return
       hashFiles.delete(item.filePath)
@@ -208,8 +208,6 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
       if (sha1 && item.inspection) {
         hashed.push({ ...file, sha1 })
         coldInspections.set(file.filePath, item.inspection)
-        const stat = fileStats.get(file.filePath)
-        if (stat) rememberLoaderRequirements(file.filePath, stat, item.inspection)
       }
       else markUnreadable(file.filePath, item.error ?? item.inspection?.diagnostics?.[0]?.message ?? "Cannot hash content file")
       report(++processed, totalFiles)
@@ -368,12 +366,10 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
     await runScanWorker([...parseFiles.values()].map(file => {
       const stat = fileStats.get(file.filePath)
       return { ...file, size: stat?.size, mtimeMs: stat ? Math.round(stat.mtimeMs) : undefined }
-    }), { metadata: true, loaderRequirements: true }, item => {
+    }), { metadata: true }, item => {
       const file = parseFiles.get(item.filePath)
       if (!file) return
       parseFiles.delete(item.filePath)
-      const stat = fileStats.get(file.filePath)
-      if (stat) rememberLoaderRequirements(file.filePath, stat, item.inspection)
       acceptInspection(file, item.inspection, item.error)
     }, signal)
   } catch (error) {

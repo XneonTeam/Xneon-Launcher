@@ -20,21 +20,15 @@ export function cssBackgroundVideo(theme: Theme): string {
   return /^(https?:|xnl-theme:|data:video\/)/i.test(source) ? launcherAssetUrl(source) : ""
 }
 
-/** Приостанавливает фоновое видео, когда окно скрыто или запущена игра. */
+/** Экономит ресурсы только в скрытом окне, независимо от состояния игры. */
 export function useMediaPaused(enabled = true) {
   const [paused, setPaused] = useState(document.hidden)
   useEffect(() => {
     if (!enabled) return
-    let alive = true
-    const refresh = () => {
-      void (window.electrobunAPI?.isMinecraftRunning() ?? Promise.resolve(false)).then((running) => {
-        if (alive) setPaused(document.hidden || running)
-      }).catch(() => {})
-    }
+    const refresh = () => setPaused(document.hidden)
     refresh()
-    const timer = window.setInterval(refresh, 2500)
     document.addEventListener("visibilitychange", refresh)
-    return () => { alive = false; window.clearInterval(timer); document.removeEventListener("visibilitychange", refresh) }
+    return () => document.removeEventListener("visibilitychange", refresh)
   }, [enabled])
   return paused
 }

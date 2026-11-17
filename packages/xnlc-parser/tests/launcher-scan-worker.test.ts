@@ -5,7 +5,6 @@ import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { pauseScanFiles, runScanWorker, setScanWorkerEntry } from "@xnlc/parser"
 import { curseforgeFingerprint } from "../src"
-import { checkLoaderRequirements } from "../../../electrobun/main/mods-loader-requirements"
 
 let workerDirectory: string
 beforeAll(async () => {
@@ -48,10 +47,6 @@ test("worker обрабатывает 220 архивов, не блокируя 
     let fingerprint: number | null | undefined
     await runScanWorker([{ filePath: first }], { curseforgeFingerprint: true }, result => { fingerprint = result.inspection?.curseforgeFingerprint })
     expect(fingerprint).toBe(curseforgeFingerprint(zip.toBuffer()))
-    const requirements = await checkLoaderRequirements(dir, "fabric", "0.14.0")
-    expect(requirements.checked).toBe(220)
-    expect(requirements.issues).toHaveLength(220)
-    expect(requirements.issues[0].satisfied).toBe(false)
 
     const controller = new AbortController()
     let received = 0

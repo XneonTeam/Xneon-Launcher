@@ -113,26 +113,6 @@ import type {
   ServerStatusResult,
 } from "./server-types.js"
 
-/** Требование мода сборки к версии загрузчика, прочитанное из его JAR. */
-export interface BuildLoaderRequirementIssue {
-  fileName: string
-  modName?: string
-  modId?: string
-  loaderId: string
-  requirement: string
-  buildLoaderVersion?: string
-  satisfied: boolean
-  reason?: string
-}
-
-/** Отчёт о соответствии модов сборки выбранной версии загрузчика. */
-export interface BuildLoaderRequirementReport {
-  loaderId: string
-  loaderVersion?: string
-  checked: number
-  issues: BuildLoaderRequirementIssue[]
-}
-
 // ── IPC Invoke Channel Map ──────────────────────────────────
 // Maps channel name → { args: tuple of arguments, return: return type }
 
@@ -314,7 +294,6 @@ export interface IpcInvokeMap {
   "mods:curseforge-changelog": { args: [modId: number, fileId: number]; return: string }
   "mods:resolve-dependencies": { args: [version: ModVersion, source: "modrinth" | "curseforge"]; return: ModDependency[] }
   "mods:inspect-jar-dependencies": { args: [url: string, source: "modrinth" | "curseforge"]; return: JarDependencyInspection }
-  "mods:check-loader-requirements": { args: [buildName: string, modLoader?: string, loaderVersion?: string]; return: BuildLoaderRequirementReport }
   // ── Mods (FTB / Feed The Beast) ──
   "mods:ftb-search": { args: [query: string, page?: number, options?: { sortBy?: ModSort; categories?: string[]; gameVersion?: string; loader?: string }]; return: ModSearchResponse }
   "mods:ftb-catalog-facets": { args: []; return: { categories: string[]; gameVersions: string[]; loaders: string[] } }
@@ -659,7 +638,6 @@ export interface ElectrobunAPIExplicit {
   modsResolveDependencies: (version: ModVersion, source: "modrinth" | "curseforge") => Promise<ModDependency[]>
   modsInspectJarDependencies: (url: string, source: "modrinth" | "curseforge") => Promise<JarDependencyInspection>
   /** Требования модов сборки к версии загрузчика (читаются из самих JAR). */
-  checkBuildLoaderRequirements: (buildName: string, modLoader?: string, loaderVersion?: string) => Promise<BuildLoaderRequirementReport>
   modsFtbSearch: (query: string, page?: number, options?: { sortBy?: ModSort; categories?: string[]; gameVersion?: string; loader?: string }) => Promise<ModSearchResponse>
   modsFtbCatalogFacets: () => Promise<{ categories: string[]; gameVersions: string[]; loaders: string[] }>
   modsFtbDetails: (id: number) => Promise<ModDetails | null>

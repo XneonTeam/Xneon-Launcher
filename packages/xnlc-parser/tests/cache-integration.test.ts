@@ -39,8 +39,8 @@ test("устаревшие локальные metadata обновляются б
       const first = await resolveContentEntries([process.env.XNLC_TEST_FILE])
       assert.equal(first[process.env.XNLC_TEST_FILE].name, "Updated")
       const snapshot = await stat(process.env.XNLC_TEST_FILE)
-      assert.equal(cachedLoaderRequirements(process.env.XNLC_TEST_FILE, snapshot).requirements[0].requirement, ">=0.15")
-      assert.equal(cachedLoaderRequirements(process.env.XNLC_TEST_FILE, { ...snapshot, ctimeMs: snapshot.ctimeMs + 1 }), undefined)
+      // Удалённый отчёт больше не собирает требования при сканировании контента.
+      assert.equal(cachedLoaderRequirements(process.env.XNLC_TEST_FILE, snapshot), undefined)
       assert.equal(row.description, "kept")
       assert.equal(row.projectId, "project")
       assert.equal(row.versionId, "version")

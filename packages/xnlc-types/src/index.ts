@@ -131,8 +131,6 @@ export type {
   ElectrobunAPIExplicit,
   ElectrobunAPIExtra,
   ElectrobunAPI,
-  BuildLoaderRequirementIssue,
-  BuildLoaderRequirementReport,
 } from "./ipc-contracts.js"
 
 // Launch types

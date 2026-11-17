@@ -401,46 +401,6 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   const [updatesOpen, setUpdatesOpen] = useState(false)
   const [updatesCount, setUpdatesCount] = useState(0)
   const [failedVersionIcon, setFailedVersionIcon] = useState<string | null>(null)
-  const [loaderRequirementReport, setLoaderRequirementReport] = useState<BuildLoaderRequirementReport | null>(null)
-  const [loaderWarningDismissed, setLoaderWarningDismissed] = useState(false)
-  const loaderFiles = useMemo(() => type === "mods"
-    ? JSON.stringify(activeBuild.mods.map(({ slug, enabled, id }) => [slug, enabled !== false, id]))
-    : "", [type, activeBuild.mods])
-
-  // Проверку JAR запускаем после первого кадра вкладки, чтобы она не конкурировала
-  // с отрисовкой списка. При быстром уходе со вкладки запрос не запускается.
-  useEffect(() => {
-    if (type !== "mods" || !activeBuild.name || !activeBuild.loaderVersion) {
-      setLoaderRequirementReport(null)
-      return
-    }
-    setLoaderWarningDismissed(false)
-    let cancelled = false
-    let idle: number | undefined
-    let timer: number | undefined
-    const run = () => {
-      void window.electrobunAPI
-        ?.checkBuildLoaderRequirements(activeBuild.name, activeBuild.modLoader, activeBuild.loaderVersion)
-        .then(report => { if (!cancelled) setLoaderRequirementReport(report) })
-        .catch(() => { if (!cancelled) setLoaderRequirementReport(null) })
-    }
-    const frame = window.requestAnimationFrame(() => {
-      if (window.requestIdleCallback) idle = window.requestIdleCallback(run, { timeout: 1000 })
-      else timer = window.setTimeout(run, 0)
-    })
-    return () => {
-      cancelled = true
-      window.cancelAnimationFrame(frame)
-      if (idle !== undefined) window.cancelIdleCallback(idle)
-      if (timer !== undefined) window.clearTimeout(timer)
-    }
-  }, [type, activeBuild.name, activeBuild.modLoader, activeBuild.loaderVersion, loaderFiles])
-
-  const loaderIssues = useMemo(
-    () => (loaderRequirementReport?.issues ?? []).filter(issue => !issue.satisfied),
-    [loaderRequirementReport],
-  )
-
   const refreshUpdatesCount = useCallback(async () => {
     try {
       // Счётчики, а не весь кэш: полный ответ весит мегабайты (data-URL иконки).
@@ -588,44 +548,6 @@ export const InstanceContentTab = memo(function InstanceContentTab({
       </div>
 
       <div data-ui="instance-instance-content-tab-div-7" className="flex flex-1 min-h-0 flex-col gap-4">
-        {loaderIssues.length > 0 && !loaderWarningDismissed && (
-          <div data-ui="instance-instance-content-tab-div-8" className="shrink-0 rounded-2xl border border-warning/40 bg-warning/10 p-3">
-            <div data-ui="instance-instance-content-tab-div-9" className="flex items-start gap-2">
-              <IconAlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" strokeWidth={1.75} />
-              <div data-ui="instance-instance-content-tab-div-10" className="min-w-0 flex-1">
-                <p data-ui="instance-instance-content-tab-p-2" className="text-sm font-medium text-foreground">
-                  {t("builds.loaderVersionMismatch", {
-                    total: loaderIssues.length,
-                    loader: `${activeBuild.modLoader} ${activeBuild.loaderVersion}`,
-                  })}
-                </p>
-                <ul data-ui="instance-instance-content-tab-ul-2" className="mt-1.5 space-y-0.5">
-                  {loaderIssues.slice(0, 5).map(issue => (
-                    <li data-ui="instance-instance-content-tab-li-2" key={issue.fileName} className="truncate text-xs text-muted-foreground">
-                      <span data-ui="instance-instance-content-tab-span-5" className="text-foreground/90">{issue.modName || issue.fileName}</span>
-                      {" — "}
-                      {t("builds.loaderVersionRequired", { loader: issue.loaderId, requirement: issue.requirement })}
-                    </li>
-                  ))}
-                  {loaderIssues.length > 5 && (
-                    <li data-ui="instance-instance-content-tab-li-3" className="text-xs text-muted-foreground">
-                      {t("builds.loaderVersionMore", { more: loaderIssues.length - 5 })}
-                    </li>
-                  )}
-                </ul>
-              </div>
-              <button data-ui="instance-instance-content-tab-button-2"
-                type="button"
-                onClick={() => setLoaderWarningDismissed(true)}
-                className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
-                aria-label={t("servers.cancel")}
-              >
-                <IconX className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
-
         <div data-ui="instance-instance-content-tab-div-11" className="grid gap-3 min-h-0 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
           <div data-ui="instance-instance-content-tab-div-12"
             className={cn(
