@@ -134,4 +134,4 @@ SQLite, production adapter — Durable Object/R2. Это не Electron preload A
 при каждой смене роли. Сетевое тело не держит metadata queue, но ACL, квоты и GC
 остаются в её критической секции. Полный GET сохраняет прежний контракт полной истории.
 Контракт сервиса и deployment описаны в `infrastructure/xnlc-share/WORKERS.md`.
-Актуальные воспроизводимые сценарии измерений — [benchmarks](../benchmarks/README.md).
+Воспроизводимые сценарии измерений и отчёты хранятся локально, вне Git.

@@ -26,8 +26,25 @@ test('описания релизов содержат Features, Bug Fixes и т
     assert.match(body, /logo=apple/)
     assert.match(body, /logo=linux/)
     assert.equal(body.includes(`xneon-launcher-${version}-win-x64.exe`), !version.includes('-pre'))
-    assert.equal(body.includes('portable.zip'), !version.includes('-pre'))
+    assert.ok(body.includes('portable.zip'))
   }
+})
+
+test('сначала загрузки Windows/macOS/Linux, служебные файлы свёрнуты, RED/GREEN не попадает в описание', async () => {
+  const { releaseNotes } = await import('../../scripts/release-notes.ts')
+  const body = releaseNotes('1.0.9', ['fix: Исправление (GREEN)'])
+  assert.ok(body.startsWith('## Downloads'))
+  assert.ok(body.indexOf('### Windows') < body.indexOf('### macOS'))
+  assert.ok(body.indexOf('### macOS') < body.indexOf('### Linux'))
+  assert.ok(body.indexOf('### Linux') < body.indexOf('### Features'))
+  assert.ok(body.indexOf('-win-x64.exe)') < body.indexOf('-portable.zip)'))
+  assert.ok(body.indexOf('<details>') > body.indexOf('### Bug Fixes'))
+  assert.ok(body.indexOf('stable-win-x64-update-v2.json') > body.indexOf('<details>'))
+  assert.doesNotMatch(body, /\(GREEN\)|\(RED\)/)
+  const main = body.split('<details>')[0]
+  assert.doesNotMatch(main, /Setup\.zip|Setup\.tar\.gz|update-v2\.json/)
+  const prerelease = releaseNotes('1.0.9-pre1', [])
+  assert.ok(prerelease.split('<details>')[0].includes('xneon-launcher-1.0.9-pre1-win-x64-setup.zip'))
 })
 
 test('git-cliff не требуется ни одному каналу', async () => {

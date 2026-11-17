@@ -34,9 +34,9 @@ bun run test:offline # desktop + parser + archives + security/agent + Share
 Batch scan по умолчанию inline (меньше CPU/RSS по локальному benchmark).
 `XNLC_SCAN_WORKER=1` явно включает проверенный `setScanWorkerEntry`; entry
 упаковывается в `bun/workers/scan-worker.js`. Это opt-in, не гарантия более низкой памяти.
-Актуальные benchmarks: `benchmarks/README.md`, `bun run benchmark:scan` и
-`bun run benchmark:archives`. Результаты/внутренние аудиты — в игнорируемой
-`.local-research/`, не в public docs и не в package publish files.
+Измерительные сценарии в `benchmarks/` хранятся только локально и игнорируются Git.
+Результаты/внутренние аудиты — в игнорируемой `.local-research/`, не в public docs
+и не в package publish files.
 UI получает только `PublicAccount`, сессиями владеет main. Для cleanup используйте
 `registerShutdownTask`, а не собственный рекурсивный before-quit.
 
@@ -61,7 +61,7 @@ UI получает только `PublicAccount`, сессиями владее�
 
 - **Релизы — штатные артефакты Electrobun**: `<channel>-<platform>-<arch>-update.json`, `-update-v2.json`, `.tar.zst` и SDK-установщик. Stable Windows: `win-x64-XneonLauncher-Setup.zip` + отдельный NSIS; macOS arm64: `macos-arm64-XneonLauncher.dmg`; Linux x64: `linux-x64-XneonLauncher-Setup.tar.gz` плюс системные пакеты `xneon-launcher-<version>-{amd64.deb,x86_64.rpm,x86_64.pacman,x86_64.AppImage,x64.tar.xz}` в обоих каналах (собираются `scripts/package-linux.ts` из того же payload). Обычный unpacked ZIP и electron-builder metadata удалены.
 - **CI validation без переупаковки** — `scripts/electrobun-artifacts.ts` проверяет identity, version/channel/arch, tar integrity, executable headers и отсутствие credentials/служебных файлов; staging копирует байты/имена без изменений и добавляет `SHA256SUMS.txt`. `validate-pre-release.ts <candidate> <output> [stable|canary]` требует NSIS только для стабильного канала. `package-windows-portable.ts <new-output>` проверяет самостоятельный portable профиль; не зависит от обычного NSIS/ZIP/metadata.
-- **Два релизных пайплайна**: `.github/workflows/release.yml` (тег `vX.Y.Z`, stable: NSIS, portable, stable-манифест) и `.github/workflows/pre-release.yml` (тег `vX.Y.Z-preN`, canary: без NSIS и portable). Входные скрипты — `scripts/ci-release.ts` и `scripts/ci-pre-release.ts` поверх общего `scripts/ci-pipeline.ts`; каждый отказывается собирать версию чужого канала. `.github/workflows/ci.yml` — только PR/main проверки. Оба пайплайна поддерживают `workflow_dispatch` как preflight-сборку без публикации. ARM64 собирается на `macos-26`, x64 — на `macos-15-intel`.
+- **Два релизных пайплайна**: `.github/workflows/release.yml` (тег `vX.Y.Z`, stable: NSIS, portable, stable-манифест) и `.github/workflows/pre-release.yml` (тег `vX.Y.Z-preN` или `vX.Y.Z-betaN`, canary: SDK, portable, без NSIS). Входные скрипты — `scripts/ci-release.ts` и `scripts/ci-pre-release.ts` поверх общего `scripts/ci-pipeline.ts`; каждый отказывается собирать версию чужого канала. `.github/workflows/ci.yml` — только PR/main проверки. Оба пайплайна поддерживают `workflow_dispatch` как preflight-сборку без публикации. ARM64 собирается на `macos-26`, x64 — на `macos-15-intel`.
 - **Vite `base: './'`** — all asset paths in HTML must be relative (`./path`), not absolute (`/path`). В пакете Electrobun HTML загружается по views://launcher/index.html.
 - **`@/*` alias** resolves to project root: `@/src` → `src/`, `@/components` → `components/`.
 - **IPC**: preload exposes `window.electrobunAPI` methods. Types in `src/electrobun.d.ts`. Adding a new IPC channel requires updating: handler in `electrobun/main/`, preload bridge in `electrobun/preload.ts`, type in `src/electrobun.d.ts`, and contract in `packages/xnlc-types/src/ipc-contracts.ts`.

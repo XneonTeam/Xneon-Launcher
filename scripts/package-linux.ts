@@ -256,7 +256,7 @@ export async function packageLinux(input: string, output: string) {
   assert.equal(process.platform, "linux", "Linux packages are built on a native Linux runner")
   assert.equal(process.arch, "x64", "Linux packages are built for x64 only")
   const version = packageJson.version
-  assert.match(version, /^\d+\.\d+\.\d+(?:-pre[1-9]\d*)?$/, "Use a stable version or <version>-preN")
+  assert.match(version, /^\d+\.\d+\.\d+(?:-(?:pre|beta)[1-9]\d*)?$/, "Use a stable version, <version>-preN or <version>-betaN")
   const channel = version.includes("-") ? "canary" : "stable"
   const app = "XneonLauncher" + (channel === "stable" ? "" : "-canary")
   const archive = `${channel}-linux-x64-${app}.tar.zst`

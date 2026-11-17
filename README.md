@@ -158,7 +158,7 @@ Xneon автоматически обнаружит установленные �
 Актуальные команды, IPC, Workers, владение сессиями и тестовые entrypoints:
 [руководство по интеграции](docs/integration-guide.md).
 Поддержка платформ и команды native runners: [platform builds](docs/platform-builds.md).
-Текущие performance-сценарии: [benchmarks](benchmarks/README.md).
+Измерительные сценарии и отчёты производительности хранятся локально, вне Git.
 Проверки и границы offline/live: [testing](docs/testing.md).
 
 Документация для разработчиков и авторов тем: [docs.xneon.org](https://docs.xneon.org).

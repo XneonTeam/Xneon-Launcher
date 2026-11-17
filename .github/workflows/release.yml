@@ -3,7 +3,7 @@ name: Release
 # Стабильный релиз: обычный тег vX.Y.Z. Публикует только stable-артефакты.
 on:
   push:
-    tags: ['v*', '!v*-pre*']
+    tags: ['v*', '!v*-pre*', '!v*-beta*']
   workflow_dispatch:
 
 permissions:
@@ -27,7 +27,7 @@ defaults:
 jobs:
   tests:
     # Тег vX.Y.Z-preN обслуживает pre-release.yml; здесь такой прогон пропускается.
-    if: ${{ !contains(github.ref_name, '-pre') }}
+    if: ${{ !contains(github.ref_name, '-pre') && !contains(github.ref_name, '-beta') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

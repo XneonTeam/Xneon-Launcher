@@ -41,6 +41,7 @@ tsconfig.tsbuildinfo
 # Локальные результаты сборок и измерений
 /.cache/
 /.local-research/
+/benchmarks/
 # Ручные резервные архивы исходников/тестов — не production inputs
 /scripts/*.rar
 /tests/*.rar
@@ -75,6 +76,9 @@ packages/*/*.tgz
 
 # Cloud server (separate project)
 cloud-server/
+
+# Инфраструктура серверных приложений
+/infrastructure/
 
 # AI/tool workspace dirs
 .opencode/
