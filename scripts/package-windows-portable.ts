@@ -5,6 +5,7 @@ import packageJson from "../package.json"
 import { portableAppIdentifier } from "../electrobun/main/app-identity"
 import { validateBundleCredentials, windowsProductIdentity, windowsX64 } from "./windows-candidate-validation"
 import { checksumText } from "./artifact-checksums"
+import { nativeTarExecutable } from "./native-tar"
 
 const [destination] = Bun.argv.slice(2)
 assert.ok(destination && Bun.argv.length === 3 && process.platform === "win32" && process.arch === "x64", "Usage: package-windows-portable <new-output>")
@@ -39,7 +40,7 @@ await writeFile(path.join(staging, "README.txt"), [
 ].join("\r\n"))
 
 function tar(args: string[]): Buffer {
-  const result = Bun.spawnSync(["tar.exe", ...args], { stderr: "inherit" })
+  const result = Bun.spawnSync([nativeTarExecutable(), ...args], { stderr: "inherit" })
   assert.equal(result.exitCode, 0, "Portable ZIP operation failed")
   return Buffer.from(result.stdout)
 }

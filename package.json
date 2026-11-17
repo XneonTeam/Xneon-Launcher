@@ -66,6 +66,7 @@
     "prepare:desktop": "bun scripts/electrobun.mjs prepare && bun scripts/gen-credentials.mjs && bun scripts/gen-agent-ipc-catalog.mjs && bun run --filter \"@xnlc/*\" build",
     "build:workers": "bun scripts/build-bun-workers.mjs",
     "build:dev": "bun run prepare:desktop && bun run build:renderer && bun run build:workers && bun scripts/electrobun.mjs build --env=dev",
+    "build:canary": "bun run prepare:desktop && bun run typecheck && bun run build:renderer && bun run build:workers && bun scripts/electrobun.mjs build --env=canary",
     "test:prepare": "bun scripts/electrobun.mjs prepare && bun scripts/gen-credentials.mjs && bun scripts/gen-agent-ipc-catalog.mjs && bun run --filter \"@xnlc/*\" build && bun scripts/build-electrobun-tests.mjs",
     "test:desktop": "bun run test:prepare && bun test tests/electrobun",
     "test:parser": "bun run --filter @xnlc/archives build && bun run --filter @xnlc/parser build && bun scripts/test-parser.mjs offline",

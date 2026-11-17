@@ -1,9 +1,10 @@
-name: CI / Release
+name: CI
 
+# Проверки на каждый push в main и PR. Сборка и публикация живут в release.yml
+# (стабильный тег) и pre-release.yml (тег -preN).
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -12,7 +13,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/')) }}
+  cancel-in-progress: true
 
 env:
   HUTCH_NO_UPDATE_CHECK: '1'
@@ -29,19 +30,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - &checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - &desktop
-        uses: ./.github/actions/setup
+      - uses: ./.github/actions/setup
         with:
           desktop: 'true'
-      - name: Check version tag and main ancestry before the protected release
-        if: github.repository == 'MAINER4IK/Xneon-Launcher-bun' && startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bun scripts/ci-pipeline.ts guard-tag
       - run: bun scripts/gen-agent-ipc-catalog.mjs --check
       - run: bun run prepare:desktop
       - run: bun scripts/check-config.mjs
@@ -55,8 +49,7 @@ jobs:
           echo '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  '"$archive" | sha256sum --check -
           mkdir "$RUNNER_TEMP/actionlint"
           tar -xzf "$archive" -C "$RUNNER_TEMP/actionlint" actionlint
-          "$RUNNER_TEMP/actionlint/actionlint" -shellcheck= -pyflakes= .github/workflows/ci.yml
-
+          "$RUNNER_TEMP/actionlint/actionlint" -shellcheck= -pyflakes= .github/workflows/*.yml
       - name: Transpile main modules for desktop tests
         run: bun scripts/build-electrobun-tests.mjs
       - name: Offline tests (workspaces already prepared)
@@ -65,199 +58,3 @@ jobs:
         run: |
           bun run build:renderer
           bun run build:workers
-
-  # Windows NSIS собирается здесь же из единственного stable payload, без повторного SDK build.
-  build:
-    needs: tests
-    if: >-
-      ${{ github.repository == 'MAINER4IK/Xneon-Launcher-bun' &&
-          (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') }}
-    name: build (${{ matrix.target }})
-    strategy:
-      fail-fast: false
-      max-parallel: 3
-      matrix:
-        include:
-          - { runner: windows-2022, target: win-x64, platform: win, arch: x64, machine: X64 }
-          - { runner: ubuntu-24.04, target: linux-x64, platform: linux, arch: x64, machine: x86_64 }
-          - { runner: macos-15, target: macos-arm64, platform: macos, arch: arm64, machine: arm64 }
-          - { runner: macos-15-intel, target: macos-x64, platform: macos, arch: x64, machine: x86_64 }
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
-    steps:
-      - *checkout
-      - *desktop
-      - name: Check release tag and package version before building
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: bun scripts/ci-pipeline.ts identity
-      - name: Check native target
-        shell: bash
-        env:
-          EXPECTED_MACHINE: ${{ matrix.machine }}
-          RUNNER_MACHINE: ${{ runner.arch }}
-        run: |
-          set -euo pipefail
-          if [ "$RUNNER_OS" = Windows ]; then
-            test "$RUNNER_MACHINE" = "$EXPECTED_MACHINE"
-          else
-            test "$(uname -m)" = "$EXPECTED_MACHINE"
-          fi
-      - name: Ensure NSIS
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $candidates = @(
-            (Join-Path $env:ProgramFiles 'NSIS\makensis.exe'),
-            (Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe')
-          ) | Where-Object { Test-Path -LiteralPath $_ }
-          if (-not $candidates) {
-            choco install nsis --yes --no-progress
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            $candidates = @((Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe')) | Where-Object { Test-Path -LiteralPath $_ }
-          }
-          if (-not $candidates) { throw 'makensis (NSIS 3) is required to build the Windows installer' }
-          Add-Content -LiteralPath $env:GITHUB_ENV -Value ('XNEON_MAKENSIS=' + $candidates[0])
-          & $candidates[0] /VERSION
-      - name: Build stable SDK artifacts and Windows NSIS
-        run: bun run build
-      - name: Verify native platform adapters skipped on Ubuntu
-        if: runner.os != 'Linux'
-        run: |
-          set -euo pipefail
-          bun test tests/electrobun/platform-desktop.test.ts tests/electrobun/platform-secrets.test.ts tests/electrobun/platform-unix.test.ts
-          if [ "$RUNNER_OS" = Windows ]; then
-            bun test tests/tooling/electrobun-packaging.test.mjs --test-name-pattern 'PE metadata'
-          fi
-      - name: Validate Windows payload, PE, NSIS and staging
-        if: runner.os == 'Windows'
-        run: bun scripts/validate-pre-release.ts release-electrobun/stable checked-native
-      - name: Stage native Unix artifacts without repackaging
-        if: runner.os != 'Windows'
-        env:
-          TARGET_PLATFORM: ${{ matrix.platform }}
-          TARGET_ARCH: ${{ matrix.arch }}
-        run: bun scripts/electrobun-artifacts.ts stage release-electrobun/stable checked-native "$TARGET_PLATFORM" "$TARGET_ARCH" stable
-      - name: Verify native Linux executable
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          launchers=(build-electrobun/stable-linux-x64/*/bin/launcher)
-          test "${#launchers[@]}" -eq 1
-          test -x "${launchers[0]}"
-          LC_ALL=C readelf -h "${launchers[0]}" | awk '/Machine:/ && /X86-64/ { ok=1 } END { exit !ok }'
-      - name: Verify native macOS image and application bundle
-        if: runner.os == 'macOS'
-        shell: bash
-        env:
-          TARGET: ${{ matrix.target }}
-          EXPECTED_MACHINE: ${{ matrix.machine }}
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          images=(release-electrobun/stable/*.dmg)
-          apps=(build-electrobun/stable-"$TARGET"/*.app)
-          test "${#images[@]}" -eq 1
-          test "${#apps[@]}" -eq 1
-          plist="${apps[0]}/Contents/Info.plist"
-          executable="$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$plist")"
-          [[ "$executable" != */* ]]
-          test -x "${apps[0]}/Contents/MacOS/$executable"
-          test "$(lipo -archs "${apps[0]}/Contents/MacOS/$executable")" = "$EXPECTED_MACHINE"
-          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$plist")" = "$(bun -p 'require("./package.json").version')"
-          hdiutil verify "${images[0]}"
-          mount_dir="$(mktemp -d)"
-          trap 'hdiutil detach "$mount_dir"; rmdir "$mount_dir"' EXIT
-          hdiutil attach -readonly -nobrowse -mountpoint "$mount_dir" "${images[0]}"
-          mounted=("$mount_dir"/*.app)
-          test "${#mounted[@]}" -eq 1
-          diff -qr "${apps[0]}" "${mounted[0]}"
-      - name: Build and validate Canary
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          set -euo pipefail
-          bun scripts/electrobun.mjs build --env=canary
-          bun scripts/electrobun-artifacts.ts stage release-electrobun/canary checked-canary win x64 canary
-      - name: Build and validate independent Portable profile
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          set -euo pipefail
-          XNEON_BUILD_PORTABLE=1 bun scripts/electrobun.mjs build --env=dev
-          bun scripts/package-windows-portable.ts checked-portable
-      - uses: actions/upload-artifact@v5
-        with:
-          name: native-${{ matrix.target }}-stable
-          path: checked-native/*
-          if-no-files-found: error
-          retention-days: 7
-      - uses: actions/upload-artifact@v5
-        if: runner.os == 'Windows'
-        with:
-          name: native-win-x64-canary
-          path: checked-canary/*
-          if-no-files-found: error
-          retention-days: 7
-      - uses: actions/upload-artifact@v5
-        if: runner.os == 'Windows'
-        with:
-          name: native-win-x64-portable
-          path: |
-            checked-portable/*-portable.zip
-            checked-portable/SHA256SUMS.txt
-          if-no-files-found: error
-          retention-days: 7
-
-  release:
-    needs: [tests, build]
-    if: github.repository == 'MAINER4IK/Xneon-Launcher-bun' && startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    permissions:
-      contents: write
-    concurrency:
-      group: publish-${{ github.ref }}
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      - uses: ./.github/actions/setup
-      - name: Determine stable release or prerelease
-        id: release
-        run: bun scripts/ci-pipeline.ts identity
-      - uses: actions/download-artifact@v5
-        with:
-          pattern: native-*
-          path: packages
-      - name: Validate downloaded native artifacts and SHA256
-        run: bun scripts/ci-pipeline.ts check packages
-      - name: Prepare exact release allowlist, without rebuilding
-        run: bun scripts/ci-pipeline.ts assemble packages verified
-      - name: Generate changelog
-        id: changelog
-        uses: orhun/git-cliff-action@v4
-        with:
-          config: cliff.toml
-          args: --current --strip all
-        env:
-          OUTPUT: ${{ runner.temp }}/release-notes.md
-          GITHUB_REPO: ${{ github.repository }}
-      - name: Recheck repository and tag immediately before publication
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bun scripts/ci-pipeline.ts guard-tag
-      - name: Publish only verified native artifacts
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.release.outputs.tag }}
-          target_commitish: ${{ github.sha }}
-          name: ${{ steps.release.outputs.version }}
-          prerelease: ${{ steps.release.outputs.prerelease == 'true' }}
-          make_latest: ${{ steps.release.outputs.prerelease == 'true' && 'false' || 'true' }}
-          fail_on_unmatched_files: true
-          body: ${{ steps.changelog.outputs.content }}
-          files: verified/*

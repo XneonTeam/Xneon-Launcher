@@ -9,6 +9,49 @@ const root = new URL('../../', import.meta.url)
 const runner = new URL('scripts/run-offline-tests.mjs', root)
 const manifest = () => JSON.parse(fs.readFileSync(new URL('package.json', root), 'utf8'))
 
+test('IPC catalog check принимает LF/CRLF без перезаписи и отклоняет настоящий drift', () => {
+  const temporary = new URL('.tmp/', root)
+  fs.mkdirSync(temporary, { recursive: true })
+  const fixture = fs.mkdtempSync(path.join(fileURLToPath(temporary), 'ipc-catalog-eol-'))
+  const output = path.join(fixture, 'packages/xnlc-agent/src/launcher-ipc-catalog.ts')
+  const generator = fileURLToPath(new URL('scripts/gen-agent-ipc-catalog.mjs', root))
+  const run = (...args) => spawnSync(process.execPath, [generator, ...args], { cwd: fixture, encoding: 'utf8' })
+  const write = (name, text) => {
+    const target = path.join(fixture, name)
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.writeFileSync(target, text)
+  }
+  try {
+    write('packages/xnlc-types/src/ipc-contracts.ts', [
+      'export interface IpcInvokeMap {', '  "fixture:invoke": unknown', '}',
+      'export interface IpcEventMap {', '  "fixture:event": unknown', '}',
+      'export interface ElectrobunAPIExplicit {', '  fetchFixture: () => Promise<string>', '}', '',
+    ].join('\r\n'))
+    write('electrobun/preload.ts', 'installDesktopApi({\r\n  fetchFixture: () => invoke("fixture:invoke"),\r\n})\r\n')
+    write('electrobun/main/mc-server-handlers.ts', 'rpcRegistry.handle("fixture:invoke", () => "fixture")\r\n')
+    write('packages/xnlc-agent/src/launcher-ipc-catalog.ts', '')
+    const generated = run()
+    assert.equal(generated.status, 0, generated.stderr)
+    const canonical = fs.readFileSync(output, 'utf8')
+    assert.ok(canonical.includes('fetchFixture'))
+    for (const ending of ['\n', '\r\n']) {
+      const expected = canonical.replace(/\r?\n/g, ending)
+      fs.writeFileSync(output, expected)
+      const checked = run('--check')
+      assert.equal(checked.status, 0, checked.stderr)
+      assert.equal(fs.readFileSync(output, 'utf8'), expected)
+    }
+    const stale = canonical.replace('fetchFixture', 'staleFixture').replace(/\n/g, '\r\n')
+    fs.writeFileSync(output, stale)
+    const rejected = run('--check')
+    assert.notEqual(rejected.status, 0)
+    assert.match(rejected.stderr, /IPC catalog is outdated/)
+    assert.equal(fs.readFileSync(output, 'utf8'), stale)
+  } finally {
+    fs.rmSync(fixture, { recursive: true, force: true })
+  }
+})
+
 test('prepared gate не собирает workspace повторно и сохраняет все группы', () => {
   const scripts = manifest().scripts
   assert.equal(scripts['test:offline:prepared'], 'bun scripts/run-offline-tests.mjs')

@@ -217,7 +217,8 @@ import { createHash } from "node:crypto"
       }
     })
 
-    test("реальная Windows: обнаруженные JDK из реестра и PATH запускаются напрямую", { skip: process.platform !== "win32" }, async () => {
+    // Каждая найденная JVM имеет собственный лимит 6 с + 4 с fallback; на CI установлено несколько JDK.
+    test("реальная Windows: обнаруженные JDK из реестра и PATH запускаются напрямую", { skip: process.platform !== "win32", timeout: 120000 }, async () => {
       const homes = readJavaHomesFromRegistry()
       const candidates = [...homes.map(home => path.join(home, "bin/java.exe")), ...findExecutablesInPath("java")]
       const versions = []
@@ -234,12 +235,12 @@ import { createHash } from "node:crypto"
       const source = fs.readFileSync(new URL("../../scripts/build-windows-distribution.ts", import.meta.url), "utf8")
       const code = transformSync(source.slice(source.indexOf("function findMakensis")), { loader: "ts" }).code
       const f = (env, onPath = "path.exe") => vm.runInNewContext(code + "\nfindMakensis()", {
-        process: { env }, assert, path, existsSync: file => file === "custom.exe" || file.endsWith("NSIS\\makensis.exe"),
+        process: { env }, assert, path: path.win32, existsSync: file => file === "custom.exe" || file.endsWith("NSIS\\makensis.exe"),
         Bun: { which: () => onPath }, readdirSyncSafe: () => [],
       })
       assert.equal(f({ XNEON_MAKENSIS: "custom.exe" }), "custom.exe")
       assert.equal(f({}), "path.exe")
-      assert.equal(f({}, null), path.join("C:\\Program Files", "NSIS", "makensis.exe"))
+      assert.equal(f({}, null), path.win32.join("C:\\Program Files", "NSIS", "makensis.exe"))
       assert.throws(() => f({ XNEON_MAKENSIS: "missing.exe" }), /does not exist/)
     })
 

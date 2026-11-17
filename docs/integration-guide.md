@@ -23,10 +23,12 @@
   tar.zst и update manifests не преобразуются в Electron-подобный набор;
   [сборки и проверки NSIS](platform-builds.md).
 
-Единственный CI `.github/workflows/ci.yml`: `tests → build (matrix) → release`.
+Три workflow: `.github/workflows/ci.yml` (только проверки на PR/main/dispatch),
+`release.yml` (stable, тег `v1.2.3`) и `pre-release.yml` (canary, тег `v1.2.3-pre1`).
+Каждый релизный пайплайн — `tests → build (matrix) → release` и собирает только свой канал.
 На PR и push main запускается один Linux job с quality/offline gates, бюджет — 15 минут.
-Tags `v<package version>` дополнительно собирают все native платформы и публикуют release;
-Ручной запуск на ветке собирает unsigned artifacts без публикации; на tag повторяет release.
+Формат `-preN` задаёт canary-канал; stable-релиз не содержит canary-файлов и наоборот.
+Ручной запуск (`workflow_dispatch`) собирает artifacts без публикации; на tag — публикует.
 Локальный Windows-прогон не доказывает запуск native Linux/macOS или удалённого Worker.
 
 ## IPC и владение данными

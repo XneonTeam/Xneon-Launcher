@@ -3,6 +3,7 @@ import { appendFile, copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile 
 import path from "node:path"
 import packageJson from "../package.json"
 import { inspectElectrobunRelease, nativeArtifactNames } from "./electrobun-artifacts"
+import { linuxPackageNames } from "./package-linux"
 import { checksumText, verifyChecksums } from "./artifact-checksums"
 export { checksumText, verifyChecksums }
 
@@ -14,6 +15,20 @@ const targets = [
   { platform: "macos", arch: "arm64" },
   { platform: "macos", arch: "x64" },
 ] as const
+
+export type ReleaseChannel = "stable" | "canary"
+
+/** Канал определяется самим релизом: -preN — это canary/beta, обычная версия — stable. */
+export function releaseChannel(version: string): ReleaseChannel {
+  assert.match(version, versionPattern, "Use a stable version or <version>-preN")
+  return version.includes("-") ? "canary" : "stable"
+}
+
+/** Отдельный скрипт канала не должен собирать чужой релиз. */
+export function assertReleaseChannel(version: string, expected: ReleaseChannel) {
+  assert.equal(releaseChannel(version), expected,
+    `The ${expected} pipeline cannot build ${version}; bump the version or run the ${releaseChannel(version)} pipeline`)
+}
 
 /** Формат prerelease согласован с существующим trusted update verifier. */
 export function releaseIdentity(ref: string, version: string, repo: string) {
@@ -59,27 +74,65 @@ export async function guardReleaseTag() {
   assert.equal(existing.status, 404, "Release already exists or cannot be inspected; refusing to overwrite its assets")
 }
 
-const nativeSets = (version: string) => [
-  ...targets.map(target => ({ platform: target.platform, arch: target.arch, channel: "stable" as const, version, nsis: target.platform === "win" })),
-  { platform: "win" as const, arch: "x64" as const, channel: "canary" as const, version, nsis: false },
-]
+const nativeSets = (version: string) => {
+  const channel = releaseChannel(version)
+  return targets.map(target => ({
+    platform: target.platform,
+    arch: target.arch,
+    channel,
+    version,
+    // NSIS-установщик собирается только для стабильного Windows-канала.
+    nsis: target.platform === "win" && channel === "stable",
+  }))
+}
 const portableName = (version: string) => `xneon-launcher-${version}-win-x64-portable.zip`
+/** Portable — отдельная стабильная сборка; в prerelease её нет. */
+const hasPortable = (version: string) => releaseChannel(version) === "stable"
+const linuxPackagesDirectory = "native-linux-x64-packages"
+/** Системные Linux-пакеты собираются в обоих каналах: stable и canary. */
+
+const packageMagic: Record<string, (head: Buffer) => void> = {
+  deb: head => assert.equal(head.subarray(0, 21).toString(), "!<arch>\ndebian-binary", "Expected a deb archive"),
+  rpm: head => assert.deepEqual([...head.subarray(0, 4)], [0xed, 0xab, 0xee, 0xdb], "Expected an rpm archive"),
+  pacman: head => assert.deepEqual([...head.subarray(0, 4)], [0x28, 0xb5, 0x2f, 0xfd], "Expected a zstd pacman archive"),
+  AppImage: head => {
+    assert.equal(head.subarray(1, 4).toString(), "ELF", "Expected an AppImage runtime")
+    assert.deepEqual([...head.subarray(8, 11)], [0x41, 0x49, 0x02], "Expected an AppImage type-2 header")
+  },
+  xz: head => assert.deepEqual([...head.subarray(0, 6)], [0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00], "Expected an xz tarball"),
+}
+
+/** Перепроверка Linux-пакетов: allowlist, checksums и формат каждого файла. */
+export async function verifyLinuxPackages(directory: string, version: string) {
+  const names = linuxPackageNames(version)
+  await verifyChecksums(directory, names)
+  for (const name of names) {
+    const file = Bun.file(path.join(directory, name))
+    assert.ok(file.size > 1024 ** 2, "Linux package is too small: " + name)
+    packageMagic[name.split(".").pop()!]?.(Buffer.from(await file.slice(0, 21).arrayBuffer()))
+  }
+}
 
 /** Перепроверка скачанных artifacts перед передачей в signing step. */
 export async function checkCandidates(input: string, version: string) {
   const sets = nativeSets(version)
   const directories = sets.map(options => `native-${options.platform}-${options.arch}-${options.channel}`)
-  assert.deepEqual((await readdir(input)).sort(), [...directories, "native-win-x64-portable"].sort(), "Unexpected artifact containers")
+  assert.deepEqual((await readdir(input)).sort(), [...directories,
+    ...(hasPortable(version) ? ["native-win-x64-portable"] : []),
+    linuxPackagesDirectory].sort(), "Unexpected artifact containers")
   for (const [index, options] of sets.entries()) {
     await inspectElectrobunRelease(path.join(input, directories[index]), { ...options, requireChecksums: true })
   }
-  await verifyChecksums(path.join(input, "native-win-x64-portable"), [portableName(version)])
+  if (hasPortable(version)) await verifyChecksums(path.join(input, "native-win-x64-portable"), [portableName(version)])
+  await verifyLinuxPackages(path.join(input, linuxPackagesDirectory), version)
 }
 
 export function publicationNames(version: string, patches: string[] = []) {
-  assert.match(version, versionPattern)
-  for (const name of patches) assert.match(name, /^(?:stable-(?:win-x64|linux-x64|macos-arm64|macos-x64)|canary-win-x64)-[a-z0-9]+\.patch$/)
-  return [...nativeSets(version).flatMap(options => nativeArtifactNames(options)), portableName(version),
+  const channel = releaseChannel(version)
+  for (const name of patches) assert.match(name, new RegExp(`^${channel}-(?:win-x64|linux-x64|macos-arm64|macos-x64)-[a-z0-9]+\\.patch$`))
+  return [...nativeSets(version).flatMap(options => nativeArtifactNames(options)),
+    ...(hasPortable(version) ? [portableName(version)] : []),
+    ...linuxPackageNames(version),
     ...patches].sort()
 }
 
@@ -106,46 +159,43 @@ export async function verifyPublication(directory: string, version: string) {
 export async function assemblePublication(input: string, output: string, version: string) {
   const sets = nativeSets(version)
   const directories = sets.map(options => `native-${options.platform}-${options.arch}-${options.channel}`)
-  assert.deepEqual((await readdir(input)).sort(), [...directories, "native-win-x64-portable", "windows-update-verified"].sort(), "Unexpected artifact containers")
+  assert.deepEqual((await readdir(input)).sort(), [...directories,
+    ...(hasPortable(version) ? ["native-win-x64-portable"] : []),
+    linuxPackagesDirectory].sort(), "Unexpected artifact containers")
   await mkdir(output)
   for (const [index, options] of sets.entries()) {
     const source = path.join(input, directories[index])
     const inspected = await inspectElectrobunRelease(source, { ...options, requireChecksums: true })
     for (const file of inspected.files) await copyFile(path.join(source, file), path.join(output, file))
   }
-  const portable = path.join(input, "native-win-x64-portable")
-  await verifyChecksums(portable, [portableName(version)])
-  await copyFile(path.join(portable, portableName(version)), path.join(output, portableName(version)))
-  const signed = path.join(input, "windows-update-verified")
-  assert.ok((await readdir(signed)).includes("SHA256SUMS.txt"), "Missing signed transport checksums")
-  const signedFiles = await verifySignedUpdateFeed(signed, version)
-  for (const file of signedFiles) {
-    if (file.endsWith("-update-v2.json")) {
-      const original = JSON.parse(await readFile(path.join(output, file), "utf8"))
-      const current = JSON.parse(await readFile(path.join(signed, file), "utf8"))
-      const { downloadSize, downloadSha256, ...artifact } = current.artifact
-      assert.deepEqual({ ...current, artifact }, original, "Signing changed native manifest fields")
-    } else if (!file.endsWith(".sig")) {
-      assert.equal(await checksumText(output, [file]), await checksumText(signed, [file]), "Signing changed publication bytes")
-    }
-    await copyFile(path.join(signed, file), path.join(output, file))
+  if (hasPortable(version)) {
+    const portable = path.join(input, "native-win-x64-portable")
+    await verifyChecksums(portable, [portableName(version)])
+    await copyFile(path.join(portable, portableName(version)), path.join(output, portableName(version)))
   }
+  const packages = path.join(input, linuxPackagesDirectory)
+  await verifyLinuxPackages(packages, version)
+  for (const name of linuxPackageNames(version)) await copyFile(path.join(packages, name), path.join(output, name))
   const files = await readdir(output)
   await writeFile(path.join(output, "SHA256SUMS.txt"), await checksumText(output, files), { flag: "wx" })
   await verifyPublication(output, version)
 }
 
-async function main() {
+/**
+ * Общий CLI для двух отдельных входных скриптов: release (stable) и pre-release (canary).
+ * Канал фиксирован скриптом, а версия пакета обязана ему соответствовать.
+ */
+export async function releaseCli(expected: ReleaseChannel) {
+  const version = packageJson.version
+  assertReleaseChannel(version, expected)
   const [action, input, output] = Bun.argv.slice(2)
-  if (action === "identity") {
-    await outputs(releaseIdentity(process.env.GITHUB_REF!, packageJson.version, process.env.GITHUB_REPOSITORY!))
+  if (action === "channel") console.log(expected)
+  else if (action === "identity") {
+    await outputs(releaseIdentity(process.env.GITHUB_REF!, version, process.env.GITHUB_REPOSITORY!))
   }
   else if (action === "guard-tag") await guardReleaseTag()
-  else if (action === "check") await checkCandidates(input, packageJson.version)
-  else if (action === "assemble") await assemblePublication(input, output, process.env.PACKAGE_VERSION || packageJson.version)
-  else if (action === "verify") await verifyPublication(input, process.env.PACKAGE_VERSION || packageJson.version)
-  else if (action === "portable") await verifyChecksums(input, [portableName(process.env.PACKAGE_VERSION || packageJson.version)])
-  else throw new Error("Usage: ci-pipeline <identity|guard-tag|check input|assemble input output|verify input|portable input>")
+  else if (action === "check") await checkCandidates(input, version)
+  else if (action === "assemble") await assemblePublication(input, output, version)
+  else if (action === "verify") await verifyPublication(input, version)
+  else throw new Error(`Usage: ci-${expected === "stable" ? "release" : "pre-release"} <channel|identity|guard-tag|check input|assemble input output|verify input>`)
 }
-
-if (import.meta.main) main().catch(error => { console.error(error); process.exitCode = 1 })

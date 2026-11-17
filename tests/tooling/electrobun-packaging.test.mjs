@@ -12,6 +12,26 @@ const root=path.resolve(import.meta.dir,"../..")
 const read=file=>fs.readFile(path.join(root,file),"utf8")
 const native=()=>import("../../scripts/electrobun-artifacts.ts")
 
+test("Windows packaging выбирает системный bsdtar независимо от GNU tar в PATH", async t => {
+  const { nativeTarExecutable } = await import("../../scripts/native-tar.ts")
+  assert.equal(nativeTarExecutable("win32", { SystemRoot: "D:\\Windows" }), "D:\\Windows\\System32\\tar.exe")
+  assert.equal(nativeTarExecutable("win32", { WINDIR: "C:\\Windows" }), "C:\\Windows\\System32\\tar.exe")
+  assert.equal(nativeTarExecutable("linux", { SystemRoot: "D:\\Windows" }), "tar")
+  assert.equal(nativeTarExecutable("darwin", {}), "tar")
+  if (process.platform !== "win32") return
+  await fs.mkdir(path.join(root, ".tmp"), { recursive: true })
+  const directory = await fs.mkdtemp(path.join(root, ".tmp/native-tar-"))
+  t.after(() => fs.rm(directory, { recursive: true, force: true }))
+  await fs.writeFile(path.join(directory, "marker.txt"), "native tar")
+  const archive = path.join(directory, "fixture.zip")
+  const executable = nativeTarExecutable()
+  const packed = spawnSync(executable, ["-a", "-cf", archive, "-C", directory, "marker.txt"], { encoding: "utf8" })
+  assert.equal(packed.status, 0, packed.stderr)
+  const unpacked = spawnSync(executable, ["-xOf", archive, "marker.txt"], { encoding: "utf8" })
+  assert.equal(unpacked.status, 0, unpacked.stderr)
+  assert.equal(unpacked.stdout, "native tar")
+})
+
 test("NSIS сохранён отдельно от Electron metadata и unpacked ZIP",async()=>{
   const source=await read("scripts/build-windows-distribution.ts")
   assert.doesNotMatch(source,/release-metadata|writeBlockMap|writeLatestFile|latest\.yml|const unpacked/)
@@ -37,7 +57,11 @@ test("workflows больше не требуют Electron-артефактов, 
   }
   const ci=await read(".github/workflows/ci.yml")
   for(const command of ["bun run prepare:desktop","bun run typecheck","bun run test:offline:prepared","bun scripts/check-config.mjs"])assert.ok(ci.includes(command),command)
-  for(const text of ["Ensure NSIS"])assert.ok(ci.includes(text),text)
+  const release=await read(".github/workflows/release.yml")
+  for(const text of ["Ensure NSIS"])assert.ok(release.includes(text),text)
+  const prerelease=await read(".github/workflows/pre-release.yml")
+  for(const text of ["build:canary"])assert.ok(prerelease.includes(text),text)
+  assert.doesNotMatch(prerelease,/Ensure NSIS/,'Пререлиз не ставит NSIS')
 })
 
 test("portable сохраняет отдельный профиль, но не копирует обычный unpacked/NSIS набор",async()=>{
@@ -51,7 +75,12 @@ test("наборы файлов используют собственные им
   assert.deepEqual(nativeArtifactNames({platform:"win",arch:"x64",channel:"stable",version:"1.2.3",nsis:true}).sort(),[
     "stable-win-x64-update.json","stable-win-x64-update-v2.json","stable-win-x64-XneonLauncher.tar.zst","win-x64-XneonLauncher-Setup.zip","xneon-launcher-1.2.3-win-x64.exe",
   ].sort())
-  assert.ok(nativeArtifactNames({platform:"macos",arch:"arm64",channel:"stable",version:"1.2.3"}).includes("macos-arm64-XneonLauncher.dmg"))
+  for(const arch of ["arm64","x64"]) {
+    const names=nativeArtifactNames({platform:"macos",arch,channel:"stable",version:"1.2.3"})
+    assert.ok(names.includes(`macos-${arch}-XneonLauncher.dmg`))
+    assert.ok(names.includes(`stable-macos-${arch}-XneonLauncher.app.tar.zst`))
+    assert.ok(!names.includes(`stable-macos-${arch}-XneonLauncher.tar.zst`))
+  }
   assert.ok(nativeArtifactNames({platform:"linux",arch:"x64",channel:"stable",version:"1.2.3"}).includes("linux-x64-XneonLauncher-Setup.tar.gz"))
   assert.ok(nativeArtifactNames({platform:"win",arch:"x64",channel:"canary",version:"1.2.3"}).includes("canary-win-x64-XneonLauncher-Setup-canary.zip"))
 })
@@ -93,7 +122,7 @@ async function fixture(t,platform="win",arch=platform==="macos"?"arm64":"x64") {
   const packed=spawnSync(process.platform==="win32"?"tar.exe":"tar",["-cf",tarFile,"-C",tree,bundle],{encoding:"utf8"})
   assert.equal(packed.status,0,packed.stderr)
   const tar=await fs.readFile(tarFile),archive=Buffer.from(Bun.zstdCompressSync(tar))
-  const manifest={schemaVersion:1,identifier:appIdentifier,version:local.version,channel:"stable",platform,arch,hash:local.hash,artifact:{file:`${prefix}-XneonLauncher.tar.zst`}}
+  const manifest={schemaVersion:1,identifier:appIdentifier,version:local.version,channel:"stable",platform,arch,hash:local.hash,artifact:{file:`${prefix}-XneonLauncher${platform==="macos"?".app":""}.tar.zst`}}
   const v2={...manifest,artifact:{...manifest.artifact,tarSize:tar.length,tarSha256:createHash("sha256").update(tar).digest("hex")}}
   await fs.writeFile(path.join(input,manifest.artifact.file),archive)
   await fs.writeFile(path.join(input,prefix+"-update.json"),JSON.stringify(manifest))
