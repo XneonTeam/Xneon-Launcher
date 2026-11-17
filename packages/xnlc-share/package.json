@@ -4,7 +4,7 @@
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "exports": { ".": { "types": "./lib/index.d.ts", "default": "./lib/index.js" } },
+  "exports": { ".": { "types": "./lib/index.d.ts", "browser": "./lib/browser.js", "default": "./lib/index.js" } },
   "files": ["lib"],
   "dependencies": { "@xnlc/archives": "workspace:*" },
   "scripts": { "build": "bun --bun run tsc -p tsconfig.json", "test": "bun run build && bun test tests/*.test.mjs" },

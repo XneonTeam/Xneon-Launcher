@@ -6,6 +6,7 @@ import path from "node:path"
 import packageJson from "../package.json"
 import { appIdentifier } from "../electrobun/main/app-identity"
 import { windowsProductIdentity, windowsX64 } from "./windows-candidate-validation"
+import { nativeTarExecutable } from "./native-tar"
 
 /**
  * Добавляет NSIS-установщик к стандартным артефактам Electrobun:
@@ -47,7 +48,7 @@ const tarPath = path.join(staging, "payload.tar")
 await writeFile(tarPath, Bun.zstdDecompressSync(await readFile(archivePath)))
 const extracted = path.join(staging, "extracted")
 await mkdir(extracted)
-const tar = Bun.spawnSync(["tar.exe", "-xf", tarPath, "-C", extracted], { stderr: "inherit" })
+const tar = Bun.spawnSync([nativeTarExecutable(), "-xf", tarPath, "-C", extracted], { stderr: "inherit" })
 assert.equal(tar.exitCode, 0, "Failed to extract the application archive")
 const bundles = (await readdir(extracted, { withFileTypes: true })).filter(entry => entry.isDirectory())
 assert.equal(bundles.length, 1, "Unexpected application archive layout")

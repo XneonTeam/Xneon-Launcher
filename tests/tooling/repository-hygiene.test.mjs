@@ -17,7 +17,8 @@ test("research остаётся локальным, текущие benchmarks и
   for(const file of ["benchmarks/scan-worker.ts","benchmarks/archives.ts","benchmarks/README.md","docs/platform-builds.md"])await fs.access(path.join(root,file))
 })
 
-test("нет действующих импортов удалённых parser comparison/старых benchmark harness",async()=>{
+// Проверка читает весь репозиторий; холодный диск/антивирус Windows может превысить 5 секунд.
+test("нет действующих импортов удалённых parser comparison/старых benchmark harness",{timeout:15000},async()=>{
   const result=spawnSync("git",["ls-files","--cached","--others","--exclude-standard","-z"],{cwd:root,encoding:"utf8",maxBuffer:16*1024**2})
   assert.equal(result.status,0,result.stderr)
   const forbidden=["packages/xnlc-parser/benchmarks/","scripts/benchmark-content-cache.ts","scripts/benchmark-modpack-persistence.ts","scripts/benchmark-server-copy.ts","scripts/benchmark-share.mjs"]

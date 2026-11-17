@@ -152,13 +152,17 @@ import { ShutdownCoordinator } from "../../electrobun/platform/shutdown.ts"
     import { once } from "node:events"
     import { startCliListener, launcherCliEndpoint } from "./electrobun/main/cli.ts"
     import { launcherShutdown } from "./electrobun/platform/shutdown.ts"
+    import { lockLauncherProfile, unlockLauncherProfile } from "./electrobun/platform/instance-lock.ts"
     const root = await fs.mkdtemp(path.join(tmpdir(), "xnlc-cli-shutdown-"))
     const profile = path.join(root, "profile")
-    const server = await startCliListener(profile)
-    const endpoint = launcherCliEndpoint(profile)
-    const socket = createConnection(endpoint.pipe)
-    socket.on("error", () => {})
+    let server, socket
     try {
+      if (process.platform !== "win32") await assert.rejects(startCliListener(profile), /without profile lock/)
+      assert.equal(lockLauncherProfile(profile), true)
+      server = await startCliListener(profile)
+      const endpoint = launcherCliEndpoint(profile)
+      socket = createConnection(endpoint.pipe)
+      socket.on("error", () => {})
       await once(socket, "connect")
       const closed = once(socket, "close")
       const outcome = await launcherShutdown.run()
@@ -167,7 +171,7 @@ import { ShutdownCoordinator } from "../../electrobun/platform/shutdown.ts"
       assert.deepEqual(outcome.failed, [])
       assert.equal(server.listening, false)
       await assert.rejects(fs.access(endpoint.tokenPath), { code: "ENOENT" })
-    } finally { socket.destroy(); server.close(); await fs.rm(root, { recursive: true, force: true }) }
+    } finally { socket?.destroy(); server?.close(); unlockLauncherProfile(); await fs.rm(root, { recursive: true, force: true }) }
   `
       const result = Bun.spawnSync([process.execPath, "--no-env-file", "-e", code], { stdout: "pipe", stderr: "pipe" })
       expect(result.exitCode, result.stderr.toString()).toBe(0)
@@ -184,9 +188,18 @@ import { ShutdownCoordinator } from "../../electrobun/platform/shutdown.ts"
     import { EventEmitter } from "node:events"
     const app = new EventEmitter(), clients = []
     const ready = Promise.withResolvers()
+    const started = [Promise.withResolvers(), Promise.withResolvers()]
+    async function waitForClient(index) {
+      let timer
+      try {
+        await Promise.race([started[index].promise, new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error("Discord test client did not start")), 3000)
+        })])
+      } finally { clearTimeout(timer) }
+    }
     class Client extends EventEmitter {
       closed = false
-      constructor() { super(); clients.push(this) }
+      constructor() { super(); clients.push(this); started[clients.length - 1]?.resolve() }
       async login() { await ready.promise; this.emit("ready") }
       async destroy() { this.closed = true; ready.resolve() }
       async setActivity() {}
@@ -196,13 +209,13 @@ import { ShutdownCoordinator } from "../../electrobun/platform/shutdown.ts"
     mock.module("./electrobun/main/i18n.ts", () => ({ getMainTranslator: async () => key => key }))
     const rpc = await import("./electrobun/main/discord-rpc.ts")
     const connecting = rpc.initDiscordRpc()
-    for (let index = 0; index < 20 && !clients.length; index++) await new Promise(setImmediate)
+    await waitForClient(0)
     assert.equal(clients.length, 1)
     await rpc.shutdownDiscordRpc()
     await connecting
     assert.equal(clients[0].closed, true)
     app.emit("reopen")
-    for (let index = 0; index < 20 && clients.length < 2; index++) await new Promise(setImmediate)
+    await waitForClient(1)
     assert.equal(clients.length, 2)
     assert.equal(clients[1].closed, false)
     await rpc.shutdownDiscordRpc()

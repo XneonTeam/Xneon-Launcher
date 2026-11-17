@@ -6,9 +6,9 @@
 | Цель | Предпосылки / статус конфигурации |
 |---|---|
 | Windows x64 | WebView2, PowerShell/.NET Framework, NSIS 3; штатный SDK Setup ZIP + дополнительный NSIS |
-| macOS arm64 | native arm64 macOS runner, Xcode CLI tools; vendored NFD arm64, WKWebView, SDK DMG |
-| macOS x64 | native Intel macOS runner; vendored NFD x64, WKWebView, SDK DMG |
-| Linux x64 | glibc, GTK/WebKit/AppIndicator/libsecret, SDK CEF/native helpers; NFD x64, SDK Setup.tar.gz |
+| macOS arm64 | `macos-26` (arm64), Xcode CLI tools; vendored NFD arm64, WKWebView, SDK DMG |
+| macOS x64 | `macos-15-intel`, native Intel runner; vendored NFD x64, WKWebView, SDK DMG |
+| Linux x64 | glibc, GTK/WebKit/AppIndicator/libsecret, SDK CEF/native helpers; NFD x64, SDK Setup.tar.gz + deb/rpm/pacman/AppImage/tar.xz |
 | Windows arm64 | **Не заявлена**: текущие Windows packaging/PE checks и набор NFD привязаны к x64 |
 | Linux arm64 | **Не заявлена**: отсутствует NFD arm64; нельзя считать наличие Bun backend поддержкой приложения |
 
@@ -51,18 +51,24 @@ Portable — отдельный dev build с `XNEON_BUILD_PORTABLE=1` и `Portab
 Native binary headers/version/resources/integrity проверяет artifact validator;
 реальная установка, GUI, keyring/WebView/CEF требуют OS/VM smoke.
 
-Единый `.github/workflows/ci.yml` содержит три jobs: `tests → build → release`.
+`.github/workflows/ci.yml` выполняет только проверки; релизные пайплайны
+`release.yml` (stable) и `pre-release.yml` (canary) содержат jobs `tests → build → release`.
 `tests` выполняет quality/offline gates один раз на Linux с timeout 15 минут.
 Платформенные suites дополнительно исполняются на Windows и обеих macOS архитектурах;
 это запускает native cases, которые Linux корректно пропускает.
-На tags `v*` и ручном запуске `build` использует native matrix
-Windows x64, Linux x64, macOS arm64/x64. Windows job собирает NSIS из того же stable
-payload, Canary и отдельный Portable. На обычном push main/PR дорогих сборок нет.
+На tags и ручном запуске `build` использует native matrix
+Windows x64, Linux x64, macOS arm64/x64. Windows job стабильного канала собирает NSIS из того же
+payload и отдельный Portable; Linux job обоих каналов дополнительно собирает
+`scripts/package-linux.ts` из того же проверенного tar.zst системные пакеты
+(deb, rpm, pacman, AppImage, tar.xz) без пересборки бинарников. canary-пайплайн не собирает ни NSIS, ни Portable. На обычном push main/PR дорогих сборок нет.
 Setup/install переиспользуется через composite action; кешируется только Bun download cache,
 не готовые binaries. Все build targets работают с `fail-fast: false`, `max-parallel: 3`.
+ARM64 собирается на `macos-26`, x64 — на `macos-15-intel`; нативные сборки идут только
+на теге и ручном запуске, поэтому PR остаётся дешёвым.
 `release` запускается только на version tag после tests и всей matrix: проверяет скачанные
 artifacts, сверяет allowlist/SHA256,
-генерирует git-cliff changelog и публикует. `-preN` — prerelease без latest, иначе stable.
+генерирует описание через `scripts/release-notes.ts` (Features, Bug Fixes и значки загрузок
+из allowlist текущего канала) и публикует. `-preN` — prerelease без latest, иначе stable.
 Ручной запуск на ветке выдаёт unsigned artifacts, без release; на tag повторяет release.
 В branch protection достаточно обязательного check `tests`.
 Promotion старых runs и сценарные inputs удалены; используются только artifacts текущего run.
