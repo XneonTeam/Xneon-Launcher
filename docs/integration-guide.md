@@ -19,7 +19,15 @@
   только с выделенными fixtures/профилем. Они не являются обычным CI gate.
 - `bun run build`: prepare → types → renderer → workers → Electrobun; Windows
   stable сохраняет штатные артефакты Electrobun и добавляет Windows NSIS.
-  `dev` тоже build-first, не обещает Vite HMR. Штатные Setup ZIP/DMG/Setup.tar.gz,
+  `bun run dev` (также `dev:hmr`) один раз собирает main/workspaces/workers,
+  запускает Vite на `http://127.0.0.1:5173/` и загружает его в native-окне.
+  Изменения React/CSS применяются через HMR без перезапуска приложения;
+  сохранение состояния зависит от границ React Fast Refresh.
+  После изменений main, preload или конфигурации перезапустите команду.
+  `bun run dev:bundled` сохраняет прежний запуск без Vite. Stable, canary и
+  portable никогда не используют dev-сервер: HMR включается только при сборке
+  обычного dev с `XNEON_DEV_HMR=1`. Порт занят — запуск завершается с ошибкой,
+  а не подключается к чужому серверу. Штатные Setup ZIP/DMG/Setup.tar.gz,
   tar.zst и update manifests не преобразуются в Electron-подобный набор;
   [сборки и проверки NSIS](platform-builds.md).
 

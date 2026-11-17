@@ -48,7 +48,9 @@
     "webdav": "^5.10.0"
   },
   "scripts": {
-    "dev": "bun run build:dev && bun scripts/electrobun.mjs run --env=dev",
+    "dev": "bun run dev:hmr",
+    "dev:hmr": "bun scripts/dev-hmr.mjs",
+    "dev:bundled": "bun run build:dev && bun scripts/electrobun.mjs run --env=dev",
     "dev:share": "bun --bun run concurrently -k -s first \"bun run share:server\" \"bun --bun run cross-env XNLC_SHARE_URL=http://127.0.0.1:8787 bun run dev\"",
     "sync:xnlc": "bun scripts/sync-local-xnlc.mjs",
     "build:renderer": "bun --bun run vite build",

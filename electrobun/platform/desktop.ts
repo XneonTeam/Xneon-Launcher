@@ -13,6 +13,9 @@ import packageJson from "../../package.json"
 import { enableWindowsWindowTransitions, saveFile, setWindowsAppUserModelId, setWindowsTaskbarIdentity, setWindowsWindowClientWidth, setWindowsWindowIcons } from "./windows-native"
 import { launcherOperations } from "./operation-gate"
 import { launcherShutdown, registerShutdownTask, SHUTDOWN_PRIORITY } from "./shutdown"
+import { launcherEntryUrl } from "./dev-renderer"
+
+declare const XNEON_DEV_HMR: boolean
 
 export { rpcRegistry, type RpcContext } from "./ipc"
 export { net, protocol } from "./assets"
@@ -129,7 +132,7 @@ export class DesktopWindow extends EventEmitter {
 
   constructor(options: WindowOptions) {
     super()
-    const launcherUrl = "views://launcher/index.html"
+    const launcherUrl = launcherEntryUrl(build.channel, typeof XNEON_DEV_HMR !== "undefined" && XNEON_DEV_HMR)
     const rpc = options.launcher ? BrowserView.defineRPC<LauncherRPC>({
       handlers: {
         requests: {

@@ -19,6 +19,7 @@ import { execFileAsync as run } from "../../electrobun/main/import/helpers.ts"
 import { getJavaInstallationInfo } from "../../electrobun/main/java-discovery.ts"
 import { EventEmitter } from "node:events"
 import { createHash } from "node:crypto"
+import { launcherEntryUrl } from "../../electrobun/platform/dev-renderer.ts"
 
 {
   describe("windows-launcher-args", () => {
@@ -267,15 +268,17 @@ import { createHash } from "node:crypto"
   const source = fs.readFileSync(new URL("../../electrobun/platform/desktop.ts", import.meta.url), "utf8")
   const code = transformSync(source.slice(source.indexOf("export class DesktopWindow"), source.indexOf("export const viewSession")), { loader: "ts", format: "cjs" }).code
 
-  function fixture(platform, options) {
+  function fixture(platform, options, hmr = false, channel = "dev") {
     const calls = []
     let frame
     let renderer
+    let windowOptions
     class NativeWindow extends EventEmitter {
       ptr = 1
       webview = { id: 1, on() {} }
       constructor(options) {
         super()
+        windowOptions = options
         frame = { width: options.frame.width, height: options.frame.height }
         renderer = options.renderer
         calls.push("create")
@@ -290,15 +293,25 @@ import { createHash } from "node:crypto"
       BrowserView: { defineRPC: () => ({ send: { launcherEvent() {} } }) },
       ViewSession: class { id = 1; destroy() {} },
       process: { platform }, windows: new Map(), Electrobun: { events: new EventEmitter() },
-      build: { isPackaged: false }, appUserModelId: undefined,
+      build: { isPackaged: false, channel }, appUserModelId: undefined,
+      launcherEntryUrl, XNEON_DEV_HMR: hmr,
       enableWindowsWindowTransitions() {},
       setWindowsWindowIcons: () => () => {},
       setWindowsWindowClientWidth: (_handle, width) => { frame.width = width + 16; calls.push("client-size") },
     })
     new module.exports.DesktopWindow({ width: 1280, height: 800, launcher: true, ...options })
-    return { frame, clientWidth: frame.width - 16, calls, renderer }
+    return { frame, clientWidth: frame.width - 16, calls, renderer, windowOptions }
   }
   describe("launcher-window-size", () => {
+    test("HMR меняет только entry dev-окна и сохраняет native RPC и ограничения навигации", () => {
+      const dev = fixture("win32", {}, true).windowOptions
+      assert.equal(dev.url, "http://127.0.0.1:5173/")
+      assert.deepEqual(JSON.parse(dev.navigationRules), ["^*", dev.url, `${dev.url}#*`])
+      assert.ok(dev.rpc)
+      assert.equal(dev.sandbox, false)
+      for (const channel of ["stable", "canary"]) assert.equal(fixture("win32", {}, true, channel).windowOptions.url, "views://launcher/index.html")
+      assert.equal(fixture("win32", { launcher: false }, true).windowOptions.url, "about:blank")
+    })
     test("Windows: внутренняя ширина лаунчера 1280 сохраняется до показа окна", () => {
       const f = fixture("win32")
       assert.equal(f.clientWidth, 1280)
