@@ -48,7 +48,9 @@
     "webdav": "^5.10.0"
   },
   "scripts": {
-    "dev": "bun run build:dev && bun scripts/electrobun.mjs run --env=dev",
+    "dev": "bun run dev:hmr",
+    "dev:hmr": "bun scripts/dev-hmr.mjs",
+    "dev:bundled": "bun run build:dev && bun scripts/electrobun.mjs run --env=dev",
     "sync:xnlc": "bun scripts/sync-local-xnlc.mjs",
     "build:renderer": "bun --bun run vite build",
     "build:share": "bun run --filter @xnlc/archives build && bun run --filter @xnlc/share build && bun run --filter @xnlc/types build",

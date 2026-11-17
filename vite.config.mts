@@ -51,10 +51,17 @@ export default defineConfig({
     },
   },
   server: {
+    host: '127.0.0.1',
     port: 5173,
     strictPort: true,
     watch: {
       ignored: [
+        '**/.hutch/**',
+        '**/.local-research/**',
+        '**/build-electrobun/**',
+        '**/release-electrobun/**',
+        '**/dist-workers/**',
+        '**/packages/**/lib-cjs/**',
         '**/.dsh-*/**',
         '**/logs/**',
         '**/screenshots/**',

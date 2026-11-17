@@ -21,7 +21,7 @@ export default {
   },
   build: {
     mainProcess: "bun",
-    bun: { entrypoint: "electrobun/main/bootstrap.ts", external: ["bun:sqlite", "bun:ffi"], define: { XNEON_PORTABLE_BUILD: JSON.stringify(portable), XNLC_APPLICATION_USER_AGENT: JSON.stringify(`Xneon-Launcher/${packageJson.version}`) } },
+    bun: { entrypoint: "electrobun/main/bootstrap.ts", external: ["bun:sqlite", "bun:ffi"], define: { XNEON_PORTABLE_BUILD: JSON.stringify(portable), XNEON_DEV_HMR: JSON.stringify(artifactChannel === "dev" && !portable && process.env.XNEON_DEV_HMR === "1"), XNLC_APPLICATION_USER_AGENT: JSON.stringify(`Xneon-Launcher/${packageJson.version}`) } },
     buildFolder: portable ? "build-electrobun/portable" : "build-electrobun",
     artifactFolder: "release-electrobun/" + artifactChannel,
     copy: {

@@ -2,6 +2,9 @@
 export function browserLink(raw: string, base: string): string | null {
   try {
     const url = new URL(raw, base)
+    const document = new URL(base)
+    // В dev документ HTTP, но его якоря остаются внутренней навигацией.
+    if (url.hash && url.origin === document.origin && url.pathname === document.pathname && url.search === document.search) return null
     return ["https:", "http:", "mailto:"].includes(url.protocol) ? url.href : null
   } catch { return null }
 }
