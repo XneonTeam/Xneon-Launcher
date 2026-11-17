@@ -1,6 +1,7 @@
 import type { ElectrobunConfig } from "electrobun"
 import packageJson from "./package.json"
 import { appIdentifier, portableAppIdentifier } from "./electrobun/main/app-identity"
+import { APP_NAME } from "./lib/app-meta"
 
 const portable = process.env.XNEON_BUILD_PORTABLE === "1"
 const identifier = portable ? portableAppIdentifier : appIdentifier
@@ -13,7 +14,7 @@ if (portable && (process.platform !== "win32" || process.arch !== "x64" || artif
 
 export default {
   app: {
-    name: "Xneon Launcher",
+    name: APP_NAME,
     identifier,
     version: packageJson.version,
     description: packageJson.description,

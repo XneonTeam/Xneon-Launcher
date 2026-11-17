@@ -5,16 +5,17 @@ import path from "node:path"
 import { spawnSync } from "node:child_process"
 const root=path.resolve(import.meta.dir,"../..")
 
-test("research остаётся локальным, текущие benchmarks и public parser docs включены",async()=>{
+test("research и benchmarks остаются локальными, public parser docs включены",async()=>{
   const ignore=await fs.readFile(path.join(root,".gitignore"),"utf8")
   assert.match(ignore,/^\/\.local-research\/$/m)
   const pkg=JSON.parse(await fs.readFile(path.join(root,"package.json"),"utf8"))
-  assert.equal(pkg.scripts["benchmark:scan"],"bun benchmarks/scan-worker.ts")
-  assert.equal(pkg.scripts["benchmark:archives"],"bun benchmarks/archives.ts")
+  assert.match(ignore,/^\/benchmarks\/$/m)
+  assert.equal(pkg.scripts["benchmark:scan"],undefined)
+  assert.equal(pkg.scripts["benchmark:archives"],undefined)
   const parser=JSON.parse(await fs.readFile(path.join(root,"packages/xnlc-parser/package.json"),"utf8"))
   for(const file of ["README.md","INTEGRATION_GUIDE.md","SUPPORTED_FORMATS.md","LIMITATIONS.md","SECURITY.md","LICENSE","LICENSES.md","CHANGELOG.md"])assert.ok(parser.files.includes(file),file)
   for(const file of ["AUDIT.md","BENCHMARK.md","IMPLEMENTATION_PROGRESS.md","PRODUCTION_READINESS.md"])assert.ok(!parser.files.includes(file),file)
-  for(const file of ["benchmarks/scan-worker.ts","benchmarks/archives.ts","benchmarks/README.md","docs/platform-builds.md"])await fs.access(path.join(root,file))
+  await fs.access(path.join(root,"docs/platform-builds.md"))
 })
 
 // Проверка читает весь репозиторий; холодный диск/антивирус Windows может превысить 5 секунд.

@@ -253,7 +253,8 @@ test("ресурс Windows identity содержит согласованные 
     assert.equal(blocks.get("OriginalFilename").toString("utf16le"), "Xneon Launcher.dll\0")
     assert.deepEqual([...blocks.get("Translation")], [9, 4, 176, 4])
   }
-  for (const value of ["", "1.2", "1.2.3\0bad", "1.2.3-beta1", "65536.0.0"]) assert.throws(() => createWindowsVersionResource(value))
+  assert.doesNotThrow(() => createWindowsVersionResource("1.2.3-beta1"))
+  for (const value of ["", "1.2", "1.2.3\0bad", "1.2.3-rc1", "65536.0.0"]) assert.throws(() => createWindowsVersionResource(value))
 })
 
 test("Bun обновляет реальные PE metadata, сохраняет иконки и отклоняет непригодный файл", { skip: process.platform !== "win32" }, async t => {

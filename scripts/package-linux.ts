@@ -17,7 +17,7 @@ import { checksumText } from "./artifact-checksums"
 const summary = packageJson.description
 const maintainer = `${APP_NAME} <${packageJson.author.email}>`
 /** Лицензия самого лаунчера (`LICENSE`, README): GPL-3.0, без «or later». */
-const license = "GPL-3.0-only"
+export const license = "GPL-3.0-only"
 const desktopName = "xneon-launcher"
 const installRoot = "opt/xneon-launcher"
 const appImageTool = {
@@ -78,7 +78,7 @@ async function sizeOf(directory: string): Promise<number> {
   return total
 }
 
-const desktopEntry = `[Desktop Entry]
+export const desktopEntry = `[Desktop Entry]
 Type=Application
 Name=${APP_NAME}
 Comment=${summary}
@@ -114,10 +114,9 @@ async function stageRoot(extracted: string, work: string, app: string) {
 }
 
 /**
- * Текст `DEBIAN/control`: вынесен из сборки, чтобы тот же текст читала проверка
- * собранных пакетов.
+ * Текст `DEBIAN/control`: вынесен из сборки, чтобы тот же текст читал тест.
  */
-function debControl(version: string, installedSize: number): string {
+export function debControl(version: string, installedSize: number): string {
   return [
     "Package: xneon-launcher",
     `Version: ${version}`,
@@ -280,7 +279,7 @@ async function buildTarXz(root: string, output: string, version: string): Promis
  * имя продукта и лицензию с исходниками. Ловит расхождение в самом артефакте,
  * а не только в упаковщике.
  */
-async function verifyLinuxPackageMetadata(output: string, version: string) {
+export async function verifyLinuxPackageMetadata(output: string, version: string) {
   const deb = path.join(output, `xneon-launcher-${version}-amd64.deb`)
   const control = run("dpkg-deb", ["-f", deb, "Maintainer", "Description"])
   const [maintainerLine, descriptionLine] = control.split(/\r?\n/)
@@ -316,7 +315,7 @@ export async function packageLinux(input: string, output: string) {
   assert.equal(process.platform, "linux", "Linux packages are built on a native Linux runner")
   assert.equal(process.arch, "x64", "Linux packages are built for x64 only")
   const version = packageJson.version
-  assert.match(version, /^\d+\.\d+\.\d+(?:-pre[1-9]\d*)?$/, "Use a stable version or <version>-preN")
+  assert.match(version, /^\d+\.\d+\.\d+(?:-(?:pre|beta)[1-9]\d*)?$/, "Use a stable version, <version>-preN or <version>-betaN")
   const channel = version.includes("-") ? "canary" : "stable"
   const app = "XneonLauncher" + (channel === "stable" ? "" : "-canary")
   const archive = `${channel}-linux-x64-${app}.tar.zst`

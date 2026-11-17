@@ -18,7 +18,7 @@ function block(key: string, value: Buffer, text: boolean, children: Buffer[] = [
 }
 
 export function createWindowsVersionResource(version: string): Buffer {
-  if (!/^\d+\.\d+\.\d+(?:-pre\d+)?$/.test(version)) throw new Error("Invalid launcher version")
+  if (!/^\d+\.\d+\.\d+(?:-(?:pre|beta)\d+)?$/.test(version)) throw new Error("Invalid launcher version")
   const parts = version.split("-")[0]!.split(".").map(Number)
   if (parts.some(value => value > 65535)) throw new Error("Windows version component exceeds WORD range")
   const high = parts[0]! * 65536 + parts[1]!, low = parts[2]! * 65536

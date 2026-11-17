@@ -126,7 +126,7 @@ bun run package
 
 ## Импорт из других лаунчеров
 
-Локальный импорт поддерживает архивы Modrinth (`.mrpack`), CurseForge (ZIP с `manifest.json`) и сборок, экспортированных из Xneon (ZIP с `xnlauncher.json`). Произвольные архивы готовых клиентских версий, включая Lunar Crack, этим способом не импортируются.
+Локальный импорт поддерживает архивы Modrinth (`.mrpack`), CurseForge (ZIP с `manifest.json`) и сборок, экспортированных из Xneon (ZIP с `xnlauncher.json`). Произвольные архивы готовых клиентских версий этим способом не импортируются.
 
 Xneon автоматически обнаружит установленные сборки из:
 
@@ -158,7 +158,6 @@ Xneon автоматически обнаружит установленные �
 Актуальные команды, IPC, Workers, владение сессиями и тестовые entrypoints:
 [руководство по интеграции](docs/integration-guide.md).
 Поддержка платформ и команды native runners: [platform builds](docs/platform-builds.md).
-Текущие performance-сценарии: [benchmarks](benchmarks/README.md).
 Проверки и границы offline/live: [testing](docs/testing.md).
 
 Документация для разработчиков и авторов тем: [docs.xneon.org](https://docs.xneon.org).

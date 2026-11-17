@@ -46,7 +46,7 @@ Windows также выполняет проверку изменения рес
   `XNLC_PARSER_LIVE_TESTS=1`. Требует сеть, не является offline gate.
 - Live Modrinth, native dialog/GUI/update/install VM checks
   требуют выделенной среды и запускаются отдельно. Не использовать рабочий профиль.
-- [Production platform builds](platform-builds.md), [benchmarks](../benchmarks/README.md).
+- [Production platform builds](platform-builds.md).
 
 Падающий тест сначала классифицируется: runtime regression или устаревший test
 harness/contract. В последнем случае сохраняются сценарии/assertions и обновляются

@@ -8,7 +8,7 @@ import { checksumText, verifyChecksums } from "./artifact-checksums"
 export { checksumText, verifyChecksums }
 
 const repository = "MAINER4IK/Xneon-Launcher-bun"
-const versionPattern = /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})(?:-pre[1-9]\d{0,8})?$/
+const versionPattern = /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})(?:-(?:pre|beta)[1-9]\d{0,8})?$/
 const targets = [
   { platform: "win", arch: "x64" },
   { platform: "linux", arch: "x64" },
@@ -18,9 +18,9 @@ const targets = [
 
 export type ReleaseChannel = "stable" | "canary"
 
-/** Канал определяется самим релизом: -preN — это canary/beta, обычная версия — stable. */
+/** Канал определяется самим релизом: -preN/-betaN — canary, обычная версия — stable. */
 export function releaseChannel(version: string): ReleaseChannel {
-  assert.match(version, versionPattern, "Use a stable version or <version>-preN")
+  assert.match(version, versionPattern, "Use a stable version, <version>-preN or <version>-betaN")
   return version.includes("-") ? "canary" : "stable"
 }
 
@@ -33,7 +33,7 @@ export function assertReleaseChannel(version: string, expected: ReleaseChannel) 
 /** Формат prerelease согласован с существующим trusted update verifier. */
 export function releaseIdentity(ref: string, version: string, repo: string) {
   assert.equal(repo, repository, "Releases require the canonical repository")
-  assert.match(version, versionPattern, "Use a stable version or <version>-preN")
+  assert.match(version, versionPattern, "Use a stable version, <version>-preN or <version>-betaN")
   assert.equal(ref, "refs/tags/v" + version, "Tag must match the actual package version")
   return { tag: "v" + version, version, prerelease: version.includes("-") }
 }
@@ -86,8 +86,8 @@ const nativeSets = (version: string) => {
   }))
 }
 const portableName = (version: string) => `xneon-launcher-${version}-win-x64-portable.zip`
-/** Portable — отдельная стабильная сборка; в prerelease её нет. */
-const hasPortable = (version: string) => releaseChannel(version) === "stable"
+/** Portable — независимый профиль, доступный в обоих каналах. */
+const hasPortable = (version: string) => { releaseChannel(version); return true }
 const linuxPackagesDirectory = "native-linux-x64-packages"
 /** Системные Linux-пакеты собираются в обоих каналах: stable и canary. */
 
@@ -127,10 +127,20 @@ export async function checkCandidates(input: string, version: string) {
   await verifyLinuxPackages(path.join(input, linuxPackagesDirectory), version)
 }
 
+export function publishedArtifactName(file: string, version: string): string {
+  for (const options of nativeSets(version)) {
+    if (file !== nativeArtifactNames(options)[3]) continue
+    const platform = options.platform === "macos" ? "mac" : options.platform
+    const extension = options.platform === "macos" ? ".dmg" : options.platform === "win" ? "-setup.zip" : "-setup.tar.gz"
+    return `xneon-launcher-${version}-${platform}-${options.arch}${extension}`
+  }
+  return file
+}
+
 export function publicationNames(version: string, patches: string[] = []) {
   const channel = releaseChannel(version)
   for (const name of patches) assert.match(name, new RegExp(`^${channel}-(?:win-x64|linux-x64|macos-arm64|macos-x64)-[a-z0-9]+\\.patch$`))
-  return [...nativeSets(version).flatMap(options => nativeArtifactNames(options)),
+  return [...nativeSets(version).flatMap(options => nativeArtifactNames(options).map(file => publishedArtifactName(file, version))),
     ...(hasPortable(version) ? [portableName(version)] : []),
     ...linuxPackageNames(version),
     ...patches].sort()
@@ -148,7 +158,7 @@ export async function verifyPublication(directory: string, version: string) {
       const subset = path.join(scratch, String(index))
       await mkdir(subset)
       const prefix = `${options.channel}-${options.platform}-${options.arch}-`
-      for (const name of [...nativeArtifactNames(options), ...names.filter(file => file.startsWith(prefix) && file.endsWith(".patch"))]) await copyFile(path.join(directory, name), path.join(subset, name))
+      for (const name of [...nativeArtifactNames(options), ...names.filter(file => file.startsWith(prefix) && file.endsWith(".patch"))]) await copyFile(path.join(directory, publishedArtifactName(name, version)), path.join(subset, name))
       await inspectElectrobunRelease(subset, options)
     }
   } finally { await rm(scratch, { recursive: true, force: true }) }
@@ -166,7 +176,7 @@ export async function assemblePublication(input: string, output: string, version
   for (const [index, options] of sets.entries()) {
     const source = path.join(input, directories[index])
     const inspected = await inspectElectrobunRelease(source, { ...options, requireChecksums: true })
-    for (const file of inspected.files) await copyFile(path.join(source, file), path.join(output, file))
+    for (const file of inspected.files) await copyFile(path.join(source, file), path.join(output, publishedArtifactName(file, version)))
   }
   if (hasPortable(version)) {
     const portable = path.join(input, "native-win-x64-portable")
