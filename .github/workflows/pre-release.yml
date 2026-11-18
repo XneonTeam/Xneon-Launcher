@@ -33,8 +33,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - &desktop
-        uses: ./.github/actions/setup
+      - uses: ./.github/actions/setup
         with:
           desktop: 'true'
       - name: Check release channel
@@ -79,15 +78,16 @@ jobs:
       max-parallel: 3
       matrix:
         include:
+          # Временно публикуем только Windows; Unix-шаги ниже сохранены для возврата платформ.
           - { runner: windows-2022, target: win-x64, platform: win, arch: x64, machine: X64 }
-          - { runner: ubuntu-24.04, target: linux-x64, platform: linux, arch: x64, machine: x86_64 }
-          - { runner: macos-26, target: macos-arm64, platform: macos, arch: arm64, machine: arm64 }
-          - { runner: macos-15-intel, target: macos-x64, platform: macos, arch: x64, machine: x86_64 }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
       - *checkout
-      - *desktop
+      - uses: ./.github/actions/setup
+        with:
+          desktop: 'true'
+          linux-native-build: ${{ runner.os == 'Linux' && 'true' || 'false' }}
       - name: Check release tag and package version before building
         if: startsWith(github.ref, 'refs/tags/v')
         run: bun scripts/ci-pre-release.ts identity

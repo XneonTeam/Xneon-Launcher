@@ -9,12 +9,11 @@ export { checksumText, verifyChecksums }
 
 const repository = "MAINER4IK/Xneon-Launcher-bun"
 const versionPattern = /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})(?:-(?:pre|beta)[1-9]\d{0,8})?$/
-const targets = [
+// Временно Windows-only. Для возврата Unix меняются этот список и обе workflow-матрицы.
+const targets: ReadonlyArray<{ platform: "win" | "linux" | "macos"; arch: "x64" | "arm64" }> = [
   { platform: "win", arch: "x64" },
-  { platform: "linux", arch: "x64" },
-  { platform: "macos", arch: "arm64" },
-  { platform: "macos", arch: "x64" },
-] as const
+]
+const hasLinux = targets.some(target => target.platform === "linux")
 
 export type ReleaseChannel = "stable" | "canary"
 
@@ -119,12 +118,12 @@ export async function checkCandidates(input: string, version: string) {
   const directories = sets.map(options => `native-${options.platform}-${options.arch}-${options.channel}`)
   assert.deepEqual((await readdir(input)).sort(), [...directories,
     ...(hasPortable(version) ? ["native-win-x64-portable"] : []),
-    linuxPackagesDirectory].sort(), "Unexpected artifact containers")
+    ...(hasLinux ? [linuxPackagesDirectory] : [])].sort(), "Unexpected artifact containers")
   for (const [index, options] of sets.entries()) {
     await inspectElectrobunRelease(path.join(input, directories[index]), { ...options, requireChecksums: true })
   }
   if (hasPortable(version)) await verifyChecksums(path.join(input, "native-win-x64-portable"), [portableName(version)])
-  await verifyLinuxPackages(path.join(input, linuxPackagesDirectory), version)
+  if (hasLinux) await verifyLinuxPackages(path.join(input, linuxPackagesDirectory), version)
 }
 
 export function publishedArtifactName(file: string, version: string): string {
@@ -139,10 +138,10 @@ export function publishedArtifactName(file: string, version: string): string {
 
 export function publicationNames(version: string, patches: string[] = []) {
   const channel = releaseChannel(version)
-  for (const name of patches) assert.match(name, new RegExp(`^${channel}-(?:win-x64|linux-x64|macos-arm64|macos-x64)-[a-z0-9]+\\.patch$`))
+  for (const name of patches) assert.match(name, new RegExp(`^${channel}-(?:${targets.map(target => `${target.platform}-${target.arch}`).join("|")})-[a-z0-9]+\\.patch$`))
   return [...nativeSets(version).flatMap(options => nativeArtifactNames(options).map(file => publishedArtifactName(file, version))),
     ...(hasPortable(version) ? [portableName(version)] : []),
-    ...linuxPackageNames(version),
+    ...(hasLinux ? linuxPackageNames(version) : []),
     ...patches].sort()
 }
 
@@ -171,7 +170,7 @@ export async function assemblePublication(input: string, output: string, version
   const directories = sets.map(options => `native-${options.platform}-${options.arch}-${options.channel}`)
   assert.deepEqual((await readdir(input)).sort(), [...directories,
     ...(hasPortable(version) ? ["native-win-x64-portable"] : []),
-    linuxPackagesDirectory].sort(), "Unexpected artifact containers")
+    ...(hasLinux ? [linuxPackagesDirectory] : [])].sort(), "Unexpected artifact containers")
   await mkdir(output)
   for (const [index, options] of sets.entries()) {
     const source = path.join(input, directories[index])
@@ -183,9 +182,11 @@ export async function assemblePublication(input: string, output: string, version
     await verifyChecksums(portable, [portableName(version)])
     await copyFile(path.join(portable, portableName(version)), path.join(output, portableName(version)))
   }
-  const packages = path.join(input, linuxPackagesDirectory)
-  await verifyLinuxPackages(packages, version)
-  for (const name of linuxPackageNames(version)) await copyFile(path.join(packages, name), path.join(output, name))
+  if (hasLinux) {
+    const packages = path.join(input, linuxPackagesDirectory)
+    await verifyLinuxPackages(packages, version)
+    for (const name of linuxPackageNames(version)) await copyFile(path.join(packages, name), path.join(output, name))
+  }
   const files = await readdir(output)
   await writeFile(path.join(output, "SHA256SUMS.txt"), await checksumText(output, files), { flag: "wx" })
   await verifyPublication(output, version)

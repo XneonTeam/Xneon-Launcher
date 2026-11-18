@@ -44,8 +44,8 @@ const pipeline = async (file, channel, tagPattern, label) => {
   assert.equal(workflow.jobs.build.needs, 'tests')
   assert.deepEqual(workflow.jobs.release.needs, ['tests', 'build'])
   assert.equal(workflow.jobs.release.permissions.contents, 'write')
-  assert.deepEqual(workflow.jobs.build.strategy.matrix.include.map(target => target.target), ['win-x64', 'linux-x64', 'macos-arm64', 'macos-x64'])
-  assert.ok(workflow.jobs.build.strategy.matrix.include.some(item => item.target === 'macos-arm64' && item.runner === 'macos-26' && item.arch === 'arm64'), `${label} keeps ARM64 on the documented pool`)
+  assert.deepEqual(workflow.jobs.build.strategy.matrix.include.map(target => target.target), ['win-x64'])
+  assert.ok(workflow.jobs.build.strategy.matrix.include.every(item => item.runner === 'windows-2022' && item.arch === 'x64' && item.machine === 'X64'), `${label} temporarily builds Windows x64 only`)
   assert.equal(workflow.jobs.build.strategy['fail-fast'], false)
   assert.equal(workflow.jobs.build.strategy['max-parallel'], 3)
   return workflow
