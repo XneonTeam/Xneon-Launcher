@@ -4,6 +4,9 @@ inputs:
   desktop:
     description: Установить toolchain для prepare/build/test.
     default: 'false'
+  linux-native-build:
+    description: Установить графический SDK для native-сборки Linux, не для headless-тестов.
+    default: 'false'
 runs:
   using: composite
   steps:
@@ -43,12 +46,19 @@ runs:
         bash "$bootstrap" --version 0.29.0 --no-modify-path
         test "$("$HOME/.hutch/bin/hutch" --version)" = 0.29.0
         echo "$HOME/.hutch/bin" >> "$GITHUB_PATH"
-    - name: Linux native prerequisites
+    - name: Linux test prerequisites
       if: inputs.desktop == 'true' && runner.os == 'Linux'
       shell: bash
       run: |
-        sudo apt-get update
-        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev libsecret-1-0 binutils zstd
+        set -euo pipefail
+        sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 update
+        sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 install -y --no-install-recommends libsecret-1-0 binutils zstd
+    - name: Linux native build prerequisites
+      if: inputs.desktop == 'true' && inputs.linux-native-build == 'true' && runner.os == 'Linux'
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 install -y --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev
     - name: Install dependencies
       shell: bash
       env:

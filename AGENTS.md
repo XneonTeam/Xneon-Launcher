@@ -47,6 +47,8 @@ UI получает только `PublicAccount`, сессиями владее�
 
 ## Build pipeline
 
+Временно release/pre-release публикуют только Windows x64; Unix-матрицы отключены, но код упаковки сохранён. Список `targets` в `scripts/ci-pipeline.ts` должен совпадать с обеими workflow-матрицами. Ubuntu jobs тестов остаются.
+
 `prepare:desktop` запускает `scripts/gen-credentials.mjs`, который читает `.env` и генерирует игнорируемый Git файл `electrobun/main/cloud/credentials.generated.ts`. Без `.env` сборка проходит с пустыми значениями для облачных провайдеров.
 
 `build:renderer` = `vite build` → `dist/`

@@ -34,6 +34,10 @@
 Три workflow: `.github/workflows/ci.yml` (только проверки на PR/main/dispatch),
 `release.yml` (stable, тег `v1.2.3`) и `pre-release.yml` (canary, тег `v1.2.3-pre1`).
 Каждый релизный пайплайн — `tests → build (matrix) → release` и собирает только свой канал.
+Временно обе релизные матрицы и публикация ограничены Windows x64 (stable: NSIS + SDK + portable;
+canary: SDK + portable). Linux/macOS не блокируют публикацию и не включаются в описание загрузок.
+Их упаковка и проверки сохранены; для возврата нужно согласованно расширить обе матрицы
+и список `targets` в `scripts/ci-pipeline.ts`. Проверки `tests` по-прежнему выполняются на Ubuntu.
 На PR и push main запускается один Linux job с quality/offline gates, бюджет — 15 минут.
 Формат `-preN` задаёт canary-канал; stable-релиз не содержит canary-файлов и наоборот.
 Ручной запуск (`workflow_dispatch`) собирает artifacts без публикации; на tag — публикует.

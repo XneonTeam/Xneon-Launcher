@@ -32,7 +32,7 @@ export function releaseNotes(version: string, subjects: string[]): string {
   }
   const entries = (type: string) => subjects.filter(subject => new RegExp(`^${type}(?:\\([^)]*\\))?!?:`).test(subject))
     .map(subject => `- ${subject.replace(/^[^:]+:\s*/, "").replace(/\s*\((?:GREEN|RED)\)$/, "")}`).join("\n") || "- Нет изменений в этой категории."
-  return `## Downloads\n\n${Object.entries(groups).map(([name, badges]) => `### ${name}\n${badges.join(" ")}`).join("\n\n")}\n\n### Features\n${entries("feat")}\n\n### Bug Fixes\n${entries("fix")}\n\n<details>\n<summary>Служебные файлы и дополнительные SDK-установщики</summary>\n\n${[...technical, 'SHA256SUMS.txt'].map(file => `- [${file}](${base}${file})`).join('\n')}\n\n</details>\n`
+  return `## Downloads\n\n${Object.entries(groups).filter(([, badges]) => badges.length).map(([name, badges]) => `### ${name}\n${badges.join(" ")}`).join("\n\n")}\n\n### Features\n${entries("feat")}\n\n### Bug Fixes\n${entries("fix")}\n\n<details>\n<summary>Служебные файлы и дополнительные SDK-установщики</summary>\n\n${[...technical, 'SHA256SUMS.txt'].map(file => `- [${file}](${base}${file})`).join('\n')}\n\n</details>\n`
 }
 
 if (import.meta.main) {
@@ -43,7 +43,9 @@ if (import.meta.main) {
     assert.equal(result.status, 0, result.stderr)
     return result.stdout.trim()
   }
-  const previous = git(["describe", "--tags", "--abbrev=0", "--match", "v*", "HEAD^"])
-  const subjects = git(["log", "--format=%s", `${previous}..HEAD`]).split("\n")
+  const previous = spawnSync("git", ["describe", "--tags", "--abbrev=0", "--match", "v*", "HEAD^"], { encoding: "utf8" })
+  // После очистки тегов первый релиз использует всю достижимую историю.
+  const range = previous.status === 0 ? `${previous.stdout.trim()}..HEAD` : "HEAD"
+  const subjects = git(["log", "--format=%s", range]).split("\n")
   await writeFile(output, releaseNotes(packageJson.version, subjects))
 }
