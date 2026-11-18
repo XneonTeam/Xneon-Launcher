@@ -33,6 +33,7 @@
     "clean": "rm -rf lib",
     "prepublishOnly": "bun run build"
   },
+  "dependencies": { "@xnlc/urls": "workspace:*" },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [

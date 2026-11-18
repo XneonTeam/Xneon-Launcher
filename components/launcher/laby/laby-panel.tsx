@@ -5,7 +5,7 @@ import { SkinViewer3D } from "@/components/ui/skin-viewer-3d"
 import { SkinAccountPicker } from "@/components/launcher/skins/account-picker"
 import { useViewerSize } from "@/components/launcher/skins/use-viewer-size"
 import { SkinRender } from "./skin-render"
-import { labySkinPageUrl } from "@xnlc/skins"
+import { labySkinPageUrl } from "@xnlc/skins/browser"
 import type { LabySkin } from "@xnlc/types"
 import {
   IconBookmarkMinus,

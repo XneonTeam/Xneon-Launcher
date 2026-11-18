@@ -228,7 +228,7 @@ export function getDefaultMinecraftRootFromEnv(options: MinecraftRootEnvOptions 
 }
 
 export async function resolveLatestAuthlibInjectorUrl(): Promise<string> {
-  const root = URLS.official.authlibInjector?.root || "https://authlib-injector.yushi.moe";
+  const root = URLS.official.authlibInjector.root;
   try {
     const res = await fetchWithTimeout(
       `${root.replace(/\/$/, "")}/artifact/latest.json`,

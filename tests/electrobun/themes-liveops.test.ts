@@ -269,5 +269,20 @@ import { loadReactModule, reactNodes } from "../helpers/react-module.mjs"
       assert.equal(called, true)
       assert.equal((await result).selected, "orange")
     })
+    test("LiveOps: production origin по умолчанию, override и явное выключение сети", async () => {
+      for (const [override, expected] of [[undefined, "https://liveops.xneon.org"], [" https://test.example.org ", "https://test.example.org"], ["", ""], ["   ", ""]]) {
+        let actual
+        const runtime = { tick: async () => {}, stop() {}, status: () => ({ enabled: true }) }
+        const liveops = loadReactModule(new URL("../../electrobun/main/liveops.ts", import.meta.url), {
+          "../platform/desktop": { app: { getPath: () => "." }, rpcRegistry: { handle() {} } },
+          "../db": { dbHelpers: {} }, "../db/core": {}, "../db/settings": {}, "../platform/shutdown": {},
+          "../../infrastructure/xnlc-liveops/client/file-storage.mjs": { createFileStorage: () => ({}) },
+          "./liveops-runtime": { createLauncherLiveops: async ports => { actual = ports.baseURL; return runtime } },
+          "./runtime": {},
+        }, { process: { env: override === undefined ? {} : { XNLC_LIVEOPS_URL: override } } })
+        await liveops.startLiveops()
+        assert.equal(actual, expected)
+      }
+    })
   })
 }

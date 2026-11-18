@@ -6,7 +6,7 @@ import { ModalLayer } from "@/components/ui/modal-layer"
 import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { SkinViewer3D } from "@/components/ui/skin-viewer-3d"
 import { batchRenderCapes } from "@/lib/batch-cape-renderer"
-import { localFileToBlobUrl } from "@/lib/local-file-url"
+import { localFileToBlobUrl, releaseLocalFileUrl } from "@/lib/local-file-url"
 import {
   IconPhoto, IconUser, IconUpload, IconLoader2, IconX, IconCheck, IconShirt,
 } from "@tabler/icons-react"
@@ -16,12 +16,14 @@ interface EditSkinModalProps {
   open: boolean
   onClose: () => void
   skin: LibrarySkin | null
+  currentTexture?: string
+  currentVariant?: "classic" | "slim"
   capes: McProfile["capes"]
   activeCapeId: string | null
   onSave: (params: { filePath?: string; variant: "classic" | "slim"; capeId: string | null }) => Promise<void>
 }
 
-export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave }: EditSkinModalProps) {
+export function EditSkinModal({ open, onClose, skin, currentTexture, currentVariant, capes, activeCapeId, onSave }: EditSkinModalProps) {
   const { t } = useTranslation()
   const [variant, setVariant] = useState<"classic" | "slim">("classic")
   const [selectedCapeId, setSelectedCapeId] = useState<string | null>(activeCapeId)
@@ -31,20 +33,36 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
   const [dragOver, setDragOver] = useState(false)
   const [capePreviews, setCapePreviews] = useState<Map<string, string>>(new Map())
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileGenerationRef = useRef(0)
 
   useEffect(() => {
+    fileGenerationRef.current++
     if (skin) {
       setVariant(skin.variant === "slim" ? "slim" : "classic")
       setPendingFile(null)
-      localFileToBlobUrl(skin.filePath).then(url => {
-        if (url) setPreviewUrl(url)
-      })
     } else {
-      setPreviewUrl("")
+      setVariant(currentVariant ?? "classic")
+      setPreviewUrl(currentTexture ?? "")
       setPendingFile(null)
     }
     setSelectedCapeId(activeCapeId)
-  }, [skin, activeCapeId, open])
+  }, [skin, currentTexture, currentVariant, activeCapeId, open])
+
+  useEffect(() => {
+    if (!open) return
+    setPreviewUrl("")
+    if (pendingFile) {
+      const url = URL.createObjectURL(pendingFile)
+      setPreviewUrl(url)
+      return () => URL.revokeObjectURL(url)
+    }
+    if (!skin) { setPreviewUrl(currentTexture ?? ""); return }
+    let cancelled = false
+    void localFileToBlobUrl(skin.filePath).then(url => {
+      if (!cancelled) setPreviewUrl(url)
+    })
+    return () => { cancelled = true; releaseLocalFileUrl(skin.filePath) }
+  }, [open, skin, pendingFile, currentTexture])
 
   // Batch render capes when modal opens
   useEffect(() => {
@@ -57,11 +75,26 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
     return () => { cancelled = true }
   }, [open, capes])
 
-  const processFile = useCallback((file: File) => {
-    if (!file.name.endsWith(".png")) return
+  const processFile = useCallback(async (file: File) => {
+    if (!/\.png$/i.test(file.name)) return
     setPendingFile(file)
-    const dataUrl = URL.createObjectURL(file)
-    setPreviewUrl(dataUrl)
+    const generation = ++fileGenerationRef.current
+    let image: ImageBitmap | undefined
+    try {
+      image = await createImageBitmap(file)
+      if (generation !== fileGenerationRef.current) return
+      if (image.height === 32) { setVariant("classic"); return }
+      const canvas = document.createElement("canvas")
+      canvas.width = 64; canvas.height = 64
+      const context = canvas.getContext("2d")
+      if (!context || image.width !== 64 || image.height !== 64) return
+      context.drawImage(image, 0, 0)
+      const pixels = context.getImageData(54, 20, 2, 12).data
+      let slim = true
+      for (let i = 3; i < pixels.length; i += 4) if (pixels[i] !== 0) slim = false
+      setVariant(slim ? "slim" : "classic")
+    } catch { /* Полную проверку PNG выполняет main при сохранении. */ }
+    finally { image?.close() }
   }, [])
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -179,7 +212,7 @@ export function EditSkinModal({ open, onClose, skin, capes, activeCapeId, onSave
                 {(["classic", "slim"] as const).map(v => (
                   <button data-ui="edit-skin-modal-button-2"
                     key={v}
-                    onClick={() => setVariant(v)}
+                    onClick={() => { fileGenerationRef.current++; setVariant(v) }}
                     className={cn(
                       "flex min-w-0 flex-1 items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium border-2 transition-all",
                       variant === v

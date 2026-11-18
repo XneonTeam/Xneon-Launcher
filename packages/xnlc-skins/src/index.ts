@@ -89,6 +89,7 @@ export {
 } from "./library.js"
 export type { ImportFromCatalogInput, LibrarySkinSource, SaveSkinInput } from "./library.js"
 export { MinecraftSkins } from "./minecraft.js"
+export { detectSkinVariant, skinTextureKey } from "./texture.js"
 
 // Валидация
 export { MAX_TEXTURE_BYTES, isValidTexture, labySkinFallbackName, normalizeVariant, sanitizeSkinName } from "./validate.js"
@@ -142,7 +143,7 @@ export function createSkinSystem(options: SkinSystemOptions): SkinSystem {
     client: options.client,
   }
   const catalog = new LabyCatalogImpl(catalogOptions)
-  const minecraft = new MinecraftSkins(options.accounts)
+  const minecraft = new MinecraftSkins(options.accounts, options.disk)
   const library = new SkinLibrary(options.library, catalog, minecraft)
   return { catalog, library, minecraft, reset: () => catalog.reset() }
 }

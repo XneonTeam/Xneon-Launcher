@@ -2,7 +2,10 @@ import path from "path"
 import fs from "fs/promises"
 import { formatDisplayNameFromFileName } from "./helpers"
 import { readContentMetadataFromPath } from "./metadata"
-import { resolveContentEntries } from "./content-resolver"
+import { resolveContentEntries, type ResolvedContentEntry } from "./content-resolver"
+import { normalizeContentIcon } from "./content-icon"
+import { BoundedCache, estimateCacheBytes } from "../../../lib/bounded-cache"
+import { contentMetadataEvents } from "./content-metadata-events"
 import type { ImportModEntry, ScannedBuildContent } from "./helpers"
 
 type IntentContentFile = {
@@ -102,6 +105,48 @@ async function readSnapshot(intentPath: string, signal?: AbortSignal) {
 
 const activeScans = new Map<string, Promise<ScannedBuildContent>>()
 
+// Повторное перечисление/stat остаётся дешёвой проверкой внешних изменений.
+// SQLite/metadata/сеть нужны только новым и действительно изменившимся файлам.
+const resolvedFiles = new BoundedCache<string, { signature: string; entry: ResolvedContentEntry }>({
+  capacity: 2048, maxWeight: 16 * 1024 * 1024, ttlMs: 5 * 60_000,
+  weight: value => estimateCacheBytes(value),
+})
+const contentPathKey = (file: string) => process.platform === "win32" ? path.resolve(file).toLowerCase() : path.resolve(file)
+let metadataRevision = 0
+contentMetadataEvents.on("updated", files => {
+  metadataRevision++
+  for (const file of files) resolvedFiles.delete(contentPathKey(file))
+})
+
+async function resolveSnapshotArchives(filesByDir: Awaited<ReturnType<typeof readSnapshot>>, report: (processed: number) => void, signal?: AbortSignal) {
+  const resolved: Record<string, ResolvedContentEntry> = {}
+  const missing: Array<{ file: string; signature: string }> = []
+  let reused = 0
+  for (const dir of filesByDir) for (const file of dir.files) {
+    if (file.isDirectory) continue
+    const signature = dir.snapshot.get(file.filePath)!
+    const previous = resolvedFiles.get(contentPathKey(file.filePath))
+    if (previous?.signature === signature) { resolved[file.filePath] = previous.entry; reused++ }
+    else missing.push({ file: file.filePath, signature })
+  }
+  report(reused)
+  if (!missing.length) return resolved
+  const revision = metadataRevision
+  const fresh = await resolveContentEntries(missing.map(item => item.file), done => report(reused + done), signal)
+  signal?.throwIfAborted()
+  for (const { file, signature } of missing) {
+    const entry = fresh[file]
+    if (!entry) continue
+    resolved[file] = entry
+    // Диагностика/ошибки должны повторно проверяться; позднее обогащение
+    // не должно потеряться за снимком, записанным после его invalidation.
+    if (entry.sha1 && !entry.diagnostics?.length && revision === metadataRevision) {
+      resolvedFiles.set(contentPathKey(file), { signature, entry })
+    }
+  }
+  return resolved
+}
+
 export function scanIntentDir(intentPath: string, onProgress?: (processed: number, total: number) => void, signal?: AbortSignal): Promise<ScannedBuildContent> {
   if (onProgress || signal) return scanStableIntentDir(intentPath, onProgress, signal)
   const normalized = path.resolve(intentPath)
@@ -122,7 +167,13 @@ async function scanStableIntentDir(intentPath: string, onProgress?: (processed: 
     if (snapshot.every(({ snapshot: before }, i) => {
       const after = current[i].snapshot
       return before.size === after.size && [...before].every(([file, signature]) => after.get(file) === signature)
-    })) return result
+    })) {
+      // Удалённые файлы больше не удерживаются до TTL. Перебор ограничен LRU.
+      const present = new Set(current.flatMap(dir=>[...dir.snapshot.keys()].map(contentPathKey)))
+      const prefix = contentPathKey(intentPath) + path.sep
+      for (const key of resolvedFiles.keys()) if (key.startsWith(prefix) && !present.has(key)) resolvedFiles.delete(key)
+      return result
+    }
     snapshot = current
   }
   throw new Error("Content directory changed during scan")
@@ -141,7 +192,7 @@ async function scanSnapshot(filesByDir: Awaited<ReturnType<typeof readSnapshot>>
   const report = (processed: number) => {
     try { onProgress?.(Math.min(processed, total), total) } catch {}
   }
-  const resolved = archives.length ? await resolveContentEntries(archives, report, signal) : {}
+  const resolved = archives.length ? await resolveSnapshotArchives(filesByDir, report, signal) : {}
   let processed = archives.length
   const targets = { mods, resourcepacks, shaderpacks: shaders }
   for (const { name: dirName, files } of filesByDir) {
@@ -187,7 +238,7 @@ async function scanSnapshot(filesByDir: Awaited<ReturnType<typeof readSnapshot>>
       if (folderMetadata && !entry) {
         modEntry.name = folderMetadata.name || modEntry.name
         modEntry.description = folderMetadata.description || modEntry.description
-        modEntry.icon_url = folderMetadata.icon_url ?? modEntry.icon_url
+        modEntry.icon_url = normalizeContentIcon(folderMetadata.icon_url ?? modEntry.icon_url ?? "") || undefined
         modEntry.version = folderMetadata.version || modEntry.version
         modEntry.author = folderMetadata.author ?? modEntry.author
         if (folderMetadata.diagnostics?.length) modEntry.diagnostics = folderMetadata.diagnostics

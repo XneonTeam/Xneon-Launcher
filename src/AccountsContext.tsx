@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react'
 import type { PublicAccount, DbAccount } from '@xnlc/types'
+import { readAvatarCacheVersion, advanceAvatarCacheVersion } from '@/lib/avatar-cache-version'
 
 export type Account = PublicAccount
 const FALLBACK: Account[] = [{ id: '1', type: 'offline', username: 'Player', isActive: true }]
@@ -54,7 +55,7 @@ const AccountsContext = createContext<AccountsContextValue | null>(null)
 export function AccountsProvider({ children }: PropsWithChildren) {
   const [accountsHydrated, setAccountsHydrated] = useState(false)
   const [accounts, setAccounts] = useState<Account[]>(FALLBACK)
-  const [avatarVersion, setAvatarVersion] = useState(() => Date.now())
+  const [avatarVersion, setAvatarVersion] = useState(readAvatarCacheVersion)
   const accountsRef = useRef(accounts)
   const writesRef = useRef<Promise<unknown>>(Promise.resolve())
   const loadRevision = useRef(0)
@@ -128,7 +129,7 @@ export function AccountsProvider({ children }: PropsWithChildren) {
     persist(async () => { await window.electrobunAPI?.reorderAccounts(ordered.map(item => item.id)) })
   }, [persist, replace])
 
-  const bumpAvatarVersion = useCallback(() => setAvatarVersion(Date.now()), [])
+  const bumpAvatarVersion = useCallback(() => setAvatarVersion(advanceAvatarCacheVersion(avatarVersion)), [avatarVersion])
   const activeAccount = accounts.find(item => item.isActive) ?? accounts[0] ?? null
   const value = useMemo(() => ({ accounts, activeAccount, accountsHydrated, addAccount, removeAccount, setActiveAccount, moveAccount, avatarVersion, bumpAvatarVersion, reloadAccounts }),
     [accounts, activeAccount, accountsHydrated, addAccount, removeAccount, setActiveAccount, moveAccount, avatarVersion, bumpAvatarVersion, reloadAccounts])

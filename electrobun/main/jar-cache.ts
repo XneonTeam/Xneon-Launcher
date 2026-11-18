@@ -41,20 +41,26 @@ export async function getCachedJarPath(url: string): Promise<string | null> {
 /** Скачивает jar в кэш и возвращает путь. Загрузчик передаёт вызывающий код. */
 export async function cacheJarFromUrl(
   url: string,
-  download: (url: string) => Promise<Buffer>,
+  download: (url: string, temporary: string) => Promise<Buffer | void>,
 ): Promise<string | null> {
   const cached = await getCachedJarPath(url)
   if (cached) return cached
 
+  const file = getJarCacheFile(url)
+  const temporary = `${file}.${crypto.randomUUID()}.tmp`
   try {
     const dir = getJarCacheDir()
     await fs.mkdir(dir, { recursive: true })
-    const file = getJarCacheFile(url)
-    await fs.writeFile(file, await download(url))
+    const buffer = await download(url, temporary)
+    // Совместимость с существующими buffer-загрузчиками; production пишет поток.
+    if (buffer) await fs.writeFile(temporary, buffer)
+    await fs.rename(temporary, file)
     return file
   } catch (error) {
     if (error instanceof Error && (error.name === "AbortError" || error.message.includes("CONTENT_DOWNLOAD_CANCELLED"))) throw error
     console.warn("[jar-cache] не удалось скачать файл для анализа:", error)
     return null
+  } finally {
+    await fs.rm(temporary, { force: true }).catch(() => {})
   }
 }

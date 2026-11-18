@@ -1,4 +1,5 @@
 import { APP_USER_AGENT } from "../../lib/app-meta"
+import { CONTENT_URLS } from "@xnlc/urls"
 import type { IpcInvokeMap } from "@xnlc/types"
 import { serverDatapackDirectory, installServerDatapack, deleteServerDatapack, downloadDatapack } from "./server-datapacks"
 import { registerMcServerHandler } from "./remote-servers/handlers"
@@ -1040,7 +1041,7 @@ export function registerMcServerHandlers() {
     const sha1Map = new Map<string, string>()
     const sha1List = hashes.map(h => { sha1Map.set(h.sha1, h.name); return h.sha1 })
     try {
-      const res = await fetch("https://api.modrinth.com/v2/version_files", {
+      const res = await fetch(`${CONTENT_URLS.modrinthApi}/version_files`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "User-Agent": APP_USER_AGENT },
         body: JSON.stringify({ hashes: sha1List, algorithm: "sha1" }),

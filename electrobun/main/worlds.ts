@@ -13,6 +13,7 @@ import { runScanWorker, type DatapackMetadata } from "@xnlc/parser"
 import type { NBTCompound } from "@xnlc/nbt"
 import { ensureBuildIntentDir, downloadBuffer, sanitizeFileName } from "./builds/helpers"
 import { archiveService } from "./archives/service"
+import { enrichDatapacks, localDatapackDisplay } from "./world-datapack-info"
 import type { WorldInfo, DatapackInfo, ScreenshotInfo } from "@xnlc/types" with { "resolution-mode": "import" }
 
 type OpResult = { success: boolean; error?: string }
@@ -266,16 +267,22 @@ async function listDatapacks(worldPath: string): Promise<DatapackInfo[]> {
   }))
   const result = values.filter((value): value is DatapackInfo => value !== null)
   const byPath = new Map(result.map(value => [value.path, value]))
+  const localMetadata: Promise<void>[] = []
   try {
     await runScanWorker(result.map(value => ({ filePath: value.path })), { datapack: true }, item => {
       const entry = byPath.get(item.filePath)
       if (!entry) return
       if (item.error) { entry.parseError = item.error; return }
-      if (item.datapack) Object.assign(entry, datapackDisplayMetadata(item.datapack))
+      if (item.datapack) {
+        Object.assign(entry, datapackDisplayMetadata(item.datapack))
+        localMetadata.push(localDatapackDisplay(entry.path, item.datapack).then(metadata => { Object.assign(entry, metadata) }))
+      }
     })
   } catch { /* Список файлов остаётся доступен при сбое worker. */ }
-  result.sort((a, b) => a.name.localeCompare(b.name))
-  return result
+  await Promise.all(localMetadata)
+  const enriched = await enrichDatapacks(result)
+  enriched.sort((a, b) => (a.displayName || a.name).localeCompare(b.displayName || b.name))
+  return enriched
 }
 
 function datapackDisplayMetadata(pack: DatapackMetadata): Pick<DatapackInfo, "description" | "packFormat" | "format" | "namespaces"> {

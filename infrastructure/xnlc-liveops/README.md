@@ -9,6 +9,50 @@ SQLite, npm/pip или контейнер. Go нужен только на ма�
 `.xntheme` с CSS и ресурсами Custom Themes; клиент применяет их тем же `applyTheme`.
 Никаких скрытых записей в `customThemes` или пользовательские CSS-файлы нет.
 
+## Cloudflare Workers (production)
+
+Адрес: **https://liveops.xneon.org** (резервный: `https://xnlc-liveops.stepangavrilov736.workers.dev`).
+Адаптер `worker/` сохраняет HTTP-контракт Go-сервиса. Один SQLite Durable Object
+`LiveOpsSchedule` координирует одно расписание без пересечений; приватный R2 bucket
+`xnlc-liveops-packages` хранит пакеты по SHA-256. Go-вариант остаётся для собственного сервера.
+
+- До 32 событий, 4096 использованных ID, пакет/вход ≤4 000 000 байт,
+  распакованные ZIP/ассеты ≤3 000 000 байт, R2-пакеты суммарно ≤60 000 000 байт.
+- Отозванный/истёкший ID не переиспользуется. Тема доступна публично только
+  внутри активного интервала; конец исключительный. Alarm удаляет истёкшие данные.
+- SQL-учёт пакета пишется до R2 put, событие и tombstone — одной SQL-транзакцией
+  после успешной записи пакета. Неудавшиеся/осиротевшие записи собираются повторно.
+- `disk_bytes` в Worker означает учтённые байты пакетов R2, а не физический
+  размер Cloudflare SQL/резервных копий. Ограничения диска Go ниже относятся только к Go.
+- Административный секрет — **`LIVEOPS_ADMIN_TOKEN`**, устанавливается через
+  `wrangler secret bulk/put`, никогда не в `wrangler.jsonc`. CLI Go `put/list/delete`
+  совместим с Worker: используйте production URL и отдельный локальный token-file.
+
+Из корня репозитория:
+
+```powershell
+bun test infrastructure/xnlc-liveops/worker/service.test.mjs infrastructure/xnlc-liveops/client
+bun x wrangler@4.160.0 deploy --dry-run --config infrastructure/xnlc-liveops/wrangler.jsonc
+bun x wrangler@4.160.0 deploy --keep-vars --config infrastructure/xnlc-liveops/wrangler.jsonc
+```
+
+`worker/deploy.mjs` выполняет deploy, загрузку секрета из приватно переданной
+переменной окружения и smoke с будущим событием. Он требует `LIVEOPS_ADMIN_TOKEN`.
+`worker/smoke.mjs <url>` проверяет существующий деплой; production smoke не
+активирует тему пользователям, создаёт будущую кампанию и удаляет её в `finally`.
+Использованный тестовый ID остаётся tombstone по штатной политике.
+Флаг `--local-active` предназначен **только для изолированного локального runtime**.
+
+Лаунчер использует production-домен по умолчанию. Для переопределения:
+
+```powershell
+$env:XNLC_LIVEOPS_URL='https://liveops.xneon.org'
+```
+
+Явно пустая `XNLC_LIVEOPS_URL` выключает сетевой LiveOps. Новый default применяется
+после обновления лаунчера; развёртывание сервиса само по себе не меняет ранее
+установленные версии, не публикует новогоднюю тему и не переносит локальный каталог.
+
 ## Структура
 
 ```text
@@ -212,8 +256,8 @@ TLS + заранее заданный origin — граница доверия; 
 ## Подключение клиента к лаунчеру
 
 Интеграция уже подключена в `electrobun/main/liveops.ts` и `liveops-runtime.ts`.
-Адрес задаётся `XNLC_LIVEOPS_URL` (HTTPS origin; для localhost допустим HTTP).
-Без переменной сетевые запросы не выполняются. Кэш восстанавливается до первого
+По умолчанию адрес — `https://liveops.xneon.org`; `XNLC_LIVEOPS_URL` переопределяет
+его (HTTPS origin; для localhost допустим HTTP), пустая строка отключает сеть. Кэш восстанавливается до первого
 рендера, запрос к серверу идёт в фоне; отключение контроллера зарегистрировано
 через общий shutdown-барьер. `lib/liveops-theme-refs.ts` связывает id контроллера
 и реестра; общие IPC-типы находятся в `@xnlc/types`.

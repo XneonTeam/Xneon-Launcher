@@ -53,6 +53,7 @@ function mergeSortedResults(a: ModSearchResult[], b: ModSearchResult[], sortBy: 
 }
 
 export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, view: string, activeBuildId: string | null) {
+  const catalogVisible = view === "detail" && Boolean(activeBuildId) && ["mods", "resourcepacks", "shaders"].includes(detailTab)
   const [modSearch, setModSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [modLoading, setModLoading] = useState(false)
@@ -254,7 +255,13 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
   const lastRequestKeyRef = useRef("")
 
   useEffect(() => {
-    if (view !== "detail" || !activeBuildId) return
+    if (!catalogVisible) {
+      // Общая страница/миры/скриншоты не показывают каталог. Поздний ответ
+      // прежнего поиска не должен обновить их скрытое состояние.
+      ++searchVersionRef.current
+      lastRequestKeyRef.current = ""
+      return
+    }
     const catsKey = modCategories.map(c => `${c.source ?? "both"}:${c.name}`).join(",")
     const searchKey = `${debouncedSearch}|${modSource}|${modSortBy}|${catsKey}|${detailTab}|${activeBuildId}`
     const changed = lastSearchKeyRef.current !== searchKey
@@ -274,10 +281,11 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
     if (lastRequestKeyRef.current === requestKey) return
     lastRequestKeyRef.current = requestKey
     void refreshPage(targetPage)
-  }, [debouncedSearch, modSource, modSortBy, modCategories, detailTab, view, activeBuildId, modPage, refreshPage])
+  }, [debouncedSearch, modSource, modSortBy, modCategories, detailTab, view, activeBuildId, modPage, refreshPage, catalogVisible])
 
   useEffect(() => {
-    if (view !== "detail") return
+    if (!catalogVisible) return
+    let cancelled = false
     setCategories([])
     const loadCategories = async () => {
       try {
@@ -290,18 +298,19 @@ export function useModSearch(activeBuild: Build | null, detailTab: DetailTab, vi
             ...(mrCats ?? []).map(c => ({ ...c, source: "modrinth" as const })),
             ...(cfCats ?? []).map(c => ({ ...c, source: "curseforge" as const })),
           ]
-          if (merged.length > 0) setCategories(merged as ModCategory[])
+          if (!cancelled && merged.length > 0) setCategories(merged as ModCategory[])
         } else if (modSource === "curseforge") {
           const cats = await window.electrobunAPI?.modsCurseforgeCategories()
-          if (cats) setCategories(cats.map(c => ({ ...c, source: "curseforge" as const })) as ModCategory[])
+          if (!cancelled && cats) setCategories(cats.map(c => ({ ...c, source: "curseforge" as const })) as ModCategory[])
         } else {
           const cats = await window.electrobunAPI?.modsModrinthCategories()
-          if (cats) setCategories(cats.map(c => ({ ...c, source: "modrinth" as const })) as ModCategory[])
+          if (!cancelled && cats) setCategories(cats.map(c => ({ ...c, source: "modrinth" as const })) as ModCategory[])
         }
       } catch {}
     }
     loadCategories()
-  }, [view, modSource])
+    return () => { cancelled = true }
+  }, [catalogVisible, modSource])
 
   const [detailsKind, setDetailsKind] = useState<ProjectKind>("mod")
   const openProjectModal = useCallback(async (item: ModSearchResult, kind: ProjectKind = "mod") => {

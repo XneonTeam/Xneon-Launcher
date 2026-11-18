@@ -14,7 +14,7 @@ import { dependencyProjectId } from "./builds/dependency-project"
 // Архив разбирает @xnlc/parser; здесь только сопоставление с каталогами.
 
 import path from "path"
-import { downloadBuffer, loadModsModule } from "./builds/helpers"
+import { downloadContentToFile, loadModsModule } from "./builds/helpers"
 import { cacheJarFromUrl } from "./jar-cache"
 import { inspectJar, type JarDeclaredDependency } from "@xnlc/parser"
 import type { ModDependency } from "@xnlc/mods" with { "resolution-mode": "import" }
@@ -140,7 +140,7 @@ export async function inspectJarDependencies(
   downloadId?: string,
 ): Promise<JarDependencyInspection> {
   const fileName = path.basename(url.split("?")[0]) || "mod.jar"
-  const jarPath = await cacheJarFromUrl(url, fileUrl => downloadBuffer(fileUrl, signal, fileName, downloadId))
+  const jarPath = await cacheJarFromUrl(url, (fileUrl, temporary) => downloadContentToFile(fileUrl, temporary, signal, fileName, downloadId))
   signal?.throwIfAborted()
   if (!jarPath) {
     return { modId: null, dependencies: [], declared: [] }

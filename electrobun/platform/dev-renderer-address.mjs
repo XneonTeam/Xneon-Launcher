@@ -1,0 +1,3 @@
+export const DEV_RENDERER_HOST = "127.0.0.1"
+export const DEV_RENDERER_PORT = 5173
+export const DEV_RENDERER_URL = `http://${DEV_RENDERER_HOST}:${DEV_RENDERER_PORT}/`

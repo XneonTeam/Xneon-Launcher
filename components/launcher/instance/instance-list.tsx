@@ -1,4 +1,5 @@
 import { ModalCloseButton } from "@/components/ui/modal-close-button"
+import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -671,9 +672,14 @@ export const InstanceList = memo(function InstanceList({
 
       {renameGroupFor && (
         <ModalLayer windowId="instance-instance-list-window-1" className="" onClose={() => setRenameGroupFor(null)}>
-          <div data-ui="instance-instance-list-div-41" className="relative w-72 rounded-2xl border border-border bg-card p-4 shadow-2xl pt-14">
-          <ModalCloseButton className="absolute right-3 top-3 z-10" onClick={() => setRenameGroupFor(null)} />
-            <p data-ui="instance-instance-list-p-7" className="text-sm font-semibold mb-3">{t("instanceList.renameGroup")}</p>
+          <div data-ui="instance-instance-list-div-41" className="relative w-72 rounded-2xl border border-border bg-card p-4 shadow-2xl">
+            <div className="mb-3 flex items-center gap-2">
+              <p data-ui="instance-instance-list-p-7" className="flex min-w-0 flex-1 items-center gap-2 text-sm font-semibold">
+                <ModalTitleIcon><IconPencil className="size-4" strokeWidth={1.75} /></ModalTitleIcon>
+                {t("instanceList.renameGroup")}
+              </p>
+              <ModalCloseButton onClick={() => setRenameGroupFor(null)} />
+            </div>
             <input data-ui="instance-instance-list-input-1" autoFocus value={renameGroupDraft} onChange={e => setRenameGroupDraft(e.target.value)}
               onKeyDown={e => {
                 if (e.key === "Enter") handleRenameGroup()
@@ -681,7 +687,7 @@ export const InstanceList = memo(function InstanceList({
               }}
               className="w-full rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm outline-none focus:border-primary mb-3" />
             <div data-ui="instance-instance-list-div-42" className="flex justify-end gap-2">
-              <button data-ui="instance-instance-list-button-23" type="button" onClick={() => setRenameGroupFor(null)} className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-muted text-muted-foreground">{<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel")}</span>}</button>
+              <button data-ui="instance-instance-list-button-23" type="button" onClick={() => setRenameGroupFor(null)} className="px-3 py-1.5 rounded-lg border border-border bg-muted text-xs font-medium hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors">{<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel")}</span>}</button>
               <button data-ui="instance-instance-list-button-24" type="button" onClick={handleRenameGroup}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground">{t("common.save")}</button>
             </div>

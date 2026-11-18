@@ -1,12 +1,15 @@
-const DEFAULT_MICROSOFT_CLIENT_ID = process.env.MICROSOFT_CLIENT_ID ?? "00000000402b5328";
-const DEFAULT_MICROSOFT_REDIRECT_URI = process.env.MICROSOFT_REDIRECT_URI ?? "https://login.live.com/oauth20_desktop.srf";
+import { AUTH_URLS } from "@xnlc/urls";
+import type { MicrosoftAuthStage } from "@xnlc/types";
+
+const DEFAULT_MICROSOFT_CLIENT_ID = process.env.MICROSOFT_CLIENT_ID ?? "";
+const DEFAULT_MICROSOFT_REDIRECT_URI = process.env.MICROSOFT_REDIRECT_URI ?? AUTH_URLS.microsoftDesktopRedirect;
 const DEFAULT_MICROSOFT_SCOPE = "service::user.auth.xboxlive.com::MBI_SSL";
-const DEFAULT_MICROSOFT_AUTHORIZE_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize";
-const DEFAULT_MICROSOFT_TOKEN_URL = "https://login.live.com/oauth20_token.srf";
-const XBOX_LIVE_AUTH_URL = "https://user.auth.xboxlive.com/user/authenticate";
-const XSTS_AUTH_URL = "https://xsts.auth.xboxlive.com/xsts/authorize";
-const MINECRAFT_LOGIN_URL = "https://api.minecraftservices.com/authentication/login_with_xbox";
-const MINECRAFT_PROFILE_URL = "https://api.minecraftservices.com/minecraft/profile";
+const DEFAULT_MICROSOFT_AUTHORIZE_URL = AUTH_URLS.microsoftAuthorize;
+const DEFAULT_MICROSOFT_TOKEN_URL = AUTH_URLS.microsoftToken;
+const XBOX_LIVE_AUTH_URL = AUTH_URLS.xboxLive;
+const XSTS_AUTH_URL = AUTH_URLS.xsts;
+const MINECRAFT_LOGIN_URL = AUTH_URLS.minecraftLogin;
+const MINECRAFT_PROFILE_URL = AUTH_URLS.minecraftProfile;
 const DEFAULT_TIMEOUT_MS = 30000;
 
 export type MicrosoftAccountPayload = {
@@ -25,6 +28,7 @@ export type MicrosoftAuthOptions = {
   authorizeUrl?: string;
   tokenUrl?: string;
   timeoutMs?: number;
+  onProgress?: (stage: MicrosoftAuthStage) => void;
 };
 
 function pickFirstString(...values: unknown[]): string {
@@ -37,8 +41,10 @@ function pickFirstString(...values: unknown[]): string {
 }
 
 function resolveOptions(options: MicrosoftAuthOptions = {}) {
+  const clientId = (options.clientId ?? DEFAULT_MICROSOFT_CLIENT_ID).trim();
+  if (!clientId) throw new Error("Microsoft OAuth client ID is not configured.");
   return {
-    clientId: options.clientId ?? DEFAULT_MICROSOFT_CLIENT_ID,
+    clientId,
     redirectUri: options.redirectUri ?? DEFAULT_MICROSOFT_REDIRECT_URI,
     scope: options.scope ?? DEFAULT_MICROSOFT_SCOPE,
     authorizeUrl: options.authorizeUrl ?? DEFAULT_MICROSOFT_AUTHORIZE_URL,
@@ -75,6 +81,7 @@ export async function exchangeMicrosoftCode(
   }, config.timeoutMs);
 
   try {
+    options.onProgress?.("microsoft-token");
     const tokenRes = await fetch(config.tokenUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -97,6 +104,7 @@ export async function exchangeMicrosoftCode(
     const msAccessToken = tokenData.access_token as string;
     const refreshToken = (tokenData.refresh_token as string) ?? "";
 
+    options.onProgress?.("xbox-live");
     const xblRes = await fetch(XBOX_LIVE_AUTH_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -120,6 +128,7 @@ export async function exchangeMicrosoftCode(
       throw new Error("Не удалось получить Xbox Live token");
     }
 
+    options.onProgress?.("xsts");
     const xstsRes = await fetch(XSTS_AUTH_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -140,6 +149,7 @@ export async function exchangeMicrosoftCode(
       throw new Error("Не удалось получить XSTS token");
     }
 
+    options.onProgress?.("minecraft-token");
     const minecraftRes = await fetch(MINECRAFT_LOGIN_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -155,6 +165,7 @@ export async function exchangeMicrosoftCode(
       throw new Error("Не удалось получить Minecraft access token");
     }
 
+    options.onProgress?.("profile");
     const userRes = await fetch(MINECRAFT_PROFILE_URL, {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: controller.signal,

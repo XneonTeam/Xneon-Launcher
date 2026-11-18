@@ -173,7 +173,7 @@ export class DesktopWindow extends EventEmitter {
       url: this.currentUrl,
       sandbox: !options.launcher,
       allowedProtocols: { views: Boolean(options.launcher), appData: false },
-      navigationRules: options.launcher ? JSON.stringify([launcherUrl]) : undefined,
+      navigationRules: options.launcher ? JSON.stringify(["^*", launcherUrl, `${launcherUrl}#*`]) : undefined,
       preload: options.launcher
         ? "window.xneonStartupTheme = " + JSON.stringify(options.startupTheme ?? null)
         : undefined,

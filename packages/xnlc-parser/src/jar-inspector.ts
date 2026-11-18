@@ -6,7 +6,11 @@ import type { ModArchiveRequirements } from "./loader-requirements.js"
 import type { JarDeclaredDependency } from "./jar-dependencies.js"
 
 export type JarDeclaredDependencies = { modId: string | null; declared: JarDeclaredDependency[] }
-export type JarInspectionRequest = { sha1?: boolean; curseforgeFingerprint?: boolean; metadata?: boolean; loaderRequirements?: boolean; dependencies?: boolean; signal?: AbortSignal }
+export type JarInspectionRequest = {
+  sha1?: boolean; curseforgeFingerprint?: boolean; metadata?: boolean; loaderRequirements?: boolean; dependencies?: boolean; signal?: AbortSignal
+  /** false: metadata принадлежит вызывающему хранилищу; хеши и требования по-прежнему кешируются. */
+  cacheMetadata?: boolean
+}
 export type JarInspection = { diagnostics?: ParserDiagnostic[]; sha1?: string; curseforgeFingerprint?: number | null; metadata?: ContentMetadata; loaderRequirements?: ModArchiveRequirements | null; dependencies?: JarDeclaredDependencies }
 type CacheEntry = JarInspection & { size: number; mtime: number }
 const cache = new Map<string, CacheEntry>()
@@ -45,6 +49,7 @@ export async function inspectJar(filePath: string, request: JarInspectionRequest
   if (!stat) return { diagnostics: [{ code: "SCAN_ERROR", message: "Cannot stat content file" }] }
   const size = stat.size, mtime = Math.round(stat.mtimeMs)
   const entry = getCacheEntry(filePath, size, mtime)
+  let metadata = entry.metadata
   const needSha1 = request.sha1 && entry.sha1 === undefined
   const needFingerprint = request.curseforgeFingerprint && entry.curseforgeFingerprint === undefined
   const needMetadata = request.metadata && entry.metadata === undefined
@@ -57,7 +62,10 @@ export async function inspectJar(filePath: string, request: JarInspectionRequest
       try {
         const result = await inspectArchive(filePath, { metadata: !!needMetadata, dependencies: !!needDependencies, loaderRequirements: !!needRequirements, signal: request.signal })
         entry.diagnostics = result.diagnostics
-        if (needMetadata) entry.metadata = result.metadata ?? {}
+        if (needMetadata) {
+          metadata = result.metadata ?? {}
+          if (request.cacheMetadata !== false) entry.metadata = metadata
+        }
         if (needRequirements) entry.loaderRequirements = result.loaderRequirements ?? null
         if (needDependencies) entry.dependencies = result.dependencies ?? { modId: null, declared: [] }
       } catch (error) {
@@ -77,5 +85,5 @@ export async function inspectJar(filePath: string, request: JarInspectionRequest
     if (cache.get(filePath) === entry) cache.delete(filePath)
     throw error
   }
-  return { diagnostics: entry.diagnostics, sha1: entry.sha1, curseforgeFingerprint: entry.curseforgeFingerprint, metadata: entry.metadata, loaderRequirements: entry.loaderRequirements, dependencies: entry.dependencies }
+  return { diagnostics: entry.diagnostics, sha1: entry.sha1, curseforgeFingerprint: entry.curseforgeFingerprint, metadata, loaderRequirements: entry.loaderRequirements, dependencies: entry.dependencies }
 }

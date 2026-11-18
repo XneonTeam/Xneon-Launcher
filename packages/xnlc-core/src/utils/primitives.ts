@@ -4,7 +4,6 @@
 // ============================================================
 
 import type { OSType, ArchType, OSInfo, VersionJsonArgumentValue } from "../types/index.js";
-import { URLS } from "../constants/urls.js";
 import * as os from "os";
 import * as crypto from "crypto";
 import * as fs from "fs";

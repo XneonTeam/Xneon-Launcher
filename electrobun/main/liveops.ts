@@ -8,6 +8,7 @@ import { registerShutdownTask, SHUTDOWN_PRIORITY } from "../platform/shutdown"
 import { createFileStorage } from "../../infrastructure/xnlc-liveops/client/file-storage.mjs"
 import { createLauncherLiveops } from "./liveops-runtime"
 import { sendToRenderer } from "./runtime"
+import { SERVICE_URLS } from "@xnlc/urls"
 
 let runtime: Awaited<ReturnType<typeof createLauncherLiveops>> | undefined
 let initialization: Promise<void> | undefined
@@ -17,7 +18,7 @@ let stopped = false
 export function startLiveops(): Promise<void> {
   return initialization ??= (async () => {
     runtime = await createLauncherLiveops({
-      baseURL: process.env.XNLC_LIVEOPS_URL?.trim(),
+      baseURL: (process.env.XNLC_LIVEOPS_URL ?? SERVICE_URLS.liveops).trim(),
       storage: createFileStorage(path.join(app.getPath("userData"), "event-theme-cache")),
       getSetting: dbHelpers.getSetting,
       setSettings: values => { if (!stopped) setSettings(values) },

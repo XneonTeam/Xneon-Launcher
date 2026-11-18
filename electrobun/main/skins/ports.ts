@@ -15,11 +15,12 @@ import type { ResolvedSkinAccount, SkinAccountPort, SkinDiskCache, SkinLibrarySt
 import { dbHelpers } from "../../db"
 import type { SkinLibraryRow } from "../../db"
 import { getMicrosoftDeviceClientId } from "../config"
+import { AUTH_URLS, SERVICE_URLS } from "@xnlc/urls"
 
-const MS_TOKEN_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
-const XBOX_LIVE_AUTH_URL = "https://user.auth.xboxlive.com/user/authenticate"
-const XSTS_AUTH_URL = "https://xsts.auth.xboxlive.com/xsts/authorize"
-const MC_LAUNCHER_LOGIN_URL = "https://api.minecraftservices.com/launcher/login"
+const MS_TOKEN_URL = AUTH_URLS.microsoftDeviceToken
+const XBOX_LIVE_AUTH_URL = AUTH_URLS.xboxLive
+const XSTS_AUTH_URL = AUTH_URLS.xsts
+const MC_LAUNCHER_LOGIN_URL = AUTH_URLS.minecraftLauncherLogin
 const MS_SCOPE = "XboxLive.SignIn XboxLive.offline_access"
 const FORM_HEADERS = { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" }
 
@@ -56,11 +57,17 @@ export function createDiskCache(): SkinDiskCache {
       }
     },
     async write(name, data) {
+      let temporary: string | undefined
       try {
         const dir = await labyCacheDir()
-        await fs.writeFile(path.join(dir, cacheFileName(name)), data as Uint8Array)
+        const target = path.join(dir, cacheFileName(name))
+        temporary = `${target}.${crypto.randomUUID()}.tmp`
+        await fs.writeFile(temporary, data as Uint8Array)
+        await fs.rename(temporary, target)
       } catch {
         // Кэш вспомогательный: не смогли записать — работаем дальше.
+      } finally {
+        if (temporary) await fs.unlink(temporary).catch(() => {})
       }
     },
   }
@@ -116,7 +123,12 @@ export function createLibraryStore(): SkinLibraryStore {
         sourceId: input.sourceId ?? null,
       }
 
-      await dbHelpers.saveSkinToLibrary({ ...skin, sourceId: skin.sourceId ?? null })
+      try {
+        await dbHelpers.saveSkinToLibrary({ ...skin, sourceId: skin.sourceId ?? null })
+      } catch (error) {
+        await fs.unlink(filePath).catch(() => {})
+        throw error
+      }
       return skin
     },
     async remove(id) {
@@ -125,9 +137,8 @@ export function createLibraryStore(): SkinLibraryStore {
       await dbHelpers.deleteSkinFromLibrary(id)
     },
     async update(id, patch) {
-      if (patch.variant !== undefined) await dbHelpers.updateSkinVariant(id, patch.variant)
-      if (patch.capeId !== undefined) await dbHelpers.updateSkinCapeId(id, patch.capeId)
-      if (patch.name !== undefined) await dbHelpers.updateSkinName(id, patch.name)
+      const stored = await dbHelpers.findLibrarySkinById(id)
+      if (stored) await dbHelpers.saveSkinToLibrary({ ...stored, ...patch })
     },
     async readTexture(id) {
       const skin = await dbHelpers.findLibrarySkinById(id)
@@ -229,7 +240,7 @@ async function toResolved(account: Awaited<ReturnType<typeof loadAccount>>): Pro
     return null
   }
   if ((account.type === "xnskins" || (account.type as string) === "xneon") && !serverUrl) {
-    serverUrl = "https://skins.xneon.org/authlib-injector/"
+    serverUrl = `${SERVICE_URLS.xnSkins}/authlib-injector/`
   }
 
   if (account.accessToken) {

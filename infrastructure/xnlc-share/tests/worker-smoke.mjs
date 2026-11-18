@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { generateKeyPairSync, sign } from 'node:crypto'
+import { generateKeyPairSync, sign, randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import { gzipSync } from 'node:zlib'
 import { ShareApiClient, ShareSystem, MAX_FILE_BYTES, branchHistory } from '../../../packages/xnlc-share/lib/index.js'
@@ -21,7 +21,9 @@ export async function workerSmoke(base) {
   const owner = await login('Share deployment check'), reader = await login('Share deployment reader')
   const remote = new ShareApiClient(base, async () => owner.token, fetch)
   const remoteReader = new ShareApiClient(base, async () => reader.token, fetch)
-  const files = new MemoryFiles({ 'config/test.json5': '{ enabled: true, }', 'config/test.jexl': 'true', 'config/large.txt': 'x'.repeat(1024 * 1024) })
+  // Уникальное содержимое обходит штатную R2-дедупликацию: повторный smoke
+  // действительно проверяет upload progress, а не повторное использование SHA.
+  const files = new MemoryFiles({ 'config/test.json5': '{ enabled: true, }', 'config/test.jexl': 'true', 'config/large.txt': randomUUID()+'x'.repeat(1024 * 1024) })
   files.data.set('servers.dat', Uint8Array.of(10, 0, 0, 0))
   files.data.set('saves/Verification/level.dat', gzipSync(Uint8Array.of(10, 0, 0, 0)))
   files.data.set('saves/Verification/region/r.0.0.mca', new Uint8Array(8192))
@@ -35,7 +37,7 @@ export async function workerSmoke(base) {
   try {
     id = await remote.create()
     const first = await system.publish((await system.scan(meta)).manifest, owner.user.id, 'Deployment verification', id)
-    assert.ok(transferEvents.some(event => event.stage === 'upload' && event.done > 0 && event.done < 1))
+    assert.ok(transferEvents.some(event => event.stage === 'upload' && event.done > 0 && event.done < event.total))
     assert.equal((await call(`/repositories/${id}`, reader.token)).status, 403)
     const oversized = await call(`/repositories/${id}/objects/${'a'.repeat(64)}/ticket`, owner.token, { size: MAX_FILE_BYTES + 1 })
     assert.equal(oversized.status, 413)

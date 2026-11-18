@@ -1,6 +1,7 @@
 import type { AiProtocol } from "@xnlc/types"
+import { AI_ENDPOINTS } from "@xnlc/urls"
 
-export const DEFAULT_AI_ENDPOINT = "https://api.openai.com/v1"
+export const DEFAULT_AI_ENDPOINT = AI_ENDPOINTS.openai
 
 export function aiEndpoint(value: string): string {
   let url: URL

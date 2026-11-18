@@ -1,4 +1,5 @@
 import { CONTENT_ENTER_DELAYED } from "../content-motion"
+import { SERVICE_URLS } from "@xnlc/urls"
 import { useEffect, useRef, useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { IconSend, IconTrash, IconTerminal2, IconCopy, IconCheck, IconShare, IconBrain, IconArrowDown, IconLoader2 } from "@tabler/icons-react"
@@ -62,7 +63,7 @@ export function ConsoleTab({ serverId, serverName, logs, isRunning, command, onC
     setShareState("loading")
     try {
       const text = logs.map(l => stripAnsi(l)).join("\n")
-      const res = await fetch("https://api.mclo.gs/1/log", {
+      const res = await fetch(SERVICE_URLS.logUpload, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({ content: text }),

@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react"
 
+import { URLS } from "@xnlc/urls/minecraft"
+
 export type AccountWithAvatar = { uuid?: string; type?: string; skinUrl?: string }
 export type LaunchPhase = "idle" | "installing" | "launching"
 export type LaunchUiState = {
@@ -57,7 +59,6 @@ export const ACCOUNT_TYPE_LABELS: Record<string, string> = {
 }
 
 type MojangManifestResponse = { versions?: Array<{ id: string; type: string }> }
-const MOJANG_VERSION_MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
 
 export const getAvatarUrl = (account: AccountWithAvatar, username: string, version?: number | string) => {
   if (account.type === "offline" && !account.skinUrl) return "avatar://head/Steve"
@@ -84,7 +85,7 @@ export function formatDate(raw: string) {
 export async function fetchVersionsFromRenderer(): Promise<MinecraftVersionOption[]> {
   // force-cache lets Chromium serve the manifest from its HTTP cache instead of
   // re-downloading it on every start when the IPC fallback path is used.
-  const response = await fetch(MOJANG_VERSION_MANIFEST_URL, { cache: "force-cache" })
+  const response = await fetch(URLS.official.mojang.versionManifestV2, { cache: "force-cache" })
   if (!response.ok) throw new Error(`Failed to fetch Mojang manifest: ${response.status}`)
   const data = await response.json() as MojangManifestResponse
   return (data.versions ?? []).map((version) => ({

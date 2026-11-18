@@ -71,8 +71,8 @@ export function Launcher({ onReady }: LauncherProps) {
       if (request === navigationRequest.current) startTransition(() => updateActiveTab(tab))
     })
   }, [])
-  // Две частые страницы сохраняют состояние. Activity снимает их эффекты в фоне:
-  // скрытые страницы не держат watchers/таймеры/подписки, тяжёлые экраны не удерживаем.
+  // Activity сохраняет UI-навигацию. Страница сборок в скрытом состоянии
+  // снимает тяжёлое дерево и отпускает snapshots в ограниченный кеш.
   const [retained, setRetained] = useState<TabId[]>([])
   const retainedPages = ["builds", "settings"].includes(activeTab) && !retained.includes(activeTab)
     ? [...retained, activeTab] : retained
@@ -252,7 +252,7 @@ export function Launcher({ onReady }: LauncherProps) {
   const renderPage = (tab: TabId) => {
     switch (tab) {
       case "home": return <HomePage />
-      case "builds": return <InstancePage rootResetToken={sectionResetTokens.builds} startupBuild={startupBuild} />
+      case "builds": return <InstancePage active={activeTab === "builds"} rootResetToken={sectionResetTokens.builds} startupBuild={startupBuild} />
       case "logs": return <LogsPage focus={logsFocus} />
       case "agent": return <AgentPage />
       case "stats": return <StatsPage />

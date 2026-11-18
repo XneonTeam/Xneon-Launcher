@@ -11,15 +11,15 @@ LiveOps-клиент из `xnlc-liveops/client/`; тест Share импорти�
 | Каталог | Что это | Стек | npm-пакет |
 | --- | --- | --- | --- |
 | `xnlc-share/` | XNLC/Share — сервис общих сборок: авторизация устройства, публикации, коммиты/ветки/участники, приглашения, объекты по SHA-256 | Bun 1.4.4 + `bun:sqlite` локально; Cloudflare Worker, Durable Object (SQLite) и R2 в production | нет своего `package.json` (не Bun-workspace) |
-| `xnlc-liveops/` | Ивентовые темы — HTTP-сервис расписания ивентов, JSON-каталог, admin CLI, плюс клиентский контроллер для main-процесса | Go 1.26+, только стандартная библиотека; клиент — чистый ESM без зависимостей | нет (Go-модуль `xneon/liveops-themes`) |
+| `xnlc-liveops/` | Ивентовые темы — HTTP-сервис расписания ивентов, admin CLI, клиентский контроллер и Cloudflare-адаптер | Go 1.26+ локально; Cloudflare Worker + SQLite Durable Object + R2 в production; клиент — ESM | нет (Go-модуль `xneon/liveops-themes`) |
 
 Оба каталога сохраняют внутреннюю структуру прежних `services/share` и
 `services/liveops-themes`: относительные пути внутри приложений не менялись,
 поэтому импорты, `go.mod`, `wrangler.jsonc` и конфиги работают как раньше.
 
-Dockerfile/`docker-compose` в репозитории нет ни для одного сервиса: Share
-разворачивается Wrangler'ом (Worker) или отдельным Bun-процессом, liveops —
-статическим бинарником рядом с JSON-каталогом.
+Dockerfile/`docker-compose` в репозитории нет ни для одного сервиса. Оба
+сервиса поддерживают Cloudflare Worker через Wrangler; отдельно Share может
+работать Bun-процессом, LiveOps — Go-бинарником рядом с JSON-каталогом.
 
 ## Локальный запуск
 
@@ -77,10 +77,10 @@ Liveops дополнительно: `go vet ./...` и
 - `electrobun/main/liveops.ts` запускает контроллер после открытия БД, до первого
   рендера восстанавливает проверенный диск-кэш без сетевого ожидания, затем
   проверяет `/v1/events/current` в фоне. Таймер контроллера учитывает `end_date`.
-- Для подключения задайте `XNLC_LIVEOPS_URL` — origin сервиса (HTTPS; HTTP
+- По умолчанию используется `https://liveops.xneon.org`. `XNLC_LIVEOPS_URL` переопределяет origin (HTTPS; HTTP
   разрешён только для localhost). Например, для локального сервера выше:
   `$env:XNLC_LIVEOPS_URL='http://127.0.0.1:8091'` перед `bun run dev`.
-  Без переменной сетевой клиент выключен, обычные темы работают как раньше.
+  Явно пустая переменная выключает сетевой клиент, обычные темы работают как раньше.
 - Кэш: `<userData>/event-theme-cache/`; настройка `eventTheme` содержит проверенную
   тему, `theme` — текущий id. Событийный id имеет вид `event:<event_id>`.
   Ивенты не записываются в `customThemes` и пользовательскую папку CSS-тем.
@@ -107,6 +107,10 @@ Liveops дополнительно: `go vet ./...` и
 - Liveops: бинарник кладётся в собственный root (например `deploy/`), рядом
   создаются `admin.token` и `data/catalog.json`; бюджет каталога — строго
   100 000 000 байт.
+- LiveOps Cloudflare: `xnlc-liveops/wrangler.jsonc`, адрес
+  `https://liveops.xneon.org`. SQLite DO координирует
+  расписание, приватный R2 хранит пакеты, секрет `LIVEOPS_ADMIN_TOKEN` защищает
+  admin API. Тесты, deploy и политика хранения — `xnlc-liveops/README.md`.
 
 ## Клиентские пакеты и общие контракты
 

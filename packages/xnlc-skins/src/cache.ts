@@ -72,22 +72,27 @@ export class SkinCache {
    * скина — единицы килобайт, зато повторный импорт того же скина не читает
    * файл с диска.
    */
-  async binary(key: string, load: () => Promise<Uint8Array | null>): Promise<Uint8Array | null> {
+  async binary(key: string, load: () => Promise<Uint8Array | null>, policy?: {
+    ttl?: number; validate?: (data: Uint8Array) => boolean
+  }): Promise<Uint8Array | null> {
+    const ttl = policy?.ttl ?? Infinity
+    const valid = (data: Uint8Array | null | undefined) => data?.byteLength > 0 && (!policy?.validate || policy.validate(data))
     const inMemory = this.memory.get(key)
-    if (inMemory) return inMemory.data as Uint8Array
+    if (inMemory && Date.now() - inMemory.at < ttl && valid(inMemory.data as Uint8Array)) return inMemory.data as Uint8Array
 
     const cached = await this.disk?.read(key).catch(() => null)
-    if (cached && cached.byteLength > 0) {
+    if (valid(cached) && ttl === Infinity) {
       this.remember(key, cached)
       return cached
     }
 
-    const data = await load()
-    if (data) {
+    const data = await load().catch(() => null)
+    if (valid(data)) {
       this.remember(key, data)
-      void this.disk?.write(key, data).catch(() => {})
+      await this.disk?.write(key, data).catch(() => {})
+      return data
     }
-    return data
+    return valid(cached) ? cached : valid(inMemory?.data as Uint8Array) ? inMemory.data as Uint8Array : null
   }
 
   clear(): void {

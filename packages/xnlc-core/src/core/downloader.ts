@@ -5,6 +5,7 @@ import * as path from "path";
 import * as fsSync from "fs";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { rewriteMinecraftUrl } from "@xnlc/urls/minecraft";
 import { sha1Hash, ensureDirSync } from "../utils/index.js";
 import { DownloadProgressCallback } from "../types/index.js";
 
@@ -128,6 +129,7 @@ export class DownloadTask {
     expectedSha1: string | undefined,
     onProgress: DownloadProgressCallback | undefined,
   ): Promise<void> {
+    url = rewriteMinecraftUrl(url);
     // Каждая попытка владеет своим файлом, в том числе в разных процессах.
     const tempPath = `${dest}.${randomUUID()}.tmp`;
     const publish = () => {

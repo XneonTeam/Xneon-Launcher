@@ -42,7 +42,7 @@ export interface SkinLibraryStore {
   }): Promise<LibrarySkin | null>
   /** Удаляет запись вместе с файлом текстуры. */
   remove(id: string): Promise<void>
-  update(id: string, patch: { variant?: "classic" | "slim"; capeId?: string | null; name?: string }): Promise<void>
+  update(id: string, patch: { variant?: "classic" | "slim"; capeId?: string | null; name?: string; sourceId?: string | null }): Promise<void>
   /** Текстура записи: нужна, чтобы надеть скин или импортировать его заново. */
   readTexture(id: string): Promise<Uint8Array | null>
 }

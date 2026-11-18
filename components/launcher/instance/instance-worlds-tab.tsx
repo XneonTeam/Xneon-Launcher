@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { formatBytes, formatDateTime, formatPlaytime } from "@/lib/format"
+import { datapackVersionFile, datapackVersions } from "@/lib/datapack-version"
+import { findInstalledDatapack } from "@/lib/datapack-installed"
 import { IconArchive, IconCopy, IconDownload, IconFolder, IconInfoCircle, IconLoader2, IconMap, IconPhoto, IconRefresh, IconSearch, IconTrash, IconUpload, IconX, IconCheck, IconList } from "@tabler/icons-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -17,6 +19,8 @@ import { CategoryBadge } from "./category-badge"
 import { ModalLayer } from "@/components/ui/modal-layer"
 import { ActionConfirmDialog } from "./action-confirm-dialog"
 import { useAlertDialog } from "@/lib/use-alert-dialog"
+import { useActivityCenter } from "@/src/ActivityCenterContext"
+import { isContentDownloadCancelled } from "@/lib/content-download"
 import type { Build, DatapackInfo, ModalTab, ModDetails, ModSearchResult, ModVersion, Source, WorldInfo, ModSort } from "./types"
 
 // CurseForge отдаёт категории карт (classId 17) вместе с их названиями и иконками.
@@ -40,6 +44,7 @@ function copyToClipboard(text: string): void {
 
 export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
   const { t } = useTranslation()
+  const { beginContentInstall, endContentInstall, pushNotification } = useActivityCenter()
   const [worlds, setWorlds] = useState<WorldInfo[] | null>(null)
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [datapacks, setDatapacks] = useState<DatapackInfo[]>([])
@@ -394,52 +399,81 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
     setNamePrompt({ mode: "import", initial, pendingFile: localPath })
   }
 
+  const runDatapackInstall = async (name: string, install: () => Promise<boolean>): Promise<boolean> => {
+    beginContentInstall({ title: t("worlds.datapack.installing"), message: t("builds.mod.downloading", { name }), itemName: name })
+    try {
+      const success = await install()
+      pushNotification({ kind: success ? "success" : "error", source: "install", title: t(success ? "worlds.datapack.installed" : "worlds.datapack.failed"), message: name })
+      return success
+    } catch (error) {
+      if (!isContentDownloadCancelled(error)) {
+        const message = error instanceof Error ? error.message : t("worlds.errors.datapackInstall")
+        pushNotification({ kind: "error", source: "install", title: t("worlds.datapack.failed"), message: `${name}: ${message}` })
+        showAlert(message)
+      }
+      return false
+    } finally { endContentInstall() }
+  }
+
   const handleInstallDatapackLocal = async (file: File) => {
-    if (!selectedWorld) return
-    const localPath = await window.electrobunAPI?.getFilePath(file)
-    if (!localPath) {
-      showAlert(t("worlds.errors.getFilePath"))
-      return
-    }
-    const result = await window.electrobunAPI?.installDatapackLocal(build.name, selectedWorld.folder, localPath)
-    if (!result?.success) {
-      showAlert(result?.error ?? t("worlds.errors.datapackInstall"))
-      return
-    }
-    await refreshDatapacks(selectedWorld.folder)
+    if (!selectedWorld) return false
+    return runDatapackInstall(file.name, async () => {
+      const localPath = await window.electrobunAPI?.getFilePath(file)
+      if (!localPath) {
+        showAlert(t("worlds.errors.getFilePath"))
+        return false
+      }
+      const result = await window.electrobunAPI?.installDatapackLocal(build.name, selectedWorld.folder, localPath)
+      if (!result?.success) {
+        showAlert(result?.error ?? t("worlds.errors.datapackInstall"))
+        return false
+      }
+      await refreshDatapacks(selectedWorld.folder)
+      return true
+    })
   }
 
   const handleInstallDatapackRemote = async (mod: ModSearchResult) => {
-    if (!selectedWorld) return
+    if (!selectedWorld) return false
+    if (installing || findInstalledDatapack(datapacks, mod)) return false
     setInstalling(mod.id)
     try {
-      if (mod.source === "modrinth") {
-        const versions = await window.electrobunAPI?.modsModrinthVersions(mod.slug)
-        const version = versions?.find(v => v.files?.[0]?.url)
-        if (!version?.files?.[0]) {
-          showAlert(t("worlds.errors.datapackNoVersion"))
-          return
-        }
-        const file = version.files[0]
-        const result = await window.electrobunAPI?.installDatapackRemote(build.name, selectedWorld.folder, file.url, file.filename || `${mod.slug}.zip`)
-        if (!result?.success) showAlert(result?.error ?? t("worlds.errors.datapackDownload"))
-      } else if (mod.modId) {
-        const details = await window.electrobunAPI?.modsCurseforgeDetails(mod.modId)
-        const version = details?.versions?.find(v => Number(v.id) === mod.primaryFileId) ?? details?.versions?.[0]
-        if (!version) {
-          showAlert(t("worlds.errors.datapackNoVersion"))
-          return
-        }
-        const url = await window.electrobunAPI?.modsCurseforgeDownloadUrl(Number(version.id), mod.modId)
-        if (!url) {
-          showAlert(t("worlds.errors.downloadLink"))
-          return
-        }
-        const fileName = version.fileName || url.split("/").pop()?.split("?")[0] || `${mod.slug}.zip`
-        const result = await window.electrobunAPI?.installDatapackRemote(build.name, selectedWorld.folder, url, fileName)
-        if (!result?.success) showAlert(result?.error ?? t("worlds.errors.datapackDownload"))
-      }
-      await refreshDatapacks(selectedWorld.folder)
+      return await runDatapackInstall(mod.name, async () => {
+        if (mod.source === "modrinth") {
+          const versions = await window.electrobunAPI?.modsModrinthVersions(mod.slug)
+          const version = datapackVersions(versions ?? [], selectedWorld.mcVersion || build.version).find(v => v.downloadUrl)
+          if (!version?.downloadUrl) {
+            showAlert(t("worlds.errors.datapackNoVersion"))
+            return false
+          }
+          const result = await window.electrobunAPI?.installDatapackRemote(build.name, selectedWorld.folder, version.downloadUrl, version.fileName)
+          if (!result?.success) {
+            showAlert(result?.error ?? t("worlds.errors.datapackDownload"))
+            return false
+          }
+        } else if (mod.modId) {
+          const details = await window.electrobunAPI?.modsCurseforgeDetails(mod.modId)
+          const versions = datapackVersions(details?.versions ?? [], selectedWorld.mcVersion || build.version)
+          const version = versions.find(v => Number(v.id) === mod.primaryFileId) ?? versions[0]
+          if (!version) {
+            showAlert(t("worlds.errors.datapackNoVersion"))
+            return false
+          }
+          const url = await window.electrobunAPI?.modsCurseforgeDownloadUrl(Number(version.id), mod.modId)
+          if (!url) {
+            showAlert(t("worlds.errors.downloadLink"))
+            return false
+          }
+          const fileName = version.fileName || url.split("/").pop()?.split("?")[0] || `${mod.slug}.zip`
+          const result = await window.electrobunAPI?.installDatapackRemote(build.name, selectedWorld.folder, url, fileName)
+          if (!result?.success) {
+            showAlert(result?.error ?? t("worlds.errors.datapackDownload"))
+            return false
+          }
+        } else return false
+        await refreshDatapacks(selectedWorld.folder)
+        return true
+      })
     } finally {
       setInstalling(null)
     }
@@ -465,7 +499,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
           : null
       if (details) {
         setSelectedDetails(details)
-        setDisplayedModalVersions(details.versions ?? [])
+        setDisplayedModalVersions(datapackVersions(details.versions ?? []))
         setModalTab("description")
       } else {
         showAlert(t("worlds.errors.datapackInfo"))
@@ -478,19 +512,30 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
   }
 
   const handleInstallDatapackVersion = async (version: ModVersion) => {
-    if (!selectedWorld) return
-    const url = version.downloadUrl || version.files?.[0]?.url
-    if (!url) {
-      showAlert(t("worlds.errors.noDownloadLink"))
-      return
-    }
-    const fileName = version.fileName || url.split("/").pop()?.split("?")[0] || "datapack.zip"
-    const result = await window.electrobunAPI?.installDatapackRemote(build.name, selectedWorld.folder, url, fileName)
-    if (!result?.success) {
-      showAlert(result?.error ?? t("worlds.errors.datapackDownload"))
-      return
-    }
-    await refreshDatapacks(selectedWorld.folder)
+    if (!selectedWorld) return false
+    return runDatapackInstall(selectedDetails?.name || version.name, async () => {
+      const file = datapackVersionFile(version)
+      if (!file) {
+        showAlert(t("worlds.errors.datapackNoVersion"))
+        return false
+      }
+      let url = file.downloadUrl
+      if (!url && selectedDetails?.source === "curseforge" && selectedDetails.modId) {
+        url = await window.electrobunAPI?.modsCurseforgeDownloadUrl(Number(version.id), selectedDetails.modId) ?? undefined
+      }
+      if (!url) {
+        showAlert(t("worlds.errors.noDownloadLink"))
+        return false
+      }
+      const fileName = file.fileName
+      const result = await window.electrobunAPI?.installDatapackRemote(build.name, selectedWorld.folder, url, fileName)
+      if (!result?.success) {
+        showAlert(result?.error ?? t("worlds.errors.datapackDownload"))
+        return false
+      }
+      await refreshDatapacks(selectedWorld.folder)
+      return true
+    })
   }
 
   return (
@@ -1072,7 +1117,7 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
               <div data-ui="instance-instance-worlds-tab-div-69" className="mt-5">
                 <div data-ui="instance-instance-worlds-tab-div-70" className="flex items-center justify-between">
                   <div data-ui="instance-instance-worlds-tab-div-71" className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                    <IconArchive className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
+                    <IconArchive className="h-4 w-4 text-primary" strokeWidth={1.75} />
                     {t("worlds.ui.datapacks", { count: datapacks.length })}
                   </div>
                   <button data-ui="instance-instance-worlds-tab-button-23"
@@ -1100,9 +1145,13 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                   <div data-ui="instance-instance-worlds-tab-div-72" className="mt-3 space-y-2">
                     {datapacks.map(dp => (
                       <div data-ui="instance-instance-worlds-tab-div-73" key={dp.name} className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/20 px-3 py-2.5">
-                        <IconArchive className="h-4 w-4 flex-shrink-0 text-muted-foreground" strokeWidth={1.75} />
+                        <div className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted/40">
+                          <IconArchive className="h-5 w-5 text-primary" strokeWidth={1.75} />
+                          {dp.iconUrl && <img key={dp.iconUrl} src={dp.iconUrl} alt="" className="absolute inset-0 h-full w-full bg-muted object-contain" loading="lazy" onError={event => { event.currentTarget.style.display = "none" }} />}
+                        </div>
                         <div data-ui="instance-instance-worlds-tab-div-74" className="min-w-0 flex-1">
-                          <div data-ui="instance-instance-worlds-tab-div-75" className="truncate text-sm text-foreground">{dp.name}</div>
+                          <div data-ui="instance-instance-worlds-tab-div-75" className="truncate text-sm text-foreground" title={dp.name}>{dp.displayName || dp.name}</div>
+                          {dp.author && <div className="truncate text-xs text-muted-foreground">{dp.author}</div>}
                           {dp.description && <div className="truncate text-xs text-muted-foreground">{dp.description}</div>}
                           {dp.parseError && <div className="truncate text-xs text-muted-foreground">{t("worlds.errors.datapackInfo")}</div>}
                           <div data-ui="instance-instance-worlds-tab-div-76" className="text-[11px] text-muted-foreground">{formatBytes(dp.sizeBytes)}</div>
@@ -1179,13 +1228,15 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
 
                   {!searching && results && results.length > 0 && (
                     <div data-ui="instance-instance-worlds-tab-div-82" className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
-                      {results.map(mod => (
+                      {results.map(mod => {
+                        const installed = !!findInstalledDatapack(datapacks, mod)
+                        return (
                         <div data-ui="instance-instance-worlds-tab-div-83" key={mod.id} className="flex items-center gap-3 rounded-xl border border-border/70 bg-card/60 p-2.5">
                           {mod.iconUrl ? (
                             <img data-ui="instance-instance-worlds-tab-img-5" src={mod.iconUrl} alt="" className="h-9 w-9 flex-shrink-0 rounded-lg object-cover" />
                           ) : (
                             <div data-ui="instance-instance-worlds-tab-div-84" className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-muted/50">
-                              <IconArchive className="h-4 w-4 text-muted-foreground/50" strokeWidth={1.75} />
+                              <IconArchive className="h-4 w-4 text-primary" strokeWidth={1.75} />
                             </div>
                           )}
                           <div data-ui="instance-instance-worlds-tab-div-85" className="min-w-0 flex-1">
@@ -1204,19 +1255,22 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
                           </button>
                           <button data-ui="instance-instance-worlds-tab-button-27"
                             type="button"
-                            disabled={installing === mod.id}
+                            disabled={!!installing || installed}
                             onClick={() => void handleInstallDatapackRemote(mod)}
-                            className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+                            className={cn("flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed",
+                              installed ? "bg-muted text-primary" : "bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50")}
                           >
                             {installing === mod.id ? (
                               <IconLoader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />
+                            ) : installed ? (
+                              <IconCheck className="h-3.5 w-3.5" strokeWidth={2} />
                             ) : (
                               <IconDownload className="h-3.5 w-3.5" strokeWidth={2} />
                             )}
-                            {t("worlds.ui.install")}
+                            {t(installed ? "addon.installed" : "worlds.ui.install")}
                           </button>
                         </div>
-                      ))}
+                      )})}
                     </div>
                   )}
                 </div>
@@ -1305,9 +1359,9 @@ export function InstanceWorldsTab({ build }: InstanceWorldsTabProps) {
         displayedModalVersions={displayedModalVersions}
         onInstallVersion={(version) => {
           if (viewMode === "catalog") {
-            void handleInstallMapVersion(version)
+            return handleInstallMapVersion(version)
           } else {
-            void handleInstallDatapackVersion(version)
+            return handleInstallDatapackVersion(version)
           }
         }}
         onClose={() => setSelectedDetails(null)}

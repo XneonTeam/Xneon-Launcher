@@ -6,6 +6,7 @@ import fs from "node:fs"
 import vm from "node:vm"
 import { createRequire } from "node:module"
 import { transformSync } from "esbuild"
+import * as sharedUrls from "../../packages/xnlc-urls/src/index.ts"
 
 {
   describe("modpack-metadata-transaction", () => {
@@ -308,8 +309,11 @@ import { transformSync } from "esbuild"
       let busy = false
       const module = { exports: {} }
       const dependencies = {
+        '@xnlc/urls': sharedUrls,
         './settings-handlers': { registerSettingsHandlers() {} },
         './account-service': { registerAccountHandlers() {} },
+        './builds/content-icon': { normalizeBuildContentIcons: content => content },
+        './builds/content-icon-assets': { publicContentIcons: async content => content, storedContentIcons: async content => content },
         './builds/modpack-persistence': { assertBuildMetadataIdle: () => { if (busy) throw new Error('MODPACK_BUSY') } },
         './external-links': {}, './errors': {}, './runtime': {}, './import': {}, './java-discovery': {}, '@xnlc/core/retry': {},
         '../platform/desktop': { rpcRegistry: { handle: (name, handler) => handlers.set(name, handler) } },

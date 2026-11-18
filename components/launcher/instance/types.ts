@@ -63,6 +63,8 @@ export type BuildMod = {
   source?: "local" | Source
   projectId?: string
   modId?: number
+  versionId?: string
+  fileId?: number
   author?: string
   enabled?: boolean
 }

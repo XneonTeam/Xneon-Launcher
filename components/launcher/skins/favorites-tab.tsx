@@ -3,7 +3,7 @@ import { lazy, Suspense, useState, useEffect, useCallback, useRef, useMemo } fro
 import { useTranslation } from "react-i18next"
 import { useAccounts } from "@/src/AccountsContext"
 import { useActivityCenter } from "@/src/ActivityCenterContext"
-import { localFileToBlobUrl } from "@/lib/local-file-url"
+import { localFileToBlobUrl, releaseLocalFileUrl } from "@/lib/local-file-url"
 import { EmptySkinsState } from "./empty-skins-state"
 import { SkinPreviewPanel } from "./skin-preview-panel"
 import { SkinGrid } from "./skin-grid"
@@ -12,19 +12,9 @@ import { resolveSkinCapeUrl, findActiveCape } from "./cape-url"
 import type { McProfile, LibrarySkin } from "@xnlc/types"
 import { IconBookmark, IconLoader2 } from "@tabler/icons-react"
 import { ActionConfirmDialog } from "@/components/launcher/instance/action-confirm-dialog"
+import { equippedSkinId, initialSkinSelection } from "@/lib/skin-selection"
 
-/**
- * Кэш профиля скинов на уровне модуля.
- *
- * `skins:get-profile` в main ходит в сеть (Mojang/xnskins/elyby) — это 0.2–0.6 с,
- * и раньше вкладка ждала этот ответ, прежде чем показать активный скин и плащи.
- * Теперь при повторном входе профиль берётся из кэша сразу (мгновенная отрисовка),
- * а обновление идёт в фоне.
- */
-const profileCache = new Map<string, { profile: McProfile | null; at: number }>()
-
-/** TTL, после которого профиль обновляем в фоне (показанные данные не блокируют). */
-const PROFILE_CACHE_TTL_MS = 60_000
+// Кэш и сопоставление текстур принадлежат main и переживают перезапуск.
 const EditSkinModal = lazy(() => import("../edit-skin-modal").then(module => ({ default: module.EditSkinModal })))
 
 /**
@@ -46,12 +36,14 @@ export function FavoritesTab() {
   const [pendingDeleteSkin, setPendingDeleteSkin] = useState<SkinCardData | null>(null)
   const [skinBlobUrls, setSkinBlobUrls] = useState<Map<string, string>>(new Map())
   const [profile, setProfile] = useState<McProfile | null>(null)
-  const [activeSkinUrl, setActiveSkinUrl] = useState<string>("")
-  const [activeSkinVariant, setActiveSkinVariant] = useState<"classic" | "slim">("classic")
+  const activeSkin = profile?.skins.find(s => s.state === "ACTIVE")
+  const activeSkinUrl = activeSkin?.url ?? ""
+  const activeSkinVariant = activeSkin?.variant === "SLIM" ? "slim" : "classic"
+  const [profileLoadedFor, setProfileLoadedFor] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const contentEnter = useContentEnter(!loading)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [equippedId, setEquippedId] = useState<string | null>(null)
+  const equippedId = equippedSkinId(profile, librarySkins)
   const [isApplying, setIsApplying] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editModalSkin, setEditModalSkin] = useState<LibrarySkin | null>(null)
@@ -68,6 +60,7 @@ export function FavoritesTab() {
   // Аккаунт, для которого сейчас идёт/выполнилась загрузка — защита от гонки при смене аккаунта
   const activeAccountIdRef = useRef<string | null>(null)
   const loadedForAccountIdRef = useRef<string | null>(null)
+  const accountGenerationRef = useRef(0)
 
   // Blob-URL для превью сохранённых скинов. Чтение каждого PNG идёт через IPC
   // (`skins:read-local-file`), поэтому кэш по пути файла ведёт сам
@@ -80,106 +73,77 @@ export function FavoritesTab() {
       if (cancelled) return
       setSkinBlobUrls(new Map(entries.filter((entry): entry is readonly [string, string] => Boolean(entry[1]))))
     })
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      for (const skin of librarySkins) releaseLocalFileUrl(skin.filePath)
+    }
   }, [librarySkins])
 
-  /** Применяет профиль к состоянию: активный скин, его вариант, плащи. */
-  const applyProfile = useCallback((result: McProfile | null) => {
-    setProfile(result ?? null)
-    if (result?.skins) {
-      const active = result.skins.find((s) => s.state === "ACTIVE")
-      if (active?.url) {
-        setActiveSkinUrl(active.url)
-        setActiveSkinVariant(active.variant === "SLIM" ? "slim" : "classic")
-      } else {
-        setActiveSkinUrl("")
-      }
-    }
-  }, [])
-
-  const fetchProfile = useCallback(async (force = false) => {
+  const fetchProfile = useCallback(async () => {
     const accountId = account?.id
     if (!accountId || !window.electrobunAPI) return
-
-    // Мгновенная отрисовка из кэша: сетевой запрос уходит в фон.
-    // `force` — после смены/сброса скина: там нужен свежий ответ, а не кэш.
-    const cached = force ? undefined : profileCache.get(accountId)
-    if (cached) {
-      applyProfile(cached.profile)
-      if (Date.now() - cached.at < PROFILE_CACHE_TTL_MS) return
-    }
-
+    const generation = accountGenerationRef.current
     try {
       const result = await window.electrobunAPI.skinsGetProfile(accountId)
-      // Ответ мог прийти уже после смены аккаунта — отбрасываем
-      if (activeAccountIdRef.current !== accountId) return
-      profileCache.set(accountId, { profile: result ?? null, at: Date.now() })
-      applyProfile(result ?? null)
+      if (activeAccountIdRef.current !== accountId || generation !== accountGenerationRef.current) return
+      setProfile(result ?? null)
+      setProfileLoadedFor(accountId)
     } catch {
-      if (activeAccountIdRef.current !== accountId) return
-      if (!cached) setActiveSkinUrl("")
+      if (activeAccountIdRef.current !== accountId || generation !== accountGenerationRef.current) return
+      setProfileLoadedFor(accountId)
     }
-  }, [account?.id, applyProfile])
+  }, [account?.id])
 
   const fetchLibrary = useCallback(async () => {
     const accountId = account?.id
     if (!accountId || !window.electrobunAPI) return
+    const generation = accountGenerationRef.current
     setLoading(true)
     try {
       const skins = await window.electrobunAPI.skinsListLibrary(accountId)
       // Ответ мог прийти уже после смены аккаунта — отбрасываем
-      if (activeAccountIdRef.current !== accountId) return
+      if (activeAccountIdRef.current !== accountId || generation !== accountGenerationRef.current) return
       setLibrarySkins(skins)
       loadedForAccountIdRef.current = accountId
     } catch (err) {
-      if (activeAccountIdRef.current !== accountId) return
+      if (activeAccountIdRef.current !== accountId || generation !== accountGenerationRef.current) return
       pushNotification({ kind: "error", source: "import", title: t("skins.error"), message: String(err) })
     } finally {
-      if (activeAccountIdRef.current === accountId) setLoading(false)
+      if (activeAccountIdRef.current === accountId && generation === accountGenerationRef.current) setLoading(false)
     }
   }, [account?.id, pushNotification])
 
   const reloadAll = useCallback(async () => {
-    await Promise.all([fetchLibrary(), fetchProfile()])
+    // Профиль может обновить модель/плащ сохранённой записи при сверке с сервером.
+    const generation = accountGenerationRef.current
+    await fetchProfile()
+    if (generation !== accountGenerationRef.current) return
+    await fetchLibrary()
   }, [fetchLibrary, fetchProfile])
 
   useEffect(() => {
     activeAccountIdRef.current = account?.id ?? null
+    accountGenerationRef.current++
     initializedRef.current = false
+    loadedForAccountIdRef.current = null
+    setLibrarySkins([])
+    setProfile(null)
+    setProfileLoadedFor(null)
     setSelectedId(null)
-    setEquippedId(null)
+    setIsApplying(false)
+    setEditModalOpen(false)
     setLoading(true)
-    reloadAll()
+    void reloadAll()
+    return () => { activeAccountIdRef.current = null; accountGenerationRef.current++ }
   }, [account?.id])
 
   useEffect(() => {
     if (loading || initializedRef.current) return
     // Автовыбор только по данным, загруженным именно для текущего аккаунта
-    if (loadedForAccountIdRef.current !== account?.id) return
-    if (librarySkins.length > 0) {
-      /**
-       * Что надето, знает только отметка о применении: сопоставить запись
-       * библиотеки с активной текстурой аккаунта нечем — Mojang отдаёт свой
-       * хэш, а у записи хранится файл либо хэш Laby.
-       *
-       * Раньше при отсутствии отметки «надетым» объявлялся `librarySkins[0]`
-       * (список идёт по `createdAt DESC`, то есть самый свежий). Из-за этого
-       * скин, только что добавленный из каталога в избранное, показывался как
-       * надетый, хотя его не надевали. Хуже того, у «надетого» скина скрыта
-       * кнопка удаления — убрать такую запись из сетки было нельзя.
-       */
-      const appliedId = localStorage.getItem(`skin-equipped-${account?.id}`)
-      const equipped = appliedId && librarySkins.some((s) => s.id === appliedId) ? appliedId : null
-      setEquippedId(equipped)
-      // Выбор — отдельное от «надет» понятие: показываем надетый скин, а если
-      // ничего не надето, то самый свежий, чтобы превью не пустовало.
-      setSelectedId(equipped ?? librarySkins[0].id)
-    } else if (activeSkinUrl) {
-      setSelectedId("__api__")
-      setEquippedId("__api__")
-    }
+    if (loadedForAccountIdRef.current !== account?.id || profileLoadedFor !== account?.id) return
+    setSelectedId(initialSkinSelection(profile, librarySkins))
     initializedRef.current = true
-  }, [loading, activeSkinUrl, librarySkins, account?.id])
+  }, [loading, profile, profileLoadedFor, librarySkins, account?.id])
 
   const activeCape = findActiveCape(profile?.capes)
 
@@ -205,8 +169,8 @@ export function FavoritesTab() {
       })
     }
 
-    // Скин с сервера показываем, когда в библиотеке пусто.
-    if (activeSkinUrl && librarySkins.length === 0) {
+    // Внешний текущий скин не теряется среди сохранённых, дубликат не создаём.
+    if (activeSkinUrl && equippedId === "__api__") {
       skins.push({
         id: "__api__",
         name: t("skins.currentSkin", "Текущий скин"),
@@ -218,7 +182,7 @@ export function FavoritesTab() {
     }
 
     return skins
-  }, [librarySkins, skinBlobUrls, activeSkinUrl, activeSkinVariant, activeCape, t])
+  }, [librarySkins, skinBlobUrls, activeSkinUrl, activeSkinVariant, activeCape, equippedId, t])
 
   const selectedSkin = allSkins.find(s => s.id === selectedId)
   const hasPendingSkinChange = selectedId !== null && selectedId !== equippedId
@@ -230,23 +194,25 @@ export function FavoritesTab() {
 
   const handleUploadFile = useCallback(async (file: File) => {
     if (!window.electrobunAPI || !account?.id) return
+    const generation = accountGenerationRef.current
     try {
       const filePath = await window.electrobunAPI.getFilePath(file)
       const name = file.name.replace(/\.png$/i, "")
-      const variant = selectedSkin?.variant ?? "classic"
       // Плащ к новому скину не привязываем: раньше сюда уходил активный плащ
       // аккаунта, и добавленный скин выглядел так, будто ему сразу надели плащ.
       // Плащ выбирается явно в модалке редактирования.
-      const saved = await window.electrobunAPI.skinsSaveToLibrary(filePath, name, variant, account.id, null)
+      const saved = await window.electrobunAPI.skinsSaveToLibrary(filePath, name, "auto", account.id, null)
       if (saved) {
-        await fetchLibrary()
+        if (generation !== accountGenerationRef.current) return
+        await reloadAll()
+        if (generation !== accountGenerationRef.current) return
         setSelectedId(saved.id)
         pushNotification({ kind: "success", source: "import", title: t("skins.added"), message: name })
       }
     } catch (err) {
       pushNotification({ kind: "error", source: "import", title: t("skins.uploadError"), message: String(err) })
     }
-  }, [account?.id, selectedSkin, fetchLibrary, pushNotification])
+  }, [account?.id, reloadAll, pushNotification])
 
   const handleFileInput = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -266,17 +232,18 @@ export function FavoritesTab() {
     if (selectedSkin.id === "__api__") return
 
     setIsApplying(true)
+    const generation = accountGenerationRef.current
     try {
       const ok = await window.electrobunAPI.skinsApplyLibrarySkin(selectedSkin.id, account.id)
+      // Первый шаг мог пройти, даже если плащ не применился. Перечитываем
+      // фактическое состояние и при частичной неудаче, не рисуем старую отметку.
+      await window.electrobunAPI.avatarInvalidateCache?.({ username: account.username, uuid: account.uuid, type: account.type })
+      await reloadAccounts()
+      bumpAvatarVersion()
+      if (generation !== accountGenerationRef.current) return
+      await reloadAll()
+      if (generation !== accountGenerationRef.current) return
       if (ok) {
-        localStorage.setItem(`skin-equipped-${account.id}`, selectedSkin.id)
-        await window.electrobunAPI.avatarInvalidateCache?.({ username: account.username, uuid: account.uuid, type: account.type })
-        // Ссылка на активную текстуру у аккаунтов с сервером обновляет main —
-        // перечитываем аккаунты, чтобы аватар показал новый скин.
-        await reloadAccounts()
-        bumpAvatarVersion()
-        await fetchProfile(true)
-        setEquippedId(selectedSkin.id)
         setSelectedId(selectedSkin.id)
         setSkinVersion(v => v + 1)
         pushNotification({ kind: "success", source: "launch", title: t("skins.applied"), message: "" })
@@ -287,12 +254,13 @@ export function FavoritesTab() {
     } catch (err) {
       pushNotification({ kind: "error", source: "launch", title: t("skins.error"), message: String(err) })
     } finally {
-      setIsApplying(false)
+      if (generation === accountGenerationRef.current) setIsApplying(false)
     }
-  }, [account?.id, selectedSkin, isApplying, fetchProfile, pushNotification, reloadAccounts])
+  }, [account?.id, selectedSkin, isApplying, reloadAll, pushNotification, reloadAccounts])
 
   const handleReset = useCallback(async () => {
     if (!window.electrobunAPI || !account?.id) return
+    const generation = accountGenerationRef.current
     try {
       // Раньше результат не проверялся, и «Сбросить» показывало успех даже
       // когда запрос к Minecraft Services не прошёл.
@@ -301,25 +269,25 @@ export function FavoritesTab() {
         pushNotification({ kind: "error", source: "launch", title: t("skins.error"), message: "" })
         return
       }
-      localStorage.removeItem(`skin-equipped-${account.id}`)
       await window.electrobunAPI.avatarInvalidateCache?.({ username: account.username, uuid: account.uuid, type: account.type })
       // После сброса ссылка на текстуру в записи аккаунта тоже меняется —
       // перечитываем аккаунты, чтобы аватар стал актуальным.
       await reloadAccounts()
       bumpAvatarVersion()
-      await fetchProfile(true)
+      if (generation !== accountGenerationRef.current) return
+      await reloadAll()
+      if (generation !== accountGenerationRef.current) return
       // Скин с аккаунта снят — надетого больше нет. Раньше сюда подставлялся
       // `"__api__"` по устаревшему (до сброса) `activeSkinUrl`, и панель
       // показывала «Надет», хотя скина на аккаунте уже не было; карточки с
       // таким id в сетке тоже нет, поэтому выбор становился фантомным.
-      setEquippedId(null)
       setSelectedId((prev) => (prev === "__api__" ? null : prev))
       setSkinVersion(v => v + 1)
       pushNotification({ kind: "success", source: "launch", title: t("skins.reset"), message: t("skins.resetMessage") })
     } catch (err) {
       pushNotification({ kind: "error", source: "launch", title: t("skins.error"), message: String(err) })
     }
-  }, [account?.id, fetchProfile, pushNotification, t, reloadAccounts])
+  }, [account?.id, reloadAll, pushNotification, t, reloadAccounts])
 
   const handleDeleteSkin = useCallback(async (skinId: string) => {
     if (!window.electrobunAPI || !account?.id) return
@@ -327,52 +295,68 @@ export function FavoritesTab() {
       await handleReset()
       return
     }
+    const generation = accountGenerationRef.current
     try {
-      await window.electrobunAPI.skinsDeleteFromLibrary(skinId)
+      const ok = await window.electrobunAPI.skinsDeleteFromLibrary(skinId)
+      if (!ok) throw new Error(t("skins.error"))
+      if (generation !== accountGenerationRef.current) return
       if (selectedId === skinId) {
         // Надетого может не быть вовсе (скин добавлен, но не надет) — тогда берём
         // любую оставшуюся запись, чтобы превью не осталось без скина и без
         // выделенной карточки.
-        const fallback = equippedId ?? librarySkins.find((s) => s.id !== skinId)?.id ?? null
+        const fallback = equippedId === skinId ? "__api__" : equippedId ?? librarySkins.find((s) => s.id !== skinId)?.id ?? null
         setSelectedId(fallback)
       }
-      if (equippedId === skinId) {
-        localStorage.removeItem(`skin-equipped-${account.id}`)
-        setEquippedId(null)
-      }
-      await fetchLibrary()
+      await reloadAll()
       pushNotification({ kind: "success", source: "import", title: t("skins.deleted"), message: "" })
     } catch (err) {
       pushNotification({ kind: "error", source: "import", title: t("skins.error"), message: String(err) })
     }
-  }, [selectedId, equippedId, librarySkins, account?.id, fetchLibrary, handleReset, pushNotification])
+  }, [selectedId, equippedId, librarySkins, account?.id, reloadAll, handleReset, pushNotification])
 
   const handleEditSave = useCallback(async (params: { filePath?: string; variant: "classic" | "slim"; capeId: string | null }) => {
     if (!window.electrobunAPI || !account?.id) return
+    const generation = accountGenerationRef.current
     try {
-      if (params.filePath && editModalSkin) {
-        const name = editModalSkin.name
-        const saved = await window.electrobunAPI.skinsSaveToLibrary(params.filePath, name, params.variant, account.id, params.capeId)
-        if (saved) setSelectedId(saved.id)
-      } else if (params.filePath) {
-        const name = "skin"
-        const saved = await window.electrobunAPI.skinsSaveToLibrary(params.filePath, name, params.variant, account.id, params.capeId)
-        if (saved) setSelectedId(saved.id)
+      let filePath = params.filePath
+      let savedId: string | null = editModalSkin?.id ?? null
+      if (!filePath && editingCurrentSkin && activeSkinUrl) {
+        // Кэшированный PNG профиля проходит обычный путь сохранения и загрузки.
+        const response = await fetch(activeSkinUrl)
+        if (!response.ok) throw new Error(t("skins.error"))
+        filePath = await window.electrobunAPI.getFilePath(new File([await response.blob()], "skin.png", { type: "image/png" }))
+      }
+      if (filePath) {
+        const saved = await window.electrobunAPI.skinsSaveToLibrary(filePath, editModalSkin?.name ?? "skin", params.variant, account.id, params.capeId)
+        if (!saved) throw new Error(t("skins.error"))
+        savedId = saved.id
       } else if (editModalSkin) {
-        await window.electrobunAPI.skinsUpdateVariant(editModalSkin.id, params.variant, params.capeId)
+        const ok = await window.electrobunAPI.skinsUpdateVariant(editModalSkin.id, params.variant, params.capeId)
+        if (!ok) throw new Error(t("skins.error"))
       }
-      if (editingCurrentSkin) {
-        // Меняем плащ у скина, который сейчас надет, — только это действие
-        // должно доходить до аккаунта.
-        await window.electrobunAPI.skinsSetCape(params.capeId, account.id)
+      const reapply = editingCurrentSkin || Boolean(editModalSkin && equippedId === editModalSkin.id)
+      if (reapply && savedId) {
+        const ok = await window.electrobunAPI.skinsApplyLibrarySkin(savedId, account.id)
+        if (!ok) {
+          if (generation === accountGenerationRef.current) await reloadAll()
+          throw new Error(t("skins.error"))
+        }
+        await reloadAccounts()
+        bumpAvatarVersion()
+      } else if (editingCurrentSkin) {
+        const ok = await window.electrobunAPI.skinsSetCape(params.capeId, account.id)
+        if (!ok) throw new Error(t("skins.error"))
       }
-      await fetchLibrary()
-      await fetchProfile(true)
+      if (generation !== accountGenerationRef.current) return
+      await reloadAll()
+      if (generation !== accountGenerationRef.current) return
+      if (savedId) setSelectedId(savedId)
+      setSkinVersion(v => v + 1)
       pushNotification({ kind: "success", source: "import", title: t("skins.saved"), message: "" })
     } catch (err) {
       pushNotification({ kind: "error", source: "import", title: t("skins.error"), message: String(err) })
     }
-  }, [account?.id, editModalSkin, editingCurrentSkin, fetchLibrary, fetchProfile, pushNotification])
+  }, [account?.id, editModalSkin, editingCurrentSkin, equippedId, activeSkinUrl, reloadAll, pushNotification, reloadAccounts, bumpAvatarVersion, t])
 
   const handleEditClick = useCallback((skin?: SkinCardData) => {
     // Карточка без `librarySkin` — это скин из профиля аккаунта, у него правка
@@ -405,6 +389,8 @@ export function FavoritesTab() {
         open={editModalOpen}
         onClose={() => setEditModalOpen(false)}
         skin={editModalSkin}
+        currentTexture={editingCurrentSkin ? activeSkinUrl : undefined}
+        currentVariant={editingCurrentSkin ? activeSkinVariant : undefined}
         capes={profile?.capes ?? []}
         // Новый скин открывается без плаща, у записи «Избранного» — её плащ,
         // у скина из профиля — текущий плащ аккаунта.

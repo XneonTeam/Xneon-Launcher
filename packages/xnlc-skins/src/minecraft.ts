@@ -11,24 +11,75 @@
 // использовала старый токен для плаща — после обновления плащ не надевался.
 
 import { fetchWithRetry } from "@xnlc/core/retry"
+import { AUTH_URLS } from "@xnlc/urls"
 import type { McProfile } from "@xnlc/types"
-import type { ResolvedSkinAccount, SkinAccountPort } from "./ports.js"
+import type { ResolvedSkinAccount, SkinAccountPort, SkinDiskCache } from "./ports.js"
 import type { SkinVariant } from "./validate.js"
+import { isValidTexture, MAX_TEXTURE_BYTES } from "./validate.js"
+import { SkinCache } from "./cache.js"
+import { SkinProfileCache, parseSkinProfile, skinCacheKey } from "./profile-cache.js"
 
-const MC_PROFILE_URL = "https://api.minecraftservices.com/minecraft/profile"
-const ELYBY_PROFILE_URL = "https://account.ely.by/api/account/v1/info"
+const MC_PROFILE_URL = AUTH_URLS.minecraftProfile
+const ELYBY_PROFILE_URL = AUTH_URLS.elyProfile
 
 /** Как часто повторять сетевые сбои: надевание скина — разовое действие. */
 const RETRIES = { retries: 1 }
 
 export class MinecraftSkins {
-  constructor(private readonly accounts: SkinAccountPort) {}
+  private readonly profiles: SkinProfileCache
+  private readonly textures: SkinCache
+  constructor(private readonly accounts: SkinAccountPort, disk?: SkinDiskCache) {
+    this.profiles = new SkinProfileCache(disk)
+    this.textures = new SkinCache(disk)
+  }
+
+  async accountId(accountId?: string): Promise<string | null> {
+    return (await this.accounts.resolve(accountId))?.id ?? null
+  }
+
+  async profile(accountId?: string, force = false): Promise<McProfile | null> {
+    const account = await this.accounts.resolve(accountId)
+    if (!account) return null
+    return this.profiles.get(account.id, () => this.loadProfile(account), force)
+  }
+
+  /** Текстура загружается в main один раз; тот же PNG доступен после перезапуска офлайн. */
+  async texture(url: string): Promise<Uint8Array | null> {
+    try {
+      const parsed = new URL(url)
+      if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) return null
+      const data = await this.textures.binary(`profile-texture-${skinCacheKey(url)}.png`, async () => {
+        const res = await fetchWithRetry(url, { signal: AbortSignal.timeout(10_000) }, RETRIES)
+        if (!res.ok || Number(res.headers.get("content-length")) > MAX_TEXTURE_BYTES || !res.body) return null
+        const reader = res.body.getReader()
+        const chunks: Uint8Array[] = []
+        let length = 0
+        try {
+          while (true) {
+            const { value, done } = await reader.read()
+            if (done) break
+            length += value.byteLength
+            if (length > MAX_TEXTURE_BYTES) { await reader.cancel(); return null }
+            chunks.push(value)
+          }
+        } finally { reader.releaseLock() }
+        const bytes = new Uint8Array(length)
+        let offset = 0
+        for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length }
+        return isValidTexture(bytes) ? bytes : null
+      }, {
+        // Только адреса с хэшем содержимого неизменяемы. Authlib может отдавать
+        // новый PNG по прежнему /skin/username, его нельзя кэшировать навечно.
+        ttl: /\/(?:texture|textures)\/[a-f0-9]{32,}(?:\.png)?$/i.test(parsed.pathname) ? Infinity : 15_000,
+        validate: isValidTexture,
+      })
+      return data && isValidTexture(data) ? data : null
+    } catch { return null }
+  }
 
   /** Профиль аккаунта: активный скин, доступные скины и плащи. */
-  async profile(accountId?: string): Promise<McProfile | null> {
+  private async loadProfile(account: ResolvedSkinAccount): Promise<McProfile | null> {
     try {
-      const account = await this.accounts.resolve(accountId)
-      if (!account) return null
 
       if (account.type === "offline") {
         return {
@@ -59,7 +110,7 @@ export class MinecraftSkins {
         fetchWithRetry(MC_PROFILE_URL, { headers: { Authorization: `Bearer ${token}` } }, RETRIES),
       )
       if (!sent?.res.ok) return null
-      return (await sent.res.json()) as McProfile
+      return parseSkinProfile(await sent.res.json())
     } catch {
       return null
     }
@@ -79,6 +130,9 @@ export class MinecraftSkins {
     try {
       const account = await this.accounts.resolve(params.accountId)
       if (!account) return false
+      if (!isValidTexture(params.data)) return false
+      this.profiles.invalidate(account.id)
+      this.textures.clear()
 
       if (account.type === "offline") {
         return true
@@ -93,12 +147,19 @@ export class MinecraftSkins {
         account.type === "xnskins" ||
         (account.type as string) === "xneon"
       ) {
-        return await this.authlibApply(account, params)
+        const success = await this.authlibApply(account, params)
+        const profile = await this.profile(account.id, true)
+        if (!success) return false
+        if (params.capeId === undefined) return true
+        // Серверы с uploadableTextures=skin могут вообще не иметь cape endpoint.
+        // Не удаляем отсутствующий плащ и не загружаем уже активный повторно.
+        if (profile && (profile.capes.find(c => c.state === "ACTIVE")?.id ?? null) === params.capeId) return true
+        return await this.setCape(params.capeId, account.id)
       }
 
       const sent = await this.send(account, (token) => {
         const formData = new FormData()
-        formData.append("variant", params.variant.toUpperCase())
+        formData.append("variant", params.variant)
         formData.append("file", new Blob([copyForBlob(params.data)], { type: "image/png" }), "skin.png")
         return fetchWithRetry(`${MC_PROFILE_URL}/skins`, {
           method: "POST",
@@ -107,18 +168,10 @@ export class MinecraftSkins {
         }, RETRIES)
       })
       if (!sent?.res.ok) return false
-
-      if (params.capeId) {
-        // Токен берём тот, которым текстура реально загрузилась: после
-        // обновления по 401 старый уже недействителен.
-        await fetchWithRetry(`${MC_PROFILE_URL}/capes/active`, {
-          method: "PUT",
-          headers: { Authorization: `Bearer ${sent.account.accessToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ capeId: params.capeId }),
-        }, RETRIES)
-      }
-
-      return true
+      await this.cacheResponse(sent.account, sent.res)
+      // null означает «без плаща», undefined — не менять. Ошибку второго шага
+      // не выдаём за успешное применение всего комплекта.
+      return params.capeId === undefined || await this.setCape(params.capeId, sent.account.id)
     } catch {
       return false
     }
@@ -129,6 +182,8 @@ export class MinecraftSkins {
     try {
       const account = await this.accounts.resolve(accountId)
       if (!account) return false
+      this.profiles.invalidate(account.id)
+      this.textures.clear()
 
       if (account.type === "offline") {
         return true
@@ -143,13 +198,17 @@ export class MinecraftSkins {
         account.type === "xnskins" ||
         (account.type as string) === "xneon"
       ) {
-        return await this.authlibReset(account)
+        const success = await this.authlibReset(account)
+        await this.profile(account.id, true)
+        return success
       }
 
       const sent = await this.send(account, (token) =>
         fetchWithRetry(`${MC_PROFILE_URL}/skins/active`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }, RETRIES),
       )
-      return Boolean(sent?.res.ok)
+      if (!sent?.res.ok) return false
+      await this.cacheResponse(sent.account, sent.res)
+      return await this.setCape(null, sent.account.id)
     } catch {
       return false
     }
@@ -160,6 +219,7 @@ export class MinecraftSkins {
     try {
       const account = await this.accounts.resolve(accountId)
       if (!account) return false
+      this.profiles.invalidate(account.id)
 
       if (account.type === "offline") {
         return true
@@ -174,7 +234,9 @@ export class MinecraftSkins {
         account.type === "xnskins" ||
         (account.type as string) === "xneon"
       ) {
-        return await this.authlibSetCape(account, capeId)
+        const success = await this.authlibSetCape(account, capeId)
+        await this.profile(account.id, true)
+        return success
       }
 
       const sent = await this.send(account, (token) =>
@@ -186,10 +248,21 @@ export class MinecraftSkins {
           ...(capeId ? { body: JSON.stringify({ capeId }) } : {}),
         }, RETRIES),
       )
-      return Boolean(sent?.res.ok)
+      if (!sent?.res.ok) {
+        await this.profile(account.id, true)
+        return false
+      }
+      await this.cacheResponse(sent.account, sent.res)
+      return true
     } catch {
       return false
     }
+  }
+
+  private async cacheResponse(account: ResolvedSkinAccount, res: Response): Promise<void> {
+    const profile = parseSkinProfile(await res.json().catch(() => null))
+    if (profile) await this.profiles.put(account.id, profile)
+    else await this.profile(account.id, true)
   }
 
   /**
@@ -271,6 +344,9 @@ export class MinecraftSkins {
   private parseAuthlibProfileResponse(data: unknown, account: ResolvedSkinAccount): McProfile | null {
     if (!data || typeof data !== "object") return null
     const obj = data as Record<string, unknown>
+    // Альтернативный endpoint может сразу вернуть профиль Minecraft Services.
+    const direct = parseSkinProfile(obj)
+    if (direct) return direct
     const id = String(obj.id ?? account.uuid ?? "")
     const name = String(obj.name ?? account.username ?? "")
     const properties = Array.isArray(obj.properties) ? obj.properties : []

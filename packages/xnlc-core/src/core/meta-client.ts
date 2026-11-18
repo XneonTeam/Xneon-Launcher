@@ -6,6 +6,7 @@
 
 import { MojangVersionManifest, MojangVersionEntry, VersionJson } from "../types/index.js";
 import { URLS } from "../constants/urls.js";
+import { rewriteMinecraftUrl } from "@xnlc/urls/minecraft";
 import type { LoaderMetaClient } from "./loader-meta-client.js";
 import { getLoaderMetaClient } from "./loader-meta-client-singleton.js";
 import { withRetry } from "../retry.js";
@@ -17,7 +18,6 @@ import type { LoaderMetaVersion, VersionJsonAssetIndex, VersionJsonLibrary, Vers
 
 declare const fetch: typeof globalThis.fetch;
 
-const VERSION_MANIFEST_V2_URL = URLS.official.mojang.versionManifestV2;
 
 // Disk TTL cache for the version manifest, so the full Mojang manifest isn't
 // re-downloaded on every app start. Directory is provided by the host app via
@@ -77,7 +77,7 @@ export class MetaClient {
     }
 
     try {
-      const res = await withRetry(async () => fetch(VERSION_MANIFEST_V2_URL));
+      const res = await withRetry(async () => fetch(URLS.official.mojang.versionManifestV2));
       if (!res.ok) {
         throw new Error(`Failed to fetch version manifest: ${res.status} ${res.statusText}`);
       }
@@ -129,7 +129,7 @@ export class MetaClient {
 
     let data: VersionJson;
     try {
-      const res = await withRetry(async () => fetch(entry.url));
+      const res = await withRetry(async () => fetch(rewriteMinecraftUrl(entry.url)));
       if (!res.ok) {
         throw new Error(`Failed to fetch version JSON for "${versionId}": ${res.status} ${res.statusText}`);
       }

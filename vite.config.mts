@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import packageJson from './package.json' with { type: 'json' }
+import { DEV_RENDERER_HOST, DEV_RENDERER_PORT } from './electrobun/platform/dev-renderer-address.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -51,8 +52,8 @@ export default defineConfig({
     },
   },
   server: {
-    host: '127.0.0.1',
-    port: 5173,
+    host: DEV_RENDERER_HOST,
+    port: DEV_RENDERER_PORT,
     strictPort: true,
     watch: {
       ignored: [

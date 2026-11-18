@@ -2,6 +2,9 @@ import { isContentDownloadCancelled } from "@/lib/content-download"
 import { acknowledgeBuildEdits, buildWrites, filterStaleBuildPatch, isBuildWriteConflict } from "@/lib/build-write-queue"
 import { BoundedCache, estimateCacheBytes } from "@/lib/bounded-cache"
 import { beginContentMutationGuard, buildContentPatch, CONTENT_PATCH_FIELDS, PACK_METADATA_FIELDS, createContentRefreshQueue, filterStaleContentPatch } from "@/lib/build-content-patch"
+import { reconcileContentRows, reconcileContentPaths, reconcileContentIcon, normalizeContentDto } from "@/lib/content-reconciliation"
+import { updatedContentItem, retainInstalledIdentity } from "@/lib/content-update-state"
+import { contentManifest, applyContentDelta, type ContentRows, type ContentManifest } from "@/lib/content-delta"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { MOD_LOADERS } from "./constants"
 import { loadBuilds, pickCompatibleVersion } from "./utils"
@@ -111,7 +114,7 @@ const CONTENT_KIND_BY_KEY: Record<BuildContentListKey, BuildContentKind> = {
   shaders: "shader",
 }
 
-export function useBuilds() {
+export function useBuilds(pageActive = true) {
   const { t } = useTranslation()
   const { pushNotification, beginContentInstall, endContentInstall, upsertLiveNotification, removeLiveNotification } = useActivityCenter()
   // Иконки категорий — их можно задать в контекстном меню категории.
@@ -175,6 +178,37 @@ export function useBuilds() {
   }, [])
 
   const builds = buildsState
+  const scanManifestsRef = useRef(new BoundedCache<string, {manifest:ContentManifest;base:{mods:WeakRef<ContentRows["mods"]>;resourcepacks:WeakRef<ContentRows["resourcepacks"]>;shaders:WeakRef<ContentRows["shaders"]>;installedMods:WeakRef<ContentRows["installedMods"]>}}>({capacity:8,maxWeight:2*1024*1024,weight:estimateCacheBytes,ttlMs:5*60_000}))
+  const contentLoadsRef = useRef(new Map<string,Promise<boolean>>())
+
+  const pageActiveRef = useRef(pageActive)
+  pageActiveRef.current = pageActive
+  useEffect(() => () => {
+    if (pageActiveRef.current) return
+    // Нельзя выбрасывать пользовательские правки/данные активной установки.
+    const protectedIds = new Set([...contentMutationsRef.current.keys(), ...pendingEditsRef.current.keys(), ...pendingPatchesRef.current.map(patch => patch.id)])
+    for (const build of buildsRef.current) {
+      if (Object.keys(buildWrites.getPending(build.id)).some(key=>CONTENT_PATCH_FIELDS.has(key))) protectedIds.add(build.id)
+      if (protectedIds.has(build.id)) continue
+      contentScanSeqRef.current.set(build.id,(contentScanSeqRef.current.get(build.id)??0)+1)
+      if (!displayedContentRef.current.has(build.id)) continue
+      updateCachedBuildContent(build.id, {mods:build.mods,resourcepacks:build.resourcepacks,shaders:build.shaders,installedMods:build.installedMods??{}})
+      displayedContentRef.current.delete(build.id)
+      savedContentRef.current.delete(build.id)
+      // Manifest содержит только хеши и WeakRef: оставляем его для повторного
+      // открытия из cache, не сохраняя второй сильный владелец массивов.
+    }
+    setBuildsState(previous => {
+      const next = previous.map(build => protectedIds.has(build.id) ? build : {
+      ...build, mods:[],resourcepacks:[],shaders:[],installedMods:{},
+      modsCount:(build as BuildWithCounts).modsCount??build.mods.length,
+      resourcepacksCount:(build as BuildWithCounts).resourcepacksCount??build.resourcepacks.length,
+      shadersCount:(build as BuildWithCounts).shadersCount??build.shaders.length,
+      })
+      buildsRef.current = next
+      return next
+    })
+  }, [])
 
   const currentPatchFields = useCallback((patch: { id: string; fields: Record<string, unknown>; contentSeq: number }) => {
     const fields = filterStaleBuildPatch(patch.fields, buildsRef.current.find(build => build.id === patch.id),
@@ -186,10 +220,19 @@ export function useBuilds() {
     return beginContentMutationGuard(contentMutationsRef.current, contentScanSeqRef.current, buildId, () => { void contentRefreshRef.current(buildId, true) })
   }, [])
 
-  const syncBuildContent = useCallback(async (build: Build): Promise<Build | null> => {
+  const syncBuildContent = useCallback(async (build: Build): Promise<(Build & {scanManifest?:ContentManifest}) | null> => {
     try {
       const targetPath = build.intentPath?.trim() || build.name
-      const scanned = await window.electrobunAPI?.scanBuildIntentContent?.(targetPath)
+      const api = window.electrobunAPI
+      const base = { mods: build.mods, resourcepacks: build.resourcepacks, shaders: build.shaders, installedMods: build.installedMods ?? {} }
+      const cachedManifest=scanManifestsRef.current.get(build.id)
+      const sameBase=cachedManifest&&cachedManifest.base.mods.deref()===base.mods&&cachedManifest.base.resourcepacks.deref()===base.resourcepacks&&cachedManifest.base.shaders.deref()===base.shaders&&cachedManifest.base.installedMods.deref()===base.installedMods
+      const delta = api?.syncBuildIntentContent
+        ? await api.syncBuildIntentContent(targetPath, sameBase ? cachedManifest.manifest : await contentManifest(base as ContentRows, cachedManifest ? {
+          manifest: cachedManifest.manifest,
+          content: {mods:cachedManifest.base.mods.deref(),resourcepacks:cachedManifest.base.resourcepacks.deref(),shaders:cachedManifest.base.shaders.deref()},
+        } : undefined)) : undefined
+      const scanned = delta ? applyContentDelta(base as ContentRows, delta) : await api?.scanBuildIntentContent?.(targetPath)
       if (!scanned) return null
 
       const mergeContent = (existing: BuildMod[], incoming: BuildMod[]) => {
@@ -197,7 +240,8 @@ export function useBuilds() {
         const existingBySlug = new Map(existing.map(item => [item.slug.toLowerCase(), item]))
         const existingByName = new Map(existing.map(item => [item.name.toLowerCase(), item]))
 
-        return incoming.map(item => {
+        const merged = incoming.map(raw => {
+          const item = normalizeContentDto(raw)
           const incomingSlug = normalize(item.slug)
           const incomingName = normalize(item.name)
           const matched = existingBySlug.get(incomingSlug)
@@ -230,36 +274,36 @@ export function useBuilds() {
           const resolvedProjectId = resolvedSource === "modrinth"
             ? (item.projectId ?? matched.projectId)
             : undefined
-          const resolvedModId = resolvedSource === "curseforge"
+          const resolvedModId = resolvedSource !== "modrinth"
             ? (item.modId ?? matched.modId)
             : undefined
 
-          return {
+          return normalizeContentDto({
             ...item,
             // Путь с диска обязателен: старый slug может относиться к другой версии файла.
             slug: item.slug,
             name: item.name && item.name.length > 1 ? item.name : matched.name || item.name,
             description: matched.description || item.description,
-            icon_url: matched.icon_url || item.icon_url,
+            icon_url: reconcileContentIcon(matched.icon_url, item.icon_url),
             source: resolvedSource,
             projectId: sameSourceAsResolved ? resolvedProjectId : matched.projectId,
             modId: sameSourceAsResolved ? resolvedModId : matched.modId,
-            author: matched.author || item.author,
-            version: item.version && item.version !== "local"
-              ? item.version
-              : matched.version && matched.version !== "local"
-                ? matched.version
-                : item.version,
-          }
+            // Обновлённые данные той же площадки должны сходиться со сканером.
+            // При разных источниках сохраняем выбранного пользователем автора.
+            author: sameSourceAsResolved ? item.author || matched.author : matched.author || item.author,
+            ...retainInstalledIdentity(matched, item),
+          })
         })
+        return reconcileContentRows(existing, merged)
       }
 
       return {
         ...build,
+        scanManifest: delta?.manifest,
         mods: Array.isArray(scanned.mods) ? mergeContent(build.mods, scanned.mods) : build.mods,
         resourcepacks: Array.isArray(scanned.resourcepacks) ? mergeContent(build.resourcepacks, scanned.resourcepacks) : build.resourcepacks,
         shaders: Array.isArray(scanned.shaders) ? mergeContent(build.shaders, scanned.shaders) : build.shaders,
-        installedMods: scanned.installedMods ?? build.installedMods ?? {},
+        installedMods: reconcileContentPaths(build.installedMods ?? {}, scanned.installedMods ?? build.installedMods ?? {}),
       }
     } catch {
       return null
@@ -271,7 +315,7 @@ export function useBuilds() {
    * когда сборку открыли. Список сборок держит только счётчики, поэтому вход во
    * вкладку не тянет десятки мегабайт.
    */
-  const ensureBuildContent = useCallback(async (buildId: string): Promise<boolean> => {
+  const loadBuildContentOnce = useCallback(async (buildId: string): Promise<boolean> => {
     if (contentMutationsRef.current.has(buildId)) return true
     if (displayedContentRef.current.has(buildId)) return true
     const contentSeq = contentScanSeqRef.current.get(buildId) ?? 0
@@ -305,6 +349,14 @@ export function useBuilds() {
       return false
     }
   }, [setBuilds])
+
+  const ensureBuildContent = useCallback((buildId:string):Promise<boolean> => {
+    const active=contentLoadsRef.current.get(buildId)
+    if(active)return active
+    const task=loadBuildContentOnce(buildId).finally(()=>{if(contentLoadsRef.current.get(buildId)===task)contentLoadsRef.current.delete(buildId)})
+    contentLoadsRef.current.set(buildId,task)
+    return task
+  },[loadBuildContentOnce])
 
   const releaseColdContent = useCallback(() => {
     const dirtyContent = new Set(pendingPatchesRef.current.filter(patch => Object.keys(patch.fields).some(key => CONTENT_PATCH_FIELDS.has(key))).map(patch => patch.id))
@@ -503,10 +555,18 @@ export function useBuilds() {
         mods: synced.mods, resourcepacks: synced.resourcepacks, shaders: synced.shaders,
         installedMods: synced.installedMods ?? {},
       }
+      if (synced.scanManifest) scanManifestsRef.current.set(buildId, {manifest:synced.scanManifest,base:{mods:new WeakRef(content.mods as ContentRows["mods"]),resourcepacks:new WeakRef(content.resourcepacks as ContentRows["resourcepacks"]),shaders:new WeakRef(content.shaders as ContentRows["shaders"]),installedMods:new WeakRef(content.installedMods)}})
+      // Повторное событие watcher/завершения установки часто возвращает тот же
+      // снимок. Не сериализуем его снова в main/SQLite и не обновляем React state.
+      const saved = savedContentRef.current.get(buildId)
+      const patch = buildContentPatch(content, saved, true)
+      if (content.mods === current.mods && content.resourcepacks === current.resourcepacks
+        && content.shaders === current.shaders && content.installedMods === current.installedMods
+        && Object.keys(patch).length === 0) return
       const counts = { modsCount: content.mods.length, resourcepacksCount: content.resourcepacks.length, shadersCount: content.shaders.length }
       // Результат скана после удаления, включая пустую папку, сохраняем явно.
       await buildWrites.write(buildId, {
-        ...content, ...counts,
+        ...patch, ...counts,
       }, () => contentScanSeqRef.current.get(buildId) === scanSeq && !contentMutationsRef.current.has(buildId))
       if (contentScanSeqRef.current.get(buildId) !== scanSeq) return
       displayedContentRef.current.add(buildId)
@@ -565,6 +625,13 @@ export function useBuilds() {
         const resourcepacks = build.resourcepacks.map(addAuthor)
         const shaders = build.shaders.map(addAuthor)
         if (!changed) return build
+        // Дополненный в UI владелец — проекция прежнего scanner DTO, а не
+        // изменение файла. Сохраняем baseline и для этих новых массивов.
+        const baseline = scanManifestsRef.current.get(buildId)
+        if (baseline) {
+          baseline.base.resourcepacks = new WeakRef(resourcepacks as ContentRows["resourcepacks"])
+          baseline.base.shaders = new WeakRef(shaders as ContentRows["shaders"])
+        }
         updateCachedBuildContent(buildId, { mods: build.mods, resourcepacks, shaders, installedMods: build.installedMods ?? {} })
         return { ...build, resourcepacks, shaders }
       }))
@@ -1087,14 +1154,12 @@ export function useBuilds() {
                 [savedFileName]: savedPath,
               },
               mods: bb.mods.map(existing => existing.slug === mod.slug || existing.name === mod.name
-                ? {
+                ? updatedContentItem({
                     ...existing,
-                    slug: savedFileName,
-                    version: selectedVersion.name || selectedVersion.id || existing.version,
                     source: mod.source,
                     projectId: mod.projectId ?? (mod.source === "modrinth" ? mod.id : existing.projectId),
                     modId: mod.modId ?? existing.modId,
-                  }
+                  }, selectedVersion)
                 : existing),
             }))
           }
@@ -1133,14 +1198,12 @@ export function useBuilds() {
                 [fileName]: savedPath,
               },
               mods: bb.mods.map(existing => existing.slug === mod.slug || existing.name === mod.name
-                ? {
+                ? updatedContentItem({
                     ...existing,
-                    slug: fileName,
-                    version: selectedVersion.name || selectedVersion.id || existing.version,
                     source: mod.source,
                     projectId: mod.projectId ?? existing.projectId,
                     modId: mod.modId ?? existing.modId,
-                  }
+                  }, { ...selectedVersion, fileName })
                 : existing),
             }))
           }
@@ -1268,9 +1331,9 @@ export function useBuilds() {
     } finally { finishMutation() }
   }, [beginContentMutation, builds, t, persistLocalAddition])
 
-  const addContentToBuild = useCallback(async (buildId: string, type: Exclude<BuildContentListKey, "mods">, mod: ModSearchResult) => {
+  const addContentToBuild = useCallback(async (buildId: string, type: Exclude<BuildContentListKey, "mods">, mod: ModSearchResult, requestedVersion?: ModVersion): Promise<boolean> => {
     const build = builds.find(b => b.id === buildId)
-    if (!build?.name) return
+    if (!build?.name) return false
     const finishMutation = beginContentMutation(buildId)
 
     const contentTypeLabel = type === "resourcepacks" ? t("builds.content.resourcepack") : t("builds.content.shader")
@@ -1284,43 +1347,42 @@ export function useBuilds() {
     })
 
     try {
-      const versions = mod.source === "modrinth"
+      const versions = requestedVersion ? [requestedVersion] : mod.source === "modrinth"
         ? await window.electrobunAPI?.modsModrinthVersions(mod.projectId ?? mod.slug)
         : mod.modId
           ? await window.electrobunAPI?.modsCurseforgeDetails(mod.modId).then(details => details?.versions ?? [])
           : []
 
-      const selectedVersion = mod.source === "modrinth"
-        ? versions?.find(version => version.files?.[0]?.url)
+      const selectedVersion = requestedVersion ?? (mod.source === "modrinth"
+        ? pickCompatibleVersion(versions, build, false)
         : versions?.find(version => Number(version.id) === mod.primaryFileId) ?? versions?.[0]
+      )
 
       let fileUrl = ""
       let fileName = ""
 
       if (mod.source === "modrinth") {
         const file = selectedVersion?.files?.[0]
-        fileUrl = file?.url ?? ""
-        fileName = file?.filename || selectedVersion?.fileName || `${mod.slug}.jar`
+        fileUrl = file?.url || selectedVersion?.downloadUrl || ""
+        fileName = file?.filename || selectedVersion?.fileName || `${mod.slug}.zip`
       } else if (mod.modId && selectedVersion) {
         fileUrl = await window.electrobunAPI?.modsCurseforgeDownloadUrl(Number(selectedVersion.id), mod.modId) ?? ""
-        fileName = selectedVersion.fileName || mod.primaryFileName || fileUrl.split("/").pop()?.split("?")[0] || `${mod.slug}.jar`
+        fileName = selectedVersion.fileName || mod.primaryFileName || fileUrl.split("/").pop()?.split("?")[0] || `${mod.slug}.zip`
       }
 
       if (!fileUrl) {
-        endContentInstall()
-        return
+        throw new Error(t("addon.install.failed"))
       }
 
       const savedPath = await window.electrobunAPI?.saveContentToIntent?.(build.name, CONTENT_KIND_BY_KEY[type], fileUrl, fileName)
       if (!savedPath) {
-        endContentInstall()
         pushNotification({
           kind: "error",
           source: "install",
           title: t("builds.content.installFailed", { type: contentTypeLabel }),
           message: mod.name,
         })
-        return
+        return false
       }
 
       const fallbackEntry: BuildMod = {
@@ -1329,32 +1391,32 @@ export function useBuilds() {
         name: mod.name,
         description: mod.summary,
         icon_url: mod.iconUrl,
-        version: "local",
+        version: selectedVersion?.versionNumber || selectedVersion?.name || "local",
         source: mod.source,
         projectId: mod.projectId ?? (mod.source === "modrinth" ? mod.id : undefined),
         modId: mod.modId,
         author: mod.author,
       }
 
-      setBuilds(prev => prev.map(b => {
-        if (b.id !== buildId) return b
+      const installedEntry = selectedVersion ? updatedContentItem(fallbackEntry, { ...selectedVersion, fileName }) : fallbackEntry
+      const persisted = await persistLocalAddition(buildId, b => {
         if (b[type].some(item => item.slug === fileName || item.slug === mod.slug)) return b
         return {
           ...b,
-          [type]: [...b[type], fallbackEntry],
-        [`${type}Count`]: b[type].length + 1,
+          [type]: [...b[type], installedEntry],
+          [`${type}Count`]: b[type].length + 1,
         }
-      }) as Build[])
+      })
+      if (!persisted) throw new Error(t("addon.install.failed"))
 
-      endContentInstall()
       pushNotification({
         kind: "success",
         source: "install",
         title: type === "resourcepacks" ? t("builds.content.installedResourcepack") : t("builds.content.installedShader"),
         message: mod.name,
       })
+      return true
     } catch (error) {
-      endContentInstall()
       if (isContentDownloadCancelled(error)) throw error
       pushNotification({
         kind: "error",
@@ -1362,10 +1424,12 @@ export function useBuilds() {
         title: t("builds.content.installFailed", { type: contentTypeLabel }),
         message: mod.name,
       })
+      return false
     } finally {
+      endContentInstall()
       finishMutation()
     }
-  }, [beginContentInstall, beginContentMutation, builds, endContentInstall, pushNotification])
+  }, [beginContentInstall, beginContentMutation, builds, endContentInstall, pushNotification, persistLocalAddition, t])
 
   const addLocalContentToBuild = useCallback(async (buildId: string, type: Exclude<BuildContentListKey, "mods">, file: File) => {
     const build = builds.find(b => b.id === buildId)
@@ -1472,17 +1536,25 @@ export function useBuilds() {
   }, [beginContentMutation, builds])
 
   const updateItemVersion = useCallback(async (buildId: string, type: BuildContentListKey, itemId: string, newVersion: ModVersion): Promise<boolean> => {
-    const build = builds.find(b => b.id === buildId)
+    const build = buildsRef.current.find(b => b.id === buildId)
     if (!build?.name) return false
 
-    const file = newVersion.files?.[0]
-    if (!file?.url) return false
-
-    const newFileName = file.filename || `${newVersion.id}.jar`
     const oldItem = build[type].find(m => m.id === itemId)
+    if (!oldItem) return false
     const finishMutation = beginContentMutation(buildId)
 
     try {
+      let file = newVersion.files?.[0]
+      if (!file?.url) {
+        const url = newVersion.downloadUrl || (oldItem.source === "curseforge" && oldItem.modId
+          ? await window.electrobunAPI?.modsCurseforgeDownloadUrl(Number(newVersion.id), oldItem.modId)
+          : undefined)
+        if (!url) return false
+        file = { ...file, url, filename: file?.filename || newVersion.fileName, size: newVersion.fileSize ?? 0 }
+        newVersion = { ...newVersion, files: [file] }
+      }
+      const newFileName = file.filename || newVersion.fileName || `${newVersion.id}.${type === "mods" ? "jar" : "zip"}`
+      newVersion = { ...newVersion, files: [{ ...file, filename: newFileName }] }
       const savedPath = type === "mods"
         ? await window.electrobunAPI?.saveModToIntent?.(build.name, file.url, newFileName)
         : await window.electrobunAPI?.saveContentToIntent?.(build.name, CONTENT_KIND_BY_KEY[type], file.url, newFileName)
@@ -1496,31 +1568,35 @@ export function useBuilds() {
         } catch {}
       }
 
-      setBuilds(prev => prev.map(b => {
-        if (b.id !== buildId) return b
+      // Проверка обновлений читает БД: успех возвращаем только после записи
+      // новой идентичности, не дожидаясь debounce или сетевого обогащения скана.
+      const persisted = await persistLocalAddition(buildId, b => {
         const nextInstalledMods = { ...(b.installedMods ?? {}) }
-        if (oldItem) delete nextInstalledMods[oldItem.slug]
-        nextInstalledMods[newFileName] = savedPath
+        if (type === "mods") {
+          delete nextInstalledMods[oldItem.slug]
+          nextInstalledMods[newFileName] = savedPath
+        }
 
         return {
           ...b,
           installedMods: nextInstalledMods,
           [type]: b[type].map(m =>
-            m.id === itemId ? {
-              ...m,
-              slug: newFileName,
-              version: newVersion.name || newVersion.id || m.version,
-            } : m
+            m.id === itemId ? updatedContentItem(m, newVersion) : m
           ),
         }
-      }))
+      })
+      if (!persisted) return false
+      // Смена версии из обычного списка тоже должна снять старый бейдж,
+      // а не только установка из окна доступных обновлений.
+      try { await window.electrobunAPI?.dismissContentUpdate?.(buildId, itemId) } catch {}
+      window.dispatchEvent(new CustomEvent("content-updates-changed"))
       return true
     } catch {
       return false
     } finally {
       finishMutation()
     }
-  }, [beginContentMutation, builds])
+  }, [beginContentMutation, persistLocalAddition])
 
   return { builds, buildsHydrated, setBuilds, activeBuildId, setActiveBuildId, activeBuild, fileInputRef, createBuild, deleteBuild, trashBuild, undoTrashBuild, restoreBuildFromTrash, purgeBuildTrash, duplicateBuild, renameBuild, exportBuildZip, exportBuildModlist, setBuildGroup, renameGroup, deleteGroup, addCategory, collapsedGroups, toggleGroupCollapse, groups, categoryIcons, setCategoryIcon, updateBuild, addModToBuild, addLocalModToBuild, addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds, toggleItemEnabled, updateItemVersion, beginContentMutation }
 }

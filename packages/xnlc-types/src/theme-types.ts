@@ -152,7 +152,7 @@ export interface LiveopsThemeRef {
 /**
  * Состояние интеграции событийных тем.
  *
- * `enabled` — сервис задан через `XNLC_LIVEOPS_URL`; без него лаунчер работает
+ * `enabled` — задан непустой origin LiveOps (default или `XNLC_LIVEOPS_URL`); иначе лаунчер работает
  * с пресетами и своими темами, а сетевая часть не запускается.
  */
 export interface LiveopsStatus {

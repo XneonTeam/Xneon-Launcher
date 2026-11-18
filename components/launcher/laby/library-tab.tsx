@@ -10,7 +10,7 @@ import { CatalogToolbar } from "./catalog-toolbar"
 import { PlayerHeader } from "./player-header"
 import { Spinner } from "@/components/launcher/instance/spinner"
 import { EMPTY_FILTERS, countActiveFilters, type CatalogFilters } from "./catalog-filters-dialog"
-import { LABY_DEFAULT_ORDER, labyHashFromSourceId, labyPlayerSkinToSkin } from "@xnlc/skins"
+import { LABY_DEFAULT_ORDER, labyHashFromSourceId, labyPlayerSkinToSkin } from "@xnlc/skins/browser"
 import type { LabyOrder, LabyPlayer, LabySkin, LabyTag } from "@xnlc/types"
 import { IconAlertTriangle, IconChevronLeft, IconChevronRight, IconLayoutGrid, IconRefresh, IconUsers } from "@tabler/icons-react"
 import { ActionConfirmDialog } from "@/components/launcher/instance/action-confirm-dialog"
@@ -326,11 +326,6 @@ export function LabyLibraryTab() {
             next.delete(skin.hash)
             return next
           })
-          // Если сняли именно надетый скин, локальная метка «надет» больше не
-          // действительна — иначе «Избранное» выберет несуществующую запись.
-          if (localStorage.getItem(`skin-equipped-${accountId}`) === librarySkinId) {
-            localStorage.removeItem(`skin-equipped-${accountId}`)
-          }
           pushNotification({
             kind: "success",
             source: "import",
@@ -368,7 +363,6 @@ export function LabyLibraryTab() {
 
         if (mode === "apply") {
           if (result.applied) {
-            if (result.librarySkinId) localStorage.setItem(`skin-equipped-${accountId}`, result.librarySkinId)
             const targetAcc = accounts.find((a) => a.id === accountId)
             await window.electrobunAPI.avatarInvalidateCache?.({ username: targetAcc?.username, uuid: targetAcc?.uuid, type: targetAcc?.type })
             // Ссылка на активную текстуру обновилась в main — перечитываем

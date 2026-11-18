@@ -11,6 +11,7 @@ import { ChangelogContent } from "./changelog-content"
 import { PlatformBadge } from "@/components/launcher/platform-icon"
 import type { Build, ModVersion } from "./types"
 import type { BuildContentUpdates, ContentUpdateInfo, UpdateChannel } from "@xnlc/types"
+import { scopedContentUpdates } from "@/lib/content-update-state"
 
 const CHANNELS: Array<{ id: UpdateChannel; labelKey: string }> = [
   { id: "release", labelKey: "updates.channel.release" },
@@ -57,6 +58,7 @@ const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
 
 interface InstanceUpdatesDialogProps {
   activeBuild: Build
+  contentType: ContentUpdateInfo["contentType"]
   open: boolean
   onOpenChange: (open: boolean) => void
   updateItemVersion: (buildId: string, type: "mods" | "resourcepacks" | "shaders", itemId: string, newVersion: ModVersion) => Promise<boolean>
@@ -64,6 +66,7 @@ interface InstanceUpdatesDialogProps {
 
 export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
   activeBuild,
+  contentType,
   open,
   onOpenChange,
   updateItemVersion,
@@ -79,6 +82,7 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
   const [downloadProgress, setDownloadProgress] = useState<{ itemId: string; percent: number | null; fileName?: string } | null>(null)
   const activeDownloadRef = useRef<string | null>(null)
   const checkSeqRef = useRef(0)
+  const visibleUpdates = useMemo(() => scopedContentUpdates(result?.updates ?? [], contentType), [result, contentType])
 
   /**
    * Иконки установленного контента по id. Кэш обновлений хранит только сетевые
@@ -87,14 +91,14 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
    */
   const installedIcons = useMemo(() => {
     const map = new Map<string, string>()
-    const lists = [activeBuild.mods, activeBuild.resourcepacks, activeBuild.shaders]
+    const lists = [activeBuild[contentType]]
     for (const list of lists) {
       for (const item of list ?? []) {
         if (item?.id && item.icon_url) map.set(item.id, item.icon_url)
       }
     }
     return map
-  }, [activeBuild.mods, activeBuild.resourcepacks, activeBuild.shaders])
+  }, [activeBuild.mods, activeBuild.resourcepacks, activeBuild.shaders, contentType])
 
   // Прогресс скачивания нового файла — рисуем полоску прямо на элементе обновления
   useEffect(() => {
@@ -130,27 +134,35 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
     setExpanded(new Set())
     setUpdateAllState(null)
     let cancelled = false
-    void window.electrobunAPI?.getContentUpdatesCache().then((cache) => {
-      if (cancelled) return
-      const cached = cache?.[activeBuild.id]
-      if (cached) {
-        setResult(cached)
-        setChannel(cached.channel ?? "release")
-      }
-    })
-    void runCheck(channel)
-    return () => { cancelled = true }
+    void (async () => {
+      let selectedChannel = channel
+      try {
+        const cache = await window.electrobunAPI?.getContentUpdatesCache()
+        if (cancelled) return
+        const cached = cache?.[activeBuild.id]
+        if (cached) {
+          setResult(cached)
+          selectedChannel = cached.channel ?? "release"
+          setChannel(selectedChannel)
+        }
+      } catch { /* Без кэша сразу проверяем API. */ }
+      if (!cancelled) await runCheck(selectedChannel)
+    })()
+    return () => { cancelled = true; ++checkSeqRef.current; setChecking(false) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, activeBuild.id])
+  }, [open, activeBuild.id, contentType])
 
   const handleChannelChange = useCallback((next: UpdateChannel) => {
     setChannel(next)
     void runCheck(next)
   }, [runCheck])
 
-  const handleDismissLocal = useCallback((itemId: string) => {
+  const handleDismissLocal = useCallback(async (itemId: string) => {
+    // Ответ проверки, начавшейся до установки, больше не актуален.
+    ++checkSeqRef.current
+    setChecking(false)
     setResult((prev) => prev ? { ...prev, updates: prev.updates.filter((u) => u.itemId !== itemId) } : prev)
-    void window.electrobunAPI?.dismissContentUpdate(activeBuild.id, itemId)
+    try { await window.electrobunAPI?.dismissContentUpdate(activeBuild.id, itemId) } catch { /* Установка уже записана; сбой бейджа не отменяет её. */ }
     window.dispatchEvent(new CustomEvent("content-updates-changed"))
   }, [activeBuild.id])
 
@@ -179,7 +191,7 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
     try {
       const ok = await applyUpdate(update)
       if (ok) {
-        handleDismissLocal(update.itemId)
+        await handleDismissLocal(update.itemId)
       } else {
         setFailedIds((prev) => new Set(prev).add(update.itemId))
       }
@@ -191,7 +203,7 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
   }, [applyUpdate, handleDismissLocal])
 
   const handleUpdateAll = useCallback(async () => {
-    const queue = result?.updates ?? []
+    const queue = visibleUpdates
     if (queue.length === 0 || updateAllState) return
     setUpdateAllState({ done: 0, total: queue.length })
     for (const update of queue) {
@@ -201,7 +213,7 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
       try {
         const ok = await applyUpdate(update)
         if (ok) {
-          handleDismissLocal(update.itemId)
+          await handleDismissLocal(update.itemId)
         } else {
           setFailedIds((prev) => new Set(prev).add(update.itemId))
         }
@@ -213,19 +225,19 @@ export const InstanceUpdatesDialog = memo(function InstanceUpdatesDialog({
       }
     }
     setUpdateAllState(null)
-  }, [result, updateAllState, applyUpdate, handleDismissLocal])
+  }, [visibleUpdates, updateAllState, applyUpdate, handleDismissLocal])
 
   const groupedUpdates = useMemo(() => {
     const groups = new Map<ContentUpdateInfo["contentType"], ContentUpdateInfo[]>()
-    for (const update of result?.updates ?? []) {
+    for (const update of visibleUpdates) {
       const list = groups.get(update.contentType)
       if (list) list.push(update)
       else groups.set(update.contentType, [update])
     }
     return groups
-  }, [result])
+  }, [visibleUpdates])
 
-  const totalUpdates = result?.updates.length ?? 0
+  const totalUpdates = visibleUpdates.length
 
   if (!open) return null
 

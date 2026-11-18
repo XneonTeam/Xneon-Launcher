@@ -1,4 +1,5 @@
 import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
+import { SERVICE_URLS } from "@xnlc/urls"
 import { CONTENT_ENTER_DELAYED } from "../content-motion"
 import { useState, useCallback, useEffect } from "react"
 import { useTranslation } from "react-i18next"
@@ -419,13 +420,13 @@ export function SettingsTab({ server, onServerUpdated }: SettingsTabProps) {
             </p>
             <div data-ui="server-settings-tab-div-13" className="flex gap-2">
               <button data-ui="server-settings-tab-button-5"
-                onClick={() => window.electrobunAPI?.openExternal("https://connect.xneon.org/dashboard")}
+                onClick={() => window.electrobunAPI?.openExternal(`${SERVICE_URLS.connect}/dashboard`)}
                 className="px-3 h-8 rounded-lg border border-border bg-muted/30 text-xs text-foreground hover:bg-muted/60 transition-colors"
               >
                 {t("servers.settings.xnconnect.openDashboard")}
               </button>
               <button data-ui="server-settings-tab-button-6"
-                onClick={() => window.electrobunAPI?.openExternal("https://connect.xneon.org/subscribe")}
+                onClick={() => window.electrobunAPI?.openExternal(`${SERVICE_URLS.connect}/subscribe`)}
                 className="px-3 h-8 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
               >
                 {t("servers.settings.xnconnect.subscribe")}

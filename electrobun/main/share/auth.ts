@@ -3,11 +3,12 @@ import { createHash, generateKeyPairSync, sign } from "node:crypto"
 import { ShareApiClient, ShareError, selectShareAccount } from "@xnlc/share"
 import { dbHelpers } from "../../db"
 import { run } from "../../db/core"
+import { SERVICE_URLS } from "@xnlc/urls"
 
 interface Credentials { url: string; token: string; userId?: string; expiresAt?: number; name?: string }
 interface Configuration { url: string; token: string; userId: string; name: string }
 let connecting: Promise<Configuration> | undefined
-const DEFAULT_SHARE_URL = "https://share.xneon.org"
+const DEFAULT_SHARE_URL = SERVICE_URLS.share
 
 async function storedConfiguration() {
   const raw = await dbHelpers.getSetting("share.credentials")

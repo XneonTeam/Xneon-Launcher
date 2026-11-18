@@ -1,8 +1,11 @@
 import type { ElectrobunAPI } from '@xnlc/types'
+// skinsSaveToLibrary принимает auto для определения модели PNG в main; тип — из общего контракта.
+// syncBuildIntentContent — совместимый дополнительный канал дельт контента.
 // onAiMcpServersUpdated наследуется из общего IPC-контракта; событие не содержит секретов.
 // liveopsStatus/liveopsSelect также наследуются из единого IPC-контракта @xnlc/types.
 // loadAccounts/AuthPayload — публичные DTO; setActiveAccount/importLegacyAccounts
 // объявлены в едином IPC-контракте. Сессионные секреты остаются в main.
+// onMicrosoftAuthProgress: коррелированные этапы входа без токенов — из @xnlc/types.
 // Чтение состава Modrinth-сборок без установки: modsModrinthPackContents — из общего контракта.
 // XNLC/Share: shareExecute и типы запросов объявлены в общем контракте @xnlc/types.
 // onShareProgress использует ShareProgress: действие, имя сборки и код ошибки.

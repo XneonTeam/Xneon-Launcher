@@ -13,7 +13,6 @@ import { URLS } from "../constants/urls.js";
 import type { ILoaderHandler } from "./types.js";
 import { PROFILE_REVISION } from "../core/profile-builder.js";
 
-const FABRIC_META = URLS.official.fabric.metaV2;
 
 export class FabricLegacyHandler implements ILoaderHandler {
   constructor(
@@ -22,7 +21,7 @@ export class FabricLegacyHandler implements ILoaderHandler {
   ) {}
 
   async getLoaderVersionsForGame(mcVersion: string): Promise<FabricLoaderVersion[]> {
-    const res = await fetch(`${FABRIC_META}/versions/loader/${mcVersion}`);
+    const res = await fetch(`${URLS.official.fabric.metaV2}/versions/loader/${mcVersion}`);
     if (!res.ok) throw new Error(`Failed to fetch Fabric loader versions for ${mcVersion}: ${res.status}`);
     const data = await res.json() as Array<{ loader: FabricLoaderVersion }>;
     return data.map((item) => item.loader);
@@ -38,7 +37,7 @@ export class FabricLegacyHandler implements ILoaderHandler {
     ensureDirSync(versionDir);
 
     // Fetch installer JSON from Fabric API
-    const res = await fetch(`${FABRIC_META}/versions/loader/${mcVersion}/${loaderVersion}/profile/json`);
+    const res = await fetch(`${URLS.official.fabric.metaV2}/versions/loader/${mcVersion}/${loaderVersion}/profile/json`);
     if (!res.ok) {
       throw new Error(`Failed to fetch Fabric profile: ${res.status}`);
     }

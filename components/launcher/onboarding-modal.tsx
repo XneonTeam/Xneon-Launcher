@@ -153,13 +153,13 @@ export function OnboardingModal({ selectedTheme, themes, onSelectTheme, onFinish
     setError("")
   }
 
-  const handleProviderLogin = async (provider: "elyby" | "xnskins" | "microsoft") => {
+  const handleProviderLogin = async (provider: "elyby" | "xnskins" | "microsoft", requestId?: string) => {
     setError("")
     const loadingSetters = { elyby: setElyByLoading, xnskins: setXnSkinsLoading, microsoft: setMicrosoftLoading }
     const loginFns = { elyby: "loginElyBy", xnskins: "loginXnSkins", microsoft: "loginMicrosoft" } as const
     loadingSetters[provider](true)
     try {
-      const result = await (window.electrobunAPI as any)?.[loginFns[provider]]()
+      const result = await (window.electrobunAPI as any)?.[loginFns[provider]](requestId)
       if (result) addAccount({ id: result.id, type: provider, username: result.username, uuid: result.uuid, skinUrl: result.skinUrl, isActive: accounts.length === 0 })
     } catch (e) { setError(e instanceof Error ? e.message : copy.errors.loginFailed) }
     finally { loadingSetters[provider](false) }

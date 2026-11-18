@@ -18,6 +18,7 @@ import type {
 
 const CACHE_SETTINGS_KEY = "contentUpdatesCache"
 const CHECK_CONCURRENCY = 4
+const activeChecks = new Map<string, symbol>()
 
 type CheckableItem = {
   id: string
@@ -178,8 +179,7 @@ function findUpdateForItem(
 
   const requireLoader = contentType === "mods"
   const compatible = channelAllowed.filter((v) => matchesGameAndLoader(v, build, requireLoader))
-  const gameOnly = channelAllowed.filter((v) => matchesGameAndLoader(v, build, false))
-  const candidates = (compatible.length > 0 ? compatible : gameOnly).sort(byDateDesc)
+  const candidates = compatible.sort(byDateDesc)
   if (candidates.length === 0) return null
 
   const latest = candidates[0]!
@@ -310,6 +310,13 @@ async function writeUpdatesCache(cache: Record<string, BuildContentUpdates>): Pr
 }
 
 export async function checkContentUpdates(buildId: string, channel: UpdateChannel = "release"): Promise<BuildContentUpdates> {
+  const token = Symbol(buildId)
+  activeChecks.set(buildId, token)
+  try { return await performContentUpdateCheck(buildId, channel, token) }
+  finally { if (activeChecks.get(buildId) === token) activeChecks.delete(buildId) }
+}
+
+async function performContentUpdateCheck(buildId: string, channel: UpdateChannel, token: symbol): Promise<BuildContentUpdates> {
   // Раньше здесь читался весь список сборок вместе с их JSON-контентом
   // (десятки мегабайт на ~20 сборок) ради одной строки.
   const light = (await dbHelpers.loadBuildsLight()).find((b) => b.id === buildId)
@@ -349,11 +356,13 @@ export async function checkContentUpdates(buildId: string, channel: UpdateChanne
     const identities = unresolvedHashes.length ? await mods.modrinthGetFilesByHash(unresolvedHashes) : {}
 
     // Modrinth пакетная оптимизация: проверяем все Modrinth-моды одним запросом!
-    const mrItems = items.filter((i) => i.source === "modrinth" && i.id)
+    const mrItems = items.filter((i) => i.source === "modrinth" && /^[a-f0-9]{40}$/i.test(i.id))
     let mrUpdatesMap: Record<string, ModVersion> = {}
     if (mrItems.length > 0) {
       try {
-        const loaders = build.modLoader && build.modLoader !== "vanilla" ? [build.modLoader.toLowerCase()] : ["minecraft"]
+        const loaders = contentType === "mods" && build.modLoader && build.modLoader !== "vanilla"
+          ? [build.modLoader.toLowerCase()]
+          : contentType === "shaders" ? ["iris", "optifine"] : ["minecraft"]
         const gameVersions = build.version ? [build.version] : undefined
         mrUpdatesMap = await mods.modrinthCheckUpdates(mrItems.map((i) => i.id), loaders, gameVersions)
       } catch (err) {
@@ -373,8 +382,9 @@ export async function checkContentUpdates(buildId: string, channel: UpdateChanne
           // Если Modrinth пакетный API уже дал результат для этого хэша
           if (item.source === "modrinth" && mrUpdatesMap[item.id]) {
             const batchLatest = mrUpdatesMap[item.id]!
+            if (isMatchingInstalledVersion(batchLatest, item, resource)) return
             // Проверяем, действительно ли эта версия отличается от установленной
-            if (!isMatchingInstalledVersion(batchLatest, item, resource)) {
+            if (findUpdateForItem([batchLatest], item, build, contentType, channel, resource)) {
               result.updates.push({
                 itemId: item.id,
                 contentType,
@@ -423,10 +433,21 @@ export async function checkContentUpdates(buildId: string, channel: UpdateChanne
 
   await runPool(tasks, CHECK_CONCURRENCY, (task) => task())
 
+  // Проверка могла начаться до установки новой версии. Не публикуем результат
+  // для уже удалённого/заменённого файла из прежнего снимка сборки.
+  const currentContent = await dbHelpers.loadBuildContent(buildId)
+  const identity = (item: CheckableItem) => JSON.stringify([item.id, item.slug, item.version, item.source, item.versionId, item.fileId])
+  result.updates = result.updates.filter(update => {
+    const before = (build[update.contentType] as CheckableItem[]).find(item => item.id === update.itemId)
+    const current = (currentContent?.[update.contentType] as CheckableItem[] | undefined)?.find(item => item.id === update.itemId)
+    return before && current && identity(before) === identity(current)
+  })
+
   result.updates.sort((a, b) => a.name.localeCompare(b.name))
 
   try {
     const cache = await readUpdatesCache()
+    if (activeChecks.get(buildId) !== token) return result
     cache[buildId] = compactUpdatesForCache(result)
     await writeUpdatesCache(cache)
   } catch (error) {

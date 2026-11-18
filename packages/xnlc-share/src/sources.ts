@@ -1,4 +1,5 @@
 declare const XNLC_APPLICATION_USER_AGENT: string | undefined
+import { CONTENT_URLS } from "@xnlc/urls"
 const XNLC_USER_AGENT = typeof XNLC_APPLICATION_USER_AGENT === "string" ? XNLC_APPLICATION_USER_AGENT : "xnlc-share"
 import type { ContentSourceAdapter, Hashes, SourceReference, ResolvedFile, HashPort } from "./types.js"
 import { fail } from "./manifest.js"
@@ -37,7 +38,7 @@ export class ModrinthSource implements ContentSourceAdapter {
     // Как во вкладке модов: один запрос на пачку, а не запрос на каждый архив.
     for (let offset = 0; offset < missing.length; offset += 80) {
       const batch = missing.slice(offset, offset + 80)
-      const versions = await json<Record<string, MRVersion>>(this.fetcher, "https://api.modrinth.com/v2/version_files", { "User-Agent": this.userAgent, "Content-Type": "application/json" }, { hashes: batch, algorithm: "sha512" })
+      const versions = await json<Record<string, MRVersion>>(this.fetcher, `${CONTENT_URLS.modrinthApi}/version_files`, { "User-Agent": this.userAgent, "Content-Type": "application/json" }, { hashes: batch, algorithm: "sha512" })
       if (!versions) fail("SOURCE_UNAVAILABLE", "Modrinth batch lookup is unavailable")
       for (const sha512 of batch) {
         const version = versions[sha512]
@@ -55,12 +56,12 @@ export class ModrinthSource implements ContentSourceAdapter {
       try { const known = await this.resolve(hint); if (known.sha512 === hashes.sha512) return known }
       catch (e) { if ((e as { code?: string }).code !== "VERSION_UNAVAILABLE") throw e }
     }
-    const v = await json<MRVersion>(this.fetcher, `https://api.modrinth.com/v2/version_file/${hashes.sha512}?algorithm=sha512`, { "User-Agent": this.userAgent })
+    const v = await json<MRVersion>(this.fetcher, `${CONTENT_URLS.modrinthApi}/version_file/${hashes.sha512}?algorithm=sha512`, { "User-Agent": this.userAgent })
     const file = v?.files.find(f => f.hashes.sha512 === hashes.sha512)
     return v && file ? this.map(v, file) : null
   }
   async resolve(source: SourceReference): Promise<ResolvedFile> {
-    const v = await json<MRVersion>(this.fetcher, `https://api.modrinth.com/v2/version/${encodeURIComponent(source.versionId)}`, { "User-Agent": this.userAgent })
+    const v = await json<MRVersion>(this.fetcher, `${CONTENT_URLS.modrinthApi}/version/${encodeURIComponent(source.versionId)}`, { "User-Agent": this.userAgent })
     const file = v?.files.find(f => f.hashes.sha512 === source.fileId)
     if (!v || v.project_id !== source.projectId || !file) fail("VERSION_UNAVAILABLE", "Exact Modrinth version/file is unavailable")
     return this.map(v, file)
@@ -78,7 +79,7 @@ export class CurseForgeSource implements ContentSourceAdapter {
   async resolve(source: SourceReference): Promise<ResolvedFile> {
     if (!this.key) fail("SOURCE_AUTH", "CurseForge API key is required")
     if (source.versionId !== source.fileId) fail("SOURCE", "CurseForge file/version IDs must match")
-    const response = await json<{ data: CFFile }>(this.fetcher, `https://api.curseforge.com/v1/mods/${encodeURIComponent(source.projectId)}/files/${encodeURIComponent(source.fileId)}`, { "x-api-key": this.key })
+    const response = await json<{ data: CFFile }>(this.fetcher, `${CONTENT_URLS.curseforgeApi}/mods/${encodeURIComponent(source.projectId)}/files/${encodeURIComponent(source.fileId)}`, { "x-api-key": this.key })
     const file = response?.data
     if (!file || String(file.modId) !== source.projectId || String(file.id) !== source.fileId) fail("VERSION_UNAVAILABLE", "Exact CurseForge file is unavailable")
     if (!file.downloadUrl) fail("SOURCE_RESTRICTED", "CurseForge author has restricted third-party downloads")

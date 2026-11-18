@@ -68,6 +68,8 @@ export type DbBuildMod = {
   source?: "local" | "modrinth" | "curseforge"
   projectId?: string
   modId?: number
+  versionId?: string
+  fileId?: number
   author?: string
   enabled?: boolean
 }
@@ -164,6 +166,10 @@ export type WorldInfo = {
 
 export type DatapackInfo = {
   name: string
+  displayName?: string
+  iconUrl?: string
+  author?: string
+  projectId?: string
   sizeBytes: number
   lastModified: number
   path: string
@@ -340,6 +346,19 @@ export type BuildIntentScanResult = {
 }
 
 // ── Modpack Import Result ───────────────────────────────────
+/** Клиентский снимок: сервер не удерживает сессии синхронизации. */
+export type BuildContentManifest = { mods: Record<string,string>; resourcepacks: Record<string,string>; shaders: Record<string,string>; installedMods: Record<string,string> }
+export type BuildContentDelta = {
+  mods: {upsert:DbBuildMod[];remove:string[];order?:string[]}
+  resourcepacks: {upsert:DbBuildMod[];remove:string[];order?:string[]}
+  shaders: {upsert:DbBuildMod[];remove:string[];order?:string[]}
+  installedMods: {upsert:Record<string,string>;remove:string[]}
+  manifest: BuildContentManifest
+}
+
+/** Только название этапа и несекретный id попытки; сессионные данные остаются в main. */
+export type MicrosoftAuthStage = "device-code" | "waiting" | "microsoft-token" | "xbox-live" | "xsts" | "minecraft-token" | "profile" | "saving" | "complete" | "error"
+export type MicrosoftAuthProgress = { requestId: string; stage: MicrosoftAuthStage }
 
 export type ModpackImportMod = {
   id: string
@@ -432,6 +451,8 @@ export type McProfile = {
   skins: MinecraftSkin[]
   capes: MinecraftCape[]
   uploadableTextures?: string
+  /** Серверная текстура сопоставлена с локальной записью; null — внешний скин. */
+  equippedLibrarySkinId?: string | null
 }
 
 export type LibrarySkin = {

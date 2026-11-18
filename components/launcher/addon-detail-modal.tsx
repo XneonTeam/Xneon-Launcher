@@ -408,7 +408,7 @@ export function AddonDetailModal({
                           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground [&_svg]:text-primary transition-colors border border-border/60"
                         >
                           <IconExternalLink className="w-3.5 h-3.5 text-primary" />
-                          <span data-ui="addon-detail-modal-span-7" className="text-muted-foreground">{t("common.openOnSite")}</span>
+                          <span data-ui="addon-detail-modal-span-7">{t("common.openOnSite")}</span>
                         </button>
                       )}
                     </div>
@@ -577,19 +577,28 @@ export function AddonDetailModal({
                         </div>
                       </div>
                       {onInstallVersion && <button data-ui="addon-detail-modal-button-4"
-                        onClick={() => void runVersionInstall(ver, () => onInstallVersion(ver))}
-                        disabled={busy || isCurrent}
+                        type="button"
+                        onClick={() => {
+                          if (installState?.phase === "running") {
+                            if (cancellableDownload) void window.electrobunAPI?.cancelContentDownload(cancellableDownload).catch(console.error)
+                            return
+                          }
+                          void runVersionInstall(ver, () => onInstallVersion(ver))
+                        }}
+                        disabled={installState?.phase === "running" ? !cancellableDownload : busy || isCurrent}
                         className={cn(
                           "flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors shrink-0 ml-3",
-                          busy || isCurrent
+                          installState?.phase === "running"
+                            ? "border border-border bg-muted text-foreground hover:bg-muted/80 disabled:cursor-not-allowed disabled:opacity-50"
+                            : busy || isCurrent
                             ? "bg-muted text-muted-foreground cursor-not-allowed"
                             : "bg-primary text-primary-foreground hover:bg-primary/90"
                         )}
                       >
                         {installState?.phase === "running" ? (
                           <>
-                            <IconLoader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} />
-                            {t("common.installing")}
+                            <IconX className="w-4 h-4 text-primary" strokeWidth={1.75} />
+                            {t("common.cancel")}
                           </>
                         ) : isCurrent ? (
                           <>
@@ -622,7 +631,6 @@ export function AddonDetailModal({
                       </div>
                     )}
                     {installState && <VersionInstallProgress state={installState} />}
-                    {installState?.phase === "running" && cancellableDownload && <button type="button" onClick={() => void window.electrobunAPI?.cancelContentDownload(cancellableDownload)} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-xs text-foreground hover:bg-muted"><IconX className="h-3.5 w-3.5 text-primary" />{t("common.cancel")}</button>}
                   </div>
                   )
                 })
