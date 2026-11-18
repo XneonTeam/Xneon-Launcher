@@ -1,3 +1,5 @@
+import { estimateCacheBytes } from "./bounded-cache"
+
 // ============================================================
 // Stale-While-Revalidate cache (по образцу app-lib/state/cache.rs из Theseus)
 // - fresh entry  → возвращаем сразу, без сети
@@ -18,6 +20,7 @@ type Entry<T> = {
   value: T
   fetchedAt: number
   inflight?: Promise<T>
+  bytes?: number
 }
 
 const STORAGE_PREFIX = "swr:"
@@ -76,6 +79,33 @@ if (typeof window !== "undefined") {
 class SwrCache {
   private store = new Map<string, Entry<unknown>>()
 
+  // Бюджет только повторно получаемых данных, не пользовательского состояния.
+  // immutable запрещает revalidation, но не вытеснение из памяти.
+  private trim(): void {
+    let bytes = 0
+    let settled = 0
+    for (const [key, entry] of this.store) {
+      if (!entry.inflight && (entry.bytes ?? 0) > 32 * 1024 * 1024) {
+        this.store.delete(key)
+        continue
+      }
+      bytes += entry.bytes ?? 0
+      if (!entry.inflight) settled++
+    }
+    for (const [key, entry] of this.store) {
+      if (settled <= 128 && bytes <= 32 * 1024 * 1024) break
+      // Не обрываем deduplication активных запросов; их finally повторит trim.
+      if (entry.inflight) continue
+      this.store.delete(key)
+      bytes -= entry.bytes ?? 0
+      settled--
+    }
+  }
+
+  private weigh(entry: Entry<unknown>): void {
+    entry.bytes = estimateCacheBytes(entry.value)
+  }
+
   getOrFetch<T>(key: string, fetcher: () => T | Promise<T>, options: SwrOptions = {}): Promise<T> {
     const ttl = options.immutable ? Infinity : (options.ttl ?? 30_000)
     const now = Date.now()
@@ -85,12 +115,19 @@ class SwrCache {
     if (!existing && options.persist) {
       const persisted = loadPersisted<T>(key)
       if (persisted) {
+        this.weigh(persisted)
         this.store.set(key, persisted as Entry<unknown>)
+        this.trim()
         existing = persisted
       }
     }
 
     if (existing) {
+      // Обращение продлевает приоритет LRU, но не свежесть данных.
+      if (this.store.has(key)) {
+        this.store.delete(key)
+        this.store.set(key, existing)
+      }
       // На холодном ключе value ещё нет: все потребители ждут тот же запрос.
       if (existing.value === undefined && existing.inflight) return existing.inflight
       const fresh = now - existing.fetchedAt < ttl
@@ -103,12 +140,14 @@ class SwrCache {
           .then(value => {
             if (this.store.get(key) !== existing) return value ?? existing!.value
             if (value != null) existing!.value = value
+            this.weigh(existing!)
             existing!.fetchedAt = Date.now()
             if (options.persist) savePersisted(key, existing!)
             return value ?? existing!.value
           })
           .finally(() => {
             existing!.inflight = undefined
+            this.trim()
           })
           .catch(() => existing!.value)
         void existing.inflight
@@ -121,6 +160,7 @@ class SwrCache {
       .then(value => {
         if (value != null && this.store.get(key) === entry) {
           entry.value = value
+          this.weigh(entry)
           entry.fetchedAt = Date.now()
           if (options.persist) savePersisted(key, entry)
         } else if (value == null && this.store.get(key) === entry) {
@@ -138,6 +178,7 @@ class SwrCache {
       .finally(() => {
         const current = this.store.get(key)
         if (current === entry) current.inflight = undefined
+        this.trim()
       })
 
     entry.inflight = inflight

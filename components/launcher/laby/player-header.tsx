@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { labyPlayerPageUrl } from "@xnlc/skins"
+import { labyPlayerPageUrl } from "@xnlc/skins/browser"
 import type { LabyPlayer } from "@xnlc/types"
 import { IconExternalLink, IconShirt, IconUsers } from "@tabler/icons-react"
 

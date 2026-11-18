@@ -1,4 +1,6 @@
 import { watchBuildContent } from "./content-watcher"
+import { publicContentIcons } from "./content-icon-assets"
+import { createContentDelta } from "../../../lib/content-delta"
 import { getMainTranslator } from "../i18n"
 import { getLauncherDataRoot, getDefaultLauncherDataRoot, launcherLocationConfig } from "../paths"
 import { isPortable } from "../profile-path"
@@ -738,6 +740,20 @@ export function registerBuildHandlers() {
       : await getContentIntentDir(dirNameOrPath)
     if (isModpackApplying(intentPath)) throw new Error("Modpack installation is being applied")
     return scanIntentDir(intentPath)
+  })
+
+  rpcRegistry.handle("build:sync-intent-content", async (_event, dirNameOrPath, known) => {
+    if (known !== undefined) {
+      if (!known || typeof known !== "object") throw new Error("Invalid content manifest")
+      for (const key of ["mods", "resourcepacks", "shaders", "installedMods"] as const) {
+        const entries = known[key]
+        if (!entries || typeof entries !== "object" || Array.isArray(entries) || Object.keys(entries).length > 20000 || Object.values(entries).some(value => typeof value !== "string" || value.length > 4096)) throw new Error("Invalid content manifest")
+      }
+    }
+    const intentPath = path.isAbsolute(dirNameOrPath) ? dirNameOrPath : await getContentIntentDir(dirNameOrPath)
+    if (isModpackApplying(intentPath)) throw new Error("Modpack installation is being applied")
+    const content = (await publicContentIcons(await scanIntentDir(intentPath)))!
+    return await createContentDelta(content, known) as import("@xnlc/types").BuildContentDelta
   })
 
   // Ручной запуск докачивания «core»-файлов пака (Missing Mods Checker).

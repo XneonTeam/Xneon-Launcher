@@ -6,7 +6,7 @@ import { loadAccounts, saveAccount, removeAccount, reorderAccounts, type DbAccou
 import { loadBuilds, loadBuildsLight, loadBuildContent, saveAllBuilds, insertBuild, updateBuildPlaytime, updateBuildFields, deleteBuild, findBuildByName, findBuildById, type BuildJson, type BuildLightJson } from "./builds"
 import { clearSettingsCache, getSetting, setSetting } from "./settings"
 import { getCloudConfig, setCloudConfig, removeCloudConfig } from "./cloud"
-import { getResources, upsertResource, upsertResources, setResourceCurseforge, setResourcesCurseforge, markResourcesCurseforgeChecked, type ResourceRow } from "./resources"
+import { getResources, upsertResource, upsertResources, updateResourceIcons, setResourceCurseforge, setResourcesCurseforge, markResourcesCurseforgeChecked, type ResourceRow } from "./resources"
 import { getFileSnapshots, upsertFileSnapshot, upsertFileSnapshots, type FileSnapshotRow } from "./snapshots"
 import { loadSkinLibrary, saveSkinToLibrary, deleteSkinFromLibrary, updateSkinVariant, updateSkinCapeId, updateSkinName, findLibrarySkinBySource, findLibrarySkinById, type SkinLibraryRow } from "./skins"
 import { listMcServers, listTrashedMcServers, getMcServer, createMcServer, updateMcServer, softDeleteMcServer, restoreMcServer, purgeTrashedMcServers, deleteMcServer, type McServerRow } from "./mc-servers"
@@ -67,6 +67,7 @@ export const dbHelpers = {
   getResources,
   upsertResource,
   upsertResources,
+  updateResourceIcons,
   setResourceCurseforge,
   setResourcesCurseforge,
   markResourcesCurseforgeChecked,

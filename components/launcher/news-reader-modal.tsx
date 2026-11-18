@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next"
 import { IconAlertTriangle, IconExternalLink, IconLoader2, IconNews, IconRefresh, IconX } from "@tabler/icons-react"
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { formatDate, type NewsEntry } from "@/lib/home-page-shared"
-import { normalizeNewsArticleUrl } from "@/lib/news-url"
+import { isLauncherNewsArticle, normalizeNewsArticleUrl } from "@/lib/news-url"
+import { guardNewsReaderInitialization, isNewsReaderDocumentUrl, isNewsReaderReadyMessage, newsReaderPreloadScript, newsReaderStyleScript } from "@/lib/news-reader-webview"
 import type { ElectrobunWebviewElement } from "@/src/electrobun-webview"
 import { getAppliedReaderCss, splitThemeCssPrelude } from "./settings/theme-model"
 
@@ -13,8 +14,8 @@ import { getAppliedReaderCss, splitThemeCssPrelude } from "./settings/theme-mode
  *
  * Тег — гостевой webview поверх окна (аналог Electron `<webview>`): он
  * создаётся native-слоем, поэтому React-оверлей загрузки виден только пока
- * гость прозрачный (`transparent` + `passthrough`). После `dom-ready`
- * впрыскиваем стили темы и «проявляем» гостя.
+ * гость прозрачный (`transparent` + `passthrough`). Preload применяет тему
+ * и сообщает о DOMContentLoaded: не ждём полной загрузки медиа сайта.
  */
 
 // Сайтовая обвязка (шапка, футер, баннеры согласия) только мешает чтению статьи.
@@ -26,20 +27,6 @@ const READER_CSS = `
   }
 `
 
-// `target="_blank"` уводил бы ссылку в новое окно, а всплывающие окна в
-// читалке запрещены (как `allowpopups: false` в Electron) — поэтому ссылки
-// внутри статьи ведём в ней же.
-const INLINE_LINKS_JS = `(() => {
-  const strip = (root) => {
-    if (!root || !root.querySelectorAll) return
-    root.querySelectorAll('a[target]').forEach((a) => a.removeAttribute('target'))
-  }
-  strip(document)
-  const observer = new MutationObserver(() => strip(document))
-  observer.observe(document.documentElement, { childList: true, subtree: true })
-})()`
-
-const READER_STYLE_ID = "xneon-news-reader-style"
 /** Период опроса готовности тега, мс. */
 const PROBE_INTERVAL = 250
 /** Сколько ждём инициализации гостя в native. */
@@ -115,23 +102,6 @@ export function buildThemeReaderCss() {
   return `${reader.prelude}\n${buildReaderCss()}\n${reader.body}`
 }
 
-/**
- * У `<electrobun-webview>` нет `insertCSS`, поэтому стили ставим своим
- * `<style>`-элементом в документ гостя. Идемпотентно: обновляет тот же тег.
- */
-function readerStyleScript(css: string) {
-  return `(() => {
-  const id = ${JSON.stringify(READER_STYLE_ID)}
-  let style = document.getElementById(id)
-  if (!style) {
-    style = document.createElement('style')
-    style.id = id
-    document.documentElement.appendChild(style)
-  }
-  style.textContent = ${JSON.stringify(css)}
-})()`
-}
-
 interface NewsReaderModalProps {
   /** Новость для чтения; `null` — модал закрыт. */
   entry: NewsEntry | null
@@ -158,6 +128,7 @@ export function NewsReaderModal({ entry, onClose }: NewsReaderModalProps) {
   const detachRef = useRef<(() => void) | null>(null)
 
   const url = normalizeNewsArticleUrl(entry?.readMoreLink)
+  const themeArticle = !isLauncherNewsArticle(entry)
   /** Ссылки нет (битая запись ленты): показываем ошибку, а не вечную загрузку. */
   const unavailable = !url
   /** Рубрика — та же связка, что и на карточке: tag → category → первый newsType. */
@@ -182,17 +153,20 @@ export function NewsReaderModal({ entry, onClose }: NewsReaderModalProps) {
     if (!node) return
     const el = node as ElectrobunWebviewElement
     prepareNewsReaderWebview(el)
+    el.setAttribute("preload", newsReaderPreloadScript(themeArticle ? buildThemeReaderCss() : undefined))
+    if (url) guardNewsReaderInitialization(el, url)
 
     setLoading(true)
     setFailed(false)
 
     const startedAt = Date.now()
-    let settled = false
+    let phase: "loading" | "ready" | "failed" | "detached" = "loading"
 
     const inject = () => {
+      // Свои новости не перекрашиваем и не скрываем элементы их страницы.
+      if (!themeArticle) return
       try {
-        el.executeJavascript(readerStyleScript(buildThemeReaderCss()))
-        el.executeJavascript(INLINE_LINKS_JS)
+        el.executeJavascript(newsReaderStyleScript(buildThemeReaderCss()))
       } catch {
         // Гость мог быть уже удалён — ничего страшного, стили не нужны.
       }
@@ -205,8 +179,11 @@ export function NewsReaderModal({ entry, onClose }: NewsReaderModalProps) {
 
     /** Статья отрисована: впрыскиваем стили и показываем гостя. */
     const finish = () => {
-      if (settled) return
-      settled = true
+      if (phase === "failed" || phase === "detached") return
+      // Ссылка внутри статьи открывает новый документ в том же госте.
+      // Обновляем его тему, не создавая ещё один MutationObserver.
+      if (phase === "ready") { inject(); return }
+      phase = "ready"
       stopTimers()
       inject()
       try {
@@ -220,31 +197,37 @@ export function NewsReaderModal({ entry, onClose }: NewsReaderModalProps) {
     }
 
     const fail = () => {
-      if (settled) return
-      settled = true
+      if (phase !== "loading") return
+      phase = "failed"
       stopTimers()
       setLoading(false)
       setFailed(true)
     }
 
-    const handleReady = () => finish()
+    const handleReady = (event: CustomEvent) => {
+      if (isNewsReaderDocumentUrl(event.detail)) finish()
+    }
+    const handleHostMessage = (event: CustomEvent) => {
+      if (isNewsReaderReadyMessage(event.detail)) finish()
+    }
     let themeFrame = 0
     const handleTheme = () => {
       cancelAnimationFrame(themeFrame)
       // applyTheme отправляет событие до записи переменных: читаем их в следующем кадре.
-      themeFrame = requestAnimationFrame(() => { if (settled) inject() })
+      themeFrame = requestAnimationFrame(() => { if (phase === "ready") inject() })
     }
 
     if (typeof el.on === "function") {
       el.on("dom-ready", handleReady)
       el.on("load-finished", handleReady)
+      el.on("host-message", handleHostMessage)
     }
-    window.addEventListener("theme:applied", handleTheme)
+    if (themeArticle) window.addEventListener("theme:applied", handleTheme)
 
     // Гость создаётся native-слоем асинхронно (`webviewTagInit`). Если тег так
     // и не инициализировался, оверлей не должен висеть вечно.
     const probe = window.setInterval(() => {
-      if (settled) return
+      if (phase !== "loading") return
       if (typeof el.on !== "function") {
         fail()
         return
@@ -258,7 +241,7 @@ export function NewsReaderModal({ entry, onClose }: NewsReaderModalProps) {
     const loadTimer = window.setTimeout(fail, LOAD_TIMEOUT_MS)
 
     detachRef.current = () => {
-      settled = true
+      phase = "detached"
       stopTimers()
       cancelAnimationFrame(themeFrame)
       window.removeEventListener("theme:applied", handleTheme)
@@ -266,12 +249,13 @@ export function NewsReaderModal({ entry, onClose }: NewsReaderModalProps) {
         try {
           el.off("dom-ready", handleReady)
           el.off("load-finished", handleReady)
+          el.off("host-message", handleHostMessage)
         } catch {
           // Узел уже удалён вместе с native-гостем.
         }
       }
     }
-  }, [])
+  }, [url, themeArticle])
 
   return (
     <Dialog open={!!entry} onOpenChange={(open) => { if (!open) onClose() }}>
@@ -327,11 +311,11 @@ export function NewsReaderModal({ entry, onClose }: NewsReaderModalProps) {
             давал мутно-серую заливку при загрузке. */}
         <div data-ui="news-reader-modal-div-4" data-component="news-reader-modal" className="min-h-0 flex-1 p-3">
           <div data-ui="news-reader-modal-div-5" className="relative h-full w-full overflow-hidden rounded-xl border border-border bg-muted/30">
-            {url && (
+            {url && !failed && (
               <electrobun-webview data-ui="news-reader-modal-webview-1"
                 key={`${url}:${reloadKey}`}
                 ref={attachWebview}
-                src={url}
+                src="about:blank"
                 partition="persist:xneon-news"
                 className="absolute inset-0 h-full w-full"
                 // CSS SDK вне @layer задаёт 800×300 и перекрывает utilities Tailwind.
@@ -370,7 +354,7 @@ export function NewsReaderModal({ entry, onClose }: NewsReaderModalProps) {
                   {!unavailable && (
                     <button data-ui="news-reader-modal-button-3"
                       type="button"
-                      onClick={() => setReloadKey((k) => k + 1)}
+                      onClick={() => { setLoading(true); setFailed(false); setReloadKey((k) => k + 1) }}
                       className="flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                     >
                       <IconRefresh className="h-4 w-4" />

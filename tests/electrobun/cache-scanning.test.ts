@@ -203,7 +203,7 @@ import { preloadedPage } from "../../components/launcher/preloaded-page.tsx"
      assert.doesNotMatch(read('lib/skin-preview-cache.ts'),/^import \{ SkinViewer \} from/m)
      assert.match(read('lib/skin-preview-cache.ts'),/renderPaused: true/)
     })
-    function cache(){const module={exports:{}};vm.runInNewContext(transformSync(read('lib/swr.ts'),{loader:'ts',format:'cjs'}).code,{module,exports:module.exports,Date,Promise,localStorage:{getItem(){return null},setItem(){},removeItem(){}}});return module.exports.dataCache}
+    function cache(){const module={exports:{}};vm.runInNewContext(transformSync(read('lib/swr.ts'),{loader:'ts',format:'cjs'}).code,{module,exports:module.exports,Date,Promise,require(name){assert.equal(name,'./bounded-cache');return {estimateCacheBytes}},localStorage:{getItem(){return null},setItem(){},removeItem(){}}});return module.exports.dataCache}
     test('SWR: одновременные холодные потребители ждут один запрос, не получают undefined',async()=>{
      const c=cache();let calls=0,finish;const pending=new Promise(r=>finish=r)
      const fetch=()=>{calls++;return pending};const a=c.getOrFetch('same',fetch),b=c.getOrFetch('same',fetch)

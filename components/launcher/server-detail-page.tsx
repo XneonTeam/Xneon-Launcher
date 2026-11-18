@@ -1,7 +1,8 @@
 import { CONTENT_ENTER_DELAYED } from "./content-motion"
+import { SERVICE_URLS } from "@xnlc/urls"
 import { useState, useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
-import { IconArrowLeft, IconTerminal2, IconSettings, IconPlayerPlay, IconPlayerStop, IconFolder, IconPuzzle, IconAdjustments, IconUsers, IconRefresh, IconDownload, IconCpu, IconDatabase, IconClock, IconNetwork, IconWorld, IconLink, IconCheck, IconCamera, IconTrash, IconLoader2, IconShare, IconWifiOff } from "@tabler/icons-react"
+import { IconArrowLeft, IconTerminal2, IconSettings, IconPlayerPlay, IconPlayerStop, IconFolder, IconPuzzle, IconAdjustments, IconUsers, IconRefresh, IconDownload, IconCpu, IconDatabase, IconArchive, IconClock, IconNetwork, IconWorld, IconLink, IconCheck, IconCamera, IconTrash, IconLoader2, IconShare, IconWifiOff } from "@tabler/icons-react"
 import { useMcServerState, useMcServerLogs, useMcServerMetrics, useMcServerDownloadProgress } from "@/src/hooks/use-mc-servers"
 import { cn } from "@/lib/utils"
 import { IconPickerModal } from "@/components/launcher/instance/icon-picker-modal"
@@ -23,7 +24,7 @@ type ServerTab = "console" | "datapacks" | "addons" | "properties" | "players" |
 const ALL_TABS: Array<{ id: ServerTab; labelKey: string; icon: React.ElementType; label?: string }> = [
   { id: "console", labelKey: "servers.tabConsole", icon: IconTerminal2 },
   { id: "files", labelKey: "servers.tabFiles", icon: IconFolder },
-  { id: "datapacks", labelKey: "servers.datapacks.title", icon: IconDatabase },
+  { id: "datapacks", labelKey: "servers.datapacks.title", icon: IconArchive },
   { id: "addons", labelKey: "servers.tabAddons", icon: IconPuzzle },
   { id: "properties", labelKey: "servers.tabProperties", icon: IconAdjustments },
   { id: "players", labelKey: "servers.tabPlayers", icon: IconUsers },
@@ -399,13 +400,13 @@ export function ServerDetailPage({ server, onBack, onServerUpdated }: ServerDeta
           </span>
           <div data-ui="server-detail-page-div-10" className="flex gap-2 flex-shrink-0">
             <button data-ui="server-detail-page-button-6"
-              onClick={() => window.electrobunAPI?.openExternal("https://connect.xneon.org/dashboard")}
+              onClick={() => window.electrobunAPI?.openExternal(`${SERVICE_URLS.connect}/dashboard`)}
               className="px-2.5 h-7 rounded-lg border border-border bg-muted/30 text-xs text-foreground hover:bg-muted/60 transition-colors"
             >
               {t("servers.settings.xnconnect.openDashboard")}
             </button>
             <button data-ui="server-detail-page-button-7"
-              onClick={() => window.electrobunAPI?.openExternal("https://connect.xneon.org/subscribe")}
+              onClick={() => window.electrobunAPI?.openExternal(`${SERVICE_URLS.connect}/subscribe`)}
               className="px-2.5 h-7 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
             >
               {t("servers.settings.xnconnect.subscribe")}

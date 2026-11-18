@@ -282,7 +282,7 @@ export function InstanceScreenshotsTab({ build }: InstanceScreenshotsTabProps) {
               className="w-full rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm outline-none focus:border-primary mb-3"
             />
             <div data-ui="instance-instance-screenshots-tab-div-27" className="flex justify-end gap-2">
-              <button data-ui="instance-instance-screenshots-tab-button-11" type="button" onClick={() => setRenameFor(null)} className="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-muted text-muted-foreground">{<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel")}</span>}</button>
+              <button data-ui="instance-instance-screenshots-tab-button-11" type="button" onClick={() => setRenameFor(null)} className="px-3 py-1.5 rounded-lg border border-border bg-muted text-xs font-medium hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors">{<span className="inline-flex items-center justify-center gap-2"><LauncherCancelIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />{t("common.cancel")}</span>}</button>
               <button data-ui="instance-instance-screenshots-tab-button-12"
                 type="button"
                 onClick={() => void handleRename(renameFor)}

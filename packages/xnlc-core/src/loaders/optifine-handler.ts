@@ -21,8 +21,7 @@ import { listArchiveEntries, readArchiveEntry, readArchiveEntryText } from "@xnl
 import type { ILoaderHandler } from "./types.js";
 import { PROFILE_REVISION } from "../core/profile-builder.js";
 
-const OPTIFINE_BASE = URLS.official.optifine.root;
-const LAUNCHWRAPPER_URL = `${URLS.official.mojang.libraries}/net/minecraft/launchwrapper/1.12/launchwrapper-1.12.jar`;
+const launchwrapperUrl = () => `${URLS.official.mojang.libraries}/net/minecraft/launchwrapper/1.12/launchwrapper-1.12.jar`;
 const LAUNCHWRAPPER_PATH = "net/minecraft/launchwrapper/1.12/launchwrapper-1.12.jar";
 const MAIN_CLASS = "net.minecraft.launchwrapper.Launch";
 
@@ -145,7 +144,7 @@ export class OptifineHandler implements ILoaderHandler {
 
       versions.push({
         ...parsed,
-        downloadUrl: `${OPTIFINE_BASE}/download?f=${encodeURIComponent(raw)}`,
+        downloadUrl: `${URLS.official.optifine.root}/download?f=${encodeURIComponent(raw)}`,
       });
     }
 
@@ -174,7 +173,7 @@ export class OptifineHandler implements ILoaderHandler {
 
       versions.push({
         ...parsed,
-        downloadUrl: `${OPTIFINE_BASE}/download?f=${encodeURIComponent(raw)}`,
+        downloadUrl: `${URLS.official.optifine.root}/download?f=${encodeURIComponent(raw)}`,
       });
     }
 
@@ -279,7 +278,7 @@ export class OptifineHandler implements ILoaderHandler {
     if (parsed && parsed.mcVersion === mcVersion) {
       return {
         ...parsed,
-        downloadUrl: `${OPTIFINE_BASE}/download?f=${encodeURIComponent(loaderVersion)}`,
+        downloadUrl: `${URLS.official.optifine.root}/download?f=${encodeURIComponent(loaderVersion)}`,
         launchWrapperVersion: undefined,
       };
     }
@@ -401,7 +400,7 @@ export class OptifineHandler implements ILoaderHandler {
         name: "net.minecraft:launchwrapper:1.12",
         downloads: {
           artifact: {
-            url: LAUNCHWRAPPER_URL,
+            url: launchwrapperUrl(),
             path: LAUNCHWRAPPER_PATH,
             sha1: "",
             size: 0,
@@ -414,7 +413,7 @@ export class OptifineHandler implements ILoaderHandler {
       name: `optifine:launchwrapper:${launchWrapperVersion}`,
       downloads: {
         artifact: {
-          url: LAUNCHWRAPPER_URL,
+          url: launchwrapperUrl(),
           path: path.join("optifine", "launchwrapper", launchWrapperVersion, `launchwrapper-${launchWrapperVersion}.jar`),
           sha1: "",
           size: 0,

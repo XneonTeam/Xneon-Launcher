@@ -16,9 +16,11 @@ import type {
   ModCategory,
 } from "./types.js";
 import { MOD_SORT_OPTIONS, CONTENT_TYPE_FACETS } from "./types.js";
+import { CONTENT_URLS, curseforgeDownloadUrl } from "@xnlc/urls";
 
 const CF_API_KEY = process.env.CF_API_KEY || "$2a$10$bL4bIL5pUWqfcO7KQtnMReakwtfHbNKh6v1uTpKlzhwoueEJQnPnm";
-const CF_BASE = "https://api.curseforge.com/v1";
+
+const CF_BASE = CONTENT_URLS.curseforgeApi;
 const CF_GAME_ID_MINECRAFT = 432;
 const MODS_PER_PAGE = 20;
 const MAX_RETRIES = 2;
@@ -502,9 +504,7 @@ export async function curseforgeGetFiles(fileIds: number[]): Promise<Record<numb
           const fileName = file.fileName || `mod-${file.id}.jar`;
           // Fallback to official CurseForge edge CDN if direct downloadUrl is null
           if (!downloadUrl && fileName) {
-            const part1 = Math.floor(file.id / 1000);
-            const part2 = file.id % 1000;
-            downloadUrl = `https://edge.forgecdn.net/files/${part1}/${part2}/${encodeURIComponent(fileName)}`;
+            downloadUrl = curseforgeDownloadUrl(file.id, fileName);
           }
 
           if (downloadUrl) {

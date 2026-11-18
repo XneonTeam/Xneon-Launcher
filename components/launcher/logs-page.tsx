@@ -1,4 +1,5 @@
 import { CONTENT_ENTER_DELAYED } from "./content-motion"
+import { SERVICE_URLS } from "@xnlc/urls"
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import { useLaunchLogs, type LogEntry, type LogLevel } from "@/src/LaunchLogsContext"
@@ -414,7 +415,7 @@ export function LogsPage({ focus }: { focus?: { crash: boolean; at: number } | n
     setShareState("loading")
     try {
       const text = filtered.map(e => e.text).join("\n")
-      const res = await fetch("https://api.mclo.gs/1/log", {
+      const res = await fetch(SERVICE_URLS.logUpload, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({ content: text }),

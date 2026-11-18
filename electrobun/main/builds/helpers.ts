@@ -25,6 +25,7 @@ import { pauseScanFiles } from "@xnlc/parser"
 import type { ArchiveInput } from "@xnlc/archives"
 import { archiveService } from "../archives/service"
 import { isModpackInstalling } from "./modpack-install"
+import { streamDownloadToFile } from "../stream-download"
 
 export function getBaseDataRoot(): string {
   return getLauncherDataRoot()
@@ -129,6 +130,13 @@ export async function downloadBuffer(url: string, signal?: AbortSignal, progress
   return Buffer.from(await res.arrayBuffer())
 }
 
+/** Установка и проверка зависимостей не требуют буфера целого JAR в памяти. */
+export function downloadContentToFile(url: string, destination: string, signal?: AbortSignal, fileName?: string, downloadId?: string): Promise<void> {
+  return streamDownloadToFile(url, destination, signal, fileName ? value => {
+    if (value.total > 0 || downloadId) emitToRenderer("content:download-progress", { fileName, ...value, downloadId })
+  } : undefined)
+}
+
 export function sanitizeFileName(fileName: string): string {
   const normalized = path.basename(fileName).trim()
   return normalized.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_") || "download.bin"
@@ -213,8 +221,7 @@ export async function saveRemoteContentToIntent(dirName: string, contentType: "m
       if (cached) {
         await stageContent(intentPath, filePath, temporary => fs.copyFile(cached, temporary), operation, signal)
       } else {
-        const bytes = await downloadBuffer(url, signal, safeFileName, downloadId)
-        await stageContent(intentPath, filePath, temporary => fs.writeFile(temporary, bytes), operation, signal)
+        await stageContent(intentPath, filePath, temporary => downloadContentToFile(url, temporary, signal, safeFileName, downloadId), operation, signal)
       }
       return filePath
     })

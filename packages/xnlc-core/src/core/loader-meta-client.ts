@@ -10,7 +10,7 @@ import { withRetry } from "../retry.js";
 declare const fetch: typeof globalThis.fetch;
 
 export class LoaderMetaClient {
-  private baseUrl: string = URLS.official.loader.meta;
+  private get baseUrl(): string { return URLS.official.loader.meta; }
 
   async getIndex(uid: string): Promise<LoaderMetaIndex> {
     return withRetry(async () => {

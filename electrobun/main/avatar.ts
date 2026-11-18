@@ -1,4 +1,5 @@
 import { launcherViewAssets } from "../platform/resources"
+import { SERVICE_URLS } from "@xnlc/urls"
 import { protocol, rpcRegistry } from "../platform/desktop"
 import { avatarJson, avatarBuffer } from "./avatar-http"
 import { PNG } from "pngjs"
@@ -202,7 +203,7 @@ export async function getXnSkinsTextures(username: string, uuid?: string | null)
   if (!resolvedUuid && cleanName) {
     try {
       const profiles = await avatarJson<Array<{ id: string; name: string }>>(
-        "https://skins.xneon.org/api/profiles/minecraft",
+        `${SERVICE_URLS.xnSkins}/api/profiles/minecraft`,
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify([cleanName]) }
       )
       if (Array.isArray(profiles) && profiles.length > 0 && profiles[0]?.id) {
@@ -218,7 +219,7 @@ export async function getXnSkinsTextures(username: string, uuid?: string | null)
       id: string
       name: string
       properties?: Array<{ name: string; value: string }>
-    }>(`https://skins.xneon.org/sessionserver/session/minecraft/profile/${resolvedUuid}`)
+    }>(`${SERVICE_URLS.xnSkins}/sessionserver/session/minecraft/profile/${resolvedUuid}`)
 
     const texturesProp = profile?.properties?.find((p) => p.name === "textures")
     if (!texturesProp?.value) return null

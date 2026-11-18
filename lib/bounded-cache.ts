@@ -8,6 +8,8 @@ export class BoundedCache<K, V> {
   }
   get size(): number { return this.entries.size }
   get weight(): number { return this.totalWeight }
+  /** Снимок ключей для адресного удаления; значения не копируются. */
+  keys(): K[] { return [...this.entries.keys()] }
   private now() { return this.options.now?.() ?? Date.now() }
   get(key: K): V | undefined {
     const entry = this.entries.get(key)

@@ -1,4 +1,5 @@
 import { useConfirmDialog } from "@/lib/use-confirm-dialog"
+import {readContentUi,saveContentUi} from "@/lib/content-ui-cache"
 import { isContentDownloadCancelled } from "@/lib/content-download"
 import { Checkbox } from "@/components/ui/checkbox"
 import { memo, useEffect, useMemo, useRef, useState, useDeferredValue, useCallback } from "react"
@@ -94,8 +95,8 @@ interface InstanceContentTabProps {
   installingModSlug: string | null
   setInstallingModSlug: (slug: string | null) => void
   addModToBuild: (buildId: string, mod: ModSearchResult) => void
-  addContentToBuild: (buildId: string, type: "resourcepacks" | "shaders", mod: ModSearchResult) => void | Promise<void>
-  installContentToBuild: (mod: ModSearchResult, type: "resourcepacks" | "shaders", onPhase?: (phase: "resolving" | "confirm" | "downloading" | "deps" | null) => void) => void | Promise<void>
+  addContentToBuild: (buildId: string, type: "resourcepacks" | "shaders", mod: ModSearchResult, version?: ModVersion) => Promise<boolean>
+  installContentToBuild: (mod: ModSearchResult, type: "resourcepacks" | "shaders", onPhase?: (phase: "resolving" | "confirm" | "downloading" | "deps" | null) => void) => void | Promise<boolean | void>
   removeContentFromBuild: (buildId: string, type: "mods" | "resourcepacks" | "shaders", item: Build["mods"][number]) => Promise<boolean>
   beginContentMutation: (buildId: string) => () => void
   installModToBuild: (mod: ModSearchResult, onPhase?: (phase: "resolving" | "confirm" | "downloading" | "deps" | null) => void) => void | Promise<void>
@@ -200,20 +201,23 @@ export const InstanceContentTab = memo(function InstanceContentTab({
   }
 
   const [removingSlug, setRemovingSlug] = useState<string | null>(null)
-  const [selectedInstalled, setSelectedInstalled] = useState<Set<string>>(new Set())
+  const contentUiKey=activeBuild.id+":"+type
+  const [initialContentUi]=useState(()=>readContentUi(contentUiKey))
+  const [selectedInstalled, setSelectedInstalled] = useState<Set<string>>(()=>new Set(initialContentUi?.selected??[]))
   const [batchRemoving, setBatchRemoving] = useState(false)
   const [batchToggling, setBatchToggling] = useState(false)
   const batchBusy = batchRemoving || batchToggling
   const selectedHaveEnabled = installedItems.some(item => selectedInstalled.has(item.id) && item.enabled !== false)
   const removingBatch = useRef(false)
-  useEffect(() => { setSelectedInstalled(new Set()) }, [activeBuild.id, type])
+  const expectedInstalledCount=(activeBuild as Build & {modsCount?:number;resourcepacksCount?:number;shadersCount?:number})[type==="mods"?"modsCount":type==="resourcepacks"?"resourcepacksCount":"shadersCount"]??installedItems.length
   useEffect(() => {
+    if(!installedItems.length&&expectedInstalledCount>0)return
     setSelectedInstalled(current => {
       const ids = new Set(installedItems.map(item => item.id))
       const next = new Set([...current].filter(id => ids.has(id)))
       return next.size === current.size ? current : next
     })
-  }, [installedItems])
+  }, [installedItems,expectedInstalledCount])
   const [deleteConfirmation, setDeleteConfirmation] = useState<BuildMod[]>([])
   useEffect(() => { setDeleteConfirmation([]) }, [activeBuild.id, type])
   const removeSelected = async (items: BuildMod[]) => {
@@ -266,9 +270,16 @@ export const InstanceContentTab = memo(function InstanceContentTab({
     }
   }
 
-  const [installedSearch, setInstalledSearch] = useState("")
+  const [installedSearch, setInstalledSearch] = useState(initialContentUi?.search??"")
   /** Страница списка установленного контента (0-based, как в Pagination). */
-  const [installedPage, setInstalledPage] = useState(0)
+  const [installedPage, setInstalledPage] = useState(initialContentUi?.page??0)
+  const contentUiRef=useRef({search:installedSearch,page:installedPage,selected:[...selectedInstalled],scrollTop:initialContentUi?.scrollTop??0})
+  contentUiRef.current={search:installedSearch,page:installedPage,selected:[...selectedInstalled],scrollTop:contentUiRef.current.scrollTop}
+  const contentScrollNode=useRef<HTMLDivElement|null>(null)
+  const pendingContentScroll=useRef(initialContentUi?.scrollTop??null)
+  const restoreContentScroll=useCallback((node:HTMLDivElement|null)=>{contentScrollNode.current=node;if(node)node.scrollTop=contentUiRef.current.scrollTop},[])
+  useEffect(()=>{if(installedItems.length&&pendingContentScroll.current!==null&&contentScrollNode.current){contentScrollNode.current.scrollTop=pendingContentScroll.current;pendingContentScroll.current=null}},[installedItems.length])
+  useEffect(()=>()=>{saveContentUi(contentUiKey,contentUiRef.current)},[contentUiKey])
 
   // Перетаскивание файлов прямо в панель «Встановлено»: файл кладём в сборку как
   // есть — без проверок зависимостей и без запросов к API. Единственное, что
@@ -381,8 +392,10 @@ export const InstanceContentTab = memo(function InstanceContentTab({
 
   // Новый поисковый запрос, другая сборка или другой тип контента — всегда
   // начинаем с первой страницы.
+  const lastInstalledSearch=useRef(deferredInstalledSearch)
   useEffect(() => {
-    setInstalledPage(0)
+    if(lastInstalledSearch.current!==deferredInstalledSearch)setInstalledPage(0)
+    lastInstalledSearch.current=deferredInstalledSearch
   }, [deferredInstalledSearch, activeBuild.id, type])
   const [versionPickerItem, setVersionPickerItem] = useState<BuildMod | null>(null)
   const [versionPickerVersions, setVersionPickerVersions] = useState<ModVersion[]>([])
@@ -610,7 +623,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
               </div>
             )}
 
-            <div data-ui="instance-instance-content-tab-div-17" className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1">
+            <div data-ui="instance-instance-content-tab-div-17" ref={restoreContentScroll} onScroll={event=>{contentUiRef.current.scrollTop=event.currentTarget.scrollTop}} className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1">
               {installedItems.length === 0 || dragActive ? (
                 <EmptyState
                   variant="empty"
@@ -684,7 +697,11 @@ export const InstanceContentTab = memo(function InstanceContentTab({
                             const requireLoader = type === "mods"
                             const compatible = list.filter(v => matchesBuildVersion(v, activeBuild, requireLoader))
                             const gameOnly = list.filter(v => matchesBuildVersion(v, activeBuild, false))
-                            const shown = compatible.length > 0 ? compatible : (gameOnly.length > 0 ? gameOnly : list)
+                             const installedVersion = list.find(v => isInstalledVersion(v, item, activeBuild.version))
+                             const shown = compatible.length > 0 ? [...compatible] : (requireLoader ? [] : [...gameOnly])
+                             // Установленная версия может быть для другой Minecraft:
+                             // всё равно показываем её с отметкой, а не теряем из списка.
+                             if (installedVersion && !shown.some(v => v.id === installedVersion.id)) shown.push(installedVersion)
                             setVersionPickerVersions(shown)
                             // Раскрываем changelog установленной версии сразу.
                             const current = shown.find(v => isInstalledVersion(v, item, activeBuild.version))
@@ -1051,6 +1068,7 @@ export const InstanceContentTab = memo(function InstanceContentTab({
       {confirmationDialog}
       <InstanceUpdatesDialog
         activeBuild={activeBuild}
+        contentType={type}
         open={updatesOpen}
         onOpenChange={setUpdatesOpen}
         updateItemVersion={updateItemVersion}

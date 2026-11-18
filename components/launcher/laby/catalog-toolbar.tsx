@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { FloatingContextMenu } from "@/components/ui/floating-context-menu"
 import { CatalogFiltersDialog, countActiveFilters, EMPTY_FILTERS, type CatalogFilters } from "./catalog-filters-dialog"
-import { LABY_TREND_ORDERS } from "@xnlc/skins"
+import { LABY_TREND_ORDERS } from "@xnlc/skins/browser"
 import type { LabyOrder, LabyTag } from "@xnlc/types"
 import { IconChevronDown, IconClock, IconCrown, IconFlame, IconSearch, IconX } from "@tabler/icons-react"
 

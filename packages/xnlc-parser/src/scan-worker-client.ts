@@ -1,11 +1,13 @@
 import { Worker } from "node:worker_threads"
 import { availableParallelism } from "node:os"
 import path from "node:path"
+import { ScanGate } from "./scan-gate.js"
 import { inspectJar } from "./jar-inspector.js"
 import { analyzeDatapack } from "./datapack.js"
 import type { ScanFile, ScanRequest, ScanResult, ScanWorkerCommand, ScanWorkerData, ScanWorkerMessage } from "./scan-worker-protocol.js"
 
 let bundledEntry: string | URL | undefined
+const inlineGate = new ScanGate(2)
 
 /** Упакованные приложения могут передать путь к своему собранному worker. */
 export function setScanWorkerEntry(entry?: string | URL): void {
@@ -103,7 +105,8 @@ async function runScanInline(
   for (let i = 0; i < files.length; i += 8) {
     signal?.throwIfAborted()
     const chunk = files.slice(i, i + 8)
-    const results = await Promise.all(chunk.map(async (file): Promise<ScanResult> => {
+    let deliveryFailed = false
+    const settled = await Promise.allSettled(chunk.map(file => inlineGate.run(async (): Promise<ScanResult> => {
       const snapshot = { filePath: file.filePath, size: file.size, mtimeMs: file.mtimeMs }
       if (skipped.has(file.filePath) || blockedFiles.has(fileKey(file.filePath))) return { ...snapshot, error: "Content is being deleted" }
       const abort = new AbortController()
@@ -120,12 +123,20 @@ async function runScanInline(
         reading.delete(file.filePath)
         closed.resolve()
       }
-    }))
-    signal?.throwIfAborted()
-    for (const result of results) {
-      if (skipped.has(result.filePath) || blockedFiles.has(fileKey(result.filePath))) onResult({ filePath: result.filePath, error: "Content is being deleted" })
-      else onResult(result)
+    }, signal).then(result => {
+      signal?.throwIfAborted()
+      if (deliveryFailed) return
+      try {
+        if (skipped.has(result.filePath) || blockedFiles.has(fileKey(result.filePath))) onResult({ filePath: result.filePath, error: "Content is being deleted" })
+        else onResult(result)
+      } catch (error) { deliveryFailed = true; throw error }
+    })))
+    // При отмене queued-задания отвергаются сразу, но reader-владельцы должны
+    // закончить finally до удаления регистрации скана (важно для Windows unlink).
+    for (const item of settled) {
+      if (item.status === "rejected") throw item.reason
     }
+    signal?.throwIfAborted()
     // Уступаем event loop между пачками: основной поток успевает обслужить IPC.
     await new Promise<void>(resolve => setImmediate(resolve))
   }

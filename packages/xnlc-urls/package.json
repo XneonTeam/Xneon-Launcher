@@ -1,0 +1,16 @@
+{
+  "name": "@xnlc/urls",
+  "version": "1.0.0",
+  "description": "Общие адреса сервисов XNLC и настройки источников Minecraft",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": { "types": "./lib/index.d.ts", "default": "./lib/index.js" },
+    "./minecraft": { "types": "./lib/minecraft.d.ts", "default": "./lib/minecraft.js" }
+  },
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "files": ["lib"],
+  "scripts": { "build": "bun --bun run tsc -p tsconfig.json" },
+  "publishConfig": { "registry": "https://git.xneon.org/api/packages/MAINER4IK/npm/" }
+}

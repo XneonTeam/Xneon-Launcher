@@ -1,4 +1,5 @@
 import { Checkbox } from "@/components/ui/checkbox"
+import { curseforgeDownloadUrl } from "@xnlc/urls"
 import { datapackVersionFile } from "@/lib/datapack-version"
 import { useActivityCenter } from "@/src/ActivityCenterContext"
 import { useContentEnter, CONTENT_ENTER_DELAYED } from "../content-motion"
@@ -625,7 +626,7 @@ export function AddonsTab({ server, datapacks = false, canReload = false }: Addo
             if (!downloadUrl && selectedDetails.source === "curseforge" && ver.fileName) {
               const fileId = Number(ver.id)
               if (Number.isFinite(fileId) && fileId > 0) {
-                downloadUrl = `https://edge.forgecdn.net/files/${Math.floor(fileId / 1000)}/${fileId % 1000}/${encodeURIComponent(ver.fileName)}`
+                downloadUrl = curseforgeDownloadUrl(fileId, ver.fileName)
               }
             }
             if (!downloadUrl) return false

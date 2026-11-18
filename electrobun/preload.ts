@@ -6,6 +6,7 @@ import type {
   IpcEventMap,
   ShareProgress,
   AuthPayload,
+  MicrosoftAuthProgress,
   AuthSession,
   DeviceCodeStart,
   DeviceCodePoll,
@@ -118,7 +119,8 @@ installDesktopApi({
   pollXnSkinsDeviceCode: (deviceCode: string) => desktopRpc.invoke('auth:xnskins-device-poll', deviceCode) as Promise<DeviceCodePoll>,
   loginMicrosoft: invoke('auth:microsoft-login'),
   startMicrosoftDeviceCode: invoke('auth:microsoft-device-start'),
-  pollMicrosoftDeviceCode: (deviceCode: string) => desktopRpc.invoke('auth:microsoft-device-poll', deviceCode) as Promise<DeviceCodePoll>,
+  pollMicrosoftDeviceCode: (deviceCode: string, requestId?: string) => desktopRpc.invoke('auth:microsoft-device-poll', deviceCode, requestId) as Promise<DeviceCodePoll>,
+  onMicrosoftAuthProgress: (callback: (progress: MicrosoftAuthProgress) => void) => subscribe('auth:microsoft-progress', callback),
 
   // ── Authlib-Injector ──
   authlibListServers: invoke('authlib:list-servers'),
@@ -162,6 +164,7 @@ installDesktopApi({
   unwatchBuildContent: (token: string) => desktopRpc.invoke('build:unwatch-content', token),
   onBuildContentChanged: (callback: (event: { buildId: string; token: string }) => void) => subscribe('build:content-changed', callback),
   scanBuildIntentContent: (buildName: string) => desktopRpc.invoke('build:scan-intent-content', buildName) as Promise<BuildIntentScanResult>,
+  syncBuildIntentContent: invoke('build:sync-intent-content'),
   discoverImportableInstances: invoke('launcher:discover-importable-instances'),
   // Импорт из произвольной папки: хендлер launcher:discover-from-path (system.ts).
   // Без этого метода выбор кастомного пути падал с TypeError.
@@ -408,7 +411,7 @@ installDesktopApi({
   skinsDeleteSkin: (accountId?: string) => desktopRpc.invoke('skins:delete-skin', accountId) as Promise<boolean>,
   skinsSetCape: (capeId: string | null, accountId?: string) => desktopRpc.invoke('skins:set-cape', { capeId, accountId }) as Promise<boolean>,
   skinsListLibrary: (accountId: string) => desktopRpc.invoke('skins:list-library', accountId) as Promise<LibrarySkin[]>,
-  skinsSaveToLibrary: (filePath: string, name: string, variant: "classic" | "slim", accountId: string, capeId?: string | null) => desktopRpc.invoke('skins:save-to-library', { filePath, name, variant, accountId, capeId }) as Promise<LibrarySkin | null>,
+  skinsSaveToLibrary: (filePath: string, name: string, variant: "classic" | "slim" | "auto", accountId: string, capeId?: string | null) => desktopRpc.invoke('skins:save-to-library', { filePath, name, variant, accountId, capeId }) as Promise<LibrarySkin | null>,
   skinsDeleteFromLibrary: (id: string) => desktopRpc.invoke('skins:delete-from-library', id) as Promise<boolean>,
   skinsUpdateVariant: (id: string, variant: "classic" | "slim", capeId?: string | null, name?: string) => desktopRpc.invoke('skins:update-variant', { id, variant, capeId, name }) as Promise<boolean>,
   skinsApplyLibrarySkin: (skinId: string, accountId: string) => desktopRpc.invoke('skins:apply-library-skin', { skinId, accountId }) as Promise<boolean>,

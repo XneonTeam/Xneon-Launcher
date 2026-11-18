@@ -6,7 +6,9 @@ import { useTranslation } from "react-i18next"
 import { IconCheck, IconLoader2, IconCloudUpload, IconShieldCheck, IconGitCommit, IconGitCompare, IconFiles } from "@tabler/icons-react"
 import type { ScanResult, DiffEntry } from "@xnlc/share"
 import { MAX_FILE_BYTES } from "@xnlc/share"
-import type { ShareContentPresentation } from "@xnlc/types"
+import type { ShareContentPresentation, ShareProgress } from "@xnlc/types"
+import { mergePublishProgress } from "@/lib/share-publish-progress"
+import { SharePublishTransfer } from "./share-publish-transfer"
 import { ShareModal, ShareButton, shareInput, bytesLabel } from "./share-ui"
 import { ShareFileTree } from "./share-file-tree"
 import type { ShareController } from "./use-share"
@@ -32,18 +34,16 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
   const [message, setMessage] = useState("")
   const [success, setSuccess] = useState<{ uploaded: number; reused: number }>()
   const [publishing, setPublishing] = useState(false)
-  const [transfer, setTransfer] = useState({ stage: "start", done: 0, total: 1, bytes: 0 })
+  const [transfer, setTransfer] = useState<ShareProgress>({ stage: "start", done: 0, total: 1, bytes: 0 })
   const requestId = useRef("")
   const [cancelling, setCancelling] = useState(false)
   const shared = !!controller.data.link
-  const indeterminate = transfer.stage === "start" || transfer.stage === "commit" || transfer.total <= 0
-  const percent = Math.min(100, Math.max(0, Math.round(100 * transfer.done / Math.max(transfer.total, 1))))
   const TransferIcon = transfer.stage === "upload" ? IconCloudUpload : transfer.stage === "commit" ? IconGitCommit : IconShieldCheck
 
   useEffect(() => {
     if (!open) return
     return window.electrobunAPI?.onShareProgress(event => {
-      if (event.requestId === requestId.current && event.buildId === buildId && !["done", "error"].includes(event.stage)) setTransfer(event)
+      if (event.requestId === requestId.current && event.buildId === buildId && !["done", "error"].includes(event.stage)) setTransfer(previous => mergePublishProgress(previous, event))
     })
   }, [open, buildId])
 
@@ -133,10 +133,7 @@ export function SharePublishDialog({ open, onClose, controller, buildId }: {
             <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border border-border/70 bg-card/40 px-6 py-8" role="status" aria-live="polite">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><TransferIcon className="h-6 w-6" strokeWidth={1.75} /></div>
               <p className="mt-4 text-base font-semibold text-foreground">{t(`share.flow.stage.${transfer.stage}`, { defaultValue: t("share.flow.working") })}</p>
-              <div className="mt-5 w-full max-w-sm">
-                <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground"><span>{transfer.bytes > 0 ? t("share.flow.uploadedBytes", { size: bytesLabel(transfer.bytes) }) : ""}</span>{!indeterminate && <span className="font-medium tabular-nums text-foreground">{percent}%</span>}</div>
-                <div role="progressbar" aria-label={t("share.publish")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={indeterminate ? undefined : percent} className="h-1.5 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full bg-primary transition-[width] duration-200 motion-reduce:transition-none ${indeterminate ? "progress-launch" : ""}`} style={{ width: indeterminate ? "100%" : `${percent}%` }} /></div>
-              </div>
+              <SharePublishTransfer progress={transfer} presentation={presentationWithSources} />
             </div>
           ) : <>
           <SharePublishTabs value={tab} onChange={setTab} shared={shared} changeCount={changes.length} fileCount={selected.length} />

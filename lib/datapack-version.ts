@@ -9,3 +9,13 @@ export function datapackVersionFile(version: ModVersion): { fileName: string; do
   if (/\.zip$/i.test(version.fileName)) return { fileName: version.fileName, downloadUrl: version.downloadUrl }
   return null
 }
+
+/** Только датапаки; у смешанных проектов первый релиз часто является модом. */
+export function datapackVersions(versions: ModVersion[], gameVersion?: string): ModVersion[] {
+  return versions.flatMap(version => {
+    const file = datapackVersionFile(version)
+    if (!file) return []
+    if (gameVersion && !version.gameVersion.split(/[|,/]/).map(value => value.trim()).includes(gameVersion)) return []
+    return [{ ...version, ...file }]
+  })
+}

@@ -2,8 +2,9 @@ import https from "https"
 import http from "http"
 import fs from "fs"
 import path from "path"
+import { SERVICE_URLS } from "@xnlc/urls"
 
-export const DEFAULT_API_URL = "https://connect.xneon.org"
+export const DEFAULT_API_URL = SERVICE_URLS.connect
 
 export type Node = {
   id: string

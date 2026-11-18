@@ -215,7 +215,7 @@ export class LabyCatalog {
    */
   async texture(hash: string): Promise<Uint8Array | null> {
     if (!isLabyHash(hash)) return null
-    const data = await this.cache.binary(`laby-texture-${hash}.png`, () => this.client.texture(labyTextureUrl(hash)))
+    const data = await this.cache.binary(`laby-texture-${hash}.png`, () => this.client.texture(labyTextureUrl(hash)), { validate: isValidTexture })
     return isValidTexture(data) ? data : null
   }
 

@@ -7,15 +7,12 @@
 // свои, в библиотеке — никаких.
 
 /** Верхняя граница принимаемой текстуры: PNG 64×64 весит единицы килобайт. */
-export const MAX_TEXTURE_BYTES = 1024 * 1024
-
-const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47]
+export { MAX_TEXTURE_BYTES } from "./texture.js"
+import { decodeSkinTexture } from "./texture.js"
 
 /** PNG ли это и разумного ли размера. */
 export function isValidTexture(data: unknown): data is Uint8Array {
-  if (!(data instanceof Uint8Array)) return false
-  if (data.byteLength < 8 || data.byteLength > MAX_TEXTURE_BYTES) return false
-  return PNG_MAGIC.every((byte, index) => data[index] === byte)
+  return decodeSkinTexture(data) !== null
 }
 
 export type SkinVariant = "classic" | "slim"

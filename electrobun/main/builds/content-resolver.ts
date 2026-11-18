@@ -1,4 +1,5 @@
 import { contentMetadataEvents } from "./content-metadata-events"
+import { normalizeContentIcon } from "./content-icon"
 import fs from "fs/promises"
 import { loadModsModule } from "./helpers"
 import { runScanWorker, type JarInspection } from "@xnlc/parser"
@@ -195,19 +196,26 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
     toHash.push({ filePath, size: stat.size, mtime: Math.round(stat.mtimeMs) })
   }
 
-  // Новые файлы хэшируем и разбираем в одном задании worker.
+  // Сначала SHA-1. Метаданные известного содержимого уже есть в SQLite:
+  // новый путь/mtime не повод повторно распаковывать PNG внутри каждого JAR.
   const coldInspections = new Map<string, JarInspection>()
   const hashed: Array<{ filePath: string; sha1: string; size: number; mtime: number }> = []
   const hashFiles = new Map(toHash.map(file => [file.filePath, file]))
   try {
-    await runScanWorker(toHash.map(file => ({ filePath: file.filePath, size: file.size, mtimeMs: file.mtime })), { sha1: true, metadata: true }, item => {
+    await runScanWorker(toHash.map(file => ({ filePath: file.filePath, size: file.size, mtimeMs: file.mtime })), { sha1: true, cacheMetadata: false }, item => {
       const file = hashFiles.get(item.filePath)
       if (!file) return
       hashFiles.delete(item.filePath)
       const sha1 = item.inspection?.sha1
       if (sha1 && item.inspection) {
         hashed.push({ ...file, sha1 })
-        coldInspections.set(file.filePath, item.inspection)
+        // SQLite сохраняет metadata, поэтому парсер не держит второй набор
+        // оригинальных PNG. Здесь тоже сохраняем только готовое превью, а не
+        // собираем полноразмерные иконки всей папки до конца холодного прохода.
+        const metadata = item.inspection.metadata
+        if (metadata) coldInspections.set(file.filePath, metadata.icon_url ? {
+          ...item.inspection, metadata: { ...metadata, icon_url: normalizeContentIcon(metadata.icon_url) },
+        } : item.inspection)
       }
       else markUnreadable(file.filePath, item.error ?? item.inspection?.diagnostics?.[0]?.message ?? "Cannot hash content file")
       report(++processed, totalFiles)
@@ -234,6 +242,19 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
 
   const sha1s = [...new Set(sha1ByPath.values()).values()].filter(Boolean)
   const resources = await dbHelpers.getResources(sha1s)
+  // Старые БД содержат полноразмерные PNG. Нормализуем лениво при чтении:
+  // иначе каждый rescan снова сериализует мегабайты base64 в renderer.
+  const iconUpdates: Array<{ sha1: string; previous: string; icon: string }> = []
+  for (let i = 0; i < resources.length; i++) {
+    const resource = resources[i], icon = normalizeContentIcon(resource.icon)
+    if (icon !== resource.icon) {
+      iconUpdates.push({ sha1: resource.sha1, previous: resource.icon, icon })
+      resource.icon = icon
+    }
+    if (i % 4 === 3) await new Promise<void>(resolve => setImmediate(resolve))
+    signal?.throwIfAborted()
+  }
+  if (iconUpdates.length) await dbHelpers.updateResourceIcons(iconUpdates)
   const resourceBySha1 = new Map(resources.map((resource) => [resource.sha1, resource]))
 
   // Heal cache entries written by the old resolver: it stored CurseForge
@@ -320,7 +341,7 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
       name: metadata.name || existing?.name || "",
       description: metadata.description || existing?.description || "",
       version: metadata.version || existing?.version || "local",
-      icon_url: metadata.icon_url || existing?.icon || undefined,
+      icon_url: normalizeContentIcon(metadata.icon_url || existing?.icon || "") || undefined,
       author: metadata.author || existing?.author || undefined,
       source: (existing?.source as ResolvedContentEntry["source"]) ?? "local",
       projectId: existing?.projectId ?? undefined,
@@ -366,7 +387,7 @@ export async function resolveContentEntries(filePaths: string[], onProgress?: (p
     await runScanWorker([...parseFiles.values()].map(file => {
       const stat = fileStats.get(file.filePath)
       return { ...file, size: stat?.size, mtimeMs: stat ? Math.round(stat.mtimeMs) : undefined }
-    }), { metadata: true }, item => {
+    }), { metadata: true, cacheMetadata: false }, item => {
       const file = parseFiles.get(item.filePath)
       if (!file) return
       parseFiles.delete(item.filePath)

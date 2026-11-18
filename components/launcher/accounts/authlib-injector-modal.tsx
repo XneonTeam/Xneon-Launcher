@@ -572,10 +572,7 @@ export function AuthlibInjectorModal({ onClose, onAccountAdded }: AuthlibInjecto
               </div>
             ) : servers.length === 0 ? (
               /* No servers configured */
-              <div data-ui="accounts-authlib-injector-modal-div-31" className="py-6 text-center space-y-3">
-                <div data-ui="accounts-authlib-injector-modal-div-32" className="w-12 h-12 rounded-xl bg-muted/50 flex items-center justify-center mx-auto text-muted-foreground">
-                  <IconWorld className="w-6 h-6" />
-                </div>
+              <div data-ui="accounts-authlib-injector-modal-div-31" className="pt-0 pb-6 text-center space-y-3">
                 <div data-ui="accounts-authlib-injector-modal-div-33">
                   <p data-ui="accounts-authlib-injector-modal-p-9" className="text-sm font-medium text-foreground">
                     {t("accounts.authlibNoServers", "Нет настроенных серверов авторизации")}

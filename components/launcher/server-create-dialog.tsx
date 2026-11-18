@@ -1,4 +1,5 @@
 import { IconFileCode } from "@tabler/icons-react"
+import { SERVICE_URLS } from "@xnlc/urls"
 import { IconPencil, IconPuzzle, IconVersions, IconSettings, IconCoffee, IconCpu, IconUsers, IconTerminal2, IconArrowRight, IconCreditCard } from "@tabler/icons-react"
 import { IconX as LauncherCancelIcon } from "@tabler/icons-react"
 import { useState, useEffect, useRef } from "react"
@@ -933,13 +934,13 @@ export function ServerCreateDialog({ open, onOpenChange, onCreate }: ServerCreat
                     </p>
                     <div data-ui="server-create-dialog-div-99" className="flex gap-2 mt-2.5">
                       <button data-ui="server-create-dialog-button-15"
-                        onClick={() => window.electrobunAPI?.openExternal("https://connect.xneon.org/dashboard")}
+                        onClick={() => window.electrobunAPI?.openExternal(`${SERVICE_URLS.connect}/dashboard`)}
                         className="px-3 h-8 rounded-lg border border-border bg-muted/30 text-xs text-foreground hover:bg-muted/60 transition-colors"
                       >
                         <IconExternalLink className="mr-1.5 inline-block size-4" aria-hidden="true" />{t("servers.settings.xnconnect.openDashboard")}
                       </button>
                       <button data-ui="server-create-dialog-button-16"
-                        onClick={() => window.electrobunAPI?.openExternal("https://connect.xneon.org/subscribe")}
+                        onClick={() => window.electrobunAPI?.openExternal(`${SERVICE_URLS.connect}/subscribe`)}
                         className="px-3 h-8 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
                       >
                         <IconCreditCard className="mr-1.5 inline-block size-4" aria-hidden="true" />{t("servers.settings.xnconnect.subscribe")}

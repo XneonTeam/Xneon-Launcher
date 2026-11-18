@@ -17,6 +17,7 @@
         "@xnlc/share": "workspace:*",
         "@xnlc/skins": "workspace:*",
         "@xnlc/types": "workspace:*",
+        "@xnlc/urls": "workspace:*",
         "discord-rpc": "^4.0.1",
         "fflate": "^0.8.3",
         "i18next": "^26.3.6",
@@ -86,12 +87,16 @@
       "dependencies": {
         "@xnlc/archives": "workspace:*",
         "@xnlc/types": "workspace:*",
+        "@xnlc/urls": "workspace:*",
         "iconv-lite": "^0.7.3",
       },
     },
     "packages/xnlc-mods": {
       "name": "@xnlc/mods",
       "version": "1.0.4",
+      "dependencies": {
+        "@xnlc/urls": "workspace:*",
+      },
     },
     "packages/xnlc-nbt": {
       "name": "@xnlc/nbt",
@@ -118,6 +123,7 @@
       "dependencies": {
         "@xnlc/archives": "workspace:*",
         "@xnlc/types": "workspace:*",
+        "@xnlc/urls": "workspace:*",
         "toml": "^5.0.0",
       },
     },
@@ -126,6 +132,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@xnlc/archives": "workspace:*",
+        "@xnlc/urls": "workspace:*",
       },
     },
     "packages/xnlc-skins": {
@@ -134,6 +141,8 @@
       "dependencies": {
         "@xnlc/core": "workspace:*",
         "@xnlc/types": "workspace:*",
+        "@xnlc/urls": "workspace:*",
+        "pngjs": "^7.0.0",
       },
     },
     "packages/xnlc-types": {
@@ -142,6 +151,10 @@
       "dependencies": {
         "@xnlc/share": "workspace:*",
       },
+    },
+    "packages/xnlc-urls": {
+      "name": "@xnlc/urls",
+      "version": "1.0.0",
     },
   },
   "trustedDependencies": [
@@ -471,6 +484,8 @@
     "@xnlc/skins": ["@xnlc/skins@workspace:packages/xnlc-skins"],
 
     "@xnlc/types": ["@xnlc/types@workspace:packages/xnlc-types"],
+
+    "@xnlc/urls": ["@xnlc/urls@workspace:packages/xnlc-urls"],
 
     "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "3.0.2", "negotiator": "1.1.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
 

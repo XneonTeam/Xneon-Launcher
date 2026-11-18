@@ -21,7 +21,9 @@ import type {
   FTBVersion,
 } from "./ftb-types.js";
 
-const FTB_BASE = "https://api.modpacks.ch";
+import { CONTENT_URLS } from "@xnlc/urls";
+
+const FTB_BASE = CONTENT_URLS.ftbApi;
 const MAX_RETRIES = 2;
 const MODS_PER_PAGE = 20;
 

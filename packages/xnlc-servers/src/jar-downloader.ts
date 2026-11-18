@@ -6,6 +6,8 @@ import https from "https"
 import http from "http"
 import { spawn } from "child_process"
 import { StringDecoder } from "string_decoder"
+import { SERVER_URLS } from "@xnlc/urls"
+import { URLS, rewriteMinecraftUrl } from "@xnlc/urls/minecraft"
 
 export interface DownloadProgress {
   phase: "resolving" | "downloading" | "extracting" | "done" | "error"
@@ -96,6 +98,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 function fetchJsonOnce(url: string): Promise<any> {
+  url = rewriteMinecraftUrl(url)
   return new Promise((resolve, reject) => {
     const client = url.startsWith("https") ? https : http
     client.get(url, { headers: { "User-Agent": XNLC_USER_AGENT } }, (res) => {
@@ -130,6 +133,7 @@ async function fetchJson(url: string): Promise<any> {
 }
 
 function downloadFileOnce(url: string, dest: string, onProgress?: OnProgress): Promise<void> {
+  url = rewriteMinecraftUrl(url)
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(dest)
     const client = url.startsWith("https") ? https : http
@@ -211,7 +215,7 @@ function formatBytes(bytes: number): string {
 async function installVanilla(serverDir: string, gameVersion: string, onProgress?: OnProgress): Promise<string> {
   onProgress?.({ phase: "resolving", message: "Получение манифеста Mojang..." })
 
-  const manifest = await fetchJson("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json")
+  const manifest = await fetchJson(URLS.official.mojang.versionManifestV2)
   const versionEntry = manifest.versions?.find((v: any) => v.id === gameVersion)
   if (!versionEntry) throw new Error(`Версия ${gameVersion} не найдена`)
 
@@ -231,13 +235,13 @@ async function installVanilla(serverDir: string, gameVersion: string, onProgress
 async function installFabric(serverDir: string, gameVersion: string, loaderVersion: string, onProgress?: OnProgress): Promise<string> {
   // 1. Получаем последнюю версию инсталлера
   onProgress?.({ phase: "resolving", message: "Получение информации о Fabric..." })
-  const installers = await fetchJson("https://meta.fabricmc.net/v2/versions/installer")
+  const installers = await fetchJson(`${URLS.official.fabric.metaV2}/versions/installer`)
   const latestInstaller = installers.find((i: any) => i.stable)?.version
     || installers[0]?.version
   if (!latestInstaller) throw new Error("Не удалось найти версию Fabric installer")
 
   // 2. Качаем self-contained server jar
-  const url = `https://meta.fabricmc.net/v2/versions/loader/${gameVersion}/${loaderVersion}/${latestInstaller}/server/jar`
+  const url = `${URLS.official.fabric.metaV2}/versions/loader/${gameVersion}/${loaderVersion}/${latestInstaller}/server/jar`
   const dest = path.join(serverDir, "fabric-server-launch.jar")
   await downloadFile(url, dest, onProgress)
 
@@ -257,7 +261,7 @@ async function installForge(serverDir: string, gameVersion: string, forgeVersion
 
   // 1. Скачиваем инсталлер
   onProgress?.({ phase: "resolving", message: "Скачивание Forge installer..." })
-  const installerUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/${gameVersion}-${forgeVersion}/forge-${gameVersion}-${forgeVersion}-installer.jar`
+  const installerUrl = `${URLS.official.forge.maven}/net/minecraftforge/forge/${gameVersion}-${forgeVersion}/forge-${gameVersion}-${forgeVersion}-installer.jar`
   const installerPath = path.join(serverDir, "forge-installer.jar")
   await downloadFile(installerUrl, installerPath, onProgress)
 
@@ -350,7 +354,7 @@ async function installNeoForge(serverDir: string, neoforgeVersion: string, javaP
 
   // 1. Скачиваем инсталлер
   onProgress?.({ phase: "resolving", message: "Скачивание NeoForge installer..." })
-  const installerUrl = `https://maven.neoforged.net/releases/net/neoforged/neoforge/${neoforgeVersion}/neoforge-${neoforgeVersion}-installer.jar`
+  const installerUrl = `${URLS.official.neoforge.maven}/net/neoforged/neoforge/${neoforgeVersion}/neoforge-${neoforgeVersion}-installer.jar`
   const installerPath = path.join(serverDir, "neoforge-installer.jar")
   await downloadFile(installerUrl, installerPath, onProgress)
 
@@ -386,13 +390,13 @@ async function installNeoForge(serverDir: string, neoforgeVersion: string, javaP
 async function installQuilt(serverDir: string, gameVersion: string, loaderVersion: string, javaPath: string, onProgress?: OnProgress, onLog?: OnLog): Promise<string> {
   // 1. Получаем последнюю версию инсталлера
   onProgress?.({ phase: "resolving", message: "Получение информации о Quilt..." })
-  const installers = await fetchJson("https://meta.quiltmc.org/v3/versions/installer")
+  const installers = await fetchJson(`${URLS.official.quilt.metaV3}/versions/installer`)
   const latestInstaller = installers.find((i: any) => i.stable)?.version
     || installers[0]?.version
   if (!latestInstaller) throw new Error("Не удалось найти версию Quilt installer")
 
   // 2. Скачиваем инсталлер
-  const installerUrl = `https://meta.quiltmc.org/v3/versions/installer/${latestInstaller}/jar`
+  const installerUrl = `${URLS.official.quilt.metaV3}/versions/installer/${latestInstaller}/jar`
   const installerPath = path.join(serverDir, "quilt-installer.jar")
   await downloadFile(installerUrl, installerPath, onProgress)
 
@@ -424,7 +428,7 @@ async function installQuilt(serverDir: string, gameVersion: string, loaderVersio
 // ── PaperMC Fill API (Paper, Folia, Velocity, Waterfall) ──
 
 async function fetchPaperMCLatestBuild(project: string, version: string, buildVersion?: string): Promise<{ url: string; filename: string }> {
-  const url = `https://fill.papermc.io/v3/projects/${project}/versions/${version}/builds`
+  const url = `${SERVER_URLS.paperApi}/projects/${project}/versions/${version}/builds`
   const res = await fetchJson(url)
   const builds: any[] = Array.isArray(res) ? res : res?.value || []
 
@@ -462,10 +466,10 @@ async function installPurpur(serverDir: string, gameVersion: string, buildVersio
   let filename: string
 
   if (buildVersion) {
-    downloadUrl = `https://api.purpurmc.org/v2/purpur/${gameVersion}/${buildVersion}/download`
+    downloadUrl = `${SERVER_URLS.purpurApi}/${gameVersion}/${buildVersion}/download`
     filename = `purpur-${gameVersion}-${buildVersion}.jar`
   } else {
-    downloadUrl = `https://api.purpurmc.org/v2/purpur/${gameVersion}/latest/download`
+    downloadUrl = `${SERVER_URLS.purpurApi}/${gameVersion}/latest/download`
     filename = `purpur-${gameVersion}-latest.jar`
   }
 
@@ -480,7 +484,7 @@ async function installPurpur(serverDir: string, gameVersion: string, buildVersio
 async function installSpigot(serverDir: string, gameVersion: string, javaPath: string, onProgress?: OnProgress, onLog?: OnLog): Promise<string> {
   // Spigot requires BuildTools to compile — download BuildTools and run it
   onProgress?.({ phase: "resolving", message: "Скачивание Spigot BuildTools..." })
-  const buildToolsUrl = "https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar"
+  const buildToolsUrl = SERVER_URLS.spigotBuildTools
   const buildToolsPath = path.join(serverDir, "BuildTools.jar")
   await downloadFile(buildToolsUrl, buildToolsPath, onProgress)
 
@@ -511,7 +515,7 @@ async function installSpigot(serverDir: string, gameVersion: string, javaPath: s
 
 async function installBukkit(serverDir: string, gameVersion: string, javaPath: string, onProgress?: OnProgress, onLog?: OnLog): Promise<string> {
   onProgress?.({ phase: "resolving", message: "Скачивание BuildTools..." })
-  const buildToolsUrl = "https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar"
+  const buildToolsUrl = SERVER_URLS.spigotBuildTools
   const buildToolsPath = path.join(serverDir, "BuildTools.jar")
   await downloadFile(buildToolsUrl, buildToolsPath, onProgress)
 
@@ -547,7 +551,7 @@ export async function getSpongeSupportedVersions(spongeType?: SpongeType): Promi
     const types: SpongeType[] = spongeType ? [spongeType] : ["spongevanilla", "spongeforge", "spongeneo"]
     const results = await Promise.all(
       types.map(async (t) => {
-        const data = await fetchJson(`https://dl-api.spongepowered.org/v2/groups/org.spongepowered/artifacts/${t}`)
+        const data = await fetchJson(`${SERVER_URLS.spongeApi}/${t}`)
         const mcTags: string[] = data?.tags?.minecraft || []
         return mcTags
       })
@@ -567,7 +571,7 @@ export async function getSpongeSupportedVersions(spongeType?: SpongeType): Promi
 
 export async function getSpongeBuilds(spongeType: SpongeType = "spongevanilla", gameVersion: string): Promise<LoaderVersionEntry[]> {
   try {
-    const url = `https://dl-api.spongepowered.org/v2/groups/org.spongepowered/artifacts/${spongeType}/versions?tags=minecraft:${gameVersion}`
+    const url = `${SERVER_URLS.spongeApi}/${spongeType}/versions?tags=minecraft:${gameVersion}`
     const data = await fetchJson(url)
     const artifacts: Record<string, { recommended?: boolean; tagValues?: Record<string, string> }> = data?.artifacts || {}
     const entries: LoaderVersionEntry[] = []
@@ -610,7 +614,7 @@ async function installSponge(
   }
 
   // Query artifact details to get actual download URL and metadata from Sponge API
-  const versionUrl = `https://dl-api.spongepowered.org/v2/groups/org.spongepowered/artifacts/${spongeType}/versions/${targetVersion}`
+  const versionUrl = `${SERVER_URLS.spongeApi}/${spongeType}/versions/${targetVersion}`
   const verData = await fetchJson(versionUrl)
   const assets: Array<{ classifier: string; downloadUrl: string; extension: string }> = verData?.assets || []
   const tags: Record<string, string> = verData?.tags || {}
@@ -716,7 +720,7 @@ async function installSponge(
 
 async function installBungeeCord(serverDir: string, onProgress?: OnProgress): Promise<string> {
   onProgress?.({ phase: "resolving", message: "Скачивание BungeeCord..." })
-  const url = "https://ci.md-5.net/job/BungeeCord/lastSuccessfulBuild/artifact/bootstrap/target/BungeeCord.jar"
+  const url = SERVER_URLS.bungeeJar
   const dest = path.join(serverDir, "BungeeCord.jar")
   await downloadFile(url, dest, onProgress)
   onProgress?.({ phase: "done", percent: 100, message: "Готово!" })
@@ -795,7 +799,7 @@ export interface McVersionEntry {
 // ── Paper supported MC versions ───────────────────────
 
 export async function getPaperVersions(): Promise<McVersionEntry[]> {
-  const res = await fetchJson("https://fill.papermc.io/v3/projects/paper")
+  const res = await fetchJson(`${SERVER_URLS.paperApi}/projects/paper`)
   const versionsObj: Record<string, string[]> = res?.versions || {}
   const allVersions: string[] = []
   for (const group of Object.values(versionsObj)) {
@@ -810,7 +814,7 @@ export async function getPaperVersions(): Promise<McVersionEntry[]> {
 // ── Purpur supported MC versions ──────────────────────
 
 export async function getPurpurVersions(): Promise<McVersionEntry[]> {
-  const res = await fetchJson("https://api.purpurmc.org/v2/purpur")
+  const res = await fetchJson(SERVER_URLS.purpurApi)
   const versions: string[] = res?.versions || []
   return versions.map((v) => ({
     version: v,
@@ -821,7 +825,7 @@ export async function getPurpurVersions(): Promise<McVersionEntry[]> {
 // ── Folia supported MC versions ───────────────────────
 
 export async function getFoliaVersions(): Promise<McVersionEntry[]> {
-  const res = await fetchJson("https://fill.papermc.io/v3/projects/folia")
+  const res = await fetchJson(`${SERVER_URLS.paperApi}/projects/folia`)
   const versionsObj: Record<string, string[]> = res?.versions || {}
   const allVersions: string[] = []
   for (const group of Object.values(versionsObj)) {
@@ -836,7 +840,7 @@ export async function getFoliaVersions(): Promise<McVersionEntry[]> {
 // ── Paper builds (loader versions) ────────────────────
 
 export async function getPaperBuilds(gameVersion: string): Promise<LoaderVersionEntry[]> {
-  const url = `https://fill.papermc.io/v3/projects/paper/versions/${gameVersion}/builds`
+  const url = `${SERVER_URLS.paperApi}/projects/paper/versions/${gameVersion}/builds`
   const res = await fetchJson(url)
   const builds: any[] = Array.isArray(res) ? res : res?.value || []
   return builds.map((b: any) => {
@@ -853,7 +857,7 @@ export async function getPaperBuilds(gameVersion: string): Promise<LoaderVersion
 // ── Purpur builds (loader versions) ───────────────────
 
 export async function getPurpurBuilds(gameVersion: string): Promise<LoaderVersionEntry[]> {
-  const res = await fetchJson(`https://api.purpurmc.org/v2/purpur/${gameVersion}`)
+  const res = await fetchJson(`${SERVER_URLS.purpurApi}/${gameVersion}`)
   const buildsList: string[] = res?.builds?.all || []
   const latestBuild = String(res?.builds?.latest || "")
   return buildsList.map((b: string) => ({
@@ -867,7 +871,7 @@ export async function getPurpurBuilds(gameVersion: string): Promise<LoaderVersio
 // ── Folia builds (loader versions) ────────────────────
 
 export async function getFoliaBuilds(gameVersion: string): Promise<LoaderVersionEntry[]> {
-  const url = `https://fill.papermc.io/v3/projects/folia/versions/${gameVersion}/builds`
+  const url = `${SERVER_URLS.paperApi}/projects/folia/versions/${gameVersion}/builds`
   const res = await fetchJson(url)
   const builds: any[] = Array.isArray(res) ? res : res?.value || []
   return builds.map((b: any) => {
@@ -884,7 +888,7 @@ export async function getFoliaBuilds(gameVersion: string): Promise<LoaderVersion
 // ── Velocity versions (proxy, NOT tied to MC) ─────────
 
 export async function getVelocityVersions(): Promise<McVersionEntry[]> {
-  const res = await fetchJson("https://fill.papermc.io/v3/projects/velocity")
+  const res = await fetchJson(`${SERVER_URLS.paperApi}/projects/velocity`)
   const versionsObj: Record<string, string[]> = res?.versions || {}
   const allVersions: string[] = []
   for (const group of Object.values(versionsObj)) {
@@ -897,7 +901,7 @@ export async function getVelocityVersions(): Promise<McVersionEntry[]> {
 }
 
 export async function getVelocityBuilds(velocityVersion: string): Promise<LoaderVersionEntry[]> {
-  const url = `https://fill.papermc.io/v3/projects/velocity/versions/${velocityVersion}/builds`
+  const url = `${SERVER_URLS.paperApi}/projects/velocity/versions/${velocityVersion}/builds`
   const res = await fetchJson(url)
   const builds: any[] = Array.isArray(res) ? res : res?.value || []
   return builds.map((b: any) => {
@@ -914,7 +918,7 @@ export async function getVelocityBuilds(velocityVersion: string): Promise<Loader
 // ── Waterfall versions (proxy, tied to MC) ────────────
 
 export async function getWaterfallVersions(): Promise<McVersionEntry[]> {
-  const res = await fetchJson("https://fill.papermc.io/v3/projects/waterfall")
+  const res = await fetchJson(`${SERVER_URLS.paperApi}/projects/waterfall`)
   const versionsObj: Record<string, string[]> = res?.versions || {}
   const allVersions: string[] = []
   for (const group of Object.values(versionsObj)) {
@@ -927,7 +931,7 @@ export async function getWaterfallVersions(): Promise<McVersionEntry[]> {
 }
 
 export async function getWaterfallBuilds(gameVersion: string): Promise<LoaderVersionEntry[]> {
-  const url = `https://fill.papermc.io/v3/projects/waterfall/versions/${gameVersion}/builds`
+  const url = `${SERVER_URLS.paperApi}/projects/waterfall/versions/${gameVersion}/builds`
   const res = await fetchJson(url)
   const builds: any[] = Array.isArray(res) ? res : res?.value || []
   return builds.map((b: any) => {
@@ -982,7 +986,7 @@ export async function ensureServerJar(
       if (!modloaderVersion) {
         // Try to get latest forge version from promotions
         onProgress?.({ phase: "resolving", message: "Получение версии Forge..." })
-        const meta = await fetchJson("https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json")
+        const meta = await fetchJson(SERVER_URLS.forgePromotions)
         modloaderVersion = meta?.promos?.[`${gameVersion}-latest`] || meta?.promos?.[`${gameVersion}-recommended`]
         if (!modloaderVersion) throw new Error(`Forge version not found for ${gameVersion}. Specify manually.`)
       }

@@ -15,6 +15,10 @@
     "xneon"
   ],
   "exports": {
+    "./browser": {
+      "types": "./lib/browser.d.ts",
+      "default": "./lib/browser.js"
+    },
     ".": {
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
@@ -26,6 +30,8 @@
     "lib"
   ],
   "dependencies": {
+    "pngjs": "^7.0.0",
+    "@xnlc/urls": "workspace:*",
     "@xnlc/core": "workspace:*",
     "@xnlc/types": "workspace:*"
   },

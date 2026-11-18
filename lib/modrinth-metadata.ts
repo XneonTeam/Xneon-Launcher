@@ -1,4 +1,5 @@
 import { APP_USER_AGENT } from "./app-meta"
+import { CONTENT_URLS } from "@xnlc/urls"
 // ============================================================
 import { BoundedCache } from "./bounded-cache"
 // Modrinth project metadata enrichment
@@ -14,7 +15,7 @@ export type EnrichableMod = {
   author?: string
 }
 
-const MODRINTH_API = "https://api.modrinth.com/v2"
+const MODRINTH_API = CONTENT_URLS.modrinthApi
 const BATCH_SIZE = 50
 const USER_AGENT = APP_USER_AGENT
 

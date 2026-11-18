@@ -24,7 +24,7 @@ import { useBuildLaunch } from "@/src/hooks/use-build-launch"
 import type { ViewMode, DetailTab, ModSearchResult, ModVersion, ModSort } from "./types"
 import { SORT_OPTIONS_BY_SOURCE } from "./sort-options"
 
-export function InstancePage({ rootResetToken, startupBuild }: { rootResetToken?: number; startupBuild?: { id: string; build: string } | null }) {
+export function InstancePage({ active = true, rootResetToken, startupBuild }: { active?: boolean; rootResetToken?: number; startupBuild?: { id: string; build: string } | null }) {
   const [view, setView] = useState<ViewMode>("my")
   const [detailTab, setDetailTab] = useState<DetailTab>("general")
   const [createOpen, setCreateOpen] = useState(false)
@@ -84,7 +84,7 @@ export function InstancePage({ rootResetToken, startupBuild }: { rootResetToken?
     updateBuild, addModToBuild, addLocalModToBuild,
     addContentToBuild, addLocalContentToBuild, removeContentFromBuild, reloadBuilds,
     toggleItemEnabled, updateItemVersion, beginContentMutation,
-  } = useBuilds()
+  } = useBuilds(active)
 
   const refreshUpdatesCount = useCallback(async () => {
     try {
@@ -435,6 +435,10 @@ export function InstancePage({ rootResetToken, startupBuild }: { rootResetToken?
     }
   }, [closeModal, downloadVersionFromCurseforge, downloadVersionFromFtb, downloadVersionFromModrinth, selectedDetails])
 
+  // Activity скрывает лёгкий список вместе с уже загруженными иконками.
+  // return null удалял карточки и заставлял заново создавать <img> при возврате.
+  // Тяжёлые detail/каталоги по-прежнему выгружаем; effects снимает Activity.
+  if (!active && resolvedView !== "my" && !installingModSlug && !selectedDetails && !createOpen) return null
   if (view === "detail" && activeBuild) {
     return (
       <InstanceDetail

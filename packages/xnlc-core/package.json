@@ -51,6 +51,7 @@
   "dependencies": {
     "@xnlc/archives": "workspace:*",
     "@xnlc/types": "workspace:*",
+    "@xnlc/urls": "workspace:*",
     "iconv-lite": "^0.7.3"
   },
   "scripts": {

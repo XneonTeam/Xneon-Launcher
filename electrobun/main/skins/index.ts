@@ -15,7 +15,7 @@ import fs from "fs/promises"
 import path from "path"
 import { rpcRegistry } from "../../platform/desktop"
 import type { LabyOrder } from "@xnlc/types"
-import { createSkinSystem, type SkinSystem } from "@xnlc/skins"
+import { createSkinSystem, detectSkinVariant, MAX_TEXTURE_BYTES, type SkinSystem } from "@xnlc/skins"
 import { dbHelpers, type DbAccount } from "../../db"
 import { createAccountPort, createDiskCache, createLibraryStore } from "./ports"
 import { invalidateAvatarCache } from "../avatar"
@@ -39,22 +39,13 @@ const YGGDRASIL_ACCOUNT_TYPES = new Set(["authlib-injector", "authlib", "xnskins
 async function refreshAccountSkinUrl(account: DbAccount): Promise<void> {
   if (!YGGDRASIL_ACCOUNT_TYPES.has((account.type || "").toLowerCase())) return
   try {
-    let skinUrl: string | undefined
-    if (account.serverId && account.uuid) {
-      const { getProfileTextures } = await import("../authlib/service.js")
-      const profile = await getProfileTextures(account.serverId, account.uuid)
-      skinUrl = profile?.textures?.skin?.url
-    }
-    if (!skinUrl && account.serverUrl && account.uuid) {
-      // Запасной путь: сервер мог не ответить по sessionserver — читаем профиль
-      // напрямую тем же кодом, что и аватарки.
-      const { fetchProfile } = await import("../authlib/yggdrasil.js")
-      const base = account.serverUrl.endsWith("/") ? account.serverUrl : `${account.serverUrl}/`
-      const profile = await fetchProfile(base, account.uuid.replace(/-/g, ""))
-      skinUrl = profile?.textures?.skin?.url
-    }
-    if (skinUrl && skinUrl !== account.skinUrl) {
-      await dbHelpers.saveAccount({ ...account, skinUrl })
+    const profile = await skinSystem().minecraft.profile(account.id)
+    if (!profile) return
+    const skinUrl = profile.skins.find(s => s.state === "ACTIVE")?.url
+    if (skinUrl !== account.skinUrl) {
+      // null/отсутствие SKIN тоже результат: после сброса нельзя оставлять старый URL.
+      const stored = (await dbHelpers.loadAccounts()).find(a => a.id === account.id)
+      if (stored) await dbHelpers.saveAccount({ ...stored, skinUrl })
     }
   } catch {
     // Сервер недоступен — оставляем прошлую ссылку, аватар просто не обновится.
@@ -109,7 +100,7 @@ export function registerSkinsHandlers(): void {
 
   // ── Активный скин аккаунта ──────────────────────────────
 
-  rpcRegistry.handle("skins:get-profile", async (_event, accountId?: string) => skins().minecraft.profile(accountId))
+  rpcRegistry.handle("skins:get-profile", async (_event, accountId?: string) => skins().library.profile(accountId))
 
   rpcRegistry.handle("skins:delete-skin", async (_event, accountId?: string) => {
     const success = await skins().library.reset(accountId)
@@ -144,15 +135,17 @@ export function registerSkinsHandlers(): void {
     "skins:save-to-library",
     async (
       _event,
-      params: { filePath: string; name: string; variant: "classic" | "slim"; accountId: string; capeId?: string | null },
+      params: { filePath: string; name: string; variant: "classic" | "slim" | "auto"; accountId: string; capeId?: string | null },
     ) => {
       try {
         // Файл читает main: путь приходит из нативного диалога или drag&drop.
+        const stat = await fs.stat(params.filePath)
+        if (!stat.isFile() || stat.size > MAX_TEXTURE_BYTES) return null
         const data = new Uint8Array(await fs.readFile(params.filePath))
         return await skins().library.save({
           accountId: params.accountId,
           name: params.name,
-          variant: params.variant,
+          variant: params.variant === "auto" ? detectSkinVariant(data) : params.variant,
           capeId: params.capeId ?? null,
           data,
         })

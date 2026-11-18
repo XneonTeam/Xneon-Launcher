@@ -41,8 +41,32 @@
 
 ## IPC и владение данными
 
-Событийными темами владеет main (`liveops.ts`, `liveops-runtime.ts`). Подключение —
-через `XNLC_LIVEOPS_URL`; при отсутствии адреса сеть выключена. Проверенный
+Адреса общих сервисов живут в `@xnlc/urls`; динамические источники Minecraft —
+в `@xnlc/urls/minecraft`. Core и Servers используют один реестр. Адреса читаются
+лениво, поэтому включение BMCLAPI после импорта не оставляет старый снимок.
+Список поддерживаемых переопределений — `packages/xnlc-urls/README.md`.
+
+Вход Microsoft сообщает реальные этапы через `auth:microsoft-progress`:
+Microsoft token → Xbox Live → XSTS → Minecraft token → профиль → сохранение.
+Событие содержит только `requestId` и `stage` и отправляется окну-инициатору.
+`useMicrosoftAuthProgress` игнорирует события другой попытки и снимает подписку
+при размонтировании. OAuth и Device Code используют один контракт.
+
+Microsoft OAuth использует явно настроенный `microsoftClientId` из БД либо
+`MICROSOFT_CLIENT_ID`, встроенный через генератор credentials. Device Code
+использует отдельный `microsoftDeviceClientId`/`MICROSOFT_DEVICE_CLIENT_ID`.
+Это независимые сценарии: OAuth — стандартный вход Minecraft через Live
+`oauth20_authorize.srf`/`oauth20_token.srf`, desktop redirect и scope
+`service::user.auth.xboxlive.com::MBI_SSL`; Device Code — зарегистрированное
+приложение Xneon через consumers v2 и scopes `XboxLive.SignIn XboxLive.offline_access`.
+Client ID явно задаются отдельно, между способами не подставляются. Client Secret
+desktop-приложению не нужен. Оба способа выбираются вручную; ошибки авторизации
+не запускают другой способ автоматически. Проверки согласия, регистрации и
+доступа к Minecraft Services остаются на стороне Microsoft и не обходятся.
+
+Событийными темами владеет main (`liveops.ts`, `liveops-runtime.ts`). По умолчанию
+origin — `https://liveops.xneon.org`; `XNLC_LIVEOPS_URL` переопределяет адрес,
+а явно пустое значение выключает сеть. Проверенный
 пакет хранится в `<userData>/event-theme-cache/`, настройка `eventTheme` отделена
 от `customThemes`. `theme-store.ts` добавляет ивент к готовым темам, ручной выбор
 передаёт через `liveops:select`; `settings:set("theme")` использует тот же

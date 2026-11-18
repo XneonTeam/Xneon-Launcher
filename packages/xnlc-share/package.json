@@ -6,7 +6,7 @@
   "types": "lib/index.d.ts",
   "exports": { ".": { "types": "./lib/index.d.ts", "browser": "./lib/browser.js", "default": "./lib/index.js" } },
   "files": ["lib"],
-  "dependencies": { "@xnlc/archives": "workspace:*" },
+  "dependencies": { "@xnlc/archives": "workspace:*", "@xnlc/urls": "workspace:*" },
   "scripts": { "build": "bun --bun run tsc -p tsconfig.json", "test": "bun run build && bun test tests/*.test.mjs" },
   "publishConfig": { "registry": "https://git.xneon.org/api/packages/MAINER4IK/npm/" }
 }

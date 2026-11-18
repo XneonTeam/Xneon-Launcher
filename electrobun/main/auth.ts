@@ -1,20 +1,21 @@
 import { rpcRegistry, DesktopWindow } from "../platform/desktop"
 import path from "path"
 import crypto from "node:crypto"
-import { getMainWindow } from "./runtime"
 import { ensureRuntimeTempDir } from "./runtime"
 import { getMicrosoftClientId, getMicrosoftDeviceClientId, getElyClientId, getElyDeviceClientId } from "./config"
 import { fetchWithRetry } from "@xnlc/core/retry"
-import type { AuthPayload } from "@xnlc/types"
+import type { AuthPayload, MicrosoftAuthStage } from "@xnlc/types"
+import type { RpcContext } from "../platform/ipc"
+import { AUTH_URLS, SERVICE_URLS } from "@xnlc/urls"
 import { saveAuthenticatedAccount } from "./account-service"
 
-const MICROSOFT_DEVICE_CODE_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode"
-const MICROSOFT_DEVICE_TOKEN_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
+const MICROSOFT_DEVICE_CODE_URL = AUTH_URLS.microsoftDeviceCode
+const MICROSOFT_DEVICE_TOKEN_URL = AUTH_URLS.microsoftDeviceToken
 const MICROSOFT_DEVICE_SCOPE = "XboxLive.SignIn XboxLive.offline_access"
-const XBOX_LIVE_AUTH_URL = "https://user.auth.xboxlive.com/user/authenticate"
-const XSTS_AUTH_URL = "https://xsts.auth.xboxlive.com/xsts/authorize"
-const MINECRAFT_LAUNCHER_LOGIN_URL = "https://api.minecraftservices.com/launcher/login"
-const MINECRAFT_PROFILE_URL = "https://api.minecraftservices.com/minecraft/profile"
+const XBOX_LIVE_AUTH_URL = AUTH_URLS.xboxLive
+const XSTS_AUTH_URL = AUTH_URLS.xsts
+const MINECRAFT_LAUNCHER_LOGIN_URL = AUTH_URLS.minecraftLauncherLogin
+const MINECRAFT_PROFILE_URL = AUTH_URLS.minecraftProfile
 const DEVICE_FORM_HEADERS = { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" }
 const DEVICE_HTTP_TIMEOUT_MS = 30000
 
@@ -28,9 +29,9 @@ type MicrosoftAccountPayload = {
 }
 
 type MicrosoftModule = {
-  getMicrosoftRedirectUri: () => string
-  createMicrosoftAuthUrl: () => string
-  exchangeMicrosoftCode: (code: string) => Promise<MicrosoftAccountPayload>
+  getMicrosoftRedirectUri: (options: { clientId: string }) => string
+  createMicrosoftAuthUrl: (options: { clientId: string }) => string
+  exchangeMicrosoftCode: (code: string, options: { clientId: string; onProgress?: (stage: MicrosoftAuthStage) => void }) => Promise<MicrosoftAccountPayload>
 }
 
 let microsoftModulePromise: Promise<MicrosoftModule> | null = null
@@ -71,14 +72,14 @@ import { getElyClientSecret } from "./config"
 
 const ELY_REDIRECT_URI = "http://localhost:51234/elyby/callback"
 const ELY_SCOPE = "account_info minecraft_server_session offline_access"
-const ELY_DEVICE_CODE_URL = "https://account.ely.by/api/oauth2/v1/devicecode"
-const ELY_DEVICE_TOKEN_URL = "https://account.ely.by/api/oauth2/v1/token"
-const ELY_INFO_URL = "https://account.ely.by/api/account/v1/info"
+const ELY_DEVICE_CODE_URL = AUTH_URLS.elyDeviceCode
+const ELY_DEVICE_TOKEN_URL = AUTH_URLS.elyToken
+const ELY_INFO_URL = AUTH_URLS.elyProfile
 
 const XN_REDIRECT_URI = "http://localhost:5123/xneon/callback"
 const XN_CLIENT_ID = "rxBXISdaEO9P"
 const XN_SCOPE = "account_info offline_access minecraft_server_session"
-const XN_AUTH_SERVER = "https://skins.xneon.org"
+const XN_AUTH_SERVER = SERVICE_URLS.xnSkins
 const XN_DEVICE_CODE_URL = `${XN_AUTH_SERVER}/api/oauth2/v1/devicecode`
 const XN_DEVICE_TOKEN_URL = `${XN_AUTH_SERVER}/api/oauth2/v1/token`
 const XN_ACCOUNT_INFO_URL = `${XN_AUTH_SERVER}/api/account/v1/info`
@@ -206,7 +207,7 @@ async function makeOAuthWindow() {
 rpcRegistry.handle("auth:elyby-login", async (): Promise<AuthPayload> => {
   const clientId = await getElyClientId()
   const state = crypto.randomBytes(16).toString("hex")
-  const authUrl = new URL("https://account.ely.by/oauth2/v1")
+  const authUrl = new URL(AUTH_URLS.elyAuthorize)
   authUrl.searchParams.set("client_id", clientId)
   authUrl.searchParams.set("redirect_uri", ELY_REDIRECT_URI)
   authUrl.searchParams.set("response_type", "code")
@@ -267,21 +268,42 @@ rpcRegistry.handle("auth:xnskins-login", async (): Promise<AuthPayload> => {
   return saveAuthenticatedAccount("xnskins", await exchangeXnSkinsCode(code, verifier))
 })
 
-rpcRegistry.handle("auth:microsoft-login", async (): Promise<AuthPayload> => {
-  const microsoft = await loadMicrosoftModule()
-  const redirectUri = microsoft.getMicrosoftRedirectUri()
-  const authUrl = microsoft.createMicrosoftAuthUrl()
+function microsoftProgress(event: RpcContext, requestId?: string): (stage: MicrosoftAuthStage) => void {
+  if (requestId !== undefined && (typeof requestId !== "string" || !/^[A-Za-z0-9_-]{1,80}$/.test(requestId))) throw new Error("Invalid auth request id")
+  return stage => {
+    if (requestId && event?.sender && !event.sender.isDestroyed()) {
+      event.sender.send({ channel: "auth:microsoft-progress", payload: { requestId, stage } })
+    }
+  }
+}
 
-  const authWindow = await makeOAuthWindow()
-  authWindow.show()
-  authWindow.focus()
+rpcRegistry.handle("auth:microsoft-login", async (event, requestId?: string): Promise<AuthPayload> => {
+  const progress = microsoftProgress(event, requestId)
+  try {
+    progress("waiting")
+    const microsoft = await loadMicrosoftModule()
+    const clientId = await getMicrosoftClientId()
+    const redirectUri = microsoft.getMicrosoftRedirectUri({ clientId })
+    const authUrl = microsoft.createMicrosoftAuthUrl({ clientId })
 
-  const code = await new Promise<string>((resolve, reject) => {
-    createAuthCallbackHandler(authWindow, redirectUri, resolve, reject, undefined)
-    authWindow.loadURL(authUrl)
-  })
+    const authWindow = await makeOAuthWindow()
+    authWindow.show()
+    authWindow.focus()
 
-  return saveAuthenticatedAccount("microsoft", await microsoft.exchangeMicrosoftCode(code))
+    const code = await new Promise<string>((resolve, reject) => {
+      createAuthCallbackHandler(authWindow, redirectUri, resolve, reject, undefined)
+      authWindow.loadURL(authUrl)
+    })
+
+    const account = await microsoft.exchangeMicrosoftCode(code, { clientId, onProgress: progress })
+    progress("saving")
+    const saved = await saveAuthenticatedAccount("microsoft", account)
+    progress("complete")
+    return saved
+  } catch (error) {
+    progress("error")
+    throw error
+  }
 })
 
 async function exchangeElyByCode(code: string): Promise<ElyByAccountPayload> {
@@ -302,7 +324,7 @@ async function exchangeElyByCode(code: string): Promise<ElyByAccountPayload> {
     const clientSecret = await getElyClientSecretResolved()
 
     const tokenRes = await Promise.race([
-      fetch("https://account.ely.by/api/oauth2/v1/token", {
+      fetch(AUTH_URLS.elyToken, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
@@ -324,7 +346,7 @@ async function exchangeElyByCode(code: string): Promise<ElyByAccountPayload> {
     }
 
     const userRes = await Promise.race([
-      fetch("https://account.ely.by/api/account/v1/info", {
+      fetch(AUTH_URLS.elyProfile, {
         headers: { Authorization: `Bearer ${tokenData.access_token}` },
         signal: controller.signal,
       }),
@@ -452,7 +474,7 @@ type DeviceStartResult = {
 
 type XToken = { token: string; uhs: string }
 
-async function requestDeviceCode(clientId: string, scope: string, deviceCodeUrl: string): Promise<DeviceStartResult> {
+async function requestDeviceCode(clientId: string, scope: string, deviceCodeUrl: string, verificationUrl?: (userCode: string) => string): Promise<DeviceStartResult> {
   const body = new URLSearchParams({ client_id: clientId, scope })
 
   const response = await fetch(deviceCodeUrl, {
@@ -472,7 +494,9 @@ async function requestDeviceCode(clientId: string, scope: string, deviceCodeUrl:
     deviceCode: rsp.device_code as string,
     userCode: rsp.user_code as string,
     verificationUri: rsp.verification_uri as string,
-    verificationUriComplete: (rsp.verification_uri_complete as string) || `${rsp.verification_uri}?user_code=${rsp.user_code}`,
+    verificationUriComplete: verificationUrl
+      ? verificationUrl(rsp.user_code as string)
+      : (rsp.verification_uri_complete as string) || `${rsp.verification_uri}?user_code=${rsp.user_code}`,
     expiresIn: rsp.expires_in as number,
     interval,
   }
@@ -539,7 +563,7 @@ async function xboxUserStep(msaAccessToken: string): Promise<XToken> {
   }, { retries: 2 })
 
   const raw = await response.text()
-  if (!response.ok) throw new Error(`Xbox user authentication failed: HTTP ${response.status}: ${raw}`)
+  if (!response.ok) throw new Error(`Xbox user authentication failed: HTTP ${response.status}`)
 
   const obj = JSON.parse(raw) as Record<string, unknown>
   const token = obj.Token as string | undefined
@@ -591,7 +615,7 @@ async function minecraftLauncherLogin(uhs: string, xstsToken: string): Promise<{
   } catch {
     throw new Error(`Failed to get Minecraft access token: invalid JSON (HTTP ${response.status})`)
   }
-  if (!response.ok) throw new Error(`Failed to get Minecraft access token: HTTP ${response.status}: ${raw}`)
+  if (!response.ok) throw new Error(`Failed to get Minecraft access token: HTTP ${response.status}`)
   if (typeof obj.access_token !== "string" || typeof obj.username !== "string") {
     throw new Error("Failed to parse the Minecraft access token response.")
   }
@@ -612,7 +636,7 @@ async function minecraftProfile(accessToken: string): Promise<{ id: string; name
   } catch {
     throw new Error(`Minecraft profile failed: invalid JSON (HTTP ${response.status})`)
   }
-  if (!response.ok) throw new Error(`Minecraft profile failed: HTTP ${response.status}: ${raw}`)
+  if (!response.ok) throw new Error(`Minecraft profile failed: HTTP ${response.status}`)
   if (typeof obj.id !== "string" || typeof obj.name !== "string") {
     throw new Error("Minecraft Java profile response could not be parsed")
   }
@@ -622,10 +646,14 @@ async function minecraftProfile(accessToken: string): Promise<{ id: string; name
   return { id: obj.id, name: obj.name, skinUrl }
 }
 
-async function exchangeDeviceMsaForMinecraft(msaAccessToken: string, refreshToken: string): Promise<MicrosoftAccountPayload> {
+async function exchangeDeviceMsaForMinecraft(msaAccessToken: string, refreshToken: string, progress: (stage: MicrosoftAuthStage) => void): Promise<MicrosoftAccountPayload> {
+  progress("xbox-live")
   const userToken = await xboxUserStep(msaAccessToken)
+  progress("xsts")
   const xstsToken = await xstsStep(userToken.token)
+  progress("minecraft-token")
   const mc = await minecraftLauncherLogin(userToken.uhs, xstsToken.token)
+  progress("profile")
   const profile = await minecraftProfile(mc.accessToken)
 
   const uuid = profile.id || mc.username
@@ -641,32 +669,52 @@ async function exchangeDeviceMsaForMinecraft(msaAccessToken: string, refreshToke
   }
 }
 
-rpcRegistry.handle("auth:microsoft-device-start", async (): Promise<DeviceStartResult> => {
-  const clientId = await getMicrosoftDeviceClientId()
-  return requestDeviceCode(clientId, MICROSOFT_DEVICE_SCOPE, MICROSOFT_DEVICE_CODE_URL)
+rpcRegistry.handle("auth:microsoft-device-start", async (event, requestId?: string): Promise<DeviceStartResult> => {
+  const progress = microsoftProgress(event, requestId)
+  try {
+    progress("device-code")
+    const clientId = await getMicrosoftDeviceClientId()
+    const result = await requestDeviceCode(clientId, MICROSOFT_DEVICE_SCOPE, MICROSOFT_DEVICE_CODE_URL,
+      () => AUTH_URLS.microsoftDeviceVerification)
+    progress("waiting")
+    return result
+  } catch (error) {
+    progress("error")
+    throw error
+  }
 })
 
-rpcRegistry.handle("auth:microsoft-device-poll", async (_event, deviceCode: string) => {
+rpcRegistry.handle("auth:microsoft-device-poll", async (event, deviceCode: string, requestId?: string) => {
+  const progress = microsoftProgress(event, requestId)
   const clientId = await getMicrosoftDeviceClientId()
+  progress("microsoft-token")
   const result = await pollDeviceToken(clientId, deviceCode, MICROSOFT_DEVICE_TOKEN_URL)
 
   if (result.status === "pending") {
+    progress("waiting")
     return { status: "pending" as const, slowDown: result.slowDown }
   }
   if (result.status === "expired") {
+    progress("error")
     return { status: "expired" as const }
   }
   if (result.error) {
+    progress("error")
     return { status: "error" as const, message: result.error, retryable: result.retryable }
   }
   if (!result.accessToken) {
+    progress("error")
     return { status: "error" as const, message: "Не удалось получить токен", retryable: true }
   }
 
   try {
-    const account = await exchangeDeviceMsaForMinecraft(result.accessToken, result.refreshToken ?? "")
-    return { status: "complete" as const, account: await saveAuthenticatedAccount("microsoft", account) }
+    const account = await exchangeDeviceMsaForMinecraft(result.accessToken, result.refreshToken ?? "", progress)
+    progress("saving")
+    const saved = await saveAuthenticatedAccount("microsoft", account)
+    progress("complete")
+    return { status: "complete" as const, account: saved }
   } catch (err) {
+    progress("error")
     return {
       status: "error" as const,
       message: err instanceof Error ? err.message : String(err),

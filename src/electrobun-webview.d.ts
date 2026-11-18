@@ -46,6 +46,9 @@ export type ElectrobunWebviewElement = HTMLElement & {
   /** Готов только после инициализации в native; `null` — тег ещё не подключён. */
   readonly webviewId: number | null
   readonly sandbox: boolean
+  /** Lifecycle SDK: адаптер читалки страхует закрытие до завершения native init. */
+  initWebview(): Promise<void>
+  disconnectedCallback(): void
   loadURL(url: string): void
   loadHTML(html: string): void
   reload(): void

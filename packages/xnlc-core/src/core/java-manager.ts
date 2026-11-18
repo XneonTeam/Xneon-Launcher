@@ -9,7 +9,6 @@ import { URLS } from "../constants/urls.js";
 import type { VersionJsonJavaVersion } from "../types/index.js";
 import { ensureDirSync } from "../utils/sync.js";
 
-const MOJANG_RUNTIME_MANIFEST = URLS.official.mojang.javaRuntime;
 
 export interface JavaRuntime {
   path: string;
@@ -202,7 +201,7 @@ export class JavaManager {
     ensureDirSync(runtimeDir);
 
     // 1. Fetch all.json to get component manifest URL
-    const allRes = await fetch(MOJANG_RUNTIME_MANIFEST);
+    const allRes = await fetch(URLS.official.mojang.javaRuntime);
     if (!allRes.ok) {
       throw new Error(`Failed to fetch Java runtime manifest: HTTP ${allRes.status}`);
     }

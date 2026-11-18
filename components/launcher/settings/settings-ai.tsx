@@ -1,4 +1,5 @@
 import { ModelIcon } from "../model-icon"
+import { AI_ENDPOINTS } from "@xnlc/urls"
 import { SETTINGS_CONTENT_ENTER } from "./settings-motion"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -13,7 +14,7 @@ import anthropicLogo from "@/assets/ai-providers/anthropic.svg"
 import geminiLogo from "@/assets/ai-providers/googlegemini.svg"
 import ollamaLogo from "@/assets/ai-providers/ollama.svg"
 
-const endpoints: Record<AiProtocol, string> = { openai: "https://api.openai.com/v1", anthropic: "https://api.anthropic.com/v1", gemini: "https://generativelanguage.googleapis.com/v1beta", ollama: "http://localhost:11434" }
+const endpoints: Record<AiProtocol, string> = AI_ENDPOINTS
 const protocols: Record<AiProtocol, string> = { openai: "OpenAI compatible", anthropic: "Anthropic Messages", gemini: "Google Gemini", ollama: "Ollama" }
 const protocolLogos: Partial<Record<AiProtocol, string>> = { anthropic: anthropicLogo, gemini: geminiLogo, ollama: ollamaLogo }
 const defaultModel = (id: string): AiModelConfig => ({ id, contextWindow: 256_000, supportsImages: false })

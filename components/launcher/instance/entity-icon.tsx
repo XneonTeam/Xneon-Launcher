@@ -1,5 +1,6 @@
 import { cn, inheritSvgColor } from "@/lib/utils"
 import { findBuiltinLogo } from "./builtin-logos"
+import { retainDecodedImage } from "@/lib/decoded-image-cache"
 
 interface EntityIconProps {
   /** Значение иконки: встроенный логотип, своя картинка (data URL) или ссылка. */
@@ -36,5 +37,5 @@ export function EntityIcon({ src, className, imgClassName, alt = "", onImgError 
     )
   }
 
-  return <img data-ui="instance-entity-icon-img-1" data-component="entity-icon" src={src ?? undefined} alt={alt} className={imgClassName ?? className} onError={onImgError} />
+  return <img data-ui="instance-entity-icon-img-1" data-component="entity-icon" src={src ?? undefined} alt={alt} className={imgClassName ?? className} onLoad={event => retainDecodedImage(event.currentTarget)} onError={onImgError} />
 }

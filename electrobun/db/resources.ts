@@ -57,6 +57,16 @@ export async function upsertResources(resources: Array<Omit<ResourceRow, "update
   })
 }
 
+/** Обновляем только превью и только если фоновое обогащение ещё не сменило его. */
+export async function updateResourceIcons(icons: Array<{ sha1: string; previous: string; icon: string }>): Promise<void> {
+  if (!isDbAvailable() || icons.length === 0) return
+  transactionImmediate(() => {
+    for (const { sha1, previous, icon } of icons) {
+      run("UPDATE resources SET icon = ? WHERE sha1 = ? AND icon = ?", [icon, sha1, previous])
+    }
+  })
+}
+
 export async function setResourceCurseforge(sha1: string, modId: number, fileId: number): Promise<void> {
   if (!isDbAvailable()) return
   run("UPDATE resources SET modId = ?, fileId = ?, cfChecked = 1, updatedAt = ? WHERE sha1 = ?", [modId, fileId, Date.now(), sha1])

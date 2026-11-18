@@ -1,4 +1,5 @@
 import { createServer } from "node:http"
+import { SERVICE_URLS } from "@xnlc/urls"
 import { once } from "node:events"
 import { toErrorMessage } from "./errors"
 import fs from "fs"
@@ -321,7 +322,7 @@ function resolveRetroAuthServer(accountType?: string): string {
     return "ely.by"
   }
 
-  return "https://skins.xneon.org"
+  return SERVICE_URLS.xnSkins
 }
 
 async function resolveRequiredJavaVersionForPayload(xnlc: unknown, payload: WorkerLaunchPayload): Promise<number | null> {

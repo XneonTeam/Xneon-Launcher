@@ -1,4 +1,5 @@
 import { registerSettingsHandlers } from "./settings-handlers"
+import { publicContentIcons, storedContentIcons } from "./builds/content-icon-assets"
 import { registerAccountHandlers } from "./account-service"
 import { assertBuildMetadataIdle } from "./builds/modpack-persistence"
 import { openExternalLink } from "./external-links"
@@ -21,11 +22,12 @@ import {
 } from "./builds/helpers"
 import { fetchWithRetry } from "@xnlc/core/retry"
 import type { LauncherNewsEntry } from "@xnlc/types"
+import { SERVICE_URLS } from "@xnlc/urls"
 
-const MOJANG_BASE = "https://launchercontent.mojang.com"
+const MOJANG_BASE = SERVICE_URLS.minecraftNews
 
 /** Адрес ленты новостей лаунчера по умолчанию, переопределяется XNLC_NEWS_URL. */
-const DEFAULT_LAUNCHER_NEWS_URL = "https://launcher.xneon.org/news.json"
+const DEFAULT_LAUNCHER_NEWS_URL = SERVICE_URLS.launcherNews
 
 function resolveImageUrl(url: string | undefined): string | undefined {
   if (!url) return undefined
@@ -138,9 +140,9 @@ export function registerSystemHandlers() {
   registerAccountHandlers()
   // Лёгкий список для интерфейса: без тяжёлых mods/shaders (они грузятся по сборке).
   rpcRegistry.handle("db:load-builds-light", async () => dbHelpers.loadBuildsLight())
-  rpcRegistry.handle("db:load-build-content", async (_event, buildId: string) => dbHelpers.loadBuildContent(buildId))
+  rpcRegistry.handle("db:load-build-content", async (_event, buildId: string) => publicContentIcons(await dbHelpers.loadBuildContent(buildId)))
   rpcRegistry.handle("db:save-builds", async (_event, builds) => {
-    const incoming = Array.isArray(builds) ? builds : []
+    const incoming = Array.isArray(builds) ? await Promise.all(builds.map(async build => (await storedContentIcons(build))!)) : []
     for (const build of incoming) assertBuildMetadataIdle(build.id, build)
     // Снапшот для сверки профилей загрузчика — только лёгкие поля: тяжёлый
     // контент при массовом сохранении не нужен (его сохраняет сам saveAllBuilds).
@@ -158,13 +160,16 @@ export function registerSystemHandlers() {
   rpcRegistry.handle("db:insert-build", async (_event, build) => {
     if (!build || typeof build !== "object") return
     assertBuildMetadataIdle(build.id, build)
-    await dbHelpers.insertBuild(build as Parameters<typeof dbHelpers.insertBuild>[0])
+    const stored = (await storedContentIcons(build))!
+    assertBuildMetadataIdle(stored.id, stored)
+    await dbHelpers.insertBuild(stored as Parameters<typeof dbHelpers.insertBuild>[0])
   })
   // Мгновенная точечная запись полей одной сборки (без debounce на стороне UI):
   // нужна для правок вроде отвязки/привязки модпака, которые не должны теряться
   // при быстром переключении вкладок инстанса.
   rpcRegistry.handle("db:update-build-fields", async (_event, buildId: string, fields: Record<string, unknown>) => {
     if (!fields || typeof fields !== "object" || Array.isArray(fields)) throw new Error("Invalid build fields")
+    fields = (await storedContentIcons(fields))!
     assertBuildMetadataIdle(buildId, fields)
     // Смена версии загрузчика / типа загрузчика / версии Minecraft меняет имя
     // профиля в `versions/` — старый профиль остаётся на диске и его нужно

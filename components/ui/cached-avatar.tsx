@@ -1,4 +1,5 @@
 import { launcherAssetUrl } from "@/lib/launcher-assets"
+import { retainDecodedImage } from "@/lib/decoded-image-cache"
 import { useEffect, useState } from "react"
 
 const FALLBACK_URL = "avatar://head/Steve"
@@ -136,9 +137,13 @@ export function invalidateAvatarCache(urlOrPredicate?: string | ((url: string) =
  */
 function useCachedImageUrl(url: string): string {
   const [src, setSrc] = useState<string>(() => {
+    // На повторном mount сохраняем тот же src: data-URL с диска раньше
+    // на первом кадре подменял готовый blob, а effect тут же возвращал его.
+    const cached = imageCache.get(url)
+    if (cached !== undefined) return cached || url
     const persisted = readPersisted()[url]
     if (persisted && !isStale(persisted)) return persisted.d
-    return imageCache.get(url) ?? url
+    return url
   })
 
   useEffect(() => {
@@ -197,6 +202,7 @@ export function CachedAvatar({ src, fallbackSrc = FALLBACK_URL, alt = "", classN
       alt={alt}
       className={className}
       style={style}
+      onLoad={event => retainDecodedImage(event.currentTarget)}
       onError={() => {
         if (failed) {
           setFailedFallback(true)

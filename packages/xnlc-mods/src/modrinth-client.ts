@@ -20,7 +20,9 @@ import type {
 } from "./types.js";
 import { MOD_SORT_OPTIONS, CONTENT_TYPE_FACETS } from "./types.js";
 
-const MODRINTH_API = "https://api.modrinth.com/v2";
+import { CONTENT_URLS } from "@xnlc/urls";
+
+const MODRINTH_API = CONTENT_URLS.modrinthApi;
 const MODS_PER_PAGE = 20;
 const MAX_RETRIES = 2;
 

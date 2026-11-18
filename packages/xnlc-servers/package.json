@@ -19,6 +19,7 @@
   "dependencies": {
     "@xnlc/archives": "workspace:*",
     "@xnlc/types": "workspace:*",
+    "@xnlc/urls": "workspace:*",
     "toml": "^5.0.0"
   },
   "scripts": {

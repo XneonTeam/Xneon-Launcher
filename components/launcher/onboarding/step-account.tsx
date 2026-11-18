@@ -5,6 +5,7 @@ import { IconCheck, IconLoader2, IconWifiOff, IconArrowLeft } from "@tabler/icon
 import { MicrosoftIcon, ElyByIcon, XnSkinsIcon } from "./icons"
 import { CachedAvatar } from "@/components/ui/cached-avatar"
 import type { OnboardingCopy } from "./translations"
+import { useMicrosoftAuthProgress } from "@/src/hooks/use-microsoft-auth-progress"
 
 type StepAccountProps = {
   copy: OnboardingCopy
@@ -12,7 +13,7 @@ type StepAccountProps = {
   anyLoginLoading: boolean
   getAvatarUrl: (account: Account, username: string) => string
   setActiveAccount: (id: string) => void
-  onProviderLogin: (provider: "elyby" | "xnskins" | "microsoft") => void
+  onProviderLogin: (provider: "elyby" | "xnskins" | "microsoft", requestId?: string) => void
   onOpenOffline: () => void
 }
 
@@ -52,6 +53,7 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
   const { t } = useTranslation()
   const [chosenProvider, setChosenProvider] = useState<ProviderId | null>(null)
   const [authLoading, setAuthLoading] = useState(false)
+  const { stage: microsoftStage, requestId: microsoftRequestId, begin: beginMicrosoftProgress, reset: resetMicrosoftProgress } = useMicrosoftAuthProgress()
   const [authError, setAuthError] = useState("")
   const [deviceCodeInfo, setDeviceCodeInfo] = useState<{
     deviceCode: string
@@ -69,23 +71,25 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
   }, [])
 
   const resetDeviceState = useCallback(() => {
+    resetMicrosoftProgress()
     setDeviceCodeInfo(null)
     setDevicePolling(false)
     setDeviceStatus("waiting")
     setAuthError("")
     setAuthLoading(false)
-  }, [])
+  }, [resetMicrosoftProgress])
 
   const handleStartDeviceCode = useCallback(async (provider: ProviderId) => {
     setAuthLoading(true)
     setAuthError("")
     setDeviceStatus("waiting")
     setDeviceCodeInfo(null)
+    const requestId = provider === "microsoft" ? beginMicrosoftProgress("device-code") : undefined
     try {
       const startFn = provider === "elyby" ? "startElyByDeviceCode"
         : provider === "xnskins" ? "startXnSkinsDeviceCode"
         : "startMicrosoftDeviceCode"
-      const info = await (window.electrobunAPI as any)?.[startFn]()
+      const info = await (window.electrobunAPI as any)?.[startFn](requestId)
       if (info) {
         setDeviceCodeInfo({
           deviceCode: info.deviceCode,
@@ -100,9 +104,10 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
     } finally {
       setAuthLoading(false)
     }
-  }, [])
+  }, [beginMicrosoftProgress, copy.error])
 
   const finishDeviceLogin = useCallback((provider: ProviderId, result: { id: string; username: string; uuid?: string }) => {
+    resetMicrosoftProgress()
     const { addAccount } = {} as any
     window.dispatchEvent(new CustomEvent("onboarding:add-account", {
       detail: { id: result.id, type: provider, username: result.username, uuid: result.uuid },
@@ -111,7 +116,7 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
     setDevicePolling(false)
     setDeviceCodeInfo(null)
     setChosenProvider(null)
-  }, [])
+  }, [resetMicrosoftProgress])
 
   useEffect(() => {
     if (!deviceCodeInfo || !devicePolling || deviceStatus !== "waiting" || !chosenProvider) return
@@ -124,7 +129,7 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
         const pollFn = chosenProvider === "elyby" ? "pollElyByDeviceCode"
           : chosenProvider === "xnskins" ? "pollXnSkinsDeviceCode"
           : "pollMicrosoftDeviceCode"
-        const result = await (window.electrobunAPI as any)?.[pollFn](deviceCodeInfo.deviceCode)
+        const result = await (window.electrobunAPI as any)?.[pollFn](deviceCodeInfo.deviceCode, chosenProvider === "microsoft" ? microsoftRequestId.current ?? undefined : undefined)
         if (cancelled || !result) return
         if (result.status === "complete" && result.account) {
           finishDeviceLogin(chosenProvider, result.account)
@@ -210,7 +215,7 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
             <button data-ui="onboarding-step-account-button-3"
               type="button"
               onClick={() => { resetDeviceState(); setChosenProvider(null) }}
-              disabled={authLoading}
+              disabled={authLoading || anyLoginLoading}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted/60 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
             >
               <IconArrowLeft className="h-4 w-4" />
@@ -231,8 +236,8 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
 
           <div data-ui="onboarding-step-account-div-15" className="grid grid-cols-1 gap-3">
             <button data-ui="onboarding-step-account-button-4"
-              onClick={() => { resetDeviceState(); onProviderLogin(chosenProvider) }}
-              disabled={authLoading}
+              onClick={() => { resetDeviceState(); onProviderLogin(chosenProvider, chosenProvider === "microsoft" ? beginMicrosoftProgress() : undefined) }}
+              disabled={authLoading || anyLoginLoading}
               className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 transition-all text-left disabled:opacity-60"
             >
               <div data-ui="onboarding-step-account-div-16"
@@ -253,7 +258,7 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
 
             <button data-ui="onboarding-step-account-button-5"
               onClick={() => void handleStartDeviceCode(chosenProvider)}
-              disabled={authLoading}
+              disabled={authLoading || anyLoginLoading}
               className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 transition-all text-left disabled:opacity-60"
             >
               <div data-ui="onboarding-step-account-div-20"
@@ -274,6 +279,13 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
               {authLoading && <IconLoader2 className="ml-auto h-5 w-5 animate-spin text-primary" />}
             </button>
           </div>
+
+          {chosenProvider === "microsoft" && (anyLoginLoading || authLoading) && (
+            <p role="status" aria-live="polite" className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <IconLoader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              {t(`accounts.microsoftProgress.${microsoftStage ?? "waiting"}`)}
+            </p>
+          )}
 
           {authError && (
             <p data-ui="onboarding-step-account-p-1" className="text-sm text-destructive text-center">{authError}</p>
@@ -331,9 +343,9 @@ export function StepAccount({ copy, accounts, anyLoginLoading, getAvatarUrl, set
                 <span data-ui="onboarding-step-account-span-2" className="text-xs text-muted-foreground">{copied ? copy.copied : copy.clickToCopy}</span>
               </button>
 
-              <div data-ui="onboarding-step-account-div-32" className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <div data-ui="onboarding-step-account-div-32" role="status" aria-live="polite" className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                 <IconLoader2 className="h-4 w-4 animate-spin" />
-                {copy.waitingConfirmation}
+                {chosenProvider === "microsoft" ? (microsoftStage === "error" && authError ? authError : t(`accounts.microsoftProgress.${microsoftStage ?? "waiting"}`)) : copy.waitingConfirmation}
               </div>
             </div>
           )}

@@ -93,7 +93,9 @@ export class ShareSystem {
       return entry.object && (!previous || stable(previous) !== stable(entry)) ? sum + Math.max(1, entry.size) : sum
     }, 0)
     let currentSize = 0
-    const reportUpload = (fraction = 0, bytes = uploadedBytes) => this.ports.progress?.({ stage: "upload", done: done + fraction * currentSize, total, bytes })
+    let currentFile: Manifest["entries"][number] | undefined
+    const reportUpload = (fraction = 0, bytes = uploadedBytes, status: "downloading" | "complete" = "downloading") => this.ports.progress?.({ stage: "upload", done: done + fraction * currentSize, total, bytes,
+      files: currentFile ? [{ path: currentFile.path, size: currentFile.size, status }] : undefined })
     const currentFiles = this.scannedSources.size ? new Map((await this.ports.files.list()).map(file => [file.path, file])) : new Map<string, FileInfo>()
     for (const e of manifest.entries) {
       currentSize = Math.max(1, e.size)
@@ -119,6 +121,8 @@ export class ShareSystem {
         }
         continue
       }
+      currentFile = e
+      reportUpload()
       const bytes = await this.ports.files.read(e.path)
       try {
         validateExternal(e.path, bytes)
@@ -128,7 +132,7 @@ export class ShareSystem {
         throw error
       }
       if (bytes.length !== e.size || await this.ports.hash.digest(bytes) !== e.sha256) fail("INTEGRITY", `External file changed after preview: ${e.path}`)
-      if (objects.has(e.sha256)) { done += currentSize; continue }
+      if (objects.has(e.sha256)) { done += currentSize; reportUpload(0, uploadedBytes, "complete"); continue }
       objects.add(e.sha256)
       if (inheritedObjects.has(e.sha256) || await this.ports.remote.hasObject(id, e.sha256)) reusedBytes += bytes.length
       else {
@@ -140,6 +144,7 @@ export class ShareSystem {
         uploadedBytes += bytes.length
       }
       done += currentSize
+      reportUpload(0, uploadedBytes, "complete")
     }
     return { uploadedBytes, reusedBytes }
   }

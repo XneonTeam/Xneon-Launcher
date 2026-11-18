@@ -110,7 +110,7 @@ interface InstanceDetailProps {
   installingModSlug: string | null
   setInstallingModSlug: (slug: string | null) => void
   addModToBuild: (buildId: string, mod: ModSearchResult) => void
-  addContentToBuild: (buildId: string, type: "resourcepacks" | "shaders", mod: ModSearchResult) => void | Promise<void>
+  addContentToBuild: (buildId: string, type: "resourcepacks" | "shaders", mod: ModSearchResult, version?: ModVersion) => Promise<boolean>
   setBuilds: React.Dispatch<React.SetStateAction<Build[]>>
   toggleItemEnabled: (buildId: string, type: "mods" | "resourcepacks" | "shaders", itemId: string) => void | Promise<boolean>
   updateItemVersion: (buildId: string, type: "mods" | "resourcepacks" | "shaders", itemId: string, newVersion: ModVersion) => Promise<boolean>
@@ -274,7 +274,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     },
   ) => {
     const buildName = activeBuild.name
-    if (!buildName) return
+    if (!buildName) return false
     const finishMutation = beginContentMutation(activeBuild.id)
     try {
     const saved = await window.electrobunAPI?.saveModToIntent(buildName, fileUrl, fileName)
@@ -333,6 +333,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
         }
       }))
     }
+    return Boolean(saved)
     } finally { finishMutation() }
   }, [activeBuild.id, activeBuild.name, beginContentMutation, setBuilds])
 
@@ -479,7 +480,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     depVersions?: Map<string, ModVersion>,
   ) => {
     if (source === "ftb") {
-      return
+      return false
     }
     const finishMutation = beginContentMutation(activeBuild.id)
     try {
@@ -489,10 +490,12 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       description: overrideMetadata?.description || selectedDetails?.summary,
       iconUrl: overrideMetadata?.iconUrl || selectedDetails?.iconUrl,
     }
+    let installed = false
     if (source === "modrinth") {
       const file = version.files?.[0]
-      if (file?.url) {
-        await doDownloadMod(file.url, file.filename || version.fileName || `${version.id}.jar`, {
+      const fileUrl = file?.url || version.downloadUrl
+      if (fileUrl) {
+        installed = await doDownloadMod(fileUrl, file?.filename || version.fileName || `${version.id}.jar`, {
           ...meta,
           version: version.name || version.id,
           source: "modrinth",
@@ -506,7 +509,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
         const url = await window.electrobunAPI?.modsCurseforgeDownloadUrl(Number(version.id), modId)
         if (url) {
           const fileName = version.fileName || url.split("/").pop()?.split("?")[0] || `mod-${version.id}.jar`
-          await doDownloadMod(url, fileName, {
+          installed = await doDownloadMod(url, fileName, {
             ...meta,
             version: version.name || version.id,
             source: "curseforge",
@@ -518,6 +521,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       }
     }
 
+    if (!installed) return false
     // Зависимости качаются по одной и тоже занимают время — подписываем этот этап.
     if (selectedDeps.length > 0) onPhase?.("deps")
     for (const dep of selectedDeps) {
@@ -525,6 +529,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
       await doDownloadDep(dep, source, depVersions?.get(dep.projectId))
     }
     onPhase?.(null)
+    return true
     } finally { finishMutation() }
   }, [activeBuild.id, beginContentMutation, selectedDetails, doDownloadMod, doDownloadDep])
 
@@ -593,19 +598,20 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     mod: ModSearchResult,
     type: "resourcepacks" | "shaders",
     onPhase?: (phase: "resolving" | "confirm" | "downloading" | "deps" | null) => void,
-  ) => {
+    requestedVersion?: ModVersion,
+  ): Promise<boolean> => {
     const source = mod.source as Source
     onPhase?.("resolving")
 
     if (type === "shaders" && source !== "ftb") {
       // Требования шейдеров берём из двух мест: CF отдаёт их в dependencies
       // файла, Modrinth — в loaders (`iris`/`optifine`). Jar не читаем: это zip.
-      let version: ModVersion | undefined
-      if (source === "modrinth") {
+      let version: ModVersion | undefined = requestedVersion
+      if (!version && source === "modrinth") {
         // У шейдеров в loaders стоит iris/optifine, а не загрузчик сборки, поэтому
         // совпадение по загрузчику не проверяем — иначе версия не находится вовсе.
         version = pickCompatibleVersion(await window.electrobunAPI?.modsModrinthVersions(mod.projectId ?? mod.slug), activeBuild, false)
-      } else if (source === "curseforge" && mod.modId) {
+      } else if (!version && source === "curseforge" && mod.modId) {
         const details = await window.electrobunAPI?.modsCurseforgeDetails(mod.modId)
         version = pickCompatibleVersion(details?.versions ?? [], activeBuild, false)
       }
@@ -621,7 +627,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
           onPhase?.("confirm")
           const plan = await planDeps(installable, source)
           const approved = await askAboutDeps(mod.name, mod.iconUrl, source, plan)
-          if (!approved) { onPhase?.(null); return }
+          if (!approved) { onPhase?.(null); return false }
           onPhase?.("deps")
           for (const item of approved) {
             await doDownloadDep(item.dep, source, item.version)
@@ -631,8 +637,8 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     }
 
     onPhase?.("downloading")
-    await addContentToBuild(activeBuild.id, type, mod)
-    onPhase?.(null)
+    try { return await addContentToBuild(activeBuild.id, type, mod, requestedVersion) }
+    finally { onPhase?.(null) }
   }, [activeBuild, addContentToBuild, askAboutDeps, buildIrisDep, doDownloadDep, filterDepsForBuild, isInstalledBuildMod, planDeps, shaderNeedsIris])
 
   const installModToBuild = useCallback(async (
@@ -723,8 +729,19 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     if (selectedDetails.source === "ftb") {
       return false
     }
-
     const source = selectedDetails.source
+
+    // Окно версий общее для модов, ресурспаков и шейдеров. ZIP не должен
+    // уходить через saveModToIntent и появляться только в списке mods.
+    const contentType = detailsKind === "resourcepack" ? "resourcepacks"
+      : detailsKind === "shader" ? "shaders" : null
+    if (contentType) {
+      const existing = activeBuild[contentType].find(item => isInstalledBuildMod(item, source,
+        selectedDetails.projectId ?? selectedDetails.id, selectedDetails.modId, selectedDetails.slug))
+      if (existing) return updateItemVersion(activeBuild.id, contentType, existing.id, version)
+      return installContentToBuild(selectedDetails, contentType, undefined, version)
+    }
+
     beginContentInstall({
       title: t("builds.mod.installing"),
       message: t("mods.install.phaseResolving"),
@@ -767,10 +784,9 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
         }
       }
 
-      await installVersionWithDeps(version, source, depsToInstall, undefined, reportPhase, depVersions)
-      return true
+      return await installVersionWithDeps(version, source, depsToInstall, undefined, reportPhase, depVersions)
     } finally { endContentInstall() }
-  }, [activeBuild.mods, askAboutDeps, beginContentInstall, endContentInstall, filterDepsForBuild, installVersionWithDeps, isInstalledBuildMod, planDeps, resolveRequiredDeps, selectedDetails, t, updateContentInstall])
+  }, [activeBuild, detailsKind, installContentToBuild, updateItemVersion, askAboutDeps, beginContentInstall, endContentInstall, filterDepsForBuild, installVersionWithDeps, isInstalledBuildMod, planDeps, resolveRequiredDeps, selectedDetails, t, updateContentInstall])
 
   /**
    * Версия открытого в окне мода, если он уже стоит в сборке. Нужна, чтобы
@@ -780,15 +796,16 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
     if (!selectedDetails) return undefined
     const source = selectedDetails.source
     if (source !== "modrinth" && source !== "curseforge") return undefined
-    const match = activeBuild.mods.find(installedMod => isInstalledBuildMod(
+    const items = detailsKind === "resourcepack" ? activeBuild.resourcepacks : detailsKind === "shader" ? activeBuild.shaders : activeBuild.mods
+    const match = items.find(installedMod => isInstalledBuildMod(
       installedMod,
       source,
       selectedDetails.projectId ?? selectedDetails.id,
       source === "curseforge" ? selectedDetails.modId : undefined,
       selectedDetails.slug || selectedDetails.projectId,
     ))
-    return match?.version
-  }, [selectedDetails, activeBuild.mods, isInstalledBuildMod])
+    return match?.versionId || match?.version
+  }, [selectedDetails, detailsKind, activeBuild.mods, activeBuild.resourcepacks, activeBuild.shaders, isInstalledBuildMod])
 
   const handleUpdateModpack = useCallback(async (version: ModVersion): Promise<boolean> => {
     if (!selectedDetails || selectedDetails.source === "ftb") return false
@@ -914,6 +931,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
 
       {detailTab === "mods" && (
         <InstanceContentTab
+          key={activeBuild.id+":mods"}
           activeBuild={activeBuild}
           title={t("buildDetail.search.title")}
           placeholder={t("buildDetail.search.modsPlaceholder")}
@@ -954,6 +972,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
 
       {detailTab === "resourcepacks" && (
         <InstanceContentTab
+          key={activeBuild.id+":resourcepacks"}
           activeBuild={activeBuild}
           title={t("buildDetail.search.title")}
           placeholder={t("buildDetail.search.resourcepacksPlaceholder")}
@@ -994,6 +1013,7 @@ export const InstanceDetail = memo(function InstanceDetail(props: InstanceDetail
 
       {detailTab === "shaders" && (
         <InstanceContentTab
+          key={activeBuild.id+":shaders"}
           activeBuild={activeBuild}
           title={t("buildDetail.search.title")}
           placeholder={t("buildDetail.search.shadersPlaceholder")}

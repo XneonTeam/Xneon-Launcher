@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { ModalLayer } from "@/components/ui/modal-layer"
 import { ModalTitleIcon } from "@/components/ui/modal-title-icon"
 import { AuthlibInjectorModal } from "@/components/launcher/accounts/authlib-injector-modal"
+import { useMicrosoftAuthProgress } from "@/src/hooks/use-microsoft-auth-progress"
 
 type AccountWithAvatar = { uuid?: string; type?: string; skinUrl?: string }
 
@@ -51,6 +52,7 @@ export function AccountsPage() {
   const [elybyAuthLoading, setElybyAuthLoading] = useState(false)
   const [xnskinsAuthLoading, setXnSkinsAuthLoading] = useState(false)
   const [microsoftAuthLoading, setMicrosoftAuthLoading] = useState(false)
+  const { stage: microsoftStage, requestId: microsoftRequestId, begin: beginMicrosoftProgress, reset: resetMicrosoftProgress } = useMicrosoftAuthProgress()
   const [authError, setAuthError] = useState("")
   const [microsoftMethod, setMicrosoftMethod] = useState<"choose" | "oauth" | "device">("choose")
   const [elybyMethod, setElybyMethod] = useState<"choose" | "oauth" | "device">("choose")
@@ -210,8 +212,9 @@ export function AccountsPage() {
   const handleMicrosoftLogin = useCallback(async () => {
     setMicrosoftAuthLoading(true)
     setAuthError("")
+    const requestId = beginMicrosoftProgress()
     try {
-      const result = await window.electrobunAPI?.loginMicrosoft()
+      const result = await window.electrobunAPI?.loginMicrosoft(requestId)
       if (result) {
         addAccount({
           id: result.id,
@@ -232,8 +235,9 @@ export function AccountsPage() {
       setAuthError(message)
     } finally {
       setMicrosoftAuthLoading(false)
+      resetMicrosoftProgress()
     }
-  }, [addAccount, accounts.length])
+  }, [addAccount, accounts.length, beginMicrosoftProgress, resetMicrosoftProgress, t])
 
   const handleEnableDeviceCode = useCallback(async () => {
     setMicrosoftAuthLoading(true)
@@ -241,8 +245,9 @@ export function AccountsPage() {
     setDeviceStatus("waiting")
     setDeviceCodeInfo(null)
     setMicrosoftMethod("device")
+    const requestId = beginMicrosoftProgress("device-code")
     try {
-      const info = await window.electrobunAPI?.startMicrosoftDeviceCode()
+      const info = await window.electrobunAPI?.startMicrosoftDeviceCode(requestId)
       if (info) {
         setDeviceCodeInfo({
           deviceCode: info.deviceCode,
@@ -258,9 +263,10 @@ export function AccountsPage() {
     } finally {
       setMicrosoftAuthLoading(false)
     }
-  }, [t])
+  }, [t, beginMicrosoftProgress])
 
   const finishDeviceLogin = useCallback((result: { id: string; username: string; uuid?: string; skinUrl?: string }) => {
+    resetMicrosoftProgress()
     addAccount({
       id: result.id,
       type: "microsoft",
@@ -275,7 +281,7 @@ export function AccountsPage() {
     setMicrosoftMethod("choose")
     setSelectedAccountType(null)
     setShowAddModal(false)
-  }, [addAccount, accounts.length])
+  }, [addAccount, accounts.length, resetMicrosoftProgress])
 
   useEffect(() => {
     if (!deviceCodeInfo || !devicePolling || deviceStatus !== "waiting") return
@@ -291,7 +297,7 @@ export function AccountsPage() {
           ? await window.electrobunAPI?.pollElyByDeviceCode(deviceCodeInfo.deviceCode)
           : activeMethod === "xnskins"
             ? await window.electrobunAPI?.pollXnSkinsDeviceCode(deviceCodeInfo.deviceCode)
-            : await window.electrobunAPI?.pollMicrosoftDeviceCode(deviceCodeInfo.deviceCode)
+            : await window.electrobunAPI?.pollMicrosoftDeviceCode(deviceCodeInfo.deviceCode, microsoftRequestId.current ?? undefined)
         if (cancelled) return
         if (!result) return
         if (result.status === "complete" && result.account) {
@@ -1277,7 +1283,7 @@ export function AccountsPage() {
                   {microsoftAuthLoading ? (
                     <div data-ui="accounts-page-div-119">
                       <IconLoader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-primary" />
-                      <p data-ui="accounts-page-p-21" className="text-sm text-muted-foreground">{t("accounts.connectMicrosoft")}</p>
+                      <p data-ui="accounts-page-p-21" role="status" aria-live="polite" className="text-sm text-muted-foreground">{t(`accounts.microsoftProgress.${microsoftStage ?? "waiting"}`)}</p>
                     </div>
                   ) : authError ? (
                     <div data-ui="accounts-page-div-120" className="p-4 rounded-xl bg-destructive/10 border border-destructive/20">
@@ -1292,6 +1298,7 @@ export function AccountsPage() {
 
                 <div data-ui="accounts-page-div-121" className="flex gap-3">
                   <button data-ui="accounts-page-button-41"
+                    disabled={microsoftAuthLoading}
                     onClick={() => {
                       setMicrosoftAuthLoading(false)
                       setMicrosoftMethod("choose")
@@ -1320,7 +1327,7 @@ export function AccountsPage() {
                   <div data-ui="accounts-page-div-122">
                     <div data-ui="accounts-page-div-123" className="flex flex-col items-center justify-center py-6 text-center">
                       <IconLoader2 className="w-8 h-8 animate-spin mb-3 text-primary" />
-                      <p data-ui="accounts-page-p-24" className="text-sm text-muted-foreground">{t("accounts.generatingDeviceCode")}</p>
+                      <p data-ui="accounts-page-p-24" role="status" aria-live="polite" className="text-sm text-muted-foreground">{t(`accounts.microsoftProgress.${microsoftStage ?? "device-code"}`)}</p>
                     </div>
                     {authError && !devicePolling && (
                       <div data-ui="accounts-page-div-124" className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 mb-4">
@@ -1402,9 +1409,9 @@ export function AccountsPage() {
                           </button>
                         </div>
                         {devicePolling && (
-                          <div data-ui="accounts-page-div-135" className="flex items-center justify-center gap-2 mt-4 text-sm text-muted-foreground">
+                          <div data-ui="accounts-page-div-135" role="status" aria-live="polite" className="flex items-center justify-center gap-2 mt-4 text-sm text-muted-foreground">
                             <IconLoader2 className="w-4 h-4 animate-spin text-primary" />
-                            {authError || t("accounts.deviceWaiting")}
+                            {microsoftStage === "error" && authError ? authError : t(`accounts.microsoftProgress.${microsoftStage ?? "waiting"}`)}
                           </div>
                         )}
                         {!devicePolling && authError && (
@@ -1417,6 +1424,7 @@ export function AccountsPage() {
                     <div data-ui="accounts-page-div-137" className="flex gap-3">
                       <button data-ui="accounts-page-button-49"
                         onClick={() => {
+                          resetMicrosoftProgress()
                           setDevicePolling(false)
                           setDeviceStatus("waiting")
                           setDeviceCodeInfo(null)

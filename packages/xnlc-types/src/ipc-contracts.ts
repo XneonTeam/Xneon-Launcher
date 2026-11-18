@@ -24,6 +24,7 @@ import type {
   DatapackInfo,
   ScreenshotInfo,
   AuthPayload,
+  MicrosoftAuthProgress,
   AuthSession,
   DeviceCodeStart,
   DeviceCodePoll,
@@ -37,6 +38,8 @@ import type {
 
   JavaDetectResult,
   BuildIntentScanResult,
+  BuildContentManifest,
+  BuildContentDelta,
   ModpackImportResult,
   ImportProgress,
   ContentDownloadProgress,
@@ -137,9 +140,9 @@ export interface IpcInvokeMap {
   "auth:xnskins-login": { args: []; return: AuthPayload }
   "auth:xnskins-device-start": { args: []; return: DeviceCodeStart }
   "auth:xnskins-device-poll": { args: [deviceCode: string]; return: DeviceCodePoll }
-  "auth:microsoft-login": { args: []; return: AuthPayload }
-  "auth:microsoft-device-start": { args: []; return: DeviceCodeStart }
-  "auth:microsoft-device-poll": { args: [deviceCode: string]; return: DeviceCodePoll }
+  "auth:microsoft-login": { args: [requestId?: string]; return: AuthPayload }
+  "auth:microsoft-device-start": { args: [requestId?: string]; return: DeviceCodeStart }
+  "auth:microsoft-device-poll": { args: [deviceCode: string, requestId?: string]; return: DeviceCodePoll }
 
   // ── Authlib-Injector (Yggdrasil) ──
   // Список сохранённых authorization servers.
@@ -188,6 +191,7 @@ export interface IpcInvokeMap {
   "build:watch-content": { args: [buildId: string, token: string]; return: boolean }
   "build:unwatch-content": { args: [token: string]; return: void }
   "build:scan-intent-content": { args: [buildName: string]; return: BuildIntentScanResult }
+  "build:sync-intent-content": { args: [buildName: string, known?: BuildContentManifest]; return: BuildContentDelta }
   "build:get-intent-path": { args: [buildId: string]; return: string }
   "launcher:data-move-status": { args: []; return: { pendingRoot?: string; error?: string } }
   "launcher:restart-for-data-move": { args: []; return: { success: boolean; error?: string } }
@@ -398,7 +402,7 @@ export interface IpcInvokeMap {
   "skins:delete-skin": { args: [accountId?: string]; return: boolean }
   "skins:set-cape": { args: [params: { capeId: string | null; accountId?: string }]; return: boolean }
   "skins:list-library": { args: [accountId: string]; return: LibrarySkin[] }
-  "skins:save-to-library": { args: [params: { filePath: string; name: string; variant: "classic" | "slim"; accountId: string; capeId?: string | null }]; return: LibrarySkin | null }
+  "skins:save-to-library": { args: [params: { filePath: string; name: string; variant: "classic" | "slim" | "auto"; accountId: string; capeId?: string | null }]; return: LibrarySkin | null }
   "skins:delete-from-library": { args: [id: string]; return: boolean }
   "skins:update-variant": { args: [params: { id: string; variant: "classic" | "slim"; capeId?: string | null; name?: string }]; return: boolean }
   "skins:apply-library-skin": { args: [params: { skinId: string; accountId: string }]; return: boolean }
@@ -514,6 +518,7 @@ export interface IpcInvokeMap {
 // Maps channel name → payload type (for subscribe/on listeners)
 
 export interface IpcEventMap {
+  "auth:microsoft-progress": MicrosoftAuthProgress
   "startup:launch-pending": null
   "share:progress": ShareProgress
   "share:installed": { buildId: string }
@@ -572,7 +577,7 @@ export interface ElectrobunAPIExplicit {
   exportLocalTheme: (theme: Theme, format: "xntheme") => Promise<boolean>
   openThemesDirectory: () => Promise<string>
   onLocalThemesChanged: (callback: (snapshot: LocalThemeSnapshot) => void) => CleanupFn
-  /** Состояние событийных тем LiveOps (сервис задан через XNLC_LIVEOPS_URL). */
+  /** Состояние LiveOps: production origin по умолчанию, пустой XNLC_LIVEOPS_URL отключает сеть. */
   liveopsStatus: () => Promise<LiveopsStatus>
   /** Ручной выбор темы: контроллер запоминает его и не возвращает авто-ивент. */
   liveopsSelect: (ref: LiveopsThemeRef) => Promise<LiveopsStatus>
@@ -586,13 +591,14 @@ export interface ElectrobunAPIExplicit {
   restore: () => void
   loginElyBy: () => Promise<AuthPayload>
   loginXnSkins: () => Promise<AuthPayload>
-  loginMicrosoft: () => Promise<AuthPayload>
+  loginMicrosoft: (requestId?: string) => Promise<AuthPayload>
   startXnSkinsDeviceCode: () => Promise<DeviceCodeStart>
   pollXnSkinsDeviceCode: (deviceCode: string) => Promise<DeviceCodePoll>
   startElyByDeviceCode: () => Promise<DeviceCodeStart>
   pollElyByDeviceCode: (deviceCode: string) => Promise<DeviceCodePoll>
-  startMicrosoftDeviceCode: () => Promise<DeviceCodeStart>
-  pollMicrosoftDeviceCode: (deviceCode: string) => Promise<DeviceCodePoll>
+  startMicrosoftDeviceCode: (requestId?: string) => Promise<DeviceCodeStart>
+  pollMicrosoftDeviceCode: (deviceCode: string, requestId?: string) => Promise<DeviceCodePoll>
+  onMicrosoftAuthProgress: (callback: (progress: MicrosoftAuthProgress) => void) => CleanupFn
   // ── Authlib-Injector (Yggdrasil) ──
   authlibListServers: () => Promise<AuthlibInjectorServerSummary[]>
   authlibProbeServer: (url: string) => Promise<AuthlibProbeOutcome>
@@ -624,6 +630,7 @@ export interface ElectrobunAPIExplicit {
   unwatchBuildContent: (token: string) => Promise<void>
   onBuildContentChanged: (callback: (event: { buildId: string; token: string }) => void) => CleanupFn
   scanBuildIntentContent: (buildName: string) => Promise<BuildIntentScanResult>
+  syncBuildIntentContent: (buildName: string, known?: BuildContentManifest) => Promise<BuildContentDelta>
   discoverImportableInstances: () => Promise<ImportableLauncherInstance[]>
   discoverFromPath: (source: string, customPath: string) => Promise<ImportableLauncherInstance[]>
   importGdLauncherInstances: (ids: string[]) => Promise<{ success: boolean; imported: number; error?: string }>
@@ -845,7 +852,7 @@ export interface ElectrobunAPIExtra {
   skinsDeleteSkin: (accountId?: string) => Promise<boolean>
   skinsSetCape: (capeId: string | null, accountId?: string) => Promise<boolean>
   skinsListLibrary: (accountId: string) => Promise<LibrarySkin[]>
-  skinsSaveToLibrary: (filePath: string, name: string, variant: "classic" | "slim", accountId: string, capeId?: string | null) => Promise<LibrarySkin | null>
+  skinsSaveToLibrary: (filePath: string, name: string, variant: "classic" | "slim" | "auto", accountId: string, capeId?: string | null) => Promise<LibrarySkin | null>
   skinsDeleteFromLibrary: (id: string) => Promise<boolean>
   skinsUpdateVariant: (id: string, variant: "classic" | "slim", capeId?: string | null, name?: string) => Promise<boolean>
   skinsApplyLibrarySkin: (skinId: string, accountId: string) => Promise<boolean>
