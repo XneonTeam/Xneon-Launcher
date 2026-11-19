@@ -192,7 +192,8 @@ bun run share:test    # тесты пакета Share
 ```
 
 После сборки Windows x64 можно проверить изоляцию каналов через
-`bun scripts/test-channel-artifacts.mjs`.
+`bun scripts/test-channel-artifacts.mjs` и нативную подготовку обновления
+через `bun scripts/test-native-update.ts stable` и `bun scripts/test-native-update.ts canary`.
 
 ### Структура
 

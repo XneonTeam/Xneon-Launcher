@@ -1,5 +1,6 @@
 import { lstatSync, mkdirSync } from "node:fs"
 import path from "node:path"
+import { spawn } from "node:child_process"
 import { lockLauncherProfile } from "../platform/instance-lock"
 import { readLauncherArgs } from "../platform/launcher-args"
 import { cli, forwardCli, parseCliLaunch, startCliListener } from "./cli"
@@ -62,6 +63,34 @@ async function start() {
     await forwardCli(launcherLocationConfig, build)
     await quitNative(0)
     return
+  }
+  if (!isPortable && process.platform === "win32" && process.arch === "x64") {
+    try {
+      const { Updater } = await import("electrobun/main")
+      const local = await Updater.getLocalInfo()
+      if (local.channel === "stable" || local.channel === "canary") {
+        const { launcherUpdateState } = await import("./update-state")
+        const { resumeDeferredUpdate } = await import("./update-startup")
+        if (await resumeDeferredUpdate({
+          local: { ...local, channel: local.channel }, sdkRoot: () => Updater.appDataFolder(), store: launcherUpdateState,
+          launchInstaller: async file => {
+            const child = spawn(file, ["/S", "--force-run"], { detached: true, stdio: "ignore" })
+            await new Promise<void>((resolve, reject) => { child.once("spawn", resolve); child.once("error", reject) })
+            child.unref()
+          },
+          applySdk: async () => {
+            let restarting = false
+            Updater.onStatusChange(({ status }) => { if (status === "launching-new-version") restarting = true })
+            await Updater.applyUpdate()
+            if (!restarting) throw new Error(Updater.updateInfo().error || "Deferred update restart did not start")
+          },
+          quit: () => quitNative(0), onError: error => console.error("[Updater] Deferred update was not applied", error),
+        })) return
+      }
+    } catch (error) {
+      // Повреждённый кэш обновлений не должен мешать открыть рабочий лаунчер.
+      console.error("[Updater] Could not inspect deferred update", error)
+    }
   }
   if (build) cli.enqueue(build, error => { if (error) console.error("[CLI]", error) })
   await import("./index")

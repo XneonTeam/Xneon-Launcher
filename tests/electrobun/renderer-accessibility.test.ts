@@ -74,7 +74,7 @@ import { clearModrinthEnrichCache, enrichBuildModNames } from "../../lib/modrint
     test('настоящая карточка сброса посылает одно событие и имеет доступную кнопку', () => {
       const events = []
       const { OnboardingResetCard } = loadReactModule(new URL('../../components/launcher/settings/settings-language-about.tsx', import.meta.url), {
-        './settings-switch': { SettingsSwitch: () => null },
+        './settings-update': { SettingsUpdate: () => null }, './settings-switch': { SettingsSwitch: () => null },
       }, { window: { dispatchEvent: event => events.push(event.type) } })
       const tree = OnboardingResetCard({ t: key => key })
       const buttons = reactNodes(tree).filter(node => node.type === 'button')

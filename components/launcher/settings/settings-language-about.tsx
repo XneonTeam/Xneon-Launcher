@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import packageInfo from "@/package.json"
+import { SettingsUpdate } from "./settings-update"
 import { SettingsSwitch } from "./settings-switch"
 import { SETTINGS_CONTENT_ENTER_DELAYED } from "./settings-motion"
 import { cn } from "@/lib/utils"
@@ -291,6 +292,10 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
       </nav>
 
       <OnboardingResetCard t={t} />
+
+      <section aria-label={t("launcherUpdate.title")} className="rounded-2xl border border-border bg-card px-5 pb-5">
+        <SettingsUpdate />
+      </section>
     </div>
   )
 }

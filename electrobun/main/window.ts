@@ -4,6 +4,7 @@ import { setMainWindow, logRuntime, initRuntimePaths, sendToRenderer } from "./r
 import { applyPendingInstancesMove } from "./paths"
 import { initDatabase } from "../db"
 import { clearSettingsCache } from "../db/settings"
+import { registerUpdater } from "./updater"
 import { refreshAuthServersInBackground } from "./authlib"
 import { cleanupOrphanGameSessions } from "./stats"
 import { loadInstancesRoot } from "./builds/helpers"
@@ -102,6 +103,7 @@ async function startLauncher() {
     logRuntime(`[DB] Не удалось очистить статистику удалённых сборок: ${error instanceof Error ? error.message : String(error)}`)
   }
 
+  registerUpdater()
   finishStartup(null)
 
   app.on("reopen", () => {

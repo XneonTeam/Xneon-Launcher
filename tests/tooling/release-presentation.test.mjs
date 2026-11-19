@@ -24,7 +24,7 @@ test('описания релизов содержат Features, Bug Fixes и т
     assert.match(body, /img.shields.io/)
     assert.match(body, new RegExp(`releases/download/v${version}/`))
     assert.doesNotMatch(body, /logo=apple|logo=linux|### macOS|### Linux/)
-    assert.equal(body.includes(`xneon-launcher-${version}-win-x64.exe`), !version.includes('-pre'))
+    assert.equal(body.includes(`xneon-launcher-${version}-win-x64.exe`), true, 'NSIS есть в обоих каналах')
     assert.ok(body.includes('portable.zip'))
   }
 })
@@ -91,3 +91,11 @@ test('Vite разрешает Share для renderer без Node и архивн�
   } finally { await fs.rm(directory, { recursive: true, force: true }) }
 })
 
+test('канал задаёт сборка: версия определяет канал, а канал — отображаемую ветку UI', async () => {
+  const { installedPreference, releaseChannelOf } = await import('../../electrobun/main/verified-update-feed.ts')
+  assert.equal(releaseChannelOf('1.0.9-pre1'), 'canary')
+  assert.equal(releaseChannelOf('1.0.9-beta2'), 'canary')
+  assert.equal(releaseChannelOf('1.0.9'), 'stable')
+  assert.equal(installedPreference('canary'), 'beta')
+  assert.equal(installedPreference('stable'), 'stable')
+})

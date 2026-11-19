@@ -511,6 +511,7 @@ import { launcherEntryUrl } from "../../electrobun/platform/dev-renderer.ts"
       vm.runInNewContext(code, { module, exports: module.exports, process: { platform: "win32", arch: "x64", env: {} }, require: name => {
         if (name === "./package.json") return { version: "1.0.8", description: "test" }
         if (name.endsWith("app-identity")) return { appIdentifier: "test", portableAppIdentifier: "test.portable" }
+        if (name.endsWith("update-public-keys")) return { updateBaseUrls: { stable: "test", canary: "test-canary" } }
         throw new Error("Unexpected dependency: " + name)
       } })
       assert.equal(module.exports.default.build.copy["assets/native/nfd"], "native/nfd")

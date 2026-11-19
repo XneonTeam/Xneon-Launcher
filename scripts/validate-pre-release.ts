@@ -9,6 +9,6 @@ assert.equal(process.platform, "win32")
 assert.equal(process.arch, "x64")
 assert.equal(Bun.version, "1.4.4")
 const version = packageJson.version
-// NSIS-установщик существует только в стабильном канале.
-const verified = await stageElectrobunRelease(input, output, { platform: "win", arch: "x64", channel, version, nsis: channel === "stable" })
+// NSIS-установщик есть в обоих каналах: он же служит переключателем канала.
+const verified = await stageElectrobunRelease(input, output, { platform: "win", arch: "x64", channel, version, nsis: true })
 console.log("Validated native Electrobun distribution:\n" + verified.files.join("\n"))

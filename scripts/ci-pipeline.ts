@@ -3,6 +3,7 @@ import { appendFile, copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile 
 import path from "node:path"
 import packageJson from "../package.json"
 import { inspectElectrobunRelease, nativeArtifactNames } from "./electrobun-artifacts"
+import { verifySignedUpdateFeed } from "./verify-signed-update-feed"
 import { linuxPackageNames } from "./package-linux"
 import { checksumText, verifyChecksums } from "./artifact-checksums"
 export { checksumText, verifyChecksums }
@@ -80,8 +81,8 @@ const nativeSets = (version: string) => {
     arch: target.arch,
     channel,
     version,
-    // NSIS-установщик собирается только для стабильного Windows-канала.
-    nsis: target.platform === "win" && channel === "stable",
+    // NSIS собирается для обоих Windows-каналов: это единственный способ сменить канал.
+    nsis: target.platform === "win",
   }))
 }
 const portableName = (version: string) => `xneon-launcher-${version}-win-x64-portable.zip`
@@ -142,7 +143,7 @@ export function publicationNames(version: string, patches: string[] = []) {
   return [...nativeSets(version).flatMap(options => nativeArtifactNames(options).map(file => publishedArtifactName(file, version))),
     ...(hasPortable(version) ? [portableName(version)] : []),
     ...(hasLinux ? linuxPackageNames(version) : []),
-    ...patches].sort()
+    `${channel}-win-x64-update-v2.json.sig`, ...patches].sort()
 }
 
 /** Повторно проверяет плоский release allowlist, trusted signatures и исходный SDK payload. */
@@ -160,6 +161,15 @@ export async function verifyPublication(directory: string, version: string) {
       for (const name of [...nativeArtifactNames(options), ...names.filter(file => file.startsWith(prefix) && file.endsWith(".patch"))]) await copyFile(path.join(directory, publishedArtifactName(name, version)), path.join(subset, name))
       await inspectElectrobunRelease(subset, options)
     }
+    const signed = path.join(scratch, "signed")
+    await mkdir(signed)
+    const channel = releaseChannel(version)
+    const signedNames = [`xneon-launcher-${version}-win-x64.exe`, ...[
+      `${channel}-win-x64-update-v2.json`, `${channel}-win-x64-update-v2.json.sig`,
+      nativeArtifactNames({ platform: "win", arch: "x64", channel, version })[2],
+    ]]
+    for (const name of signedNames) await copyFile(path.join(directory, name), path.join(signed, name))
+    await verifySignedUpdateFeed(signed, version)
   } finally { await rm(scratch, { recursive: true, force: true }) }
   return names
 }
@@ -170,7 +180,7 @@ export async function assemblePublication(input: string, output: string, version
   const directories = sets.map(options => `native-${options.platform}-${options.arch}-${options.channel}`)
   assert.deepEqual((await readdir(input)).sort(), [...directories,
     ...(hasPortable(version) ? ["native-win-x64-portable"] : []),
-    ...(hasLinux ? [linuxPackagesDirectory] : [])].sort(), "Unexpected artifact containers")
+    ...(hasLinux ? [linuxPackagesDirectory] : []), "update-verified"].sort(), "Unexpected artifact containers")
   await mkdir(output)
   for (const [index, options] of sets.entries()) {
     const source = path.join(input, directories[index])
@@ -186,6 +196,20 @@ export async function assemblePublication(input: string, output: string, version
     const packages = path.join(input, linuxPackagesDirectory)
     await verifyLinuxPackages(packages, version)
     for (const name of linuxPackageNames(version)) await copyFile(path.join(packages, name), path.join(output, name))
+  }
+  const signed = path.join(input, "update-verified")
+  assert.ok((await readdir(signed)).includes("SHA256SUMS.txt"), "Missing signed transport checksums")
+  const signedFiles = await verifySignedUpdateFeed(signed, version)
+  for (const file of signedFiles) {
+    if (file.endsWith("-update-v2.json")) {
+      const original = JSON.parse(await readFile(path.join(output, file), "utf8"))
+      const current = JSON.parse(await readFile(path.join(signed, file), "utf8"))
+      const { downloadSize, downloadSha256, ...artifact } = current.artifact
+      assert.deepEqual({ ...current, artifact }, original, "Signing changed native manifest fields")
+    } else if (!file.endsWith(".sig")) {
+      assert.equal(await checksumText(output, [file]), await checksumText(signed, [file]), "Signing changed publication bytes")
+    }
+    await copyFile(path.join(signed, file), path.join(output, file))
   }
   const files = await readdir(output)
   await writeFile(path.join(output, "SHA256SUMS.txt"), await checksumText(output, files), { flag: "wx" })

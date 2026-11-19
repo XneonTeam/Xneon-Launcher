@@ -389,6 +389,15 @@ export interface IpcInvokeMap {
   "quickplay:clear": { args: [buildName?: string, gameDir?: string]; return: void }
   "quickplay:remove": { args: [buildName: string | undefined, gameDir: string | undefined, entry: QuickPlayEntry]; return: void }
 
+  // ── Updater ──
+  "update:check": { args: []; return: { available: boolean; version?: string; error?: string } }
+  "update:download": { args: []; return: { success: boolean; error?: string } }
+  "update:install": { args: []; return: void }
+  "update:defer": { args: []; return: { success: boolean; error?: string } }
+  "update:get-state": { args: []; return: { status: "idle" | "downloaded" | "downloading" | "preparing"; version?: string; deferred: boolean } }
+  "update:cancel-install": { args: []; return: boolean }
+  "update:get-channel": { args: []; return: "stable" | "beta" }
+  "update:set-channel": { args: [channel: "stable" | "beta"]; return: { state: "current" | "selected" | "error"; version?: string; error?: string } }
 
   // ── Misc (без доменного префикса — историческое имя канала) ──
   "read-local-file": { args: [filePath: string]; return: string | null }
@@ -547,6 +556,8 @@ export interface IpcEventMap {
   "agent:delta": { requestId: string; text: string }
   "ai:stream-done": { requestId: string; fullText: string }
   "ai:stream-error": { requestId: string; error: string }
+  "update:status": { status: string; version?: string; releaseDate?: string; releaseNotes?: string; error?: string }
+  "update:progress": { percent: number; transferred: number; total: number }
   "stats:updated": {}
   // Только сигнал обновления: переменные и заголовки MCP не рассылаются событием.
   "ai:mcp-updated": {}
@@ -848,6 +859,16 @@ export interface ElectrobunAPIExtra {
   listTrashBuilds: () => Promise<Array<{ trashName: string; originalName: string; trashedAt: number; icon?: string; modLoader?: string }>>
   deleteTrashItem: (trashName: string) => Promise<{ success: boolean; error?: string }>
   setContentEnabled: (buildName: string, contentType: "mod" | "resourcepack" | "shader", fileName: string, enabled: boolean) => Promise<{ success: boolean; fileName?: string; error?: string }>
+  updateCheck: () => Promise<{ available: boolean; version?: string; error?: string }>
+  updateDownload: () => Promise<{ success: boolean; error?: string }>
+  updateInstall: () => Promise<void>
+  updateDefer: () => Promise<{ success: boolean; error?: string }>
+  updateGetState: () => Promise<{ status: "idle" | "downloaded" | "downloading" | "preparing"; version?: string; deferred: boolean }>
+  updateCancelInstall: () => Promise<boolean>
+  updateGetChannel: () => Promise<"stable" | "beta">
+  updateSetChannel: (channel: "stable" | "beta") => Promise<{ state: "current" | "selected" | "error"; version?: string; error?: string }>
+  onUpdateStatus: (callback: (status: { status: string; version?: string; releaseDate?: string; releaseNotes?: string; error?: string }) => void) => () => void
+  onUpdateProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void
   skinsGetProfile: (accountId?: string) => Promise<McProfile | null>
   skinsDeleteSkin: (accountId?: string) => Promise<boolean>
   skinsSetCape: (capeId: string | null, accountId?: string) => Promise<boolean>

@@ -30,6 +30,7 @@ export {}
 // Облачные архивы тем: cloudUploadTheme/cloudImportTheme — из @xnlc/types.
 // Локальная папка тем, импорт/экспорт и наблюдение: LocalTheme* — из @xnlc/types.
 // Отдельного шима больше нет: pruneLoaderProfiles объявлен в самом пакете.
+// updateGetState/updateDefer наследуются из общего контракта: выбранная ветка и отложенный перезапуск.
 
 export type LauncherCloudFile = {
   id: string

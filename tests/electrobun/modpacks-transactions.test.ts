@@ -274,6 +274,7 @@ import * as sharedUrls from "../../packages/xnlc-urls/src/index.ts"
     } }))
     mock.module("./electrobun/main/builds/modpack-persistence.ts", () => ({ recoverManagedModpackInstalls: async () => { calls.push("recovery"); if (failure) throw new Error("metadata unavailable") } }))
     mock.module("./electrobun/main/builds/dir-migration.ts", () => ({ migrateIntentDirNames: async () => { calls.push("rename"); return 0 } }))
+    mock.module("./electrobun/main/updater.ts", () => ({ registerUpdater: () => calls.push("updater") }))
     mock.module("./electrobun/main/authlib/index.ts", () => ({ refreshAuthServersInBackground: async () => {} }))
     mock.module("./electrobun/main/stats.ts", () => ({ cleanupOrphanGameSessions: async () => 0 }))
     mock.module("./electrobun/main/cli.ts", () => ({ cli: { attach() {}, close() {} } }))
@@ -287,6 +288,7 @@ import * as sharedUrls from "../../packages/xnlc-urls/src/index.ts"
       assert.match(outcome, /metadata unavailable/)
       assert.equal(calls.includes("move"), false)
       assert.equal(calls.includes("rename"), false)
+      assert.equal(calls.includes("updater"), false)
     } else {
       assert.equal(outcome, null)
       assert.ok(calls.indexOf("recovery") < calls.indexOf("move"))
