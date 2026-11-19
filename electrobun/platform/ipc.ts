@@ -24,6 +24,19 @@ export class ViewSession extends EventEmitter {
 export interface RpcContext { sender: ViewSession }
 type Handler = (context: RpcContext, args: unknown[]) => unknown
 
+/**
+ * Каналы, которые сами управляют завершением и вызывают `launcherOperations.drain`.
+ * Их нельзя оборачивать в `launcherOperations.run`: тогда операция ждала бы в
+ * `drain` саму себя и всегда падала по таймауту (смена канала, установка обновления).
+ */
+const selfManagedChannels: ReadonlySet<string> = new Set([
+  "update:install",
+  "update:cancel-install",
+  "update:set-channel",
+  "content:cancel-download",
+  "share:cancel-install",
+])
+
 const handlers = new Map<string, Handler>()
 export const rpcRegistry = {
   handle<C extends keyof IpcInvokeMap>(
@@ -45,7 +58,6 @@ export function invokeHandler(sender: ViewSession, request: unknown) {
   const { channel, args } = request as { channel?: unknown; args?: unknown }
   const handler = typeof channel === "string" ? handlers.get(channel) : undefined
   if (!handler || !Array.isArray(args)) throw new Error("Invalid RPC request")
-  if (channel === "content:cancel-download"
-    || channel === "share:cancel-install") return handler({ sender }, args)
+  if (typeof channel === "string" && selfManagedChannels.has(channel)) return handler({ sender }, args)
   return launcherOperations.run(() => handler({ sender }, args))
 }

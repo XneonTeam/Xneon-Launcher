@@ -366,6 +366,7 @@ import { createHash } from "node:crypto"
     vm.runInNewContext(code, { module, process: { platform: "linux", arch: "x64", env: {} }, require: name => {
       if (name === "./package.json") return { version: "1.0.8", description: "test" }
       if (name.endsWith("app-identity")) return { appIdentifier: "test", portableAppIdentifier: "test.portable" }
+      if (name.endsWith("update-public-keys")) return { updateBaseUrls: { stable: "test", canary: "test-canary" } }
       throw new Error("Unexpected dependency: " + name)
     } })
     return module.exports.default

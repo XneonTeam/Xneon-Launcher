@@ -18,7 +18,7 @@
 - `test:live`, `share:test:live`, Worker smoke и GUI smoke запускаются отдельно,
   только с выделенными fixtures/профилем. Они не являются обычным CI gate.
 - `bun run build`: prepare → types → renderer → workers → Electrobun; Windows
-  stable сохраняет штатные артефакты Electrobun и добавляет Windows NSIS.
+  stable и canary сохраняют штатные артефакты Electrobun и добавляют Windows NSIS.
   `bun run dev` (также `dev:hmr`) один раз собирает main/workspaces/workers,
   запускает Vite на `http://127.0.0.1:5173/` и загружает его в native-окне.
   Изменения React/CSS применяются через HMR без перезапуска приложения;
@@ -34,14 +34,43 @@
 Три workflow: `.github/workflows/ci.yml` (только проверки на PR/main/dispatch),
 `release.yml` (stable, тег `v1.2.3`) и `pre-release.yml` (canary, тег `v1.2.3-pre1`).
 Каждый релизный пайплайн — `tests → build (matrix) → release` и собирает только свой канал.
-Временно обе релизные матрицы и публикация ограничены Windows x64 (stable: NSIS + SDK + portable;
-canary: SDK + portable). Linux/macOS не блокируют публикацию и не включаются в описание загрузок.
+Временно обе релизные матрицы и публикация ограничены Windows x64 (стабильный и
+canary: NSIS + SDK + portable). Linux/macOS не блокируют публикацию и не включаются в описание загрузок.
 Их упаковка и проверки сохранены; для возврата нужно согласованно расширить обе матрицы
-и список `targets` в `scripts/ci-pipeline.ts`. Проверки `tests` по-прежнему выполняются на Ubuntu.
+и список `targets` в `scripts/ci-pipeline.ts`. Проверки `tests` и signing по-прежнему выполняются на Ubuntu.
 На PR и push main запускается один Linux job с quality/offline gates, бюджет — 15 минут.
-Формат `-preN` задаёт canary-канал; stable-релиз не содержит canary-файлов и наоборот.
+Формат `-preN` согласован с updater; stable-релиз не содержит canary-файлов и наоборот.
+
+## Обновления без локального bridge
+
+Раньше рабочий апдейтер ходил в локальный HTTP-bridge на фиксированном порту. Сейчас
+обновления читаются напрямую из плоских URL GitHub Releases — никакого API,
+фиксированного порта или внешнего сервера:
+
+- **stable**: `https://github.com/MAINER4IK/Xneon-Launcher-bun/releases/latest/download`
+  (latest-релиз, prereleases исключаются GitHub).
+- **beta/canary**: `https://github.com/MAINER4IK/Xneon-Launcher-bun/releases/download/canary`
+  (rolling-релиз с фиксированным тегом `canary`, помеченный prerelease, чтобы не
+  перехватывать «Latest»; пересоздаётся `pre-release.yml` на каждом канареечном релизе).
+
+**Канал задаёт сама сборка** (`Resources/version.json.channel`): stable-пакет читает
+`latest/download`, canary — `download/canary`. «Ветка обновлений» в настройках — это канал
+установленной сборки, а не предпочтение. Выбор другой ветки открывает страницу релизов
+нужного канала (`shell.openExternal`) и требует установки другой сборки; установка in-app
+через подписанный installer-каталог — отдельная задача.
+
+Поток обновления внутри канала: наш Ed25519-ключ проверяет манифест
+`<base>/<channel>-win-x64-update-v2.json` и подпись `.sig` (`resolveVerifiedUpdate`),
+затем SDK выполняет `checkForUpdate → downloadUpdate → applyUpdate`. Никакого
+temp-staging и перепроекции канала архива (`projectVerifiedArchive`) больше нет.
+Отсутствующий манифест (404) трактуется как «обновлений нет», поэтому каналу не нужен
+публичный релиз для работы. Переход возможен только на более новую версию, поэтому после
+stable `1.0.9` следующая канареечная сборка — `1.0.10-pre1`, а не `1.0.9-pre2`.
 Ручной запуск (`workflow_dispatch`) собирает artifacts без публикации; на tag — публикует.
+Signing и публикация используют environment `pre2-signing`, PR не получает release secrets.
 Локальный Windows-прогон не доказывает запуск native Linux/macOS или удалённого Worker.
+**Бутстрап**: старые сборки с baseUrl локального bridge сами обновиться не могут — первая
+GitHub-only версия устанавливается вручную.
 
 ## IPC и владение данными
 

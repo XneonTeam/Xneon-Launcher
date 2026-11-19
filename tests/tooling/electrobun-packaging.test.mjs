@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process"
 import { zipSync } from "fflate"
 import { loadReactModule } from "../helpers/react-module.mjs"
 import { appIdentifier } from "../../electrobun/main/app-identity.ts"
+import { updatePublicKeys, updateBaseUrls } from "../../electrobun/main/update-public-keys.ts"
 
 const root=path.resolve(import.meta.dir,"../..")
 const read=file=>fs.readFile(path.join(root,file),"utf8")
@@ -44,10 +45,10 @@ test("NSIS сохранён отдельно от Electron metadata и unpacked 
 
 test("удалены только генераторы Electron-совместимой выдачи",async()=>{
   for(const file of ["scripts/release-metadata.ts","scripts/package-unix-candidate.sh","scripts/package-linux-targets.sh"])await assert.rejects(fs.access(path.join(root,file)),{code:"ENOENT"})
-  for(const file of ["build/installer.nsi","scripts/build-windows-distribution.ts","scripts/package-windows-portable.ts"])await fs.access(path.join(root,file))
+  for(const file of ["build/installer.nsi","scripts/build-windows-distribution.ts","scripts/package-windows-portable.ts","scripts/sign-update-feed.ts","scripts/verify-signed-update-feed.ts"])await fs.access(path.join(root,file))
 })
 
-test("workflows больше не требуют Electron-артефактов, а quality gates сохранены",async()=>{
+test("workflows больше не требуют Electron-артефактов, signing и quality gates сохранены",async()=>{
   for(const file of await fs.readdir(path.join(root,".github/workflows"))) {
     const source=await read(".github/workflows/"+file)
     assert.doesNotMatch(source,/release-metadata|package-unix-candidate|package-linux-targets|\.blockmap|latest(?:-mac|-linux)?\.yml/,file)
@@ -58,10 +59,9 @@ test("workflows больше не требуют Electron-артефактов, 
   const ci=await read(".github/workflows/ci.yml")
   for(const command of ["bun run prepare:desktop","bun run typecheck","bun run test:offline:prepared","bun scripts/check-config.mjs"])assert.ok(ci.includes(command),command)
   const release=await read(".github/workflows/release.yml")
-  for(const text of ["Ensure NSIS"])assert.ok(release.includes(text),text)
+  for(const text of ["Ensure NSIS","sign-update-feed.ts","verify-signed-update-feed.ts","environment: pre2-signing","XNLC_UPDATE_PRIVATE_KEY"])assert.ok(release.includes(text),text)
   const prerelease=await read(".github/workflows/pre-release.yml")
-  for(const text of ["build:canary"])assert.ok(prerelease.includes(text),text)
-  assert.doesNotMatch(prerelease,/Ensure NSIS/,'Пререлиз не ставит NSIS')
+  for(const text of ["Ensure NSIS","build:canary","sign-update-feed.ts","verify-signed-update-feed.ts","environment: pre2-signing","XNLC_UPDATE_PRIVATE_KEY"])assert.ok(prerelease.includes(text),text)
 })
 
 test("portable сохраняет отдельный профиль, но не копирует обычный unpacked/NSIS набор",async()=>{
@@ -109,10 +109,10 @@ async function fixture(t,platform="win",arch=platform==="macos"?"arm64":"x64") {
   const input=path.join(directory,"input"),tree=path.join(directory,"tree"),resources=path.join(tree,bundle,platform==="macos"?"Contents/Resources":"Resources")
   const bin=path.join(tree,bundle,platform==="macos"?"Contents/MacOS":"bin")
   await fs.mkdir(path.join(resources,"app/bun"),{recursive:true});await fs.mkdir(bin,{recursive:true});await fs.mkdir(input)
-  const local={displayName:"Xneon Launcher",identifier:appIdentifier,channel:"stable",version:"1.2.3",hash:"fixture123",baseUrl:""}
+  const local={displayName:"Xneon Launcher",identifier:appIdentifier,channel:"stable",version:"1.2.3",hash:"fixture123",baseUrl:platform==="win"?updateBaseUrls.stable:""}
   await fs.writeFile(path.join(resources,"version.json"),JSON.stringify(local))
   const creds=Array.from({length:12},(_,index)=>`p${index}: { clientId: "" }`).join(",\n")
-  const mainSource=`var cloudCredentials = {\n${creds}\n};\n`
+  const mainSource=`var cloudCredentials = {\n${creds}\n};\n`+Object.entries(updatePublicKeys).map(([key,pem])=>key+"\n"+pem.split("\n")[1]).join("\n")+"\nMAINER4IK/Xneon-Launcher-bun"
   await fs.writeFile(path.join(resources,"app/bun/index.js"),mainSource)
   for(const file of ["launcher","bun"])await fs.writeFile(path.join(bin,file+(platform==="win"?".exe":"")),executable(platform,arch))
   // Размеры fixture соблюдают прежние Windows sanity limits, без test-only bypass.
@@ -210,8 +210,8 @@ test("artifact checks сохраняют native delta patches и требуют 
   await assert.rejects(inspectElectrobunRelease(f.input,f.options),/NSIS/)
 })
 
-test("wrapper не теряет exit status и запускает NSIS тем же Bun только после stable SDK build",()=>{
-  for(const [channel,sdkStatus,nsisStatus,count,code]of [["stable",0,0,2,0],["stable",7,0,1,7],["stable",0,9,2,9],["canary",0,0,1,0],["dev",0,0,1,0]]) {
+test("wrapper не теряет exit status и запускает NSIS тем же Bun после SDK build обоих каналов",()=>{
+  for(const [channel,sdkStatus,nsisStatus,count,code]of [["stable",0,0,2,0],["stable",7,0,1,7],["stable",0,9,2,9],["canary",0,0,2,0],["canary",0,9,2,9],["dev",0,0,1,0]]) {
     const calls=[],process={argv:["pinned-bun.exe","electrobun.mjs","build","--env="+channel],execPath:"pinned-bun.exe",platform:"win32",env:{}}
     loadReactModule(new URL("../../scripts/electrobun.mjs",import.meta.url),{"node:child_process":{spawnSync:(...args)=>{calls.push(args);return{status:calls.length===1?sdkStatus:nsisStatus}}}},{process})
     assert.equal(calls.length,count)

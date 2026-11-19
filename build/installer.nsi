@@ -271,6 +271,17 @@ Function CreateManagedChannelJunction
     MessageBox MB_OK|MB_ICONEXCLAMATION "${PRODUCT_NAME} установлен, но каталог обновлений подготовить не удалось:$\r$\n${MANAGED_CHANNEL_ROOT}$\r$\n$\r$\nВстроенные обновления будут недоступны."
     junction_done:
   ${EndIf}
+  ; Смена канала оставляет junction прежнего канала указывающим на этот же $INSTDIR.
+  ; Снимаем только ссылку/пустой каталог: rmdir без /s не заходит внутрь реальной
+  ; установки другого канала.
+  !if "${CHANNEL}" == "stable"
+    StrCpy $0 "$LOCALAPPDATA\${APP_ID}\canary"
+  !else
+    StrCpy $0 "$LOCALAPPDATA\${APP_ID}\stable"
+  !endif
+  nsExec::ExecToStack 'cmd /c rmdir "$0"'
+  Pop $2
+  Pop $3
 FunctionEnd
 
 Function CreateShortcuts
@@ -361,6 +372,12 @@ FunctionEnd
 
 Section "Install"
   Call CloseRunningLauncher
+  ; Смену канала приложение запускает само и завершается параллельно с нами.
+  ; Ждём его выхода, иначе RMDir /r не удалит занятый бандл и останется смесь
+  ; файлов двух каналов.
+  ${If} ${Silent}
+    Sleep 2500
+  ${EndIf}
   Call ClearManagedChannelRoot
   Call ClearLegacyAppId
   ; Профиль WebView2 (куки встроенного браузера) лежит в $INSTDIR\WebView2:

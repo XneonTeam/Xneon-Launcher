@@ -4,11 +4,13 @@ import fs from 'node:fs/promises'
 import { publicationNames } from '../../scripts/ci-pipeline.ts'
 import { releaseNotes } from '../../scripts/release-notes.ts'
 
-test('оба канала временно собирают только Windows без signing gate', async () => {
+test('оба канала временно собирают только Windows без ослабления signing gate', async () => {
   for (const filename of ['release.yml', 'pre-release.yml']) {
     const workflow = Bun.YAML.parse(await fs.readFile(`.github/workflows/${filename}`, 'utf8'))
     assert.deepEqual(workflow.jobs.build.strategy.matrix.include.map(row => row.target), ['win-x64'])
     assert.deepEqual(workflow.jobs.release.needs, ['tests', 'build'])
+    assert.equal(workflow.jobs.release.environment, 'pre2-signing')
+    assert.ok(workflow.jobs.release.steps.some(step => step.run?.includes('verify-signed-update-feed.ts')))
   }
 })
 

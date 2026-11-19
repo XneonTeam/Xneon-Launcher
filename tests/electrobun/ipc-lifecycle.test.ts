@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { rpcRegistry, invokeHandler, ViewSession } from "../../electrobun/platform/ipc.ts"
+import { launcherOperations } from "../../electrobun/platform/operation-gate.ts"
 import { validateInvokeResult, validateRpcValue } from "../../electrobun/platform/ipc-validation.ts"
 import assert from "node:assert/strict"
 import nodeTest from "node:test"
@@ -27,6 +28,22 @@ import { ShutdownCoordinator } from "../../electrobun/platform/shutdown.ts"
       expect(() => validateInvokeResult("db:load-accounts", [{ id: "a", username: "A", isActive: true, type: "microsoft", accessToken: "secret" }])).toThrow("public account DTO")
       sender.destroy()
       expect(() => invokeHandler(sender, { channel: "system:get-total-memory", args: [] })).toThrow("Invalid RPC")
+    })
+
+    test("каналы с собственным shutdown не трекаются в launcherOperations", async () => {
+      // Смена канала и установка обновления вызывают launcherOperations.drain из
+      // самого обработчика. Если обернуть их в run(), drain ждёт собственную
+      // операцию и падает по таймауту — канал не переключался никогда.
+      rpcRegistry.handle("update:set-channel", async () => ({ state: "current" }))
+      const sender = new ViewSession(4321, () => {})
+      launcherOperations.blocked = true
+      try {
+        expect(() => invokeHandler(sender, { channel: "settings:get", args: ["language"] })).toThrow(/preparing to restart/)
+        expect(await invokeHandler(sender, { channel: "update:set-channel", args: ["beta"] })).toEqual({ state: "current" })
+      } finally {
+        launcherOperations.blocked = false
+        sender.destroy()
+      }
     })
 
     test("RPC блокирует циклы и нечисловые значения, но допускает общие ссылки и undefined", () => {

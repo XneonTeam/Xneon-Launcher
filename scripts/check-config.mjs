@@ -43,6 +43,7 @@ const pipeline = async (file, channel, tagPattern, label) => {
   assert.ok(Object.hasOwn(workflow.on, 'workflow_dispatch'), `${label} supports a manual preflight build`)
   assert.equal(workflow.jobs.build.needs, 'tests')
   assert.deepEqual(workflow.jobs.release.needs, ['tests', 'build'])
+  assert.equal(workflow.jobs.release.environment, 'pre2-signing')
   assert.equal(workflow.jobs.release.permissions.contents, 'write')
   assert.deepEqual(workflow.jobs.build.strategy.matrix.include.map(target => target.target), ['win-x64'])
   assert.ok(workflow.jobs.build.strategy.matrix.include.every(item => item.runner === 'windows-2022' && item.arch === 'x64' && item.machine === 'X64'), `${label} temporarily builds Windows x64 only`)
@@ -56,7 +57,7 @@ const prerelease = await pipeline('pre-release.yml', 'canary', 'v*-pre*', 'Prere
 const named = (job, name) => job.steps.find(step => step.name === name)
 assert.ok(named(release.jobs.build, 'Ensure NSIS'), 'Stable Windows build installs NSIS')
 assert.ok(named(release.jobs.build, 'Build and validate independent Portable profile'), 'Stable builds independent portable')
-assert.ok(!named(prerelease.jobs.build, 'Ensure NSIS'), 'Prerelease never builds the NSIS installer')
+assert.ok(named(prerelease.jobs.build, 'Ensure NSIS'), 'Canary also ships the NSIS installer used for channel switching')
 assert.ok(named(prerelease.jobs.build, 'Build and validate independent Portable profile'), 'Prerelease builds independent portable')
 assert.equal(named(release.jobs.build, 'Build stable native artifacts (NSIS on Windows only)').run, 'bun run build')
 assert.equal(named(prerelease.jobs.build, 'Build canary native artifacts').run, 'bun run build:canary')
@@ -73,6 +74,9 @@ assert.equal(JSON.stringify(ci.jobs.tests.steps), JSON.stringify(filtered), 'CI 
 
 for (const workflow of [release, prerelease]) {
   const releaseSteps = workflow.jobs.release.steps
+  const secretSteps = releaseSteps.filter(step => JSON.stringify(step).includes('secrets.'))
+  assert.equal(secretSteps.length, 1)
+  assert.ok(!secretSteps[0].uses, 'Private key is scoped to the signing command only')
   const commands = releaseSteps.map(step => step.run ?? '')
   const candidates = releaseSteps.find(step => step.uses === 'actions/download-artifact@v8')?.with?.path
   assert.ok(candidates)
@@ -80,9 +84,11 @@ for (const workflow of [release, prerelease]) {
   assert.ok(commands.includes(`bun scripts/${script} check ` + candidates))
   assert.ok(commands.includes(`bun scripts/${script} assemble ` + candidates + ' verified'))
   const check = commands.findIndex(command => command.includes(script + ' check'))
+  const sign = commands.findIndex(command => command.includes('sign-update-feed.ts'))
+  const verify = commands.findIndex(command => command.includes('verify-signed-update-feed.ts'))
   const assemble = commands.findIndex(command => command.includes(script + ' assemble'))
   const publish = releaseSteps.findIndex(step => step.uses === 'softprops/action-gh-release@v2')
-  assert.ok(check >= 0 && check < assemble && assemble < publish)
+  assert.ok(check >= 0 && check < sign && sign < verify && verify < assemble && assemble < publish)
 }
 assert.equal(named(release.jobs.release, 'Publish only verified native artifacts').with.prerelease, false)
 assert.equal(named(release.jobs.release, 'Publish only verified native artifacts').with.make_latest, true)

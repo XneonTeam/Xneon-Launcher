@@ -14,8 +14,9 @@ const result = spawnSync(hutch, ["electrobun", ...args], {
 if (result.error) throw result.error
 process.exitCode = result.status ?? 1
 
-if (process.exitCode === 0 && process.platform === "win32" && args[0] === "build" && channel === "stable") {
-  // Только необходимый NSIS; штатные артефакты SDK остаются без преобразований.
+if (process.exitCode === 0 && process.platform === "win32" && args[0] === "build" && channel !== "dev") {
+  // NSIS нужен обоим каналам: это единственный способ сменить канал из приложения,
+  // потому что SDK не принимает манифест другого канала.
   const installer = spawnSync(process.execPath, ["scripts/build-windows-distribution.ts", channel], { stdio: "inherit" })
   if (installer.error) throw installer.error
   process.exitCode = installer.status ?? 1

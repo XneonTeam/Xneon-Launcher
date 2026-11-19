@@ -197,7 +197,8 @@ bun run liveops:test  # go test ивентовых тем (нужен Go)
 ```
 
 После сборки Windows x64 можно проверить изоляцию каналов через
-`bun scripts/test-channel-artifacts.mjs`.
+`bun scripts/test-channel-artifacts.mjs` и нативную подготовку обновления
+через `bun scripts/test-native-update.ts stable` и `bun scripts/test-native-update.ts canary`.
 
 Переменные окружения: `XNLC_NEWS_URL` — адрес ленты новостей лаунчера (по умолчанию
 `https://launcher.xneon.org/news.json`).

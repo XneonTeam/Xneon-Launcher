@@ -46,10 +46,12 @@ bun scripts/electrobun-artifacts.ts check release-electrobun/stable linux x64 st
 ```
 
 `build-electrobun/` и `release-electrobun/` игнорируются Git. В релизе сохраняются
-исходные SDK manifests/tar.zst/installer; Windows NSIS добавляется отдельно.
+исходные SDK manifests/tar.zst/installer; Windows NSIS добавляется отдельно в
+обоих каналах и входит в подписанный манифест (`installer`), поэтому смена канала
+в приложении проверяема.
 Portable — отдельный dev build с `XNEON_BUILD_PORTABLE=1` и `PortableProfile`.
 Native binary headers/version/resources/integrity проверяет artifact validator;
-реальная установка, GUI, keyring/WebView/CEF требуют OS/VM smoke.
+реальная установка, GUI, keyring/WebView/CEF и update lifecycle требуют OS/VM smoke.
 
 `.github/workflows/ci.yml` выполняет только проверки; релизные пайплайны
 `release.yml` (stable) и `pre-release.yml` (canary) содержат jobs `tests → build → release`.
@@ -66,10 +68,13 @@ Setup/install переиспользуется через composite action; ке
 ARM64 собирается на `macos-26`, x64 — на `macos-15-intel`; нативные сборки идут только
 на теге и ручном запуске, поэтому PR остаётся дешёвым.
 `release` запускается только на version tag после tests и всей matrix: проверяет скачанные
-artifacts, сверяет allowlist/SHA256,
+artifacts, подписывает Windows feeds, сверяет trusted signatures/allowlist/SHA256,
 генерирует описание через `scripts/release-notes.ts` (Features, Bug Fixes и значки загрузок
 из allowlist текущего канала) и публикует. `-preN` — prerelease без latest, иначе stable.
 Ручной запуск на ветке выдаёт unsigned artifacts, без release; на tag повторяет release.
+Signing/publish не запускается при PR, обычном push или локальной сборке.
+Environment `pre2-signing` должен разрешать защищённые version tags с approval;
+сохраните в нём secret `XNLC_UPDATE_PRIVATE_KEY` и variable `XNLC_UPDATE_KEY_ID`.
 В branch protection достаточно обязательного check `tests`.
 Promotion старых runs и сценарные inputs удалены; используются только artifacts текущего run.
 Build artifacts хранятся 7 дней. Timeout 15 минут относится к тестам, не ко всей native сборке.

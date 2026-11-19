@@ -66,7 +66,8 @@ jobs:
           bun run build:renderer
           bun run build:workers
 
-  # NSIS остаётся в stable; portable собирается независимо и для canary.
+  # NSIS собирается в обоих каналах: он же переключает канал из приложения.
+  # Portable собирается независимо и тоже для canary.
   build:
     needs: tests
     if: >-
@@ -103,6 +104,22 @@ jobs:
           else
             test "$(uname -m)" = "$EXPECTED_MACHINE"
           fi
+      - name: Ensure NSIS
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $candidates = @(@(
+            (Join-Path $env:ProgramFiles 'NSIS\makensis.exe'),
+            (Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe')
+          ) | Where-Object { Test-Path -LiteralPath $_ })
+          if (-not $candidates) {
+            choco install nsis --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $candidates = @(@((Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe')) | Where-Object { Test-Path -LiteralPath $_ })
+          }
+          if (-not $candidates) { throw 'makensis (NSIS 3) is required to build the Windows installer' }
+          Add-Content -LiteralPath $env:GITHUB_ENV -Value ('XNEON_MAKENSIS=' + $candidates[0])
+          & $candidates[0] /VERSION
       - name: Build canary native artifacts
         run: bun run build:canary
       - name: Verify native platform adapters skipped on Ubuntu
@@ -201,6 +218,7 @@ jobs:
     if: github.repository == 'MAINER4IK/Xneon-Launcher-bun' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    environment: pre2-signing
     permissions:
       contents: write
     concurrency:
@@ -219,9 +237,23 @@ jobs:
         with:
           pattern: native-*
           path: release-candidates
-      - name: Validate downloaded native artifacts and SHA256
+      - name: Validate downloaded native artifacts and SHA256 before signing
         run: bun scripts/ci-pre-release.ts check release-candidates
-      - name: Prepare exact prerelease allowlist, without rebuilding
+      - name: Sign the exact canary manifest
+        env:
+          XNLC_UPDATE_PRIVATE_KEY: ${{ secrets.XNLC_UPDATE_PRIVATE_KEY }}
+          XNLC_UPDATE_KEY_ID: ${{ vars.XNLC_UPDATE_KEY_ID }}
+        run: |
+          set -euo pipefail
+          bun scripts/sign-update-feed.ts canary release-candidates/native-win-x64-canary signed-update
+          mkdir release-candidates/update-verified
+          cp signed-update/* release-candidates/update-verified/
+      - name: Verify trusted Ed25519 signatures and exact publication bytes
+        run: |
+          set -euo pipefail
+          bun scripts/verify-signed-update-feed.ts release-candidates/update-verified
+          (cd release-candidates/update-verified && sha256sum --check SHA256SUMS.txt)
+      - name: Prepare exact signed prerelease allowlist, without rebuilding
         run: bun scripts/ci-pre-release.ts assemble release-candidates verified
       - name: Generate changelog
         run: bun scripts/release-notes.ts "$RUNNER_TEMP/release-notes.md"
@@ -240,3 +272,17 @@ jobs:
           fail_on_unmatched_files: true
           body_path: ${{ runner.temp }}/release-notes.md
           files: verified/*
+      - name: Publish the rolling canary release (flat channel assets)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Canary-канал читает плоские URL releases/download/canary/<file> (без API и
+          # фиксированного порта). Rolling-релиз с фиксированным тегом canary пересоздаётся
+          # на каждом канареечном релизе; prerelease и --latest=false убирают его из «Latest».
+          gh release delete canary --yes --cleanup-tag 2>/dev/null || true
+          gh release create canary \
+            --title "Canary (Xneon Launcher)" \
+            --prerelease \
+            --latest=false \
+            verified/*

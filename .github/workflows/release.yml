@@ -218,6 +218,7 @@ jobs:
     if: github.repository == 'MAINER4IK/Xneon-Launcher-bun' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    environment: pre2-signing
     permissions:
       contents: write
     concurrency:
@@ -236,9 +237,25 @@ jobs:
         with:
           pattern: native-*
           path: release-candidates
-      - name: Validate downloaded native artifacts and SHA256
+      - name: Validate downloaded native artifacts and SHA256 before signing
         run: bun scripts/ci-release.ts check release-candidates
-      - name: Prepare exact release allowlist, without rebuilding
+      - name: Sign the exact stable manifest
+        env:
+          XNLC_UPDATE_PRIVATE_KEY: ${{ secrets.XNLC_UPDATE_PRIVATE_KEY }}
+          XNLC_UPDATE_KEY_ID: ${{ vars.XNLC_UPDATE_KEY_ID }}
+        run: |
+          set -euo pipefail
+          bun scripts/sign-update-feed.ts stable release-candidates/native-win-x64-stable signed-update
+          mkdir release-candidates/update-verified
+          cp signed-update/* release-candidates/update-verified/
+          version="$(bun -p 'require("./package.json").version')"
+          cp "release-candidates/native-win-x64-stable/xneon-launcher-$version-win-x64.exe" release-candidates/update-verified/
+      - name: Verify trusted Ed25519 signatures and exact publication bytes
+        run: |
+          set -euo pipefail
+          bun scripts/verify-signed-update-feed.ts release-candidates/update-verified
+          (cd release-candidates/update-verified && sha256sum --check SHA256SUMS.txt)
+      - name: Prepare exact signed release allowlist, without rebuilding
         run: bun scripts/ci-release.ts assemble release-candidates verified
       - name: Generate changelog
         run: bun scripts/release-notes.ts "$RUNNER_TEMP/release-notes.md"
