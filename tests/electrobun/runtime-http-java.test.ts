@@ -190,7 +190,7 @@ import { runTunnel } from "../../electrobun/main/xn-connect/relay.ts"
       assert.equal(PNG.sync.read(await failing.getHeadBuffer("Unavailable", 32, { type: "elyby" })).width, 32)
     })
 
-    test("Java: настоящий @argfile сохраняет кириллические аргументы в native.encoding JVM", async t => {
+    test("Java: настоящий @argfile сохраняет кириллические аргументы в native.encoding JVM", { timeout: 120_000 }, async t => {
       const java = process.env.XNLC_TEST_JAVA ?? (process.platform === "win32" ? "C:/Program Files/Microsoft/jdk-17.0.20.8-hotspot/bin/java.exe" : "java")
       const probe = spawnSync(java, ["-version"], { encoding: "utf8", windowsHide: true })
       if (probe.error || probe.status !== 0) { t.skip("Нужна установленная Java 11+ для source-mode smoke"); return }
