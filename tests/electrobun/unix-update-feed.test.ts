@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { generateKeyPairSync, sign } from "node:crypto"
-import { unixManifestUrls, resolveVerifiedUnixUpdate } from "../../electrobun/main/unix-update-feed"
+import { unixManifestUrls, resolveVerifiedUnixUpdate, resolvePreviousUnixUpdate, unixHistoricalManifestUrls } from "../../electrobun/main/unix-update-feed"
 import { appIdentifier } from "../../electrobun/main/app-identity"
 
 const { publicKey, privateKey } = generateKeyPairSync("ed25519")
@@ -27,4 +27,12 @@ test("понижение допустимо только при явной см�
   const options = responses("1.0.7-pre1", "canary")
   await expect(resolveVerifiedUnixUpdate(local, canary, options)).rejects.toThrow(/channel/)
   expect((await resolveVerifiedUnixUpdate(local, canary, { ...options, allowChannelSwitch: true }))?.manifest.channel).toBe("canary")
+})
+
+test("rollback feed берётся из точного тега A, а не latest B", async () => {
+  const expected = { channel: "stable" as const, version: "1.0.8", hash: "new123" }
+  expect(unixHistoricalManifestUrls(expected, target).manifestUrl).toEndWith("/releases/download/v1.0.8/stable-linux-x64-update-v3.json")
+  expect((await resolvePreviousUnixUpdate(expected, target, responses("1.0.8"))).manifest.hash).toBe("new123")
+  await expect(resolvePreviousUnixUpdate({ ...expected, hash: "wrong" }, target, responses("1.0.8"))).rejects.toThrow()
+  await expect(resolvePreviousUnixUpdate(expected, target, responses("1.0.9"))).rejects.toThrow()
 })
