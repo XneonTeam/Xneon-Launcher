@@ -119,7 +119,7 @@ async function buildDeb(root: string, output: string, version: string): Promise<
     "Architecture: amd64",
     `Maintainer: ${maintainer}`,
     `Installed-Size: ${installedSize}`,
-    "Depends: libgtk-3-0, libwebkit2gtk-4.1-0, libayatana-appindicator3-1, libsecret-1-0, libnotify4, libxss1",
+    "Depends: libgtk-3-0t64 | libgtk-3-0, libwebkit2gtk-4.1-0, libayatana-appindicator3-1, libsecret-1-0, libnotify4, libxss1, libnss3, libasound2t64 | libasound2, libgbm1, libxcomposite1, libxdamage1, libxrandr2, libxfixes3, libdrm2, libcups2t64 | libcups2",
     "Description: XNeon Launcher",
     " Modern Minecraft launcher.",
     "",
@@ -152,6 +152,15 @@ Requires: libayatana-appindicator-gtk3
 Requires: libsecret
 Requires: libnotify
 Requires: libXScrnSaver
+Requires: nss
+Requires: alsa-lib
+Requires: mesa-libgbm
+Requires: libXcomposite
+Requires: libXdamage
+Requires: libXrandr
+Requires: libXfixes
+Requires: libdrm
+Requires: cups-libs
 
 %description
 XNeon Launcher is a modern Minecraft launcher.
@@ -203,6 +212,15 @@ depend = libayatana-appindicator
 depend = libsecret
 depend = libnotify
 depend = libxss
+depend = nss
+depend = alsa-lib
+depend = mesa
+depend = libxcomposite
+depend = libxdamage
+depend = libxrandr
+depend = libxfixes
+depend = libdrm
+depend = libcups
 `)
   run("bsdtar", ["-czf", ".MTREE", "--format=mtree", "--options=!all,use-set,type,uid,gid,mode,time,size,md5,sha256,link", ".PKGINFO", "opt", "usr"], { cwd: stage })
   const file = path.join(output, `xneon-launcher-${version}-x86_64.pacman`)

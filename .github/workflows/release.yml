@@ -213,6 +213,80 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  unix-preflight:
+    # До проверки установки/обновлений Unix не входит в release allowlist.
+    if: github.event_name == 'workflow_dispatch'
+    needs: tests
+    name: Unix preflight (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-24.04, target: linux-x64, platform: linux, arch: x64, machine: x86_64 }
+          - { runner: macos-26, target: macos-arm64, platform: macos, arch: arm64, machine: arm64 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      TARGET: ${{ matrix.target }}
+      TARGET_PLATFORM: ${{ matrix.platform }}
+      TARGET_ARCH: ${{ matrix.arch }}
+      EXPECTED_MACHINE: ${{ matrix.machine }}
+    steps:
+      - *checkout
+      - uses: ./.github/actions/setup
+        with:
+          desktop: 'true'
+          linux-native-build: ${{ runner.os == 'Linux' && 'true' || 'false' }}
+      - name: Assert native runner architecture
+        run: test "$(uname -m)" = "$EXPECTED_MACHINE"
+      - name: Build Unix candidate with the existing channel pipeline
+        run: |
+          set -euo pipefail
+          if [ "$CHANNEL" = stable ]; then bun run build; else bun run build:canary; fi
+      - name: Validate native artifacts and exact archive identity
+        run: bun scripts/electrobun-artifacts.ts stage "release-electrobun/$CHANNEL" checked-unix "$TARGET_PLATFORM" "$TARGET_ARCH" "$CHANNEL"
+      - name: Validate runtime libraries and prepare macOS ZIP
+        run: |
+          set -euo pipefail
+          bun scripts/extract-native-payload.ts checked-unix native-payload "$CHANNEL" "$TARGET_PLATFORM" "$TARGET_ARCH"
+          if [ "$RUNNER_OS" = Linux ]; then payload="native-payload/XneonLauncher"; else payload="native-payload/Xneon Launcher.app"; fi
+          if [ "$CHANNEL" = canary ]; then
+            if [ "$RUNNER_OS" = Linux ]; then payload="native-payload/XneonLauncher-canary"; else payload="native-payload/Xneon Launcher-canary.app"; fi
+          fi
+          bun scripts/unix-native-preflight.ts "$payload" checked-unix-extra "$CHANNEL"
+      - name: Build Linux packages and run real CEF renderer and IPC smoke
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends rpm libarchive-tools xz-utils squashfs-tools file xvfb xauth libnss3 libasound2t64 libgbm1
+          bun scripts/package-linux.ts checked-unix checked-unix-packages
+          shopt -s nullglob
+          launchers=(native-payload/*/bin/launcher)
+          test "${#launchers[@]}" -eq 1
+          dbus-run-session -- xvfb-run -a bun scripts/smoke-linux-cef.ts "${launchers[0]}" unix-smoke
+      - name: Verify macOS disk image
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          images=(release-electrobun/"$CHANNEL"/*.dmg)
+          test "${#images[@]}" -eq 1
+          hdiutil verify "${images[0]}"
+          bun scripts/smoke-macos.ts checked-unix-extra unix-smoke
+      - name: Preserve candidate files and explicit validation limits (not release assets)
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: preflight-${{ matrix.target }}-${{ env.CHANNEL }}
+          path: |
+            checked-unix/*
+            checked-unix-extra/*
+            checked-unix-packages/*
+            unix-smoke/*
+          if-no-files-found: warn
+          retention-days: 7
+
   release:
     needs: [tests, build]
     if: github.repository == 'MAINER4IK/Xneon-Launcher-bun' && startsWith(github.ref, 'refs/tags/v')

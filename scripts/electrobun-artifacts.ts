@@ -67,8 +67,10 @@ export async function inspectElectrobunRelease(directory: string, options: Optio
   const patches = names.filter(name => new RegExp(`^${value.prefix}-[a-z0-9]+\\.patch$`).test(name))
   const files = [...nativeArtifactNames(options), ...patches].sort()
   const hasChecksums = names.includes("SHA256SUMS.txt")
+  const sdkChecksum = `${value.prefix}-checksum.json`
+  const hasSdkChecksum = names.includes(sdkChecksum)
   assert.ok(!options.requireChecksums || hasChecksums, "Missing transport checksums")
-  assert.deepEqual(names.sort(), [...files, ...(hasChecksums ? ["SHA256SUMS.txt"] : [])].sort(), "Unexpected or missing native artifacts")
+  assert.deepEqual(names.sort(), [...files, ...(hasChecksums ? ["SHA256SUMS.txt"] : []), ...(hasSdkChecksum ? [sdkChecksum] : [])].sort(), "Unexpected or missing native artifacts")
   for (const name of [...files, ...(hasChecksums ? ["SHA256SUMS.txt"] : [])]) {
     const info = await lstat(path.join(directory, name))
     const metadata = /\.json$|^SHA256SUMS\.txt$/.test(name)
@@ -91,6 +93,10 @@ export async function inspectElectrobunRelease(directory: string, options: Optio
     assert.match(manifest.hash, /^[a-z0-9]+$/)
   }
   const [legacy, current] = manifests
+  if (hasSdkChecksum) {
+    const checksum = JSON.parse((await read(sdkChecksum)).toString())
+    assert.deepEqual(checksum, { hash: current.hash, tarSha256: current.artifact.tarSha256, tarSize: current.artifact.tarSize }, "Hutch checksum differs from compatible v2 metadata")
+  }
   assert.equal(legacy.hash, current.hash)
   assert.ok(Number.isSafeInteger(current.artifact.tarSize) && current.artifact.tarSize > 0 && current.artifact.tarSize <= limit, "Invalid native tar size")
   assert.match(current.artifact.tarSha256, /^[a-f0-9]{64}$/)

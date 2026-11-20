@@ -37,7 +37,9 @@ assert.equal(ci.jobs.tests['timeout-minutes'], 15)
 
 const pipeline = async (file, channel, tagPattern, label) => {
   const workflow = await load(file)
-  assert.deepEqual(Object.keys(workflow.jobs), ['tests', 'build', 'release'], `${label} has its own checks, build and publish jobs`)
+  assert.deepEqual(Object.keys(workflow.jobs), ['tests', 'build', 'unix-preflight', 'release'], `${label} has checks, build, isolated Unix preflight and publish jobs`)
+  assert.equal(workflow.jobs['unix-preflight'].if, "github.event_name == 'workflow_dispatch'")
+  assert.deepEqual(workflow.jobs['unix-preflight'].strategy.matrix.include.map(target => target.target), ['linux-x64', 'macos-arm64'])
   assert.equal(workflow.env?.CHANNEL, channel, `${label} builds the ${channel} channel`)
   assert.deepEqual(workflow.on.push?.tags, channel === 'stable' ? [tagPattern, '!v*-pre*', '!v*-beta*'] : [tagPattern, 'v*-beta*'], `${label} reacts to its own channel only`)
   assert.ok(Object.hasOwn(workflow.on, 'workflow_dispatch'), `${label} supports a manual preflight build`)

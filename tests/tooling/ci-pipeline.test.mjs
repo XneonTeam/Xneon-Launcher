@@ -129,7 +129,7 @@ test('release и pre-release — отдельные пайплайны со св
   assert.equal(release.env.CHANNEL, 'stable')
   assert.equal(prerelease.env.CHANNEL, 'canary')
   for (const [workflow, script] of [[release, 'ci-release.ts'], [prerelease, 'ci-pre-release.ts']]) {
-    assert.deepEqual(Object.keys(workflow.jobs), ['tests', 'build', 'release'])
+    assert.deepEqual(Object.keys(workflow.jobs), ['tests', 'build', 'unix-preflight', 'release'])
     assert.ok(workflow.jobs.tests.steps.some(step => step.run === `bun scripts/${script} channel`), 'Каждый пайплайн сначала проверяет свой канал')
     assert.ok(workflow.jobs.tests.steps.some(step => step.run === `bun scripts/${script} guard-tag`), 'Check tag ancestry before entering the protected job')
     const releaseSteps = workflow.jobs.release.steps

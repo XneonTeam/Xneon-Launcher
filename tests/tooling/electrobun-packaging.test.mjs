@@ -211,12 +211,16 @@ test("artifact checks сохраняют native delta patches и требуют 
 })
 
 test("wrapper не теряет exit status и запускает NSIS тем же Bun после SDK build обоих каналов",()=>{
-  for(const [channel,sdkStatus,nsisStatus,count,code]of [["stable",0,0,2,0],["stable",7,0,1,7],["stable",0,9,2,9],["canary",0,0,2,0],["canary",0,9,2,9],["dev",0,0,1,0]]) {
+  for(const [channel,sdkStatus,nsisStatus,count,code]of [["stable",0,0,3,0],["stable",7,0,1,7],["stable",0,9,2,9],["canary",0,0,3,0],["canary",0,9,2,9],["dev",0,0,1,0]]) {
     const calls=[],process={argv:["pinned-bun.exe","electrobun.mjs","build","--env="+channel],execPath:"pinned-bun.exe",platform:"win32",env:{}}
     loadReactModule(new URL("../../scripts/electrobun.mjs",import.meta.url),{"node:child_process":{spawnSync:(...args)=>{calls.push(args);return{status:calls.length===1?sdkStatus:nsisStatus}}}},{process})
     assert.equal(calls.length,count)
     assert.equal(process.exitCode,code)
-    if(count===2)assert.equal(calls[1][0],process.execPath)
+    if(count>=2) {
+      assert.equal(calls[1][0],process.execPath)
+      assert.equal(calls[1][1][0],"scripts/normalize-update-artifacts.ts")
+    }
+    if(count===3) assert.equal(calls[2][1][0],"scripts/build-windows-distribution.ts")
     assert.equal(calls[0][2].env.XNEON_ARTIFACT_CHANNEL,channel)
   }
 })

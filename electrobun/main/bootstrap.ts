@@ -5,6 +5,7 @@ import { lockLauncherProfile } from "../platform/instance-lock"
 import { readLauncherArgs } from "../platform/launcher-args"
 import { cli, forwardCli, parseCliLaunch, startCliListener } from "./cli"
 import { getDefaultLauncherDataRoot, isPortable, launcherLocationConfig } from "./profile-path"
+import { assertLinuxCefRuntime } from "../platform/linux-cef"
 
 /**
  * Флаги WebView2, которые Electron-сборка выставляла через
@@ -47,6 +48,10 @@ async function quitNative(code: number) {
 }
 
 async function start() {
+  if (process.platform === "linux") {
+    try { assertLinuxCefRuntime(path.dirname(process.execPath), path.basename(process.execPath)) }
+    catch (error) { console.error("[CEF] Runtime validation failed; WebKit fallback is disabled", error); process.exit(1) }
+  }
   appendWebView2Arguments()
   if (isPortable) {
     const profile = getDefaultLauncherDataRoot()

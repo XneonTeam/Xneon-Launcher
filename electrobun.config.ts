@@ -32,7 +32,7 @@ export default {
       "assets/steve-skin.b64": "views/launcher/assets/steve-skin.b64",
     },
     win: { defaultRenderer: "native", bundleCEF: false, icon: "build/icon.ico" },
-    mac: { defaultRenderer: "native", bundleCEF: false, createDmg: true },
+    mac: { defaultRenderer: "native", bundleCEF: false, createDmg: true, codesign: false, notarize: false },
     linux: { defaultRenderer: "cef", bundleCEF: true },
   },
   scripts: { postBuild: "scripts/set-windows-executable-identity.ts" },

@@ -14,6 +14,7 @@ import { enableWindowsWindowTransitions, saveFile, setWindowsAppUserModelId, set
 import { launcherOperations } from "./operation-gate"
 import { launcherShutdown, registerShutdownTask, SHUTDOWN_PRIORITY } from "./shutdown"
 import { launcherEntryUrl } from "./dev-renderer"
+import { startNativeSmokeProbe } from "./native-smoke-probe"
 
 declare const XNEON_DEV_HMR: boolean
 
@@ -203,6 +204,8 @@ export class DesktopWindow extends EventEmitter {
       }
     }
     this.viewSession = new ViewSession(this.native.webview.id, event => rpc?.send.launcherEvent(event))
+    const stopNativeProbe = options.launcher && process.platform === "darwin"
+      ? startNativeSmokeProbe(script => this.native.webview.executeJavascript(script)) : () => {}
     windows.set(this.viewSession.id, this)
     const forwardNavigation = (event: unknown, channel: string) => {
       const data = (event as { data: unknown }).data
@@ -242,6 +245,7 @@ export class DesktopWindow extends EventEmitter {
       }
     }
     this.native.on("close", () => {
+      stopNativeProbe()
       detachExternalLinks?.()
       releaseWindowIcons?.()
       windows.delete(this.viewSession.id)
