@@ -1,7 +1,7 @@
-import { createPublicKey, verify, type KeyObject } from "node:crypto"
+import type { KeyObject } from "node:crypto"
+import { authenticateUpdateDocument, readUpdateSignature } from "./authenticated-update-document"
 import { appIdentifier } from "./app-identity"
 
-const MAX_MANIFEST_BYTES = 64 * 1024
 const MAX_ARCHIVE_BYTES = 2 * 1024 ** 3
 const versionPattern = /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})(?:-(pre|beta)([1-9]\d{0,8}))?$/
 
@@ -28,13 +28,7 @@ export function verifyWindowsUpdateManifest(
   installedChannel: UpdateChannel,
   releasePreference: UpdateChannel,
 ) {
-  if (bytes.length > MAX_MANIFEST_BYTES || signature.length !== 64 ||
-      publicKey.type !== "public" || publicKey.asymmetricKeyType !== "ed25519" ||
-      !verify(null, bytes, publicKey, signature)) {
-    throw new Error("Invalid update manifest signature")
-  }
-
-  const manifest = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes))
+  const manifest = authenticateUpdateDocument(bytes, signature, publicKey)
   if (manifest?.schemaVersion !== 1 || manifest.identifier !== appIdentifier ||
       manifest.platform !== "win" || manifest.arch !== "x64" || manifest.channel !== installedChannel) {
     throw new Error("Update manifest does not match the installed package")
@@ -80,12 +74,6 @@ export function verifySignedWindowsUpdateManifest(
   installedChannel: UpdateChannel,
   releasePreference: UpdateChannel,
 ) {
-  if (envelopeBytes.length > 1024) throw new Error("Update signature envelope is oversized")
-  const envelope = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(envelopeBytes))
-  if (typeof envelope?.keyId !== "string" || !Object.hasOwn(trustedKeys, envelope.keyId) ||
-      typeof envelope.signature !== "string" || !/^[A-Za-z0-9+/]{86}==$/.test(envelope.signature)) {
-    throw new Error("Unknown update signing key or invalid signature envelope")
-  }
-  return verifyWindowsUpdateManifest(bytes, Buffer.from(envelope.signature, "base64"),
-    createPublicKey(trustedKeys[envelope.keyId]), currentVersion, installedChannel, releasePreference)
+  const { signature, publicKey } = readUpdateSignature(envelopeBytes, trustedKeys)
+  return verifyWindowsUpdateManifest(bytes, signature, publicKey, currentVersion, installedChannel, releasePreference)
 }
