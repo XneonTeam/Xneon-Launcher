@@ -6,14 +6,15 @@ import os from "node:os"
 import { randomUUID } from "node:crypto"
 import { realpath } from "node:fs/promises"
 import { assertOwnedEndpoint, processTree } from "./linux-process-evidence"
+import { stopUnixProcessGroup } from "./unix-process-cleanup"
 
 /** Нативный smoke: CEF/CDP, отрисованный React и настоящий renderer → main IPC. */
-export async function smokeLinuxCef(executable: string, output: string) {
+export async function smokeLinuxCef(executable: string, output: string, profile?: string) {
   assert.equal(process.platform, "linux")
   assert.equal(process.arch, "x64")
   assert.ok(process.env.DISPLAY, "An X11 display (Xvfb is supported) is required")
   await mkdir(output, { recursive: true })
-  const profile = await mkdtemp(path.join(os.tmpdir(), "xneon-cef-smoke-"))
+  profile ??= await mkdtemp(path.join(os.tmpdir(), "xneon-cef-smoke-"))
   const nonce = randomUUID()
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response(null, { status: 404 }) })
   const port = server.port!
@@ -125,13 +126,19 @@ export async function smokeLinuxCef(executable: string, output: string) {
   } finally {
     if (child.pid) await writeFile(path.join(output, "processes-final.json"), JSON.stringify(await processTree(child.pid), null, 2)).catch(() => {})
     socket?.close()
-    if (child.pid) { try { process.kill(-child.pid, "SIGTERM") } catch {} }
-    await writeFile(path.join(output, "launcher.log"), logs)
+    try {
+      if (child.pid) {
+        const cleanup = await stopUnixProcessGroup(child.pid)
+        await writeFile(path.join(output, "shutdown.json"), JSON.stringify(cleanup))
+        assert.ok(!cleanup.forced, "Native launch required SIGKILL")
+      }
+    } finally { await writeFile(path.join(output, "launcher.log"), logs) }
   }
 }
 
 if (import.meta.main) {
   const [executable, output] = Bun.argv.slice(2)
   assert.ok(executable && output, "Usage: smoke-linux-cef <launcher> <evidence-directory>")
-  await smokeLinuxCef(executable, output)
+  const profile = await mkdtemp(path.join(os.tmpdir(), "xneon-cef-smoke-"))
+  for (let pass = 1; pass <= 2; pass++) await smokeLinuxCef(executable, path.join(output, `run-${pass}`), profile)
 }

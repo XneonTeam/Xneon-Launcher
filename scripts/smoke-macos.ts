@@ -5,6 +5,7 @@ import { mkdtemp, mkdir, readdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import os from "node:os"
 import { inspectUnixBundle } from "./unix-native-preflight"
+import { stopUnixProcessGroup } from "./unix-process-cleanup"
 
 function run(program: string, args: string[]) {
   const result = spawnSync(program, args, { encoding: "utf8" })
@@ -46,10 +47,16 @@ async function runBundle(bundle: string, output: string, profile: string) {
     await writeFile(path.join(output, "gatekeeper.txt"), `exit=${assessment.status}\n${assessment.stdout}\n${assessment.stderr}\nUnsigned and not notarized; direct CI execution does not reproduce a quarantined browser download.\n`)
   } finally {
     await writeFile(path.join(output, "processes.txt"), run("ps", ["-axo", "pid,ppid,pgid,command"]))
-    if (child.pid) { try { process.kill(-child.pid, "SIGTERM") } catch {} }
-    await Bun.sleep(1500)
-    await writeFile(path.join(output, "launcher.log"), logs)
-    server.stop(true)
+    try {
+      if (child.pid) {
+        const cleanup = await stopUnixProcessGroup(child.pid)
+        await writeFile(path.join(output, "shutdown.json"), JSON.stringify(cleanup))
+        assert.ok(!cleanup.forced, "Native launch required SIGKILL")
+      }
+    } finally {
+      await writeFile(path.join(output, "launcher.log"), logs)
+      server.stop(true)
+    }
   }
 }
 
