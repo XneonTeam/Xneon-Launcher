@@ -11,7 +11,9 @@ describe("Linux CEF payload gate", () => {
       const job = yaml.jobs["unix-preflight"]
       expect(job.if).toBe("github.event_name == 'workflow_dispatch'")
       expect(job.strategy.matrix.include.map((item: any) => item.target)).toEqual(["linux-x64", "macos-arm64"])
-      expect(job.steps.some((step: any) => step.run?.includes("smoke-linux-cef.ts"))).toBe(true)
+      expect(job.steps.some((step: any) => step.run?.includes("smoke-linux-cef.ts"))).toBe(false)
+      expect(job.steps.some((step: any) => step.run?.includes("package-linux.ts"))).toBe(true)
+      expect(job.steps.some((step: any) => step.run?.includes("smoke-macos.ts"))).toBe(true)
       expect(yaml.jobs.release.needs).toEqual(["tests", "build"])
       expect(yaml.jobs.release.steps.find((step: any) => step.uses === "actions/download-artifact@v8").with.pattern).toBe("native-*")
       expect(job.steps.find((step: any) => step.uses === "actions/upload-artifact@v7").with.name).toStartWith("preflight-")
