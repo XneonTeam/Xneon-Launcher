@@ -1,0 +1,57 @@
+import { expect, test } from "bun:test"
+import { mkdtemp, mkdir, writeFile, readFile, rm, rename, symlink } from "node:fs/promises"
+import path from "node:path"
+import os from "node:os"
+import { applyUnixUpdateTransaction, type UnixReplacementPorts } from "../../electrobun/main/unix-update-transaction"
+
+const nonce = "a".repeat(32)
+async function fixture(kind: "file" | "directory", action: (plan: any, read: () => Promise<string>, ports: UnixReplacementPorts) => Promise<void>) {
+  const root = await mkdtemp(path.join(os.tmpdir(), "xneon-swap-test-"))
+  try {
+    const target = path.join(root, kind === "file" ? "Xneon.AppImage" : "Xneon.app"), work = path.join(root, `.xneon-update-${nonce}`)
+    await mkdir(work)
+    const prepared = path.join(work, "next")
+    if (kind === "directory") { await mkdir(target); await mkdir(prepared) }
+    const file = (root: string) => kind === "file" ? root : path.join(root, "identity")
+    await writeFile(file(target), "A"); await writeFile(file(prepared), "B")
+    const read = () => readFile(file(target), "utf8")
+    const ports: UnixReplacementPorts = { waitForParentExit: async () => { expect(await read()).toBe("A") },
+      verifyCurrent: async () => { expect(await read()).toBe("A") }, verifyPrepared: async () => { expect(await readFile(file(prepared), "utf8")).toBe("B") },
+      launch: async () => { expect(await read()).toBe("B"); return { pid: 123 } }, waitHealthy: async () => true, stop: async () => {} }
+    await action({ target, nonce, kind }, read, ports)
+  } finally { await rm(root, { recursive: true, force: true }) }
+}
+for (const kind of ["file", "directory"] as const) {
+  test(`замена ${kind} ждёт выхода A и сохраняет backup до подтверждения B`, () => fixture(kind, async (plan, read, ports) => {
+    const result = await applyUnixUpdateTransaction(plan, ports)
+    expect(await read()).toBe("B")
+    expect(result.status).toBe("committed")
+    expect(await readFile(kind === "file" ? result.backup : path.join(result.backup, "identity"), "utf8")).toBe("A")
+  }))
+  test(`неудачный запуск B возвращает A для ${kind}, остановив новый процесс до rollback`, () => fixture(kind, async (plan, read, ports) => {
+    let stopped = false
+    await expect(applyUnixUpdateTransaction(plan, { ...ports, waitHealthy: async () => false,
+      stop: async () => { expect(await read()).toBe("B"); stopped = true } })).rejects.toThrow(/update-startup-failed/)
+    expect(stopped).toBe(true)
+    expect(await read()).toBe("A")
+  }))
+}
+test("отмена до handoff не меняет установленное приложение", () => fixture("file", async (plan, read, ports) => {
+  const controller = new AbortController(); controller.abort()
+  await expect(applyUnixUpdateTransaction(plan, ports, controller.signal)).rejects.toThrow()
+  expect(await read()).toBe("A")
+}))
+test("сбой rename после переноса старого app восстанавливает его", () => fixture("directory", async (plan, read, ports) => {
+  let failed = false
+  await expect(applyUnixUpdateTransaction(plan, ports, undefined, { rename: async (from, to) => {
+    if (!failed && from.endsWith(path.sep + "next")) { failed = true; throw Object.assign(new Error("Disk full"), { code: "ENOSPC" }) }
+    await rename(from, to)
+  } })).rejects.toThrow(/Disk full/)
+  expect(await read()).toBe("A")
+}))
+test("symlink вместо установленного файла не заменяется", () => fixture("file", async (plan, _read, ports) => {
+  const real = plan.target + ".real"
+  await rename(plan.target, real); await symlink(real, plan.target)
+  await expect(applyUnixUpdateTransaction(plan, ports)).rejects.toThrow()
+  expect(await readFile(real, "utf8")).toBe("A")
+}))
