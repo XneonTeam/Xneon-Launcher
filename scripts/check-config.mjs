@@ -37,9 +37,18 @@ assert.equal(ci.jobs.tests['timeout-minutes'], 15)
 
 const pipeline = async (file, channel, tagPattern, label) => {
   const workflow = await load(file)
-  assert.deepEqual(Object.keys(workflow.jobs), ['tests', 'build', 'unix-preflight', 'release'], `${label} has checks, build, isolated Unix preflight and publish jobs`)
-  assert.equal(workflow.jobs['unix-preflight'].if, "github.event_name == 'workflow_dispatch'")
-  assert.deepEqual(workflow.jobs['unix-preflight'].strategy.matrix.include.map(target => target.target), ['linux-x64', 'macos-arm64'])
+  assert.deepEqual(Object.keys(workflow.jobs), ['tests', 'build', 'linux-preflight', 'macos-preflight', 'release'], `${label} has checks, separate platform builds and publish jobs`)
+  for (const [job, runner, platform, arch] of [
+    ['linux-preflight', 'ubuntu-24.04', 'linux', 'x64'],
+    ['macos-preflight', 'macos-26', 'macos', 'arm64'],
+  ]) {
+    const preflight = workflow.jobs[job]
+    assert.equal(preflight.if, "github.event_name == 'workflow_dispatch'")
+    assert.equal(preflight.needs, 'tests')
+    assert.equal(preflight['runs-on'], runner)
+    assert.equal(preflight.env.TARGET_PLATFORM, platform)
+    assert.equal(preflight.env.TARGET_ARCH, arch)
+  }
   assert.equal(workflow.env?.CHANNEL, channel, `${label} builds the ${channel} channel`)
   assert.deepEqual(workflow.on.push?.tags, channel === 'stable' ? [tagPattern, '!v*-pre*', '!v*-beta*'] : [tagPattern, 'v*-beta*'], `${label} reacts to its own channel only`)
   assert.ok(Object.hasOwn(workflow.on, 'workflow_dispatch'), `${label} supports a manual preflight build`)
@@ -61,7 +70,7 @@ assert.ok(named(release.jobs.build, 'Ensure NSIS'), 'Stable Windows build instal
 assert.ok(named(release.jobs.build, 'Build and validate independent Portable profile'), 'Stable builds independent portable')
 assert.ok(named(prerelease.jobs.build, 'Ensure NSIS'), 'Canary also ships the NSIS installer used for channel switching')
 assert.ok(named(prerelease.jobs.build, 'Build and validate independent Portable profile'), 'Prerelease builds independent portable')
-assert.equal(named(release.jobs.build, 'Build stable native artifacts (NSIS on Windows only)').run, 'bun run build')
+assert.equal(named(release.jobs.build, 'Build stable Windows artifacts (NSIS)').run, 'bun run build')
 assert.equal(named(prerelease.jobs.build, 'Build canary native artifacts').run, 'bun run build:canary')
 assert.ok(release.jobs.tests.steps.some(step => step.run === 'bun scripts/ci-release.ts channel'), 'Stable pipeline asserts its own channel first')
 assert.ok(prerelease.jobs.tests.steps.some(step => step.run === 'bun scripts/ci-pre-release.ts channel'), 'Prerelease pipeline asserts its own channel first')
