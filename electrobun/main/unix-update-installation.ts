@@ -7,7 +7,7 @@ import path from "node:path"
 import { appIdentifier } from "./app-identity"
 import type { UnixUpdateManifest } from "./unix-update-manifest"
 
-type PackageKind = "deb" | "rpm" | "pacman"
+export type PackageKind = "deb" | "rpm" | "pacman"
 type InstalledIdentity = { identifier: string; version: string; channel: "stable" | "canary"; hash: string }
 export type UnixInstallation = { kind: "appimage" | "directory" | "app-bundle" | PackageKind | "manual"; platform: "linux" | "macos"; target: string }
 export type InstallationProbe = {
