@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { applyUnixPackageTransaction, type UnixPackageTransactionPorts } from "../../electrobun/main/unix-package-transaction"
+import { applyUnixPackageTransaction, recoverUnixPackageTransaction, type UnixPackageTransactionPorts } from "../../electrobun/main/unix-package-transaction"
 
 function fixture(patch: Partial<UnixPackageTransactionPorts> = {}) {
   const events: string[] = []
@@ -43,4 +43,12 @@ test("сбой восстановления не превращается в у�
   await expect(applyUnixPackageTransaction(app.ports)).rejects.toThrow(/recovery/)
   expect(app.events).not.toContain("start-A")
   expect(app.events).toContain("phase:recovery-required")
+})
+
+test("recovery после root install не создаёт новый snapshot поверх исходной A", async () => {
+  const app = fixture()
+  expect((await recoverUnixPackageTransaction("installed", app.ports)).status).toBe("rolled-back")
+  expect(app.events).not.toContain("backup-db")
+  expect(app.events.indexOf("stop-B")).toBeLessThan(app.events.indexOf("install-A"))
+  expect(app.events.indexOf("restore-db")).toBeLessThan(app.events.indexOf("start-A"))
 })
