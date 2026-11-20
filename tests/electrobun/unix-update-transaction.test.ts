@@ -86,3 +86,20 @@ test("recovery не доверяет подменённому journal target", (
     verifyPrevious: unexpected, verifyInstalled: unexpected, launchPrevious: ports.launchPrevious })).rejects.toThrow(/journal/)
   expect(await read()).toBe("A")
 }))
+
+test("directory strategy использует exchange, не оставляя target отсутствующим между rename", () => fixture("directory", async (plan, read, ports) => {
+  let exchanges = 0, removedTarget = false
+  const exchange = async (left: string, right: string) => {
+    // Это mock протокола exchange на Windows, а не доказательство атомарности файловой системы.
+    exchanges++
+    const temporary = right + ".exchange"
+    await rename(left, temporary); await rename(right, left); await rename(temporary, right)
+  }
+  await applyUnixUpdateTransaction(plan, ports, undefined, { exchange, rename: async (from, to) => {
+    if (from === plan.target) removedTarget = true
+    await rename(from, to)
+  } })
+  expect(await read()).toBe("B")
+  expect(exchanges).toBe(1)
+  expect(removedTarget).toBe(false)
+}))
