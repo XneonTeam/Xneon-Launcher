@@ -10,7 +10,7 @@ const context = { profile, parentPid: 42, platform: "macos" as const, arch: "arm
 const manifest = { schemaVersion: 2, identifier: appIdentifier, platform: "macos", arch: "arm64", channel: "stable", version: "1.0.9", hash: "new123",
   artifact: { file: "stable-macos-arm64-XneonLauncher.app.tar.zst", format: "electrobun-tar-zstd", downloadSize: 100, downloadSha256: "a".repeat(64), tarSize: 200, tarSha256: "b".repeat(64) }, distributions: {} }
 const bytes = Buffer.from(JSON.stringify(manifest)), signature = Buffer.from(JSON.stringify({ keyId: "fixture", signature: sign(null, bytes, privateKey).toString("base64") }))
-function job() { return { schemaVersion: 1, nonce, parentPid: 42, profile,
+function job() { return { schemaVersion: 1, nonce, parentPid: 42, profile, selectedChannel: "stable",
   old: { identifier: appIdentifier, platform: "macos", arch: "arm64", version: "1.0.8", hash: "old123", channel: "stable" },
   installation: { kind: "app-bundle", platform: "macos", target: "/Applications/Xneon Launcher.app" },
   executable: "/Applications/Xneon Launcher.app/Contents/MacOS/bun", mount: {},
@@ -22,7 +22,7 @@ test("helper job связан с родителем, профилем, installat
   expect(result.update.manifest.version).toBe("1.0.9")
   expect(result.installation.target).toBe("/Applications/Xneon Launcher.app")
 })
-for (const patch of [{ parentPid: 99 }, { profile: "/other/profile" }, { source: "/tmp/untrusted" },
+for (const patch of [{ parentPid: 99 }, { profile: "/other/profile" }, { source: "/tmp/untrusted" }, { selectedChannel: "canary" },
   { executable: "/bin/sh" }, { nonce: "../bad" }, { program: "/bin/sh" }, { args: ["-c", "bad"] },
   { installation: { kind: "deb", platform: "macos", target: "/Applications/Xneon.app" } },
   { installation: { kind: "app-bundle", platform: "macos", target: "/Applications/../other.app" } },
