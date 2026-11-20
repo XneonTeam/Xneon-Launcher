@@ -254,17 +254,13 @@ jobs:
             if [ "$RUNNER_OS" = Linux ]; then payload="native-payload/XneonLauncher-canary"; else payload="native-payload/Xneon Launcher-canary.app"; fi
           fi
           bun scripts/unix-native-preflight.ts "$payload" checked-unix-extra "$CHANNEL"
-      - name: Build Linux packages and run real CEF renderer and IPC smoke
+      - name: Build Linux distribution packages
         if: runner.os == 'Linux'
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends rpm libarchive-tools xz-utils squashfs-tools file xvfb xauth libnss3 libasound2t64 libgbm1
+          sudo apt-get install -y --no-install-recommends rpm libarchive-tools xz-utils squashfs-tools file
           bun scripts/package-linux.ts checked-unix checked-unix-packages
-          shopt -s nullglob
-          launchers=(native-payload/*/bin/launcher)
-          test "${#launchers[@]}" -eq 1
-          dbus-run-session -- xvfb-run -a bun scripts/smoke-linux-cef.ts "${launchers[0]}" unix-smoke
       - name: Verify macOS disk image
         if: runner.os == 'macOS'
         run: |

@@ -22,14 +22,11 @@ Unix **ещё не включён в автоматическую публика
   Ubuntu 24.04 (GLIBC 2.39, GLIBCXX 3.4.32, CXXABI 1.3.14).
   Наличие WebKitGTK среди связанных
   библиотек SDK не означает, что webview использует WebKit.
-- `smoke-linux-cef.ts` запускает **собранный** launcher под Xvfb. Через поддержанный
-  SDK параметр окружения `ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT` проверяет Chromium
-  CDP, packaged `views://launcher` страницу, React DOM и вызов renderer → main
-   `getSettings`. Дополнительно требует загруженную bundled `libcef.so` в `/proc`,
-  собственный CDP socket с nonce, bundled renderer subprocess и переход мышью
-  в настройки. Два запуска используют один изолированный профиль. Ожидается
-  завершение отдельной process group; необходимость SIGKILL означает отказ.
-  Сохраняются screenshot, JSON и лог; таймаут/ошибка не превращаются в успех.
+- Linux GUI smoke исключён из обоих CI workflows по решению владельца:
+  launcher под Xvfb не запускается, Xvfb/xauth для него не устанавливаются.
+  `smoke-linux-cef.ts` сохранён как необязательный ручной инструмент.
+  Сборка, проверка артефактов/CEF/ABI и упаковка пяти форматов остаются;
+  их успех не означает успешный GUI E2E.
 - macOS: нативный `macos-26` arm64, Mach-O launcher/bun и CFBundleExecutable,
   `lipo`, структура `.app`, `otool -L`, `hdiutil verify`. Дополнительный ZIP
   создаётся `ditto --keepParent` из `.app` с сохранением прав и симлинков.
@@ -37,8 +34,8 @@ Unix **ещё не включён в автоматическую публика
   программный клик по настройкам, screenshot и отдельный Gatekeeper assessment.
   Это не проверка мыши и не воспроизведение browser-download quarantine.
 - Дополнительные файлы получают SHA256SUMS и отчёт с явными `e2e: not-run` и
-  `updates: not-run`. Linux smoke имеет отдельный отчёт: прохождение smoke не
-  означает прохождение установки или обновлений.
+  `updates: not-run`. Успешная упаковка не означает прохождение установки,
+  GUI-проверок или обновлений.
 
 ## Почему публикация закрыта
 
