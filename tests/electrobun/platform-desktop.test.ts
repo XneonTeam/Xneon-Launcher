@@ -295,6 +295,7 @@ import { launcherEntryUrl } from "../../electrobun/platform/dev-renderer.ts"
       process: { platform }, windows: new Map(), Electrobun: { events: new EventEmitter() },
       build: { isPackaged: false, channel }, appUserModelId: undefined,
       launcherEntryUrl, XNEON_DEV_HMR: hmr,
+      startNativeSmokeProbe: () => () => {},
       enableWindowsWindowTransitions() {},
       setWindowsWindowIcons: () => () => {},
       setWindowsWindowClientWidth: (_handle, width) => { frame.width = width + 16; calls.push("client-size") },
