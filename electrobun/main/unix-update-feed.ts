@@ -35,3 +35,45 @@ export async function resolveVerifiedUnixUpdate(local: { version: string; hash: 
   assert.notEqual(manifest.hash, local.hash, "Update build hash is reused")
   return { manifest, manifestBytes, signatureBytes, baseUrl: urls.base }
 }
+
+export function unixHistoricalManifestUrls(local: { version: string; channel: "stable" | "canary" }, target: UnixUpdateTarget) {
+  compareReleaseVersions(local.version, "0.0.0")
+  assert.equal(target.channel, local.channel, "Historical channel mismatch")
+  const { base } = unixManifestUrls(target)
+  const position = base.lastIndexOf("/releases/")
+  assert.ok(position > 0, "Historical update repository is not configured")
+  const historical = base.slice(0, position) + "/releases/download/v" + local.version
+  const name = `${local.channel}-${target.platform}-${target.arch}-update-v3.json`
+  return { base: historical, manifestUrl: `${historical}/${name}`, signatureUrl: `${historical}/${name}.sig` }
+}
+
+export function isTrustedUnixUpdateBase(base: string) {
+  try {
+    const url = new URL(base)
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) return false
+    if (base === expectedUpdateBaseUrl("stable") || base === expectedUpdateBaseUrl("canary")) return true
+    const current = expectedUpdateBaseUrl("stable"), position = current.lastIndexOf("/releases/")
+    if (position <= 0) return false
+    const prefix = current.slice(0, position) + "/releases/download/v"
+    if (!base.startsWith(prefix)) return false
+    compareReleaseVersions(base.slice(prefix.length), "0.0.0")
+    return true
+  } catch { return false }
+}
+
+/** Для отката системного пакета нужна точная подписанная A, а не текущий latest B. */
+export async function resolvePreviousUnixUpdate(local: { version: string; hash: string; channel: "stable" | "canary" }, target: UnixUpdateTarget,
+  options: { request?: UnixFeedRequest; keys?: Readonly<Record<string, string>>; signal?: AbortSignal } = {}): Promise<VerifiedUnixUpdate> {
+  const urls = unixHistoricalManifestUrls(local, target), request = options.request ?? updateFeedGet
+  const signal = options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(45_000)]) : AbortSignal.timeout(45_000)
+  signal.throwIfAborted()
+  const response = await request(urls.manifestUrl, signal, true)
+  assert.ok(response?.ok, "Previous signed package update feed is unavailable")
+  const manifestBytes = await updateFeedReadBounded(response, 64 * 1024)
+  const signature = await request(urls.signatureUrl, signal)
+  assert.ok(signature?.ok, "Previous update signature is missing")
+  const signatureBytes = await updateFeedReadBounded(signature, 1024)
+  const manifest = verifySignedUnixUpdateManifest(manifestBytes, signatureBytes, options.keys ?? updatePublicKeys, target)
+  assert.ok(manifest.version === local.version && manifest.hash === local.hash, "Historical update differs from installed build")
+  return { manifest, manifestBytes, signatureBytes, baseUrl: urls.base }
+}

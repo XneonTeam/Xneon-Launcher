@@ -2,10 +2,9 @@ import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import { lstat, mkdir, mkdtemp, open, rename, rm, statfs } from "node:fs/promises"
 import path from "node:path"
-import { expectedUpdateBaseUrl } from "./update-public-keys"
 import { updateFeedGet } from "./verified-update-feed"
 import { UNIX_UPDATE_MAX_BYTES, type UnixUpdateFile } from "./unix-update-manifest"
-import type { UnixFeedRequest } from "./unix-update-feed"
+import { isTrustedUnixUpdateBase, type UnixFeedRequest } from "./unix-update-feed"
 
 export async function assertUpdateFreeSpace(directory: string, required: number) {
   assert.ok(Number.isSafeInteger(required) && required > 0, "Invalid required update space")
@@ -18,7 +17,7 @@ export async function downloadUnixUpdateFile(base: string, artifact: UnixUpdateF
   request?: UnixFeedRequest; signal?: AbortSignal
   onProgress?: (value: { percent: number; transferred: number; total: number }) => void
 } = {}) {
-  assert.ok(base === expectedUpdateBaseUrl("stable") || base === expectedUpdateBaseUrl("canary"), "Untrusted update download origin")
+  assert.ok(isTrustedUnixUpdateBase(base), "Untrusted update download origin")
   assert.ok(typeof artifact.file === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,200}$/.test(artifact.file) && artifact.file !== "..", "Unsafe update filename")
   assert.ok(Number.isSafeInteger(artifact.downloadSize) && artifact.downloadSize > 0 && artifact.downloadSize <= UNIX_UPDATE_MAX_BYTES, "Invalid update download size")
   assert.match(artifact.downloadSha256, /^[a-f0-9]{64}$/)

@@ -11,6 +11,7 @@ import { copyFile, cp, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, wr
 import path from "node:path"
 import packageJson from "../package.json"
 import { checksumText } from "./artifact-checksums"
+import { linuxPackageVersion } from "../electrobun/main/unix-package-version"
 
 const maintainer = "XNeon Launcher <support@xneon.org>"
 const desktopName = "xneon-launcher"
@@ -113,7 +114,7 @@ async function buildDeb(root: string, output: string, version: string): Promise<
   await mkdir(path.join(stage, "DEBIAN"))
   await writeFile(path.join(stage, "DEBIAN/control"), [
     "Package: xneon-launcher",
-    `Version: ${version}`,
+    `Version: ${linuxPackageVersion(version).deb}`,
     "Section: games",
     "Priority: optional",
     "Architecture: amd64",
@@ -136,10 +137,10 @@ async function buildRpm(root: string, work: string, output: string, version: str
   const top = path.join(work, "rpm")
   for (const directory of ["BUILD", "RPMS", "SOURCES", "SPECS", "SRPMS"]) await mkdir(path.join(top, directory), { recursive: true })
   const spec = path.join(top, "SPECS/xneon-launcher.spec")
-  const [base, prerelease] = version.split("-")
+  const nativeVersion = linuxPackageVersion(version)
   await writeFile(spec, `Name: xneon-launcher
-Version: ${base}
-Release: ${prerelease ? "0." + prerelease : "1"}
+Version: ${nativeVersion.rpmVersion}
+Release: ${nativeVersion.rpmRelease}
 Summary: Modern Minecraft launcher
 License: MIT
 URL: https://xneon.org
@@ -198,7 +199,7 @@ async function buildPacman(root: string, work: string, output: string, version: 
   const size = await sizeOf(root)
   await writeFile(path.join(stage, ".PKGINFO"), `pkgname = xneon-launcher
 pkgbase = xneon-launcher
-pkgver = ${version.replace(/-/g, "_")}-1
+pkgver = ${linuxPackageVersion(version).pacmanVersion}-${linuxPackageVersion(version).pacmanRelease}
 pkgdesc = Modern Minecraft launcher
 url = https://xneon.org
 builddate = ${Math.floor(Date.now() / 1000)}

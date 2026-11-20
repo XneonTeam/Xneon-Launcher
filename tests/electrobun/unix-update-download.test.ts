@@ -49,6 +49,15 @@ test("HTTP и небезопасное имя отклоняются до сет
   expect(await readdir(directory)).toEqual([])
 }))
 
+test("разрешён точный HTTPS historical tag, но не произвольный URL или подкаталог", () => fixture(async directory => {
+  const historical = base.replace("latest/download", "download/v1.0.8")
+  const result = await downloadUnixUpdateFile(historical, file, directory, { request: async () => new Response(bytes) })
+  expect(await readFile(result.path)).toEqual(bytes)
+  for (const invalid of [historical + "/other", historical + "?q=x", historical.replace("github.com", "evil.invalid"), historical.replace("v1.0.8", "v01.0.8")]) {
+    await expect(downloadUnixUpdateFile(invalid, file, directory, { request: async () => { throw new Error("Must reject before network") } })).rejects.toThrow(/origin/)
+  }
+}))
+
 test("отмена закрывает даже зависший reader, не ожидая следующего network chunk", () => fixture(async directory => {
   const controller = new AbortController()
   let stream: ReadableStreamDefaultController<Uint8Array> | undefined
