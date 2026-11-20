@@ -61,16 +61,13 @@ go run . serve --listen 127.0.0.1:8091 --public-url http://127.0.0.1:8091
 
 | Команда | Что проверяет |
 | --- | --- |
-| `bun run share:test` | доменные тесты `@xnlc/share` + HTTP/suite сервиса (`infrastructure/xnlc-share/tests/*.test.mjs`) |
 | `bun run share:test:live` | живой Modrinth API (сеть, отдельный target) |
 | `bun run share:worker:smoke -- <url>` | развёрнутый Worker: Ed25519-вход, права, R2, приглашения |
-| `bun run liveops:test` | `go test ./...` в `infrastructure/xnlc-liveops` |
 | `bun run test:offline` | включает Share, `liveops-client` и интеграционные тесты адаптера лаунчера |
 
 Liveops дополнительно: `go vet ./...` и
 `node --test client/model.test.mjs client/controller.test.mjs` из каталога
-сервиса. Клиентские тесты входят в root offline-gate и запускаются под Bun;
-серверные Go-тесты запускаются отдельно через `liveops:test`.
+сервиса. Клиентские тесты входят в root offline-gate и запускаются под Bun.
 
 ## LiveOps в лаунчере
 

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="172.5" height="45" viewBox="0 0 115 30" role="img" aria-label="Windows x64" color="#f64b00">
+  <title>Windows x64</title>
+  <defs>
+    <linearGradient id="surface" x1="0" y1="0" x2="0" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#121212"/>
+      <stop offset="1" stop-color="#050505"/>
+    </linearGradient>
+  </defs>
+  <rect x="0.5" y="0.5" width="114" height="29" rx="10" fill="url(#surface)" stroke="#1f1f1f"/>
+  <g transform="translate(10.0 8.5) scale(0.1016)"><path d="M67.328 67.331h60.669V128H67.328zm-67.325 0h60.669V128H.003zM67.328 0h60.669v60.669H67.328zM.003 0h60.669v60.669H.003z" fill="#f64b00"/></g>
+  <text x="29.0" y="19.1" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="11.5" font-weight="700" fill="#f0f0f0">Windows</text>
+  <text x="83.9" y="18.8" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="10.5" font-weight="500" fill="#ababab">x64</text>
+</svg>

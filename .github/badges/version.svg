@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="174" height="45" viewBox="0 0 116 30" role="img" aria-label="stable 1.0.8" color="#f64b00">
+  <title>stable 1.0.8</title>
+  <defs>
+    <linearGradient id="surface" x1="0" y1="0" x2="0" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#291810"/>
+      <stop offset="1" stop-color="#0c0705"/>
+    </linearGradient>
+  </defs>
+  <rect x="0.5" y="0.5" width="115" height="29" rx="10" fill="url(#surface)" stroke="#602c16"/>
+  <g transform="translate(10.0 8.0) scale(0.5833)" fill="none" stroke="#f64b00" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 7.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M3 6v5.172a2 2 0 0 0 .586 1.414l7.71 7.71a2.41 2.41 0 0 0 3.408 0l5.592 -5.592a2.41 2.41 0 0 0 0 -3.408l-7.71 -7.71a2 2 0 0 0 -1.414 -.586h-5.172a3 3 0 0 0 -3 3"/></g>
+  <text x="30.0" y="18.4" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="9.5" font-weight="600" letter-spacing="0.7" fill="#ababab">STABLE</text>
+  <text x="76.1" y="19.1" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="11.5" font-weight="700" fill="#f0f0f0">1.0.8</text>
+</svg>

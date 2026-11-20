@@ -43,7 +43,6 @@ Windows также выполняет проверку изменения рес
 
 ## Дополнительные проверки
 
-- `bun run liveops:test`: Go tests самостоятельного сервиса, нужен Go 1.26+.
 - `bun run test:live`: opt-in реальные parser artifacts по зафиксированным hashes;
   `XNLC_PARSER_LIVE_TESTS=1`. Требует сеть, не является offline gate.
 - Share Worker smoke/live Modrinth, native dialog/GUI/update/install VM checks

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="159" height="45" viewBox="0 0 106 30" role="img" aria-label="ui React 19" color="#f64b00">
+  <title>ui React 19</title>
+  <defs>
+    <linearGradient id="surface" x1="0" y1="0" x2="0" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#121212"/>
+      <stop offset="1" stop-color="#050505"/>
+    </linearGradient>
+  </defs>
+  <rect x="0.5" y="0.5" width="105" height="29" rx="10" fill="url(#surface)" stroke="#1f1f1f"/>
+  <g transform="translate(10.0 8.0) scale(0.5833)" fill="none" stroke="#f64b00" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.306 8.711c-2.602 .723 -4.306 1.926 -4.306 3.289c0 2.21 4.477 4 10 4c.773 0 1.526 -.035 2.248 -.102"/><path d="M17.692 15.289c2.603 -.722 4.308 -1.926 4.308 -3.289c0 -2.21 -4.477 -4 -10 -4c-.773 0 -1.526 .035 -2.25 .102"/><path d="M6.305 15.287c-.676 2.615 -.485 4.693 .695 5.373c1.913 1.105 5.703 -1.877 8.464 -6.66c.387 -.67 .733 -1.339 1.036 -2"/><path d="M17.694 8.716c.677 -2.616 .487 -4.696 -.694 -5.376c-1.913 -1.105 -5.703 1.877 -8.464 6.66c-.387 .67 -.733 1.34 -1.037 2"/><path d="M12 5.424c-1.925 -1.892 -3.82 -2.766 -5 -2.084c-1.913 1.104 -1.226 5.877 1.536 10.66c.386 .67 .793 1.304 1.212 1.896"/><path d="M12 18.574c1.926 1.893 3.821 2.768 5 2.086c1.913 -1.104 1.226 -5.877 -1.536 -10.66c-.375 -.65 -.78 -1.283 -1.212 -1.897"/><path d="M11.5 12.866a1 1 0 1 0 1 -1.732a1 1 0 0 0 -1 1.732"/></g>
+  <text x="30.0" y="18.4" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="9.5" font-weight="600" letter-spacing="0.7" fill="#ababab">UI</text>
+  <text x="45.3" y="19.1" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="11.5" font-weight="700" fill="#f0f0f0">React 19</text>
+</svg>

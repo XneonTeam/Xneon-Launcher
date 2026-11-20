@@ -72,7 +72,6 @@ bun run dev
 ## Проверки
 
 ```powershell
-bun run share:test
 bun run share:test:live
 bun run build
 ```

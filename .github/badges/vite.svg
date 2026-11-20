@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="168" height="45" viewBox="0 0 112 30" role="img" aria-label="build Vite 8" color="#f64b00">
+  <title>build Vite 8</title>
+  <defs>
+    <linearGradient id="surface" x1="0" y1="0" x2="0" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#121212"/>
+      <stop offset="1" stop-color="#050505"/>
+    </linearGradient>
+  </defs>
+  <rect x="0.5" y="0.5" width="111" height="29" rx="10" fill="url(#surface)" stroke="#1f1f1f"/>
+  <g transform="translate(10.0 8.0) scale(0.5833)" fill="none" stroke="#f64b00" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4.5l6 -1.5l-2 6.5l2 -.5l-4 7v-5l-3 1l1 -7.5"/><path d="M15 6.5l7 -1.5l-10 17l-10 -17l7.741 1.5"/></g>
+  <text x="30.0" y="18.4" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="9.5" font-weight="600" letter-spacing="0.7" fill="#ababab">BUILD</text>
+  <text x="66.2" y="19.1" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="11.5" font-weight="700" fill="#f0f0f0">Vite 8</text>
+</svg>
