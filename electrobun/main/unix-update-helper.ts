@@ -15,7 +15,7 @@ import { backupUnixUpdateDatabase, restoreUnixUpdateDatabase } from "./unix-upda
 import { applyUnixUpdateTransaction, recoverUnixUpdateTransaction, syncUnixUpdateDirectory, unixTransactionPaths, type UnixReplacementPlan } from "./unix-update-transaction"
 import { probeUnixUpdateExchange } from "./unix-update-atomic"
 import { findUnixUpdateGroups, ownsUnixUpdateProcess, spawnUnixUpdateProcess, stopUnixUpdateGroup, waitForUnixParentExit } from "./unix-update-process"
-import { readUnixUpdateHealth } from "./unix-update-health"
+import { readUnixUpdateHealth, waitForUnixUpdateHealth } from "./unix-update-health"
 import { assertUpdateFreeSpace } from "./unix-update-download"
 import { appIdentifier } from "./app-identity"
 import { acquireUnixFileLock } from "../platform/unix-file-lock"
@@ -180,16 +180,10 @@ async function runAuthenticatedUnixHelper(job: ReturnType<typeof authenticateUni
       },
       verifyCurrent: () => verifyOld(), verifyPrepared: () => verifyNew(files.prepared),
       launch: () => spawnUnixUpdateProcess(installation, nonce),
-      waitHealthy: async child => {
-        const deadline = Date.now() + 90_000
-        while (Date.now() < deadline) {
-          const health = await readUnixUpdateHealth(healthRoot, nonce, update.manifest, pid => ownsUnixUpdateProcess(pid, child.pid))
-          if (health) return true
-          if (!(await findUnixUpdateGroups(nonce)).includes(child.pid)) return false
-          await Bun.sleep(250)
-        }
-        return false
-      },
+      waitHealthy: child => waitForUnixUpdateHealth({
+        readHealthy: async () => !!await readUnixUpdateHealth(healthRoot, nonce, update.manifest, pid => ownsUnixUpdateProcess(pid, child.pid)),
+        isAlive: async () => (await findUnixUpdateGroups(nonce)).includes(child.pid),
+      }, cancel.signal),
       stop: stopAll, launchPrevious, restoreProfile,
     }, cancel.signal)
     await writeJson(resultFile, { ...result, nonce, version: update.manifest.version, hash: update.manifest.hash })

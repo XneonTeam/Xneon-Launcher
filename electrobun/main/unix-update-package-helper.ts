@@ -19,7 +19,7 @@ import { getDefaultLauncherDataRoot, launcherLocationConfig } from "./profile-pa
 import { readDataLocation } from "./data-location"
 import { applyUnixPackageTransaction, recoverUnixPackageTransaction, type UnixPackagePhase, type UnixPackageTransactionPorts } from "./unix-package-transaction"
 import { findUnixUpdateGroups, ownsUnixUpdateProcess, spawnUnixUpdateProcess, stopUnixUpdateGroup, waitForUnixParentExit } from "./unix-update-process"
-import { readUnixUpdateHealth } from "./unix-update-health"
+import { readUnixUpdateHealth, waitForUnixUpdateHealth } from "./unix-update-health"
 import { syncUnixUpdateDirectory } from "./unix-update-transaction"
 
 type Job = ReturnType<typeof authenticateUnixHelperJob>
@@ -105,16 +105,10 @@ export async function runUnixPackageHelper(job: Job, directory: string, recovery
     },
     verifyNextInstalled: async () => { await verifyInstalledUnixPackage(kind, update.manifest.version); await verifyUnixUpdatePayload(installation.target, update.manifest) },
     startNext: () => spawnUnixUpdateProcess(installation, nonce),
-    waitHealthy: async child => {
-      const deadline = Date.now() + 90_000
-      while (Date.now() < deadline) {
-        cancel.signal.throwIfAborted()
-        if (await readUnixUpdateHealth(path.join(job.profile, "system-cache/unix-update-health"), nonce, update.manifest, pid => ownsUnixUpdateProcess(pid, child.pid))) return true
-        if (!(await findUnixUpdateGroups(nonce)).includes(child.pid)) return false
-        await Bun.sleep(250)
-      }
-      return false
-    },
+    waitHealthy: child => waitForUnixUpdateHealth({
+      readHealthy: async () => !!await readUnixUpdateHealth(path.join(job.profile, "system-cache/unix-update-health"), nonce, update.manifest, pid => ownsUnixUpdateProcess(pid, child.pid)),
+      isAlive: async () => (await findUnixUpdateGroups(nonce)).includes(child.pid),
+    }, cancel.signal),
     stopNext,
     installPrevious: async () => {
       await preparePrevious()

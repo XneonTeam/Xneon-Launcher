@@ -51,3 +51,30 @@ export async function readUnixUpdateHealth(root: string, nonce: string, expected
   assert.ok(Number.isSafeInteger(record.pid) && record.pid > 1 && await ownsProcess(record.pid), "Update acknowledgement belongs to another process")
   return record
 }
+
+type UnixHealthWaitPorts = {
+  readHealthy: () => Promise<boolean>
+  isAlive: () => Promise<boolean>
+  now?: () => number
+  sleep?: (milliseconds: number) => Promise<unknown>
+}
+
+/** Отмена не является обычным timeout и не должна превращаться в commit при гонке с acknowledgement. */
+export async function waitForUnixUpdateHealth(ports: UnixHealthWaitPorts, signal?: AbortSignal, timeout = 90_000) {
+  assert.ok(Number.isSafeInteger(timeout) && timeout > 0 && timeout <= 90_000, "Invalid update health timeout")
+  const now = ports.now ?? (() => performance.now()), sleep = ports.sleep ?? Bun.sleep
+  const deadline = now() + timeout
+  while (now() < deadline) {
+    signal?.throwIfAborted()
+    const healthy = await ports.readHealthy()
+    signal?.throwIfAborted()
+    if (healthy) return true
+    const alive = await ports.isAlive()
+    signal?.throwIfAborted()
+    if (!alive) return false
+    const remaining = deadline - now()
+    if (remaining > 0) await sleep(Math.min(250, remaining))
+  }
+  signal?.throwIfAborted()
+  return false
+}
