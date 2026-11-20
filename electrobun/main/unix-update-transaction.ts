@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { copyFile, constants } from "node:fs"
-import { lstat, open, realpath, rename } from "node:fs/promises"
+import { lstat, open, readFile, realpath, rename, rm } from "node:fs/promises"
 import { promisify } from "node:util"
 import path from "node:path"
 
@@ -101,4 +101,57 @@ export async function applyUnixUpdateTransaction(plan: UnixReplacementPlan, port
     }
     throw error
   }
+}
+
+export type UnixRecoveryPorts = {
+  waitForParentExit: () => Promise<void>
+  stopForRecovery: () => Promise<void>
+  verifyPrevious: (file: string) => Promise<void>
+  verifyInstalled: (file: string) => Promise<void>
+  launchPrevious: () => Promise<void>
+  restoreProfile?: () => Promise<void>
+}
+
+/** Topology важнее последнего phase: crash возможен между rename и fsync journal. */
+export async function recoverUnixUpdateTransaction(plan: UnixReplacementPlan, ports: UnixRecoveryPorts) {
+  const files = unixTransactionPaths(plan)
+  await sameKind(files.work, "directory")
+  const info = await lstat(files.journal)
+  assert.ok(info.isFile() && info.size > 0 && info.size <= 16 * 1024, "Invalid update recovery journal")
+  const saved = JSON.parse(await readFile(files.journal, "utf8"))
+  assert.ok(saved?.schemaVersion === 1 && saved.target === plan.target && saved.nonce === plan.nonce && saved.kind === plan.kind, "Update recovery journal identity mismatch")
+  assert.ok(["prepared", "backed-up", "installed", "launched", "committed", "rolled-back", "recovery-required"].includes(saved.phase), "Invalid update recovery journal phase")
+  if (saved.phase === "committed") {
+    await sameKind(plan.target, plan.kind)
+    await ports.verifyInstalled(plan.target)
+    return { status: "committed" as const, backup: files.backup, journal: files.journal }
+  }
+  await ports.waitForParentExit()
+  const exists = (file: string) => lstat(file).then(() => true, error => { if (error.code !== "ENOENT") throw error; return false })
+  if (await exists(files.backup)) {
+    await sameKind(files.backup, plan.kind)
+    await ports.verifyPrevious(files.backup)
+    await ports.stopForRecovery()
+    if (await exists(plan.target)) {
+      await sameKind(plan.target, plan.kind)
+      if (plan.kind === "directory") {
+        assert.ok(!await exists(files.failed), "Failed payload already exists; manual recovery required")
+        await rename(plan.target, files.failed)
+      }
+    }
+    await rename(files.backup, plan.target)
+    await syncDirectory(path.dirname(plan.target))
+  } else {
+    // Без backup допустима только ещё не начатая замена или уже выполненный rollback.
+    assert.ok(saved.phase === "prepared" || saved.phase === "rolled-back", "Previous update payload is missing; manual recovery required")
+    await sameKind(plan.target, plan.kind)
+    await ports.verifyPrevious(plan.target)
+  }
+  await ports.verifyPrevious(plan.target)
+  await ports.restoreProfile?.()
+  // Незавершённый временный journal принадлежит только этому уже проверенному work-каталогу.
+  await rm(files.journal + ".next", { force: true })
+  await journal(files.journal, { schemaVersion: 1, ...plan, phase: "rolled-back" })
+  await ports.launchPrevious()
+  return { status: "rolled-back" as const, journal: files.journal }
 }
