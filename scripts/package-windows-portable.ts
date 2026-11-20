@@ -71,7 +71,7 @@ for (const file of ["bin/launcher.exe", "bin/bun.exe"].map(file => path.join(sta
   windowsProductIdentity(file, version)
 }
 const bundle = readEntry("Resources/app/bun/index.js").toString()
-assert.ok(bundle.includes("PortableProfile must be a local directory") && bundle.includes("Portable builds require manual updates."), "Portable runtime guards are missing")
+assert.ok(bundle.includes("PortableProfile must be a local directory") && bundle.includes("portable-manual-update"), "Portable runtime guards are missing")
 validateBundleCredentials(bundle)
 
 // PortableProfile — отдельная функция приложения, а не переупаковка обычного релиза.

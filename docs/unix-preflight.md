@@ -11,18 +11,31 @@ Unix **ещё не включён в автоматическую публика
   AppImage/DEB/RPM/Pacman/TAR.XZ. SDK manifests и архив проверяет прежний validator.
 - CEF: реальные параметры Electrobun 2.0.6 — `build.linux.bundleCEF: true` и
   `defaultRenderer: "cef"`. Главное окно также явно выбирает `cef`.
+- Hutch закреплён на 0.30.0, Electrobun остаётся 2.0.6. Адаптер проверяет
+  `checksum.json` по распакованному tar и добавляет совместимый `update-v2.json`;
+  исходные archive/update/checksum bytes не меняются. Проверяется payload
+  проверенного update archive, а не installer wrapper из build-каталога.
 - `unix-native-preflight.ts` требует bundled `libcef.so` ELF64 x64, Chromium
-  resources и locales по путям, используемым SDK, executable permissions и
-  отсутствие unresolved зависимостей `ldd`. Наличие WebKitGTK среди связанных
+  resources, snapshot, `bun Helper`, locales и безопасные symlink aliases по
+  путям SDK, executable permissions и отсутствие unresolved зависимостей `ldd`.
+  Все обычные ELF-файлы обнаруживаются по magic, проверяются ABI ceilings
+  Ubuntu 24.04 (GLIBC 2.39, GLIBCXX 3.4.32, CXXABI 1.3.14).
+  Наличие WebKitGTK среди связанных
   библиотек SDK не означает, что webview использует WebKit.
 - `smoke-linux-cef.ts` запускает **собранный** launcher под Xvfb. Через поддержанный
   SDK параметр окружения `ELECTROBUN_CEF_REMOTE_DEBUGGING_PORT` проверяет Chromium
   CDP, packaged `views://launcher` страницу, React DOM и вызов renderer → main
-  `getSettings`. Дополнительно требует загруженную bundled `libcef.so` в `/proc`.
-  Сохраняет screenshot, JSON и лог; таймаут/ошибка не превращаются в успех.
+   `getSettings`. Дополнительно требует загруженную bundled `libcef.so` в `/proc`,
+  собственный CDP socket с nonce, bundled renderer subprocess и переход мышью
+  в настройки. Два запуска используют один изолированный профиль. Ожидается
+  завершение отдельной process group; необходимость SIGKILL означает отказ.
+  Сохраняются screenshot, JSON и лог; таймаут/ошибка не превращаются в успех.
 - macOS: нативный `macos-26` arm64, Mach-O launcher/bun и CFBundleExecutable,
   `lipo`, структура `.app`, `otool -L`, `hdiutil verify`. Дополнительный ZIP
   создаётся `ditto --keepParent` из `.app` с сохранением прав и симлинков.
+  Для direct-payload DMG и ZIP предусмотрены два запуска, настоящий React/IPC,
+  программный клик по настройкам, screenshot и отдельный Gatekeeper assessment.
+  Это не проверка мыши и не воспроизведение browser-download quarantine.
 - Дополнительные файлы получают SHA256SUMS и отчёт с явными `e2e: not-run` и
   `updates: not-run`. Linux smoke имеет отдельный отчёт: прохождение smoke не
   означает прохождение установки или обновлений.
@@ -35,13 +48,15 @@ Unix **ещё не включён в автоматическую публика
    `resolveInstalledChannelRootForPlatform` отвергает обновление вне управляемого
    каталога. Для read-only AppImage проблема также не решена. Нужен отдельный
    проверенный контракт обновления системных пакетов, а не запись поверх `/opt`.
-3. Не выполнены install/uninstall и запуск установленных DEB/RPM/Pacman, запуск
-   AppImage и macOS UI/IPC из DMG/ZIP, применение двух последовательных подписанных
-   обновлений и смена каналов на Unix.
-4. macOS codesign/notarization и проверка Gatekeeper не настроены. Проверка DMG
-   и Mach-O не является подтверждением успешного запуска на пользовательском Mac.
+3. Нужны реальные install/uninstall/upgrade и запуск установленных
+   DEB/RPM/Pacman/AppImage/TAR.XZ, применение двух последовательных подписанных
+   обновлений и смена каналов на Unix. Наличие smoke-скрипта не означает его PASS.
+4. macOS намеренно распространяется без Developer ID и нотариализации; платная
+   Apple Developer Program не требуется. Ограничения и безопасное разрешение
+   первого запуска описаны в [macos-first-launch.md](macos-first-launch.md).
+   CI не доказывает прохождение Gatekeeper для скачанного пользователем файла.
 
 Локально на Windows Unix jobs не выполняются. Для результатов нужен настоящий
-прогон GitHub Actions; запуск workflow и публикация требуют отдельного действия
-владельца. До завершения этих пунктов не переносить Unix в `targets` публикации
+прогон GitHub Actions. Ручной dispatch не публикует релиз; публикация требует
+отдельного разрешения. До завершения этих пунктов не переносить Unix в `targets` публикации
 `scripts/ci-pipeline.ts` и не называть кандидаты production-ready.
