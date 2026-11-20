@@ -13,6 +13,7 @@ export type UnixReplacementPorts = {
   waitHealthy: (child: Child) => Promise<boolean>
   stop: (child: Child) => Promise<void>
   launchPrevious: () => Promise<void>
+  restoreProfile?: () => Promise<void>
 }
 export type UnixReplacementPlan = { target: string; nonce: string; kind: "file" | "directory" }
 export function unixTransactionPaths(plan: UnixReplacementPlan) {
@@ -93,6 +94,7 @@ export async function applyUnixUpdateTransaction(plan: UnixReplacementPlan, port
         await syncDirectory(path.dirname(plan.target))
         await ports.verifyCurrent()
         await record("rolled-back")
+        await ports.restoreProfile?.()
         await ports.launchPrevious()
       }
     } catch (rollbackError) {
