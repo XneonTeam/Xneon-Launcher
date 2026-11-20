@@ -90,7 +90,7 @@ exec "$HERE/${installRoot}/bin/launcher" "$@"
 `
 
 /** Раскладывает проверенный payload в дерево установки и служебные файлы. */
-async function stageRoot(extracted: string, work: string, app: string) {
+export async function stageRoot(extracted: string, work: string, app: string) {
   const root = path.join(work, "root")
   const application = path.join(extracted, app)
   for (const entry of ["bin/launcher", "bin/bun", "Resources/version.json"]) {
