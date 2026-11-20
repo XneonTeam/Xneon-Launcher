@@ -1,25 +1,18 @@
-<p align="center">
-  <a href="https://launcher.xneon.org" target="_blank">
-    <img alt="Xneon Launcher" width="120" src="https://launcher.xneon.org/icon.png">
-  </a>
-</p>
+<p align="center"><a href="https://launcher.xneon.org" target="_blank"><img alt="Xneon Launcher" width="120" src="https://launcher.xneon.org/icon.png"></a></p>
 
 <h1 align="center">Xneon Launcher</h1>
 
 <p align="center">
-  <a href="https://github.com/XneonTeam/Xneon-Launcher/releases/latest">
-    <img src="https://img.shields.io/github/v/release/XneonTeam/Xneon-Launcher?style=flat-square&color=f97316" alt="Version">
-  </a>
-  <a href="https://github.com/XneonTeam/Xneon-Launcher/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License">
-  </a>
-  <img src="https://img.shields.io/badge/Electrobun-2-47848F?style=flat-square" alt="Electrobun">
-  <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react" alt="React">
-  <img src="https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite" alt="Vite">
+  <a href="https://github.com/XneonTeam/Xneon-Launcher/releases/latest"><img height="45" src="./.github/badges/version.svg" alt="Version"></a>&nbsp;
+  <a href="https://github.com/XneonTeam/Xneon-Launcher/blob/main/LICENSE"><img height="45" src="./.github/badges/license.svg" alt="License"></a>&nbsp;
+  <img height="45" src="./.github/badges/runtime.svg" alt="Electrobun">
   <br>
-  <img src="https://img.shields.io/badge/Windows-0078D4?style=flat-square&logo=windows" alt="Windows">
-  <img src="https://img.shields.io/badge/macOS-000000?style=flat-square&logo=apple" alt="macOS">
-  <img src="https://img.shields.io/badge/Linux-FCC624?style=flat-square&logo=linux" alt="Linux">
+  <img height="45" src="./.github/badges/react.svg" alt="React">&nbsp;
+  <img height="45" src="./.github/badges/vite.svg" alt="Vite">
+  <br>
+  <img height="45" src="./.github/badges/windows.svg" alt="Windows">&nbsp;
+  <img height="45" src="./.github/badges/macos.svg" alt="macOS">&nbsp;
+  <img height="45" src="./.github/badges/linux.svg" alt="Linux">
 </p>
 
 <p align="center">
@@ -188,7 +181,6 @@ bun run package       # Stable → release-electrobun/stable/
 bun run typecheck     # renderer + main tsconfig
 bun run test:desktop  # desktop-тесты под Bun 1.4.4
 bun run test:offline  # воспроизводимый offline gate, без внешних сервисов
-bun run share:test    # тесты пакета Share
 ```
 
 После сборки Windows x64 можно проверить изоляцию каналов через
