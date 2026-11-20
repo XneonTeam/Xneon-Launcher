@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import { mkdtemp, mkdir, writeFile, readFile, rm, rename, symlink, realpath } from "node:fs/promises"
 import path from "node:path"
 import os from "node:os"
-import { applyUnixUpdateTransaction, type UnixReplacementPorts } from "../../electrobun/main/unix-update-transaction"
+import { applyUnixUpdateTransaction, recoverUnixUpdateTransaction, unixTransactionPaths, type UnixReplacementPorts } from "../../electrobun/main/unix-update-transaction"
 
 const nonce = "a".repeat(32)
 async function fixture(kind: "file" | "directory", action: (plan: any, read: () => Promise<string>, ports: UnixReplacementPorts) => Promise<void>) {
@@ -54,4 +54,35 @@ test("symlink вместо установленного файла не заме
   await rename(plan.target, real); await symlink(real, plan.target)
   await expect(applyUnixUpdateTransaction(plan, ports)).rejects.toThrow()
   expect(await readFile(real, "utf8")).toBe("A")
+}))
+
+for (const replaced of [false, true]) test(`recovery восстанавливает A после crash между rename/journal (replaced=${replaced})`, () => fixture("directory", async (plan, read, ports) => {
+  const files = unixTransactionPaths(plan)
+  await rename(plan.target, files.backup)
+  if (replaced) await rename(files.prepared, plan.target)
+  await writeFile(files.journal, JSON.stringify({ schemaVersion: 1, ...plan, phase: "prepared" }))
+  let stopped = false
+  const result = await recoverUnixUpdateTransaction(plan, { waitForParentExit: async () => {}, stopForRecovery: async () => { stopped = true },
+    verifyPrevious: async file => { expect(await readFile(path.join(file, "identity"), "utf8")).toBe("A") },
+    verifyInstalled: async () => { throw new Error("Unconfirmed B must not be accepted") }, launchPrevious: ports.launchPrevious })
+  expect(result.status).toBe("rolled-back")
+  expect(stopped).toBe(true)
+  expect(await read()).toBe("A")
+}))
+test("recovery не откатывает уже подтверждённую и целостную B", () => fixture("directory", async (plan, read) => {
+  const files = unixTransactionPaths(plan)
+  await rename(plan.target, files.backup); await rename(files.prepared, plan.target)
+  await writeFile(files.journal, JSON.stringify({ schemaVersion: 1, ...plan, phase: "committed" }))
+  const unexpected = async () => { throw new Error("Committed B must not be stopped") }
+  const result = await recoverUnixUpdateTransaction(plan, { waitForParentExit: unexpected, stopForRecovery: unexpected,
+    verifyPrevious: unexpected, verifyInstalled: async () => { expect(await read()).toBe("B") }, launchPrevious: unexpected })
+  expect(result.status).toBe("committed")
+}))
+test("recovery не доверяет подменённому journal target", () => fixture("directory", async (plan, read, ports) => {
+  const files = unixTransactionPaths(plan)
+  await writeFile(files.journal, JSON.stringify({ schemaVersion: 1, ...plan, target: "/other/app", phase: "prepared" }))
+  const unexpected = async () => { throw new Error("Must not mutate") }
+  await expect(recoverUnixUpdateTransaction(plan, { waitForParentExit: unexpected, stopForRecovery: unexpected,
+    verifyPrevious: unexpected, verifyInstalled: unexpected, launchPrevious: ports.launchPrevious })).rejects.toThrow(/journal/)
+  expect(await read()).toBe("A")
 }))
