@@ -87,6 +87,34 @@ test("recovery не доверяет подменённому journal target", (
   expect(await read()).toBe("A")
 }))
 
+test("recovery после ready до первого journal возвращает проверенную A без snapshot", () => fixture("directory", async (plan, read, ports) => {
+  const events: string[] = []
+  const result = await recoverUnixUpdateTransaction(plan, {
+    ready: async () => { events.push("ready") },
+    waitForParentExit: async () => { expect(events).toContain("ready"); events.push("exit") },
+    stopForRecovery: async () => { events.push("stop") },
+    verifyPrevious: async file => { expect(await readFile(path.join(file, "identity"), "utf8")).toBe("A") },
+    verifyInstalled: async () => { throw new Error("No committed B") },
+    restoreProfile: async () => { throw new Error("No snapshot required before transaction") },
+    launchPrevious: ports.launchPrevious,
+  })
+  expect(result.status).toBe("rolled-back")
+  expect(await read()).toBe("A")
+  expect(events).toEqual(["ready", "exit", "stop"])
+}))
+
+test("missing journal при изменённом target не разрешает ready/выход родителя", () => fixture("directory", async (plan, _read, ports) => {
+  const files = unixTransactionPaths(plan)
+  await rename(plan.target, files.backup); await rename(files.prepared, plan.target)
+  let ready = false, exited = false
+  await expect(recoverUnixUpdateTransaction(plan, {
+    ready: async () => { ready = true }, waitForParentExit: async () => { exited = true }, stopForRecovery: async () => {},
+    verifyPrevious: async file => { expect(await readFile(path.join(file, "identity"), "utf8")).toBe("A") },
+    verifyInstalled: async () => {}, launchPrevious: ports.launchPrevious,
+  })).rejects.toThrow()
+  expect(ready).toBe(false); expect(exited).toBe(false)
+}))
+
 test("directory strategy использует exchange, не оставляя target отсутствующим между rename", () => fixture("directory", async (plan, read, ports) => {
   let exchanges = 0, removedTarget = false
   const exchange = async (left: string, right: string) => {
