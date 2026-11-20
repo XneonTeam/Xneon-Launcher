@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { createHash, randomBytes } from "node:crypto"
+import { constants } from "node:fs"
 import { copyFile, lstat, mkdir, open, readFile, rename, rm } from "node:fs/promises"
 import path from "node:path"
 import { updatePublicKeys } from "./update-public-keys"
@@ -87,16 +88,18 @@ export class UnixUpdateStateStore {
       await verifyUnixUpdateFile(source, artifact)
       await this.privateDirectory(true)
       const payload = `payload-${randomBytes(16).toString("hex")}`, file = this.payloadPath(payload)
+      let published = false
       try {
-        await copyFile(source, file, 1) // COPYFILE_EXCL: нельзя следовать за подставленной ссылкой.
+        await copyFile(source, file, constants.COPYFILE_EXCL)
         await verifyUnixUpdateFile(file, artifact)
         const handle = await open(file, "r+")
         try { await handle.sync() } finally { await handle.close() }
         const old = await this.read()
         await this.write({ schemaVersion: 1, channel, pending: { from: local, installation, manifest: update.manifestBytes.toString("base64"),
           signature: update.signatureBytes.toString("base64"), payload, deferred: false } })
+        published = true
         await this.removePayload(old.pending)
-      } catch (error) { await rm(file, { force: true }); throw error }
+      } catch (error) { if (!published) await rm(file, { force: true }); throw error }
     })
   }
   private async inspect(local: UnixInstalledBuild, installation: UnixInstallation): Promise<PendingUnixUpdate | null> {

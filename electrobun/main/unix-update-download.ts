@@ -34,13 +34,18 @@ export async function downloadUnixUpdateFile(base: string, artifact: UnixUpdateF
     const response = await (options.request ?? updateFeedGet)(`${base}/${artifact.file}`, signal)
     assert.ok(response?.ok && response.body, "Update download failed")
     const reader = response.body.getReader()
-    const file = await open(temporary, "wx", 0o600)
+    const abortReader = () => { void reader.cancel(signal.reason).catch(() => {}) }
+    signal.addEventListener("abort", abortReader, { once: true })
+    let file: Awaited<ReturnType<typeof open>> | undefined
     const hash = createHash("sha256")
     let size = 0
     try {
+      signal.throwIfAborted()
+      file = await open(temporary, "wx", 0o600)
       for (;;) {
         signal.throwIfAborted()
         const { done, value } = await reader.read()
+        signal.throwIfAborted()
         if (done) break
         size += value.length
         assert.ok(size <= artifact.downloadSize, "Downloaded update exceeds signed size")
@@ -52,7 +57,10 @@ export async function downloadUnixUpdateFile(base: string, artifact: UnixUpdateF
       assert.equal(hash.digest("hex"), artifact.downloadSha256, "Downloaded update SHA-256 differs from signed manifest")
       signal.throwIfAborted()
       await file.sync()
-    } finally { await file.close(); await reader.cancel().catch(() => {}) }
+    } finally {
+      signal.removeEventListener("abort", abortReader)
+      try { await file?.close() } finally { await reader.cancel().catch(() => {}) }
+    }
     assert.equal((await lstat(temporary)).size, artifact.downloadSize)
     const destination = path.join(directory, artifact.file)
     await rename(temporary, destination)
