@@ -17,6 +17,8 @@ import { findUnixUpdateGroups, ownsUnixUpdateProcess, spawnUnixUpdateProcess, st
 import { readUnixUpdateHealth } from "./unix-update-health"
 import { assertUpdateFreeSpace } from "./unix-update-download"
 import { appIdentifier } from "./app-identity"
+import { acquireUnixFileLock } from "../platform/unix-file-lock"
+import { runUnixPackageHelper } from "./unix-update-package-helper"
 
 async function privateDirectory(file: string) {
   const info = await lstat(file)
@@ -86,9 +88,15 @@ export async function runUnixUpdateHelper(jobFile: string, recovery = false, key
   const job = authenticateUnixHelperJob(document, { profile, parentPid: recovery ? document.parentPid : process.ppid,
     platform: process.platform === "darwin" ? "macos" : "linux", arch: process.arch }, keys)
   assert.equal(job.nonce, nonce, "Helper nonce/path mismatch")
+  const release = acquireUnixFileLock(path.join(directory, "helper.lock"))
+  assert.ok(release, "update-in-progress")
+  try { return await runAuthenticatedUnixHelper(job, directory, recovery, keys) } finally { release() }
+}
+
+async function runAuthenticatedUnixHelper(job: ReturnType<typeof authenticateUnixHelperJob>, directory: string, recovery: boolean, keys?: Readonly<Record<string, string>>) {
+  const { nonce, profile } = job
   const { installation, update } = job
-  // Системные пакеты требуют отдельного package-manager handoff, а не rename /opt.
-  assert.ok(installation.kind === "appimage" || installation.kind === "app-bundle" || installation.kind === "directory", "update-package-helper-not-configured")
+  if (["deb", "rpm", "pacman"].includes(installation.kind)) return runUnixPackageHelper(job, directory, recovery, keys)
   const plan: UnixReplacementPlan = { target: installation.target, nonce, kind: installation.kind === "appimage" ? "file" : "directory" }
   const files = unixTransactionPaths(plan), baselineFile = path.join(directory, "baseline.json")
   const snapshot = path.join(directory, "profile-backup")
