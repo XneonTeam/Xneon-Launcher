@@ -8,4 +8,6 @@ test("Unix updater helper собирается отдельно без импо�
   expect(text).toContain("runUnixUpdateHelper")
   expect(text).not.toContain("class DesktopWindow")
   expect(text).not.toContain("XNLC_UPDATE_PRIVATE_KEY")
+  expect(text).not.toContain("update-package-helper-not-configured")
+  expect(text).toContain("installUnixPackage")
 })
