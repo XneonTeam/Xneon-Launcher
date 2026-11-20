@@ -20,6 +20,7 @@ function run(program: string, args: string[]) {
 }
 
 export async function inspectUnixBundle(root: string) {
+  root = path.resolve(root)
   const linux = process.platform === "linux"
   assert.ok(linux && process.arch === "x64" || process.platform === "darwin" && process.arch === "arm64", "Native Linux x64 or macOS arm64 runner required")
   const bin = path.join(root, linux ? "bin" : "Contents/MacOS")
