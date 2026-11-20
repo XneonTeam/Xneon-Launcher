@@ -74,13 +74,13 @@ jobs:
     if: >-
       ${{ github.repository == 'MAINER4IK/Xneon-Launcher-bun' &&
           (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') }}
-    name: build (${{ matrix.target }})
+    name: Windows build (${{ matrix.target }})
     strategy:
       fail-fast: false
       max-parallel: 3
       matrix:
         include:
-          # Временно публикуем только Windows; Unix-шаги ниже сохранены для возврата платформ.
+          # Production-публикация пока только для Windows.
           - { runner: windows-2022, target: win-x64, platform: win, arch: x64, machine: X64 }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
@@ -89,7 +89,6 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           desktop: 'true'
-          linux-native-build: ${{ runner.os == 'Linux' && 'true' || 'false' }}
       - name: Check release tag and package version before building
         if: startsWith(github.ref, 'refs/tags/v')
         run: bun scripts/ci-release.ts identity
@@ -100,13 +99,8 @@ jobs:
           RUNNER_MACHINE: ${{ runner.arch }}
         run: |
           set -euo pipefail
-          if [ "$RUNNER_OS" = Windows ]; then
-            test "$RUNNER_MACHINE" = "$EXPECTED_MACHINE"
-          else
-            test "$(uname -m)" = "$EXPECTED_MACHINE"
-          fi
+          test "$RUNNER_MACHINE" = "$EXPECTED_MACHINE"
       - name: Ensure NSIS
-        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $candidates = @(@(
@@ -121,70 +115,16 @@ jobs:
           if (-not $candidates) { throw 'makensis (NSIS 3) is required to build the Windows installer' }
           Add-Content -LiteralPath $env:GITHUB_ENV -Value ('XNEON_MAKENSIS=' + $candidates[0])
           & $candidates[0] /VERSION
-      - name: Build stable native artifacts (NSIS on Windows only)
+      - name: Build stable Windows artifacts (NSIS)
         run: bun run build
-      - name: Verify native platform adapters skipped on Ubuntu
-        if: runner.os != 'Linux'
+      - name: Verify Windows platform adapters and PE metadata
         run: |
           set -euo pipefail
           bun test tests/electrobun/platform-desktop.test.ts tests/electrobun/platform-secrets.test.ts tests/electrobun/platform-unix.test.ts
-          if [ "$RUNNER_OS" = Windows ]; then
-            bun test tests/tooling/electrobun-packaging.test.mjs --test-name-pattern 'PE metadata'
-          fi
+          bun test tests/tooling/electrobun-packaging.test.mjs --test-name-pattern 'PE metadata'
       - name: Validate Windows payload, PE, NSIS and staging
-        if: runner.os == 'Windows'
         run: bun scripts/validate-pre-release.ts release-electrobun/stable checked-native stable
-      - name: Stage native Unix artifacts without repackaging
-        if: runner.os != 'Windows'
-        env:
-          TARGET_PLATFORM: ${{ matrix.platform }}
-          TARGET_ARCH: ${{ matrix.arch }}
-        run: bun scripts/electrobun-artifacts.ts stage release-electrobun/stable checked-native "$TARGET_PLATFORM" "$TARGET_ARCH" stable
-      - name: Build Linux distribution packages
-        if: runner.os == 'Linux'
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends rpm libarchive-tools xz-utils squashfs-tools file
-          bun scripts/package-linux.ts checked-native checked-packages
-      - name: Verify native Linux executable
-        if: runner.os == 'Linux'
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          launchers=(build-electrobun/stable-linux-x64/*/bin/launcher)
-          test "${#launchers[@]}" -eq 1
-          test -x "${launchers[0]}"
-          LC_ALL=C readelf -h "${launchers[0]}" | awk '/Machine:/ && /X86-64/ { ok=1 } END { exit !ok }'
-      - name: Verify native macOS image and application bundle
-        if: runner.os == 'macOS'
-        shell: bash
-        env:
-          TARGET: ${{ matrix.target }}
-          EXPECTED_MACHINE: ${{ matrix.machine }}
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          images=(release-electrobun/stable/*.dmg)
-          apps=(build-electrobun/stable-"$TARGET"/*.app)
-          test "${#images[@]}" -eq 1
-          test "${#apps[@]}" -eq 1
-          plist="${apps[0]}/Contents/Info.plist"
-          executable="$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$plist")"
-          [[ "$executable" != */* ]]
-          test -x "${apps[0]}/Contents/MacOS/$executable"
-          test "$(lipo -archs "${apps[0]}/Contents/MacOS/$executable")" = "$EXPECTED_MACHINE"
-          # Версия payload уже проверена validator; wrapper содержит metadata.json, а не CFBundleShortVersionString.
-          BUNDLE_METADATA_FILE="${apps[0]}/Contents/Resources/metadata.json" UPDATE_MANIFEST_FILE="release-electrobun/stable/stable-${TARGET}-update-v2.json" bun -e 'const [metadata, manifest] = await Promise.all(["BUNDLE_METADATA_FILE", "UPDATE_MANIFEST_FILE"].map(key => Bun.file(process.env[key]).json())); if (manifest.version !== (await import("./package.json")).default.version) throw new Error("Unexpected macOS bundle version"); for (const key of ["identifier", "channel", "hash"]) if (!metadata[key] || metadata[key] !== manifest[key]) throw new Error("Unexpected macOS wrapper " + key)'
-          hdiutil verify "${images[0]}"
-          mount_dir="$(mktemp -d)"
-          trap 'hdiutil detach "$mount_dir"; rmdir "$mount_dir"' EXIT
-          hdiutil attach -readonly -nobrowse -mountpoint "$mount_dir" "${images[0]}"
-          mounted=("$mount_dir"/*.app)
-          test "${#mounted[@]}" -eq 1
-          diff -qr "${apps[0]}" "${mounted[0]}"
       - name: Build and validate independent Portable profile
-        if: runner.os == 'Windows'
         shell: bash
         run: |
           set -euo pipefail
@@ -197,14 +137,6 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - uses: actions/upload-artifact@v7
-        if: runner.os == 'Linux'
-        with:
-          name: native-linux-x64-packages
-          path: checked-packages/*
-          if-no-files-found: error
-          retention-days: 7
-      - uses: actions/upload-artifact@v7
-        if: runner.os == 'Windows'
         with:
           name: native-win-x64-portable
           path: |
@@ -213,72 +145,118 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  unix-preflight:
+  linux-preflight:
     # До проверки установки/обновлений Unix не входит в release allowlist.
     if: github.event_name == 'workflow_dispatch'
     needs: tests
-    name: Unix preflight (${{ matrix.target }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { runner: ubuntu-24.04, target: linux-x64, platform: linux, arch: x64, machine: x86_64 }
-          - { runner: macos-26, target: macos-arm64, platform: macos, arch: arm64, machine: arm64 }
-    runs-on: ${{ matrix.runner }}
+    name: Linux build (x64)
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      TARGET: ${{ matrix.target }}
-      TARGET_PLATFORM: ${{ matrix.platform }}
-      TARGET_ARCH: ${{ matrix.arch }}
-      EXPECTED_MACHINE: ${{ matrix.machine }}
+      TARGET_PLATFORM: linux
+      TARGET_ARCH: x64
+      EXPECTED_MACHINE: x86_64
     steps:
       - *checkout
       - uses: ./.github/actions/setup
         with:
           desktop: 'true'
-          linux-native-build: ${{ runner.os == 'Linux' && 'true' || 'false' }}
+          linux-native-build: 'true'
       - name: Assert native runner architecture
         run: test "$(uname -m)" = "$EXPECTED_MACHINE"
-      - name: Build Unix candidate with the existing channel pipeline
+      - name: Build Linux candidate
         run: |
           set -euo pipefail
           if [ "$CHANNEL" = stable ]; then bun run build; else bun run build:canary; fi
       - name: Validate native artifacts and exact archive identity
         run: bun scripts/electrobun-artifacts.ts stage "release-electrobun/$CHANNEL" checked-unix "$TARGET_PLATFORM" "$TARGET_ARCH" "$CHANNEL"
-      - name: Validate runtime libraries and prepare macOS ZIP
+      - name: Validate Linux CEF runtime and ABI
         run: |
           set -euo pipefail
           bun scripts/extract-native-payload.ts checked-unix native-payload "$CHANNEL" "$TARGET_PLATFORM" "$TARGET_ARCH"
-          if [ "$RUNNER_OS" = Linux ]; then payload="native-payload/XneonLauncher"; else payload="native-payload/Xneon Launcher.app"; fi
-          if [ "$CHANNEL" = canary ]; then
-            if [ "$RUNNER_OS" = Linux ]; then payload="native-payload/XneonLauncher-canary"; else payload="native-payload/Xneon Launcher-canary.app"; fi
-          fi
+          payload="native-payload/XneonLauncher"
+          if [ "$CHANNEL" = canary ]; then payload="native-payload/XneonLauncher-canary"; fi
           bun scripts/unix-native-preflight.ts "$payload" checked-unix-extra "$CHANNEL"
       - name: Build Linux distribution packages
-        if: runner.os == 'Linux'
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends rpm libarchive-tools xz-utils squashfs-tools file
           bun scripts/package-linux.ts checked-unix checked-unix-packages
-      - name: Verify macOS disk image
-        if: runner.os == 'macOS'
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          images=(release-electrobun/"$CHANNEL"/*.dmg)
-          test "${#images[@]}" -eq 1
-          hdiutil verify "${images[0]}"
-          bun scripts/smoke-macos.ts checked-unix-extra unix-smoke
       - name: Preserve candidate files and explicit validation limits (not release assets)
         uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: preflight-${{ matrix.target }}-${{ env.CHANNEL }}
+          name: preflight-linux-x64-${{ env.CHANNEL }}
           path: |
             checked-unix/*
             checked-unix-extra/*
             checked-unix-packages/*
+          if-no-files-found: warn
+          retention-days: 7
+
+  macos-preflight:
+    # Независимый кандидат, не часть production-публикации.
+    if: github.event_name == 'workflow_dispatch'
+    needs: tests
+    name: macOS build (ARM64)
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      TARGET_PLATFORM: macos
+      TARGET_ARCH: arm64
+      EXPECTED_MACHINE: arm64
+    steps:
+      - *checkout
+      - uses: ./.github/actions/setup
+        with:
+          desktop: 'true'
+      - name: Assert native runner architecture
+        run: test "$(uname -m)" = "$EXPECTED_MACHINE"
+      - name: Build macOS candidate
+        run: |
+          set -euo pipefail
+          if [ "$CHANNEL" = stable ]; then bun run build; else bun run build:canary; fi
+      - name: Validate macOS artifacts and exact archive identity
+        run: bun scripts/electrobun-artifacts.ts stage "release-electrobun/$CHANNEL" checked-unix "$TARGET_PLATFORM" "$TARGET_ARCH" "$CHANNEL"
+      - name: Validate macOS payload and prepare DMG and ZIP
+        run: |
+          set -euo pipefail
+          bun scripts/extract-native-payload.ts checked-unix native-payload "$CHANNEL" "$TARGET_PLATFORM" "$TARGET_ARCH"
+          payload="native-payload/Xneon Launcher.app"
+          if [ "$CHANNEL" = canary ]; then payload="native-payload/Xneon Launcher-canary.app"; fi
+          bun scripts/unix-native-preflight.ts "$payload" checked-unix-extra "$CHANNEL"
+      - name: Verify native macOS image and application bundle
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          images=(release-electrobun/"$CHANNEL"/*.dmg)
+          apps=(build-electrobun/"$CHANNEL"-macos-arm64/*.app)
+          test "${#images[@]}" -eq 1
+          test "${#apps[@]}" -eq 1
+          plist="${apps[0]}/Contents/Info.plist"
+          executable="$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$plist")"
+          [[ "$executable" != */* ]]
+          test -x "${apps[0]}/Contents/MacOS/$executable"
+          test "$(lipo -archs "${apps[0]}/Contents/MacOS/$executable")" = "$EXPECTED_MACHINE"
+          BUNDLE_METADATA_FILE="${apps[0]}/Contents/Resources/metadata.json" UPDATE_MANIFEST_FILE="release-electrobun/$CHANNEL/${CHANNEL}-macos-arm64-update-v2.json" bun -e 'const [metadata, manifest] = await Promise.all(["BUNDLE_METADATA_FILE", "UPDATE_MANIFEST_FILE"].map(key => Bun.file(process.env[key]).json())); if (manifest.version !== (await import("./package.json")).default.version) throw new Error("Unexpected macOS bundle version"); for (const key of ["identifier", "channel", "hash"]) if (!metadata[key] || metadata[key] !== manifest[key]) throw new Error("Unexpected macOS wrapper " + key)'
+          hdiutil verify "${images[0]}"
+          mount_dir="$(mktemp -d)"
+          trap 'hdiutil detach "$mount_dir"; rmdir "$mount_dir"' EXIT
+          hdiutil attach -readonly -nobrowse -mountpoint "$mount_dir" "${images[0]}"
+          mounted=("$mount_dir"/*.app)
+          test "${#mounted[@]}" -eq 1
+          diff -qr "${apps[0]}" "${mounted[0]}"
+      - name: Run macOS DMG and ZIP smoke
+        run: bun scripts/smoke-macos.ts checked-unix-extra unix-smoke
+      - name: Preserve macOS candidate files and validation evidence
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: preflight-macos-arm64-${{ env.CHANNEL }}
+          path: |
+            checked-unix/*
+            checked-unix-extra/*
             unix-smoke/*
           if-no-files-found: warn
           retention-days: 7
