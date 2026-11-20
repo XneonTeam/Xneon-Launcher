@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test"
-import { mkdtemp, mkdir, writeFile, readFile, rm, rename, symlink } from "node:fs/promises"
+import { mkdtemp, mkdir, writeFile, readFile, rm, rename, symlink, realpath } from "node:fs/promises"
 import path from "node:path"
 import os from "node:os"
 import { applyUnixUpdateTransaction, type UnixReplacementPorts } from "../../electrobun/main/unix-update-transaction"
 
 const nonce = "a".repeat(32)
 async function fixture(kind: "file" | "directory", action: (plan: any, read: () => Promise<string>, ports: UnixReplacementPorts) => Promise<void>) {
-  const root = await mkdtemp(path.join(os.tmpdir(), "xneon-swap-test-"))
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "xneon-swap-test-")))
   try {
     const target = path.join(root, kind === "file" ? "Xneon.AppImage" : "Xneon.app"), work = path.join(root, `.xneon-update-${nonce}`)
     await mkdir(work)
@@ -17,7 +17,7 @@ async function fixture(kind: "file" | "directory", action: (plan: any, read: () 
     const read = () => readFile(file(target), "utf8")
     const ports: UnixReplacementPorts = { waitForParentExit: async () => { expect(await read()).toBe("A") },
       verifyCurrent: async () => { expect(await read()).toBe("A") }, verifyPrepared: async () => { expect(await readFile(file(prepared), "utf8")).toBe("B") },
-      launch: async () => { expect(await read()).toBe("B"); return { pid: 123 } }, waitHealthy: async () => true, stop: async () => {} }
+      launch: async () => { expect(await read()).toBe("B"); return { pid: 123 } }, waitHealthy: async () => true, stop: async () => {}, launchPrevious: async () => { expect(await read()).toBe("A") } }
     await action({ target, nonce, kind }, read, ports)
   } finally { await rm(root, { recursive: true, force: true }) }
 }
