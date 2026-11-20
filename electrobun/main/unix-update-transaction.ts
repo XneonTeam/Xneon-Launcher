@@ -120,6 +120,7 @@ export async function applyUnixUpdateTransaction(plan: UnixReplacementPlan, port
 }
 
 export type UnixRecoveryPorts = {
+  ready?: () => Promise<void>
   waitForParentExit: () => Promise<void>
   stopForRecovery: () => Promise<void>
   verifyPrevious: (file: string) => Promise<void>
@@ -132,23 +133,42 @@ export type UnixRecoveryPorts = {
 export async function recoverUnixUpdateTransaction(plan: UnixReplacementPlan, ports: UnixRecoveryPorts) {
   const files = unixTransactionPaths(plan)
   await sameKind(files.work, "directory")
-  const info = await lstat(files.journal)
+  const exists = (file: string) => lstat(file).then(() => true, error => { if (error.code !== "ENOENT") throw error; return false })
+  const info = await lstat(files.journal).catch(error => { if (error.code !== "ENOENT") throw error; return null })
+  const recoverUntouched = async () => {
+    // Первый journal записывается до любой замены. Без него допускается только доказанная нетронутая A.
+    assert.ok(!await exists(files.backup) && !await exists(files.failed), "Missing update journal with changed payload topology")
+    await sameKind(plan.target, plan.kind)
+    await ports.verifyPrevious(plan.target)
+    await ports.ready?.()
+    await ports.waitForParentExit()
+    await ports.stopForRecovery()
+    await sameKind(plan.target, plan.kind)
+    await ports.verifyPrevious(plan.target)
+    await rm(files.journal + ".next", { force: true })
+    await journal(files.journal, { schemaVersion: 1, ...plan, phase: "untouched" })
+    await ports.launchPrevious()
+    return { status: "rolled-back" as const, journal: files.journal }
+  }
+  if (!info) return recoverUntouched()
   assert.ok(info.isFile() && info.size > 0 && info.size <= 16 * 1024, "Invalid update recovery journal")
   const saved = JSON.parse(await readFile(files.journal, "utf8"))
   assert.ok(saved?.schemaVersion === 1 && saved.target === plan.target && saved.nonce === plan.nonce && saved.kind === plan.kind, "Update recovery journal identity mismatch")
-  assert.ok(["prepared", "exchanged", "backed-up", "installed", "launched", "committed", "rolled-back", "recovery-required"].includes(saved.phase), "Invalid update recovery journal phase")
+  assert.ok(["prepared", "exchanged", "backed-up", "installed", "launched", "committed", "rolled-back", "untouched", "recovery-required"].includes(saved.phase), "Invalid update recovery journal phase")
+  if (saved.phase === "untouched") return recoverUntouched()
   if (saved.phase === "committed") {
     await sameKind(plan.target, plan.kind)
     await ports.verifyInstalled(plan.target)
     return { status: "committed" as const, backup: files.backup, journal: files.journal }
   }
-  await ports.waitForParentExit()
-  const exists = (file: string) => lstat(file).then(() => true, error => { if (error.code !== "ENOENT") throw error; return false })
   const verifiesOld = async (file: string) => {
     if (!await exists(file)) return false
     await sameKind(file, plan.kind)
     try { await ports.verifyPrevious(file); return true } catch { return false }
   }
+  assert.ok(await verifiesOld(plan.target) || await verifiesOld(files.backup) || await verifiesOld(files.prepared), "Previous update payload is missing or corrupt; manual recovery required")
+  await ports.ready?.()
+  await ports.waitForParentExit()
   if (await verifiesOld(plan.target)) {
     await ports.stopForRecovery()
   } else {

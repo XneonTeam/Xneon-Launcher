@@ -135,8 +135,7 @@ async function runAuthenticatedUnixHelper(job: ReturnType<typeof authenticateUni
     if (recovery) {
       baseline = await json(baselineFile, 8192)
       assert.match(baseline.old, /^[a-f0-9]{64}$/); assert.match(baseline.next, /^[a-f0-9]{64}$/)
-      await ready()
-      const result = await recoverUnixUpdateTransaction(plan, { waitForParentExit: async () => { await waitForUnixParentExit(process.ppid, cancel.signal); parentExited = true },
+      const result = await recoverUnixUpdateTransaction(plan, { ready, waitForParentExit: async () => { await waitForUnixParentExit(process.ppid, cancel.signal); parentExited = true },
         stopForRecovery: stopAll, verifyPrevious: verifyOld, verifyInstalled: verifyNew, launchPrevious, restoreProfile })
       await writeJson(resultFile, { ...result, nonce })
       return result
@@ -198,7 +197,7 @@ async function runAuthenticatedUnixHelper(job: ReturnType<typeof authenticateUni
   } catch (error) {
     const phase = await json(files.journal, 16 * 1024).then(value => value.phase, () => null)
     // Сбой snapshot/backup до первой замены не должен оставлять пользователя без старого launcher.
-    if (parentExited && !["rolled-back", "recovery-required", "committed", "installed", "launched"].includes(phase)) {
+    if (parentExited && !["rolled-back", "untouched", "recovery-required", "committed", "installed", "launched"].includes(phase)) {
       await verifyOld(); await launchPrevious()
     }
     await writeJson(resultFile, { nonce, status: phase === "rolled-back" ? "rolled-back" : cancel.signal.aborted ? "cancelled" : "failed", error: error instanceof Error ? error.message : "update-failed" })
