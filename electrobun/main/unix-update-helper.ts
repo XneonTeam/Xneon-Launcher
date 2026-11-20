@@ -20,6 +20,7 @@ import { assertUpdateFreeSpace } from "./unix-update-download"
 import { appIdentifier } from "./app-identity"
 import { acquireUnixFileLock } from "../platform/unix-file-lock"
 import { runUnixPackageHelper } from "./unix-update-package-helper"
+import { assertUnixUpdateStorageOutsideInstallation } from "./unix-update-storage"
 
 async function privateDirectory(file: string) {
   const info = await lstat(file)
@@ -90,6 +91,10 @@ export async function runUnixUpdateHelper(jobFile: string, recovery = false, key
   const job = authenticateUnixHelperJob(document, { profile, parentPid: recovery ? document.parentPid : process.ppid,
     platform: process.platform === "darwin" ? "macos" : "linux", arch: process.arch }, keys)
   assert.equal(job.nonce, nonce, "Helper nonce/path mismatch")
+  const data = readDataLocation(launcherLocationConfig, getDefaultLauncherDataRoot()).root
+  // Исчезновение AppImage mount после выхода A так же опасно, как замена каталога .app.
+  // При recovery mount A уже может отсутствовать; профиль всё равно не мог быть внутри него при admission.
+  await assertUnixUpdateStorageOutsideInstallation([job.installation.target, ...(!recovery && job.mount.APPDIR ? [job.mount.APPDIR] : [])], profile, data)
   const release = acquireUnixFileLock(path.join(directory, "helper.lock"))
   assert.ok(release, "update-in-progress")
   try { return await runAuthenticatedUnixHelper(job, directory, recovery, keys) } finally { release() }

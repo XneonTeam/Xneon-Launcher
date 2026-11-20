@@ -25,5 +25,7 @@ test("соседний prefix и app внутри общего data-root доп�
   const app = path.join(root, "app"), profile = path.join(root, "app-profile")
   await mkdir(app); await mkdir(profile)
   await assertUnixUpdateStorageOutsideInstallation([app], profile, root)
+  // При package recovery target может быть временно удалён менеджером пакетов.
+  await assertUnixUpdateStorageOutsideInstallation([path.join(root, "removed-app")], profile, root)
   await expect(assertUnixUpdateStorageOutsideInstallation([app], profile, path.join(root, "missing"))).rejects.toThrow()
 }))
