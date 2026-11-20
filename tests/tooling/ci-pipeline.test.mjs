@@ -28,7 +28,7 @@ test('macOS связывает metadata wrapper с проверенным manife
   const version = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8')).version
   for (const [workflowFile, channel] of [['release.yml', 'stable'], ['pre-release.yml', 'canary']]) {
     const workflow = Bun.YAML.parse(await fs.readFile(path.join(root, '.github/workflows', workflowFile), 'utf8'))
-    const step = workflow.jobs.build.steps.find(step => step.name === 'Verify native macOS image and application bundle')
+    const step = workflow.jobs['macos-preflight'].steps.find(step => step.name === 'Verify native macOS image and application bundle')
     const check = step.run.split('\n').find(line => line.includes('BUNDLE_METADATA_FILE='))
     assert.ok(check, 'Wrapper metadata must match the validated SDK manifest')
     const code = /bun -e '(.+)'$/.exec(check)?.[1]
@@ -129,7 +129,7 @@ test('release и pre-release — отдельные пайплайны со св
   assert.equal(release.env.CHANNEL, 'stable')
   assert.equal(prerelease.env.CHANNEL, 'canary')
   for (const [workflow, script] of [[release, 'ci-release.ts'], [prerelease, 'ci-pre-release.ts']]) {
-    assert.deepEqual(Object.keys(workflow.jobs), ['tests', 'build', 'unix-preflight', 'release'])
+    assert.deepEqual(Object.keys(workflow.jobs), ['tests', 'build', 'linux-preflight', 'macos-preflight', 'release'])
     assert.ok(workflow.jobs.tests.steps.some(step => step.run === `bun scripts/${script} channel`), 'Каждый пайплайн сначала проверяет свой канал')
     assert.ok(workflow.jobs.tests.steps.some(step => step.run === `bun scripts/${script} guard-tag`), 'Check tag ancestry before entering the protected job')
     const releaseSteps = workflow.jobs.release.steps
@@ -149,14 +149,14 @@ test('release и pre-release — отдельные пайплайны со св
     assert.equal(workflow.jobs.release.permissions.contents, 'write')
   }
   const step = (workflow, job, name) => workflow.jobs[job].steps.find(item => item.name === name)
-  assert.equal(step(release, 'build', 'Build stable native artifacts (NSIS on Windows only)').run, 'bun run build')
+  assert.equal(step(release, 'build', 'Build stable Windows artifacts (NSIS)').run, 'bun run build')
   assert.equal(step(prerelease, 'build', 'Build canary native artifacts').run, 'bun run build:canary')
   assert.ok(step(release, 'build', 'Ensure NSIS'), 'NSIS собирается в стабильном канале')
   assert.ok(step(prerelease, 'build', 'Ensure NSIS'), 'Canary тоже собирает NSIS: им переключается канал')
   assert.ok(step(release, 'build', 'Build and validate independent Portable profile'), 'Portable — stable')
   assert.ok(step(prerelease, 'build', 'Build and validate independent Portable profile'), 'Пререлиз тоже собирает portable')
-  assert.ok(step(release, 'build', 'Build Linux distribution packages'), 'deb/rpm/pacman/AppImage/tar.xz')
-  assert.ok(step(prerelease, 'build', 'Build Linux distribution packages'), 'canary тоже собирает системные пакеты')
+  assert.ok(step(release, 'linux-preflight', 'Build Linux distribution packages'), 'deb/rpm/pacman/AppImage/tar.xz')
+  assert.ok(step(prerelease, 'linux-preflight', 'Build Linux distribution packages'), 'canary тоже собирает системные пакеты')
   const publish = 'Publish only verified native artifacts'
   assert.equal(step(release, 'release', publish).with.prerelease, false)
   assert.equal(step(release, 'release', publish).with.make_latest, true)
@@ -169,11 +169,11 @@ test('release и pre-release — отдельные пайплайны со св
     assert.equal(workflow.jobs.build.strategy['fail-fast'], false)
     assert.equal(workflow.jobs.build.strategy['max-parallel'], 3)
     assert.ok(workflow.jobs.build.strategy.matrix.include.every(item => item.target === 'win-x64' && item.runner === 'windows-2022' && item.arch === 'x64' && item.machine === 'X64'), 'Release temporarily targets only Windows x64')
-    assert.ok(workflow.jobs.build.steps.some(item => item.if === "runner.os != 'Linux'" &&
+    assert.ok(workflow.jobs.build.steps.some(item => !item.if &&
       item.run?.includes('tests/electrobun/platform-desktop.test.ts') &&
       item.run.includes('tests/electrobun/platform-secrets.test.ts') &&
       item.run.includes('tests/electrobun/platform-unix.test.ts') &&
-      item.run.includes('PE metadata')), 'Windows/macOS native cases skipped on Ubuntu must run on their real targets')
+       item.run.includes('PE metadata')), 'Windows native cases skipped on Ubuntu must run on Windows')
   }
 })
 
