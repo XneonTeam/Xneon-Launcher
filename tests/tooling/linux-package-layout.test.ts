@@ -15,6 +15,7 @@ test("упаковка Linux сохраняет относительный CEF s
     for (const file of ["bin/launcher", "bin/bun", "bin/cef/libcef.so", "Resources/version.json"]) await writeFile(path.join(payload, file), "fixture")
     await symlink("cef/libcef.so", path.join(payload, "bin/libcef.so"))
     const root = await stageRoot(source, path.join(work, "stage"), app)
-    expect(await readlink(path.join(root, "opt/xneon-launcher/bin/libcef.so"))).toBe("cef/libcef.so")
+    const link = await readlink(path.join(root, "opt/xneon-launcher/bin/libcef.so"))
+    expect(link.replaceAll("\\", "/")).toBe("cef/libcef.so")
   } finally { await rm(work, { recursive: true, force: true }) }
 })

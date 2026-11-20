@@ -96,7 +96,7 @@ export async function stageRoot(extracted: string, work: string, app: string) {
   for (const entry of ["bin/launcher", "bin/bun", "Resources/version.json"]) {
     assert.ok((await lstat(path.join(application, entry))).isFile(), "Missing native payload entry: " + entry)
   }
-  await cp(application, path.join(root, installRoot), { recursive: true })
+  await cp(application, path.join(root, installRoot), { recursive: true, verbatimSymlinks: true })
   await mkdir(path.join(root, "usr/bin"), { recursive: true })
   await symlink(`/${installRoot}/bin/launcher`, path.join(root, "usr/bin", desktopName))
   await mkdir(path.join(root, "usr/share/applications"), { recursive: true })
