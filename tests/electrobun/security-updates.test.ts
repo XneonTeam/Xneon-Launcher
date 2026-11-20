@@ -144,7 +144,7 @@ import { ShutdownCoordinator } from "../../electrobun/platform/shutdown.ts"
     const dependencies = {
       "electrobun/main": { Updater, default: { events: { on(name, callback) { if (name === "before-quit") beforeQuit = callback } } }, __esModule: true },
       "../../package.json": { version: installed },
-      "./profile-path": { isPortable: false },
+      "./profile-path": { isPortable: cleanup.portable ?? false },
       "../platform/desktop": {
         app: { emit() {}, getPath: () => "fixture-temp" },
         rpcRegistry: { handle: (name, handler) => handlers.set(name, handler) },
@@ -195,6 +195,21 @@ import { ShutdownCoordinator } from "../../electrobun/platform/shutdown.ts"
   }
 
   describe("updater", () => {
+    test("portable: все update actions отклоняются без SDK, сети и installer handoff", async () => {
+      const forbidden = () => { throw new Error("Portable must not invoke SDK") }
+      const app = fixture({ getLocalInfo: forbidden, appDataFolder: forbidden, checkForUpdate: forbidden,
+        downloadUpdate: forbidden, applyUpdate: forbidden, onStatusChange: forbidden }, { portable: true })
+      assert.equal((await app.check()).error, "portable-manual-update")
+      assert.equal((await app.download()).error, "portable-manual-update")
+      assert.equal((await app.defer()).error, "portable-manual-update")
+      assert.equal((await app.changeChannel("beta")).error, "portable-manual-update")
+      await app.install()
+      assert.equal(app.events.at(-1).error, "portable-manual-update")
+      assert.equal((await app.state()).status, "idle")
+      assert.deepEqual(app.downloads, [])
+      assert.deepEqual(app.spawned, [])
+      assert.deepEqual(app.order, [])
+    })
     test("состояние без обновления и NSIS другого канала не требуют SDK update directory", async () => {
       const app = fixture({ appDataFolder: async () => { throw new Error("outside its managed update directory") } }, {}, "1.0.8")
       assert.equal((await app.state()).status, "idle")
