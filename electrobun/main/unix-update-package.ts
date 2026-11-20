@@ -73,3 +73,19 @@ export async function installUnixPackage(kind: PackageKind, file: string, allowD
   if (status === 127) throw new Error("update-privileges-required")
   if (status !== 0) throw new Error("update-package-manager-failed")
 }
+
+export async function verifyInstalledUnixPackage(kind: PackageKind, version: string, read: Query = query) {
+  const native = linuxPackageVersion(version)
+  if (kind === "deb") {
+    const output = await read("/usr/bin/dpkg-query", ["--show", "--showformat", "Package: ${Package}\nVersion: ${Version}\nArchitecture: ${Architecture}\nStatus: ${Status}\n", "xneon-launcher"])
+    const value = fields(output, ":", ["Package", "Version", "Architecture", "Status"])
+    assert.ok(value.Package === "xneon-launcher" && value.Version === native.deb && value.Architecture === "amd64" && value.Status === "install ok installed", "Installed DEB is not the configured signed version")
+  } else if (kind === "rpm") {
+    const output = await read("/usr/bin/rpm", ["-q", "--qf", "%{NAME}\n%{VERSION}\n%{RELEASE}\n%{ARCH}\n", "xneon-launcher"])
+    assert.deepEqual(output.trim().split(/\r?\n/), ["xneon-launcher", native.rpmVersion, native.rpmRelease, "x86_64"], "Installed RPM differs from signed version")
+  } else {
+    assert.equal(kind, "pacman", "Unsupported package manager")
+    const output = await read("/usr/bin/pacman", ["-Q", "xneon-launcher"])
+    assert.equal(output.trim(), `xneon-launcher ${native.pacmanVersion}-${native.pacmanRelease}`, "Installed Pacman package differs from signed version")
+  }
+}
