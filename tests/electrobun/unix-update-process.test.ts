@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { unixUpdateLaunchSpec, ownsUnixUpdateProcess } from "../../electrobun/main/unix-update-process"
+import { unixUpdateLaunchSpec, ownsUnixUpdateProcess, unixUpdateOwnedGroups } from "../../electrobun/main/unix-update-process"
 
 const nonce = "a".repeat(32)
 test("AppImage restart не наследует старый mount и переменные инъекции", () => {
@@ -32,4 +32,14 @@ test("опасные пути и nonce не могут попасть в restart
   expect(() => unixUpdateLaunchSpec({ kind: "appimage", platform: "linux", target: "--evil" }, nonce, {})).toThrow()
   expect(() => unixUpdateLaunchSpec({ kind: "appimage", platform: "linux", target: "/normal" }, "../bad", {})).toThrow()
   expect(() => unixUpdateLaunchSpec({ kind: "manual", platform: "linux", target: "/normal" }, nonce, {})).toThrow()
+})
+
+test("поиск orphan групп требует точного environment nonce, не подстроки command line", () => {
+  expect(unixUpdateOwnedGroups([
+    `100 /app/bin/bun XNLC_UNIX_UPDATE_NONCE=${nonce} HOME=/home/test`,
+    `100 /app/bin/bun --type=renderer XNLC_UNIX_UPDATE_NONCE=${nonce}`,
+    `200 /else/bun XNLC_UNIX_UPDATE_NONCE=${nonce}b`,
+    `300 /else/bun ARG_XNLC_UNIX_UPDATE_NONCE=${nonce}`,
+    `400 /else/bun --argument=${nonce}`,
+  ].join("\n"), nonce)).toEqual([100])
 })
