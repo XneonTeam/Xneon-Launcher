@@ -10,6 +10,10 @@ import { appIdentifier } from '../../electrobun/main/app-identity.ts'
 const root = path.resolve(import.meta.dir, '../..')
 const pipeline = () => import('../../scripts/ci-pipeline.ts')
 const repository = 'MAINER4IK/Xneon-Launcher-bun'
+test('check-config принимает текущие раздельные задания платформ', () => {
+  const result = spawnSync(process.execPath, ['scripts/check-config.mjs'], { cwd: root, encoding: 'utf8' })
+  assert.equal(result.status, 0, result.stderr || result.stdout)
+})
 test('имена установщиков содержат версию, а технические имена SDK не меняются', async () => {
   const { publicationNames } = await pipeline()
   for (const version of ['1.2.3', '1.2.3-pre1']) {
