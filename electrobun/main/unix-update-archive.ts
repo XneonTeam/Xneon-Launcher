@@ -1,9 +1,10 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
-import { mkdir, open, readFile, rm, symlink } from "node:fs/promises"
+import { lstat, mkdir, open, readFile, rm, symlink } from "node:fs/promises"
 import path from "node:path"
 import type { UnixUpdateManifest } from "./unix-update-manifest"
 import { UNIX_UPDATE_MAX_BYTES } from "./unix-update-manifest"
+import { syncUnixUpdateDirectory } from "./unix-update-transaction"
 
 type Entry = { name: string; type: "file" | "directory" | "symlink"; offset: number; size: number; mode: number; link?: string }
 const decoder = new TextDecoder("utf-8", { fatal: true })
@@ -149,7 +150,10 @@ function assertZstdSize(bytes: Buffer, expected: number) {
 
 export async function extractUnixUpdateArchive(source: string, destination: string, root: string,
   artifact: UnixUpdateManifest["artifact"], signal?: AbortSignal) {
+  destination = path.resolve(destination)
   signal?.throwIfAborted()
+  const info = await lstat(source)
+  assert.ok(info.isFile() && info.size === artifact.downloadSize && info.size <= UNIX_UPDATE_MAX_BYTES, "Invalid update archive file/size")
   const compressed = await readFile(source)
   const sha = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex")
   assert.equal(compressed.length, artifact.downloadSize, "Update archive size mismatch")
@@ -179,6 +183,14 @@ export async function extractUnixUpdateArchive(source: string, destination: stri
       await mkdir(path.dirname(file), { recursive: true, mode: 0o755 })
       await symlink(entry.link!, file)
     }
+    const directories = new Set([destination])
+    for (const entry of entries) {
+      const file = path.join(destination, ...entry.name.split("/"))
+      if (entry.type === "directory") directories.add(file)
+      for (let parent = path.dirname(file); parent !== destination; parent = path.dirname(parent)) directories.add(parent)
+    }
+    for (const directory of [...directories].sort((a, b) => b.length - a.length)) await syncUnixUpdateDirectory(directory)
+    await syncUnixUpdateDirectory(path.dirname(destination))
     return path.join(destination, root)
   } catch (error) { await rm(destination, { recursive: true, force: true }); throw error }
 }

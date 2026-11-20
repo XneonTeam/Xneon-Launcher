@@ -9,6 +9,7 @@ import { compareReleaseVersions } from "./verified-update-manifest"
 import { verifySignedUnixUpdateManifest, type UnixUpdateFile, type UnixUpdateTarget } from "./unix-update-manifest"
 import { selectUnixUpdateArtifact, type UnixInstallation } from "./unix-update-installation"
 import type { VerifiedUnixUpdate } from "./unix-update-feed"
+import { syncUnixUpdateDirectory } from "./unix-update-transaction"
 
 export type UnixInstalledBuild = { channel: "stable" | "canary"; version: string; hash: string }
 type Pending = { from: UnixInstalledBuild; installation: UnixInstallation; manifest: string; signature: string; payload: string; deferred: boolean }
@@ -57,6 +58,7 @@ export class UnixUpdateStateStore {
       const handle = await open(temporary, "wx", 0o600)
       try { await handle.writeFile(JSON.stringify(state)); await handle.sync() } finally { await handle.close() }
       await rename(temporary, path.join(this.directory, "state.json"))
+      await syncUnixUpdateDirectory(this.directory); await syncUnixUpdateDirectory(path.dirname(this.directory))
     } finally { await rm(temporary, { force: true }) }
   }
   private payloadPath(file: unknown) {

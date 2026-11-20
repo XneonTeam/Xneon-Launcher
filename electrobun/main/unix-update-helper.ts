@@ -12,7 +12,8 @@ import { verifyUnixUpdateFile } from "./unix-update-state"
 import { extractUnixUpdateArchive } from "./unix-update-archive"
 import { verifyUnixUpdatePayload } from "./unix-update-payload"
 import { backupUnixUpdateDatabase, restoreUnixUpdateDatabase } from "./unix-update-profile"
-import { applyUnixUpdateTransaction, recoverUnixUpdateTransaction, unixTransactionPaths, type UnixReplacementPlan } from "./unix-update-transaction"
+import { applyUnixUpdateTransaction, recoverUnixUpdateTransaction, syncUnixUpdateDirectory, unixTransactionPaths, type UnixReplacementPlan } from "./unix-update-transaction"
+import { probeUnixUpdateExchange } from "./unix-update-atomic"
 import { findUnixUpdateGroups, ownsUnixUpdateProcess, spawnUnixUpdateProcess, stopUnixUpdateGroup, waitForUnixParentExit } from "./unix-update-process"
 import { readUnixUpdateHealth } from "./unix-update-health"
 import { assertUpdateFreeSpace } from "./unix-update-download"
@@ -36,6 +37,7 @@ async function writeJson(file: string, value: unknown) {
     const handle = await open(temporary, "wx", 0o600)
     try { await handle.writeFile(JSON.stringify(value)); await handle.sync() } finally { await handle.close() }
     await rename(temporary, file)
+    await syncUnixUpdateDirectory(path.dirname(file))
   } finally { await rm(temporary, { force: true }) }
 }
 async function exists(file: string) {
@@ -141,11 +143,14 @@ async function runAuthenticatedUnixHelper(job: ReturnType<typeof authenticateUni
     const old = await digestTree(plan.target, plan.kind === "directory")
     if (plan.kind === "directory") await verifyUnixUpdatePayload(plan.target, job.old)
     else await appImage(plan.target)
-    await assertUpdateFreeSpace(path.dirname(plan.target), artifact.downloadSize + (plan.kind === "directory" ? update.manifest.artifact.tarSize : artifact.downloadSize) + 16 * 1024 ** 2)
+    await assertUpdateFreeSpace(path.dirname(plan.target), artifact.downloadSize + (plan.kind === "directory" ? update.manifest.artifact.tarSize : (await lstat(plan.target)).size) + 16 * 1024 ** 2)
     await mkdir(files.work, { mode: 0o700 }); createdWork = true
+    if (plan.kind === "directory") await probeUnixUpdateExchange(files.work)
     if (plan.kind === "file") {
       await copyFile(job.source, files.prepared, constants.COPYFILE_EXCL); await chmod(files.prepared, 0o755)
       await verifyUnixUpdateFile(files.prepared, artifact); await appImage(files.prepared)
+      const handle = await open(files.prepared, "r+")
+      try { await handle.sync() } finally { await handle.close() }
     } else {
       const bundle = job.old.platform === "macos" ? `Xneon Launcher${update.manifest.channel === "stable" ? "" : "-canary"}.app`
         : `XneonLauncher${update.manifest.channel === "stable" ? "" : "-canary"}`

@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto"
 import path from "node:path"
 import { appIdentifier } from "./app-identity"
 import type { UnixUpdateManifest } from "./unix-update-manifest"
+import { syncUnixUpdateDirectory } from "./unix-update-transaction"
 
 export type UnixHealthIdentity = Pick<UnixUpdateManifest, "identifier" | "platform" | "arch" | "version" | "hash" | "channel">
 type HealthRecord = UnixHealthIdentity & { nonce: string; pid: number; ready: true }
@@ -27,6 +28,7 @@ export async function acknowledgeUnixUpdateStartup(root: string, nonce: string, 
     try { await handle.writeFile(JSON.stringify({ ...actual, nonce, pid: process.pid, ready: true })); await handle.sync() }
     finally { await handle.close() }
     await rename(temporary, file)
+    await syncUnixUpdateDirectory(root); await syncUnixUpdateDirectory(path.dirname(root))
   } finally { await rm(temporary, { force: true }) }
   return file
 }

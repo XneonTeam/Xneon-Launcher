@@ -3,6 +3,7 @@ import { copyFile, constants } from "node:fs"
 import { lstat, open, readFile, realpath, rename, rm } from "node:fs/promises"
 import { promisify } from "node:util"
 import path from "node:path"
+import { exchangeUnixUpdatePaths } from "./unix-update-atomic"
 
 type Child = { pid: number }
 export type UnixReplacementPorts = {
@@ -21,7 +22,7 @@ export function unixTransactionPaths(plan: UnixReplacementPlan) {
   const work = path.join(path.dirname(plan.target), `.xneon-update-${plan.nonce}`)
   return { work, prepared: path.join(work, "next"), backup: path.join(work, "previous"), failed: path.join(work, "failed"), journal: path.join(work, "state.json") }
 }
-async function syncDirectory(directory: string) {
+export async function syncUnixUpdateDirectory(directory: string) {
   if (process.platform === "win32") return // Файловые fixture-тесты, не native Unix E2E.
   const handle = await open(directory, "r")
   try { await handle.sync() } finally { await handle.close() }
@@ -31,7 +32,7 @@ async function journal(file: string, value: Record<string, unknown>) {
   const handle = await open(temporary, "wx", 0o600)
   try { await handle.writeFile(JSON.stringify(value)); await handle.sync() } finally { await handle.close() }
   await rename(temporary, file)
-  await syncDirectory(path.dirname(file))
+  await syncUnixUpdateDirectory(path.dirname(file))
 }
 async function sameKind(file: string, kind: UnixReplacementPlan["kind"]) {
   const info = await lstat(file)
@@ -41,7 +42,7 @@ async function sameKind(file: string, kind: UnixReplacementPlan["kind"]) {
 
 /** Применение вызывается только отдельным helper после проверки подписанного job. */
 export async function applyUnixUpdateTransaction(plan: UnixReplacementPlan, ports: UnixReplacementPorts, signal?: AbortSignal,
-  io: { rename: typeof rename } = { rename }) {
+  io: { rename: typeof rename; exchange?: (left: string, right: string) => Promise<void> } = { rename }) {
   signal?.throwIfAborted()
   const paths = unixTransactionPaths(plan)
   assert.ok(plan.kind === "file" || plan.kind === "directory", "Invalid update replacement kind")
@@ -61,22 +62,30 @@ export async function applyUnixUpdateTransaction(plan: UnixReplacementPlan, port
   await sameKind(paths.prepared, plan.kind)
   await ports.verifyCurrent()
   await ports.verifyPrepared()
-  let backedUp = false, replaced = false, child: Child | undefined
-  const record = (phase: string) => journal(paths.journal, { schemaVersion: 1, ...plan, phase })
+  let backedUp = false, replaced = false, child: Child | undefined, previous = paths.backup
+  // Windows используется только для файловых fixtures. Native Unix не делает двухшаговый swap каталогов.
+  const exchange = io.exchange ?? (process.platform === "win32" ? undefined : async (left: string, right: string) => exchangeUnixUpdatePaths(left, right))
+  const record = (phase: string) => journal(paths.journal, { schemaVersion: 1, ...plan, phase, ...(child ? { childPid: child.pid } : {}) })
   await record("prepared")
   try {
     if (plan.kind === "file") {
       // Старый AppImage остаётся на месте до единственного атомарного rename нового файла.
       await promisify(copyFile)(plan.target, paths.backup, constants.COPYFILE_EXCL)
-      const backup = await open(paths.backup, "r+")
+      const backup = await open(paths.backup, process.platform === "win32" ? "r+" : "r")
       try { await backup.sync() } finally { await backup.close() }
+    } else if (exchange) {
+      await exchange(plan.target, paths.prepared)
+      backedUp = true; replaced = true; previous = paths.prepared
+      await syncUnixUpdateDirectory(paths.work); await syncUnixUpdateDirectory(path.dirname(plan.target))
+      await record("exchanged")
+      await io.rename(paths.prepared, paths.backup); previous = paths.backup
     } else await io.rename(plan.target, paths.backup)
     backedUp = true
-    await syncDirectory(path.dirname(plan.target))
+    await syncUnixUpdateDirectory(paths.work); await syncUnixUpdateDirectory(path.dirname(plan.target))
     await record("backed-up")
-    await io.rename(paths.prepared, plan.target)
+    if (!replaced) await io.rename(paths.prepared, plan.target)
     replaced = true
-    await syncDirectory(path.dirname(plan.target))
+    await syncUnixUpdateDirectory(path.dirname(plan.target))
     await record("installed")
     child = await ports.launch()
     assert.ok(Number.isSafeInteger(child.pid) && child.pid > 1, "Invalid updated process")
@@ -89,9 +98,14 @@ export async function applyUnixUpdateTransaction(plan: UnixReplacementPlan, port
     try {
       if (child) await ports.stop(child) // Нельзя откатывать .app, пока его новый процесс работает.
       if (backedUp) {
-        if (plan.kind === "directory" && replaced) await io.rename(plan.target, paths.failed)
-        await io.rename(paths.backup, plan.target)
-        await syncDirectory(path.dirname(plan.target))
+        if (plan.kind === "directory" && replaced && exchange) {
+          await exchange(plan.target, previous)
+          await io.rename(previous, paths.failed)
+        } else {
+          if (plan.kind === "directory" && replaced) await io.rename(plan.target, paths.failed)
+          await io.rename(previous, plan.target)
+        }
+        await syncUnixUpdateDirectory(paths.work); await syncUnixUpdateDirectory(path.dirname(plan.target))
         await ports.verifyCurrent()
         await record("rolled-back")
         await ports.restoreProfile?.()
@@ -122,7 +136,7 @@ export async function recoverUnixUpdateTransaction(plan: UnixReplacementPlan, po
   assert.ok(info.isFile() && info.size > 0 && info.size <= 16 * 1024, "Invalid update recovery journal")
   const saved = JSON.parse(await readFile(files.journal, "utf8"))
   assert.ok(saved?.schemaVersion === 1 && saved.target === plan.target && saved.nonce === plan.nonce && saved.kind === plan.kind, "Update recovery journal identity mismatch")
-  assert.ok(["prepared", "backed-up", "installed", "launched", "committed", "rolled-back", "recovery-required"].includes(saved.phase), "Invalid update recovery journal phase")
+  assert.ok(["prepared", "exchanged", "backed-up", "installed", "launched", "committed", "rolled-back", "recovery-required"].includes(saved.phase), "Invalid update recovery journal phase")
   if (saved.phase === "committed") {
     await sameKind(plan.target, plan.kind)
     await ports.verifyInstalled(plan.target)
@@ -130,24 +144,29 @@ export async function recoverUnixUpdateTransaction(plan: UnixReplacementPlan, po
   }
   await ports.waitForParentExit()
   const exists = (file: string) => lstat(file).then(() => true, error => { if (error.code !== "ENOENT") throw error; return false })
-  if (await exists(files.backup)) {
-    await sameKind(files.backup, plan.kind)
-    await ports.verifyPrevious(files.backup)
+  const verifiesOld = async (file: string) => {
+    if (!await exists(file)) return false
+    await sameKind(file, plan.kind)
+    try { await ports.verifyPrevious(file); return true } catch { return false }
+  }
+  if (await verifiesOld(plan.target)) {
+    await ports.stopForRecovery()
+  } else {
+    const previous = await verifiesOld(files.backup) ? files.backup : await verifiesOld(files.prepared) ? files.prepared : null
+    assert.ok(previous, "Previous update payload is missing or corrupt; manual recovery required")
     await ports.stopForRecovery()
     if (await exists(plan.target)) {
       await sameKind(plan.target, plan.kind)
-      if (plan.kind === "directory") {
+      if (plan.kind === "directory" && process.platform !== "win32") {
+        exchangeUnixUpdatePaths(plan.target, previous)
+        await rename(previous, files.failed + `-${Date.now()}`)
+      } else if (plan.kind === "directory") {
         assert.ok(!await exists(files.failed), "Failed payload already exists; manual recovery required")
         await rename(plan.target, files.failed)
-      }
-    }
-    await rename(files.backup, plan.target)
-    await syncDirectory(path.dirname(plan.target))
-  } else {
-    // Без backup допустима только ещё не начатая замена или уже выполненный rollback.
-    assert.ok(saved.phase === "prepared" || saved.phase === "rolled-back", "Previous update payload is missing; manual recovery required")
-    await sameKind(plan.target, plan.kind)
-    await ports.verifyPrevious(plan.target)
+        await rename(previous, plan.target)
+      } else await rename(previous, plan.target)
+    } else await rename(previous, plan.target)
+    await syncUnixUpdateDirectory(files.work); await syncUnixUpdateDirectory(path.dirname(plan.target))
   }
   await ports.verifyPrevious(plan.target)
   await ports.restoreProfile?.()

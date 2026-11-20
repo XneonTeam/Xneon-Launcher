@@ -4,7 +4,8 @@ import path from "node:path"
 import os from "node:os"
 import { exchangeUnixUpdatePaths, probeUnixUpdateExchange } from "../../electrobun/main/unix-update-atomic"
 
-test("native exchange меняет две directory entries и сохраняет обе версии", { skip: process.platform === "win32" }, async () => {
+const nativeTest = process.platform === "win32" ? test.skip : test
+nativeTest("native exchange меняет две directory entries и сохраняет обе версии", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "xneon-exchange-test-")), a = path.join(root, "A.app"), b = path.join(root, "B.app")
   try {
     await mkdir(a); await mkdir(b); await writeFile(path.join(a, "version"), "A"); await writeFile(path.join(b, "version"), "B")

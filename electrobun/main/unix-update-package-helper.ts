@@ -20,6 +20,7 @@ import { readDataLocation } from "./data-location"
 import { applyUnixPackageTransaction, recoverUnixPackageTransaction, type UnixPackagePhase, type UnixPackageTransactionPorts } from "./unix-package-transaction"
 import { findUnixUpdateGroups, ownsUnixUpdateProcess, spawnUnixUpdateProcess, stopUnixUpdateGroup, waitForUnixParentExit } from "./unix-update-process"
 import { readUnixUpdateHealth } from "./unix-update-health"
+import { syncUnixUpdateDirectory } from "./unix-update-transaction"
 
 type Job = ReturnType<typeof authenticateUnixHelperJob>
 const phases: UnixPackagePhase[] = ["verified", "parent-exited", "installing", "installed", "launched", "committed", "rolling-back", "rolled-back", "recovery-required"]
@@ -35,6 +36,7 @@ async function writeJson(file: string, value: unknown) {
     const handle = await open(temporary, "wx", 0o600)
     try { await handle.writeFile(JSON.stringify(value)); await handle.sync() } finally { await handle.close() }
     await rename(temporary, file)
+    await syncUnixUpdateDirectory(path.dirname(file))
   } finally { await rm(temporary, { force: true }) }
 }
 

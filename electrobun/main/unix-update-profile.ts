@@ -5,6 +5,7 @@ import { createHash, randomBytes } from "node:crypto"
 import path from "node:path"
 import Database from "../platform/sqlite"
 import { assertUpdateFreeSpace } from "./unix-update-download"
+import { syncUnixUpdateDirectory } from "./unix-update-transaction"
 
 type Snapshot = { schemaVersion: 1; database: string; existed: boolean; size?: number; sha256?: string }
 async function regular(file: string) {
@@ -65,6 +66,7 @@ export async function backupUnixUpdateDatabase(database: string, directory: stri
   }
   const handle = await open(files.metadata, "wx", 0o600)
   try { await handle.writeFile(JSON.stringify(record)); await handle.sync() } finally { await handle.close() }
+  await syncUnixUpdateDirectory(files.root); await syncUnixUpdateDirectory(path.dirname(files.root))
   return record
 }
 
@@ -91,6 +93,7 @@ export async function restoreUnixUpdateDatabase(database: string, directory: str
     await chmod(failed + entry.suffix, 0o600)
     await sync(failed + entry.suffix)
   }
+  await syncUnixUpdateDirectory(files.root)
   const temporary = files.database + `.restore-${randomBytes(16).toString("hex")}.tmp`
   try {
     if (record.existed) {
@@ -104,5 +107,6 @@ export async function restoreUnixUpdateDatabase(database: string, directory: str
     for (const entry of current.filter(file => file.suffix)) await rm(entry.file)
     if (record.existed) await rename(temporary, files.database)
     else if (current.some(file => !file.suffix)) await rm(files.database)
+    await syncUnixUpdateDirectory(path.dirname(files.database))
   } finally { await rm(temporary, { force: true }) }
 }
