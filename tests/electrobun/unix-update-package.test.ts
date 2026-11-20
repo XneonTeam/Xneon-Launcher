@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import { mkdtemp, writeFile, rm } from "node:fs/promises"
 import path from "node:path"
 import os from "node:os"
-import { verifyUnixPackageMetadata, installUnixPackage } from "../../electrobun/main/unix-update-package"
+import { verifyUnixPackageMetadata, verifyInstalledUnixPackage, installUnixPackage } from "../../electrobun/main/unix-update-package"
 
 const metadata = {
   deb: "Package: xneon-launcher\nVersion: 1.0.9~pre1\nArchitecture: amd64\n",
@@ -32,4 +32,15 @@ test("установка использует только фиксирован�
     return 0
   })
   for (const code of [1, 126, 127]) await expect(installUnixPackage("rpm", "/cache/package.rpm", true, async () => code)).rejects.toThrow()
+})
+
+test("успешный exit manager не заменяет проверку установленной версии и configured state", async () => {
+  await verifyInstalledUnixPackage("deb", "1.0.9-pre1", async (program, args) => {
+    expect(program).toBe("/usr/bin/dpkg-query"); expect(args).toContain("xneon-launcher")
+    return metadata.deb + "Status: install ok installed\n"
+  })
+  await expect(verifyInstalledUnixPackage("deb", "1.0.9-pre1", async () => metadata.deb + "Status: install ok half-configured\n")).rejects.toThrow()
+  await verifyInstalledUnixPackage("rpm", "1.0.9-pre1", async () => metadata.rpm)
+  await verifyInstalledUnixPackage("pacman", "1.0.9-pre1", async () => "xneon-launcher 1.0.9pre1-1\n")
+  await expect(verifyInstalledUnixPackage("pacman", "1.0.9-pre1", async () => "xneon-launcher 1.0.8-1\n")).rejects.toThrow()
 })
