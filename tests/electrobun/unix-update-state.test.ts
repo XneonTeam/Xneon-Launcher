@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { generateKeyPairSync, sign, createHash } from "node:crypto"
-import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises"
+import { mkdtemp, readFile, writeFile, rm, mkdir } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { UnixUpdateStateStore } from "../../electrobun/main/unix-update-state"
@@ -62,4 +62,14 @@ test("непроверенный файл не становится сохран
   await writeFile(source, "bad")
   await expect(store.stage(local, installation, update, source)).rejects.toThrow()
   expect(await store.peek(local, installation)).toBeNull()
+}))
+
+test("ошибка cleanup прежнего payload не удаляет новый уже опубликованный pending", () => fixture(async (directory, source) => {
+  const store = new UnixUpdateStateStore(directory, target, keys)
+  await store.stage(local, installation, update, source)
+  const previous = await store.peek(local, installation)
+  await rm(previous!.path); await mkdir(previous!.path)
+  await expect(store.stage(local, installation, update, source)).rejects.toThrow()
+  const pending = await store.peek(local, installation)
+  expect(await readFile(pending!.path)).toEqual(payload)
 }))

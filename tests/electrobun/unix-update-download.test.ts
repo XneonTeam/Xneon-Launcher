@@ -48,3 +48,15 @@ test("HTTP и небезопасное имя отклоняются до сет
   expect(requests).toBe(0)
   expect(await readdir(directory)).toEqual([])
 }))
+
+test("отмена закрывает даже зависший reader, не ожидая следующего network chunk", () => fixture(async directory => {
+  const controller = new AbortController()
+  let stream: ReadableStreamDefaultController<Uint8Array> | undefined
+  const promise = downloadUnixUpdateFile(base, file, directory, { signal: controller.signal,
+    request: async () => new Response(new ReadableStream<Uint8Array>({ start(value) { stream = value; value.enqueue(bytes.subarray(0, 3)) } })) })
+  const timer = setTimeout(() => controller.abort(new Error("user-cancelled")), 30)
+  try {
+    await expect(Promise.race([promise, Bun.sleep(700).then(() => { throw new Error("reader-did-not-cancel") })])).rejects.toThrow(/user-cancelled/)
+  } finally { clearTimeout(timer); try { stream?.close() } catch {}; await promise.catch(() => {}) }
+  expect(await readdir(directory)).toEqual([])
+}))
