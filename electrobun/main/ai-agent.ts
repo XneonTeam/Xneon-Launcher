@@ -6,6 +6,7 @@ import { AiProviderError, aiFailure, assertAiResponse } from "./ai-errors"
 import { sendToRenderer } from "./runtime"
 import { registerAgentWorkspace } from "./agent-workspace"
 import { registerAgentMcpHandlers } from "./agent-mcp"
+import { fetchAgentWebPage, searchAgentWeb } from "./agent-web"
 
 export type AiAnalysisResult = {
   success: boolean
@@ -331,6 +332,8 @@ async function callAiApiStream(
 export function registerAiAgent(): void {
   registerAgentWorkspace(getApiConfig)
   registerAgentMcpHandlers()
+  rpcRegistry.handle("agent:web-search", (_event, query: string, limit?: number) => searchAgentWeb(query, limit))
+  rpcRegistry.handle("agent:web-fetch", (_event, url: string) => fetchAgentWebPage(url))
   rpcRegistry.handle("ai:get-config", async (): Promise<AiConfigStatus> => {
     const [storedKey, endpoint, modelValue, protocol, models] = await Promise.all(
       ["aiApiKey", "aiEndpoint", "aiModel", "aiProtocol", "aiModels"].map(key => dbHelpers.getSetting(key)),

@@ -28,10 +28,27 @@ desktop.ini
 
 # Environment & secrets
 .env
-.env*.local
-.env.production
-.env.development
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
 electrobun/main/cloud/credentials.generated.ts
+
+# Ключи, сертификаты и токены — только локально
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.ppk
+id_rsa*
+id_dsa*
+id_ecdsa*
+id_ed25519*
+*.token
+.netrc
+secrets.json
 
 # Cache
 .codex/

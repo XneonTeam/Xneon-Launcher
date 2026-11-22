@@ -115,6 +115,41 @@ export interface AgentChat extends AgentChatSummary {
   mode: "questions" | "confirm" | "auto"
 }
 
+/** Один результат веб-поиска: домен источника отделён от заголовка. */
+export interface AgentWebSearchResult {
+  title: string
+  url: string
+  description: string
+  source: string
+}
+export interface AgentWebSearchResponse {
+  query: string
+  provider: string
+  results: AgentWebSearchResult[]
+  /** Провайдер нашёл больше результатов, чем запрошено. */
+  truncated: boolean
+}
+/** Ссылка внутри загруженной страницы (адрес уже абсолютный). */
+export interface AgentWebPageLink {
+  url: string
+  text: string
+}
+export interface AgentWebFetchResponse {
+  /** Исходный адрес запроса. */
+  url: string
+  /** Адрес после редиректов. */
+  finalUrl: string
+  status: number
+  contentType: string
+  title: string
+  text: string
+  links: AgentWebPageLink[]
+  /** Тело, текст или список ссылок были обрезаны лимитом. */
+  truncated: boolean
+  bytes: number
+  byteLimit: number
+}
+
 export interface AgentBuildFileRequest {
   buildId: string
   path: string

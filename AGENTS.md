@@ -44,6 +44,7 @@ UI получает только `PublicAccount`, сессиями владее�
 
 - `XNLC_NEWS_URL` — адрес ленты новостей лаунчера (`fetch:launcher-news`). По умолчанию `https://launcher.xneon.org/news.json`.
 - `XNLC_LIVEOPS_URL` — переопределение origin сервиса событийных тем (HTTPS, HTTP только для localhost); по умолчанию `https://liveops.xneon.org`, явно пустая строка отключает сеть LiveOps. Контроллер — `electrobun/main/liveops.ts`, кэш — `<userData>/event-theme-cache`, настройка `eventTheme` отдельна от `customThemes`. Ручной выбор через `liveops:select`/`settings:set("theme")` проходит через main.
+- `ANYSEARCH_API_KEY` — необязательный ключ AnySearch API (`https://api.anysearch.com/v1/search`) для инструмента агента `web_search` (`agent:web-search`). Анонимные запросы работают с меньшими лимитами и квотой; ключ их повышает. `web_fetch` локальный и от ключа не зависит. Прокси из окружения (`HTTPS_PROXY` и подобные) намеренно не используется, чтобы не обходить проверку адресов.
 
 ## Build pipeline
 

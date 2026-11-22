@@ -356,6 +356,7 @@ import { renderToStaticMarkup } from "react-dom/server"
         "./runtime": { sendToRenderer: (name, value) => events.push([name, value]) },
         "./agent-workspace": { registerAgentWorkspace() {} },
         "./agent-mcp": { registerAgentMcpHandlers() {} },
+        "./agent-web": { fetchAgentWebPage() {}, searchAgentWeb() {} },
         "./ai-providers": providers,
         "./ai-model-config": models,
       }, { fetch })

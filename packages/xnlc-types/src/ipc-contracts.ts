@@ -280,6 +280,8 @@ export interface IpcInvokeMap {
   "agent:mcp-tools": { args: []; return: import("./agent-types.js").AgentMcpToolInfo[] }
   "agent:mcp-call": { args: [server: string, tool: string, args: Record<string, unknown>]; return: unknown }
   "agent:mcp-install": { args: [configJson: string]; return: import("./agent-types.js").AgentMcpServerSummary[] }
+  "agent:web-search": { args: [query: string, limit?: number]; return: import("./agent-types.js").AgentWebSearchResponse }
+  "agent:web-fetch": { args: [url: string]; return: import("./agent-types.js").AgentWebFetchResponse }
   // ── AI ──
   "ai:mcp-list": { args: []; return: import("./agent-types.js").AgentMcpServerState[] }
   "ai:mcp-save": { args: [value: import("./agent-types.js").AgentMcpServerConfig[]]; return: import("./agent-types.js").AgentMcpServerState[] }
@@ -801,6 +803,8 @@ export interface ElectrobunAPIExtra {
   agentMcpListTools: () => Promise<import("./agent-types.js").AgentMcpToolInfo[]>
   agentMcpCallTool: (server: string, tool: string, args: Record<string, unknown>) => Promise<unknown>
   agentMcpInstall: (configJson: string) => Promise<import("./agent-types.js").AgentMcpServerSummary[]>
+  agentWebSearch: (query: string, limit?: number) => Promise<import("./agent-types.js").AgentWebSearchResponse>
+  agentWebFetch: (url: string) => Promise<import("./agent-types.js").AgentWebFetchResponse>
   onAgentDelta: (callback: (data: { requestId: string; text: string }) => void) => CleanupFn
   getAiConfig: () => Promise<import("./agent-types.js").AiConfigStatus>
   saveAiConfig: (config: import("./agent-types.js").AiConfigUpdate) => Promise<void>

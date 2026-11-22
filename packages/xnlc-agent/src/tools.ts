@@ -1,6 +1,7 @@
 import { getAgentHost } from "./host.js"
 import { registerLauncherTools } from "./launcher-tools.js"
 import { registerExtendedTools } from "./extended-tools.js"
+import { registerWebTools } from "./web-tools.js"
 import { recommendMinecraftVersions } from "./version-recommendations.js"
 import type { AgentToolSpec, ShareRequest, ShareResponse, DbBuild, DbBuildLight, ElectrobunAPI, ModContentType, ModDetails, ModLoaderFilter, ModVersion, MinecraftLaunchParams } from "@xnlc/types"
 import { loadLaunchSettings, normalizeJavaPath, resolveLaunchDimensions, saveLastLaunchedPrefs } from "./host.js"
@@ -422,6 +423,7 @@ registerExtendedTools(add, { build, unlocked, call: (name, api, input) => {
   return tool.run(api, parseToolInput(tool, JSON.stringify(input)))
 } })
 registerLauncherTools(add)
+registerWebTools(add)
 const toolGroups: Record<string, string> = {
   builds: "Создание, копирование, запуск, параметры и блокировка сборок",
   share: "Публикация и обновление сборок, общий доступ и приглашения",

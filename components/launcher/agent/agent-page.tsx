@@ -210,6 +210,7 @@ function TimelineItem({ item, timeline, onPreview, pending, context = [], projec
         {item.output && <details><summary className="cursor-pointer text-xs text-muted-foreground">{t("agent.result")}</summary><AgentCodeBlock technical className="agent-json">{item.output}</AgentCodeBlock></details>}
       </div>
       {item.status === "done" && <ProjectResults item={item} />}
+      {item.status === "done" && <WebResults item={item} />}
     </details>
     {item.status === "running" && <AgentToolProgress itemId={item.id} />}
     {pending && <div className="mt-3 flex items-center justify-end gap-2 border-t border-border/50 pt-3">
@@ -374,6 +375,44 @@ function ProjectResults({ item }: { item: AgentTimelineItem }) {
     projects = item.toolName === "search_projects" && Array.isArray(output.results) ? output.results : [output]
   } catch { return null }
   return <ProjectCards projects={projects} />
+}
+
+/** Результаты web_search и web_fetch: заголовок, источник и ссылки без сырого JSON. */
+function WebResults({ item }: { item: AgentTimelineItem }) {
+  const { t } = useTranslation()
+  if (!["web_search", "web_fetch"].includes(item.toolName || "") || !item.output) return null
+  let data: Record<string, unknown>
+  try {
+    const parsed: unknown = JSON.parse(item.output)
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null
+    data = parsed as Record<string, unknown>
+  } catch { return null }
+  if (typeof data.error === "string" && data.error) return <p className="text-xs text-destructive" role="alert">{data.error}</p>
+  const open = (value: unknown) => { if (typeof value === "string" && /^https?:\/\//.test(value)) void window.electrobunAPI?.openExternal(value) }
+  const truncated = data.truncated === true && <p className="text-[11px] text-muted-foreground">{t("agent.web.truncated")}</p>
+  if (item.toolName === "web_search") {
+    const results = Array.isArray(data.results) ? (data.results as Array<Record<string, unknown>>).filter(entry => entry && typeof entry.url === "string").slice(0, 10) : []
+    return <div className="space-y-1.5">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{t("agent.web.results")}</p>
+      {results.length === 0 && <p className="text-xs text-muted-foreground">{t("agent.noResults")}</p>}
+      {results.map((entry, index) => <div key={`${entry.url}-${index}`} className="rounded-lg border border-border/60 px-3 py-2">
+        <button type="button" className="text-left text-sm font-medium hover:underline" onClick={() => open(entry.url)}>{String(entry.title || entry.url)}</button>
+        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{t("agent.web.source")}: {String(entry.source || entry.url)}</p>
+        {!!entry.description && <p className="mt-1 text-xs text-muted-foreground">{String(entry.description)}</p>}
+      </div>)}
+      {truncated}
+    </div>
+  }
+  const finalUrl = String(data.finalUrl || data.url || "")
+  const links = Array.isArray(data.links) ? (data.links as Array<Record<string, unknown>>).filter(entry => entry && typeof entry.url === "string").slice(0, 8) : []
+  return <div className="space-y-1">
+    <button type="button" className="text-left text-sm font-medium hover:underline" onClick={() => open(finalUrl)}>{String(data.title || finalUrl)}</button>
+    <p className="truncate text-[11px] text-muted-foreground">HTTP {String(data.status ?? "")} · {String(data.contentType || "")} · {finalUrl}</p>
+    {truncated}
+    {links.length > 0 && <details><summary className="cursor-pointer text-[11px] text-muted-foreground">{t("agent.web.links")} · {links.length}</summary>
+      <ul className="mt-1 space-y-0.5">{links.map((entry, index) => <li key={`${entry.url}-${index}`} className="truncate"><button type="button" className="text-xs text-primary hover:underline" onClick={() => open(entry.url)}>{String(entry.text || entry.url)}</button></li>)}</ul>
+    </details>}
+  </div>
 }
 
 function ProjectCards({ projects, limit = 4 }: { projects: Array<Record<string, unknown>>; limit?: number }) {

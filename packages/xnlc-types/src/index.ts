@@ -4,7 +4,7 @@
 // ============================================================
 
 // Domain types
-export type { AgentToolCall, AgentWireMessage, AgentToolSpec, AgentTurnRequest, AgentTurnResult, AgentAttachment, AgentTimelineItem, AgentChatSummary, AgentChat, AgentBuildFileRequest, AgentMcpServerConfig, AgentMcpServerState, AgentMcpServerSummary, AgentMcpToolInfo } from "./agent-types.js"
+export type { AgentToolCall, AgentWireMessage, AgentToolSpec, AgentTurnRequest, AgentTurnResult, AgentAttachment, AgentTimelineItem, AgentChatSummary, AgentChat, AgentBuildFileRequest, AgentMcpServerConfig, AgentMcpServerState, AgentMcpServerSummary, AgentMcpToolInfo, AgentWebSearchResult, AgentWebSearchResponse, AgentWebPageLink, AgentWebFetchResponse } from "./agent-types.js"
 export type {
   DbAccount,
   PublicAccount,

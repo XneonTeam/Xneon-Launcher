@@ -355,6 +355,8 @@ installDesktopApi({
   agentMcpListTools: () => desktopRpc.invoke('agent:mcp-tools') as Promise<import('@xnlc/types').AgentMcpToolInfo[]>,
   agentMcpCallTool: (server: string, tool: string, args: Record<string, unknown>) => desktopRpc.invoke('agent:mcp-call', server, tool, args) as Promise<unknown>,
   agentMcpInstall: (configJson: string) => desktopRpc.invoke('agent:mcp-install', configJson) as Promise<import('@xnlc/types').AgentMcpServerSummary[]>,
+  agentWebSearch: (query: string, limit?: number) => desktopRpc.invoke('agent:web-search', query, limit) as Promise<import('@xnlc/types').AgentWebSearchResponse>,
+  agentWebFetch: (url: string) => desktopRpc.invoke('agent:web-fetch', url) as Promise<import('@xnlc/types').AgentWebFetchResponse>,
   onAgentDelta: (callback: (data: { requestId: string; text: string }) => void) => subscribe('agent:delta', callback),
   agentHardware: invoke("agent:hardware"),
   getAiConfig: invoke('ai:get-config'),
