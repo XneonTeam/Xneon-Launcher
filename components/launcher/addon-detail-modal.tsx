@@ -26,9 +26,11 @@ import {
   IconBug,
   IconBook,
   IconBrandDiscord,
+  IconMessageCircle,
 } from "@tabler/icons-react"
 import { Spinner } from "./instance/spinner"
 import { AddonGallery } from "./addon-gallery"
+import { AddonReviews } from "./addon-reviews"
 import { LoaderIcon } from "./instance/loader-icon"
 import { ChangelogContent } from "./instance/changelog-content"
 import { MOD_LOADERS } from "./instance/constants"
@@ -435,6 +437,7 @@ export function AddonDetailModal({
             { id: "gallery" as ModalTab, icon: IconPhoto },
             { id: "changelog" as ModalTab, icon: IconHistory },
             { id: "versions" as ModalTab, icon: IconDownload },
+            { id: "reviews" as ModalTab, icon: IconMessageCircle },
           ]).map(({ id, icon: Icon }) => (
             <button data-ui="addon-detail-modal-button-3"
               key={id}
@@ -454,6 +457,7 @@ export function AddonDetailModal({
         <div data-ui="addon-detail-modal-div-13" className="flex-1 overflow-y-auto p-6">
           {loadError && <p role="alert" className="mb-4 rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">{loadError}</p>}
           {loadingModal && <Spinner />}
+          {!loadingModal && modalTab === "reviews" && <AddonReviews key={`${selectedDetails.source}:${projectKind}:${selectedDetails.projectId || selectedDetails.id}`} project={selectedDetails.projectId || selectedDetails.slug || selectedDetails.id} source={selectedDetails.source === "curseforge" ? "curseforge" : "modrinth"} type={projectKind === "modpack" ? "modpack" : "mod"} supported={(selectedDetails.source === "modrinth" || selectedDetails.source === "curseforge") && projectKind !== "shader" && projectKind !== "resourcepack"} />}
           {!loadingModal && modalTab === "description" && (
             <div data-ui="addon-detail-modal-div-14">
               {body ? (

@@ -18,7 +18,16 @@ import type {
 import { MOD_SORT_OPTIONS, CONTENT_TYPE_FACETS } from "./types.js";
 import { CONTENT_URLS, curseforgeDownloadUrl } from "@xnlc/urls";
 
-const CF_API_KEY = process.env.CF_API_KEY || "$2a$10$bL4bIL5pUWqfcO7KQtnMReakwtfHbNKh6v1uTpKlzhwoueEJQnPnm";
+// Ключ CurseForge API уже входит в бандл лаунчера. CF_API_KEY — основной override,
+// CURSEFORGE_API_KEY — прежнее имя, которым пользуется Share; оба читаются здесь,
+// чтобы каталог модов и установка из Share брали один и тот же ключ.
+const BUNDLED_CF_API_KEY = "$2a$10$bL4bIL5pUWqfcO7KQtnMReakwtfHbNKh6v1uTpKlzhwoueEJQnPnm";
+
+export function curseforgeApiKey(environment: Record<string, string | undefined> = process.env): string {
+  return (environment.CF_API_KEY || environment.CURSEFORGE_API_KEY || BUNDLED_CF_API_KEY).trim();
+}
+
+const CF_API_KEY = curseforgeApiKey();
 
 const CF_BASE = CONTENT_URLS.curseforgeApi;
 const CF_GAME_ID_MINECRAFT = 432;

@@ -1,6 +1,17 @@
 import type { Theme, LocalThemeFile, LocalThemeImport, LocalThemeSnapshot, LiveopsStatus, LiveopsThemeRef } from "./theme-types.js"
 import type { ShareProgress } from "./share-types.js"
 
+export interface ModdexReviews {
+  status: "ok" | "not-found"
+  reviews: { id: number; author: string; avatarUrl: string; profileUrl: string; rating: number; title: string; content: string; date: string; edited: boolean; isDeveloper: boolean; categories: { gameplay: number | null; performance: number | null; aesthetics: number | null }; minecraftVersion: string; playtimeHours: number | null; helpfulVotes: number; developerResponse: string }[]
+  average: number | null
+  categories: { gameplay: number | null; performance: number | null; aesthetics: number | null }
+  count: number
+  page: number
+  lastPage: number
+  writeUrl: string
+}
+
 export interface ModpackContents {
   projectId: string
   versionId: string
@@ -289,6 +300,7 @@ export interface IpcInvokeMap {
   // ── Mods (Modrinth) ──
   "mods:modrinth-search": { args: [query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, categories?: string[], environment?: ModEnvironment]; return: ModSearchResponse }
   "mods:modrinth-details": { args: [slug: string]; return: ModDetails | null }
+  "mods:moddex-reviews": { args: [project: string, page: number, sort?: "newest" | "oldest" | "rating" | "helpful", source?: "modrinth" | "curseforge", type?: "mod" | "modpack"]; return: ModdexReviews }
   "mods:modrinth-versions": { args: [slug: string, sha1?: string]; return: ModVersion[] }
   "mods:modrinth-pack-contents": { args: [slug: string, versionId: string]; return: ModpackContents }
 
@@ -650,6 +662,7 @@ export interface ElectrobunAPIExplicit {
   importLauncherInstances: (ids: string[]) => Promise<{ success: boolean; imported: number; error?: string }>
   modsModrinthSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: ModLoaderFilter, sortBy?: ModSort, page?: number, categories?: string[], environment?: ModEnvironment) => Promise<ModSearchResponse>
   modsModrinthDetails: (slug: string) => Promise<ModDetails | null>
+  modsModdexReviews: (project: string, page: number, sort?: "newest" | "oldest" | "rating" | "helpful", source?: "modrinth" | "curseforge", type?: "mod" | "modpack") => Promise<ModdexReviews>
   modsModrinthVersions: (slug: string, sha1?: string) => Promise<ModVersion[]>
   modsModrinthPackContents: (slug: string, versionId: string) => Promise<ModpackContents>
   modsCurseforgeSearch: (query: string, contentType?: ModContentType, gameVersion?: string, modLoader?: string, sortBy?: ModSort, page?: number, categories?: string[], environment?: ModEnvironment) => Promise<ModSearchResponse>

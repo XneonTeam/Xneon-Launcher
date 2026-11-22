@@ -45,6 +45,7 @@ export {
 
 export {
   cfFetch,
+  curseforgeApiKey,
   curseforgeSearch,
   curseforgeGetDetails,
   curseforgeGetFileDownloadUrl,

@@ -1,4 +1,5 @@
 import { runContentDownload } from "./content-downloads"
+import { fetchModdexReviews } from "./moddex-reviews"
 // ============================================================
 // Mods IPC Handlers — Unified Modrinth + CurseForge via @xnlc/mods
 // Author: MAINER4IK
@@ -67,6 +68,7 @@ async function fetchCfProjectInfo(modId: string): Promise<{ name: string; iconUr
 }
 
 export function registerModsHandlers(): void {
+  rpcRegistry.handle("mods:moddex-reviews", (_event, project: string, page: number, sort?: "newest" | "oldest" | "rating" | "helpful", source?: "modrinth" | "curseforge", type?: "mod" | "modpack") => fetchModdexReviews(project, page, fetch, sort, source, type))
   rpcRegistry.handle("mods:modrinth-pack-contents", async (_event, slug: string, versionId: string) => {
     const mods = await loadModsModule()
     return readModrinthPackContents(mods, slug, versionId)

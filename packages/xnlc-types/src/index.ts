@@ -130,6 +130,7 @@ export type {
 // IPC contracts
 export type {
   ModpackContents,
+  ModdexReviews,
   IpcInvokeMap,
   IpcEventMap,
   ElectrobunAPIExplicit,

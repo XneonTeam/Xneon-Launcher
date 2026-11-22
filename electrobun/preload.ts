@@ -41,6 +41,7 @@ import type {
   ContentDropKind,
   ContentDropClassification,
   ModSearchResult,
+  ModdexReviews,
   FTBVersionManifest,
   CleanupFn,
   QuickPlayEntry,
@@ -193,6 +194,7 @@ installDesktopApi({
   modsCurseforgeDetails: (modId: number) => desktopRpc.invoke('mods:curseforge-details', modId) as Promise<ModDetails | null>,
   modsCurseforgeDownloadUrl: (fileId: number, modId: number) => desktopRpc.invoke('mods:curseforge-download-url', fileId, modId) as Promise<string | null>,
   modsCurseforgeChangelog: (modId: number, fileId: number) => desktopRpc.invoke('mods:curseforge-changelog', modId, fileId) as Promise<string>,
+  modsModdexReviews: (project: string, page: number, sort?: "newest" | "oldest" | "rating" | "helpful", source?: "modrinth" | "curseforge", type?: "mod" | "modpack") => desktopRpc.invoke('mods:moddex-reviews', project, page, sort, source, type) as Promise<ModdexReviews>,
   modsResolveDependencies: (version: ModVersion, source: "modrinth" | "curseforge") => desktopRpc.invoke('mods:resolve-dependencies', version, source) as Promise<ModDependency[]>,
   // Зависимости из метаданных jar: у новых файлов CurseForge/Modrinth список пустой,
   // а сам мод требует fabric-api и падает без него.
