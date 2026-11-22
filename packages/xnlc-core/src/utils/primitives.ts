@@ -174,6 +174,7 @@ export function cleanEnvForGame(base: Record<string, string>): Record<string, st
     "_JAVA_OPTIONS",
     "JAVA_OPTIONS",
     "JAVA_TOOL_OPTIONS",
+    "JDK_JAVA_OPTIONS",
   ]);
   const stripped = process.platform === "win32"
     ? new Set<string>()
@@ -181,7 +182,7 @@ export function cleanEnvForGame(base: Record<string, string>): Record<string, st
 
   const clean: Record<string, string> = {};
   for (const key of Object.keys(base)) {
-    if (ignored.has(key)) continue;
+    if (ignored.has(process.platform === "win32" ? key.toUpperCase() : key)) continue;
     if (key.startsWith("LAUNCHER_")) continue;
     if (stripped.has(key)) continue;
     clean[key] = base[key]!;

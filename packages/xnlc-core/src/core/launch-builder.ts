@@ -30,6 +30,8 @@ export class LaunchBuilder {
     auth: LaunchAuth,
     options: {
       javaPath: string;
+      javaMajorVersion?: number;
+      java8PerformancePack?: boolean;
       memoryMin?: string;
       memoryMax?: string;
       width?: number;
@@ -51,7 +53,9 @@ export class LaunchBuilder {
       classpath,
       memoryMin,
       memoryMax,
-      extraJvmArgs
+      extraJvmArgs,
+      javaMajorVersion: options.javaMajorVersion,
+      java8PerformancePack: options.java8PerformancePack,
     });
 
     const gameArgs = this.buildGameArgs(versionJson, auth, {
@@ -164,6 +168,10 @@ export class LaunchBuilder {
     // Единая кодировка stdout/stderr для Java 8 и современных JVM.
     args.push("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8",
       "-Dsun.stdout.encoding=UTF-8", "-Dsun.stderr.encoding=UTF-8");
+    // Fix CVE-2026-114938.
+    if (context.javaMajorVersion >= 17 || context.java8PerformancePack) {
+      args.push("-XX:+UnlockDiagnosticVMOptions", "-XX:-UseBASE64Intrinsics");
+    }
     return args;
   }
 

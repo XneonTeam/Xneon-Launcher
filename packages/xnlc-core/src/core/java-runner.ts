@@ -69,6 +69,15 @@ function quoteArgForArgFile(arg: string): string {
 export const WINDOWS_COMMAND_LIMIT = 30_000;
 export const OTHER_PLATFORM_COMMAND_LIMIT = 120_000;
 
+export function protectJavaOptionsEnvironment(env: Record<string, string>, javaMajorVersion: number, platform: NodeJS.Platform): void {
+  if (javaMajorVersion < 17) return;
+  for (const key of Object.keys(env)) {
+    if ((platform === "win32" ? key.toUpperCase() : key) === "_JAVA_OPTIONS") {
+      env[key] = `${env[key]} -XX:+UnlockDiagnosticVMOptions -XX:-UseBASE64Intrinsics`;
+    }
+  }
+}
+
 /**
  * Если команда длиннее лимита платформы, аргументы java выносятся во временный
  * `@argfile` (JVM читает его сама — так делают Forge и NeoForge). Возвращает
@@ -178,6 +187,7 @@ export class JavaRunner {
       env?: Record<string, string>;
       wrapperCommand?: string;
       javaMajorVersion?: number;
+      java8PerformancePack?: boolean;
       cwd?: string;
     },
   ): Promise<LaunchResult> {
@@ -222,6 +232,10 @@ export class JavaRunner {
       ...(options?.env ?? {}),
       APPDATA: process.env.APPDATA ?? gameDir,
     };
+
+    // _JAVA_OPTIONS читается JVM после командной строки и может включить intrinsic обратно.
+    // Явные переменные сборки сохраняем, но защитный флаг должен оставаться последним.
+    protectJavaOptionsEnvironment(env, options?.java8PerformancePack ? 17 : options?.javaMajorVersion ?? 0, platform);
 
     if (platform === "linux") {
       env.XDG_SESSION_TYPE = process.env.XDG_SESSION_TYPE ?? "x11";

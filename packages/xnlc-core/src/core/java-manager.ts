@@ -8,6 +8,7 @@ import { DownloadJob, DownloadTask } from "./downloader.js";
 import { URLS } from "../constants/urls.js";
 import type { VersionJsonJavaVersion } from "../types/index.js";
 import { ensureDirSync } from "../utils/sync.js";
+import { cleanEnvForGame } from "../utils/primitives.js";
 
 
 export interface JavaRuntime {
@@ -86,6 +87,25 @@ export class JavaManager {
     private downloader: Downloader,
     private gameDir: string,
   ) {}
+
+  isJava8PerformancePack(javaPath: string): boolean {
+    // Проверка Performance Pack нужна только как дополнительный слой Java4Shell
+    // для Java 8. Если `java -version` не выполнился, запуск игры важнее:
+    // считаем сборку обычной Java 8 (флаги для неё не добавляются), но пишем
+    // предупреждение. Защита Java 17+ от этого не зависит.
+    let result: ReturnType<typeof spawnSync>;
+    try {
+      result = spawnSync(javaPath, ["-version"], { encoding: "utf8", timeout: 10000, windowsHide: true, env: cleanEnvForGame(process.env as Record<string, string>) });
+    } catch (error) {
+      console.warn(`[Java] Cannot determine Java 8 Performance Pack for ${javaPath}; continuing without Java 8 performance-pack protection`, error);
+      return false;
+    }
+    if (result.error || result.status !== 0) {
+      console.warn(`[Java] Cannot determine Java 8 Performance Pack for ${javaPath} (${result.error?.message ?? `exit code ${String(result.status)}`}); continuing without Java 8 performance-pack protection`);
+      return false;
+    }
+    return /performance\s+pack|1\.8\.0[_\d.]*[-+]perf/i.test(`${result.stderr ?? ""}\n${result.stdout ?? ""}`);
+  }
 
   detectJavaVersion(javaPath: string = "java"): number {
     try {

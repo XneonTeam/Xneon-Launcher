@@ -154,6 +154,7 @@ export class XnlcLaunchPipeline {
     }
 
     const javaPath = javaRuntime.path;
+    const java8PerformancePack = javaRuntime.version === 8 && this.javaManager.isJava8PerformancePack(javaPath);
 
     // Step 9: Build launch command
     const fullCommand = this.launchBuilder.build(
@@ -162,6 +163,8 @@ export class XnlcLaunchPipeline {
       auth,
       {
         javaPath,
+        javaMajorVersion: javaRuntime.version,
+        java8PerformancePack,
         clientJarPath,
         memoryMin: config.memoryMin,
         memoryMax: config.memoryMax,
@@ -176,6 +179,7 @@ export class XnlcLaunchPipeline {
     // Step 10: Launch
     return this.javaRunner.launch(fullCommand, this.options.gameDir, {
       javaMajorVersion: javaRuntime.version,
+      java8PerformancePack,
       env: config.env,
       wrapperCommand: config.wrapperCommand,
     });
