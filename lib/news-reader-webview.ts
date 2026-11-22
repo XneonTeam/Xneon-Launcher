@@ -83,7 +83,7 @@ export function isNewsReaderReadyMessage(detail: unknown): boolean {
 const guardedWebviews = new WeakSet<ElectrobunWebviewElement>()
 
 /**
- * SDK 2.0.6 не проверяет isConnected после асинхронного webviewTagInit:
+ * SDK 2.0.6–2.0.7 не проверяет isConnected после асинхронного webviewTagInit:
  * disconnectedCallback с webviewId=null не удаляет поздно созданного гостя.
  * Адаптер читалки закрывает эту гонку, не меняя сгенерированный SDK.
  */

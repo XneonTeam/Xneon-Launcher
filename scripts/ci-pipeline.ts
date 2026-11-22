@@ -4,16 +4,16 @@ import path from "node:path"
 import packageJson from "../package.json"
 import { inspectElectrobunRelease, nativeArtifactNames } from "./electrobun-artifacts"
 import { verifySignedUpdateFeed } from "./verify-signed-update-feed"
+import { compatibilityManifestFileName, manifestFileName, updateInstallerName, type UpdateTarget } from "../electrobun/main/update-manifest"
 import { linuxPackageNames } from "./package-linux"
 import { checksumText, verifyChecksums } from "./artifact-checksums"
+import { releaseTargets } from "./release-targets"
 export { checksumText, verifyChecksums }
 
 const repository = "MAINER4IK/Xneon-Launcher-bun"
 const versionPattern = /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})(?:-(?:pre|beta)[1-9]\d{0,8})?$/
-// Временно Windows-only. Для возврата Unix меняются этот список и обе workflow-матрицы.
-const targets: ReadonlyArray<{ platform: "win" | "linux" | "macos"; arch: "x64" | "arm64" }> = [
-  { platform: "win", arch: "x64" },
-]
+// Опубликованная матрица. Тот же список обязан повторяться в обоих workflow.
+const targets = releaseTargets
 const hasLinux = targets.some(target => target.platform === "linux")
 
 export type ReleaseChannel = "stable" | "canary"
@@ -143,7 +143,10 @@ export function publicationNames(version: string, patches: string[] = []) {
   return [...nativeSets(version).flatMap(options => nativeArtifactNames(options).map(file => publishedArtifactName(file, version))),
     ...(hasPortable(version) ? [portableName(version)] : []),
     ...(hasLinux ? linuxPackageNames(version) : []),
-    `${channel}-win-x64-update-v2.json.sig`, ...patches].sort()
+    ...nativeSets(version).flatMap(options => {
+      const target: UpdateTarget = { channel: options.channel, platform: options.platform, arch: options.arch }
+      return [manifestFileName(target) + ".sig", compatibilityManifestFileName(target) + ".sig"]
+    }), ...patches].sort()
 }
 
 /** Повторно проверяет плоский release allowlist, trusted signatures и исходный SDK payload. */
@@ -163,13 +166,23 @@ export async function verifyPublication(directory: string, version: string) {
     }
     const signed = path.join(scratch, "signed")
     await mkdir(signed)
-    const channel = releaseChannel(version)
-    const signedNames = [`xneon-launcher-${version}-win-x64.exe`, ...[
-      `${channel}-win-x64-update-v2.json`, `${channel}-win-x64-update-v2.json.sig`,
-      nativeArtifactNames({ platform: "win", arch: "x64", channel, version })[2],
-    ]]
-    for (const name of signedNames) await copyFile(path.join(directory, name), path.join(signed, name))
-    await verifySignedUpdateFeed(signed, version)
+    const sets = nativeSets(version)
+    const targets: UpdateTarget[] = sets.map(options => ({ channel: options.channel, platform: options.platform, arch: options.arch }))
+    for (const options of sets) {
+      const target: UpdateTarget = { channel: options.channel, platform: options.platform, arch: options.arch }
+      const names = [
+        manifestFileName(target), manifestFileName(target) + ".sig",
+        compatibilityManifestFileName(target), compatibilityManifestFileName(target) + ".sig",
+        nativeArtifactNames(options)[2],
+      ]
+      // Подписанный установщик есть только у Windows; Unix ставится своим helper-ом.
+      if (options.platform === "win") names.push(updateInstallerName(version))
+      // Linux-манифест подписывает все пять системных пакетов, значит они входят
+      // в набор, который проверяет `verifySignedUpdateFeed`.
+      if (options.platform === "linux") names.push(...linuxPackageNames(version))
+      for (const name of names) await copyFile(path.join(directory, name), path.join(signed, name))
+    }
+    await verifySignedUpdateFeed(signed, version, targets)
   } finally { await rm(scratch, { recursive: true, force: true }) }
   return names
 }
@@ -199,13 +212,24 @@ export async function assemblePublication(input: string, output: string, version
   }
   const signed = path.join(input, "update-verified")
   assert.ok((await readdir(signed)).includes("SHA256SUMS.txt"), "Missing signed transport checksums")
-  const signedFiles = await verifySignedUpdateFeed(signed, version)
+  const targets: UpdateTarget[] = sets.map(options => ({ channel: options.channel, platform: options.platform, arch: options.arch }))
+  const originals = new Map<string, Record<string, unknown>>()
+  for (const target of targets) {
+    const current = JSON.parse(await readFile(path.join(output, compatibilityManifestFileName(target)), "utf8"))
+    originals.set(manifestFileName(target), current)
+    originals.set(compatibilityManifestFileName(target), current)
+  }
+  const signedFiles = await verifySignedUpdateFeed(signed, version, targets)
   for (const file of signedFiles) {
-    if (file.endsWith("-update-v2.json")) {
-      const original = JSON.parse(await readFile(path.join(output, file), "utf8"))
+    if (/-(?:update|update-v2)\.json$/.test(file)) {
+      const original = originals.get(file)
+      assert.ok(original, "Signed manifest has no native counterpart: " + file)
       const current = JSON.parse(await readFile(path.join(signed, file), "utf8"))
       const { downloadSize, downloadSha256, ...artifact } = current.artifact
-      assert.deepEqual({ ...current, artifact }, original, "Signing changed native manifest fields")
+      const comparable = { ...current, artifact }
+      // Подписанный v1 расширяет native-документ только transport-полями; всё, что
+      // native объявил сам, обязано совпасть байт-в-байт после снятия подписи.
+      for (const key of Object.keys(original)) assert.deepEqual(comparable[key], original[key], "Signing changed native manifest field: " + key)
     } else if (!file.endsWith(".sig")) {
       assert.equal(await checksumText(output, [file]), await checksumText(signed, [file]), "Signing changed publication bytes")
     }

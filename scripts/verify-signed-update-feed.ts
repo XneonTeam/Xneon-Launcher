@@ -1,51 +1,59 @@
 import assert from "node:assert/strict"
-import { createHash } from "node:crypto"
-import { readFile, readdir, stat, writeFile } from "node:fs/promises"
+import { readFile, readdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 import packageJson from "../package.json"
+import type { UpdateTarget } from "../electrobun/main/update-manifest"
 import { updatePublicKeys } from "../electrobun/main/update-public-keys"
-import { verifySignedWindowsUpdateManifest } from "../electrobun/main/verified-update-manifest"
+import { verifyUpdateFeed } from "./update-feed"
 import { artifactChecksums, formatChecksums } from "./artifact-checksums"
+import { releaseTargets } from "./release-targets"
 
-export async function verifySignedUpdateFeed(directory: string, version = packageJson.version) {
-  assert.ok(directory, "Usage: verify-signed-update-feed <candidate>")
-  const releaseChannel = version.includes("-") ? "canary" : "stable"
-  // Установщик есть в обоих каналах: он нужен для смены канала из приложения.
-  const installerName = `xneon-launcher-${version}-win-x64.exe`
-  const expected = new Set<string>([installerName])
-  const artifacts: Array<{ file: string; downloadSize: number; downloadSha256: string }> = []
-  // Канал берётся из версии: prerelease публикует canary, обычный релиз — stable.
-  const name = `${releaseChannel}-win-x64-update-v2.json`
-  const [manifestBytes, envelope] = await Promise.all(
-    [name, name + ".sig"].map(file => readFile(path.join(directory, file))),
-  )
-  const manifest = verifySignedWindowsUpdateManifest(manifestBytes, envelope, updatePublicKeys, "0.0.0", releaseChannel, "canary")
-  assert.equal(manifest.version, version)
-  const installer = JSON.parse(manifestBytes.toString("utf8")).installer
-  assert.ok(installer && installer.file === installerName &&
-    Number.isSafeInteger(installer.size) && installer.size > 0 &&
-    /^[a-f0-9]{64}$/.test(installer.sha256), "Signed manifest must describe the installer")
-  const installerInfo = await stat(path.join(directory, installerName))
-  assert.equal(installerInfo.size, installer.size, "Installer size differs from the signed manifest")
-  assert.equal(createHash("sha256").update(await readFile(path.join(directory, installerName))).digest("hex"),
-    installer.sha256, "Installer hash differs from the signed manifest")
-  artifacts.push(manifest.artifact)
-  expected.add(name).add(name + ".sig").add(manifest.artifact.file)
+/** Все цели канала: релиз публикует Windows x64, Linux x64 и macOS arm64. */
+export function releaseChannelTargets(channel: "stable" | "canary"): UpdateTarget[] {
+  return releaseTargets.map(({ platform, arch }) => ({ channel, platform, arch }))
+}
+
+/**
+ * Проверяет подписанные Manifest v1 всех запрошенных target-ов. По умолчанию —
+ * весь опубликованный набор текущего канала (Windows x64, Linux x64, macOS arm64).
+ * Оба имени (`-update.json` и `-update-v2.json`) обязаны совпадать байт-в-байт.
+ */
+export async function verifySignedUpdateFeed(directory: string, version = packageJson.version,
+  targets: ReadonlyArray<UpdateTarget> = releaseChannelTargets(version.includes("-") ? "canary" : "stable")) {
+  assert.ok(directory, "Usage: verify-signed-update-feed <candidate> [targets]")
+  const channel = version.includes("-") ? "canary" : "stable"
+  const expected = new Set<string>()
+  for (const target of targets) {
+    assert.equal(target.channel, channel, "Signed update target channel differs from the version")
+    // Итоговый allowlist ниже — объединение всех целей; per-target listing
+    // проверяет только файлы своей цели, иначе соседние target-ы выглядят лишними.
+    const { files } = await verifyUpdateFeed(directory, target, version, updatePublicKeys, { strictListing: false })
+    for (const file of files) expected.add(file)
+  }
   const files = await readdir(directory)
   const hasChecksums = files.includes("SHA256SUMS.txt")
   assert.deepEqual(files.sort(), [...expected, ...(hasChecksums ? ["SHA256SUMS.txt"] : [])].sort(), "Unexpected release attachments")
   const checksums = await artifactChecksums(directory, [...expected])
-  for (const artifact of artifacts) {
-    const actual = checksums.find(entry => entry.file === artifact.file)!
-    assert.equal(actual.size, artifact.downloadSize)
-    assert.equal(actual.sha256, artifact.downloadSha256)
-  }
   const text = formatChecksums(checksums)
   // Повторная проверка никогда не перегенерирует уже существующий checksum-файл.
   if (hasChecksums) assert.equal(await readFile(path.join(directory, "SHA256SUMS.txt"), "utf8"), text, "Signed transport checksum mismatch")
   else await writeFile(path.join(directory, "SHA256SUMS.txt"), text, { flag: "wx" })
-  console.log("Verified trusted signatures and release attachment hashes")
+  console.log("Verified trusted Manifest v1 signatures and release attachment hashes")
   return [...expected].sort()
 }
 
-if (import.meta.main) verifySignedUpdateFeed(Bun.argv[2]).catch(error => { console.error(error); process.exitCode = 1 })
+if (import.meta.main) {
+  const [directory, ...rest] = Bun.argv.slice(2)
+  assert.ok(directory, "Usage: verify-signed-update-feed <candidate> [platform arch ...]")
+  assert.ok(rest.length % 2 === 0, "Usage: verify-signed-update-feed <candidate> [platform arch ...]")
+  const channel = packageJson.version.includes("-") ? "canary" : "stable"
+  const requested: UpdateTarget[] = []
+  for (let index = 0; index < rest.length; index += 2) {
+    const [platform, arch] = rest.slice(index, index + 2)
+    assert.ok(platform === "win" && arch === "x64" || platform === "linux" && arch === "x64" || platform === "macos" && arch === "arm64",
+      "Unsupported update target: " + platform + " " + arch)
+    requested.push({ platform, arch, channel } as UpdateTarget)
+  }
+  verifySignedUpdateFeed(directory, packageJson.version, requested.length ? requested : releaseChannelTargets(channel))
+    .catch(error => { console.error(error); process.exitCode = 1 })
+}

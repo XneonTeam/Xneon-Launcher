@@ -5,6 +5,7 @@ import { lockLauncherProfile } from "../platform/instance-lock"
 import { readLauncherArgs } from "../platform/launcher-args"
 import { cli, forwardCli, parseCliLaunch, startCliListener } from "./cli"
 import { getDefaultLauncherDataRoot, isPortable, launcherLocationConfig } from "./profile-path"
+import { assertLinuxCefRuntime } from "../platform/linux-cef"
 
 /**
  * Флаги WebView2, которые Electron-сборка выставляла через
@@ -66,23 +67,18 @@ async function start() {
   }
   if (!isPortable && process.platform === "win32" && process.arch === "x64") {
     try {
-      const { Updater } = await import("electrobun/main")
-      const local = await Updater.getLocalInfo()
-      if (local.channel === "stable" || local.channel === "canary") {
+      const { readWindowsUpdateIdentity } = await import("./windows-update-identity")
+      const local = await readWindowsUpdateIdentity()
+      // null — dev-запуск без Resources/version.json: отложенных обновлений нет.
+      if (local) {
         const { launcherUpdateState } = await import("./update-state")
         const { resumeDeferredUpdate } = await import("./update-startup")
         if (await resumeDeferredUpdate({
-          local: { ...local, channel: local.channel }, sdkRoot: () => Updater.appDataFolder(), store: launcherUpdateState,
+          local, store: launcherUpdateState,
           launchInstaller: async file => {
             const child = spawn(file, ["/S", "--force-run"], { detached: true, stdio: "ignore" })
             await new Promise<void>((resolve, reject) => { child.once("spawn", resolve); child.once("error", reject) })
             child.unref()
-          },
-          applySdk: async () => {
-            let restarting = false
-            Updater.onStatusChange(({ status }) => { if (status === "launching-new-version") restarting = true })
-            await Updater.applyUpdate()
-            if (!restarting) throw new Error(Updater.updateInfo().error || "Deferred update restart did not start")
           },
           quit: () => quitNative(0), onError: error => console.error("[Updater] Deferred update was not applied", error),
         })) return
@@ -91,6 +87,15 @@ async function start() {
       // Повреждённый кэш обновлений не должен мешать открыть рабочий лаунчер.
       console.error("[Updater] Could not inspect deferred update", error)
     }
+  }
+  if (!isPortable && (process.platform === "linux" && process.arch === "x64" || process.platform === "darwin" && process.arch === "arm64")) {
+    const { resumeUnixUpdates } = await import("./unix-update-lifecycle")
+    const { bundledWorker } = await import("../platform/resources")
+    if (await resumeUnixUpdates(bundledWorker("unix-update-helper"), () => quitNative(0))) return
+  }
+  if (process.platform === "linux") {
+    try { assertLinuxCefRuntime(path.dirname(process.execPath), path.basename(process.execPath)) }
+    catch (error) { console.error("[CEF] Runtime validation failed; WebKit fallback is disabled", error); process.exit(1) }
   }
   if (build) cli.enqueue(build, error => { if (error) console.error("[CLI]", error) })
   await import("./index")

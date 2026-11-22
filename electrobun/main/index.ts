@@ -30,6 +30,7 @@ import { xnConnectManager } from "./xn-connect-manager"
 import { registerXnConnectHandlers } from "./xn-connect-handlers"
 import { registerAuthlibHandlers } from "./authlib"
 import { registerLiveopsHandlers } from "./liveops"
+import { unixUpdateStartupBarrier } from "../platform/unix-update-startup-barrier"
 
 configureLauncherScan()
 
@@ -62,7 +63,7 @@ registerAuthlibHandlers()
 registerLiveopsHandlers()
 
 import("@xnlc/mods").catch(() => {})
-import("./discord-rpc.js").catch(() => {})
+void unixUpdateStartupBarrier.wait().then(() => import("./discord-rpc.js")).catch(() => {})
 
 /**
  * При выходе закрываем туннели XN-Connect: метод существовал, но не вызывался,

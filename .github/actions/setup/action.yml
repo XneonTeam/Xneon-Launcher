@@ -23,7 +23,7 @@ runs:
       run: |
         set -euo pipefail
         test "$(bun --version)" = 1.4.4
-        test "$(bun -p 'require("./package.json").devDependencies.electrobun')" = 2.0.6
+        test "$(bun -p 'require("./package.json").devDependencies.electrobun')" = 2.0.7
     - name: Install Hutch (Windows)
       if: inputs.desktop == 'true' && runner.os == 'Windows'
       shell: pwsh
@@ -31,9 +31,9 @@ runs:
         $installer = Join-Path $env:RUNNER_TEMP 'hutch-install.ps1'
         Invoke-WebRequest -Uri 'https://hutch.blackboard.sh/hutch/install.ps1' -OutFile $installer
         if ((Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash -ne '185CC615D3D1B6E7156C104BEB902CCE3F4B9F35CB3D14DF047586AA432883E7') { throw 'Hutch bootstrap checksum mismatch' }
-        & $installer -Version 0.29.0 -NoModifyPath
+          & $installer -Version 0.30.0 -NoModifyPath
         $bin = Join-Path $env:USERPROFILE '.hutch/bin'
-        if ((& (Join-Path $bin 'hutch.exe') --version) -ne '0.29.0') { throw 'Unexpected Hutch version' }
+          if ((& (Join-Path $bin 'hutch.exe') --version) -ne '0.30.0') { throw 'Unexpected Hutch version' }
         Add-Content -LiteralPath $env:GITHUB_PATH -Value $bin
     - name: Install Hutch (Unix)
       if: inputs.desktop == 'true' && runner.os != 'Windows'
@@ -43,8 +43,8 @@ runs:
         bootstrap="$RUNNER_TEMP/hutch-install.sh"
         curl --fail --silent --show-error --location https://hutch.blackboard.sh/hutch/install.sh -o "$bootstrap"
         echo 'ac0ad498dfb09d2bc80fc9a6a0254c183cd0f125c83dce32defff65a1cf793e7  '"$bootstrap" | shasum -a 256 -c -
-        bash "$bootstrap" --version 0.29.0 --no-modify-path
-        test "$("$HOME/.hutch/bin/hutch" --version)" = 0.29.0
+        bash "$bootstrap" --version 0.30.0 --no-modify-path
+        test "$("$HOME/.hutch/bin/hutch" --version)" = 0.30.0
         echo "$HOME/.hutch/bin" >> "$GITHUB_PATH"
     - name: Linux test prerequisites
       if: inputs.desktop == 'true' && runner.os == 'Linux'
@@ -58,7 +58,7 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 install -y --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev
+        sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 install -y --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev libnss3 libasound2t64 libgbm1 libnotify4 libxss1
     - name: Install dependencies
       shell: bash
       env:

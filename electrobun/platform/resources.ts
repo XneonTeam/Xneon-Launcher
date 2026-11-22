@@ -3,7 +3,7 @@ import { existsSync } from "node:fs"
 
 const applicationResources = path.resolve(path.dirname(process.execPath), "..", "Resources", "app")
 
-export function bundledWorker(name: "minecraft-launch-worker" | "archive-worker" | "scan-worker") {
+export function bundledWorker(name: "minecraft-launch-worker" | "archive-worker" | "scan-worker" | "unix-update-helper") {
   const filename = name === "archive-worker" ? "archive.worker.js" : name + ".js"
   return path.join(applicationResources, "bun", "workers", filename)
 }

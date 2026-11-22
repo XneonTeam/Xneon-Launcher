@@ -265,7 +265,7 @@ import * as sharedUrls from "../../packages/xnlc-urls/src/index.ts"
     }
     mock.module("./electrobun/platform/desktop.ts", () => ({ app, DesktopWindow, rpcRegistry: { handle: (name, handler) => handlers.set(name, handler) } }))
     mock.module("./electrobun/main/startup-theme.ts", () => ({ readStartupTheme: () => ({}) }))
-    mock.module("./electrobun/main/runtime.ts", () => ({ setMainWindow() {}, logRuntime() {}, sendToRenderer() {}, initRuntimePaths: async () => calls.push("paths") }))
+    mock.module("./electrobun/main/runtime.ts", () => ({ setMainWindow() {}, getMainWindow: () => ({ viewSession: { id: 1 } }), logRuntime() {}, sendToRenderer() {}, initRuntimePaths: async () => calls.push("paths") }))
     mock.module("./electrobun/db/index.ts", () => ({ initDatabase: async () => calls.push("db") }))
     mock.module("./electrobun/main/paths.ts", () => ({ applyPendingInstancesMove: () => { calls.push("move"); moved = true } }))
     mock.module("./electrobun/db/settings.ts", () => ({ clearSettingsCache: () => { cachedRoot = undefined; calls.push("invalidate") } }))
@@ -275,6 +275,7 @@ import * as sharedUrls from "../../packages/xnlc-urls/src/index.ts"
     mock.module("./electrobun/main/builds/modpack-persistence.ts", () => ({ recoverManagedModpackInstalls: async () => { calls.push("recovery"); if (failure) throw new Error("metadata unavailable") } }))
     mock.module("./electrobun/main/builds/dir-migration.ts", () => ({ migrateIntentDirNames: async () => { calls.push("rename"); return 0 } }))
     mock.module("./electrobun/main/updater.ts", () => ({ registerUpdater: () => calls.push("updater") }))
+    mock.module("./electrobun/main/unix-updater.ts", () => ({ registerUnixUpdater: () => calls.push("updater") }))
     mock.module("./electrobun/main/authlib/index.ts", () => ({ refreshAuthServersInBackground: async () => {} }))
     mock.module("./electrobun/main/stats.ts", () => ({ cleanupOrphanGameSessions: async () => 0 }))
     mock.module("./electrobun/main/cli.ts", () => ({ cli: { attach() {}, close() {} } }))

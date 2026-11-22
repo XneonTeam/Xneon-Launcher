@@ -100,7 +100,7 @@
 
 ## Быстрый старт
 
-Добавьте **Bun 1.4.4** и **Hutch 0.29.0** в PATH. Для стандартной Windows-сборки Electrobun нужны Windows PowerShell и 64-битный компилятор C# из .NET Framework 4.x; для дополнительного Windows-установщика — **NSIS 3** (`makensis` или `XNEON_MAKENSIS`). Приложение использует WebView2.
+Добавьте **Bun 1.4.4** и **Hutch 0.30.0** в PATH. Для стандартной Windows-сборки Electrobun нужны Windows PowerShell и 64-битный компилятор C# из .NET Framework 4.x; для дополнительного Windows-установщика — **NSIS 3** (`makensis` или `XNEON_MAKENSIS`). Приложение использует WebView2.
 
 ```bash
 # Установка зависимостей
@@ -184,8 +184,9 @@ bun run test:offline  # воспроизводимый offline gate, без вн
 ```
 
 После сборки Windows x64 можно проверить изоляцию каналов через
-`bun scripts/test-channel-artifacts.mjs` и нативную подготовку обновления
-через `bun scripts/test-native-update.ts stable` и `bun scripts/test-native-update.ts canary`.
+`bun scripts/test-channel-artifacts.mjs`, а полный путь Windows-обновления —
+подпись, скачивание, SHA-256, staging и отложенный запуск — локальным
+харнессом `bun scripts/test-windows-update.ts` (без публикации релиза и сети).
 
 ### Структура
 

@@ -102,6 +102,7 @@ installDesktopApi({
   onShareInstalled: (callback: (event: { buildId: string }) => void) => subscribe('share:installed', callback),
   startupThemeSnapshot: window.xneonStartupTheme ?? null,
   startupReady: invoke('startup:ready'),
+  startupUpdateReady: invoke('startup:update-ready'),
   startupLaunchBuild: invoke('startup:launch-build'),
   onStartupLaunchPending: callback => subscribe('startup:launch-pending', callback),
   // ── Window ─────────────────────────────────────────────

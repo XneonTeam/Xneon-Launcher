@@ -8,13 +8,13 @@ import { compareReleaseVersions, verifySignedWindowsUpdateManifest } from "./ver
 import type { PackageChannel, VerifiedUpdate } from "./verified-update-feed"
 
 export type InstalledUpdateIdentity = { channel: PackageChannel; version: string; hash: string }
-export type SdkUpdateRoot = string | (() => Promise<string>)
+/** `sdk` — запись прежнего SDK-апдейтера: читается ради миграции, но не применяется. */
 type SavedUpdate = {
   kind: "sdk" | "installer"; channel: PackageChannel; fromHash: string; fromChannel: PackageChannel
   manifest: string; signature: string; deferred: boolean
 }
 type UpdateState = { channel?: PackageChannel; pending?: SavedUpdate }
-export type PendingUpdate = { kind: "sdk" | "installer"; deferred: boolean; path?: string; update: VerifiedUpdate }
+export type PendingUpdate = { kind: "installer"; deferred: boolean; path: string; update: VerifiedUpdate }
 
 /** Выбор канала и отложенная установка независимы от БД и доступны до старта UI. */
 export class UpdateStateStore {
@@ -77,51 +77,41 @@ export class UpdateStateStore {
     return file
   }
 
-  async stage(kind: SavedUpdate["kind"], local: InstalledUpdateIdentity, update: VerifiedUpdate, installer?: string) {
+  async stage(local: InstalledUpdateIdentity, update: VerifiedUpdate, installer: string) {
     const pending: SavedUpdate = {
-      kind, channel: update.manifest.channel, fromHash: local.hash, fromChannel: local.channel,
+      kind: "installer", channel: update.manifest.channel, fromHash: local.hash, fromChannel: local.channel,
       manifest: update.manifestBytes.toString("base64"), signature: update.signatureBytes.toString("base64"), deferred: false,
     }
     const verified = this.verify(pending)
     assert.equal(verified.manifest.hash, update.manifest.hash, "Pending update hash mismatch")
-    if (kind === "installer") {
-      assert.ok(installer, "Missing downloaded installer")
-      await this.directoryReady()
-      const temporary = path.join(this.directory, `installer-${randomUUID()}.tmp`)
-      try {
-        await copyFile(installer, temporary)
-        await rename(temporary, path.join(this.directory, "installer.exe"))
-      } finally { await rm(temporary, { force: true }) }
-      await this.verifyInstaller(verified)
-    }
+    await this.directoryReady()
+    const temporary = path.join(this.directory, `installer-${randomUUID()}.tmp`)
+    try {
+      await copyFile(installer, temporary)
+      await rename(temporary, path.join(this.directory, "installer.exe"))
+    } finally { await rm(temporary, { force: true }) }
+    await this.verifyInstaller(verified)
     await this.write({ channel: pending.channel, pending })
   }
 
-  async peek(local: InstalledUpdateIdentity, sdkRoot?: SdkUpdateRoot): Promise<PendingUpdate | null> {
+  async peek(local: InstalledUpdateIdentity): Promise<PendingUpdate | null> {
     const state = await this.read()
     const saved = state.pending
     if (!saved) return null
+    // Прежняя SDK-схема Windows-обновлений больше не применяется: снимаем запись,
+    // чтобы UI не показывал «скачано» для неприменимого обновления.
+    if (saved.kind === "sdk") { await this.clearPending(); return null }
     const update = this.verify(saved)
     assert.equal(state.channel, saved.channel, "Pending update differs from selected channel")
     if (local.channel === update.manifest.channel && local.hash === update.manifest.hash) { await this.clearPending(); return null }
     assert.ok(saved.fromHash === local.hash && saved.fromChannel === local.channel, "Pending update belongs to a different installed build")
     if (saved.channel === local.channel) assert.ok(compareReleaseVersions(update.manifest.version, local.version) > 0, "Pending update must be newer than the installed version")
-    if (saved.kind === "sdk") assert.equal(saved.channel, local.channel, "SDK cannot change the installed channel")
-    let file: string | undefined
-    if (saved.kind === "installer") file = await this.verifyInstaller(update)
-    else if (sdkRoot) {
-      const directory = typeof sdkRoot === "function" ? await sdkRoot() : sdkRoot
-      const prepared = await this.readJson(path.join(directory, ".electrobun-prepared-update.json"), 64 * 1024) as Record<string, unknown>
-      for (const key of ["identifier", "channel", "version", "hash", "platform", "arch"] as const) {
-        assert.equal(prepared[key], update.manifest[key], "SDK prepared update differs from signed manifest")
-      }
-      assert.equal(prepared.artifact_file, update.manifest.artifact.file, "SDK prepared artifact differs from signed manifest")
-    }
-    return { kind: saved.kind, deferred: saved.deferred === true, update, path: file }
+    const file = await this.verifyInstaller(update)
+    return { kind: "installer", deferred: saved.deferred === true, update, path: file }
   }
 
-  async defer(local: InstalledUpdateIdentity, sdkRoot?: SdkUpdateRoot) {
-    assert.ok(await this.peek(local, sdkRoot), "No downloaded update to defer")
+  async defer(local: InstalledUpdateIdentity) {
+    assert.ok(await this.peek(local), "No downloaded update to defer")
     const state = await this.read()
     assert.ok(state.pending, "No downloaded update to defer")
     state.pending.deferred = true

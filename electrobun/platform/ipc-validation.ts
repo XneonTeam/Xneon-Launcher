@@ -15,6 +15,7 @@ export function validateRpcValue(value: unknown, depth = 0, ancestors = new Set<
 export function validateInvokeArgs(channel: string, args: unknown[]): void {
   if (args.length > 32) throw new Error("Invalid RPC arguments")
   validateRpcValue(args)
+  if (channel === "startup:update-ready" && args.length !== 0) throw new Error("Startup acknowledgement takes no arguments")
   if (["settings:get", "settings:set", "db:set-active-account", "db:remove-account"].includes(channel) && typeof args[0] !== "string") throw new Error("Invalid RPC argument type")
   if (channel === "settings:set" && typeof args[1] !== "string") throw new Error("Invalid setting value")
   if (channel === "liveops:select") {

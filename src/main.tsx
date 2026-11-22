@@ -19,7 +19,11 @@ prepareStartupReveal()
 const root = document.getElementById('root')!
 const rootEl = ReactDOM.createRoot(root)
 
-window.addEventListener('app:hydrated', () => { void dismissStartupSplash() }, { once: true })
+window.addEventListener('app:hydrated', () => {
+  void dismissStartupSplash()
+  // Событие приходит из useEffect уже смонтированного Launcher, не из загрузки HTML/splash.
+  void window.electrobunAPI?.startupUpdateReady().catch(error => console.error('[startup] Update confirmation failed:', error))
+}, { once: true })
 
 // Стартовый модуль не загружает весь граф лаунчера синхронно: HTML со splash
 // успевает отрисоваться, пока загружаются приложение и сохранённая тема.

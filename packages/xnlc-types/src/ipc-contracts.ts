@@ -125,6 +125,7 @@ export interface IpcInvokeMap {
   "mc-server:remote": { args: [request: import("./remote-server-types.js").RemoteServerRequest]; return: import("./remote-server-types.js").RemoteServerResponse }
   "mc-server:history": { args: [id: string, command: import("@xnlc/share").ServerHistoryCommand]; return: import("@xnlc/share").ServerHistoryResponse }
   "startup:ready": { args: []; return: string | null }
+  "startup:update-ready": { args: []; return: void }
   // Синхронное чтение маленького кеша в preload, до первого кадра HTML.
   "startup:launch-build": {
     args: [action?: { kind: "claim" | "finish"; id: string; error?: string }]
@@ -594,6 +595,7 @@ export interface ElectrobunAPIExplicit {
   liveopsSelect: (ref: LiveopsThemeRef) => Promise<LiveopsStatus>
   startupThemeSnapshot: string | null
   startupReady: () => Promise<IpcInvokeMap["startup:ready"]["return"]>
+  startupUpdateReady: () => Promise<void>
   startupLaunchBuild: (...args: IpcInvokeMap["startup:launch-build"]["args"]) => Promise<IpcInvokeMap["startup:launch-build"]["return"]>
   onStartupLaunchPending: (callback: () => void) => () => void
   minimize: () => void

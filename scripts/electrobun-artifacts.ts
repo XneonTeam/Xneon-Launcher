@@ -37,7 +37,7 @@ function identity(options: Options) {
   return { version, app, prefix, installer, archive: `${prefix}-${app}${options.platform === "macos" ? ".app" : ""}.tar.zst`, nsis: `xneon-launcher-${version}-win-x64.exe` }
 }
 
-/** Имена штатного Hutch 0.29 / Electrobun 2.0; содержимое не переупаковывается. */
+/** Имена штатного Hutch 0.30 / Electrobun 2.0; содержимое не переупаковывается. */
 export function nativeArtifactNames(options: Options): string[] {
   const value = identity(options)
   return [`${value.prefix}-update.json`, `${value.prefix}-update-v2.json`, value.archive, value.installer, ...(options.nsis ? [value.nsis] : [])]
@@ -68,8 +68,10 @@ export async function inspectElectrobunRelease(directory: string, options: Optio
   const patches = names.filter(name => new RegExp(`^${value.prefix}-[a-z0-9]+\\.patch$`).test(name))
   const files = [...nativeArtifactNames(options), ...patches].sort()
   const hasChecksums = names.includes("SHA256SUMS.txt")
+  const sdkChecksum = `${value.prefix}-checksum.json`
+  const hasSdkChecksum = names.includes(sdkChecksum)
   assert.ok(!options.requireChecksums || hasChecksums, "Missing transport checksums")
-  assert.deepEqual(names.sort(), [...files, ...(hasChecksums ? ["SHA256SUMS.txt"] : [])].sort(), "Unexpected or missing native artifacts")
+  assert.deepEqual(names.sort(), [...files, ...(hasChecksums ? ["SHA256SUMS.txt"] : []), ...(hasSdkChecksum ? [sdkChecksum] : [])].sort(), "Unexpected or missing native artifacts")
   for (const name of [...files, ...(hasChecksums ? ["SHA256SUMS.txt"] : [])]) {
     const info = await lstat(path.join(directory, name))
     const metadata = /\.json$|^SHA256SUMS\.txt$/.test(name)
@@ -92,6 +94,10 @@ export async function inspectElectrobunRelease(directory: string, options: Optio
     assert.match(manifest.hash, /^[a-z0-9]+$/)
   }
   const [legacy, current] = manifests
+  if (hasSdkChecksum) {
+    const checksum = JSON.parse((await read(sdkChecksum)).toString())
+    assert.deepEqual(checksum, { hash: current.hash, tarSha256: current.artifact.tarSha256, tarSize: current.artifact.tarSize }, "Hutch checksum differs from compatible v2 metadata")
+  }
   assert.equal(legacy.hash, current.hash)
   assert.ok(Number.isSafeInteger(current.artifact.tarSize) && current.artifact.tarSize > 0 && current.artifact.tarSize <= limit, "Invalid native tar size")
   assert.match(current.artifact.tarSha256, /^[a-f0-9]{64}$/)
@@ -121,6 +127,9 @@ export async function inspectElectrobunRelease(directory: string, options: Optio
     for (const key of ["identifier", "version", "channel", "hash"]) assert.equal(local[key], current[key], "Unexpected bundled " + key)
     assert.equal(local.baseUrl, options.platform === "win" ? expectedUpdateBaseUrl(options.channel as "stable" | "canary") : "", "Unexpected native update feed")
     for (const executable of ["launcher", "bun"]) validateNativeExecutable(tar(tarFile, bin + executable + (options.platform === "win" ? ".exe" : "")), options.platform, options.arch)
+    // 2.0.7 ищет updater в native core рядом с launcher (updaterNative.ts: exeDir), без библиотеки обновление не стартует.
+    const core = options.platform === "win" ? "ElectrobunCore.dll" : "libElectrobunCore." + (options.platform === "macos" ? "dylib" : "so")
+    validateNativeExecutable(tar(tarFile, bin + core), options.platform, options.arch)
     const main = tar(tarFile, resources + "app/bun/index.js").toString()
     validateBundleCredentials(main)
     if (options.platform === "win") {

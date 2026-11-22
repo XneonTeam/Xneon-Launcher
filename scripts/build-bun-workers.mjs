@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises"
+import { mkdir, rm } from "node:fs/promises"
 import { spawnSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"))
@@ -13,4 +13,12 @@ const { status, error } = spawnSync(process.execPath, ["build", ...sources, "--t
   stdio: "inherit",
 })
 if (error) throw error
-process.exitCode = status ?? 1
+if (status !== 0) process.exit(status ?? 1)
+if (process.platform === "linux" || process.platform === "darwin") {
+  const helper = spawnSync(process.execPath, ["build", "./electrobun/main/unix-update-helper-entry.ts", "--target=bun", "--format=cjs", "--outfile=dist-workers/unix-update-helper.js"], { stdio: "inherit" })
+  if (helper.error) throw helper.error
+  process.exitCode = helper.status ?? 1
+} else {
+  // Кэш Unix-сборки не должен протащить helper в неизменяемый Windows payload.
+  await rm("dist-workers/unix-update-helper.js", { force: true })
+}

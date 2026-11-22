@@ -3,12 +3,14 @@
 ; Ставит приложение в тот же пользовательский каталог, что и Electron-сборка:
 ;   %LOCALAPPDATA%\Programs\xneon-launcher
 ;
-; Electrobun 2.x обновляется только из каталога
+; Обновления Windows ставит собственный подписанный канал лаунчера
+; (Ed25519 + SHA-256 → этот же NSIS в тихом режиме). Нативное ядро Electrobun
+; на Windows не используется: оно требует каталог
 ;   %LOCALAPPDATA%\<identifier>\<channel>
-; (см. resolveInstalledChannelRoot в Updater SDK), поэтому установщик создаёт
-; на него junction на реальный каталог установки, а ярлыки запускают лаунчер
-; через этот junction. Так путь установки остаётся «как в Electron», а
-; встроенные обновления продолжают работать.
+; (см. resolveInstalledChannelRoot в Updater SDK) и отвергает любой другой путь.
+; Поэтому junction больше не создаётся, ярлыки и xneon:// запускают
+; $INSTDIR\app\bin\launcher.exe напрямую. Старые junction прежних установок
+; снимаются при установке и удалении.
 ;
 ; Параметры передаются из scripts/build-windows-distribution.ts:
 ;   /DOUTFILE=... /DSTAGING=... /DAPP_ICON=... /DAPP_VERSION=... /DAPP_FILE_VERSION=...
@@ -70,7 +72,7 @@ ShowUninstDetails nevershow
 !define UNINSTALL_EXE "Uninstall ${PRODUCT_NAME}.exe"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_ID}"
 !define MANAGED_CHANNEL_ROOT "$LOCALAPPDATA\${APP_ID}\${CHANNEL}"
-!define LAUNCH_EXE "${MANAGED_CHANNEL_ROOT}\app\bin\launcher.exe"
+!define LAUNCH_EXE "$INSTDIR\app\bin\launcher.exe"
 
 Name "${PRODUCT_NAME}"
 OutFile "${OUTFILE}"
@@ -154,11 +156,11 @@ Function un.CloseRunningLauncher
 FunctionEnd
 
 ; ---------------------------------------------------------------------------
-; Освобождаем управляемый каталог Electrobun:
-;  * предыдущая установка этого NSIS-инсталлятора оставила junction — убираем
-;    только ссылку, файлы установки не трогаем;
+; Освобождаем управляемый каталог Electrobun, оставшийся от прежних версий:
+;  * junction на $INSTDIR — убираем только ссылку, файлы установки не трогаем;
 ;  * прежняя установка через Setup Electrobun — снимаем её штатным менеджером
 ;    (данные в %APPDATA%\xneonlauncher не удаляются).
+; Новый установщик junction не создаёт.
 ; ---------------------------------------------------------------------------
 Function ClearManagedChannelRoot
   StrCpy $0 "${MANAGED_CHANNEL_ROOT}"
@@ -185,6 +187,17 @@ Function ClearManagedChannelRoot
   ${If} ${FileExists} "$0\*.*"
     RMDir /r "$0"
   ${EndIf}
+  ; Второй канал мог остаться junction'ом от прежней раскладки: снимаем только
+  ; ссылку/пустой каталог, реальную установку другого канала не трогаем.
+  !if "${CHANNEL}" == "stable"
+    StrCpy $0 "$LOCALAPPDATA\${APP_ID}\canary"
+  !else
+    StrCpy $0 "$LOCALAPPDATA\${APP_ID}\stable"
+  !endif
+  nsExec::ExecToStack 'cmd /c rmdir "$0"'
+  Pop $2
+  Pop $3
+  RMDir "$LOCALAPPDATA\${APP_ID}"
 FunctionEnd
 
 ; ---------------------------------------------------------------------------
@@ -251,39 +264,9 @@ Function RemoveLegacyEntries
 FunctionEnd
 
 ; ---------------------------------------------------------------------------
-; Junction для обновлений Electrobun: <identifier>\<channel> -> каталог установки.
+; Ярлыки запускают бандл прямо из $INSTDIR: junction управляемого канала
+; больше не нужен, поэтому путь установки не подменяется ссылкой.
 ; ---------------------------------------------------------------------------
-Function CreateManagedChannelJunction
-  CreateDirectory "$LOCALAPPDATA\${APP_ID}"
-  ; Только ссылка/пустой каталог: содержимое реального каталога уже снял
-  ; ClearManagedChannelRoot, поэтому рекурсивное удаление здесь не нужно.
-  nsExec::ExecToStack 'cmd /c rmdir "${MANAGED_CHANNEL_ROOT}"'
-  Pop $1
-  Pop $1
-  ${If} ${FileExists} "${MANAGED_CHANNEL_ROOT}\*.*"
-    RMDir /r "${MANAGED_CHANNEL_ROOT}"
-  ${EndIf}
-  nsExec::ExecToStack 'cmd /c mklink /J "${MANAGED_CHANNEL_ROOT}" "$INSTDIR"'
-  Pop $0
-  Pop $1
-  ${If} $0 != 0
-    IfSilent junction_done
-    MessageBox MB_OK|MB_ICONEXCLAMATION "${PRODUCT_NAME} установлен, но каталог обновлений подготовить не удалось:$\r$\n${MANAGED_CHANNEL_ROOT}$\r$\n$\r$\nВстроенные обновления будут недоступны."
-    junction_done:
-  ${EndIf}
-  ; Смена канала оставляет junction прежнего канала указывающим на этот же $INSTDIR.
-  ; Снимаем только ссылку/пустой каталог: rmdir без /s не заходит внутрь реальной
-  ; установки другого канала.
-  !if "${CHANNEL}" == "stable"
-    StrCpy $0 "$LOCALAPPDATA\${APP_ID}\canary"
-  !else
-    StrCpy $0 "$LOCALAPPDATA\${APP_ID}\stable"
-  !endif
-  nsExec::ExecToStack 'cmd /c rmdir "$0"'
-  Pop $2
-  Pop $3
-FunctionEnd
-
 Function CreateShortcuts
   CreateDirectory "$SMPROGRAMS"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}.lnk" "${LAUNCH_EXE}" "" "${LAUNCH_EXE}" 0 SW_SHOWNORMAL "" "${PRODUCT_NAME}"
@@ -328,7 +311,7 @@ FunctionEnd
 
 ; ---------------------------------------------------------------------------
 ; Обработчик схемы xneon:// — как его оставляла Electron-сборка (per-user):
-; ключ в HKCU и запуск лаунчера через junction управляемого канала.
+; ключ в HKCU и запуск лаунчера из $INSTDIR.
 ; ---------------------------------------------------------------------------
 Function WriteSchemeRegistry
   WriteRegStr HKCU "${SCHEME_KEY}" "" "URL:Xneon Protocol"
@@ -393,7 +376,6 @@ Section "Install"
   File /r "${STAGING}\app\*.*"
 
   WriteUninstaller "$INSTDIR\${UNINSTALL_EXE}"
-  Call CreateManagedChannelJunction
   Call CreateShortcuts
   Call WriteSchemeRegistry
   Call WriteUninstallRegistry
@@ -408,8 +390,18 @@ Section "Uninstall"
   Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
   DeleteRegKey HKCU "${UNINSTALL_KEY}"
   DeleteRegKey HKCU "${SCHEME_KEY}"
-  ; Только ссылка: каталог обновлений указывает на удаляемый $INSTDIR.
-  RMDir "${MANAGED_CHANNEL_ROOT}"
+  ; Следы прежней junction-раскладки: снимаем только ссылки/пустые каталоги,
+  ; реальную установку другого канала не трогаем.
+  nsExec::ExecToStack 'cmd /c rmdir "${MANAGED_CHANNEL_ROOT}"'
+  Pop $0
+  Pop $0
+  !if "${CHANNEL}" == "stable"
+    nsExec::ExecToStack 'cmd /c rmdir "$LOCALAPPDATA\${APP_ID}\canary"'
+  !else
+    nsExec::ExecToStack 'cmd /c rmdir "$LOCALAPPDATA\${APP_ID}\stable"'
+  !endif
+  Pop $0
+  Pop $0
   RMDir "$LOCALAPPDATA\${APP_ID}"
 
   RMDir /r "$INSTDIR\app"

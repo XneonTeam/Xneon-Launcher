@@ -52,6 +52,8 @@ const files = entries.filter(entry => entry.isFile()).map(entry =>
 const blocked = /(?:^|\/)(?:\.env(?:[./]|$)|\.npmrc(?:$|\/)|node_modules(?:$|\/)|uninstall(?:$|\/)|PortableProfile(?:$|\/))|\.(?:db(?:-wal|-shm)?|sqlite3?|pdb|map|log|tmp|bak|pem|pfx|key)$/i
 assert.equal(new Set(files.map(file => file.toLowerCase())).size, files.length)
 for (const file of files) assert.ok(!blocked.test(file) && !/[\\:\u0000-\u001f]/.test(file), "Forbidden portable entry: " + file)
+// Portable запускается тем же native core, что и обычная сборка, поэтому библиотека обязана быть в bin.
+assert.ok(files.includes("bin/ElectrobunCore.dll"), "Missing native core library in portable payload")
 tar(["-a", "-cf", zip, "-C", staging, "bin", "Resources", "README.txt"])
 const archivedFiles = tar(["-tf", zip]).toString().trim().split(/\r?\n/).filter(entry => !entry.endsWith("/"))
 assert.deepEqual(archivedFiles.sort(), files.sort(), "Unexpected portable ZIP entries")
@@ -64,14 +66,14 @@ assert.equal(identity.identifier, portableAppIdentifier)
 assert.equal(identity.baseUrl, "")
 const build = JSON.parse(readEntry("Resources/build.json").toString())
 assert.equal(build.runtime.appUserModelId, identity.identifier)
-assert.equal(build.electrobunVersion, "2.0.6")
+assert.equal(build.electrobunVersion, packageJson.devDependencies.electrobun)
 assert.equal(build.runtimeVersions.bun, "1.4.4")
 for (const file of files.filter(file => /\.(?:exe|dll)$/i.test(file))) windowsX64(readEntry(file))
 for (const file of ["bin/launcher.exe", "bin/bun.exe"].map(file => path.join(staging, file))) {
   windowsProductIdentity(file, version)
 }
 const bundle = readEntry("Resources/app/bun/index.js").toString()
-assert.ok(bundle.includes("PortableProfile must be a local directory") && bundle.includes("Portable builds require manual updates."), "Portable runtime guards are missing")
+assert.ok(bundle.includes("PortableProfile must be a local directory") && bundle.includes("portable-manual-update"), "Portable runtime guards are missing")
 validateBundleCredentials(bundle)
 
 // PortableProfile — отдельная функция приложения, а не переупаковка обычного релиза.

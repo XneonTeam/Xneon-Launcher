@@ -3,6 +3,7 @@ import type { IpcInvokeMap } from "@xnlc/types"
 import type { LauncherEvent } from "./schema"
 import { launcherOperations } from "./operation-gate"
 import { validateInvokeArgs, validateInvokeResult } from "./ipc-validation"
+import { unixUpdateStartupBarrier } from "./unix-update-startup-barrier"
 
 export class ViewSession extends EventEmitter {
   constructor(readonly id: number, private readonly deliver: (event: LauncherEvent) => void) {
@@ -33,6 +34,7 @@ const selfManagedChannels: ReadonlySet<string> = new Set([
   "update:install",
   "update:cancel-install",
   "update:set-channel",
+  "startup:update-ready",
   "content:cancel-download",
   "share:cancel-install",
 ])
@@ -58,6 +60,8 @@ export function invokeHandler(sender: ViewSession, request: unknown) {
   const { channel, args } = request as { channel?: unknown; args?: unknown }
   const handler = typeof channel === "string" ? handlers.get(channel) : undefined
   if (!handler || !Array.isArray(args)) throw new Error("Invalid RPC request")
+  const startup = unixUpdateStartupBarrier.waitForRpc(String(channel))
+  if (startup) return startup.then(() => invokeHandler(sender, request))
   if (typeof channel === "string" && selfManagedChannels.has(channel)) return handler({ sender }, args)
   return launcherOperations.run(() => handler({ sender }, args))
 }

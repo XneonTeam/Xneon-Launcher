@@ -1,6 +1,6 @@
 import { app, DesktopWindow, rpcRegistry } from "../platform/desktop"
 import { readStartupTheme } from "./startup-theme"
-import { setMainWindow, logRuntime, initRuntimePaths, sendToRenderer } from "./runtime"
+import { setMainWindow, getMainWindow, logRuntime, initRuntimePaths, sendToRenderer } from "./runtime"
 import { applyPendingInstancesMove } from "./paths"
 import { initDatabase } from "../db"
 import { clearSettingsCache } from "../db/settings"
@@ -12,6 +12,13 @@ import { recoverManagedModpackInstalls } from "./builds/modpack-persistence"
 import { migrateIntentDirNames } from "./builds/dir-migration"
 import { launcherOperations } from "../platform/operation-gate"
 import { cli } from "./cli"
+import { unixUpdateStartupBarrier } from "../platform/unix-update-startup-barrier"
+import { confirmUnixUpdateStartup } from "./unix-update-lifecycle"
+
+async function registerPlatformUpdater() {
+  if (process.platform === "win32") registerUpdater()
+  else (await import("./unix-updater")).registerUnixUpdater()
+}
 
 let finishStartup: (error: string | null) => void
 const startupReady = new Promise<string | null>(resolve => { finishStartup = resolve })
@@ -39,6 +46,12 @@ export function createWindow() {
 
 export function registerWindowLifecycle() {
   rpcRegistry.handle("startup:ready", () => startupReady)
+  rpcRegistry.handle("startup:update-ready", async ({ sender }) => {
+    const error = await startupReady
+    if (error) throw new Error(error)
+    if (getMainWindow()?.viewSession.id !== sender.id) throw new Error("Invalid startup acknowledgement sender")
+    await confirmUnixUpdateStartup()
+  })
   rpcRegistry.handle("startup:launch-build", ({ sender }, action) => {
     if (!action) return cli.peek()
     if (action.kind === "claim") return cli.claim(action.id, sender.id)
@@ -64,6 +77,15 @@ async function startLauncher() {
   // Один документ: HTML показывает splash, renderer ждёт startup:ready.
   createWindow()
   await initDatabase()
+  const trial = unixUpdateStartupBarrier.active
+  if (trial) {
+    await initRuntimePaths()
+    await loadInstancesRoot()
+    await registerPlatformUpdater()
+    finishStartup(null)
+    // Renderer должен смонтировать React для health; необратимые внешние side effects ждут commit.
+    await unixUpdateStartupBarrier.wait()
+  }
   // Только диск-кэш до первого рендера; сеть обновляет ивент в фоне.
   await import("./liveops").then(({ startLiveops }) => startLiveops()).catch(error => logRuntime(`[LiveOps] ${String(error)}`))
   await initRuntimePaths()
@@ -103,8 +125,7 @@ async function startLauncher() {
     logRuntime(`[DB] Не удалось очистить статистику удалённых сборок: ${error instanceof Error ? error.message : String(error)}`)
   }
 
-  registerUpdater()
-  finishStartup(null)
+  if (!trial) { await registerPlatformUpdater(); finishStartup(null) }
 
   app.on("reopen", () => {
     if (DesktopWindow.getAllWindows().length === 0) {
