@@ -29,7 +29,7 @@ assert.match(path.relative(temp, root), /^windows-update-[\w-]+$/)
 
 const { publicKey, privateKey } = generateKeyPairSync("ed25519")
 const keys = { fixture: publicKey.export({ type: "spki", format: "pem" }).toString() }
-const version = "1.0.9"
+const version = "1.0.8"
 const channel = "stable"
 const installerFile = `xneon-launcher-${version}-win-x64.exe`
 const sha256 = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex")
@@ -89,17 +89,17 @@ const { downloadChannelInstaller } = await import("../electrobun/main/channel-sw
 const { UpdateStateStore } = await import("../electrobun/main/update-state")
 const { resumeDeferredUpdate } = await import("../electrobun/main/update-startup")
 
-const local = { channel: "stable" as const, version: "1.0.8", hash: "old123" }
+const local = { channel: "stable" as const, version: "1.0.7", hash: "old123" }
 
 try {
   // 1. Проверка: та же версия — «обновлений нет» без ошибки, более новая — доступна.
-  assert.equal(await resolveVerifiedUpdate("1.0.9", channel), null)
+  assert.equal(await resolveVerifiedUpdate("1.0.8", channel), null)
   const update = await resolveVerifiedUpdate("1.0.7", channel)
   assert.ok(update, "resolveVerifiedUpdate did not find the signed update")
   assert.equal(update.manifest.version, version)
   assert.equal(update.manifest.hash, "next123")
   assert.equal(update.manifest.installer?.sha256, sha256(installer))
-  console.log("check: подписанный манифест 1.0.9 проверен, актуальная 1.0.9 = not-available")
+  console.log("check: подписанный манифест 1.0.8 проверен, актуальная 1.0.8 = not-available")
 
   // 2. Скачивание: прогресс до 100% только после сверки размера и SHA-256.
   const progress: number[] = []
@@ -163,7 +163,7 @@ try {
 
   // 6. Смена версии после check не подменяет установщик.
   await assert.rejects(
-    downloadChannelInstaller(channel, undefined, { version: "1.0.9", hash: "stale" }),
+    downloadChannelInstaller(channel, undefined, { version: "1.0.7", hash: "stale" }),
     /changed after checking/,
   )
   console.log("отказы: несовпадение манифеста с моментом проверки отклонено")

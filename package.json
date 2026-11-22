@@ -9,7 +9,7 @@
   "homepage": "https://launcher.xneon.org",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/XneonTeam/Xneon-Launcher.git"
+    "url": "git+https://github.com/MAINER4IK/Xneon-Launcher-bun.git"
   },
   "private": true,
   "packageManager": "bun@1.4.4",

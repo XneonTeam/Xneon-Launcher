@@ -1,10 +1,10 @@
 name: CI
 
-# Проверки на каждый push в main и PR. Сборка и публикация живут в release.yml
+# Проверки на каждый push в main и рабочую ветку, а также на PR. Сборка и публикация живут в release.yml
 # (стабильный тег) и pre-release.yml (тег -preN).
 on:
   push:
-    branches: [main]
+    branches: [main, feature/unix-native-acceptance]
   pull_request:
   workflow_dispatch:
 
