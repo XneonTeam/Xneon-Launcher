@@ -316,7 +316,8 @@ export async function verifyLinuxPackageMetadata(output: string, version: string
   assert.equal(descriptionLine, `Description: ${APP_NAME}`, "Unexpected deb Description: " + control)
   assert.ok(control.includes(` ${summary}.`), "Unexpected deb extended description: " + control)
   // Один файл из data.tar без распаковки всего пакета в каталог.
-  const debFile = (name: string) => run("sh", ["-c", "dpkg-deb --fsys-tarfile \"$1\" | tar -xJO \"$2\"", "sh", deb, name])
+  // --fsys-tarfile уже разворачивает data.tar.*, поэтому -J (xz) здесь нельзя.
+  const debFile = (name: string) => run("sh", ["-c", "dpkg-deb --fsys-tarfile \"$1\" | tar -xO \"$2\"", "sh", deb, name])
   assert.equal(debFile(`./usr/share/applications/${desktopName}.desktop`), desktopEntry, "Unexpected deb desktop entry")
   assert.match(debFile(`./usr/share/doc/${desktopName}/copyright`), /GNU GENERAL PUBLIC LICENSE/, "deb is missing the project license")
 
