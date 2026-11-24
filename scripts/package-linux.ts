@@ -91,6 +91,9 @@ Categories=Game;
 StartupWMClass=${desktopName}
 `
 
+/** AppImage запускает симлинк на AppRun, поэтому Exec не может быть абсолютным путём. */
+export const appImageDesktopEntry = desktopEntry.replace(`Exec=/${installRoot}/bin/launcher`, `Exec=${desktopName}`)
+
 const appRun = `#!/bin/sh
 HERE="$(dirname "$(readlink -f "$0")")"
 exec "$HERE/${installRoot}/bin/launcher" "$@"
@@ -263,7 +266,7 @@ async function buildAppImage(root: string, work: string, output: string, version
   await writeFile(path.join(stage, "AppRun"), appRun, { mode: 0o755 })
   await symlink("AppRun", path.join(stage, desktopName))
   await copyFile(path.resolve("build/icon.png"), path.join(stage, `${desktopName}.png`))
-  await writeFile(path.join(stage, `${desktopName}.desktop`), desktopEntry.replace(`Exec=/${installRoot}/bin/launcher`, `Exec=${desktopName}`))
+  await writeFile(path.join(stage, `${desktopName}.desktop`), appImageDesktopEntry)
   const tool = path.join(work, "appimagetool-x86_64.AppImage")
   const runtime = path.join(work, "runtime-x86_64")
   for (const [target, download] of [[tool, appImageTool], [runtime, appImageTool.runtime]] as const) {
@@ -337,7 +340,7 @@ export async function verifyLinuxPackageMetadata(output: string, version: string
   const appImage = path.resolve(output, `xneon-launcher-${version}-x86_64.AppImage`)
   const offset = run(appImage, ["--appimage-offset"], { env: { APPIMAGE_EXTRACT_AND_RUN: "1" } }).trim()
   assert.match(offset, /^\d+$/, "Cannot read AppImage squashfs offset")
-  assert.equal(run("unsquashfs", ["-o", offset, "-cat", appImage, `${desktopName}.desktop`]), desktopEntry, "Unexpected AppImage desktop entry")
+  assert.equal(run("unsquashfs", ["-o", offset, "-cat", appImage, `${desktopName}.desktop`]), appImageDesktopEntry, "Unexpected AppImage desktop entry")
   assert.match(run("unsquashfs", ["-o", offset, "-cat", appImage, `usr/share/licenses/${desktopName}/LICENSE`]), /GNU GENERAL PUBLIC LICENSE/, "AppImage is missing the project license")
 }
 
