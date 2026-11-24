@@ -513,6 +513,7 @@ import { launcherEntryUrl } from "../../electrobun/platform/dev-renderer.ts"
         if (name === "./package.json") return { version: "1.0.8", description: "test" }
         if (name.endsWith("app-identity")) return { appIdentifier: "test", portableAppIdentifier: "test.portable" }
         if (name.endsWith("update-public-keys")) return { updateBaseUrls: { stable: "test", canary: "test-canary" } }
+        if (name.endsWith("app-meta")) return { APP_NAME: "Xneon Launcher", APP_VERSION: "1.0.8", APP_USER_AGENT: "Xneon-Launcher/1.0.8" }
         throw new Error("Unexpected dependency: " + name)
       } })
       assert.equal(module.exports.default.build.copy["assets/native/nfd"], "native/nfd")
