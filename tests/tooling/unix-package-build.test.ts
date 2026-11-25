@@ -8,6 +8,7 @@ import { transformSync } from "esbuild"
 import { stageRoot, stageTarUpdateRoot } from "../../scripts/package-linux"
 import { validateCefPayload } from "../../scripts/unix-native-preflight"
 import { stopUnixProcessGroup } from "../../scripts/unix-process-cleanup"
+import { appIdentifier } from "../../electrobun/main/app-identity"
 
 const elf64 = () => {
   const elf = Buffer.alloc(64)
@@ -80,7 +81,7 @@ test("package-linux сохраняет относительный CEF symlink и
     await writeFile(path.join(original, "opt/xneon-launcher/Resources/version.json"), "fixture")
     const stage = await stageTarUpdateRoot(original)
     const marker = "opt/xneon-launcher/Resources/update-installation.json"
-    expect(JSON.parse(await readFile(path.join(stage, marker), "utf8"))).toEqual({ schemaVersion: 1, identifier: "org.xneon.launcher", format: "tar-xz" })
+    expect(JSON.parse(await readFile(path.join(stage, marker), "utf8"))).toEqual({ schemaVersion: 1, identifier: appIdentifier, format: "tar-xz" })
     await expect(readFile(path.join(original, marker))).rejects.toThrow()
   } finally { await rm(work, { recursive: true, force: true }) }
 })

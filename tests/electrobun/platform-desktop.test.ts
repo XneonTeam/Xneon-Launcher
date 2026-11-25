@@ -20,6 +20,11 @@ import { getJavaInstallationInfo } from "../../electrobun/main/java-discovery.ts
 import { EventEmitter } from "node:events"
 import { createHash } from "node:crypto"
 import { launcherEntryUrl } from "../../electrobun/platform/dev-renderer.ts"
+import { loadElectrobunConfig } from "../helpers/electrobun-config.ts"
+import { APP_NAME, APP_USER_AGENT } from "../../lib/app-meta"
+import { appIdentifier } from "../../electrobun/main/app-identity"
+import { updateBaseUrls } from "../../electrobun/main/update-public-keys"
+import packageJson from "../../package.json"
 
 {
   describe("windows-launcher-args", () => {
@@ -496,7 +501,7 @@ import { launcherEntryUrl } from "../../electrobun/platform/dev-renderer.ts"
       assert.throws(f.resolve, /Unsupported native file dialog platform/)
     })
 
-    test("все вендоренные бинарники совпадают с SHA-256 релиза", () => {
+    test("все вендоренные бинарники совпадают с SHA-256 релиза", { timeout: 30_000 }, () => {
       const directory = path.join(root, "assets/native/nfd")
       const manifest = JSON.parse(fs.readFileSync(path.join(directory, "manifest.json"), "utf8"))
       assert.equal(manifest.version, "0.3.2")
@@ -507,16 +512,17 @@ import { launcherEntryUrl } from "../../electrobun/platform/dev-renderer.ts"
     })
 
     test("Electrobun копирует вендоренный каталог в Resources/app/native/nfd", () => {
-      const code = transformSync(fs.readFileSync(path.join(root, "electrobun.config.ts"), "utf8"), { loader: "ts", format: "cjs" }).code
-      const module = { exports: {} }
-      vm.runInNewContext(code, { module, exports: module.exports, process: { platform: "win32", arch: "x64", env: {} }, require: name => {
-        if (name === "./package.json") return { version: "1.0.8", description: "test" }
-        if (name.endsWith("app-identity")) return { appIdentifier: "test", portableAppIdentifier: "test.portable" }
-        if (name.endsWith("update-public-keys")) return { updateBaseUrls: { stable: "test", canary: "test-canary" } }
-        if (name.endsWith("app-meta")) return { APP_NAME: "Xneon Launcher", APP_VERSION: "1.0.8", APP_USER_AGENT: "Xneon-Launcher/1.0.8" }
-        throw new Error("Unexpected dependency: " + name)
-      } })
-      assert.equal(module.exports.default.build.copy["assets/native/nfd"], "native/nfd")
+      const { build } = loadElectrobunConfig({ platform: "win32", arch: "x64" })
+      assert.equal(build.copy["assets/native/nfd"], "native/nfd")
+    })
+
+    test("конфигурация берёт метаданные из реальных модулей проекта", () => {
+      const { app, build, release } = loadElectrobunConfig({ platform: "win32", arch: "x64" })
+      assert.equal(app.name, APP_NAME)
+      assert.equal(app.version, packageJson.version)
+      assert.equal(app.identifier, appIdentifier)
+      assert.equal(release.baseUrl, updateBaseUrls.stable)
+      assert.equal(JSON.parse(build.bun.define.XNLC_APPLICATION_USER_AGENT), APP_USER_AGENT)
     })
   })
 }

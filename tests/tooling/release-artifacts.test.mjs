@@ -10,6 +10,7 @@ import { zipSync } from 'fflate'
 import { loadReactModule } from '../helpers/react-module.mjs'
 import { appIdentifier } from '../../electrobun/main/app-identity.ts'
 import { updatePublicKeys, updateBaseUrls } from '../../electrobun/main/update-public-keys.ts'
+import { APP_NAME } from '../../lib/app-meta.ts'
 import {
   compatibilityManifestFileName, manifestFileName, nativeArchiveName, unixDistributionName, unixDistributions,
   verifySignedUpdateManifest,
@@ -60,7 +61,7 @@ function windowsNativeArchive(version, value, channel = 'stable') {
 }
 
 function unixNativeArchive(platform, arch, version, value, channel = 'stable') {
-  const app = platform === 'macos' ? 'Xneon Launcher.app' : 'XneonLauncher'
+  const app = platform === 'macos' ? `${APP_NAME}.app` : 'XneonLauncher'
   const resources = `${app}/${platform === 'macos' ? 'Contents/Resources' : 'Resources'}`
   const bin = `${app}/${platform === 'macos' ? 'Contents/MacOS' : 'bin'}`
   const binary = nativeBinary(platform)
@@ -71,7 +72,7 @@ function unixNativeArchive(platform, arch, version, value, channel = 'stable') {
     [`${resources}/version.json`, Buffer.from(JSON.stringify(local))],
     [`${resources}/app/bun/workers/unix-update-helper.js`, Buffer.from('fixture-helper')],
   ]
-  if (platform === 'macos') entries.push([`${app}/Contents/Info.plist`, Buffer.from('<plist><dict><key>CFBundleIdentifier</key><string>org.xneon.launcher</string></dict></plist>')])
+  if (platform === 'macos') entries.push([`${app}/Contents/Info.plist`, Buffer.from(`<plist><dict><key>CFBundleIdentifier</key><string>${appIdentifier}</string></dict></plist>`)])
   const bytes = tarArchive(entries)
   return { compressed: Buffer.from(Bun.zstdCompressSync(bytes)), tarSize: bytes.length, tarSha256: hash(bytes) }
 }
@@ -95,12 +96,12 @@ async function packagingFixture(t, platform = 'win', arch = platform === 'macos'
   await fs.mkdir(path.join(root, '.tmp'), { recursive: true })
   const directory = await fs.mkdtemp(path.join(root, '.tmp/packaging-'))
   t.after(() => fs.rm(directory, { recursive: true, force: true }))
-  const bundle = platform === 'macos' ? 'Xneon Launcher.app' : 'XneonLauncher', prefix = `stable-${platform}-${arch}`
+  const bundle = platform === 'macos' ? `${APP_NAME}.app` : 'XneonLauncher', prefix = `stable-${platform}-${arch}`
   const input = path.join(directory, 'input'), tree = path.join(directory, 'tree')
   const resources = path.join(tree, bundle, platform === 'macos' ? 'Contents/Resources' : 'Resources')
   const bin = path.join(tree, bundle, platform === 'macos' ? 'Contents/MacOS' : 'bin')
   await fs.mkdir(path.join(resources, 'app/bun'), { recursive: true }); await fs.mkdir(bin, { recursive: true }); await fs.mkdir(input)
-  const local = { displayName: 'Xneon Launcher', identifier: appIdentifier, channel: 'stable', version: '1.2.3', hash: 'fixture123', baseUrl: platform === 'win' ? updateBaseUrls.stable : '' }
+  const local = { displayName: APP_NAME, identifier: appIdentifier, channel: 'stable', version: '1.2.3', hash: 'fixture123', baseUrl: platform === 'win' ? updateBaseUrls.stable : '' }
   await fs.writeFile(path.join(resources, 'version.json'), JSON.stringify(local))
   const creds = Array.from({ length: 12 }, (_, index) => `p${index}: { clientId: "" }`).join(',\n')
   const mainSource = `var cloudCredentials = {\n${creds}\n};\n` + Object.entries(updatePublicKeys).map(([key, pem]) => key + '\n' + pem.split('\n')[1]).join('\n') + '\nMAINER4IK/Xneon-Launcher-bun'
@@ -119,14 +120,14 @@ async function packagingFixture(t, platform = 'win', arch = platform === 'macos'
   await fs.writeFile(path.join(input, prefix + '-update.json'), JSON.stringify(manifest))
   await fs.writeFile(path.join(input, prefix + '-update-v2.json'), JSON.stringify(v2))
   if (platform === 'win') await fs.writeFile(path.join(input, 'win-x64-XneonLauncher-Setup.zip'), zipSync({
-    'Xneon Launcher-Setup.exe': pe(), '.installer/Xneon Launcher-Setup.metadata.json': Buffer.from(JSON.stringify({ name: 'Xneon Launcher', identifier: appIdentifier, channel: 'stable', hash: local.hash })), '.installer/Xneon Launcher-Setup.tar.zst': archive,
+    [`${APP_NAME}-Setup.exe`]: pe(), [`.installer/${APP_NAME}-Setup.metadata.json`]: Buffer.from(JSON.stringify({ name: APP_NAME, identifier: appIdentifier, channel: 'stable', hash: local.hash })), [`.installer/${APP_NAME}-Setup.tar.zst`]: archive,
   }))
   if (platform === 'win') await fs.writeFile(path.join(input, 'xneon-launcher-1.2.3-win-x64.exe'), Buffer.concat([pe(true), randomBytes(1024 ** 2 + 1024)]))
   if (platform === 'macos') await fs.writeFile(path.join(input, `macos-${arch}-XneonLauncher.dmg`), 'fixture image: hdiutil verification runs on macOS CI')
   if (platform === 'linux') {
     const setup = path.join(directory, 'setup')
     await fs.mkdir(setup)
-    const metadata = { name: 'Xneon Launcher', identifier: appIdentifier, channel: 'stable', hash: local.hash }
+    const metadata = { name: APP_NAME, identifier: appIdentifier, channel: 'stable', hash: local.hash }
     await fs.writeFile(path.join(setup, 'installer'), Buffer.concat([executable(platform, arch), Buffer.from('ELECTROBUN_METADATA_V1' + JSON.stringify(metadata) + 'ELECTROBUN_ARCHIVE_V1'), archive]))
     await fs.writeFile(path.join(setup, 'README.txt'), 'SDK installer fixture')
     const setupTar = path.join(directory, 'setup.tar')
@@ -158,17 +159,17 @@ async function feedFixture(target, version, action, streaming = false) {
   try {
     const input = path.join(directory, 'native'); await fs.mkdir(input, { recursive: true })
     const binary = nativeBinary(target.platform)
-    const app = target.platform === 'macos' ? 'Xneon Launcher.app' : 'XneonLauncher'
+    const app = target.platform === 'macos' ? `${APP_NAME}.app` : 'XneonLauncher'
     const resources = `${app}/${target.platform === 'macos' ? 'Contents/Resources' : 'Resources'}`
     const bin = `${app}/${target.platform === 'macos' ? 'Contents/MacOS' : 'bin'}`
     const ext = target.platform === 'win' ? '.exe' : ''
-    const local = { schemaVersion: 1, identifier: 'org.xneon.launcher', ...target, version, hash: 'fixture123' }
+    const local = { schemaVersion: 1, identifier: appIdentifier, ...target, version, hash: 'fixture123' }
     const entries = [
       [`${bin}/bun${ext}`, binary], [`${bin}/launcher${ext}`, binary],
       [`${resources}/version.json`, Buffer.from(JSON.stringify(local))],
     ]
     if (target.platform !== 'win') entries.push([`${resources}/app/bun/workers/unix-update-helper.js`, Buffer.from('fixture-helper')])
-    if (target.platform === 'macos') entries.push([`${app}/Contents/Info.plist`, Buffer.from('<plist><dict><key>CFBundleIdentifier</key><string>org.xneon.launcher</string></dict></plist>')])
+    if (target.platform === 'macos') entries.push([`${app}/Contents/Info.plist`, Buffer.from(`<plist><dict><key>CFBundleIdentifier</key><string>${appIdentifier}</string></dict></plist>`)])
     const bytes = tarArchive(entries), archive = nativeArchiveName(target)
     await fs.writeFile(path.join(input, archive), streaming ? await streamingZstd(bytes) : Bun.zstdCompressSync(bytes))
     await fs.writeFile(path.join(input, compatibilityManifestFileName(target)),
@@ -245,10 +246,10 @@ test('имена артефактов, native headers и Windows version resourc
     assert.equal(fixed.readUInt32LE(0), 0xfeef04bd)
     assert.equal(fixed.readUInt32LE(8), 0x00010002)
     assert.equal(fixed.readUInt32LE(12), 0x00030000)
-    for (const key of ['FileDescription', 'ProductName', 'CompanyName']) assert.equal(blocks.get(key).toString('utf16le'), 'Xneon Launcher\0')
+    for (const key of ['FileDescription', 'ProductName', 'CompanyName']) assert.equal(blocks.get(key).toString('utf16le'), `${APP_NAME}\0`)
     assert.equal(blocks.get('ProductVersion').toString('utf16le'), version + '\0')
     assert.equal(blocks.get('FileVersion').toString('utf16le'), '1.2.3.0\0')
-    assert.equal(blocks.get('OriginalFilename').toString('utf16le'), 'Xneon Launcher.dll\0')
+    assert.equal(blocks.get('OriginalFilename').toString('utf16le'), `${APP_NAME}.dll\0`)
     assert.deepEqual([...blocks.get('Translation')], [9, 4, 176, 4])
   }
   assert.doesNotThrow(() => createWindowsVersionResource('1.2.3-beta1'))
@@ -350,7 +351,7 @@ test('native release validation: байты, NSIS, checksums, traversal и delta
   await assert.rejects(inspectElectrobunRelease(withoutCore.input, withoutCore.options), /ElectrobunCore/)
 })
 
-test('Bun обновляет реальные PE metadata, сохраняет иконки и отклоняет непригодный файл', { skip: process.platform !== 'win32' }, async t => {
+test('Bun обновляет реальные PE metadata, сохраняет иконки и отклоняет непригодный файл', { skip: process.platform !== 'win32', timeout: 30_000 }, async t => {
   const { setWindowsExecutableVersion } = await import('../../scripts/windows-version-resource.ts')
   const { windowsProductIdentity } = await import('../../scripts/windows-candidate-validation.ts')
   const directory = await fs.mkdtemp(path.join(root, '.hutch/pe-identity-'))

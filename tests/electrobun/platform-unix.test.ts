@@ -16,6 +16,10 @@ import { startCliListener, launcherCliEndpoint, forwardCli, cli } from "../../el
 import { ServerManager } from "../../packages/xnlc-servers/src/server-manager.ts"
 import { readProcessMetrics } from "../../electrobun/platform/process-metrics.ts"
 import { createHash } from "node:crypto"
+import { loadElectrobunConfig } from "../helpers/electrobun-config.ts"
+import { APP_NAME, APP_USER_AGENT } from "../../lib/app-meta"
+import { appIdentifier } from "../../electrobun/main/app-identity"
+import packageJson from "../../package.json"
 
 {
   describe("unix-ipc", () => {
@@ -360,19 +364,17 @@ import { createHash } from "node:crypto"
 
 {
   const root = path.resolve(import.meta.dir, "../..")
-  function config() {
-    const code = transformSync(fs.readFileSync(path.join(root, "electrobun.config.ts"), "utf8"), { loader: "ts", format: "cjs" }).code
-    const module = { exports: {} }
-    vm.runInNewContext(code, { module, process: { platform: "linux", arch: "x64", env: {} }, require: name => {
-      if (name === "./package.json") return { version: "1.0.8", description: "test" }
-      if (name.endsWith("app-identity")) return { appIdentifier: "test", portableAppIdentifier: "test.portable" }
-      if (name.endsWith("update-public-keys")) return { updateBaseUrls: { stable: "test", canary: "test-canary" } }
-      if (name.endsWith("app-meta")) return { APP_NAME: "Xneon Launcher", APP_VERSION: "1.0.8", APP_USER_AGENT: "Xneon-Launcher/1.0.8" }
-      throw new Error("Unexpected dependency: " + name)
-    } })
-    return module.exports.default
-  }
+  const config = () => loadElectrobunConfig({ platform: "linux", arch: "x64" })
   describe("linux-cef-config", () => {
+    test("Linux-конфигурация читает реальные identity и метаданные", () => {
+      const { app, build, release } = config()
+      assert.equal(app.name, APP_NAME)
+      assert.equal(app.version, packageJson.version)
+      assert.equal(app.identifier, appIdentifier)
+      assert.equal(release.baseUrl, "")
+      assert.equal(JSON.parse(build.bun.define.XNLC_APPLICATION_USER_AGENT), APP_USER_AGENT)
+    })
+
     test("CEF включён и выбран по умолчанию только для Linux", () => {
       const { build } = config()
       assert.equal(build.linux.bundleCEF, true)

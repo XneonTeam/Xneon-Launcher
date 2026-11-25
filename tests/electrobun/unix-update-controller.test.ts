@@ -10,9 +10,10 @@ import { createUnixUpdateController } from "../../electrobun/main/unix-update-co
 import { unixUpdateLaunchSpec, ownsUnixUpdateProcess, unixUpdateOwnedGroups } from "../../electrobun/main/unix-update-process"
 import { unixUpdateErrorCode } from "../../electrobun/main/unix-update-errors"
 import { validateInvokeArgs } from "../../electrobun/platform/ipc-validation"
+import { appIdentifier } from "../../electrobun/main/app-identity"
 
 function controllerFixture() {
-  const events: string[] = [], local = { identifier: "org.xneon.launcher", platform: "linux", arch: "x64", channel: "stable", version: "1.0.8", hash: "old" }
+  const events: string[] = [], local = { identifier: appIdentifier, platform: "linux", arch: "x64", channel: "stable", version: "1.0.8", hash: "old" }
   let pending: any = null, selected = "stable"
   const update: any = { manifest: { version: "1.0.9", hash: "new", channel: "stable" } }
   const ports: any = {

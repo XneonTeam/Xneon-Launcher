@@ -12,9 +12,10 @@ import { prepareUnixHelperFiles, waitForUnixHelperReady } from "../../electrobun
 import { rpcRegistry, invokeHandler, ViewSession } from "../../electrobun/platform/ipc"
 import { launcherOperations } from "../../electrobun/platform/operation-gate"
 import { unixUpdateStartupBarrier } from "../../electrobun/platform/unix-update-startup-barrier"
+import { appIdentifier } from "../../electrobun/main/app-identity"
 
 const root = await realpath(Bun.argv[2]), bytes = Buffer.from("signed protocol fixture, not an AppImage")
-const local = { identifier: "org.xneon.launcher", platform: "linux" as const, arch: "x64" as const, channel: "stable" as const, version: "1.0.8", hash: "old123" }
+const local = { identifier: appIdentifier, platform: "linux" as const, arch: "x64" as const, channel: "stable" as const, version: "1.0.8", hash: "old123" }
 const installation = { platform: "linux" as const, kind: "appimage" as const, target: "/home/fixture/Xneon.AppImage" }
 const manifest = { schemaVersion: 1, identifier: local.identifier, platform: "linux", arch: "x64", channel: "stable", version: "1.0.9", hash: "next123",
   artifact: { file: "stable-linux-x64-XneonLauncher.tar.zst", downloadSize: 100, downloadSha256: "a".repeat(64), tarSize: 200, tarSha256: "b".repeat(64) },

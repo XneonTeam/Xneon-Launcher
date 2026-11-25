@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { createHash } from "node:crypto"
 import { normalizeUpdateArtifacts } from "../../scripts/normalize-update-artifacts"
+import { appIdentifier } from "../../electrobun/main/app-identity"
 
 test("Hutch checksum metadata restores the signed v2 contract without changing archive bytes", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "xneon-hutch-"))
@@ -12,7 +13,7 @@ test("Hutch checksum metadata restores the signed v2 contract without changing a
     const archive = Bun.zstdCompressSync(tar)
     const prefix = "stable-win-x64"
     const file = prefix + "-XneonLauncher.tar.zst"
-    const manifest = { schemaVersion: 1, identifier: "org.xneon.launcher", version: "1.0.8", channel: "stable", platform: "win", arch: "x64", hash: "abc123", artifact: { file } }
+    const manifest = { schemaVersion: 1, identifier: appIdentifier, version: "1.0.8", channel: "stable", platform: "win", arch: "x64", hash: "abc123", artifact: { file } }
     await writeFile(path.join(root, file), archive)
     await writeFile(path.join(root, prefix + "-update.json"), JSON.stringify(manifest))
     await writeFile(path.join(root, prefix + "-checksum.json"), JSON.stringify({ hash: "abc123", tarSize: tar.length, tarSha256: createHash("sha256").update(tar).digest("hex") }))
@@ -35,7 +36,7 @@ for (const channel of ["stable", "canary"]) {
         const file = prefix + "-XneonLauncher.tar.zst"
         const tar = Buffer.from("archive fixture")
         const archive = Buffer.from(Bun.zstdCompressSync(tar))
-        const manifest = JSON.stringify({ schemaVersion: 1, identifier: "org.xneon.launcher", version, channel, platform, arch, hash: "abc123", artifact: { file } }, null, 2)
+        const manifest = JSON.stringify({ schemaVersion: 1, identifier: appIdentifier, version, channel, platform, arch, hash: "abc123", artifact: { file } }, null, 2)
         const checksum = JSON.stringify({ hash: "abc123", tarSize: tar.length, tarSha256: createHash("sha256").update(tar).digest("hex") }, null, 2)
         await writeFile(path.join(root, file), archive)
         await writeFile(path.join(root, prefix + "-update.json"), manifest)

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import fs from 'node:fs'
 import { browserLink } from '../../lib/external-links.ts'
-import { loadReactModule } from '../helpers/react-module.mjs'
+import { loadElectrobunConfig } from '../helpers/electrobun-config.ts'
 import { createServer } from 'vite'
 import path from 'node:path'
 
@@ -48,11 +48,11 @@ test('HTTP-страница HMR оставляет якоря текущего �
 })
 
 test('compile-time HMR выключен для stable/canary и portable даже при заданной переменной', () => {
-  const config = (channel, portable = false) => loadReactModule(new URL('../../electrobun.config.ts', import.meta.url), {
-    './package.json': { version: '1.0.0', description: 'fixture' },
-    './electrobun/main/app-identity': { appIdentifier: 'app', portableAppIdentifier: 'portable' },
-    './electrobun/main/update-public-keys': { updateBaseUrls: { stable: 'https://example.org/stable', canary: 'https://example.org/canary' } },
-  }, { process: { platform: 'win32', arch: 'x64', env: { XNEON_DEV_HMR: '1', XNEON_ARTIFACT_CHANNEL: channel, XNEON_BUILD_PORTABLE: portable ? '1' : '' } } }).default
+  const config = (channel, portable = false) => loadElectrobunConfig({
+    platform: 'win32',
+    arch: 'x64',
+    env: { XNEON_DEV_HMR: '1', XNEON_ARTIFACT_CHANNEL: channel, XNEON_BUILD_PORTABLE: portable ? '1' : '' },
+  })
   expect(config('dev').build.bun.define.XNEON_DEV_HMR).toBe('true')
   for (const channel of ['stable', 'canary']) expect(config(channel).build.bun.define.XNEON_DEV_HMR).toBe('false')
   expect(config('dev', true).build.bun.define.XNEON_DEV_HMR).toBe('false')
