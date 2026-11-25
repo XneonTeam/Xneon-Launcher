@@ -20,6 +20,7 @@ import { createHash, generateKeyPairSync, randomBytes, sign } from "node:crypto"
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { appIdentifier } from "../electrobun/main/app-identity"
+import * as identityRules from "../lib/repository-identity"
 
 const repo = path.resolve(import.meta.dir, "..")
 const temp = path.join(repo, ".tmp")
@@ -80,8 +81,15 @@ const server = Bun.serve({
 const base = server.url.href.replace(/\/$/, "")
 mock.module(path.join(repo, "electrobun/main/update-public-keys.ts"), () => ({
   updatePublicKeys: keys,
+}))
+// Фид локального сервера: идентичность подменяется, правила редиректов — настоящие.
+const testRepository = "fixture/fork"
+mock.module(path.join(repo, "electrobun/main/repository-identity.ts"), () => ({
+  repository: testRepository,
   updateBaseUrls: { stable: base, canary: base },
   expectedUpdateBaseUrl: () => base,
+  updateReleaseDownloadPath: () => identityRules.releaseDownloadPathFor(testRepository),
+  isAllowedUpdateRedirect: (url: URL) => identityRules.isAllowedUpdateRedirectFor(url, testRepository),
 }))
 
 const { resolveVerifiedUpdate } = await import("../electrobun/main/verified-update-feed")

@@ -12,6 +12,7 @@ import { Readable } from "node:stream"
 import { pipeline } from "node:stream/promises"
 import { describe, test } from "bun:test"
 import { appIdentifier } from "../../electrobun/main/app-identity.ts"
+import { updateBaseUrls } from "../../electrobun/main/repository-identity.ts"
 import { verifySignedWindowsUpdateManifest } from "../../electrobun/main/verified-update-manifest.ts"
 import nodeTest from "node:test"
 import vm from "node:vm"
@@ -28,8 +29,8 @@ import { ShutdownCoordinator } from "../../electrobun/platform/shutdown.ts"
     const downloads = []
     const expectations = []
     const spawned = []
-    const stableBase = "https://github.com/MAINER4IK/Xneon-Launcher-bun/releases/latest/download"
-    const canaryBase = "https://github.com/MAINER4IK/Xneon-Launcher-bun/releases/download/canary"
+    const stableBase = updateBaseUrls.stable
+    const canaryBase = updateBaseUrls.canary
     const baseUrlOf = channel => channel === "canary" ? canaryBase : stableBase
     const channel = /-(?:pre|beta)\d+$/.test(installed) ? "canary" : "stable"
     const local = { channel, version: installed, hash: "old123", baseUrl: baseUrlOf(channel) }
@@ -67,7 +68,7 @@ import { ShutdownCoordinator } from "../../electrobun/platform/shutdown.ts"
         const version = target === "canary" ? "1.0.9-pre1" : "1.0.9"
         return { channel: target, version, file: `xneon-launcher-${version}-win-x64.exe`, path: `fixture-installer-${target}.exe` }
       }) },
-      "./update-public-keys": { expectedUpdateBaseUrl: baseUrlOf },
+      "./repository-identity": { expectedUpdateBaseUrl: baseUrlOf },
       "./update-state": { launcherUpdateState: {
         getChannel: async () => selected,
         selectChannel: async value => { selected = value; pending = null },

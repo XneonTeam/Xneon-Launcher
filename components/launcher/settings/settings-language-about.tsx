@@ -5,6 +5,7 @@ import { SettingsSwitch } from "./settings-switch"
 import { SETTINGS_CONTENT_ENTER_DELAYED } from "./settings-motion"
 import { cn } from "@/lib/utils"
 import { APP_NAME, APP_VERSION } from "@/lib/app-meta"
+import { repositoryIdentity } from "@/lib/repository-identity.generated"
 import { IconCheck, IconBrandGithub, IconBrandDiscord, IconDeviceGamepad2, IconLanguage, IconWorld, IconBrandTelegram, IconArrowUpRight, IconRotate } from "@tabler/icons-react"
 import type { Language } from "./types"
 
@@ -189,11 +190,12 @@ interface LauncherContributor {
   html_url: string
 }
 
-// Подтверждённый участник репозитория доступен и без сети.
+// Владелец репозитория текущей сборки: без сети показываем его как участника.
+const repositoryOwner = repositoryIdentity.split("/")[0]
 const FALLBACK_CONTRIBUTORS: LauncherContributor[] = [{
-  login: "MAINER4IK",
-  avatar_url: "https://avatars.githubusercontent.com/u/119670548?v=4",
-  html_url: "https://github.com/MAINER4IK",
+  login: repositoryOwner,
+  avatar_url: `https://github.com/${repositoryOwner}.png`,
+  html_url: `https://github.com/${repositoryOwner}`,
 }]
 
 export function SettingsAbout({ t }: SettingsAboutProps) {
@@ -204,7 +206,7 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
     const timeout = window.setTimeout(() => controller.abort(), 8000)
     async function loadContributors() {
       try {
-        const response = await fetch("https://api.github.com/repos/XneonTeam/Xneon-Launcher/contributors?per_page=100", {
+        const response = await fetch(`https://api.github.com/repos/${repositoryIdentity}/contributors?per_page=100`, {
           signal: controller.signal,
           headers: { Accept: "application/vnd.github+json" },
         })
@@ -232,7 +234,7 @@ export function SettingsAbout({ t }: SettingsAboutProps) {
 
   const links = [
     { name: t("settings.about.website"), detail: t("settings.about.websiteHint"), href: packageInfo.homepage, Icon: IconWorld },
-    { name: "GitHub", detail: t("settings.about.source"), href: "https://github.com/XneonTeam/Xneon-Launcher", Icon: IconBrandGithub },
+    { name: "GitHub", detail: t("settings.about.source"), href: `https://github.com/${repositoryIdentity}`, Icon: IconBrandGithub },
     { name: "Discord", detail: t("settings.about.community"), href: "https://discord.gg/a9mDjtqcbQ", Icon: IconBrandDiscord },
     { name: "Telegram", detail: t("settings.about.telegramChannel"), href: "https://t.me/XneonTeam", Icon: IconBrandTelegram },
   ]

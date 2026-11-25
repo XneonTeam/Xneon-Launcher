@@ -4,10 +4,11 @@ import { createHash } from "node:crypto"
 import path from "node:path"
 import os from "node:os"
 import { downloadUnixUpdateFile } from "../../electrobun/main/unix-update-download"
+import { updateBaseUrls } from "../../electrobun/main/repository-identity"
 
 const bytes = Buffer.from("verified package bytes")
 const file = { file: "xneon-launcher-1.0.9-x86_64.AppImage", format: "appimage" as const, downloadSize: bytes.length, downloadSha256: createHash("sha256").update(bytes).digest("hex") }
-const base = "https://github.com/MAINER4IK/Xneon-Launcher-bun/releases/latest/download"
+const base = updateBaseUrls.stable
 async function fixture(run: (directory: string) => Promise<void>) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "xneon-download-test-"))
   try { await run(directory) } finally { await rm(directory, { recursive: true, force: true }) }

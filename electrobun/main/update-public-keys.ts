@@ -1,4 +1,7 @@
 // Public Ed25519 keys reviewed before publishing a signed update channel.
+// Это единственный реестр доверия подписи: он попадает в собранный бандл, поэтому
+// подпись проверяет установленная сборка, а не CI. Адреса каналов здесь не живут —
+// их строит `repository-identity.ts` из репозитория текущей сборки.
 export const updatePublicKeys: Readonly<Record<string, string>> = Object.freeze({
   // Прежний ключ: приватная часть недоступна, но оставлен, чтобы уже выпущенные
   // сборки могли проверять ранее подписанные манифесты.
@@ -10,23 +13,3 @@ export const updatePublicKeys: Readonly<Record<string, string>> = Object.freeze(
   // предыдущего ключа 28ed; приватная часть хранится только в environment release-signing.
   "ed25519-437dba728abbaeaf511d0d1e": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAEV22gpLFFZI4qj2Wpx08/SqlcQJ2SmucQtX3ZrO40+g=\n-----END PUBLIC KEY-----\n",
 })
-
-export type UpdateChannelKey = "stable" | "canary"
-
-/**
- * Плоские URL-каталоги обновлений на GitHub Releases (без локального bridge).
- * Stable читает latest-релиз (prereleases исключены GitHub'ом), Beta — rolling-релиз
- * с фиксированным тегом `canary`, помеченный как prerelease, чтобы не перехватывать
- * «Latest».
- */
-export const updateBaseUrls: Readonly<Record<UpdateChannelKey, string>> = Object.freeze({
-  stable: "https://github.com/MAINER4IK/Xneon-Launcher-bun/releases/latest/download",
-  canary: "https://github.com/MAINER4IK/Xneon-Launcher-bun/releases/download/canary",
-})
-
-/** База, которую обязана содержать `Resources/version.json` собранного канала. */
-export function expectedUpdateBaseUrl(channel: UpdateChannelKey): string {
-  const base = updateBaseUrls[channel]
-  if (!base) throw new Error(`Unknown update channel: ${channel}`)
-  return base
-}

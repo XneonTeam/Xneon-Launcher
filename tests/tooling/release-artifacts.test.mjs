@@ -9,7 +9,9 @@ import os from 'node:os'
 import { zipSync } from 'fflate'
 import { loadReactModule } from '../helpers/react-module.mjs'
 import { appIdentifier } from '../../electrobun/main/app-identity.ts'
-import { updatePublicKeys, updateBaseUrls } from '../../electrobun/main/update-public-keys.ts'
+import { updatePublicKeys } from '../../electrobun/main/update-public-keys.ts'
+import { updateBaseUrls } from '../../electrobun/main/repository-identity.ts'
+import { resolveRepositoryIdentity } from '../../scripts/repository-identity.ts'
 import { APP_NAME } from '../../lib/app-meta.ts'
 import {
   compatibilityManifestFileName, manifestFileName, nativeArchiveName, unixDistributionName, unixDistributions,
@@ -104,7 +106,7 @@ async function packagingFixture(t, platform = 'win', arch = platform === 'macos'
   const local = { displayName: APP_NAME, identifier: appIdentifier, channel: 'stable', version: '1.2.3', hash: 'fixture123', baseUrl: platform === 'win' ? updateBaseUrls.stable : '' }
   await fs.writeFile(path.join(resources, 'version.json'), JSON.stringify(local))
   const creds = Array.from({ length: 12 }, (_, index) => `p${index}: { clientId: "" }`).join(',\n')
-  const mainSource = `var cloudCredentials = {\n${creds}\n};\n` + Object.entries(updatePublicKeys).map(([key, pem]) => key + '\n' + pem.split('\n')[1]).join('\n') + '\nMAINER4IK/Xneon-Launcher-bun'
+  const mainSource = `var cloudCredentials = {\n${creds}\n};\n` + Object.entries(updatePublicKeys).map(([key, pem]) => key + '\n' + pem.split('\n')[1]).join('\n') + '\n' + resolveRepositoryIdentity()
   await fs.writeFile(path.join(resources, 'app/bun/index.js'), mainSource)
   for (const file of ['launcher', 'bun']) await fs.writeFile(path.join(bin, file + (platform === 'win' ? '.exe' : '')), executable(platform, arch))
   if (core) await fs.writeFile(path.join(bin, platform === 'win' ? 'ElectrobunCore.dll' : `libElectrobunCore.${platform === 'macos' ? 'dylib' : 'so'}`), executable(platform, arch))

@@ -5,6 +5,7 @@ import { test } from "bun:test"
 import { generateKeyPairSync, sign } from "node:crypto"
 import { installedPreference, isAllowedUpdateRedirect, isNewerRelease, manifestUrls, releaseChannelOf } from "../../electrobun/main/verified-update-feed"
 import { isTrustedUnixUpdateBase, resolveVerifiedUnixUpdate, unixManifestUrls } from "../../electrobun/main/unix-update-feed"
+import { repository, updateBaseUrls } from "../../electrobun/main/repository-identity"
 import { appIdentifier } from "../../electrobun/main/app-identity"
 
 const { publicKey, privateKey } = generateKeyPairSync("ed25519")
@@ -33,22 +34,22 @@ test("каналы, версии и URL фида: canonical GitHub layout, бе�
   assert.throws(() => isNewerRelease("1.0", "1.0.11"), /Invalid update version/)
 
   const stable = manifestUrls("stable"), canary = manifestUrls("canary")
-  assert.equal(stable.base, "https://github.com/MAINER4IK/Xneon-Launcher-bun/releases/latest/download")
+  assert.equal(stable.base, updateBaseUrls.stable)
   assert.equal(stable.manifestUrl, stable.base + "/stable-win-x64-update-v2.json")
   assert.equal(stable.signatureUrl, stable.base + "/stable-win-x64-update-v2.json.sig")
-  assert.equal(canary.base, "https://github.com/MAINER4IK/Xneon-Launcher-bun/releases/download/canary")
+  assert.equal(canary.base, updateBaseUrls.canary)
   assert.equal(canary.manifestUrl, canary.base + "/canary-win-x64-update-v2.json")
 
-  assert.equal(unixManifestUrls(target).manifestUrl, "https://github.com/MAINER4IK/Xneon-Launcher-bun/releases/latest/download/stable-linux-x64-update.json")
+  assert.equal(unixManifestUrls(target).manifestUrl, updateBaseUrls.stable + "/stable-linux-x64-update.json")
   assert.equal(unixManifestUrls({ platform: "macos", arch: "arm64", channel: "canary" }).signatureUrl,
-    "https://github.com/MAINER4IK/Xneon-Launcher-bun/releases/download/canary/canary-macos-arm64-update.json.sig")
+    updateBaseUrls.canary + "/canary-macos-arm64-update.json.sig")
 
-  assert.equal(isAllowedUpdateRedirect(new URL("https://github.com/MAINER4IK/Xneon-Launcher-bun/releases/download/v1.0.10/stable-win-x64-update-v2.json")), true)
+  assert.equal(isAllowedUpdateRedirect(new URL(`https://github.com/${repository}/releases/download/v1.0.10/stable-win-x64-update-v2.json`)), true)
   assert.equal(isAllowedUpdateRedirect(new URL("https://release-assets.githubusercontent.com/github-production-release-asset/1/2?sp=r")), true)
   assert.equal(isAllowedUpdateRedirect(new URL("https://objects.githubusercontent.com/x")), true)
   for (const url of ["https://github.com/other/repo/releases/download/v1/x.json", "https://evil.example/x.json",
-    "http://github.com/MAINER4IK/Xneon-Launcher-bun/releases/download/v1/x.json",
-    "https://github.com:8443/MAINER4IK/Xneon-Launcher-bun/releases/download/v1/x.json"]) {
+    `http://github.com/${repository}/releases/download/v1/x.json`,
+    `https://github.com:8443/${repository}/releases/download/v1/x.json`]) {
     assert.equal(isAllowedUpdateRedirect(new URL(url)), false, url)
   }
 })
@@ -66,6 +67,6 @@ test("новая версия обнаруживается, равная/ста�
 test("скачивание Unix-обновления принимает только официальные base URL каналов", () => {
   assert.equal(isTrustedUnixUpdateBase(unixManifestUrls(target).base), true)
   assert.equal(isTrustedUnixUpdateBase(unixManifestUrls({ ...target, channel: "canary" }).base), true)
-  assert.equal(isTrustedUnixUpdateBase("https://github.com/MAINER4IK/Xneon-Launcher-bun/releases/download/v1.0.8"), false)
-  assert.equal(isTrustedUnixUpdateBase("http://github.com/MAINER4IK/Xneon-Launcher-bun/releases/latest/download"), false)
+  assert.equal(isTrustedUnixUpdateBase(`https://github.com/${repository}/releases/download/v1.0.8`), false)
+  assert.equal(isTrustedUnixUpdateBase(`http://github.com/${repository}/releases/latest/download`), false)
 })

@@ -359,6 +359,7 @@ import { renderToStaticMarkup } from "react-dom/server"
         "./agent-web": { fetchAgentWebPage() {}, searchAgentWeb() {} },
         "./ai-providers": providers,
         "./ai-model-config": models,
+        "./repository-identity": { repository: "fixture/repository" },
       }, { fetch })
       module.registerAiAgent()
       return { rpc: (name, ...args) => handlers.get(name)(null, ...args), settings, events }

@@ -6,7 +6,9 @@ import path from "node:path"
 import packageJson from "../package.json"
 import { appIdentifier } from "../electrobun/main/app-identity"
 import { APP_NAME } from "../lib/app-meta"
-import { expectedUpdateBaseUrl, updatePublicKeys } from "../electrobun/main/update-public-keys"
+import { expectedUpdateBaseUrlFor } from "../lib/repository-identity"
+import { resolveRepositoryIdentity } from "./repository-identity"
+import { updatePublicKeys } from "../electrobun/main/update-public-keys"
 import { listArchiveEntries, readArchiveEntry } from "../packages/xnlc-archives/src/index"
 import { validateBundleCredentials, windowsInstaller, windowsX64 } from "./windows-candidate-validation"
 import { checksumText } from "./artifact-checksums"
@@ -125,7 +127,8 @@ export async function inspectElectrobunRelease(directory: string, options: Optio
     const local = JSON.parse(tar(tarFile, resources + "version.json").toString())
     assert.equal(local.displayName, APP_NAME)
     for (const key of ["identifier", "version", "channel", "hash"]) assert.equal(local[key], current[key], "Unexpected bundled " + key)
-    assert.equal(local.baseUrl, options.platform === "win" ? expectedUpdateBaseUrl(options.channel as "stable" | "canary") : "", "Unexpected native update feed")
+    const updateBaseUrl = expectedUpdateBaseUrlFor(resolveRepositoryIdentity(), options.channel)
+    assert.equal(local.baseUrl, options.platform === "win" ? updateBaseUrl : "", "Unexpected native update feed")
     for (const executable of ["launcher", "bun"]) validateNativeExecutable(tar(tarFile, bin + executable + (options.platform === "win" ? ".exe" : "")), options.platform, options.arch)
     // 2.0.7 ищет updater в native core рядом с launcher (updaterNative.ts: exeDir), без библиотеки обновление не стартует.
     const core = options.platform === "win" ? "ElectrobunCore.dll" : "libElectrobunCore." + (options.platform === "macos" ? "dylib" : "so")
@@ -135,7 +138,7 @@ export async function inspectElectrobunRelease(directory: string, options: Optio
     if (options.platform === "win") {
       const keys = Object.entries(updatePublicKeys)
       assert.ok(keys.length && keys.every(([id, pem]) => main.includes(id) && main.includes(pem.split("\n")[1])), "Trusted update keys missing from bundle")
-      assert.ok(main.includes("MAINER4IK/Xneon-Launcher-bun"), "Personal update feed missing")
+      assert.ok(main.includes(resolveRepositoryIdentity()), "Update feed of the build repository missing")
       assert.ok(!main.includes("XNLC_UPDATE_PRIVATE_KEY"), "Signing code must not be bundled")
       const zipFile = path.join(directory, value.installer)
       const entries = (await listArchiveEntries(zipFile)).filter(entry => !entry.directory).map(entry => entry.name).sort()

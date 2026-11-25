@@ -50,11 +50,17 @@ GUI/install E2E на Unix остаётся отдельной ручной пр�
 обновления читаются напрямую из плоских URL GitHub Releases — никакого API,
 фиксированного порта или внешнего сервера:
 
-- **stable**: `https://github.com/MAINER4IK/Xneon-Launcher-bun/releases/latest/download`
+- **stable**: `https://github.com/<owner>/<repo>/releases/latest/download`
   (latest-релиз, prereleases исключаются GitHub).
-- **beta/canary**: `https://github.com/MAINER4IK/Xneon-Launcher-bun/releases/download/canary`
+- **beta/canary**: `https://github.com/<owner>/<repo>/releases/download/canary`
   (rolling-релиз с фиксированным тегом `canary`, помеченный prerelease, чтобы не
   перехватывать «Latest»; пересоздаётся `pre-release.yml` на каждом канареечном релизе).
+
+`<owner>/<repo>` — идентичность текущей сборки: `GITHUB_REPOSITORY` в Actions,
+`XNLC_REPOSITORY` для явной локальной сборки или `origin`/`upstream` Git. Генератор
+`scripts/gen-repository-identity.ts` встраивает её в бандл, поэтому установленная
+сборка не запускает Git и не угадывает владельца. Форк собирает собственный фид без
+правок исходников; allowlist редиректов разрешает только его `releases/download`.
 
 **Канал задаёт сама сборка** (`Resources/version.json.channel`): stable-пакет читает
 `latest/download`, canary — `download/canary`. «Ветка обновлений» в настройках — это канал

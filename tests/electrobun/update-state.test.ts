@@ -10,6 +10,7 @@ import { UnixUpdateStateStore } from "../../electrobun/main/unix-update-state"
 import { UpdateStateStore } from "../../electrobun/main/update-state"
 import { resumeDeferredUpdate } from "../../electrobun/main/update-startup"
 import { appIdentifier } from "../../electrobun/main/app-identity"
+import { updateBaseUrls } from "../../electrobun/main/repository-identity"
 
 const { publicKey, privateKey } = generateKeyPairSync("ed25519")
 const keys = { fixture: publicKey.export({ type: "spki", format: "pem" }).toString() }
@@ -23,7 +24,7 @@ const unixManifest = { schemaVersion: 1, identifier: appIdentifier, platform: "l
 const unixManifestBytes = Buffer.from(JSON.stringify(unixManifest))
 const unixSignature = Buffer.from(JSON.stringify({ keyId: "fixture", signature: sign(null, unixManifestBytes, privateKey).toString("base64") }))
 const unixUpdate: any = { manifest: unixManifest, manifestBytes: unixManifestBytes, signatureBytes: unixSignature,
-  baseUrl: "https://github.com/MAINER4IK/Xneon-Launcher-bun/releases/download/canary" }
+  baseUrl: updateBaseUrls.canary }
 
 const windowsPayload = Buffer.from("installer fixture")
 const windowsManifest = { schemaVersion: 1, identifier: appIdentifier, channel: "canary", version: "1.0.9-pre1", hash: "new123", platform: "win", arch: "x64",

@@ -3,8 +3,8 @@
 <h1 align="center">Xneon Launcher</h1>
 
 <p align="center">
-  <a href="https://github.com/MAINER4IK/Xneon-Launcher-bun/releases/latest"><img height="45" src="./.github/badges/version.svg" alt="Version"></a>&nbsp;
-  <a href="https://github.com/MAINER4IK/Xneon-Launcher-bun/blob/main/LICENSE"><img height="45" src="./.github/badges/license.svg" alt="License"></a>&nbsp;
+  <a href="../../releases/latest"><img height="45" src="./.github/badges/version.svg" alt="Version"></a>&nbsp;
+  <a href="./LICENSE"><img height="45" src="./.github/badges/license.svg" alt="License"></a>&nbsp;
   <img height="45" src="./.github/badges/runtime.svg" alt="Electrobun">
   <br>
   <img height="45" src="./.github/badges/react.svg" alt="React">&nbsp;

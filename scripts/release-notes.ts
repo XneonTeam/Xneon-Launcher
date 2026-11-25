@@ -3,13 +3,12 @@ import { spawnSync } from "node:child_process"
 import { writeFile } from "node:fs/promises"
 import packageJson from "../package.json"
 import { publicationNames } from "./ci-pipeline"
-
-const repository = "MAINER4IK/Xneon-Launcher-bun"
+import { resolveRepositoryIdentity } from "./repository-identity"
 // Simple Icons больше не отдаёт логотип Windows по имени; встраиваем SVG в Shields.
 const windowsLogo = encodeURIComponent('data:image/svg+xml;base64,' + Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="white" d="M1 1h10v10H1zm12 0h10v10H13zM1 13h10v10H1zm12 0h10v10H13z"/></svg>').toString('base64'))
 
 /** Ссылки только на allowlist текущего канала, а не на предполагаемые имена файлов. */
-export function releaseNotes(version: string, subjects: string[]): string {
+export function releaseNotes(version: string, subjects: string[], repository = resolveRepositoryIdentity()): string {
   const names = publicationNames(version)
   const base = `https://github.com/${repository}/releases/download/v${version}/`
   const groups: Record<string, string[]> = { Windows: [], macOS: [], Linux: [] }

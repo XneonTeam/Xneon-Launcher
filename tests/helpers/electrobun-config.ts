@@ -6,7 +6,7 @@ import type { ElectrobunConfig } from "electrobun"
 import packageJson from "../../package.json"
 import * as appIdentity from "../../electrobun/main/app-identity"
 import * as appMeta from "../../lib/app-meta"
-import * as updatePublicKeys from "../../electrobun/main/update-public-keys"
+import * as repositoryIdentity from "../../electrobun/main/repository-identity"
 
 const root = path.resolve(import.meta.dir, "../..")
 
@@ -18,7 +18,7 @@ const localModules: Readonly<Record<string, unknown>> = Object.freeze({
   "./package.json": packageJson,
   "./electrobun/main/app-identity": appIdentity,
   "./lib/app-meta": appMeta,
-  "./electrobun/main/update-public-keys": updatePublicKeys,
+  "./electrobun/main/repository-identity": repositoryIdentity,
 })
 
 export type ElectrobunConfigEnvironment = {

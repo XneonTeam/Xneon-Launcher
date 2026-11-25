@@ -8,10 +8,20 @@ import { compatibilityManifestFileName, manifestFileName, updateInstallerName, t
 import { linuxPackageNames } from "./package-linux"
 import { checksumText, verifyChecksums } from "./artifact-checksums"
 import { releaseTargets } from "./release-targets"
+import { normalizeRepositoryIdentity } from "../lib/repository-identity"
+import { repositoryFromEnvironment, resolveRepositoryIdentity } from "./repository-identity"
 export { checksumText, verifyChecksums }
 
-const repository = "MAINER4IK/Xneon-Launcher-bun"
 const versionPattern = /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})(?:-(?:pre|beta)[1-9]\d{0,8})?$/
+
+/**
+ * Идентичность текущего запуска: сначала окружение (GitHub Actions или явный
+ * `XNLC_REPOSITORY`), затем git remote. В форке это его `owner/repo`, в
+ * официальном репозитории — официальный; хардкода нет.
+ */
+function currentRepository(): string {
+  return repositoryFromEnvironment(process.env) ?? resolveRepositoryIdentity()
+}
 // Опубликованная матрица. Тот же список обязан повторяться в обоих workflow.
 const targets = releaseTargets
 const hasLinux = targets.some(target => target.platform === "linux")
@@ -30,15 +40,22 @@ export function assertReleaseChannel(version: string, expected: ReleaseChannel) 
     `The ${expected} pipeline cannot build ${version}; bump the version or run the ${releaseChannel(version)} pipeline`)
 }
 
-/** Формат prerelease согласован с существующим trusted update verifier. */
+/**
+ * Репозиторий релиза — тот, из которого собрана эта копия. `GITHUB_REPOSITORY`
+ * в Actions и git remote локально дают `owner/repo`; официальный репозиторий и
+ * форк проходят одинаково, а чужой (подменённый) идентификатор — нет.
+ */
 export function releaseIdentity(ref: string, version: string, repo: string) {
-  assert.equal(repo, repository, "Releases require the canonical repository")
+  const expected = currentRepository()
+  assert.equal(normalizeRepositoryIdentity(repo), expected,
+    `This build belongs to ${expected}, not ${repo}; run the release from its own repository`)
   assert.match(version, versionPattern, "Use a stable version, <version>-preN or <version>-betaN")
   assert.equal(ref, "refs/tags/v" + version, "Tag must match the actual package version")
   return { tag: "v" + version, version, prerelease: version.includes("-") }
 }
 
 async function api(resource: string) {
+  const repository = currentRepository()
   const response = await fetch(`https://api.github.com/repos/${repository}/${resource}`, {
     headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${process.env.GH_TOKEN}`, "X-GitHub-Api-Version": "2022-11-28" },
   })
@@ -65,7 +82,8 @@ async function outputs(values: Record<string, unknown>) {
 }
 
 export async function guardReleaseTag() {
-  const release = releaseIdentity(process.env.GITHUB_REF!, packageJson.version, process.env.GITHUB_REPOSITORY!)
+  const repository = currentRepository()
+  const release = releaseIdentity(process.env.GITHUB_REF!, packageJson.version, process.env.GITHUB_REPOSITORY ?? repository)
   assert.equal(await tagCommit(release.tag), process.env.GITHUB_SHA, "Release tag moved after validation")
   const existing = await fetch(`https://api.github.com/repos/${repository}/releases/tags/${encodeURIComponent(release.tag)}`, {
     headers: { Authorization: `Bearer ${process.env.GH_TOKEN}`, Accept: "application/vnd.github+json" },
@@ -250,7 +268,7 @@ export async function releaseCli(expected: ReleaseChannel) {
   const [action, input, output] = Bun.argv.slice(2)
   if (action === "channel") console.log(expected)
   else if (action === "identity") {
-    await outputs(releaseIdentity(process.env.GITHUB_REF!, version, process.env.GITHUB_REPOSITORY!))
+    await outputs(releaseIdentity(process.env.GITHUB_REF!, version, process.env.GITHUB_REPOSITORY ?? currentRepository()))
   }
   else if (action === "guard-tag") await guardReleaseTag()
   else if (action === "check") await checkCandidates(input, version)

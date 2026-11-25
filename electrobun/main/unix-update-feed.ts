@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
-import { expectedUpdateBaseUrl, updatePublicKeys } from "./update-public-keys"
+import { expectedUpdateBaseUrl } from "./repository-identity"
+import { updatePublicKeys } from "./update-public-keys"
 import { updateFeedGet, updateFeedReadBounded } from "./verified-update-feed"
 import { compareReleaseVersions, manifestFileName, verifySignedUnixUpdateManifest, type UnixUpdateManifest, type UnixUpdateTarget } from "./update-manifest"
 

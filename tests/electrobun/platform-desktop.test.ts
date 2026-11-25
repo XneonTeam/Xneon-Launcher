@@ -23,7 +23,7 @@ import { launcherEntryUrl } from "../../electrobun/platform/dev-renderer.ts"
 import { loadElectrobunConfig } from "../helpers/electrobun-config.ts"
 import { APP_NAME, APP_USER_AGENT } from "../../lib/app-meta"
 import { appIdentifier } from "../../electrobun/main/app-identity"
-import { updateBaseUrls } from "../../electrobun/main/update-public-keys"
+import { updateBaseUrls } from "../../electrobun/main/repository-identity"
 import packageJson from "../../package.json"
 
 {

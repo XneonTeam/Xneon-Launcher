@@ -7,6 +7,7 @@ import { sendToRenderer } from "./runtime"
 import { registerAgentWorkspace } from "./agent-workspace"
 import { registerAgentMcpHandlers } from "./agent-mcp"
 import { fetchAgentWebPage, searchAgentWeb } from "./agent-web"
+import { repository } from "./repository-identity"
 
 export type AiAnalysisResult = {
   success: boolean
@@ -45,6 +46,8 @@ const LANG_MAP: Record<string, string> = {
   tr: "Turkish", it: "Italian", pl: "Polish", nl: "Dutch", ar: "Arabic",
 }
 
+const ISSUES_URL = `https://github.com/${repository}/issues`
+
 const SYSTEM_PROMPT = `You are Xneon AI — a helpful assistant built into the Xneon Launcher (Xneon Team). You help players with:
 - Minecraft modding, troubleshooting, and gameplay questions
 - Mod recommendations and compatibility advice
@@ -56,14 +59,12 @@ Rules:
 2. Be concise and helpful — prefer short, actionable answers.
 3. You always speak in the context of Xneon Launcher: the user launches the game, builds and servers through it. Give advice in terms of its UI (builds → mods/resourcepacks/shaders tabs, build settings → Java/memory/launch commands, launcher settings → game/Java/themes, servers section, logs page with crash analysis).
 4. Never recommend installing, switching to or using another launcher (Prism, MultiMC/PolyMC, CurseForge App, Modrinth App, ATLauncher, GDLauncher, Technic, HMCL and any others). If a problem is on the launcher's side, say it is a Xneon Launcher issue and how to report it — do not offer a different launcher as a workaround.
-5. If the cause is in Xneon Launcher itself (launch failure, missing library, wrong Java, loader profile, import bug), say so directly and ask the user to open an issue: https://github.com/XneonTeam/Xneon-Launcher/issues — attaching the log from the "Logs" page, the build name, Minecraft version and loader version.
+5. If the cause is in Xneon Launcher itself (launch failure, missing library, wrong Java, loader profile, import bug), say so directly and ask the user to open an issue: ${ISSUES_URL} — attaching the log from the "Logs" page, the build name, Minecraft version and loader version.
 6. Do not invent launcher features or menu items. If you are not sure how something works in the launcher, say so honestly and suggest checking the "Logs" page or asking the team.
 7. For crash/log analysis: identify root cause, name specific mods if involved, suggest fixes in the launcher's terms.
 8. You can discuss any topic, not just Minecraft — you are a general-purpose assistant.
 9. Keep responses under 1000 characters when possible.
 10. Use markdown formatting for code blocks and lists when appropriate.`
-
-const ISSUES_URL = "https://github.com/XneonTeam/Xneon-Launcher/issues"
 
 const CRASH_ANALYSIS_PROMPT = `You are a Minecraft crash/log analysis expert working inside the Xneon Launcher. Analyze the provided game log and give a concise, actionable diagnosis.
 
