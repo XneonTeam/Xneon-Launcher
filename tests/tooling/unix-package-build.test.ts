@@ -7,7 +7,7 @@ import vm from "node:vm"
 import { transformSync } from "esbuild"
 import { stageRoot, stageTarUpdateRoot } from "../../scripts/package-linux"
 import { validateCefPayload } from "../../scripts/unix-native-preflight"
-import { stopUnixProcessGroup } from "../../scripts/unix-process-cleanup"
+import { isProcessGroupGone, stopUnixProcessGroup } from "../../scripts/unix-process-cleanup"
 import { appIdentifier } from "../../electrobun/main/app-identity"
 
 const elf64 = () => {
@@ -140,4 +140,13 @@ test("остановка Unix process group: штатный выход, SIGKILL 
 
   await expect(stopUnixProcessGroup(42, { alive: () => true, signal: () => {}, pause: async () => {} })).rejects.toThrow("remains alive")
   await expect(stopUnixProcessGroup(0)).rejects.toThrow("Invalid process group")
+})
+
+test("process group: EPERM переиспользованного PID считается завершением", () => {
+  expect(isProcessGroupGone({ code: "ESRCH" })).toBe(true)
+  // macOS отвечает EPERM, когда лидер группы вышел и PID занят чужим процессом.
+  expect(isProcessGroupGone({ code: "EPERM" })).toBe(true)
+  expect(isProcessGroupGone({ code: "EINVAL" })).toBe(false)
+  expect(isProcessGroupGone(new Error("boom"))).toBe(false)
+  expect(isProcessGroupGone(undefined)).toBe(false)
 })

@@ -6,17 +6,27 @@ type Controls = {
   pause: () => Promise<void>
 }
 
+/**
+ * Групповой kill теряет доступ к группе, если её лидер вышел, а PID переиспользован
+ * чужим процессом: тогда ядро отвечает EPERM вместо ESRCH. Оба ответа означают, что
+ * нашей группы запуска больше нет, поэтому они не должны валить очистку.
+ */
+export function isProcessGroupGone(error: unknown) {
+  const code = (error as NodeJS.ErrnoException | null | undefined)?.code
+  return code === "ESRCH" || code === "EPERM"
+}
+
 /** Отрицательный PID адресует всю отдельную группу запуска, включая потомков. */
 export async function stopUnixProcessGroup(pid: number, controls?: Controls) {
   assert.ok(Number.isSafeInteger(pid) && pid > 1, "Invalid process group")
   const io = controls ?? {
     alive: () => {
       try { process.kill(-pid, 0); return true }
-      catch (error) { if ((error as NodeJS.ErrnoException).code === "ESRCH") return false; throw error }
+      catch (error) { if (isProcessGroupGone(error)) return false; throw error }
     },
     signal: (signal: "SIGTERM" | "SIGKILL") => {
       try { process.kill(-pid, signal) }
-      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error }
+      catch (error) { if (!isProcessGroupGone(error)) throw error }
     },
     pause: () => Bun.sleep(100),
   }
