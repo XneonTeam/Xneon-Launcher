@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { newestPrereleaseVersion } from "./canary-release-discovery"
 import { expectedUpdateBaseUrl } from "./repository-identity"
 import { updatePublicKeys } from "./update-public-keys"
 import { updateFeedGet, updateFeedReadBounded } from "./verified-update-feed"
@@ -6,14 +7,14 @@ import { compareReleaseVersions, manifestFileName, verifySignedUnixUpdateManifes
 
 export type VerifiedUnixUpdate = { manifest: UnixUpdateManifest; manifestBytes: Buffer; signatureBytes: Buffer; baseUrl: string }
 export type UnixFeedRequest = (url: string, signal: AbortSignal, allowMissing?: boolean) => Promise<Response | null>
-export function unixManifestUrls(target: UnixUpdateTarget) {
-  const base = expectedUpdateBaseUrl(target.channel)
+export function unixManifestUrls(target: UnixUpdateTarget, version?: string) {
+  const base = expectedUpdateBaseUrl(target.channel, version)
   const name = manifestFileName(target)
   return { base, manifestUrl: `${base}/${name}`, signatureUrl: `${base}/${name}.sig` }
 }
 
 export async function resolveVerifiedUnixUpdate(local: { version: string; hash: string; channel: "stable" | "canary" },
-  target: UnixUpdateTarget, options: { request?: UnixFeedRequest; keys?: Readonly<Record<string, string>>; allowChannelSwitch?: boolean; signal?: AbortSignal } = {}): Promise<VerifiedUnixUpdate | null> {
+  target: UnixUpdateTarget, options: { request?: UnixFeedRequest; keys?: Readonly<Record<string, string>>; allowChannelSwitch?: boolean; signal?: AbortSignal; discoverVersion?: (signal: AbortSignal) => Promise<string | null> } = {}): Promise<VerifiedUnixUpdate | null> {
   const switching = local.channel !== target.channel
   assert.ok(!switching || options.allowChannelSwitch === true, "Explicit channel switch is required")
   const keys = options.keys ?? updatePublicKeys
@@ -21,7 +22,11 @@ export async function resolveVerifiedUnixUpdate(local: { version: string; hash: 
   const signal = options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(45_000)]) : AbortSignal.timeout(45_000)
   signal.throwIfAborted()
   const request = options.request ?? updateFeedGet
-  const urls = unixManifestUrls(target)
+  // Canary читает релиз конкретной версии: тег узнаём через discovery (недоверенная
+  // подсказка), содержимое всё равно проверяет подпись манифеста.
+  const discovered = target.channel === "canary" ? await (options.discoverVersion ?? newestPrereleaseVersion)(signal) : undefined
+  if (target.channel === "canary" && !discovered) return null
+  const urls = unixManifestUrls(target, discovered ?? undefined)
   const response = await request(urls.manifestUrl, signal, true)
   if (!response) return null
   assert.ok(response.ok, "Update manifest request failed")
@@ -36,10 +41,10 @@ export async function resolveVerifiedUnixUpdate(local: { version: string; hash: 
   return { manifest, manifestBytes, signatureBytes, baseUrl: urls.base }
 }
 
-export function isTrustedUnixUpdateBase(base: string) {
+export function isTrustedUnixUpdateBase(base: string, channel: "stable" | "canary", version: string) {
   try {
     const url = new URL(base)
     if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) return false
-    return base === expectedUpdateBaseUrl("stable") || base === expectedUpdateBaseUrl("canary")
+    return base === expectedUpdateBaseUrl(channel, version)
   } catch { return false }
 }

@@ -368,6 +368,7 @@ import { ShutdownCoordinator } from "../../electrobun/platform/shutdown.ts"
       "node:os": os,
       "node:path": path,
       "./update-public-keys": { updatePublicKeys: { fixture: publicKey.export({ type: "spki", format: "pem" }) } },
+      "./canary-release-discovery": { newestPrereleaseVersion: async () => "1.0.9-pre1" },
       "./verified-update-feed": {
         manifestUrls: channel => {
           const name = `${channel}-win-x64-update-v2.json`

@@ -1,4 +1,5 @@
 import { APP_USER_AGENT } from "../../lib/app-meta"
+import { newestPrereleaseVersion } from "./canary-release-discovery"
 import { expectedUpdateBaseUrl, isAllowedUpdateRedirect } from "./repository-identity"
 import { updatePublicKeys } from "./update-public-keys"
 import { compareReleaseVersions, verifySignedWindowsUpdateManifest } from "./verified-update-manifest"
@@ -77,8 +78,8 @@ export function installedPreference(channel: PackageChannel): "stable" | "beta" 
 }
 
 /** Плоские URL манифеста/подписи канала (SDK строит их из `baseUrl` точно так же). */
-export function manifestUrls(channel: PackageChannel) {
-  const base = expectedUpdateBaseUrl(channel)
+export function manifestUrls(channel: PackageChannel, version?: string) {
+  const base = expectedUpdateBaseUrl(channel, version)
   const name = `${channel}-win-x64-update-v2.json`
   return { base, manifestUrl: `${base}/${name}`, signatureUrl: `${base}/${name}.sig` }
 }
@@ -94,14 +95,24 @@ export function isNewerRelease(candidate: string, currentVersion: string): boole
 
 /**
  * Канал задаёт сама сборка (`Resources/version.json.channel`): stable-пакет читает
- * `releases/latest/download`, canary — `releases/download/canary`. Манифест и его
+ * `releases/latest/download`, canary — релиз конкретной версии
+ * `releases/download/v<version>`, которую подсказывает GitHub Releases API
+ * (`newestPrereleaseVersion`, недоверенная подсказка тега). Манифест и его
  * подпись проверяются нашим Ed25519-ключом до передачи в SDK. Сеть не нужна,
  * если релиза ещё нет: отсутствующий манифест (404) трактуется как «обновлений нет».
  */
-export async function resolveVerifiedUpdate(currentVersion: string, channel: PackageChannel): Promise<VerifiedUpdate | null> {
+export async function resolveVerifiedUpdate(
+  currentVersion: string,
+  channel: PackageChannel,
+  discover: (signal: AbortSignal) => Promise<string | null> = newestPrereleaseVersion,
+): Promise<VerifiedUpdate | null> {
   if (Object.keys(updatePublicKeys).length === 0) throw new Error("Trusted update signing keys are not configured")
   const signal = AbortSignal.timeout(45_000)
-  const { base, manifestUrl, signatureUrl } = manifestUrls(channel)
+  // Canary: сначала узнаём новейший prerelease-тег, затем читаем его релиз по
+  // точной версии. Discovery — недоверенная подсказка; подпись манифеста решает всё.
+  const discovered = channel === "canary" ? await discover(signal) : undefined
+  if (channel === "canary" && !discovered) return null
+  const { base, manifestUrl, signatureUrl } = manifestUrls(channel, discovered ?? undefined)
   const manifestResponse = await updateFeedGet(manifestUrl, signal, true)
   if (!manifestResponse) return null
   const bytes = await updateFeedReadBounded(manifestResponse, MANIFEST_BYTES)

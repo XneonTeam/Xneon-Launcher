@@ -27,6 +27,7 @@ export function registerUnixUpdater() {
     context: readUnixUpdateContext, store: await unixUpdateStore(),
     resolve: ({ local }, channel, signal) => resolveVerifiedUnixUpdate(local, local.platform === "macos" ? { platform: "macos", arch: "arm64", channel } : { platform: "linux", arch: "x64", channel }, { signal, allowChannelSwitch: channel !== local.channel }),
     download: async (context, update, signal) => (await downloadUnixUpdateFile(update.baseUrl, selectUnixUpdateArtifact(context.installation, update.manifest), path.join(await unixUpdateProfile(), "system-cache/unix-update-downloads"), {
+      channel: update.manifest.channel, version: update.manifest.version,
       signal, onProgress: progress => sendToRenderer("update:progress", progress),
     })).path,
     cleanupDownload: file => rm(path.dirname(file), { recursive: true, force: true }),

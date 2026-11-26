@@ -67,7 +67,7 @@ export function authenticateUnixHelperJob(input: unknown, context: Context, keys
     assert.equal(value.executable, p.join(installation.target, context.platform === "macos" ? "Contents/MacOS/bun" : "bin/bun"), "Update helper executable mismatch")
   }
   selectUnixUpdateArtifact(installation, manifest)
-  const update: VerifiedUnixUpdate = { manifest, manifestBytes, signatureBytes, baseUrl: expectedUpdateBaseUrl(manifest.channel) }
+  const update: VerifiedUnixUpdate = { manifest, manifestBytes, signatureBytes, baseUrl: expectedUpdateBaseUrl(manifest.channel, manifest.version) }
   return { schemaVersion: 1 as const, nonce: value.nonce, parentPid: value.parentPid, profile: value.profile,
     selectedChannel: value.selectedChannel, old: { identifier: old.identifier, platform: old.platform, arch: old.arch, channel: old.channel, version: old.version, hash: old.hash },
     installation: { kind: installation.kind, platform: installation.platform, target: installation.target }, executable: value.executable,

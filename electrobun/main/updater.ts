@@ -33,7 +33,7 @@ function packagedChannel(): PackageChannel {
 /** Установленная сборка должна быть подписанным Windows-пакетом своего канала. */
 async function requireInstalledPackage(): Promise<WindowsUpdateIdentity> {
   const local = await readWindowsUpdateIdentity()
-  if (!local || process.platform !== "win32" || process.arch !== "x64" || local.baseUrl !== expectedUpdateBaseUrl(local.channel)) {
+  if (!local || process.platform !== "win32" || process.arch !== "x64" || local.baseUrl !== expectedUpdateBaseUrl(local.channel, local.version)) {
     throw new Error("unsupported-package")
   }
   return local

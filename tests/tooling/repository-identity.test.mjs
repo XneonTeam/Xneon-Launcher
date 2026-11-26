@@ -9,10 +9,11 @@ const PERSONAL_FORK = "MAINER4IK/Xneon-Launcher-bun"
 const ARBITRARY_FORK = "someone/xneon-launcher-fork"
 /** Публичный RetroAuth — внешняя зависимость с закреплённым SHA-256, не репозиторий сборки. */
 const RETRO_AUTH = "MAINER4IK/RetroAuth-injector"
+const BUILD_VERSION = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version
 
-const urls = repository => ({
+const urls = (repository, version = BUILD_VERSION) => ({
   stable: `https://github.com/${repository}/releases/latest/download`,
-  canary: `https://github.com/${repository}/releases/download/canary`,
+  canary: `https://github.com/${repository}/releases/download/v${version}`,
 })
 
 function walk(directory) {
@@ -70,12 +71,12 @@ describe("repository identity: чистые правила", () => {
   test("Stable и Canary строятся от переданного репозитория, а не от константы", async () => {
     const { updateBaseUrlsFor, expectedUpdateBaseUrlFor, releaseDownloadPathFor } = await import("../../lib/repository-identity.ts")
     for (const repository of [OFFICIAL, PERSONAL_FORK, ARBITRARY_FORK]) {
-      expect(updateBaseUrlsFor(repository)).toEqual(urls(repository))
+      expect(updateBaseUrlsFor(repository, BUILD_VERSION)).toEqual(urls(repository))
       expect(expectedUpdateBaseUrlFor(repository, "stable")).toBe(urls(repository).stable)
-      expect(expectedUpdateBaseUrlFor(repository, "canary")).toBe(urls(repository).canary)
+      expect(expectedUpdateBaseUrlFor(repository, "canary", BUILD_VERSION)).toBe(urls(repository).canary)
       expect(releaseDownloadPathFor(repository)).toBe(`/${repository}/releases/download/`)
     }
-    expect(updateBaseUrlsFor(OFFICIAL).stable).not.toBe(updateBaseUrlsFor(PERSONAL_FORK).stable)
+    expect(updateBaseUrlsFor(OFFICIAL, BUILD_VERSION).stable).not.toBe(updateBaseUrlsFor(PERSONAL_FORK, BUILD_VERSION).stable)
   })
 
   test("allowlist редиректов разрешает только репозиторий текущей сборки", async () => {
@@ -136,7 +137,7 @@ describe("repository identity: официальный репозиторий и 
     const { resolveRepositoryIdentity } = await import("../../scripts/repository-identity.ts")
     // Идентичность встроена генератором из окружения/git, поэтому тест не зависит от владельца.
     expect(repository).toBe(resolveRepositoryIdentity())
-    expect(updateBaseUrls).toEqual(updateBaseUrlsFor(repository))
+    expect(updateBaseUrls).toEqual(updateBaseUrlsFor(repository, BUILD_VERSION))
     expect(expectedUpdateBaseUrl("stable")).toBe(updateBaseUrls.stable)
     expect(expectedUpdateBaseUrl("canary")).toBe(updateBaseUrls.canary)
     expect(Object.isFrozen(updateBaseUrls)).toBe(true)
@@ -146,7 +147,7 @@ describe("repository identity: официальный репозиторий и 
   test("личный и произвольный форк собирают собственные URL, а не официальные", async () => {
     const { updateBaseUrlsFor } = await import("../../lib/repository-identity.ts")
     for (const fork of [PERSONAL_FORK, ARBITRARY_FORK]) {
-      const forkUrls = updateBaseUrlsFor(fork)
+      const forkUrls = updateBaseUrlsFor(fork, BUILD_VERSION)
       expect(forkUrls).toEqual(urls(fork))
       expect(forkUrls.stable).not.toBe(urls(OFFICIAL).stable)
       expect(forkUrls.canary).not.toBe(urls(OFFICIAL).canary)

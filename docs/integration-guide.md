@@ -47,14 +47,16 @@ GUI/install E2E на Unix остаётся отдельной ручной пр�
 ## Обновления без локального bridge
 
 Раньше рабочий апдейтер ходил в локальный HTTP-bridge на фиксированном порту. Сейчас
-обновления читаются напрямую из плоских URL GitHub Releases — никакого API,
-фиксированного порта или внешнего сервера:
+обновления читаются напрямую из плоских URL GitHub Releases — без локального порта и
+внешнего сервера (canary лишь узнаёт номер последнего prerelease через GitHub Releases
+API, см. ниже):
 
 - **stable**: `https://github.com/<owner>/<repo>/releases/latest/download`
   (latest-релиз, prereleases исключаются GitHub).
-- **beta/canary**: `https://github.com/<owner>/<repo>/releases/download/canary`
-  (rolling-релиз с фиксированным тегом `canary`, помеченный prerelease, чтобы не
-  перехватывать «Latest»; пересоздаётся `pre-release.yml` на каждом канареечном релизе).
+- **beta/canary**: `https://github.com/<owner>/<repo>/releases/download/v<version>`
+  (релиз конкретной версии: каждый prerelease публикуется отдельным релизом.
+  Новейший тег `vX.Y.Z-preN` подсказывает GitHub Releases API; доверие даёт
+  только Ed25519-подпись самого манифеста, а не ответ API).
 
 `<owner>/<repo>` — идентичность текущей сборки: `GITHUB_REPOSITORY` в Actions,
 `XNLC_REPOSITORY` для явной локальной сборки или `origin`/`upstream` Git. Генератор
@@ -63,7 +65,7 @@ GUI/install E2E на Unix остаётся отдельной ручной пр�
 правок исходников; allowlist редиректов разрешает только его `releases/download`.
 
 **Канал задаёт сама сборка** (`Resources/version.json.channel`): stable-пакет читает
-`latest/download`, canary — `download/canary`. «Ветка обновлений» в настройках — это канал
+`latest/download`, canary — `download/v<version>`. «Ветка обновлений» в настройках — это канал
 установленной сборки, а не предпочтение. Выбор другой ветки сохраняется отдельно от
 установленной и применяется установкой подписанного установщика другого канала из приложения.
 

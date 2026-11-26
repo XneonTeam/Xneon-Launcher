@@ -116,7 +116,7 @@ export class UnixUpdateStateStore {
     if (local.channel === manifest.channel) assert.ok(compareReleaseVersions(manifest.version, local.version) > 0, "Pending update must be newer")
     const file = this.payloadPath(saved.payload)
     await verifyUnixUpdateFile(file, selectUnixUpdateArtifact(installation, manifest))
-    return { update: { manifest, manifestBytes, signatureBytes, baseUrl: expectedUpdateBaseUrl(manifest.channel) }, path: file, installation, deferred: saved.deferred === true }
+    return { update: { manifest, manifestBytes, signatureBytes, baseUrl: expectedUpdateBaseUrl(manifest.channel, manifest.version) }, path: file, installation, deferred: saved.deferred === true }
   }
   async peek(local: UnixInstalledBuild, installation: UnixInstallation) { await this.queue; return this.inspect(local, installation) }
   defer(local: UnixInstalledBuild, installation: UnixInstallation) {

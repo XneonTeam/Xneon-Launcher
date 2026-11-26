@@ -30,7 +30,7 @@ const controller = createUnixUpdateController({
   context: async () => ({ local, installation }), store,
   resolve: (_context, channel, signal) => resolveVerifiedUnixUpdate(local, { platform: "linux", arch: "x64", channel }, { keys, signal,
     request: async url => new Response(url.endsWith(".sig") ? signature : manifestBytes) }),
-  download: async (_context, update, signal) => (await downloadUnixUpdateFile(update.baseUrl, update.manifest.distributions.appimage!, path.join(root, "downloads"), { signal, request: async () => new Response(bytes) })).path,
+  download: async (_context, update, signal) => (await downloadUnixUpdateFile(update.baseUrl, update.manifest.distributions.appimage!, path.join(root, "downloads"), { channel: update.manifest.channel, version: update.manifest.version, signal, request: async () => new Response(bytes) })).path,
   handoff: async (_context, pending, signal) => {
     assert.equal((await readFile(pending.path)).toString(), bytes.toString())
     const runtime = path.join(root, "runtime-source"), helper = path.join(root, "helper-source")

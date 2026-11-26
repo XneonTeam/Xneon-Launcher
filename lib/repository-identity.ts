@@ -68,20 +68,38 @@ function tryNormalize(value: string): string | null {
   try { return normalizeRepositoryIdentity(value) } catch { return null }
 }
 
-/** Плоские URL-каталоги обновлений конкретного репозитория. */
-export function updateBaseUrlsFor(repository: unknown): Readonly<Record<UpdateChannelKey, string>> {
+/** Версия релиза: `1.0.8`, `1.0.9-pre1`, `1.0.9-beta2`. */
+const RELEASE_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/
+
+/**
+ * Плоский URL-каталог канала обновлений конкретного репозитория. Stable читает
+ * latest-релиз (prereleases исключены GitHub'ом), canary — релиз конкретной
+ * версии: каждый prerelease публикуется самостоятельным релизом, поэтому
+ * фиксированного тега `canary` больше нет.
+ */
+export function updateBaseUrlFor(repository: unknown, channel: UpdateChannelKey, version?: string): string {
   const identity = normalizeRepositoryIdentity(repository)
+  if (channel === "stable") return `https://github.com/${identity}/releases/latest/download`
+  if (channel === "canary") {
+    if (typeof version !== "string" || !RELEASE_VERSION_PATTERN.test(version)) {
+      throw new Error(`Canary update base requires a release version: ${String(version)}`)
+    }
+    return `https://github.com/${identity}/releases/download/v${version}`
+  }
+  throw new Error(`Unknown update channel: ${String(channel)}`)
+}
+
+/** Плоские URL-каталоги обоих каналов для версии одной сборки. */
+export function updateBaseUrlsFor(repository: unknown, version: string): Readonly<Record<UpdateChannelKey, string>> {
   return Object.freeze({
-    stable: `https://github.com/${identity}/releases/latest/download`,
-    canary: `https://github.com/${identity}/releases/download/canary`,
+    stable: updateBaseUrlFor(repository, "stable"),
+    canary: updateBaseUrlFor(repository, "canary", version),
   })
 }
 
 /** База, которую обязана содержать `Resources/version.json` собранного канала. */
-export function expectedUpdateBaseUrlFor(repository: unknown, channel: UpdateChannelKey): string {
-  const base = updateBaseUrlsFor(repository)[channel]
-  if (!base) throw new Error(`Unknown update channel: ${channel}`)
-  return base
+export function expectedUpdateBaseUrlFor(repository: unknown, channel: UpdateChannelKey, version?: string): string {
+  return updateBaseUrlFor(repository, channel, version)
 }
 
 /** Путь `/<owner>/<repo>/releases/download/` для allowlist редиректов. */

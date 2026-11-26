@@ -5,9 +5,11 @@
  * сборки, поэтому runtime не запускает Git, не читает окружение и не угадывает
  * владельца. Отсюда же строятся URL каналов обновлений и allowlist редиректов.
  */
+import packageJson from "../../package.json"
 import {
   isAllowedUpdateRedirectFor,
   releaseDownloadPathFor,
+  updateBaseUrlFor,
   updateBaseUrlsFor,
   type UpdateChannelKey,
 } from "../../lib/repository-identity"
@@ -19,16 +21,20 @@ export type { UpdateChannelKey }
 export const repository = repositoryIdentity
 
 /**
- * Плоские URL-каталоги обновлений текущего репозитория. Stable читает latest-релиз
- * (prereleases исключены GitHub'ом), canary — rolling-релиз с тегом `canary`.
+ * Плоские URL-каталоги каналов для версии этой сборки. Stable читает latest-релиз,
+ * canary — релиз конкретной версии: каждый prerelease публикуется отдельным
+ * релизом, поэтому фиксированного тега `canary` больше нет.
  */
-export const updateBaseUrls = Object.freeze(updateBaseUrlsFor(repository))
+export const updateBaseUrls = Object.freeze(updateBaseUrlsFor(repository, packageJson.version))
+
+/** База канала обновлений; у canary она версионная и зависит от конкретного релиза. */
+export function updateBaseUrl(channel: UpdateChannelKey, version = packageJson.version): string {
+  return updateBaseUrlFor(repository, channel, version)
+}
 
 /** База, которую обязана содержать `Resources/version.json` собранного канала. */
-export function expectedUpdateBaseUrl(channel: UpdateChannelKey): string {
-  const base = updateBaseUrls[channel]
-  if (!base) throw new Error(`Unknown update channel: ${channel}`)
-  return base
+export function expectedUpdateBaseUrl(channel: UpdateChannelKey, version = packageJson.version): string {
+  return updateBaseUrl(channel, version)
 }
 
 /** Путь `/<owner>/<repo>/releases/download/` для allowlist редиректов. */

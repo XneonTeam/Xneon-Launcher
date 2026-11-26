@@ -7,6 +7,7 @@ import path from "node:path"
 import { Readable } from "node:stream"
 import { pipeline } from "node:stream/promises"
 import type { IpcEventMap } from "@xnlc/types"
+import { newestPrereleaseVersion } from "./canary-release-discovery"
 import { updatePublicKeys } from "./update-public-keys"
 import { manifestUrls, updateFeedGet, updateFeedReadBounded, type PackageChannel } from "./verified-update-feed"
 import { verifySignedWindowsUpdateManifest } from "./verified-update-manifest"
@@ -31,7 +32,9 @@ export async function downloadChannelInstaller(
   expected?: { version: string; hash: string },
 ): Promise<ChannelInstaller> {
   const signal = AbortSignal.timeout(180_000)
-  const { base, manifestUrl, signatureUrl } = manifestUrls(channel)
+  const discovered = channel === "canary" ? expected?.version ?? await newestPrereleaseVersion(signal) : undefined
+  if (channel === "canary" && !discovered) throw new Error("No canary release found")
+  const { base, manifestUrl, signatureUrl } = manifestUrls(channel, discovered ?? undefined)
   const manifestResponse = await updateFeedGet(manifestUrl, signal)
   if (!manifestResponse) throw new Error("Update manifest is missing")
   const bytes = await updateFeedReadBounded(manifestResponse, MAX_MANIFEST_BYTES)

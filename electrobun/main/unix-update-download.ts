@@ -14,10 +14,11 @@ export async function assertUpdateFreeSpace(directory: string, required: number)
 
 /** Выходной файл становится доступен только после проверки полного потока и fsync. */
 export async function downloadUnixUpdateFile(base: string, artifact: UnixUpdateFile, root: string, options: {
+  channel: "stable" | "canary"; version: string
   request?: UnixFeedRequest; signal?: AbortSignal
   onProgress?: (value: { percent: number; transferred: number; total: number }) => void
-} = {}) {
-  assert.ok(isTrustedUnixUpdateBase(base), "Untrusted update download origin")
+}) {
+  assert.ok(isTrustedUnixUpdateBase(base, options.channel, options.version), "Untrusted update download origin")
   assert.ok(typeof artifact.file === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,200}$/.test(artifact.file) && artifact.file !== "..", "Unsafe update filename")
   assert.ok(Number.isSafeInteger(artifact.downloadSize) && artifact.downloadSize > 0 && artifact.downloadSize <= UPDATE_MAX_BYTES, "Invalid update download size")
   assert.match(artifact.downloadSha256, /^[a-f0-9]{64}$/)

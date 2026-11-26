@@ -127,7 +127,7 @@ export async function inspectElectrobunRelease(directory: string, options: Optio
     const local = JSON.parse(tar(tarFile, resources + "version.json").toString())
     assert.equal(local.displayName, APP_NAME)
     for (const key of ["identifier", "version", "channel", "hash"]) assert.equal(local[key], current[key], "Unexpected bundled " + key)
-    const updateBaseUrl = expectedUpdateBaseUrlFor(resolveRepositoryIdentity(), options.channel)
+    const updateBaseUrl = expectedUpdateBaseUrlFor(resolveRepositoryIdentity(), options.channel, value.version)
     assert.equal(local.baseUrl, options.platform === "win" ? updateBaseUrl : "", "Unexpected native update feed")
     for (const executable of ["launcher", "bun"]) validateNativeExecutable(tar(tarFile, bin + executable + (options.platform === "win" ? ".exe" : "")), options.platform, options.arch)
     // 2.0.7 ищет updater в native core рядом с launcher (updaterNative.ts: exeDir), без библиотеки обновление не стартует.

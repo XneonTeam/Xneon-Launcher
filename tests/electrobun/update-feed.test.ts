@@ -59,14 +59,14 @@ test("новая версия обнаруживается, равная/ста�
   for (const version of ["1.0.8", "1.0.7"]) assert.equal(await resolveVerifiedUnixUpdate(local, target, responses(version)), null)
   assert.equal(await resolveVerifiedUnixUpdate(local, target, { keys, request: async () => null }), null)
   const canary = { ...target, channel: "canary" as const }
-  const options = responses("1.0.7-pre1", "canary")
+  const options = { ...responses("1.0.7-pre1", "canary"), discoverVersion: async () => "1.0.7-pre1" }
   await assert.rejects(resolveVerifiedUnixUpdate(local, canary, options), /channel/)
   assert.equal((await resolveVerifiedUnixUpdate(local, canary, { ...options, allowChannelSwitch: true }))?.manifest.channel, "canary")
 })
 
 test("скачивание Unix-обновления принимает только официальные base URL каналов", () => {
-  assert.equal(isTrustedUnixUpdateBase(unixManifestUrls(target).base), true)
-  assert.equal(isTrustedUnixUpdateBase(unixManifestUrls({ ...target, channel: "canary" }).base), true)
-  assert.equal(isTrustedUnixUpdateBase(`https://github.com/${repository}/releases/download/v1.0.8`), false)
-  assert.equal(isTrustedUnixUpdateBase(`http://github.com/${repository}/releases/latest/download`), false)
+  assert.equal(isTrustedUnixUpdateBase(unixManifestUrls(target).base, "stable", local.version), true)
+  assert.equal(isTrustedUnixUpdateBase(unixManifestUrls({ ...target, channel: "canary" }, "1.0.9-pre1").base, "canary", "1.0.9-pre1"), true)
+  assert.equal(isTrustedUnixUpdateBase(`https://github.com/${repository}/releases/download/v1.0.8`, "canary", "1.0.9-pre1"), false)
+  assert.equal(isTrustedUnixUpdateBase(`http://github.com/${repository}/releases/latest/download`, "stable", "1.0.8"), false)
 })
