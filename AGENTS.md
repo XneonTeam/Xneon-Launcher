@@ -44,7 +44,10 @@ UI получает только `PublicAccount`, сессиями владее�
 
 - `XNLC_NEWS_URL` — адрес ленты новостей лаунчера (`fetch:launcher-news`). По умолчанию `https://launcher.xneon.org/news.json`.
 - `XNLC_LIVEOPS_URL` — переопределение origin сервиса событийных тем (HTTPS, HTTP только для localhost); по умолчанию `https://liveops.xneon.org`, явно пустая строка отключает сеть LiveOps. Контроллер — `electrobun/main/liveops.ts`, кэш — `<userData>/event-theme-cache`, настройка `eventTheme` отдельна от `customThemes`. Ручной выбор через `liveops:select`/`settings:set("theme")` проходит через main.
+- `XNLC_SHARE_URL` — адрес XNLC/Share API. По умолчанию `https://share.xneon.org`, пустое/пробельное значение возвращает это же умолчание, хвостовые слэши снимаются; `bun run dev:share` явно ставит `http://127.0.0.1:8787`. Сохранённый в `settings.share.credentials` адрес **не** задаёт сервис: запись используется только как токен для того же адреса, поэтому после смены хоста Share получает новый токен. Разбор адреса — `electrobun/main/share/service-url.ts`; запросы обязаны нести `User-Agent` лаунчера (`electrobun/main/share/http.ts`, `ShareApiClient`), иначе Cloudflare отвечает HTML-страницей challenge с 403.
 - `ANYSEARCH_API_KEY` — необязательный ключ AnySearch API (`https://api.anysearch.com/v1/search`) для инструмента агента `web_search` (`agent:web-search`). Анонимные запросы работают с меньшими лимитами и квотой; ключ их повышает. `web_fetch` локальный и от ключа не зависит. Прокси из окружения (`HTTPS_PROXY` и подобные) намеренно не используется, чтобы не обходить проверку адресов.
+- `CF_API_KEY` — необязательный override ключа CurseForge API; `CURSEFORGE_API_KEY` — совместимое имя. Оба читает `curseforgeApiKey()` (`@xnlc/mods`), поэтому каталог модов и установка модпаков из Share используют один ключ; без override берётся встроенный в сборку.
+- `XN_VERBOSE_LOGS` — `true` включает подробный журнал runtime (`electrobun/main/runtime.ts`) и диагностику Java-запуска (`@xnlc/core`); по умолчанию выключен.
 
 ## Build pipeline
 

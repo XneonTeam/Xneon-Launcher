@@ -218,6 +218,15 @@ Progress переносит `messageKey`/параметры и переводи�
 
 Share: домен — `packages/xnlc-share` (манифесты, ветки, слияние, файловые транзакции).
 Это не Electron preload API.
+Адрес API — `https://share.xneon.org` (`SERVICE_URLS.share`), переопределяется только
+`XNLC_SHARE_URL`; сохранённый в `settings.share.credentials` адрес сервис не задаёт и
+служит лишь признаком, что токен выдан этому же хосту (`electrobun/main/share/service-url.ts`).
+Запросы Share обязаны нести `User-Agent` лаунчера (`shareHeaders` в
+`electrobun/main/share/http.ts`, `ShareApiClient`): без него Cloudflare перед доменом
+отдаёт HTML-страницу challenge с 403, и вместо JSON приходит ошибка разбора.
+Установка из Share разрешает файлы CurseForge тем же ключом, что и каталог модов
+(`curseforgeApiKey` из `@xnlc/mods`): `CF_API_KEY`, затем `CURSEFORGE_API_KEY`,
+затем встроенный ключ сборки. Без ключа источник отвечает `SOURCE_AUTH`.
 Сохранение инкрементальное; immutable commits не копируются со всеми манифестами
 при каждой смене роли. Сетевое тело не держит metadata queue, но ACL, квоты и GC
 остаются в её критической секции. Полный GET сохраняет прежний контракт полной истории.

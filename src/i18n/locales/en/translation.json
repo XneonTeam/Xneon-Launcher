@@ -2629,7 +2629,7 @@
   "share.flow.stage.index": "Updating installed content",
   "share.flow.contentCategories": "Change categories",
   "share.flow.otherChanges": "Other",
-  "share.errors.SERVICE_UNAVAILABLE": "Share service is not configured.",
+  "share.errors.SERVICE_UNAVAILABLE": "Share service is unavailable. Try again later.",
   "share.errors.WRONG_ACCOUNT": "This instance is linked to another launcher installation.",
   "share.errors.INVITE": "Invitation is invalid, revoked or expired.",
   "share.errors.NOT_READY": "Instance has not been published.",

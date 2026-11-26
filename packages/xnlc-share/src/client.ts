@@ -3,6 +3,21 @@ import { ShareError } from "./types.js"
 import { readBounded, type FetchPort } from "./sources.js"
 import { MAX_FILE_BYTES, fail } from "./manifest.js"
 
+declare const XNLC_APPLICATION_USER_AGENT: string | undefined
+const USER_AGENT = typeof XNLC_APPLICATION_USER_AGENT === "string" ? XNLC_APPLICATION_USER_AGENT : "xnlc-share"
+
+/**
+ * Ошибка для ответа, который нельзя прочитать как JSON. Так отвечает
+ * Cloudflare challenge (Cf-Mitigated: challenge) и ошибочный шлюз;
+ * клиент должен назвать причину, а не падать на JSON.parse.
+ */
+export function unreadableShareResponse(status: number, mitigated: string | null, body: string): ShareError {
+  const challenged = mitigated === "challenge" || ((status === 403 || status === 503) && /^\s*<(!doctype\s+html|html)/i.test(body))
+  return challenged
+    ? new ShareError("SERVICE_UNAVAILABLE", "Share API refused the launcher client (Cloudflare challenge)")
+    : new ShareError("HTTP", `Share API returned an unreadable response (${status})`)
+}
+
 export class ShareApiClient implements ShareTransport {
   private base: string
   private signal?: AbortSignal
@@ -14,7 +29,7 @@ export class ShareApiClient implements ShareTransport {
   }
   setSignal(signal?: AbortSignal): void { this.signal = signal }
   private async request(path: string, method = "GET", body?: unknown, onUpload?: (transferred: number) => void): Promise<Response> {
-    const headers: Record<string, string> = { Authorization: `Bearer ${await this.token()}` }
+    const headers: Record<string, string> = { Accept: "application/json", "User-Agent": USER_AGENT, Authorization: `Bearer ${await this.token()}` }
     if (body && !(body instanceof Uint8Array)) headers["Content-Type"] = "application/json"
     let requestBody: BodyInit | undefined = body instanceof Uint8Array ? body as BodyInit : body === undefined ? undefined : JSON.stringify(body)
     if (body instanceof Uint8Array && onUpload) {
@@ -30,9 +45,21 @@ export class ShareApiClient implements ShareTransport {
     const timeout = AbortSignal.timeout(120000)
     const signal = this.signal ? AbortSignal.any([timeout, this.signal]) : timeout
     const init: RequestInit & { duplex?: "half" } = { method, headers, body: requestBody, redirect: "error", signal, ...(onUpload && body instanceof Uint8Array ? { duplex: "half" as const } : {}) }
-    const response = await this.fetcher(this.base + "/v1" + path, init)
+    let response: Response
+    try {
+      response = await this.fetcher(this.base + "/v1" + path, init)
+    } catch (error) {
+      // Отмена по signal остаётся отменой; всё прочее — недоступность сервиса.
+      if (error && typeof error === "object" && (error as { name?: string }).name === "AbortError") throw error
+      const reason = error instanceof Error ? error.message : String(error)
+      throw new ShareError("SERVICE_UNAVAILABLE", `Share API is unreachable: ${reason}`)
+    }
     if (!response.ok) {
-      const error = await response.json().catch(() => ({})) as { error?: { code?: string; message?: string } }
+      const text = await response.text()
+      let error: { error?: { code?: string; message?: string } } = {}
+      try { error = JSON.parse(text) as typeof error } catch {
+        throw unreadableShareResponse(response.status, response.headers.get("cf-mitigated"), text)
+      }
       throw new ShareError(error.error?.code ?? "HTTP", error.error?.message ?? `Share API returned ${response.status}`)
     }
     return response

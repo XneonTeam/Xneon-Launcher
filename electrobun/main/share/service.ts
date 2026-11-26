@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto"
 import fs from "node:fs/promises"
 import { inspectExternalObject } from "@xnlc/share"
+import { curseforgeApiKey } from "@xnlc/mods"
 import { branchHistory, parseInvitation } from "@xnlc/share"
 import { ShareSystem, ShareApiClient, ModrinthSource, CurseForgeSource, ShareError, diff, validateManifest, type Manifest, type UpdatePreview, type ScanResult } from "@xnlc/share"
 import type { ShareRequest, ShareResponse, ShareLink, ShareContentPresentation } from "@xnlc/types"
@@ -117,7 +118,7 @@ export async function executeShare(input: ShareRequest, progress: (event: { stag
     if (!isGameDirActive(directory)) await files.recover()
     let system = systems.get(build.id)?.directory === directory ? systems.get(build.id)!.system : undefined
     if (!system) {
-      system = new ShareSystem({ files, hash, remote: new ShareApiClient(c.url, async () => (await config()).token, fetch), sources: [new ModrinthSource(fetch), new CurseForgeSource(fetch, process.env.CURSEFORGE_API_KEY || "", hash)], now: () => new Date().toISOString(), progress,
+      system = new ShareSystem({ files, hash, remote: new ShareApiClient(c.url, async () => (await config()).token, fetch), sources: [new ModrinthSource(fetch), new CurseForgeSource(fetch, curseforgeApiKey(), hash)], now: () => new Date().toISOString(), progress,
         inspectExternal: inspectExternalObject,
         localSource: async (_file, hashes) => {
           const row = hashes.sha1 ? (await dbHelpers.getResources([hashes.sha1]))[0] : undefined

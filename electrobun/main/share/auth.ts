@@ -3,19 +3,28 @@ import { createHash, generateKeyPairSync, sign } from "node:crypto"
 import { ShareApiClient, ShareError, selectShareAccount } from "@xnlc/share"
 import { dbHelpers } from "../../db"
 import { run } from "../../db/core"
-import { SERVICE_URLS } from "@xnlc/urls"
+import { credentialsForShareUrl, resolveShareUrl } from "./service-url"
+import { readShareJson, shareFetch, shareHeaders, shareHttpError } from "./http"
 
 interface Credentials { url: string; token: string; userId?: string; expiresAt?: number; name?: string }
 interface Configuration { url: string; token: string; userId: string; name: string }
 let connecting: Promise<Configuration> | undefined
-const DEFAULT_SHARE_URL = SERVICE_URLS.share
+
+function savedCredentials(raw: string | null | undefined): Credentials | undefined {
+  if (!raw) return undefined
+  try {
+    const parsed = JSON.parse(raw) as Credentials
+    return parsed && typeof parsed === "object" ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
 
 async function storedConfiguration() {
-  const raw = await dbHelpers.getSetting("share.credentials")
-  const stored = raw ? JSON.parse(raw) as Credentials : undefined
-  const url = (process.env.XNLC_SHARE_URL || stored?.url || DEFAULT_SHARE_URL).replace(/\/$/, "")
-  if (url) new ShareApiClient(url, async () => "", fetch)
-  return { url, stored: stored?.url === url ? stored : undefined }
+  const url = resolveShareUrl(process.env.XNLC_SHARE_URL)
+  new ShareApiClient(url, async () => "", fetch)
+  const stored = credentialsForShareUrl(savedCredentials(await dbHelpers.getSetting("share.credentials")), url)
+  return { url, stored }
 }
 async function identity() {
   const raw = await dbHelpers.getSetting("share.identity")
@@ -26,9 +35,9 @@ async function identity() {
   return keys
 }
 async function exchange(url: string, body: unknown, endpoint: string, legacyToken?: string) {
-  const response = await fetch(url + "/v1/auth/" + endpoint, { method: "POST", redirect: "error", signal: AbortSignal.timeout(30000), headers: { "Content-Type": "application/json", ...(legacyToken ? { Authorization: `Bearer ${legacyToken}` } : {}) }, body: JSON.stringify(body) })
-  const data = await response.json()
-  if (!response.ok) throw new ShareError(data.error?.code ?? "HTTP", data.error?.message ?? "Share connection failed")
+  const response = await shareFetch(url + "/v1/auth/" + endpoint, { method: "POST", redirect: "error", signal: AbortSignal.timeout(30000), headers: shareHeaders({ "Content-Type": "application/json", ...(legacyToken ? { Authorization: `Bearer ${legacyToken}` } : {}) }), body: JSON.stringify(body) })
+  const data = await readShareJson(response)
+  if (!response.ok) throw shareHttpError(data, "Share connection failed")
   return data
 }
 export async function shareConfiguration(): Promise<Configuration> {
@@ -54,13 +63,13 @@ export async function shareConfiguration(): Promise<Configuration> {
 }
 export async function shareRequest(endpoint: string, method = "GET", body?: unknown, retry = true): Promise<any> {
   const c = await shareConfiguration()
-  const response = await fetch(c.url + "/v1" + endpoint, { method, redirect: "error", signal: AbortSignal.timeout(30000), headers: { Authorization: `Bearer ${c.token}`, "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) })
+  const response = await shareFetch(c.url + "/v1" + endpoint, { method, redirect: "error", signal: AbortSignal.timeout(30000), headers: shareHeaders({ Authorization: `Bearer ${c.token}`, "Content-Type": "application/json" }), body: body === undefined ? undefined : JSON.stringify(body) })
   if (response.status === 401 && retry) {
     await dbHelpers.setSetting("share.credentials", JSON.stringify({ url: c.url, token: "" }))
     return shareRequest(endpoint, method, body, false)
   }
-  const result = await response.json()
-  if (!response.ok) throw new ShareError(result.error?.code ?? "HTTP", result.error?.message ?? "Share API request failed")
+  const result = await readShareJson(response)
+  if (!response.ok) throw shareHttpError(result, "Share API request failed")
   return result
 }
 export async function shareSession() {

@@ -2657,7 +2657,7 @@
   "share.flow.stage.index": "Обновление списка контента",
   "share.flow.contentCategories": "Категории изменений",
   "share.flow.otherChanges": "Остальное",
-  "share.errors.SERVICE_UNAVAILABLE": "Сервис Share не настроен.",
+  "share.errors.SERVICE_UNAVAILABLE": "Сервис Share недоступен. Попробуйте позже.",
   "share.errors.WRONG_ACCOUNT": "Эта сборка привязана к другой установке лаунчера.",
   "share.errors.INVITE": "Приглашение недействительно, отозвано или истекло.",
   "share.errors.NOT_READY": "Сборка ещё не опубликована.",
