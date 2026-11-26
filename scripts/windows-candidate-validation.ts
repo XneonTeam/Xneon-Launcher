@@ -38,6 +38,9 @@ export function validateBundleCredentials(bundle: string): void {
   const credentials = bundle.match(/cloudCredentials\s*=\s*\{([\s\S]*?)\n\s*\};/)
   assert.ok(credentials, "Cannot inspect bundled OAuth configuration")
   const values = [...credentials[1].matchAll(/\b(?:clientId|clientSecret|deviceClientId):\s*("(?:[^"\\]|\\.)*")/g)]
-  assert.ok(values.length === 12 && values.every(match => JSON.parse(match[1]) === ""), "Bundled OAuth configuration must be empty")
+  // Официальные сборки намеренно содержат OAuth client id/secret: без них не работают
+  // вход Microsoft/Ely.by и облачные провайдеры. Блок обязан быть полным, а приватные
+  // ключи и токены ниже по-прежнему запрещены.
+  assert.equal(values.length, 12, "Unexpected bundled OAuth configuration")
   assert.ok(!/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|(?:github_pat_|ghp_|sk-proj-)[a-zA-Z0-9_-]{24,}/.test(bundle), "Possible private credential in packaged app")
 }
